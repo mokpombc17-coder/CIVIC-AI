@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-07-23T07:51:39.086Z" hostname="junseokui-MacBookPro.local" time="0.022">
+  <properties/>
+  <testcase name="[1] codePoints = &quot;1&quot;, expectedCost = &quot;1&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.003"/>
+  <testcase name="[2] codePoints = &quot;50&quot;, expectedCost = &quot;1&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.0"/>
+  <testcase name="[3] codePoints = &quot;51&quot;, expectedCost = &quot;2&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.001"/>
+  <testcase name="[4] codePoints = &quot;100&quot;, expectedCost = &quot;2&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.001"/>
+  <testcase name="[5] codePoints = &quot;101&quot;, expectedCost = &quot;3&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.001"/>
+  <testcase name="[6] codePoints = &quot;200&quot;, expectedCost = &quot;3&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.001"/>
+  <testcase name="[7] codePoints = &quot;201&quot;, expectedCost = &quot;4&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.0"/>
+  <testcase name="[8] codePoints = &quot;500&quot;, expectedCost = &quot;4&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.001"/>
+  <testcase name="[9] codePoints = &quot;501&quot;, expectedCost = &quot;5&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.001"/>
+  <testcase name="[10] codePoints = &quot;2000&quot;, expectedCost = &quot;5&quot;" classname="com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

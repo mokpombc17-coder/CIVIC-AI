@@ -1,0 +1,12 @@
+package com.hamcheeze.chat.application;
+
+public enum ChatCommandRejectedCode {
+    EMPTY_MESSAGE,
+    INVALID_CLIENT_MESSAGE_ID,
+    INVALID_CONTROL_CHARACTER,
+    MESSAGE_TOO_LONG,
+    MESSAGE_TOO_LARGE,
+    ROOM_SEND_FORBIDDEN,
+    USER_RATE_LIMITED,
+    SERVER_BUSY
+}

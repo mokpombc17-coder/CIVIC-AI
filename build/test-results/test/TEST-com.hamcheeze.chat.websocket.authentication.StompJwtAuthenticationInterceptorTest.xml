@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptorTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-07-23T07:51:38.777Z" hostname="junseokui-MacBookPro.local" time="0.14">
+  <properties/>
+  <testcase name="failsClosedWhenDecoderIsUnavailable()" classname="com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptorTest" time="0.094"/>
+  <testcase name="doesNotAuthenticateNonConnectFrames()" classname="com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptorTest" time="0.039"/>
+  <testcase name="authenticatesOnlyConnectAndUsesJwtSubjectAsPrincipal()" classname="com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptorTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

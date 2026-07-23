@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptorTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-07-23T07:51:39.077Z" hostname="junseokui-MacBookPro.local" time="0.009">
+  <properties/>
+  <testcase name="rejectsMissingOrDisabledHeartbeat()" classname="com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptorTest" time="0.004"/>
+  <testcase name="acceptsContractHeartbeat()" classname="com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptorTest" time="0.0"/>
+  <testcase name="leavesDisabledDestinationForSubscriptionPolicy()" classname="com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptorTest" time="0.001"/>
+  <testcase name="rejectsDirectTopicSend()" classname="com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptorTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

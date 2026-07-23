@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-07-23T07:51:39.109Z" hostname="junseokui-MacBookPro.local" time="0.053">
+  <properties/>
+  <testcase name="concurrentPendingReservationsNeverExceedBurstLimit()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.024"/>
+  <testcase name="pendingGlobalEntriesDoNotExpireDuringWindowCleanup()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.004"/>
+  <testcase name="rollbackAfterRefillAndAnotherCommitDoesNotCreateTokens()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.001"/>
+  <testcase name="busyRollbackReturnsUserAndGlobalCapacity()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.001"/>
+  <testcase name="sustainedWindowRejectsTheFiveHundredAndFirstCommand()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.016"/>
+  <testcase name="commitAndCloseAreIdempotent()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.001"/>
+  <testcase name="userLimitHasPriorityWhenBothLimitsAreExceeded()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.002"/>
+  <testcase name="pendingBucketIsNotEvictedByTtl()" classname="com.hamcheeze.chat.websocket.ratelimit.InMemoryChatAdmissionLimiterTest" time="0.001"/>
+  <system-out><![CDATA[2026-07-23T16:51:39.121+09:00  INFO 8348 --- [chat-server] [pool-2-thread-6] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-59, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.121+09:00  INFO 8348 --- [chat-server] [pool-2-thread-9] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-61, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [ool-2-thread-14] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-72, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [ool-2-thread-16] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-76, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.121+09:00  INFO 8348 --- [chat-server] [pool-2-thread-7] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-38, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-8] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-106, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.121+09:00  INFO 8348 --- [chat-server] [ool-2-thread-10] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-63, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.121+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-65, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.121+09:00  INFO 8348 --- [chat-server] [ool-2-thread-12] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-67, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-7] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-117, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-8] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-118, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-14] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-120, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.121+09:00  INFO 8348 --- [chat-server] [ool-2-thread-13] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-70, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-74, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-123, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-3] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-77, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-13] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-128, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-129, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-1] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-84, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-5] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-111, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-4] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-112, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-115, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [pool-2-thread-5] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-135, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-6] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-116, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-4] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-136, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-5] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-138, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.122+09:00  INFO 8348 --- [chat-server] [pool-2-thread-9] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-121, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-10] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-122, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-16] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-119, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-5] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-141, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [pool-2-thread-7] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-125, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [ool-2-thread-16] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-143, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [pool-2-thread-8] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-126, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-12] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-124, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-130, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [pool-2-thread-3] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-131, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [pool-2-thread-8] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-148, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [ool-2-thread-12] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-149, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-150, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [pool-2-thread-3] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-151, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-154, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-14] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-127, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [pool-2-thread-3] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-155, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [pool-2-thread-8] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-152, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-13] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-132, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [ool-2-thread-14] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-157, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-133, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.123+09:00  INFO 8348 --- [chat-server] [pool-2-thread-1] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-134, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-137, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-6] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-139, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-162, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-4] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-140, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-9] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-142, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [ool-2-thread-10] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-144, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-5] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-145, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [pool-2-thread-7] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-146, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.124+09:00  INFO 8348 --- [chat-server] [ool-2-thread-16] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-147, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [ool-2-thread-12] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-153, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-156, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [pool-2-thread-8] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-159, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [pool-2-thread-3] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-158, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.125+09:00  INFO 8348 --- [chat-server] [ool-2-thread-13] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-160, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-174, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [ool-2-thread-14] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-161, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [pool-2-thread-1] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-163, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-164, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-166, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [ool-2-thread-14] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-179, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-181, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-182, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-184, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-185, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [pool-2-thread-6] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-165, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-186, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [pool-2-thread-4] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-167, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [pool-2-thread-9] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-168, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-189, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [ool-2-thread-10] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-169, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-4] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-190, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-192, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [ool-2-thread-10] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-193, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [pool-2-thread-5] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-170, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-4] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-194, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [ool-2-thread-16] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-172, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.129+09:00  INFO 8348 --- [chat-server] [pool-2-thread-2] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-195, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.129+09:00  INFO 8348 --- [chat-server] [pool-2-thread-4] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-198, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [pool-2-thread-7] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-171, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.126+09:00  INFO 8348 --- [chat-server] [ool-2-thread-12] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-173, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [pool-2-thread-8] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-175, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [pool-2-thread-3] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-176, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [ool-2-thread-13] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-177, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [ool-2-thread-11] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-178, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.127+09:00  INFO 8348 --- [chat-server] [ool-2-thread-14] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-183, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-1] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-180, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [ool-2-thread-15] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-187, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-6] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-188, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.128+09:00  INFO 8348 --- [chat-server] [pool-2-thread-9] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-191, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.129+09:00  INFO 8348 --- [chat-server] [ool-2-thread-10] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-196, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.129+09:00  INFO 8348 --- [chat-server] [pool-2-thread-5] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-197, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.129+09:00  INFO 8348 --- [chat-server] [ool-2-thread-16] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-199, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1001
+2026-07-23T16:51:39.137+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-101, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=1
+2026-07-23T16:51:39.156+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=user-over-limit, outcome=GLOBAL_SOURCE_LIMITED, retryAfterMs=4996
+2026-07-23T16:51:39.161+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.w.r.InMemoryChatAdmissionLimiter   : Chat admission rejected: userId=limited-user, outcome=USER_RATE_LIMITED, retryAfterMs=1000
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

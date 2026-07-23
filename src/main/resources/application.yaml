@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: chat-server
+
+chat:
+  websocket:
+    endpoint: /ws
+    allowed-origins:
+      - http://localhost:3000
+
+    connection:
+      max-active-authenticated: 500
+      max-per-user: 1
+      replace-existing-connection: true
+
+    heartbeat:
+      interval-ms: 10000
+      client-outgoing-min-ms: 1
+      client-outgoing-max-ms: 10000
+      client-incoming-min-ms: 1
+      client-incoming-max-ms: 10000
+
+    subscription:
+      max-active-rooms-per-connection: 1
+      max-subscriptions-per-connection: 5
+      max-subscribers-per-room: 50
+      reject-duplicate-destination: true
+      allow-wildcard-destination: false
+      read-receipts-enabled: false
+
+    rate-limit:
+      user:
+        capacity: 5
+        refill-tokens: 1
+        refill-period-ms: 1000
+        token-cost-tiers:
+          - { max-code-points: 50, cost: 1 }
+          - { max-code-points: 100, cost: 2 }
+          - { max-code-points: 200, cost: 3 }
+          - { max-code-points: 500, cost: 4 }
+          - { max-code-points: 2000, cost: 5 }
+
+      global-source:
+        sustained-window-ms: 10000
+        sustained-max-accepted: 500
+        burst-window-ms: 1000
+        burst-max-accepted: 100
+
+    message:
+      client-message-id-regex: "^[A-Za-z0-9._:-]{1,128}$"
+      room-id-regex: "^[A-Za-z0-9_-]{1,64}$"
+      max-content-code-points: 2000
+      max-content-utf8-bytes: 8192
+      max-stomp-message-bytes: 32768
+      normalize-content-with-strip: true
+      reject-c0-control-characters-except: [TAB, LF, CR]
+
+    transport:
+      time-to-first-message-ms: 10000
+      send-buffer-size-limit-per-connection-bytes: 262144
+      send-time-limit-per-connection-ms: 10000
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include:
+            - livenessState
+        readiness:
+          include:
+            - readinessState
+            - chatPipeline
+            - roomAuthorization

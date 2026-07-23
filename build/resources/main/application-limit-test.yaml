@@ -1,0 +1,5 @@
+chat:
+  websocket:
+    limit-test:
+      allowed-rooms:
+        - test-room

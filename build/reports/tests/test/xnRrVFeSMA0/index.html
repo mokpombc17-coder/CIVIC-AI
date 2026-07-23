@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta http-equiv="x-ua-compatible" content="IE=edge"/>
+<title>Test results - com.hamcheeze.chat.TimeToFirstMessageIntegrationTest</title>
+<link href="../css/base-style.css" rel="stylesheet" type="text/css"/>
+<link href="../css/style.css" rel="stylesheet" type="text/css"/>
+<script src="../js/report.js" type="text/javascript"></script>
+</head>
+<body>
+<div id="content">
+<div class="breadcrumbs">
+<a class="breadcrumb" href="../index.html">all</a> &gt; 
+<span class="breadcrumb">com.hamcheeze.chat.TimeToFirstMessageIntegrationTest</span>
+</div>
+<div class="tab-container">
+<ul class="tabLinks">
+<li>
+<a class="successGroup" href="#">Gradle Test Run :test</a>
+</li>
+</ul>
+<div class="tab">
+<h2>Gradle Test Run :test</h2>
+<h1>TimeToFirstMessageIntegrationTest</h1>
+<div class="tab-container">
+<ul class="tabLinks">
+<li>
+<a class="" href="#">summary</a>
+</li>
+<li>
+<a class="" href="#">standard output</a>
+</li>
+</ul>
+<div class="tab">
+<h2>summary</h2>
+<div>
+<div class="summary">
+<table>
+<tr>
+<td>
+<div class="summaryGroup">
+<table>
+<tr>
+<td>
+<div class="infoBox">
+<div class="counter">2</div>
+<p>tests</p>
+</div>
+</td>
+<td>
+<div class="infoBox">
+<div class="counter">0</div>
+<p>failures</p>
+</div>
+</td>
+<td>
+<div class="infoBox">
+<div class="counter">0</div>
+<p>skipped</p>
+</div>
+</td>
+<td>
+<div class="infoBox duration">
+<div class="counter">11.055s</div>
+<p>duration</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</td>
+<td>
+<div class="infoBox success successRate">
+<div class="percent">100%</div>
+<p>successful</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<table class="test-results">
+<thead>
+<tr>
+<th>Child</th>
+<th hidden="">Name</th>
+<th>Tests</th>
+<th>Failures</th>
+<th>Skipped</th>
+<th>Duration</th>
+<th>Success rate</th>
+</tr>
+</thead>
+<tr>
+<td class="success">closesTransportWhenNoFirstStompMessageArrives()</td>
+<td class="path" hidden="">closesTransportWhenNoFirstStompMessageArrives()</td>
+<td>1</td>
+<td>0</td>
+<td>0</td>
+<td>10.098s</td>
+<td class="success">100%</td>
+</tr>
+<tr>
+<td class="success">
+<a href="zE5cuhChbm8.html">skeletonIsLiveButNotReady()</a>
+</td>
+<td class="path" hidden="">skeletonIsLiveButNotReady()</td>
+<td>1</td>
+<td>0</td>
+<td>0</td>
+<td>0.424s</td>
+<td class="success">100%</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="tab">
+<h2>standard output</h2>
+<span class="code">
+<pre id="root-0-test-stdout-com.hamcheeze.chat.TimeToFirstMessageIntegrationTest">2026-07-23T16:51:27.001+09:00  INFO 8348 --- [chat-server] [    Test worker] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.hamcheeze.chat.TimeToFirstMessageIntegrationTest]: TimeToFirstMessageIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-07-23T16:51:27.002+09:00  INFO 8348 --- [chat-server] [    Test worker] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.hamcheeze.chat.ChatServerApplication for test class com.hamcheeze.chat.TimeToFirstMessageIntegrationTest
+2026-07-23T16:51:27.004+09:00  INFO 8348 --- [chat-server] [    Test worker] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.hamcheeze.chat.TimeToFirstMessageIntegrationTest]: TimeToFirstMessageIntegrationTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-07-23T16:51:27.006+09:00  INFO 8348 --- [chat-server] [    Test worker] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.hamcheeze.chat.ChatServerApplication for test class com.hamcheeze.chat.TimeToFirstMessageIntegrationTest
+2026-07-23T16:51:27.009+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopping...
+2026-07-23T16:51:27.010+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=false, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@2fd409c1]]
+2026-07-23T16:51:27.010+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopped.
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.0)
+
+2026-07-23T16:51:27.034+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.TimeToFirstMessageIntegrationTest  : Starting TimeToFirstMessageIntegrationTest using Java 21.0.9 with PID 8348 (started by junseok in /Users/junseok/Desktop/ndp/persona/chat-server)
+2026-07-23T16:51:27.034+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.TimeToFirstMessageIntegrationTest  : The following 1 profile is active: &quot;skeleton&quot;
+2026-07-23T16:51:27.265+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.boot.tomcat.TomcatWebServer          : Tomcat initialized with port 0 (http)
+2026-07-23T16:51:27.266+09:00  INFO 8348 --- [chat-server] [    Test worker] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-07-23T16:51:27.266+09:00  INFO 8348 --- [chat-server] [    Test worker] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/11.0.22]
+2026-07-23T16:51:27.279+09:00  INFO 8348 --- [chat-server] [    Test worker] b.w.c.s.WebApplicationContextInitializer : Root WebApplicationContext: initialization completed in 243 ms
+2026-07-23T16:51:27.493+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-07-23T16:51:27.508+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-07-23T16:51:27.508+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@2ea2f965]]
+2026-07-23T16:51:27.509+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-07-23T16:51:27.521+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.boot.tomcat.TomcatWebServer          : Tomcat started on port 52149 (http) with context path '/'
+2026-07-23T16:51:27.524+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.TimeToFirstMessageIntegrationTest  : Started TimeToFirstMessageIntegrationTest in 0.512 seconds (process running for 6.436)
+</pre>
+<button class="clipboard-copy-btn" aria-label="Copy to clipboard" data-copy-element-id="root-0-test-stdout-com.hamcheeze.chat.TimeToFirstMessageIntegrationTest">Copy</button>
+</span>
+</div>
+</div>
+</div>
+</div>
+<div id="footer">
+<p>
+<div>
+<label class="hidden" id="label-for-line-wrapping-toggle" for="line-wrapping-toggle">Wrap lines
+<input id="line-wrapping-toggle" type="checkbox" autocomplete="off"/>
+</label>
+</div>Generated by 
+<a href="https://www.gradle.org">Gradle 9.5.1</a> at 2026. 7. 23. 오후 4:51:39</p>
+</div>
+</div>
+</body>
+</html>

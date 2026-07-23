@@ -1,0 +1,140 @@
+package com.hamcheeze.chat.websocket.subscription;
+
+import com.hamcheeze.chat.websocket.config.SubscriptionLimitProperties;
+import com.hamcheeze.chat.websocket.protocol.DestinationKind;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class InMemoryChatSubscriptionRegistryTest {
+
+    private InMemoryChatSubscriptionRegistry registry;
+
+    @BeforeEach
+    void setUp() {
+        SubscriptionLimitProperties properties =
+                new SubscriptionLimitProperties();
+        properties.setMaxActiveRoomsPerConnection(1);
+        properties.setMaxSubscriptionsPerConnection(5);
+        properties.setMaxSubscribersPerRoom(2);
+        registry = new InMemoryChatSubscriptionRegistry(
+                properties, new SimpleMeterRegistry());
+    }
+
+    @Test
+    void countsTwoDestinationsInOneRoomAsOneRoomSubscriber() {
+        assertThat(registry.register(
+                "connection-1",
+                descriptor("sub-1", "room-1", "messages")).registered())
+                .isTrue();
+        assertThat(registry.register(
+                "connection-1",
+                descriptor("sub-2", "room-1", "events")).registered())
+                .isTrue();
+
+        assertThat(registry.activeSubscriptionCount()).isEqualTo(2);
+        assertThat(registry.activeRoomSubscriberCount()).isOne();
+    }
+
+    @Test
+    void rejectsSecondActiveRoomAndDuplicateDestination() {
+        SubscriptionDescriptor first =
+                descriptor("sub-1", "room-1", "messages");
+        registry.register("connection-1", first);
+
+        assertThat(registry.register(
+                "connection-1",
+                descriptor("sub-2", "room-1", "messages")).rejectionCode())
+                .isEqualTo(
+                        SubscriptionRejectedCode.DUPLICATE_SUBSCRIPTION);
+        assertThat(registry.register(
+                "connection-1",
+                descriptor("sub-3", "room-2", "messages")).rejectionCode())
+                .isEqualTo(
+                        SubscriptionRejectedCode.ACTIVE_ROOM_LIMIT_EXCEEDED);
+    }
+
+    @Test
+    void rejectsThirdRoomSubscriberAndCleansUpIdempotently() {
+        registry.register(
+                "connection-1",
+                descriptor("sub-1", "room-1", "messages"));
+        registry.register(
+                "connection-2",
+                descriptor("sub-2", "room-1", "messages"));
+
+        assertThat(registry.register(
+                "connection-3",
+                descriptor("sub-3", "room-1", "messages")).rejectionCode())
+                .isEqualTo(
+                        SubscriptionRejectedCode.ROOM_SUBSCRIBER_LIMIT_EXCEEDED);
+
+        assertThat(registry.removeAll("connection-1")).isOne();
+        assertThat(registry.removeAll("connection-1")).isZero();
+        assertThat(registry.activeRoomSubscriberCount()).isOne();
+    }
+
+    @Test
+    void rejectsTheFiftyFirstRoomSubscriber() {
+        SubscriptionLimitProperties properties =
+                new SubscriptionLimitProperties();
+        properties.setMaxSubscribersPerRoom(50);
+        InMemoryChatSubscriptionRegistry fiftyPersonRegistry =
+                new InMemoryChatSubscriptionRegistry(
+                        properties, new SimpleMeterRegistry());
+        for (int index = 0; index < 50; index++) {
+            assertThat(fiftyPersonRegistry.register(
+                    "connection-" + index,
+                    descriptor(
+                            "sub-" + index,
+                            "room-1",
+                            "messages")).registered())
+                    .isTrue();
+        }
+
+        assertThat(fiftyPersonRegistry.register(
+                "connection-50",
+                descriptor("sub-50", "room-1", "messages"))
+                .rejectionCode())
+                .isEqualTo(
+                        SubscriptionRejectedCode.ROOM_SUBSCRIBER_LIMIT_EXCEEDED);
+    }
+
+    @Test
+    void rejectsTheSixthSubscription() {
+        for (int index = 0; index < 5; index++) {
+            assertThat(registry.register(
+                    "connection-1",
+                    new SubscriptionDescriptor(
+                            "sub-" + index,
+                            "/user/queue/test-" + index,
+                            DestinationKind.USER_SYSTEM_EVENTS,
+                            null)).registered())
+                    .isTrue();
+        }
+
+        assertThat(registry.register(
+                "connection-1",
+                new SubscriptionDescriptor(
+                        "sub-5",
+                        "/user/queue/test-5",
+                        DestinationKind.USER_SYSTEM_EVENTS,
+                        null)).rejectionCode())
+                .isEqualTo(
+                        SubscriptionRejectedCode.SUBSCRIPTION_LIMIT_EXCEEDED);
+    }
+
+    private static SubscriptionDescriptor descriptor(
+            String subscriptionId,
+            String roomId,
+            String suffix
+    ) {
+        return new SubscriptionDescriptor(
+                subscriptionId,
+                "/topic/rooms/" + roomId + "/" + suffix,
+                DestinationKind.TOPIC_ROOM_MESSAGES,
+                roomId);
+    }
+}

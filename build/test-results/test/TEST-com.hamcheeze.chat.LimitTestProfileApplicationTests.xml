@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hamcheeze.chat.LimitTestProfileApplicationTests" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-07-23T07:51:25.843Z" hostname="junseokui-MacBookPro.local" time="0.564">
+  <properties/>
+  <testcase name="exposesAvailableLimitTestAdapters()" classname="com.hamcheeze.chat.LimitTestProfileApplicationTests" time="0.006"/>
+  <system-out><![CDATA[2026-07-23T16:51:25.846+09:00  INFO 8348 --- [chat-server] [    Test worker] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.hamcheeze.chat.LimitTestProfileApplicationTests]: LimitTestProfileApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-07-23T16:51:25.848+09:00  INFO 8348 --- [chat-server] [    Test worker] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.hamcheeze.chat.ChatServerApplication for test class com.hamcheeze.chat.LimitTestProfileApplicationTests
+2026-07-23T16:51:25.849+09:00  INFO 8348 --- [chat-server] [    Test worker] t.c.s.AnnotationConfigContextLoaderUtils : Could not detect default configuration classes for test class [com.hamcheeze.chat.LimitTestProfileApplicationTests]: LimitTestProfileApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2026-07-23T16:51:25.850+09:00  INFO 8348 --- [chat-server] [    Test worker] .b.t.c.SpringBootTestContextBootstrapper : Found @SpringBootConfiguration com.hamcheeze.chat.ChatServerApplication for test class com.hamcheeze.chat.LimitTestProfileApplicationTests
+2026-07-23T16:51:25.856+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopping...
+2026-07-23T16:51:25.856+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=false, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@40aad17d]]
+2026-07-23T16:51:25.856+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Stopped.
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.0)
+
+2026-07-23T16:51:25.888+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.LimitTestProfileApplicationTests   : Starting LimitTestProfileApplicationTests using Java 21.0.9 with PID 8348 (started by junseok in /Users/junseok/Desktop/ndp/persona/chat-server)
+2026-07-23T16:51:25.888+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.LimitTestProfileApplicationTests   : The following 1 profile is active: "limit-test"
+2026-07-23T16:51:26.382+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-07-23T16:51:26.394+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-07-23T16:51:26.394+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@2fd409c1]]
+2026-07-23T16:51:26.395+09:00  INFO 8348 --- [chat-server] [    Test worker] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-07-23T16:51:26.399+09:00  INFO 8348 --- [chat-server] [    Test worker] c.h.c.LimitTestProfileApplicationTests   : Started LimitTestProfileApplicationTests in 0.54 seconds (process running for 5.311)
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
