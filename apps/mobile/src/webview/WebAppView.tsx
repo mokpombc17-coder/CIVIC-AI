@@ -1,0 +1,384 @@
+import {
+  BRIDGE_VERSION,
+  NATIVE_TO_WEB_EVENT,
+  createBridgeId,
+  parseWebToNativeMessage,
+  serializeBridgeMessage,
+  type NativeContext,
+  type NativeToWebMessage,
+  type WebToNativeMessage,
+} from "@repo/bridge";
+import * as Application from "expo-application";
+import { type ElementRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  AppState,
+  type AppStateStatus,
+  BackHandler,
+  Linking,
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { WebView } from "react-native-webview";
+import { WEB_APP_ORIGIN, WEB_APP_URL } from "../config/runtime";
+import { normalizeDeepLink } from "./deep-link";
+
+type WebViewHandle = ElementRef<typeof WebView>;
+
+type LoadFailure = {
+  title: string;
+  detail: string;
+};
+
+export function WebAppView() {
+  const webViewRef = useRef<WebViewHandle>(null);
+  const pendingDeepLinkRef = useRef<string | null>(null);
+  const webReadyRef = useRef(false);
+  const [webViewKey, setWebViewKey] = useState(0);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [failure, setFailure] = useState<LoadFailure | null>(null);
+
+  const nativeContext = useMemo<NativeContext>(
+    () => ({
+      platform: Platform.OS === "ios" ? "ios" : "android",
+      appVersion: Application.nativeApplicationVersion ?? "development",
+      buildVersion: Application.nativeBuildVersion ?? "development",
+      capabilities: ["share", "deep-link", "app-state"],
+    }),
+    [],
+  );
+
+  const postToWeb = useCallback((message: NativeToWebMessage) => {
+    const serialized = serializeBridgeMessage(message);
+    const safeJavaScriptString = JSON.stringify(serialized).replace(/</g, "\\u003c");
+
+    webViewRef.current?.injectJavaScript(`
+      window.dispatchEvent(
+        new CustomEvent(${JSON.stringify(NATIVE_TO_WEB_EVENT)}, {
+          detail: ${safeJavaScriptString}
+        })
+      );
+      true;
+    `);
+  }, []);
+
+  const postError = useCallback(
+    (request: WebToNativeMessage | null, code: string, message: string) => {
+      postToWeb({
+        version: BRIDGE_VERSION,
+        id: request?.id ?? createBridgeId("native"),
+        sentAt: Date.now(),
+        type: "BRIDGE_ERROR",
+        payload: {
+          code,
+          message,
+          requestType: request?.type,
+        },
+      });
+    },
+    [postToWeb],
+  );
+
+  const handleBridgeRequest = useCallback(
+    async (raw: string) => {
+      const request = parseWebToNativeMessage(raw);
+      if (!request) {
+        postError(null, "INVALID_MESSAGE", "Bridge message validation failed.");
+        return;
+      }
+
+      switch (request.type) {
+        case "WEB_READY": {
+          webReadyRef.current = true;
+          postToWeb({
+            version: BRIDGE_VERSION,
+            id: request.id,
+            sentAt: Date.now(),
+            type: "NATIVE_READY",
+            payload: nativeContext,
+          });
+
+          if (pendingDeepLinkRef.current) {
+            const url = pendingDeepLinkRef.current;
+            pendingDeepLinkRef.current = null;
+            postToWeb({
+              version: BRIDGE_VERSION,
+              id: createBridgeId("native"),
+              sentAt: Date.now(),
+              type: "DEEP_LINK",
+              payload: { url },
+            });
+          }
+          return;
+        }
+
+        case "GET_NATIVE_CONTEXT":
+          postToWeb({
+            version: BRIDGE_VERSION,
+            id: request.id,
+            sentAt: Date.now(),
+            type: "NATIVE_CONTEXT",
+            payload: nativeContext,
+          });
+          return;
+
+        case "SHARE": {
+          try {
+            const message = [request.payload.text, request.payload.url].filter(Boolean).join("\n");
+            const result = await Share.share({
+              title: request.payload.title,
+              message: message || request.payload.title || "",
+            });
+
+            postToWeb({
+              version: BRIDGE_VERSION,
+              id: request.id,
+              sentAt: Date.now(),
+              type: "SHARE_RESULT",
+              payload: {
+                completed: result.action === Share.sharedAction,
+              },
+            });
+          } catch (cause) {
+            postError(
+              request,
+              "SHARE_FAILED",
+              cause instanceof Error ? cause.message : "Native share failed.",
+            );
+          }
+          return;
+        }
+      }
+    },
+    [nativeContext, postError, postToWeb],
+  );
+
+  const sendDeepLink = useCallback(
+    (rawUrl: string) => {
+      const url = normalizeDeepLink(rawUrl);
+      if (!url) {
+        return;
+      }
+
+      if (!webReadyRef.current) {
+        pendingDeepLinkRef.current = url;
+        return;
+      }
+
+      postToWeb({
+        version: BRIDGE_VERSION,
+        id: createBridgeId("native"),
+        sentAt: Date.now(),
+        type: "DEEP_LINK",
+        payload: { url },
+      });
+    },
+    [postToWeb],
+  );
+
+  useEffect(() => {
+    void Linking.getInitialURL().then((url) => {
+      if (url) {
+        sendDeepLink(url);
+      }
+    });
+
+    const subscription = Linking.addEventListener("url", ({ url }) => sendDeepLink(url));
+    return () => subscription.remove();
+  }, [sendDeepLink]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (!webReadyRef.current) {
+        return;
+      }
+
+      postToWeb({
+        version: BRIDGE_VERSION,
+        id: createBridgeId("native"),
+        sentAt: Date.now(),
+        type: "APP_STATE_CHANGED",
+        payload: { state: normalizeAppState(state) },
+      });
+    });
+
+    return () => subscription.remove();
+  }, [postToWeb]);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!canGoBack) {
+        return false;
+      }
+
+      webViewRef.current?.goBack();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [canGoBack]);
+
+  const handleLoadEnd = () => {
+    setLoading(false);
+    setFailure(null);
+  };
+
+  const retry = () => {
+    setFailure(null);
+    setLoading(true);
+    webReadyRef.current = false;
+    setWebViewKey((value) => value + 1);
+  };
+
+  return (
+    <View style={styles.container}>
+      <WebView
+        key={webViewKey}
+        ref={webViewRef}
+        applicationNameForUserAgent="NextWebViewShell/0.1.0"
+        allowsBackForwardNavigationGestures
+        allowsInlineMediaPlayback
+        cacheEnabled
+        domStorageEnabled
+        javaScriptCanOpenWindowsAutomatically={false}
+        javaScriptEnabled
+        mediaPlaybackRequiresUserAction
+        mixedContentMode="never"
+        onError={(event) => {
+          setLoading(false);
+          setFailure({
+            title: "웹 애플리케이션에 연결하지 못했습니다.",
+            detail: event.nativeEvent.description,
+          });
+        }}
+        onLoadEnd={handleLoadEnd}
+        onLoadStart={() => {
+          setLoading(true);
+          webReadyRef.current = false;
+        }}
+        onMessage={(event) => void handleBridgeRequest(event.nativeEvent.data)}
+        onNavigationStateChange={(navigation) => setCanGoBack(navigation.canGoBack)}
+        onOpenWindow={(event) => {
+          void openExternalUrl(event.nativeEvent.targetUrl);
+        }}
+        onShouldStartLoadWithRequest={(request) => {
+          const { url } = request;
+
+          if (url === "about:blank" || url.startsWith(`blob:${WEB_APP_ORIGIN}`)) {
+            return true;
+          }
+
+          try {
+            if (new URL(url).origin === WEB_APP_ORIGIN) {
+              return true;
+            }
+          } catch {
+            // Non-HTTP schemes are delegated to the operating system below.
+          }
+
+          void openExternalUrl(url);
+          return false;
+        }}
+        originWhitelist={["http://*", "https://*"]}
+        pullToRefreshEnabled={Platform.OS === "ios"}
+        sharedCookiesEnabled
+        source={{ uri: WEB_APP_URL }}
+        thirdPartyCookiesEnabled={false}
+      />
+
+      {loading && !failure ? (
+        <View accessibilityRole="progressbar" style={styles.overlay}>
+          <ActivityIndicator size="large" />
+          <Text style={styles.overlayText}>Next.js를 불러오는 중…</Text>
+        </View>
+      ) : null}
+
+      {failure ? (
+        <View accessibilityRole="alert" style={styles.overlay}>
+          <Text style={styles.errorTitle}>{failure.title}</Text>
+          <Text style={styles.errorDetail}>{failure.detail}</Text>
+          <Pressable accessibilityRole="button" onPress={retry} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>다시 시도</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+async function openExternalUrl(rawUrl: string): Promise<void> {
+  try {
+    const parsed = new URL(rawUrl);
+    const allowed =
+      parsed.protocol === "https:" ||
+      (__DEV__ && parsed.protocol === "http:") ||
+      parsed.protocol === "mailto:" ||
+      parsed.protocol === "tel:" ||
+      parsed.protocol === "sms:";
+
+    if (!allowed || !(await Linking.canOpenURL(rawUrl))) {
+      return;
+    }
+
+    await Linking.openURL(rawUrl);
+  } catch {
+    // Ignore malformed or unsupported external URLs.
+  }
+}
+
+function normalizeAppState(state: AppStateStatus): "active" | "background" | "inactive" | "unknown" {
+  if (state === "active" || state === "background" || state === "inactive") {
+    return state;
+  }
+
+  return "unknown";
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f7fb",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#f5f7fb",
+    padding: 24,
+  },
+  overlayText: {
+    color: "#475569",
+    fontSize: 15,
+  },
+  errorTitle: {
+    color: "#172033",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  errorDetail: {
+    color: "#64748b",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  retryButton: {
+    borderRadius: 10,
+    backgroundColor: "#3049ae",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  retryButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+});
