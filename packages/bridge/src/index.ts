@@ -89,9 +89,7 @@ export function parseNativeToWebMessage(raw: string): NativeToWebMessage | null 
   return parseMessage(raw, nativeToWebMessageSchema);
 }
 
-export function serializeBridgeMessage(
-  message: WebToNativeMessage | NativeToWebMessage,
-): string {
+export function serializeBridgeMessage(message: WebToNativeMessage | NativeToWebMessage): string {
   return JSON.stringify(message);
 }
 

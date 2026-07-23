@@ -31,7 +31,8 @@ export function UpstreamHealthPanel() {
       </div>
 
       <p>
-        Route Handler가 내부 주소의 Spring Boot Actuator를 호출하고, 브라우저에는 축약된 결과만 반환한다.
+        Route Handler가 내부 주소의 Spring Boot Actuator를 호출하고, 브라우저에는 축약된 결과만
+        반환한다.
       </p>
 
       <button className="secondary-button" disabled={pending} onClick={check} type="button">

@@ -10,14 +10,12 @@ import {
 } from "@/lib/native/bridge-client";
 
 export function NativeBridgePanel() {
-  const [native, setNative] = useState(false);
   const [context, setContext] = useState<NativeContext | null>(null);
   const [result, setResult] = useState("브라우저에서는 네이티브 브리지가 비활성입니다.");
 
-  useEffect(() => {
-    const insideNativeShell = isNativeShell();
-    setNative(insideNativeShell);
+  const native = context !== null;
 
+  useEffect(() => {
     const unsubscribe = subscribeNativeMessages((message) => {
       switch (message.type) {
         case "NATIVE_READY":
@@ -25,21 +23,25 @@ export function NativeBridgePanel() {
           setContext(message.payload);
           setResult(`${message.payload.platform} 앱과 연결되었습니다.`);
           break;
+
         case "SHARE_RESULT":
           setResult(message.payload.completed ? "공유를 완료했습니다." : "공유를 취소했습니다.");
           break;
+
         case "APP_STATE_CHANGED":
           setResult(`앱 상태: ${message.payload.state}`);
           break;
+
         case "BRIDGE_ERROR":
           setResult(`브리지 오류: ${message.payload.message}`);
           break;
+
         case "DEEP_LINK":
           break;
       }
     });
 
-    if (insideNativeShell) {
+    if (isNativeShell()) {
       requestNativeContext();
     }
 

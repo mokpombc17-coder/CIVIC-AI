@@ -28,3 +28,9 @@ allowBuilds:
   "@parcel/watcher": true
   esbuild: true
   sharp: true
+  unrs-resolver: false
+
+minimumReleaseAgeExclude:
+  - expo-dev-client@57.0.8
+  - expo-dev-launcher@57.0.8
+  - expo-dev-menu@57.0.8

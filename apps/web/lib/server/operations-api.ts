@@ -7,10 +7,7 @@ import { serverEnv } from "@/lib/server/env";
  * Connect your Next.js session here and add the upstream access token.
  * Do not import this module from Client Components.
  */
-export async function operationsFetch(
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
+export async function operationsFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const url = new URL(path, ensureTrailingSlash(serverEnv.OPERATIONS_API_URL));
   const headers = new Headers(init.headers);
 

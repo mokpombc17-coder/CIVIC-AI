@@ -19,7 +19,8 @@ export default function ArchitecturePage() {
         <p className="eyebrow">Route segment navigation</p>
         <h1>이 페이지로 이동해도 헤더의 layout state는 유지된다.</h1>
         <p>
-          Next.js의 <code>Link</code>는 전체 document를 새로고침하지 않고 변경된 route segment를 병합한다.
+          Next.js의 <code>Link</code>는 전체 document를 새로고침하지 않고 변경된 route segment를
+          병합한다.
         </p>
       </section>
 

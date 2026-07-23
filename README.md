@@ -167,6 +167,7 @@ Internet :443
 ```
 
 ## 실제 서비스 연결 시 수정할 부분
+
 ```text
 1. 서비스 식별자
     Next WebView Shell
@@ -200,4 +201,3 @@ Internet :443
 `apps/web/next.config.ts`는 `output: "standalone"`을 사용한다. Nginx document root에 `.next`를 복사하는 방식이 아니라,
 Next.js Node 프로세스가 `.next` 결과를 사용해 HTML/RSC/JS/CSS/API를 제공한다.
 `deploy/nginx/next-webview.conf`는 reverse proxy 시작점이다.
-

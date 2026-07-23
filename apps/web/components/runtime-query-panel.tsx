@@ -44,7 +44,8 @@ export function RuntimeQueryPanel() {
       </div>
 
       <p>
-        이 버튼 호출은 향후 <code>useQuery</code>의 query function으로 옮길 수 있는 요청/응답 경계다.
+        이 버튼 호출은 향후 <code>useQuery</code>의 query function으로 옮길 수 있는 요청/응답
+        경계다.
       </p>
 
       <button className="primary-button" disabled={pending} onClick={query} type="button">

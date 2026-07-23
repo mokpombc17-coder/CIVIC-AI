@@ -10,7 +10,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   userInterfaceStyle: "automatic",
   scheme: "nextwebview",
-  newArchEnabled: true,
   plugins: [["expo-dev-client", { launchMode: "most-recent" }]],
   ios: {
     supportsTablet: true,

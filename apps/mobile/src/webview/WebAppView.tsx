@@ -296,14 +296,14 @@ export function WebAppView() {
       />
 
       {loading && !failure ? (
-        <View accessibilityRole="progressbar" style={styles.overlay}>
+        <View accessibilityRole="progressbar" style={[StyleSheet.absoluteFill, styles.overlay]}>
           <ActivityIndicator size="large" />
           <Text style={styles.overlayText}>Next.js를 불러오는 중…</Text>
         </View>
       ) : null}
 
       {failure ? (
-        <View accessibilityRole="alert" style={styles.overlay}>
+        <View accessibilityRole="alert" style={[StyleSheet.absoluteFill, styles.overlay]}>
           <Text style={styles.errorTitle}>{failure.title}</Text>
           <Text style={styles.errorDetail}>{failure.detail}</Text>
           <Pressable accessibilityRole="button" onPress={retry} style={styles.retryButton}>
@@ -335,7 +335,9 @@ async function openExternalUrl(rawUrl: string): Promise<void> {
   }
 }
 
-function normalizeAppState(state: AppStateStatus): "active" | "background" | "inactive" | "unknown" {
+function normalizeAppState(
+  state: AppStateStatus,
+): "active" | "background" | "inactive" | "unknown" {
   if (state === "active" || state === "background" || state === "inactive") {
     return state;
   }
@@ -349,7 +351,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f7fb",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
