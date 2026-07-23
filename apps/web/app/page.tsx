@@ -26,6 +26,18 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </p>
       </section>
 
+      <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 text-blue-950 shadow-sm">
+        <p className="text-sm font-bold tracking-widest text-blue-600 uppercase">Tailwind CSS v4</p>
+
+        <h2 className="mt-2 text-2xl font-bold tracking-tight">
+          Tailwind utility class가 적용되었습니다.
+        </h2>
+
+        <p className="mt-3 leading-7 text-blue-800">
+          이 화면은 일반 웹 브라우저와 Expo WebView에서 동일한 Next.js CSS를 사용합니다.
+        </p>
+      </section>
+
       <section className="panel">
         <div className="panel-heading">
           <div>
