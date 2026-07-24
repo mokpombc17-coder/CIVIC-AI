@@ -16,13 +16,15 @@
     "start:web": "pnpm --filter @app/web run start",
     "lint": "pnpm -r --if-present run lint",
     "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
     "clean": "pnpm -r --if-present run clean"
   },
   "devDependencies": {
     "prettier": "3.9.6",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -5,6 +5,7 @@ import {
   parseWebToNativeMessage,
   serializeBridgeMessage,
   type NativeContext,
+  type NativeCapability,
   type NativeToWebMessage,
   type WebToNativeMessage,
 } from "@repo/bridge";
@@ -24,7 +25,20 @@ import {
   View,
 } from "react-native";
 import { WebView } from "react-native-webview";
-import { WEB_APP_ORIGIN, WEB_APP_URL } from "../config/runtime";
+import { startNativeAuth } from "../auth/native-auth";
+import {
+  DOWNLOADS_ENABLED,
+  OAUTH_ENABLED,
+  PUSH_ENABLED,
+  WEB_APP_ORIGIN,
+  WEB_APP_URL,
+} from "../config/runtime";
+import { downloadAndShareFile } from "../downloads/native-download";
+import {
+  configureForegroundNotifications,
+  registerForPushNotifications,
+  subscribeNotificationLinks,
+} from "../notifications/native-notifications";
 import { normalizeDeepLink } from "./deep-link";
 
 type WebViewHandle = ElementRef<typeof WebView>;
@@ -43,15 +57,25 @@ export function WebAppView() {
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<LoadFailure | null>(null);
 
-  const nativeContext = useMemo<NativeContext>(
-    () => ({
+  const nativeContext = useMemo<NativeContext>(() => {
+    const capabilities: NativeCapability[] = ["share", "deep-link", "app-state"];
+    if (OAUTH_ENABLED) {
+      capabilities.push("oauth");
+    }
+    if (DOWNLOADS_ENABLED) {
+      capabilities.push("download");
+    }
+    if (PUSH_ENABLED) {
+      capabilities.push("push");
+    }
+
+    return {
       platform: Platform.OS === "ios" ? "ios" : "android",
       appVersion: Application.nativeApplicationVersion ?? "development",
       buildVersion: Application.nativeBuildVersion ?? "development",
-      capabilities: ["share", "deep-link", "app-state"],
-    }),
-    [],
-  );
+      capabilities,
+    };
+  }, []);
 
   const postToWeb = useCallback((message: NativeToWebMessage) => {
     const serialized = serializeBridgeMessage(message);
@@ -153,6 +177,81 @@ export function WebAppView() {
           }
           return;
         }
+
+        case "START_OAUTH": {
+          if (!OAUTH_ENABLED) {
+            postError(request, "OAUTH_DISABLED", "Native OAuth is disabled.");
+            return;
+          }
+
+          try {
+            const result = await startNativeAuth(request.payload.url, request.payload.callbackUrl);
+            if (result.type === "success") {
+              postToWeb({
+                version: BRIDGE_VERSION,
+                id: request.id,
+                sentAt: Date.now(),
+                type: "AUTH_RESULT",
+                payload: { callbackUrl: result.callbackUrl },
+              });
+            } else {
+              postToWeb({
+                version: BRIDGE_VERSION,
+                id: request.id,
+                sentAt: Date.now(),
+                type: "AUTH_CANCELLED",
+                payload: {},
+              });
+            }
+          } catch (cause) {
+            postError(
+              request,
+              "OAUTH_FAILED",
+              cause instanceof Error ? cause.message : "Native OAuth failed.",
+            );
+          }
+          return;
+        }
+
+        case "DOWNLOAD_FILE": {
+          if (!DOWNLOADS_ENABLED) {
+            postError(request, "DOWNLOADS_DISABLED", "Native downloads are disabled.");
+            return;
+          }
+
+          try {
+            const fileName = await downloadAndShareFile(request.payload);
+            postToWeb({
+              version: BRIDGE_VERSION,
+              id: request.id,
+              sentAt: Date.now(),
+              type: "DOWNLOAD_RESULT",
+              payload: {
+                completed: true,
+                fileName,
+              },
+            });
+          } catch (cause) {
+            postError(
+              request,
+              "DOWNLOAD_FAILED",
+              cause instanceof Error ? cause.message : "Native download failed.",
+            );
+          }
+          return;
+        }
+
+        case "REQUEST_PUSH_PERMISSION": {
+          const result = await registerForPushNotifications();
+          postToWeb({
+            version: BRIDGE_VERSION,
+            id: request.id,
+            sentAt: Date.now(),
+            type: "PUSH_REGISTRATION_RESULT",
+            payload: result,
+          });
+          return;
+        }
       }
     },
     [nativeContext, postError, postToWeb],
@@ -190,6 +289,15 @@ export function WebAppView() {
 
     const subscription = Linking.addEventListener("url", ({ url }) => sendDeepLink(url));
     return () => subscription.remove();
+  }, [sendDeepLink]);
+
+  useEffect(() => {
+    if (!PUSH_ENABLED) {
+      return;
+    }
+
+    configureForegroundNotifications();
+    return subscribeNotificationLinks(sendDeepLink);
   }, [sendDeepLink]);
 
   useEffect(() => {
@@ -244,7 +352,9 @@ export function WebAppView() {
       <WebView
         key={webViewKey}
         ref={webViewRef}
-        applicationNameForUserAgent="NextWebViewShell/0.1.0"
+        applicationNameForUserAgent={`${Application.applicationName ?? "NextWebViewShell"}/${
+          Application.nativeApplicationVersion ?? "development"
+        }`}
         allowsBackForwardNavigationGestures
         allowsInlineMediaPlayback
         cacheEnabled

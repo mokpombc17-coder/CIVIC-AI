@@ -90,10 +90,9 @@ pnpm dev:web
 기본 주소는 `http://localhost:3000`이다. 운영 Spring Boot가 없어도 홈과 브리지 예제는 동작한다.
 `/api/upstream-health` 예제만 `OPERATIONS_API_URL`의 서버를 호출한다.
 
-### 6. Expo 개발 빌드
+### 6. 모바일 앱 실행
 
-WebView 자체는 Expo Go에서도 시험할 수 있지만, 실제 앱 개발은 development build를 기준으로 한다.
-최초 한 번 네이티브 앱을 빌드한다.
+모바일은 Expo Development Build 기반의 WebView 셸이다. 최초 한 번 네이티브 앱을 빌드한다.
 
 ```bash
 # Android
@@ -103,59 +102,8 @@ pnpm --filter @app/mobile run android
 pnpm --filter @app/mobile run ios
 ```
 
-네이티브 설정을 바꾸지 않고 TypeScript만 수정할 때는 이후 다음 명령만 실행한다.
-
-```bash
-pnpm dev:mobile
-```
-
-## 로컬 WebView 주소
-
-### iOS Simulator
-
-```dotenv
-EXPO_PUBLIC_WEB_APP_URL=http://localhost:3000
-```
-
-### Android Emulator
-
-호스트의 3000 포트를 에뮬레이터 localhost로 전달한다.
-
-```bash
-adb reverse tcp:3000 tcp:3000
-```
-
-그 뒤 모바일 환경 변수는 다음처럼 유지할 수 있다.
-
-```dotenv
-EXPO_PUBLIC_WEB_APP_URL=http://localhost:3000
-```
-
-### 실제 기기
-
-동일 Wi-Fi의 개발 PC LAN 주소나 HTTPS 개발 터널을 사용한다.
-
-```dotenv
-EXPO_PUBLIC_WEB_APP_URL=https://your-dev-tunnel.example
-```
-
-운영 빌드에서는 반드시 HTTPS origin을 사용한다.
-
-## 딥링크 준비
-
-`apps/mobile/app.config.ts`에서 다음 값을 실제 서비스에 맞게 바꾼다.
-
-- `scheme`
-- `ios.bundleIdentifier`
-- `android.package`
-- `EXPO_PUBLIC_APP_HOST`
-
-Universal Links/App Links를 활성화하려면 웹 origin에 다음 파일도 제공해야 한다.
-
-- `/.well-known/apple-app-site-association`
-- `/.well-known/assetlinks.json`
-
-세부 절차는 `docs/deep-linking.md`를 참고한다.
+로컬 WebView 주소, Development Build, OAuth, 딥링크, 다운로드, 푸시, 권한 및 스토어 배포
+설정은 [`apps/mobile/README.md`](./apps/mobile/README.md)를 참고한다.
 
 ## 운영 배포
 
@@ -169,33 +117,14 @@ Internet :443
 ## 실제 서비스 연결 시 수정할 부분
 
 ```text
-1. 서비스 식별자
-    Next WebView Shell
-    next-webview-shell
-    com.example.nextwebviewshell
-    nextwebview://
-    app.example.com
-
-2. 스프링부트 주소
+1. 스프링부트 주소
     OPERATIONS_API_URL=http://operations-server:8080
 
-3. 인증 연결
+2. 인증 연결
     apps/web/lib/server/operations-api.ts
 
-4. 딥링크 검증 파일 작성
-    apple-app-site-association
-    assetlinks.json
-
-
-5. 브리지 capability 추가
-    packages/bridge
-    → GET_PUSH_TOKEN 메시지 계약
-
-    apps/mobile
-    → Expo Notifications 호출
-
-    apps/web
-    → 받은 token을 Next BFF로 등록
+3. 모바일 식별자, OAuth, 딥링크, 푸시 및 스토어 설정
+    apps/mobile/README.md
 ```
 
 `apps/web/next.config.ts`는 `output: "standalone"`을 사용한다. Nginx document root에 `.next`를 복사하는 방식이 아니라,

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { AppInstallBanner } from "@/components/app-install-banner";
 import { NativeBridgeRuntime } from "@/components/native-bridge-runtime";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -12,6 +13,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="app-shell">
       <NativeBridgeRuntime />
+      <AppInstallBanner />
       <header className="site-header">
         <div>
           <p className="eyebrow">Next.js + Expo WebView</p>

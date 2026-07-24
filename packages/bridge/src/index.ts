@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const BRIDGE_VERSION = 1 as const;
+export const BRIDGE_VERSION = 2 as const;
 export const NATIVE_TO_WEB_EVENT = "next-native-bridge-message" as const;
 
 const bridgeEnvelopeSchema = z.object({
@@ -9,11 +9,22 @@ const bridgeEnvelopeSchema = z.object({
   sentAt: z.number().int().nonnegative(),
 });
 
+const httpUrlSchema = z
+  .string()
+  .url()
+  .refine(
+    (value) => {
+      const protocol = new URL(value).protocol;
+      return protocol === "http:" || protocol === "https:";
+    },
+    { message: "URL must use HTTP or HTTPS." },
+  );
+
 const nativeContextSchema = z.object({
   platform: z.enum(["ios", "android"]),
   appVersion: z.string().min(1).max(64),
   buildVersion: z.string().min(1).max(64),
-  capabilities: z.array(z.enum(["share", "deep-link", "app-state"])),
+  capabilities: z.array(z.enum(["share", "deep-link", "app-state", "oauth", "download", "push"])),
 });
 
 export const webToNativeMessageSchema = z.discriminatedUnion("type", [
@@ -37,6 +48,25 @@ export const webToNativeMessageSchema = z.discriminatedUnion("type", [
         message: "At least one share field is required.",
       }),
   }),
+  bridgeEnvelopeSchema.extend({
+    type: z.literal("START_OAUTH"),
+    payload: z.object({
+      url: httpUrlSchema.max(4_096),
+      callbackUrl: z.string().url().max(2_048),
+    }),
+  }),
+  bridgeEnvelopeSchema.extend({
+    type: z.literal("DOWNLOAD_FILE"),
+    payload: z.object({
+      url: httpUrlSchema.max(4_096),
+      fileName: z.string().min(1).max(200).optional(),
+      mimeType: z.string().min(1).max(200).optional(),
+    }),
+  }),
+  bridgeEnvelopeSchema.extend({
+    type: z.literal("REQUEST_PUSH_PERMISSION"),
+    payload: z.object({}),
+  }),
 ]);
 
 export const nativeToWebMessageSchema = z.discriminatedUnion("type", [
@@ -52,6 +82,31 @@ export const nativeToWebMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("SHARE_RESULT"),
     payload: z.object({
       completed: z.boolean(),
+    }),
+  }),
+  bridgeEnvelopeSchema.extend({
+    type: z.literal("AUTH_RESULT"),
+    payload: z.object({
+      callbackUrl: z.string().url().max(4_096),
+    }),
+  }),
+  bridgeEnvelopeSchema.extend({
+    type: z.literal("AUTH_CANCELLED"),
+    payload: z.object({}),
+  }),
+  bridgeEnvelopeSchema.extend({
+    type: z.literal("DOWNLOAD_RESULT"),
+    payload: z.object({
+      completed: z.boolean(),
+      fileName: z.string().min(1).max(200),
+    }),
+  }),
+  bridgeEnvelopeSchema.extend({
+    type: z.literal("PUSH_REGISTRATION_RESULT"),
+    payload: z.object({
+      status: z.enum(["granted", "denied", "undetermined", "unavailable"]),
+      expoPushToken: z.string().min(1).max(512).optional(),
+      reason: z.string().min(1).max(500).optional(),
     }),
   }),
   bridgeEnvelopeSchema.extend({
