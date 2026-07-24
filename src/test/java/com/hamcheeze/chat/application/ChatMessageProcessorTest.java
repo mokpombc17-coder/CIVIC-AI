@@ -26,6 +26,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -136,14 +137,19 @@ class ChatMessageProcessorTest {
     }
 
     @Test
-    void broadcastFailureStillReturnsAccepted() {
+    void broadcastFailureDoesNotPreventNextMessageProcessing() {
         when(store.append(any())).thenReturn(
-                new StoredChatMessage(message()));
+                new StoredChatMessage(message("1")),
+                new StoredChatMessage(message("2")));
         doThrow(new IllegalStateException("broker unavailable"))
+                .doNothing()
                 .when(publisher)
                 .publish(any());
 
-        assertThatCode(() -> processor.process(queued()))
+        assertThatCode(() -> {
+            processor.process(queued("1"));
+            processor.process(queued("2"));
+        })
                 .doesNotThrowAnyException();
 
         verify(resultSender).send(
@@ -154,19 +160,38 @@ class ChatMessageProcessorTest {
                         ChatCommandOutcomeCode.ACCEPTED,
                         "message-1",
                         1L));
+        verify(resultSender).send(
+                "user-1",
+                "connection-1",
+                new ChatCommandOutcome(
+                        "client-2",
+                        ChatCommandOutcomeCode.ACCEPTED,
+                        "message-2",
+                        2L));
+        verify(publisher, times(2)).publish(any());
     }
 
     @Test
-    void resultSendFailureIsIsolated() {
+    void resultSendFailureDoesNotPreventNextMessageProcessing() {
         when(store.append(any())).thenReturn(
-                new StoredChatMessage(message()));
+                new StoredChatMessage(message("1")),
+                new StoredChatMessage(message("2")));
         doThrow(new IllegalStateException("session closed"))
+                .doNothing()
                 .when(resultSender)
                 .send(eq("user-1"), eq("connection-1"), any());
 
-        assertThatCode(() -> processor.process(queued()))
+        assertThatCode(() -> {
+            processor.process(queued("1"));
+            processor.process(queued("2"));
+        })
                 .doesNotThrowAnyException();
 
+        verify(publisher, times(2)).publish(any());
+        verify(resultSender, times(2)).send(
+                eq("user-1"),
+                eq("connection-1"),
+                any());
         assertThat(meterRegistry.counter(
                 "chat.command.result.send.failures").count())
                 .isEqualTo(1);
@@ -177,23 +202,32 @@ class ChatMessageProcessorTest {
     }
 
     private QueuedChatCommand queued() {
+        return queued("1");
+    }
+
+    private QueuedChatCommand queued(String suffix) {
         return new QueuedChatCommand(
                 new AdmittedChatCommand(
                         "user-1",
                         "connection-1",
                         "room-1",
-                        "client-1",
+                        "client-" + suffix,
                         "hello"),
                 Instant.parse("2026-07-24T00:00:00Z"));
     }
 
     private ChatMessage message() {
+        return message("1");
+    }
+
+    private ChatMessage message(String suffix) {
+        long sequence = Long.parseLong(suffix);
         return new ChatMessage(
-                "message-1",
+                "message-" + suffix,
                 "room-1",
-                1,
+                sequence,
                 "user-1",
-                "client-1",
+                "client-" + suffix,
                 "hello",
                 Instant.parse("2026-07-24T00:00:01Z"));
     }

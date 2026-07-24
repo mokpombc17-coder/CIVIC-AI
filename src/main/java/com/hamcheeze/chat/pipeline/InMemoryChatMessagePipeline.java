@@ -10,12 +10,12 @@ import org.springframework.context.SmartLifecycle;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -24,6 +24,10 @@ public final class InMemoryChatMessagePipeline
 
     private static final Logger log =
             LoggerFactory.getLogger(InMemoryChatMessagePipeline.class);
+    // Spring stops higher phases first. The context shutdown integration
+    // test keeps this phase above every messaging lifecycle used by drain.
+    public static final int LIFECYCLE_PHASE =
+            SmartLifecycle.DEFAULT_PHASE - 1_000;
 
     private final ReentrantLock lifecycleLock = new ReentrantLock();
     private final ArrayBlockingQueue<QueuedChatCommand> queue;
@@ -169,6 +173,8 @@ public final class InMemoryChatMessagePipeline
     public void stop(Runnable callback) {
         Objects.requireNonNull(callback, "callback");
         ChatMessageWorker activeWorker = null;
+        Instant drainStartedAt = null;
+        long drainStartedNanos = 0L;
         boolean completeImmediately = false;
 
         lifecycleLock.lock();
@@ -184,6 +190,8 @@ public final class InMemoryChatMessagePipeline
                 completeImmediately = true;
             } else {
                 state = PipelineState.STOPPING;
+                drainStartedAt = clock.instant();
+                drainStartedNanos = System.nanoTime();
                 stopCallbacks.add(callback);
                 activeWorker = worker;
             }
@@ -199,8 +207,11 @@ public final class InMemoryChatMessagePipeline
             finishStop(null, null);
             return;
         }
-        activeWorker.requestStop(Duration.ofMillis(
-                properties.getShutdownDrainTimeoutMs()));
+        activeWorker.requestStop(
+                Duration.ofMillis(
+                        properties.getShutdownDrainTimeoutMs()),
+                drainStartedAt,
+                drainStartedNanos);
     }
 
     @Override
@@ -208,12 +219,7 @@ public final class InMemoryChatMessagePipeline
         CountDownLatch stopped = new CountDownLatch(1);
         stop(stopped::countDown);
         try {
-            long waitMs =
-                    properties.getShutdownDrainTimeoutMs() + 1_000L;
-            if (!stopped.await(waitMs, TimeUnit.MILLISECONDS)) {
-                log.warn(
-                        "Timed out waiting for chat pipeline shutdown callback");
-            }
+            stopped.await();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
         }
@@ -231,7 +237,7 @@ public final class InMemoryChatMessagePipeline
 
     @Override
     public int getPhase() {
-        return Integer.MAX_VALUE - 1_000;
+        return LIFECYCLE_PHASE;
     }
 
     public PipelineState state() {
@@ -258,6 +264,11 @@ public final class InMemoryChatMessagePipeline
             Throwable failure
     ) {
         List<Runnable> callbacks;
+        ChatMessageWorker.ShutdownReport shutdownReport =
+                terminatedWorker == null
+                        ? null
+                        : terminatedWorker.shutdownReport();
+        PipelineState finalState;
         lifecycleLock.lock();
         try {
             if (terminatedWorker != null
@@ -265,13 +276,13 @@ public final class InMemoryChatMessagePipeline
                 return;
             }
             workerRunning.set(0);
-            if (terminatedWorker != null
-                    && terminatedWorker.droppedOnStop() > 0) {
+            if (shutdownReport != null
+                    && shutdownReport.droppedCount() > 0) {
                 droppedCounter.increment(
-                        terminatedWorker.droppedOnStop());
+                        shutdownReport.droppedCount());
                 log.warn(
                         "Dropped queued chat commands on shutdown: count={}",
-                        terminatedWorker.droppedOnStop());
+                        shutdownReport.droppedCount());
             }
             if (failure != null) {
                 workerFailureCounter.increment();
@@ -284,11 +295,24 @@ public final class InMemoryChatMessagePipeline
             } else {
                 state = PipelineState.STOPPED;
             }
+            finalState = state;
             worker = null;
             callbacks = List.copyOf(stopCallbacks);
             stopCallbacks.clear();
         } finally {
             lifecycleLock.unlock();
+        }
+        if (shutdownReport != null
+                && shutdownReport.drainStartedAt() != null) {
+            log.info(
+                    "Chat pipeline shutdown completed: drainTimeoutMs={}, drainStartedAt={}, drainElapsedMs={}, processedDuringDrain={}, droppedCount={}, inFlightAtStop={}, finalPipelineState={}",
+                    properties.getShutdownDrainTimeoutMs(),
+                    shutdownReport.drainStartedAt(),
+                    shutdownReport.drainElapsedMs(),
+                    shutdownReport.processedDuringDrain(),
+                    shutdownReport.droppedCount(),
+                    shutdownReport.inFlightAtStop(),
+                    finalState);
         }
         callbacks.forEach(this::runStopCallback);
     }

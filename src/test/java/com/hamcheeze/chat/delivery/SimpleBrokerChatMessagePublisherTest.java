@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 
@@ -59,6 +60,24 @@ class SimpleBrokerChatMessagePublisherTest {
         assertThat(meterRegistry.counter(
                 "chat.message.broadcast.failures").count())
                 .isEqualTo(1);
+    }
+
+    @Test
+    void externalPayloadOmitsInternalSenderUserId() throws Exception {
+        ChatMessage internalMessage = message();
+        ChatMessageEventEnvelope event =
+                ChatMessageEventEnvelope.messageCreated(internalMessage);
+
+        assertThat(internalMessage.senderUserId())
+                .isEqualTo("user-1");
+        assertThat(event.payload().getClass().getRecordComponents())
+                .extracting(component -> component.getName())
+                .doesNotContain("senderUserId");
+        assertThat(JsonMapper.builder()
+                .build()
+                .writeValueAsString(event))
+                .doesNotContain("senderUserId")
+                .doesNotContain("\"user-1\"");
     }
 
     private ChatMessage message() {

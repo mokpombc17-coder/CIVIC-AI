@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -27,10 +28,16 @@ public final class ChatMessageWorker implements Runnable {
     private final Timer queueWaitTimer;
     private final AtomicBoolean stopRequested =
             new AtomicBoolean();
+    private final AtomicBoolean processing =
+            new AtomicBoolean();
 
     private volatile long drainDeadlineNanos = Long.MAX_VALUE;
-    private volatile Thread runner;
+    private volatile long drainStartedNanos;
+    private volatile Instant drainStartedAt;
+    private volatile long drainElapsedMs;
+    private volatile int processedDuringDrain;
     private volatile int droppedOnStop;
+    private volatile int inFlightAtStop;
 
     public ChatMessageWorker(
             BlockingQueue<QueuedChatCommand> queue,
@@ -51,10 +58,8 @@ public final class ChatMessageWorker implements Runnable {
 
     @Override
     public void run() {
-        runner = Thread.currentThread();
         try {
             consumeUntilStop();
-            Thread.interrupted();
             drainUntilDeadline();
         } finally {
             int remaining = queue.size();
@@ -62,26 +67,40 @@ public final class ChatMessageWorker implements Runnable {
                 queue.clear();
                 droppedOnStop = remaining;
             }
-            runner = null;
+            if (drainStartedNanos > 0L) {
+                drainElapsedMs = TimeUnit.NANOSECONDS.toMillis(
+                        Math.max(
+                                0L,
+                                System.nanoTime() - drainStartedNanos));
+            }
         }
     }
 
-    public void requestStop(Duration drainTimeout) {
+    public void requestStop(
+            Duration drainTimeout,
+            Instant startedAt,
+            long startedNanos
+    ) {
         Objects.requireNonNull(drainTimeout, "drainTimeout");
+        this.drainStartedAt = Objects.requireNonNull(
+                startedAt, "startedAt");
         long timeoutNanos = Math.max(0L, drainTimeout.toNanos());
-        long now = System.nanoTime();
-        drainDeadlineNanos = now > Long.MAX_VALUE - timeoutNanos
+        drainStartedNanos = startedNanos;
+        drainDeadlineNanos =
+                startedNanos > Long.MAX_VALUE - timeoutNanos
                 ? Long.MAX_VALUE
-                : now + timeoutNanos;
+                : startedNanos + timeoutNanos;
+        inFlightAtStop = processing.get() ? 1 : 0;
         stopRequested.set(true);
-        Thread activeRunner = runner;
-        if (activeRunner != null) {
-            activeRunner.interrupt();
-        }
     }
 
-    public int droppedOnStop() {
-        return droppedOnStop;
+    public ShutdownReport shutdownReport() {
+        return new ShutdownReport(
+                drainStartedAt,
+                drainElapsedMs,
+                processedDuringDrain,
+                droppedOnStop,
+                inFlightAtStop);
     }
 
     private void consumeUntilStop() {
@@ -93,11 +112,14 @@ public final class ChatMessageWorker implements Runnable {
                     processSafely(command);
                 }
             } catch (InterruptedException exception) {
-                if (!stopRequested.get()) {
-                    log.debug(
-                            "Chat message worker interrupted while running",
-                            exception);
+                if (stopRequested.get()) {
+                    log.info(
+                            "Chat message worker interrupted while stopping; continuing with drain policy");
+                    return;
                 }
+                log.warn(
+                        "Chat message worker interrupted unexpectedly while running; continuing",
+                        exception);
             }
         }
     }
@@ -109,26 +131,41 @@ public final class ChatMessageWorker implements Runnable {
                 return;
             }
             processSafely(command);
+            processedDuringDrain++;
         }
     }
 
     private void processSafely(QueuedChatCommand command) {
-        Duration queueWait = Duration.between(
-                command.acceptedAt(),
-                clock.instant());
-        queueWaitTimer.record(queueWait.isNegative()
-                ? Duration.ZERO
-                : queueWait);
+        processing.set(true);
         try {
-            processor.process(command);
-        } catch (RuntimeException exception) {
-            commandFailureCounter.increment();
-            log.error(
-                    "Chat message worker isolated command failure: roomId={}, userId={}, clientMessageId={}",
-                    command.command().roomId(),
-                    command.command().userId(),
-                    command.command().clientMessageId(),
-                    exception);
+            Duration queueWait = Duration.between(
+                    command.acceptedAt(),
+                    clock.instant());
+            queueWaitTimer.record(queueWait.isNegative()
+                    ? Duration.ZERO
+                    : queueWait);
+            try {
+                processor.process(command);
+            } catch (RuntimeException exception) {
+                commandFailureCounter.increment();
+                log.error(
+                        "Chat message worker isolated command failure: roomId={}, userId={}, clientMessageId={}",
+                        command.command().roomId(),
+                        command.command().userId(),
+                        command.command().clientMessageId(),
+                        exception);
+            }
+        } finally {
+            processing.set(false);
         }
+    }
+
+    public record ShutdownReport(
+            Instant drainStartedAt,
+            long drainElapsedMs,
+            int processedDuringDrain,
+            int droppedCount,
+            int inFlightAtStop
+    ) {
     }
 }

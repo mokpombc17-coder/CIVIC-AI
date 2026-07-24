@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -123,6 +124,74 @@ class InMemoryChatMessagePipelineTest {
         assertThat(processed.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(stopped.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(pipeline.queueSize()).isZero();
+    }
+
+    @Test
+    void stopDoesNotInterruptInFlightCommandAndCallsBackAfterDrain()
+            throws Exception {
+        ChatMessageProcessor processor =
+                mock(ChatMessageProcessor.class);
+        CountDownLatch processingFirst = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch firstCompleted = new CountDownLatch(1);
+        CountDownLatch secondCompleted = new CountDownLatch(1);
+        AtomicBoolean interrupted = new AtomicBoolean();
+        AtomicInteger attempts = new AtomicInteger();
+        doAnswer(invocation -> {
+            if (attempts.incrementAndGet() == 1) {
+                processingFirst.countDown();
+                try {
+                    releaseFirst.await();
+                } catch (InterruptedException exception) {
+                    interrupted.set(true);
+                    Thread.currentThread().interrupt();
+                }
+                interrupted.compareAndSet(
+                        false,
+                        Thread.currentThread().isInterrupted());
+                firstCompleted.countDown();
+            } else {
+                secondCompleted.countDown();
+            }
+            return null;
+        }).when(processor).process(any());
+        pipeline = pipeline(processor, 2, 1_000);
+        pipeline.start();
+
+        pipeline.tryAccept(command("client-1"));
+        assertThat(processingFirst.await(1, TimeUnit.SECONDS))
+                .isTrue();
+        pipeline.tryAccept(command("client-2"));
+
+        AtomicInteger callbackCount = new AtomicInteger();
+        AtomicBoolean callbackAfterWorkerExit = new AtomicBoolean();
+        CountDownLatch stopped = new CountDownLatch(1);
+        pipeline.stop(() -> {
+            callbackAfterWorkerExit.set(
+                    firstCompleted.getCount() == 0
+                            && secondCompleted.getCount() == 0
+                            && pipeline.state()
+                                    == PipelineState.STOPPED);
+            callbackCount.incrementAndGet();
+            stopped.countDown();
+        });
+
+        assertThat(pipeline.state())
+                .isEqualTo(PipelineState.STOPPING);
+        assertThat(pipeline.tryAccept(command("client-late")))
+                .isEqualTo(PipelineAcceptance.UNAVAILABLE);
+        assertThat(stopped.await(100, TimeUnit.MILLISECONDS))
+                .isFalse();
+
+        releaseFirst.countDown();
+
+        assertThat(stopped.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(interrupted).isFalse();
+        assertThat(firstCompleted.getCount()).isZero();
+        assertThat(secondCompleted.getCount()).isZero();
+        assertThat(callbackAfterWorkerExit).isTrue();
+        assertThat(callbackCount).hasValue(1);
+        assertThat(pipeline.state()).isEqualTo(PipelineState.STOPPED);
     }
 
     @Test

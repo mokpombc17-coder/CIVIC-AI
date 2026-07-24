@@ -3,6 +3,8 @@ package com.hamcheeze.chat;
 import com.hamcheeze.chat.application.ChatCommandResultEnvelope;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
+import com.hamcheeze.chat.message.ChatMessageStoreException;
+import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import com.hamcheeze.chat.websocket.config.TemporaryJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -14,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.messaging.converter.ByteArrayMessageConverter;
+import org.springframework.messaging.converter.CompositeMessageConverter;
 import org.springframework.messaging.converter.JacksonJsonMessageConverter;
 import org.springframework.messaging.simp.stomp.StompFrameHandler;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -22,9 +26,11 @@ import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
+import tools.jackson.databind.ObjectMapper;
 
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
@@ -37,6 +43,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -53,6 +61,12 @@ class ChatMessagePipelineWebSocketIntegrationTest {
     @Autowired
     private ActiveConnectionRegistry activeConnections;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockitoSpyBean
+    private InMemoryChatMessageStore messageStore;
+
     @Test
     void authenticatesStoresPublishesAndReturnsFinalResults()
             throws Exception {
@@ -64,8 +78,9 @@ class ChatMessagePipelineWebSocketIntegrationTest {
 
         WebSocketStompClient client = new WebSocketStompClient(
                 new StandardWebSocketClient());
-        client.setMessageConverter(
-                new JacksonJsonMessageConverter());
+        client.setMessageConverter(new CompositeMessageConverter(List.of(
+                new ByteArrayMessageConverter(),
+                new JacksonJsonMessageConverter())));
         client.setTaskScheduler(scheduler);
         client.start();
 
@@ -131,7 +146,7 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                             })
                     .get(5, TimeUnit.SECONDS);
             assertThat(activeConnections.activeCount()).isEqualTo(1);
-            BlockingQueue<ChatMessageEventEnvelope> roomMessages =
+            BlockingQueue<byte[]> rawRoomMessages =
                     new LinkedBlockingQueue<>();
             BlockingQueue<ChatCommandResultEnvelope> commandResults =
                     new LinkedBlockingQueue<>();
@@ -139,8 +154,8 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             session.subscribe(
                     "/topic/rooms/test-room/messages",
                     collectingHandler(
-                            ChatMessageEventEnvelope.class,
-                            roomMessages));
+                            byte[].class,
+                            rawRoomMessages));
             assertConnectionOpen(
                     session,
                     transportFailure,
@@ -161,11 +176,18 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                     "/app/rooms/test-room/messages",
                     new ChatSendCommand("client-1", "  hello  "));
 
+            byte[] rawRoomMessage =
+                    rawRoomMessages.poll(5, TimeUnit.SECONDS);
             ChatMessageEventEnvelope roomMessage =
-                    roomMessages.poll(5, TimeUnit.SECONDS);
+                    rawRoomMessage == null
+                            ? null
+                            : objectMapper.readValue(
+                                    rawRoomMessage,
+                                    ChatMessageEventEnvelope.class);
             ChatCommandResultEnvelope accepted =
                     commandResults.poll(5, TimeUnit.SECONDS);
 
+            assertThat(rawRoomMessage).isNotNull();
             assertThat(roomMessage).isNotNull();
             assertThat(roomMessage.eventVersion()).isEqualTo(1);
             assertThat(roomMessage.eventType())
@@ -174,11 +196,20 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                     .isEqualTo("hello");
             assertThat(roomMessage.payload().roomSequence())
                     .isEqualTo(1);
+            assertThat(new String(
+                    rawRoomMessage,
+                    StandardCharsets.UTF_8))
+                    .doesNotContain("senderUserId")
+                    .doesNotContain("local-user-1");
             assertThat(accepted).isNotNull();
             assertThat(accepted.status()).isEqualTo("ACCEPTED");
             assertThat(accepted.messageId())
                     .isEqualTo(roomMessage.payload().messageId());
             assertThat(accepted.roomSequence()).isEqualTo(1);
+            assertThat(messageStore.findById(accepted.messageId()))
+                    .get()
+                    .extracting(message -> message.senderUserId())
+                    .isEqualTo("local-user-1");
 
             session.send(
                     "/app/rooms/test-room/messages",
@@ -202,7 +233,29 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             assertThat(conflict.code())
                     .isEqualTo("IDEMPOTENCY_CONFLICT");
             assertThat(conflict.retryable()).isFalse();
-            assertThat(roomMessages.poll(
+            assertThat(rawRoomMessages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+
+            doThrow(new ChatMessageStoreException(
+                    "simulated persistence failure"))
+                    .when(messageStore)
+                    .append(argThat(message ->
+                            message.clientMessageId().equals(
+                                    "client-persistence-failure")));
+            session.send(
+                    "/app/rooms/test-room/messages",
+                    new ChatSendCommand(
+                            "client-persistence-failure",
+                            "not stored"));
+            ChatCommandResultEnvelope persistenceFailed =
+                    commandResults.poll(5, TimeUnit.SECONDS);
+
+            assertThat(persistenceFailed).isNotNull();
+            assertThat(persistenceFailed.status()).isEqualTo("FAILED");
+            assertThat(persistenceFailed.code())
+                    .isEqualTo("PERSISTENCE_FAILED");
+            assertThat(persistenceFailed.retryable()).isTrue();
+            assertThat(rawRoomMessages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
         } finally {
             if (session != null && session.isConnected()) {
