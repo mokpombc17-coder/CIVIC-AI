@@ -1,10 +1,12 @@
 package com.hamcheeze.chat.websocket.config;
 
 import com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptor;
+import com.hamcheeze.chat.pipeline.ChatMessagePipelineProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptor;
 import com.hamcheeze.chat.websocket.connection.TrackingWebSocketHandlerDecoratorFactory;
 import com.hamcheeze.chat.websocket.metrics.OutboundMetricsInterceptor;
 import com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptor;
+import com.hamcheeze.chat.websocket.protocol.ChatStompErrorHandler;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionPolicyInterceptor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -28,7 +30,9 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
         ChatAdmissionProperties.class,
         ChatContentProperties.class,
         WebSocketTransportProperties.class,
-        LimitTestRoomProperties.class
+        LimitTestRoomProperties.class,
+        TemporaryJwtProperties.class,
+        ChatMessagePipelineProperties.class
 })
 public class ChatWebSocketConfig
         implements WebSocketMessageBrokerConfigurer {
@@ -45,6 +49,7 @@ public class ChatWebSocketConfig
     private final ActiveConnectionLifecycleInterceptor connectionInterceptor;
     private final SubscriptionPolicyInterceptor subscriptionInterceptor;
     private final OutboundMetricsInterceptor outboundMetricsInterceptor;
+    private final ChatStompErrorHandler stompErrorHandler;
 
     public ChatWebSocketConfig(
             WebSocketEndpointProperties endpointProperties,
@@ -60,7 +65,8 @@ public class ChatWebSocketConfig
             StompProtocolPolicyInterceptor protocolInterceptor,
             ActiveConnectionLifecycleInterceptor connectionInterceptor,
             SubscriptionPolicyInterceptor subscriptionInterceptor,
-            OutboundMetricsInterceptor outboundMetricsInterceptor
+            OutboundMetricsInterceptor outboundMetricsInterceptor,
+            ChatStompErrorHandler stompErrorHandler
     ) {
         this.endpointProperties = endpointProperties;
         this.heartbeatProperties = heartbeatProperties;
@@ -74,10 +80,12 @@ public class ChatWebSocketConfig
         this.connectionInterceptor = connectionInterceptor;
         this.subscriptionInterceptor = subscriptionInterceptor;
         this.outboundMetricsInterceptor = outboundMetricsInterceptor;
+        this.stompErrorHandler = stompErrorHandler;
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.setErrorHandler(stompErrorHandler);
         registry.addEndpoint(endpointProperties.getEndpoint())
                 .setAllowedOriginPatterns(
                         endpointProperties.getAllowedOrigins()

@@ -85,6 +85,7 @@ class StompJwtAuthenticationInterceptorTest {
     private static Message<byte[]> message(
             StompHeaderAccessor accessor
     ) {
+        accessor.setLeaveMutable(true);
         return MessageBuilder.createMessage(
                 new byte[0], accessor.getMessageHeaders());
     }

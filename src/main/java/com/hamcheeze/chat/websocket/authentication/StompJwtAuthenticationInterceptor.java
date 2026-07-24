@@ -6,7 +6,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -28,7 +28,13 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(
+                        message,
+                        StompHeaderAccessor.class);
+        if (accessor == null) {
+            return message;
+        }
         if (accessor.getCommand() != StompCommand.CONNECT) {
             return message;
         }
@@ -47,9 +53,7 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
                 throw new StompPolicyException("UNAUTHORIZED");
             }
             accessor.setUser(new JwtAuthenticationToken(jwt, List.of(), jwt.getSubject()));
-            accessor.setLeaveMutable(true);
-            return MessageBuilder.createMessage(
-                    message.getPayload(), accessor.getMessageHeaders());
+            return message;
         } catch (JwtException exception) {
             throw new StompPolicyException("UNAUTHORIZED", exception);
         }

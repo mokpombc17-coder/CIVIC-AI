@@ -8,5 +8,6 @@ public enum ChatCommandRejectedCode {
     MESSAGE_TOO_LARGE,
     ROOM_SEND_FORBIDDEN,
     USER_RATE_LIMITED,
+    IDEMPOTENCY_CONFLICT,
     SERVER_BUSY
 }
