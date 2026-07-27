@@ -2,7 +2,6 @@ package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.websocket.config.WebSocketTransportProperties;
 import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
-import com.hamcheeze.chat.websocket.health.RoomAuthorizationHealthIndicator;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +16,7 @@ import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@ActiveProfiles("skeleton")
+@ActiveProfiles("local")
 class ChatServerApplicationTests {
 
 	@Autowired
@@ -28,9 +27,6 @@ class ChatServerApplicationTests {
 
 	@Autowired
 	private ChatPipelineHealthIndicator chatPipelineHealth;
-
-	@Autowired
-	private RoomAuthorizationHealthIndicator roomAuthorizationHealth;
 
 	@Autowired
 	private MeterRegistry meterRegistry;
@@ -52,9 +48,7 @@ class ChatServerApplicationTests {
 		assertThat(handler.getSendTimeLimit()).isEqualTo(10_000);
 
 		assertThat(chatPipelineHealth.health().getStatus())
-				.isEqualTo(Status.OUT_OF_SERVICE);
-		assertThat(roomAuthorizationHealth.health().getStatus())
-				.isEqualTo(Status.OUT_OF_SERVICE);
+				.isEqualTo(Status.UP);
 		assertThat(meterRegistry.find(
 				"client_outbound_channel.queue_size").gauge().value())
 				.isEqualTo(

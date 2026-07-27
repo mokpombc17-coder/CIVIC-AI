@@ -1,8 +1,6 @@
 package com.hamcheeze.chat.websocket.authentication;
 
-import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
@@ -57,29 +55,17 @@ class StompJwtAuthenticationInterceptorTest {
     }
 
     @Test
-    void failsClosedWhenDecoderIsUnavailable() {
-        @SuppressWarnings("unchecked")
-        ObjectProvider<JwtDecoder> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(null);
-        StompJwtAuthenticationInterceptor interceptor =
-                new StompJwtAuthenticationInterceptor(provider);
-        StompHeaderAccessor accessor =
-                StompHeaderAccessor.create(StompCommand.CONNECT);
-        accessor.addNativeHeader("Authorization", "Bearer token");
-
+    void requiresJwtDecoderAtConstructionTime() {
         assertThatThrownBy(() ->
-                interceptor.preSend(message(accessor), null))
-                .isInstanceOf(StompPolicyException.class)
-                .hasMessage("JWT_DECODER_UNAVAILABLE");
+                new StompJwtAuthenticationInterceptor(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("jwtDecoder");
     }
 
     private static StompJwtAuthenticationInterceptor interceptor(
             JwtDecoder decoder
     ) {
-        @SuppressWarnings("unchecked")
-        ObjectProvider<JwtDecoder> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(decoder);
-        return new StompJwtAuthenticationInterceptor(provider);
+        return new StompJwtAuthenticationInterceptor(decoder);
     }
 
     private static Message<byte[]> message(

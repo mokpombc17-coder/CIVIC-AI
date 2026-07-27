@@ -55,11 +55,10 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                 new SpringApplicationBuilder(
                         ChatServerApplication.class,
                         ShutdownTestConfiguration.class)
-                        .profiles("limit-test")
+                        .profiles("local")
                         .web(WebApplicationType.SERVLET)
                         .run(
                                 "--server.port=0",
-                                "--chat.message-pipeline.mode=in-memory",
                                 "--chat.message-pipeline.shutdown-drain-timeout-ms=2000");
         ExecutorService closer = Executors.newSingleThreadExecutor();
         ControlledChatMessageStore messageStore =

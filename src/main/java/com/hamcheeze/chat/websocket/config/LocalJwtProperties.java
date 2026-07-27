@@ -6,13 +6,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 @Validated
-@ConfigurationProperties("chat.websocket.temporary-jwt")
-public class TemporaryJwtProperties {
+@ConfigurationProperties("chat.security.local-jwt")
+public class LocalJwtProperties {
 
     @NotBlank
     @Size(min = 32)
     private String secret =
-            "chat-limit-test-only-secret-key-32b";
+            "chat-local-only-secret-key-32bytes";
 
     @NotBlank
     private String issuer = "chat-local";

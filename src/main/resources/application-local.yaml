@@ -1,0 +1,15 @@
+chat:
+  websocket:
+    allowed-origins:
+      - http://localhost:3000
+
+  security:
+    local-jwt:
+      secret: ${CHAT_LOCAL_JWT_SECRET:chat-local-only-secret-key-32bytes}
+      issuer: ${CHAT_LOCAL_JWT_ISSUER:chat-local}
+      audience: ${CHAT_LOCAL_JWT_AUDIENCE:chat-server}
+
+  authorization:
+    local:
+      allowed-rooms:
+        - test-room

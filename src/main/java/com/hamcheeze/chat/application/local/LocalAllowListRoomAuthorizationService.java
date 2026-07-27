@@ -1,22 +1,22 @@
-package com.hamcheeze.chat.application.test;
+package com.hamcheeze.chat.application.local;
 
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
-import com.hamcheeze.chat.websocket.config.LimitTestRoomProperties;
+import com.hamcheeze.chat.websocket.config.LocalRoomProperties;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
 @Component
-@Profile("limit-test")
-public final class AllowListRoomAuthorizationService
+@Profile("local")
+public final class LocalAllowListRoomAuthorizationService
         implements RoomAuthorizationService {
 
     private final Set<String> allowedRooms;
 
-    public AllowListRoomAuthorizationService(
-            LimitTestRoomProperties properties
+    public LocalAllowListRoomAuthorizationService(
+            LocalRoomProperties properties
     ) {
         this.allowedRooms = Set.copyOf(properties.getAllowedRooms());
     }

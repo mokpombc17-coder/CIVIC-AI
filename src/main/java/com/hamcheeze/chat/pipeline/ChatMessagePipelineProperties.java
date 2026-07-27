@@ -8,21 +8,11 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("chat.message-pipeline")
 public class ChatMessagePipelineProperties {
 
-    private Mode mode = Mode.RECORDING;
-
     @Min(1)
     private int queueCapacity = 100;
 
     @Min(1)
     private long shutdownDrainTimeoutMs = 10_000;
-
-    public Mode getMode() {
-        return mode;
-    }
-
-    public void setMode(Mode mode) {
-        this.mode = mode;
-    }
 
     public int getQueueCapacity() {
         return queueCapacity;
@@ -40,10 +30,5 @@ public class ChatMessagePipelineProperties {
             long shutdownDrainTimeoutMs
     ) {
         this.shutdownDrainTimeoutMs = shutdownDrainTimeoutMs;
-    }
-
-    public enum Mode {
-        RECORDING,
-        IN_MEMORY
     }
 }

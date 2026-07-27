@@ -5,36 +5,19 @@ import com.hamcheeze.chat.application.ChatMessageProcessor;
 import com.hamcheeze.chat.delivery.ChatMessagePublisher;
 import com.hamcheeze.chat.delivery.SimpleBrokerChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessageStore;
-import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.context.LifecycleProperties;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.UUID;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("limit-test")
-@ConditionalOnProperty(
-        prefix = "chat.message-pipeline",
-        name = "mode",
-        havingValue = "in-memory")
-public class InMemoryChatMessagePipelineConfiguration {
-
-    @Bean
-    InMemoryChatMessageStore inMemoryChatMessageStore(
-            MeterRegistry meterRegistry
-    ) {
-        return new InMemoryChatMessageStore(
-                Clock.systemUTC(),
-                () -> UUID.randomUUID().toString(),
-                meterRegistry);
-    }
+@EnableConfigurationProperties(ChatMessagePipelineProperties.class)
+public class ChatMessagePipelineConfiguration {
 
     @Bean
     ChatMessagePublisher chatMessagePublisher(
@@ -60,8 +43,8 @@ public class InMemoryChatMessagePipelineConfiguration {
                 meterRegistry);
     }
 
-    @Bean
-    InMemoryChatMessagePipeline inMemoryChatMessagePipeline(
+    @Bean(name = "chatMessagePipeline")
+    InMemoryChatMessagePipeline chatMessagePipeline(
             ChatMessageProcessor processor,
             ChatMessagePipelineProperties properties,
             LifecycleProperties lifecycleProperties,

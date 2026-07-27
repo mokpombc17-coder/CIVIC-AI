@@ -6,7 +6,7 @@ import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
 import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
-import com.hamcheeze.chat.websocket.config.TemporaryJwtProperties;
+import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -47,9 +47,8 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "chat.message-pipeline.mode=in-memory")
-@ActiveProfiles("limit-test")
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("local")
 class ChatMessagePipelineWebSocketIntegrationTest {
 
     private static final String CLIENT_MESSAGE_ID =
@@ -63,7 +62,7 @@ class ChatMessagePipelineWebSocketIntegrationTest {
     private int port;
 
     @Autowired
-    private TemporaryJwtProperties jwtProperties;
+    private LocalJwtProperties jwtProperties;
 
     @Autowired
     private ActiveConnectionRegistry activeConnections;

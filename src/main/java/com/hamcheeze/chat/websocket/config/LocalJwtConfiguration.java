@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.websocket.config;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -17,19 +18,20 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
 @Configuration(proxyBeanMethods = false)
-@Profile({"skeleton", "limit-test"})
-public class TemporaryProfileJwtConfiguration {
+@Profile("local")
+@EnableConfigurationProperties(LocalJwtProperties.class)
+public class LocalJwtConfiguration {
 
-    private final TemporaryJwtProperties properties;
+    private final LocalJwtProperties properties;
 
-    public TemporaryProfileJwtConfiguration(
-            TemporaryJwtProperties properties
+    public LocalJwtConfiguration(
+            LocalJwtProperties properties
     ) {
         this.properties = properties;
     }
 
     @Bean
-    JwtDecoder temporaryProfileJwtDecoder() {
+    JwtDecoder localJwtDecoder() {
         SecretKeySpec secretKey = new SecretKeySpec(
                 properties.getSecret().getBytes(StandardCharsets.UTF_8),
                 "HmacSHA256");

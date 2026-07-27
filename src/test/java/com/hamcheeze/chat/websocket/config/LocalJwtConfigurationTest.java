@@ -17,16 +17,16 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class TemporaryProfileJwtConfigurationTest {
+class LocalJwtConfigurationTest {
 
-    private TemporaryJwtProperties properties;
+    private LocalJwtProperties properties;
     private JwtDecoder decoder;
 
     @BeforeEach
     void setUp() {
-        properties = new TemporaryJwtProperties();
-        decoder = new TemporaryProfileJwtConfiguration(properties)
-                .temporaryProfileJwtDecoder();
+        properties = new LocalJwtProperties();
+        decoder = new LocalJwtConfiguration(properties)
+                .localJwtDecoder();
     }
 
     @Test

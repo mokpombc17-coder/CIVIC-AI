@@ -21,14 +21,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("skeleton")
+@ActiveProfiles("local")
 class TimeToFirstMessageIntegrationTest {
 
     @LocalServerPort
     private int port;
 
     @Test
-    void skeletonIsLiveButNotReady() throws Exception {
+    void localRuntimeIsLiveAndReady() throws Exception {
         HttpClient client = HttpClient.newHttpClient();
 
         HttpResponse<String> liveness = client.send(
@@ -48,8 +48,8 @@ class TimeToFirstMessageIntegrationTest {
 
         assertThat(liveness.statusCode()).isEqualTo(200);
         assertThat(liveness.body()).contains("\"status\":\"UP\"");
-        assertThat(readiness.statusCode()).isEqualTo(503);
-        assertThat(readiness.body()).contains("\"status\":\"OUT_OF_SERVICE\"");
+        assertThat(readiness.statusCode()).isEqualTo(200);
+        assertThat(readiness.body()).contains("\"status\":\"UP\"");
     }
 
     @Test

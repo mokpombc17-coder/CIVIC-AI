@@ -8,14 +8,19 @@ import org.springframework.context.EnvironmentAware;
 import org.springframework.core.Ordered;
 import org.springframework.core.PriorityOrdered;
 import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
+import java.util.Set;
+
 @Component
-public final class ProfileCompatibilityValidator
+public final class RuntimeProfileValidator
         implements BeanDefinitionRegistryPostProcessor,
         EnvironmentAware,
         PriorityOrdered {
+
+    private static final Set<String> SUPPORTED_RUNTIME_PROFILES =
+            Set.of("local", "prod");
 
     private Environment environment;
 
@@ -28,13 +33,23 @@ public final class ProfileCompatibilityValidator
     public void postProcessBeanDefinitionRegistry(
             BeanDefinitionRegistry registry
     ) throws BeansException {
-        boolean prod = active("prod");
-        boolean skeleton = active("skeleton");
-        boolean limitTest = active("limit-test");
-        if (prod && skeleton || prod && limitTest || skeleton && limitTest) {
+        String[] activeProfiles = environment == null
+                ? new String[0]
+                : environment.getActiveProfiles();
+        if (activeProfiles.length != 1) {
             throw new IllegalStateException(
-                    "Incompatible profiles: prod, skeleton, and limit-test "
-                            + "must be activated exclusively");
+                    "Exactly one runtime Spring profile must be active: "
+                            + SUPPORTED_RUNTIME_PROFILES
+                            + ", active="
+                            + Arrays.toString(activeProfiles));
+        }
+        String activeProfile = activeProfiles[0];
+        if (!SUPPORTED_RUNTIME_PROFILES.contains(activeProfile)) {
+            throw new IllegalStateException(
+                    "Unsupported runtime Spring profile: "
+                            + activeProfile
+                            + ", supported="
+                            + SUPPORTED_RUNTIME_PROFILES);
         }
     }
 
@@ -49,8 +64,4 @@ public final class ProfileCompatibilityValidator
         return Ordered.HIGHEST_PRECEDENCE;
     }
 
-    private boolean active(String profile) {
-        return environment != null
-                && environment.acceptsProfiles(Profiles.of(profile));
-    }
 }

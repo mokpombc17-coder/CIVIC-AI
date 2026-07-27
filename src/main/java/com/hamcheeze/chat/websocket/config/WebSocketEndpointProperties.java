@@ -9,7 +9,7 @@ import java.util.List;
 public class WebSocketEndpointProperties {
 
     private String endpoint = "/ws";
-    private List<String> allowedOrigins = new ArrayList<>(List.of("http://localhost:3000"));
+    private List<String> allowedOrigins = new ArrayList<>();
 
     public String getEndpoint() {
         return endpoint;

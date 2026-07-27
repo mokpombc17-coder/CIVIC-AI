@@ -1,7 +1,6 @@
 package com.hamcheeze.chat.websocket.config;
 
 import com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptor;
-import com.hamcheeze.chat.pipeline.ChatMessagePipelineProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptor;
 import com.hamcheeze.chat.websocket.connection.TrackingWebSocketHandlerDecoratorFactory;
 import com.hamcheeze.chat.websocket.metrics.OutboundMetricsInterceptor;
@@ -29,10 +28,7 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
         SubscriptionLimitProperties.class,
         ChatAdmissionProperties.class,
         ChatContentProperties.class,
-        WebSocketTransportProperties.class,
-        LimitTestRoomProperties.class,
-        TemporaryJwtProperties.class,
-        ChatMessagePipelineProperties.class
+        WebSocketTransportProperties.class
 })
 public class ChatWebSocketConfig
         implements WebSocketMessageBrokerConfigurer {

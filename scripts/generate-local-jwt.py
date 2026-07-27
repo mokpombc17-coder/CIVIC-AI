@@ -10,7 +10,7 @@ import sys
 import time
 
 
-DEFAULT_SECRET = "chat-limit-test-only-secret-key-32b"
+DEFAULT_SECRET = "chat-local-only-secret-key-32bytes"
 
 
 def base64url(value: bytes) -> str:
@@ -28,7 +28,7 @@ def encode_json(value: dict) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate a local HS256 JWT for the limit-test profile."
+        description="Generate a local HS256 JWT for the local profile."
     )
     parser.add_argument("subject", help="JWT sub claim / chat userId")
     parser.add_argument(

@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 
 @Component
 public final class StompJwtAuthenticationInterceptor implements ChannelInterceptor {
@@ -21,9 +22,11 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
     private final JwtDecoder jwtDecoder;
 
     public StompJwtAuthenticationInterceptor(
-            org.springframework.beans.factory.ObjectProvider<JwtDecoder> jwtDecoderProvider
+            JwtDecoder jwtDecoder
     ) {
-        this.jwtDecoder = jwtDecoderProvider.getIfAvailable();
+        this.jwtDecoder = Objects.requireNonNull(
+                jwtDecoder,
+                "jwtDecoder");
     }
 
     @Override
@@ -43,10 +46,6 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new StompPolicyException("UNAUTHORIZED");
         }
-        if (jwtDecoder == null) {
-            throw new StompPolicyException("JWT_DECODER_UNAVAILABLE");
-        }
-
         try {
             Jwt jwt = jwtDecoder.decode(authorization.substring(7));
             if (jwt.getSubject() == null || jwt.getSubject().isBlank()) {

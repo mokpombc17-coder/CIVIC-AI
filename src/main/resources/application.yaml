@@ -5,10 +5,12 @@ spring:
     timeout-per-shutdown-phase: 30s
 
 chat:
+  message-pipeline:
+    queue-capacity: ${CHAT_MESSAGE_PIPELINE_QUEUE_CAPACITY:100}
+    shutdown-drain-timeout-ms: ${CHAT_MESSAGE_PIPELINE_SHUTDOWN_DRAIN_TIMEOUT_MS:10000}
+
   websocket:
     endpoint: /ws
-    allowed-origins:
-      - http://localhost:3000
 
     connection:
       max-active-authenticated: 500
@@ -74,4 +76,3 @@ management:
           include:
             - readinessState
             - chatPipeline
-            - roomAuthorization

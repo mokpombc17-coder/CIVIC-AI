@@ -5,8 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.ArrayList;
 import java.util.List;
 
-@ConfigurationProperties("chat.websocket.limit-test")
-public class LimitTestRoomProperties {
+@ConfigurationProperties("chat.authorization.local")
+public class LocalRoomProperties {
 
     private List<String> allowedRooms = new ArrayList<>(List.of("test-room"));
 

@@ -8,7 +8,7 @@ import com.hamcheeze.chat.application.ChatCommandOutcomeCode;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
 import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
-import com.hamcheeze.chat.websocket.config.TemporaryJwtProperties;
+import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -53,9 +53,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "chat.message-pipeline.mode=in-memory")
-@ActiveProfiles("limit-test")
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("local")
 @DirtiesContext(
         classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class ChatMessageReconnectRecoveryIntegrationTest {
@@ -69,7 +68,7 @@ class ChatMessageReconnectRecoveryIntegrationTest {
     private int port;
 
     @Autowired
-    private TemporaryJwtProperties jwtProperties;
+    private LocalJwtProperties jwtProperties;
 
     @Autowired
     private InMemoryChatMessageStore messageStore;

@@ -11,9 +11,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ChatMessagePipelineTimeoutValidationTest {
 
     @Test
-    void inMemoryModeStartsWhenDrainTimeoutIsLessThanLifecycleTimeout() {
+    void startsWhenDrainTimeoutIsLessThanLifecycleTimeout() {
         try (ConfigurableApplicationContext context = start(
-                "in-memory",
                 "10000",
                 "30s")) {
             assertThat(context.getBean(
@@ -22,38 +21,25 @@ class ChatMessagePipelineTimeoutValidationTest {
     }
 
     @Test
-    void inMemoryModeFailsWhenTimeoutsAreEqual() {
+    void failsWhenTimeoutsAreEqual() {
         assertInvalidTimeoutRelation("30000", "PT30S");
     }
 
     @Test
-    void inMemoryModeFailsWhenDrainTimeoutIsGreater() {
+    void failsWhenDrainTimeoutIsGreater() {
         assertInvalidTimeoutRelation("31000", "PT31S");
     }
 
     @Test
-    void inMemoryModeFailsForRuntimeDrainTimeoutOverride() {
+    void failsForRuntimeDrainTimeoutOverride() {
         assertInvalidTimeoutRelation("60000", "PT1M");
-    }
-
-    @Test
-    void recordingModeIgnoresUnusedInMemoryDrainTimeout() {
-        try (ConfigurableApplicationContext context = start(
-                "recording",
-                "60000",
-                "30s")) {
-            assertThat(context.isActive()).isTrue();
-            assertThat(context.getBeansOfType(
-                    InMemoryChatMessagePipeline.class)).isEmpty();
-        }
     }
 
     private void assertInvalidTimeoutRelation(
             String drainTimeoutMs,
-            String expectedDuration
+        String expectedDuration
     ) {
         assertThatThrownBy(() -> start(
-                "in-memory",
                 drainTimeoutMs,
                 "30s"))
                 .hasRootCauseInstanceOf(IllegalStateException.class)
@@ -67,16 +53,14 @@ class ChatMessagePipelineTimeoutValidationTest {
     }
 
     private ConfigurableApplicationContext start(
-            String mode,
             String drainTimeoutMs,
             String lifecycleTimeout
     ) {
         return new SpringApplicationBuilder(
                 ChatServerApplication.class)
-                .profiles("limit-test")
+                .profiles("local")
                 .run(
                         "--server.port=0",
-                        "--chat.message-pipeline.mode=" + mode,
                         "--chat.message-pipeline.shutdown-drain-timeout-ms="
                                 + drainTimeoutMs,
                         "--spring.lifecycle.timeout-per-shutdown-phase="
