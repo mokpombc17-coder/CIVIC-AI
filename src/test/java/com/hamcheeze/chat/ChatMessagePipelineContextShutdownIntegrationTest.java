@@ -12,6 +12,7 @@ import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
 import com.hamcheeze.chat.pipeline.InMemoryChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.PipelineAcceptance;
 import com.hamcheeze.chat.pipeline.PipelineState;
+import com.hamcheeze.chat.support.MongoRuntimeTestContainer;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -59,6 +60,9 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                         .web(WebApplicationType.SERVLET)
                         .run(
                                 "--server.port=0",
+                                "--spring.mongodb.uri="
+                                        + MongoRuntimeTestContainer
+                                        .replicaSetUrl(),
                                 "--chat.message-pipeline.shutdown-drain-timeout-ms=2000");
         ExecutorService closer = Executors.newSingleThreadExecutor();
         ControlledChatMessageStore messageStore =

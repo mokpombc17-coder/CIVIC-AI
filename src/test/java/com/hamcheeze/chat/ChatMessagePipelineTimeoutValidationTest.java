@@ -1,6 +1,7 @@
 package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.pipeline.InMemoryChatMessagePipeline;
+import com.hamcheeze.chat.support.MongoRuntimeTestContainer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -61,6 +62,8 @@ class ChatMessagePipelineTimeoutValidationTest {
                 .profiles("local")
                 .run(
                         "--server.port=0",
+                        "--spring.mongodb.uri="
+                                + MongoRuntimeTestContainer.replicaSetUrl(),
                         "--chat.message-pipeline.shutdown-drain-timeout-ms="
                                 + drainTimeoutMs,
                         "--spring.lifecycle.timeout-per-shutdown-phase="

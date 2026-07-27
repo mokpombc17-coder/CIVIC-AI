@@ -7,7 +7,9 @@ import com.hamcheeze.chat.application.ChatCommandOutcome;
 import com.hamcheeze.chat.application.ChatCommandOutcomeCode;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
-import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
+import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
+import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
+import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -27,6 +29,7 @@ import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -57,7 +60,8 @@ import static org.mockito.Mockito.doAnswer;
 @ActiveProfiles("local")
 @DirtiesContext(
         classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
-class ChatMessageReconnectRecoveryIntegrationTest {
+class ChatMessageReconnectRecoveryIntegrationTest
+        extends MongoRuntimeIntegrationTest {
 
     private static final String CLIENT_MESSAGE_ID =
             "550e8400-e29b-41d4-a716-446655440010";
@@ -69,9 +73,6 @@ class ChatMessageReconnectRecoveryIntegrationTest {
 
     @Autowired
     private LocalJwtProperties jwtProperties;
-
-    @Autowired
-    private InMemoryChatMessageStore messageStore;
 
     @MockitoSpyBean
     private ActiveConnectionRegistry activeConnections;
@@ -132,8 +133,9 @@ class ChatMessageReconnectRecoveryIntegrationTest {
             assertThat(firstEvent).isNotNull();
             assertThat(firstResultSendEntered.await(
                     5, TimeUnit.SECONDS)).isTrue();
-            assertThat(messageStore.findById(
-                    firstEvent.payload().messageId())).isPresent();
+            assertThat(mongoOperations.findById(
+                    firstEvent.payload().messageId(),
+                    MongoChatMessageDocument.class)).isNotNull();
 
             firstSession.disconnect();
             releaseFirstResultSend.countDown();
@@ -174,7 +176,8 @@ class ChatMessageReconnectRecoveryIntegrationTest {
                     .isEqualTo(firstEvent.payload().roomSequence());
             assertThat(secondRoomEvents.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
-            assertThat(messageStore.size()).isEqualTo(1);
+            assertThat(storedMessageCount()).isEqualTo(1);
+            assertThat(lastRoomSequence()).isEqualTo(1);
         } finally {
             releaseFirstResultSend.countDown();
             disconnect(firstSession);
@@ -292,8 +295,9 @@ class ChatMessageReconnectRecoveryIntegrationTest {
                     5, TimeUnit.SECONDS)).isTrue();
             assertThat(originalResultConnection)
                     .hasValue(firstConnectionId);
-            assertThat(messageStore.findById(
-                    firstEvent.payload().messageId())).isPresent();
+            assertThat(mongoOperations.findById(
+                    firstEvent.payload().messageId(),
+                    MongoChatMessageDocument.class)).isNotNull();
 
             secondSession = connect(client, "local-user-1");
             assertThat(secondConnectionActivated.await(
@@ -358,7 +362,8 @@ class ChatMessageReconnectRecoveryIntegrationTest {
                     .isEqualTo(firstEvent.payload().roomSequence());
             assertThat(secondRoomEvents.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
-            assertThat(messageStore.size()).isEqualTo(1);
+            assertThat(storedMessageCount()).isEqualTo(1);
+            assertThat(lastRoomSequence()).isEqualTo(1);
         } finally {
             releaseFirstAcceptedSend.countDown();
             disconnect(firstSession);
@@ -366,6 +371,21 @@ class ChatMessageReconnectRecoveryIntegrationTest {
             client.stop();
             scheduler.shutdown();
         }
+    }
+
+    private long storedMessageCount() {
+        return mongoOperations.count(
+                new Query(),
+                MongoChatMessageDocument.COLLECTION_NAME);
+    }
+
+    private long lastRoomSequence() {
+        MongoRoomSequenceDocument sequence =
+                mongoOperations.findById(
+                        "test-room",
+                        MongoRoomSequenceDocument.class);
+        assertThat(sequence).isNotNull();
+        return sequence.lastSequence();
     }
 
     private WebSocketStompClient stompClient(

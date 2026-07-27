@@ -1,6 +1,7 @@
 package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.application.RoomAuthorizationService;
+import com.hamcheeze.chat.support.MongoRuntimeTestContainer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.SpringApplication;
@@ -26,6 +27,8 @@ class ProductionProfileStartupTest {
                     "--spring.profiles.active=prod",
                     "--server.port=0",
                     "--spring.main.banner-mode=off",
+                    "--spring.mongodb.uri="
+                            + MongoRuntimeTestContainer.replicaSetUrl(),
                     "--spring.security.oauth2.resourceserver.jwt.issuer-uri="
                             + "https://issuer.example",
                     "--spring.security.oauth2.resourceserver.jwt.audiences[0]="

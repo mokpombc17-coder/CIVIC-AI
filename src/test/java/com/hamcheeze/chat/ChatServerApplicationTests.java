@@ -1,5 +1,6 @@
 package com.hamcheeze.chat;
 
+import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.config.WebSocketTransportProperties;
 import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -17,7 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("local")
-class ChatServerApplicationTests {
+class ChatServerApplicationTests
+		extends MongoRuntimeIntegrationTest {
 
 	@Autowired
 	private ApplicationContext applicationContext;

@@ -2,6 +2,7 @@ package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.pipeline.ChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.InMemoryChatMessagePipeline;
+import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("local")
-class RecordingChatMessagePipelineOverrideTest {
+class RecordingChatMessagePipelineOverrideTest
+        extends MongoRuntimeIntegrationTest {
 
     @TestBean(
             name = "chatMessagePipeline",

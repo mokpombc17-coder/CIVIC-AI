@@ -3,9 +3,12 @@ package com.hamcheeze.chat;
 import com.hamcheeze.chat.application.ChatCommandResultEnvelope;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
+import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
 import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
-import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
+import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
+import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
+import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -26,6 +29,7 @@ import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.socket.WebSocketHttpHeaders;
@@ -50,7 +54,8 @@ import static org.mockito.Mockito.doThrow;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("local")
-class ChatMessagePipelineWebSocketIntegrationTest {
+class ChatMessagePipelineWebSocketIntegrationTest
+        extends MongoRuntimeIntegrationTest {
 
     private static final String CLIENT_MESSAGE_ID =
             "550e8400-e29b-41d4-a716-446655440000";
@@ -58,6 +63,8 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             "550e8400-e29b-41d4-a716-446655440001";
     private static final String FAILED_CLIENT_MESSAGE_ID =
             "550e8400-e29b-41d4-a716-446655440002";
+    private static final String PERMANENT_FAILED_CLIENT_MESSAGE_ID =
+            "550e8400-e29b-41d4-a716-446655440003";
 
     @LocalServerPort
     private int port;
@@ -71,8 +78,8 @@ class ChatMessagePipelineWebSocketIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockitoSpyBean
-    private InMemoryChatMessageStore messageStore;
+    @MockitoSpyBean(name = "chatMessageStore")
+    private ChatMessageStore messageStore;
 
     @Test
     void authenticatesStoresPublishesAndReturnsFinalResults()
@@ -219,10 +226,22 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             assertThat(accepted.roomSequence()).isEqualTo(1);
             assertThat(roomMessage.payload().clientMessageId())
                     .isEqualTo(accepted.clientMessageId());
-            assertThat(messageStore.findById(accepted.messageId()))
-                    .get()
-                    .extracting(message -> message.senderUserId())
+            MongoChatMessageDocument storedDocument =
+                    mongoOperations.findById(
+                            accepted.messageId(),
+                            MongoChatMessageDocument.class);
+            assertThat(storedDocument).isNotNull();
+            assertThat(storedDocument.roomId())
+                    .isEqualTo("test-room");
+            assertThat(storedDocument.senderUserId())
                     .isEqualTo("local-user-1");
+            assertThat(storedDocument.clientMessageId())
+                    .isEqualTo(CLIENT_MESSAGE_ID);
+            assertThat(storedDocument.content()).isEqualTo("hello");
+            assertThat(storedDocument.roomSequence()).isEqualTo(1);
+            assertThat(storedDocument.schemaVersion()).isEqualTo(1);
+            assertThat(storedMessageCount()).isEqualTo(1);
+            assertThat(lastRoomSequence()).isEqualTo(1);
 
             session.send(
                     "/app/rooms/test-room/messages",
@@ -238,6 +257,10 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                     .isEqualTo(accepted.messageId());
             assertThat(duplicate.roomSequence())
                     .isEqualTo(accepted.roomSequence());
+            assertThat(rawRoomMessages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+            assertThat(storedMessageCount()).isEqualTo(1);
+            assertThat(lastRoomSequence()).isEqualTo(1);
 
             session.send(
                     "/app/rooms/test-room/messages",
@@ -254,6 +277,8 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                     .isEqualTo(CLIENT_MESSAGE_ID);
             assertThat(rawRoomMessages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
+            assertThat(storedMessageCount()).isEqualTo(1);
+            assertThat(lastRoomSequence()).isEqualTo(1);
 
             session.send(
                     "/app/rooms/test-room/messages",
@@ -280,6 +305,8 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             assertThat(secondRoomMessage.payload().clientMessageId())
                     .isEqualTo(
                             secondAccepted.clientMessageId());
+            assertThat(storedMessageCount()).isEqualTo(2);
+            assertThat(lastRoomSequence()).isEqualTo(2);
 
             doThrow(new ChatMessageStoreException(
                     ChatMessageStoreFailureKind.TRANSIENT,
@@ -305,8 +332,38 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                     .isEqualTo(FAILED_CLIENT_MESSAGE_ID);
             assertThat(rawRoomMessages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
+            assertThat(storedMessageCount()).isEqualTo(2);
+            assertThat(lastRoomSequence()).isEqualTo(2);
 
-            int storedBeforeInvalidCommand = messageStore.size();
+            doThrow(new ChatMessageStoreException(
+                    ChatMessageStoreFailureKind.PERMANENT,
+                    "simulated permanent persistence failure"))
+                    .when(messageStore)
+                    .append(argThat(message ->
+                            message.clientMessageId().equals(
+                                    PERMANENT_FAILED_CLIENT_MESSAGE_ID)));
+            session.send(
+                    "/app/rooms/test-room/messages",
+                    new ChatSendCommand(
+                            PERMANENT_FAILED_CLIENT_MESSAGE_ID,
+                            "not stored permanently"));
+            ChatCommandResultEnvelope permanentPersistenceFailed =
+                    commandResults.poll(5, TimeUnit.SECONDS);
+
+            assertThat(permanentPersistenceFailed).isNotNull();
+            assertThat(permanentPersistenceFailed.status())
+                    .isEqualTo("FAILED");
+            assertThat(permanentPersistenceFailed.code())
+                    .isEqualTo("PERSISTENCE_FAILED");
+            assertThat(permanentPersistenceFailed.retryable()).isFalse();
+            assertThat(permanentPersistenceFailed.clientMessageId())
+                    .isEqualTo(PERMANENT_FAILED_CLIENT_MESSAGE_ID);
+            assertThat(rawRoomMessages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+            assertThat(storedMessageCount()).isEqualTo(2);
+            assertThat(lastRoomSequence()).isEqualTo(2);
+
+            long storedBeforeInvalidCommand = storedMessageCount();
             session.send(
                     "/app/rooms/test-room/messages",
                     new ChatSendCommand(
@@ -322,7 +379,7 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                     .isEqualTo("INVALID_CLIENT_MESSAGE_ID");
             assertThat(invalidClientMessageId.retryable()).isFalse();
             assertThat(invalidClientMessageId.clientMessageId()).isNull();
-            assertThat(messageStore.size())
+            assertThat(storedMessageCount())
                     .isEqualTo(storedBeforeInvalidCommand);
             assertThat(rawRoomMessages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
@@ -333,6 +390,21 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             client.stop();
             scheduler.shutdown();
         }
+    }
+
+    private long storedMessageCount() {
+        return mongoOperations.count(
+                new Query(),
+                MongoChatMessageDocument.COLLECTION_NAME);
+    }
+
+    private long lastRoomSequence() {
+        MongoRoomSequenceDocument sequence =
+                mongoOperations.findById(
+                        "test-room",
+                        MongoRoomSequenceDocument.class);
+        assertThat(sequence).isNotNull();
+        return sequence.lastSequence();
     }
 
     private <T> StompFrameHandler collectingHandler(

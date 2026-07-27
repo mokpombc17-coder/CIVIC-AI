@@ -1,5 +1,6 @@
 package com.hamcheeze.chat;
 
+import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -20,9 +21,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "management.endpoint.health.show-components=always")
 @ActiveProfiles("local")
-class TimeToFirstMessageIntegrationTest {
+class TimeToFirstMessageIntegrationTest
+        extends MongoRuntimeIntegrationTest {
 
     @LocalServerPort
     private int port;
@@ -48,8 +52,10 @@ class TimeToFirstMessageIntegrationTest {
 
         assertThat(liveness.statusCode()).isEqualTo(200);
         assertThat(liveness.body()).contains("\"status\":\"UP\"");
+        assertThat(liveness.body()).doesNotContain("\"mongodb\"");
         assertThat(readiness.statusCode()).isEqualTo(200);
         assertThat(readiness.body()).contains("\"status\":\"UP\"");
+        assertThat(readiness.body()).contains("\"mongodb\"");
     }
 
     @Test

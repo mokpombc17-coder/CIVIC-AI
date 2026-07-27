@@ -7,11 +7,16 @@ import com.hamcheeze.chat.application.local.LocalAllowListRoomAuthorizationServi
 import com.hamcheeze.chat.delivery.SimpleBrokerChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
+import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
+import com.hamcheeze.chat.message.mongo.MongoChatMessageSchemaInitializer;
+import com.hamcheeze.chat.message.mongo.MongoChatMessageStore;
+import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
 import com.hamcheeze.chat.pipeline.ChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.InMemoryChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.PipelineAcceptance;
 import com.hamcheeze.chat.pipeline.PipelineAvailability;
+import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.hamcheeze.chat.websocket.config.LocalRoomProperties;
@@ -19,13 +24,20 @@ import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
 import com.mongodb.client.MongoClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.health.contributor.Status;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.mongodb.MongoDatabaseFactory;
+import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 
@@ -33,7 +45,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("local")
-class LocalProfileApplicationTests {
+class LocalProfileApplicationTests
+        extends MongoRuntimeIntegrationTest {
 
     @Autowired
     private ApplicationContext applicationContext;
@@ -48,7 +61,23 @@ class LocalProfileApplicationTests {
     private SimpleBrokerChatMessagePublisher publisher;
 
     @Autowired
-    private InMemoryChatMessageStore store;
+    private ChatMessageStore store;
+
+    @Autowired
+    private MongoClient mongoClient;
+
+    @Autowired
+    private MongoDatabaseFactory mongoDatabaseFactory;
+
+    @Autowired
+    private MongoTransactionManager mongoTransactionManager;
+
+    @Autowired
+    @Qualifier("mongoTransactionTemplate")
+    private TransactionTemplate mongoTransactionTemplate;
+
+    @Autowired
+    private MongoChatMessageSchemaInitializer schemaInitializer;
 
     @Autowired
     private JwtDecoder jwtDecoder;
@@ -78,15 +107,41 @@ class LocalProfileApplicationTests {
                 .isInstanceOf(InMemoryChatMessagePipeline.class);
         assertThat(processor).isNotNull();
         assertThat(publisher).isNotNull();
-        assertThat(store).isNotNull();
+        assertThat(store).isInstanceOf(MongoChatMessageStore.class);
         assertThat(applicationContext.getBeansOfType(
                 ChatMessageStore.class))
                 .hasSize(1)
+                .containsKey("chatMessageStore")
                 .containsValue(store);
         assertThat(applicationContext.getBeansOfType(
-                MongoClient.class)).isEmpty();
+                InMemoryChatMessageStore.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(
-                MongoOperations.class)).isEmpty();
+                MongoClient.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                MongoOperations.class)).hasSize(1);
+        assertThat(mongoClient).isNotNull();
+        assertThat(mongoDatabaseFactory).isNotNull();
+        assertThat(mongoTransactionManager).isNotNull();
+        assertThat(mongoTransactionTemplate).isNotNull();
+        assertThat(mongoTransactionManager.getDatabaseFactory())
+                .isSameAs(mongoDatabaseFactory);
+        assertThat(mongoOperations)
+                .isInstanceOf(MongoTemplate.class);
+        assertThat(((MongoTemplate) mongoOperations)
+                .getMongoDatabaseFactory())
+                .isSameAs(mongoDatabaseFactory);
+        assertThat(schemaInitializer).isNotNull();
+        assertThat(mongoOperations.collectionExists(
+                MongoChatMessageDocument.COLLECTION_NAME)).isTrue();
+        assertThat(mongoOperations.collectionExists(
+                MongoRoomSequenceDocument.COLLECTION_NAME)).isTrue();
+        assertThat(mongoOperations.indexOps(
+                MongoChatMessageDocument.COLLECTION_NAME)
+                .getIndexInfo())
+                .extracting(index -> index.getName())
+                .contains(
+                        "uk_chat_message_idempotency",
+                        "uk_chat_message_room_sequence");
         assertThat(jwtDecoder).isNotNull();
         assertThat(jwtProperties.getIssuer()).isEqualTo("chat-local");
         assertThat(roomProperties.getAllowedRooms())
@@ -117,8 +172,20 @@ class LocalProfileApplicationTests {
 
         assertThat(acceptance).isEqualTo(
                 PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
-        awaitStoreSize(1, Duration.ofSeconds(2));
-        assertThat(store.size()).isEqualTo(1);
+        awaitStoredMessages(1, Duration.ofSeconds(5));
+        MongoChatMessageDocument storedDocument =
+                mongoOperations.findOne(
+                        Query.query(Criteria.where(
+                                        "clientMessageId")
+                                .is("550e8400-e29b-41d4-a716-446655440000")),
+                        MongoChatMessageDocument.class);
+        assertThat(storedDocument).isNotNull();
+        assertThat(storedDocument.roomId()).isEqualTo("test-room");
+        assertThat(storedDocument.senderUserId())
+                .isEqualTo("local-user-1");
+        assertThat(storedDocument.content()).isEqualTo("hello");
+        assertThat(storedDocument.roomSequence()).isEqualTo(1);
+        assertThat(storedDocument.schemaVersion()).isEqualTo(1);
     }
 
     @Test
@@ -128,14 +195,20 @@ class LocalProfileApplicationTests {
                         pipelineDrainTimeoutMs));
     }
 
-    private void awaitStoreSize(
+    private void awaitStoredMessages(
             int expected,
             Duration timeout
     ) throws InterruptedException {
         long deadline = System.nanoTime() + timeout.toNanos();
-        while (store.size() != expected
+        while (mongoOperations.count(
+                new Query(),
+                MongoChatMessageDocument.COLLECTION_NAME) != expected
                 && System.nanoTime() < deadline) {
             Thread.sleep(10);
         }
+        assertThat(mongoOperations.count(
+                new Query(),
+                MongoChatMessageDocument.COLLECTION_NAME))
+                .isEqualTo(expected);
     }
 }

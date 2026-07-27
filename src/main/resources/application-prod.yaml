@@ -1,4 +1,7 @@
 spring:
+  mongodb:
+    uri: ${CHAT_MONGODB_URI}
+
   security:
     oauth2:
       resourceserver:
