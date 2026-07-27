@@ -94,6 +94,11 @@ pnpm dev:web
 
 모바일은 Expo Development Build 기반의 WebView 셸이다. 최초 한 번 네이티브 앱을 빌드한다.
 
+- **브리지 최소화**: 일반 HTTP와 WebSocket은 WebView의 Next.js가 직접 처리하고, 공유·푸시·딥링크 같은 네이티브 경계만 브리지를 사용한다.
+
+WebView bridge의 책임과 처리 흐름은
+[`docs/architecture/webview-bridge.md`](./docs/architecture/webview-bridge.md)를 참고한다.
+
 ```bash
 # Android
 pnpm --filter @app/mobile run android
