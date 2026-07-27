@@ -9,8 +9,8 @@ React Native는 별도의 제품 UI를 다시 구현하지 않고, WebView와 �
 
 ```text
 Browser ─────────────────────────────┐
-                                    │ HTTPS
-Expo native shell                   ▼
+                                     │ HTTPS
+Expo native shell                    ▼
 └─ WebView ────────────────────→ Next.js web/BFF ──→ Spring Boot ──→ DB
    └─ Bridge ↔ native capability      │
                                       └─ HTML, RSC, JSON, client chunks
