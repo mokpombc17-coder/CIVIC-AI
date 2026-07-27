@@ -8,6 +8,11 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "allowUnreachableCode": false,
+    "noImplicitOverride": true,
+    "noUncheckedSideEffectImports": true
   }
 }
