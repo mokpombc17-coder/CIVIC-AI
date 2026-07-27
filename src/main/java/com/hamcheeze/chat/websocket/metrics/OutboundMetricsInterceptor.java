@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.websocket.metrics;
 
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.messaging.Message;
@@ -30,8 +31,13 @@ public final class OutboundMetricsInterceptor implements ChannelInterceptor {
         SimpMessageType type =
                 SimpMessageHeaderAccessor.getMessageType(message.getHeaders());
         if (type == SimpMessageType.MESSAGE) {
-            messageAttempts.increment();
-            applicationPayloadBytes.increment(payloadSize(message.getPayload()));
+            BestEffortMetricRecorder.increment(
+                    "chat.outbound.message_attempts",
+                    messageAttempts);
+            BestEffortMetricRecorder.increment(
+                    "chat.outbound.application_payload_bytes",
+                    applicationPayloadBytes,
+                    payloadSize(message.getPayload()));
         }
         return message;
     }

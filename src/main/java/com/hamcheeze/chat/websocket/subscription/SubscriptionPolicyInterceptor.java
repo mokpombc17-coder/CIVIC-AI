@@ -2,6 +2,7 @@ package com.hamcheeze.chat.websocket.subscription;
 
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.websocket.protocol.DestinationDescriptor;
 import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
@@ -126,7 +127,9 @@ public final class SubscriptionPolicyInterceptor
             String destination,
             SubscriptionRejectedCode code
     ) {
-        rejectedCounters.get(code).increment();
+        BestEffortMetricRecorder.increment(
+                "stomp.subscriptions.rejected",
+                rejectedCounters.get(code));
         log.info(
                 "STOMP subscription rejected: userId={}, connectionId={}, destination={}, code={}",
                 userId, connectionId, destination, code);

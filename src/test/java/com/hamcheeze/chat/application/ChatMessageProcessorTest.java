@@ -8,6 +8,7 @@ import com.hamcheeze.chat.message.ChatMessageStoreException;
 import com.hamcheeze.chat.message.ConflictingChatMessage;
 import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
 import com.hamcheeze.chat.pipeline.QueuedChatCommand;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -195,6 +196,58 @@ class ChatMessageProcessorTest {
         assertThat(meterRegistry.counter(
                 "chat.command.result.send.failures").count())
                 .isEqualTo(1);
+    }
+
+    @Test
+    void processingFailureMetricFailureStillSendsPersistenceFailure() {
+        when(store.append(any())).thenThrow(
+                new ChatMessageStoreException("store unavailable"));
+        processor = new ChatMessageProcessor(
+                store,
+                publisher,
+                resultSender,
+                ThrowingMeterRegistry.counter(
+                        "chat.pipeline.processing.failures"));
+
+        processor.process(queued());
+
+        verifyNoPublish();
+        verify(resultSender).send(
+                "user-1",
+                "connection-1",
+                new ChatCommandFailed(
+                        "550e8400-e29b-41d4-a716-446655440000",
+                        ChatCommandFailedCode.PERSISTENCE_FAILED,
+                        true,
+                        null));
+    }
+
+    @Test
+    void resultFailureMetricFailureDoesNotEscapeOrStopNextProcessing() {
+        when(store.append(any())).thenReturn(
+                new StoredChatMessage(message("1")),
+                new StoredChatMessage(message("2")));
+        doThrow(new IllegalStateException("session closed"))
+                .doNothing()
+                .when(resultSender)
+                .send(eq("user-1"), eq("connection-1"), any());
+        processor = new ChatMessageProcessor(
+                store,
+                publisher,
+                resultSender,
+                ThrowingMeterRegistry.counter(
+                        "chat.command.result.send.failures"));
+
+        assertThatCode(() -> {
+            processor.process(queued("1"));
+            processor.process(queued("2"));
+        }).doesNotThrowAnyException();
+
+        verify(publisher, times(2)).publish(any());
+        verify(resultSender, times(2)).send(
+                eq("user-1"),
+                eq("connection-1"),
+                any());
     }
 
     private void verifyNoPublish() {

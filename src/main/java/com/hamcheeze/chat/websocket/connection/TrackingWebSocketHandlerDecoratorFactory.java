@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.websocket.connection;
 
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.websocket.config.WebSocketTransportProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -89,7 +90,9 @@ public final class TrackingWebSocketHandlerDecoratorFactory
                 registry.remove(session.getId());
                 if (!CloseStatus.NORMAL.equals(closeStatus)
                         && closeStatus.getCode() != 4001) {
-                    abnormalCloseCounter.increment();
+                    BestEffortMetricRecorder.increment(
+                            "websocket.connections.abnormally_closed",
+                            abnormalCloseCounter);
                 }
                 super.afterConnectionClosed(session, closeStatus);
             }

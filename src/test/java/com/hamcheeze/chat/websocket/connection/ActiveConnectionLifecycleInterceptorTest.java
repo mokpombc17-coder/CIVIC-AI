@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.websocket.connection;
 
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,24 @@ class ActiveConnectionLifecycleInterceptorTest {
                         ConnectionActivation.activated("connection-1"));
 
         interceptor.preSend(connect("connection-2"), null);
+
+        verify(transport).closeReplaced("connection-1");
+    }
+
+    @Test
+    void replacementMetricFailureStillClosesReplacedConnection() {
+        when(registry.activate("user-1", "connection-2"))
+                .thenReturn(
+                        ConnectionActivation.activated("connection-1"));
+        ActiveConnectionLifecycleInterceptor metricFailingInterceptor =
+                new ActiveConnectionLifecycleInterceptor(
+                        registry,
+                        transport,
+                        ThrowingMeterRegistry.counter(
+                                "websocket.connections.replaced"));
+
+        metricFailingInterceptor.preSend(
+                connect("connection-2"), null);
 
         verify(transport).closeReplaced("connection-1");
     }

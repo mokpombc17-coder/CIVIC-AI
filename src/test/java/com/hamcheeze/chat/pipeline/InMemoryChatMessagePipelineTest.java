@@ -1,6 +1,8 @@
 package com.hamcheeze.chat.pipeline;
 
 import com.hamcheeze.chat.application.ChatMessageProcessor;
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -220,6 +222,197 @@ class InMemoryChatMessagePipelineTest {
     }
 
     @Test
+    void unavailableMetricFailureKeepsUnavailableResult() {
+        ChatMessageProcessor processor =
+                mock(ChatMessageProcessor.class);
+        pipeline = pipeline(
+                processor,
+                1,
+                1_000,
+                ThrowingMeterRegistry.counter(
+                        "chat.pipeline.unavailable"));
+
+        assertThat(pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440029")))
+                .isEqualTo(PipelineAcceptance.UNAVAILABLE);
+    }
+
+    @Test
+    void acceptedMetricFailureKeepsQueuedCommandAndAcceptance()
+            throws Exception {
+        ChatMessageProcessor processor =
+                mock(ChatMessageProcessor.class);
+        CountDownLatch processed = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            processed.countDown();
+            return null;
+        }).when(processor).process(any());
+        pipeline = pipeline(
+                processor,
+                2,
+                1_000,
+                ThrowingMeterRegistry.counter(
+                        "chat.pipeline.accepted"));
+        pipeline.start();
+
+        assertThat(pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440030")))
+                .isEqualTo(
+                        PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
+        assertThat(processed.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(pipeline.isRunning()).isTrue();
+    }
+
+    @Test
+    void busyMetricFailureKeepsBusyResult() throws Exception {
+        ChatMessageProcessor processor =
+                mock(ChatMessageProcessor.class);
+        CountDownLatch processingFirst = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            processingFirst.countDown();
+            releaseFirst.await();
+            return null;
+        }).when(processor).process(any());
+        pipeline = pipeline(
+                processor,
+                1,
+                1_000,
+                ThrowingMeterRegistry.counter(
+                        "chat.pipeline.busy"));
+        pipeline.start();
+
+        pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440031"));
+        assertThat(processingFirst.await(
+                1, TimeUnit.SECONDS)).isTrue();
+        pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440032"));
+
+        assertThat(pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440033")))
+                .isEqualTo(PipelineAcceptance.BUSY);
+        releaseFirst.countDown();
+    }
+
+    @Test
+    void queueWaitAndCommandFailureMetricFailuresKeepWorkerRunning()
+            throws Exception {
+        ChatMessageProcessor processor =
+                mock(ChatMessageProcessor.class);
+        AtomicInteger attempts = new AtomicInteger();
+        CountDownLatch secondProcessed = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            if (attempts.incrementAndGet() == 1) {
+                throw new IllegalStateException("command failed");
+            }
+            secondProcessed.countDown();
+            return null;
+        }).when(processor).process(any());
+        pipeline = pipeline(
+                processor,
+                2,
+                1_000,
+                ThrowingMeterRegistry.counterAndTimer(
+                        "chat.pipeline.worker.command.failures",
+                        "chat.pipeline.queue.wait"));
+        pipeline.start();
+
+        pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440034"));
+        pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440035"));
+
+        assertThat(secondProcessed.await(
+                2, TimeUnit.SECONDS)).isTrue();
+        assertThat(pipeline.state())
+                .isEqualTo(PipelineState.RUNNING);
+    }
+
+    @Test
+    void droppedMetricFailureStillStopsAndCallsBackOnce()
+            throws Exception {
+        ChatMessageProcessor processor =
+                mock(ChatMessageProcessor.class);
+        CountDownLatch processingFirst = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            processingFirst.countDown();
+            releaseFirst.await();
+            return null;
+        }).when(processor).process(any());
+        pipeline = pipeline(
+                processor,
+                2,
+                1,
+                ThrowingMeterRegistry.counter(
+                        "chat.pipeline.shutdown.dropped"));
+        pipeline.start();
+        pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440036"));
+        assertThat(processingFirst.await(
+                1, TimeUnit.SECONDS)).isTrue();
+        pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440037"));
+
+        AtomicInteger callbackCount = new AtomicInteger();
+        CountDownLatch stopped = new CountDownLatch(1);
+        pipeline.stop(() -> {
+            callbackCount.incrementAndGet();
+            stopped.countDown();
+        });
+        long releaseAt = System.nanoTime()
+                + TimeUnit.MILLISECONDS.toNanos(5);
+        while (System.nanoTime() < releaseAt) {
+            Thread.onSpinWait();
+        }
+        releaseFirst.countDown();
+
+        assertThat(stopped.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(pipeline.state())
+                .isEqualTo(PipelineState.STOPPED);
+        assertThat(pipeline.queueSize()).isZero();
+        assertThat(callbackCount).hasValue(1);
+    }
+
+    @Test
+    void workerFailureMetricFailureStillFinalizesFailedStateAndCallback()
+            throws Exception {
+        ChatMessageProcessor processor =
+                mock(ChatMessageProcessor.class);
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch releaseFailure = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            processing.countDown();
+            releaseFailure.await();
+            throw new AssertionError("fatal worker failure");
+        }).when(processor).process(any());
+        pipeline = pipeline(
+                processor,
+                1,
+                1_000,
+                ThrowingMeterRegistry.counter(
+                        "chat.pipeline.worker.failures"));
+        pipeline.start();
+        pipeline.tryAccept(command(
+                "550e8400-e29b-41d4-a716-446655440038"));
+        assertThat(processing.await(1, TimeUnit.SECONDS)).isTrue();
+
+        AtomicInteger callbackCount = new AtomicInteger();
+        CountDownLatch stopped = new CountDownLatch(1);
+        pipeline.stop(() -> {
+            callbackCount.incrementAndGet();
+            stopped.countDown();
+        });
+        releaseFailure.countDown();
+
+        assertThat(stopped.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(pipeline.state())
+                .isEqualTo(PipelineState.FAILED);
+        assertThat(callbackCount).hasValue(1);
+    }
+
+    @Test
     void drainTimeoutDropsCommandsThatCannotBeProcessedInTime()
             throws Exception {
         ChatMessageProcessor processor =
@@ -275,6 +468,19 @@ class InMemoryChatMessagePipelineTest {
             int queueCapacity,
             long drainTimeoutMs
     ) {
+        return pipeline(
+                processor,
+                queueCapacity,
+                drainTimeoutMs,
+                new SimpleMeterRegistry());
+    }
+
+    private InMemoryChatMessagePipeline pipeline(
+            ChatMessageProcessor processor,
+            int queueCapacity,
+            long drainTimeoutMs,
+            MeterRegistry meterRegistry
+    ) {
         ChatMessagePipelineProperties properties =
                 new ChatMessagePipelineProperties();
         properties.setQueueCapacity(queueCapacity);
@@ -285,7 +491,7 @@ class InMemoryChatMessagePipelineTest {
                 Clock.fixed(
                         Instant.parse("2026-07-24T00:00:00Z"),
                         ZoneOffset.UTC),
-                new SimpleMeterRegistry());
+                meterRegistry);
     }
 
     private AdmittedChatCommand command(String clientMessageId) {

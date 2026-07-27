@@ -6,6 +6,8 @@ import com.hamcheeze.chat.message.ConflictingChatMessage;
 import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -155,6 +157,82 @@ class InMemoryChatMessageStoreTest {
     }
 
     @Test
+    void storedMetricFailureKeepsStoredResultAndIdempotency() {
+        InMemoryChatMessageStore metricFailingStore = store(
+                ThrowingMeterRegistry.counter(
+                        "chat.message.store.stored"),
+                new AtomicInteger());
+        NewChatMessage command = message(
+                "room-1",
+                "user-1",
+                "550e8400-e29b-41d4-a716-446655440010",
+                "hello");
+
+        StoredChatMessage stored =
+                (StoredChatMessage) metricFailingStore.append(command);
+        DuplicateChatMessage duplicate =
+                (DuplicateChatMessage) metricFailingStore.append(command);
+
+        assertThat(stored.message().roomSequence()).isEqualTo(1);
+        assertThat(duplicate.message()).isEqualTo(stored.message());
+        assertThat(metricFailingStore.size()).isEqualTo(1);
+    }
+
+    @Test
+    void duplicateAndConflictMetricFailuresKeepStoreResults() {
+        NewChatMessage command = message(
+                "room-1",
+                "user-1",
+                "550e8400-e29b-41d4-a716-446655440011",
+                "hello");
+        InMemoryChatMessageStore duplicateMetricStore = store(
+                ThrowingMeterRegistry.counter(
+                        "chat.message.store.duplicate"),
+                new AtomicInteger());
+        duplicateMetricStore.append(command);
+
+        assertThat(duplicateMetricStore.append(command))
+                .isInstanceOf(DuplicateChatMessage.class);
+
+        InMemoryChatMessageStore conflictMetricStore = store(
+                ThrowingMeterRegistry.counter(
+                        "chat.message.store.conflicts"),
+                new AtomicInteger());
+        conflictMetricStore.append(command);
+
+        assertThat(conflictMetricStore.append(message(
+                "room-1",
+                "user-1",
+                "550e8400-e29b-41d4-a716-446655440011",
+                "changed")))
+                .isInstanceOf(ConflictingChatMessage.class);
+    }
+
+    @Test
+    void failureMetricFailureDoesNotReplaceStoreException() {
+        InMemoryChatMessageStore metricFailingStore =
+                new InMemoryChatMessageStore(
+                        Clock.systemUTC(),
+                        () -> "same-message-id",
+                        ThrowingMeterRegistry.counter(
+                                "chat.message.store.failures"));
+        metricFailingStore.append(message(
+                "room-1",
+                "user-1",
+                "550e8400-e29b-41d4-a716-446655440012",
+                "first"));
+
+        assertThatThrownBy(() -> metricFailingStore.append(message(
+                "room-1",
+                "user-1",
+                "550e8400-e29b-41d4-a716-446655440013",
+                "second")))
+                .isInstanceOf(ChatMessageStoreException.class)
+                .hasMessageContaining("Generated duplicate messageId");
+        assertThat(metricFailingStore.size()).isEqualTo(1);
+    }
+
+    @Test
     void concurrentAppendsAssignUniqueGaplessRoomSequences()
             throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(8);
@@ -205,5 +283,18 @@ class InMemoryChatMessageStoreTest {
                 userId,
                 clientMessageId,
                 content);
+    }
+
+    private InMemoryChatMessageStore store(
+            MeterRegistry registry,
+            AtomicInteger messageIds
+    ) {
+        return new InMemoryChatMessageStore(
+                Clock.fixed(
+                        Instant.parse("2026-07-24T00:00:00Z"),
+                        ZoneOffset.UTC),
+                () -> "metric-message-"
+                        + messageIds.incrementAndGet(),
+                registry);
     }
 }

@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.websocket.connection;
 
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -58,7 +59,9 @@ public final class ActiveConnectionLifecycleInterceptor
 
         String replaced = activation.replacedConnectionId();
         if (replaced != null) {
-            replacedCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "websocket.connections.replaced",
+                    replacedCounter);
             transportSessions.closeReplaced(replaced);
         }
     }

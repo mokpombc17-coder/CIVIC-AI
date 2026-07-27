@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.websocket.ratelimit;
 
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.websocket.config.ChatAdmissionProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -113,9 +114,13 @@ public final class InMemoryChatAdmissionLimiter
             return granted;
         }
         if (deniedOutcome == AdmissionOutcome.USER_RATE_LIMITED) {
-            userLimitedCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.rate_limited.user",
+                    userLimitedCounter);
         } else {
-            globalLimitedCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.rate_limited.global",
+                    globalLimitedCounter);
         }
         log.info(
                 "Chat admission rejected: userId={}, outcome={}, retryAfterMs={}",
@@ -293,11 +298,9 @@ public final class InMemoryChatAdmissionLimiter
                 lock.unlock();
             }
             if (committed) {
-                try {
-                    admittedCounter.increment();
-                } catch (RuntimeException ignored) {
-                    // Metric failures never reverse an accepted pipeline command.
-                }
+                BestEffortMetricRecorder.increment(
+                        "chat.command.admitted",
+                        admittedCounter);
             }
         }
 

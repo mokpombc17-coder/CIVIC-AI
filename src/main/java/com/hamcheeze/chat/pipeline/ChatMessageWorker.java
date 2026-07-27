@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.pipeline;
 
 import com.hamcheeze.chat.application.ChatMessageProcessor;
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -141,13 +142,18 @@ public final class ChatMessageWorker implements Runnable {
             Duration queueWait = Duration.between(
                     command.acceptedAt(),
                     clock.instant());
-            queueWaitTimer.record(queueWait.isNegative()
-                    ? Duration.ZERO
-                    : queueWait);
+            BestEffortMetricRecorder.record(
+                    "chat.pipeline.queue.wait",
+                    queueWaitTimer,
+                    queueWait.isNegative()
+                            ? Duration.ZERO
+                            : queueWait);
             try {
                 processor.process(command);
             } catch (RuntimeException exception) {
-                commandFailureCounter.increment();
+                BestEffortMetricRecorder.increment(
+                        "chat.pipeline.worker.command.failures",
+                        commandFailureCounter);
                 log.error(
                         "Chat message worker isolated command failure: roomId={}, userId={}, clientMessageId={}",
                         command.command().roomId(),

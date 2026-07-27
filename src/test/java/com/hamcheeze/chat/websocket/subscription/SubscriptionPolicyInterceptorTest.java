@@ -2,6 +2,7 @@ package com.hamcheeze.chat.websocket.subscription;
 
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -55,6 +56,26 @@ class SubscriptionPolicyInterceptorTest {
                 eq("user-1"), eq("connection-1"), result.capture());
         assertThat(result.getValue().code())
                 .isEqualTo(SubscriptionRejectedCode.DESTINATION_DISABLED);
+    }
+
+    @Test
+    void rejectionMetricFailureStillSendsRejectionResult() {
+        interceptor = new SubscriptionPolicyInterceptor(
+                new DestinationPolicy(new ChatContentProperties()),
+                authorization,
+                registry,
+                sender,
+                ThrowingMeterRegistry.counter(
+                        "stomp.subscriptions.rejected"));
+        Message<byte[]> message = subscribe(
+                "/topic/rooms/room-1/read-receipts");
+
+        assertThat(interceptor.preSend(message, null)).isNull();
+
+        verify(sender).send(
+                eq("user-1"),
+                eq("connection-1"),
+                any(SubscriptionRejected.class));
     }
 
     @Test

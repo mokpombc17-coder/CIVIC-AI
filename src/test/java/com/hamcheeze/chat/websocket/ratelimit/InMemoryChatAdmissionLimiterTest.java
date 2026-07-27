@@ -1,6 +1,8 @@
 package com.hamcheeze.chat.websocket.ratelimit;
 
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.websocket.config.ChatAdmissionProperties;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -12,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InMemoryChatAdmissionLimiterTest {
@@ -148,6 +151,59 @@ class InMemoryChatAdmissionLimiterTest {
     }
 
     @Test
+    void userLimitMetricFailureKeepsUserLimitedOutcome() {
+        MutableTimeSource time = new MutableTimeSource();
+        InMemoryChatAdmissionLimiter limiter = limiter(
+                properties(),
+                ThrowingMeterRegistry.counter(
+                        "chat.rate_limited.user"),
+                time);
+        AdmissionReservation first =
+                limiter.tryReserve("limited-user", 5);
+        first.commit();
+
+        assertThat(limiter.tryReserve(
+                "limited-user", 1).outcome())
+                .isEqualTo(AdmissionOutcome.USER_RATE_LIMITED);
+    }
+
+    @Test
+    void globalLimitMetricFailureKeepsGlobalLimitedOutcome() {
+        MutableTimeSource time = new MutableTimeSource();
+        ChatAdmissionProperties properties = properties();
+        properties.getGlobalSource().setBurstMaxAccepted(1);
+        InMemoryChatAdmissionLimiter limiter = limiter(
+                properties,
+                ThrowingMeterRegistry.counter(
+                        "chat.rate_limited.global"),
+                time);
+        AdmissionReservation first =
+                limiter.tryReserve("user-1", 1);
+
+        assertThat(limiter.tryReserve("user-2", 1).outcome())
+                .isEqualTo(
+                        AdmissionOutcome.GLOBAL_SOURCE_LIMITED);
+        first.close();
+    }
+
+    @Test
+    void admittedMetricFailureDoesNotChangeGrantedCommit() {
+        MutableTimeSource time = new MutableTimeSource();
+        InMemoryChatAdmissionLimiter limiter = limiter(
+                properties(),
+                ThrowingMeterRegistry.counter(
+                        "chat.command.admitted"),
+                time);
+        AdmissionReservation reservation =
+                limiter.tryReserve("user-1", 1);
+
+        assertThat(reservation.outcome())
+                .isEqualTo(AdmissionOutcome.GRANTED);
+        assertThatCode(reservation::commit)
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void concurrentPendingReservationsNeverExceedBurstLimit()
             throws Exception {
         MutableTimeSource time = new MutableTimeSource();
@@ -194,8 +250,19 @@ class InMemoryChatAdmissionLimiterTest {
             ChatAdmissionProperties properties,
             MutableTimeSource time
     ) {
+        return limiter(
+                properties,
+                new SimpleMeterRegistry(),
+                time);
+    }
+
+    private static InMemoryChatAdmissionLimiter limiter(
+            ChatAdmissionProperties properties,
+            MeterRegistry meterRegistry,
+            MutableTimeSource time
+    ) {
         return new InMemoryChatAdmissionLimiter(
-                properties, new SimpleMeterRegistry(), time);
+                properties, meterRegistry, time);
     }
 
     private static ChatAdmissionProperties properties() {

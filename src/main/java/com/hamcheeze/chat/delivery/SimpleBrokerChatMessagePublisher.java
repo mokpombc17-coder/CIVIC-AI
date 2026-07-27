@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.delivery;
 
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -35,10 +36,14 @@ public final class SimpleBrokerChatMessagePublisher
                             + event.payload().roomId()
                             + "/messages",
                     event);
-            successCounter.increment();
         } catch (RuntimeException exception) {
-            failureCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.message.broadcast.failures",
+                    failureCounter);
             throw exception;
         }
+        BestEffortMetricRecorder.increment(
+                "chat.message.broadcast.success",
+                successCounter);
     }
 }

@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.pipeline;
 
 import com.hamcheeze.chat.application.ChatMessageProcessor;
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -109,16 +110,22 @@ public final class InMemoryChatMessagePipeline
         lifecycleLock.lock();
         try {
             if (state != PipelineState.RUNNING) {
-                unavailableCounter.increment();
+                BestEffortMetricRecorder.increment(
+                        "chat.pipeline.unavailable",
+                        unavailableCounter);
                 return PipelineAcceptance.UNAVAILABLE;
             }
             boolean accepted = queue.offer(
                     new QueuedChatCommand(command, clock.instant()));
             if (accepted) {
-                acceptedCounter.increment();
+                BestEffortMetricRecorder.increment(
+                        "chat.pipeline.accepted",
+                        acceptedCounter);
                 return PipelineAcceptance.ACCEPTED_FOR_PROCESSING;
             }
-            busyCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.pipeline.busy",
+                    busyCounter);
             log.warn(
                     "Chat pipeline queue full: connectionId={}, roomId={}, clientMessageId={}, queueSize={}, queueCapacity={}",
                     command.connectionId(),
@@ -278,14 +285,18 @@ public final class InMemoryChatMessagePipeline
             workerRunning.set(0);
             if (shutdownReport != null
                     && shutdownReport.droppedCount() > 0) {
-                droppedCounter.increment(
+                BestEffortMetricRecorder.increment(
+                        "chat.pipeline.shutdown.dropped",
+                        droppedCounter,
                         shutdownReport.droppedCount());
                 log.warn(
                         "Dropped queued chat commands on shutdown: count={}",
                         shutdownReport.droppedCount());
             }
             if (failure != null) {
-                workerFailureCounter.increment();
+                BestEffortMetricRecorder.increment(
+                        "chat.pipeline.worker.failures",
+                        workerFailureCounter);
                 log.error(
                         "Chat message worker terminated unexpectedly: pipelineState={}, queueSize={}",
                         state,

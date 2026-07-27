@@ -9,6 +9,7 @@ import com.hamcheeze.chat.message.IdempotencyKey;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -71,10 +72,14 @@ public final class InMemoryChatMessageStore
                     newMessage.idempotencyKey());
             if (existing != null) {
                 if (existing.content().equals(newMessage.content())) {
-                    duplicateCounter.increment();
+                    BestEffortMetricRecorder.increment(
+                            "chat.message.store.duplicate",
+                            duplicateCounter);
                     return new DuplicateChatMessage(existing);
                 }
-                conflictCounter.increment();
+                BestEffortMetricRecorder.increment(
+                        "chat.message.store.conflicts",
+                        conflictCounter);
                 return new ConflictingChatMessage(existing);
             }
 
@@ -102,13 +107,19 @@ public final class InMemoryChatMessageStore
             messagesById.put(messageId, stored);
             lastSequenceByRoom.put(
                     newMessage.roomId(), roomSequence);
-            storedCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.message.store.stored",
+                    storedCounter);
             return new StoredChatMessage(stored);
         } catch (ChatMessageStoreException exception) {
-            failureCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.message.store.failures",
+                    failureCounter);
             throw exception;
         } catch (RuntimeException exception) {
-            failureCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.message.store.failures",
+                    failureCounter);
             throw new ChatMessageStoreException(
                     "Failed to append in-memory chat message",
                     exception);

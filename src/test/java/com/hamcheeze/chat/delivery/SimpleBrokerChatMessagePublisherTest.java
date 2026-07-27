@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.delivery;
 
 import com.hamcheeze.chat.message.ChatMessage;
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,42 @@ class SimpleBrokerChatMessagePublisherTest {
         assertThat(meterRegistry.counter(
                 "chat.message.broadcast.failures").count())
                 .isEqualTo(1);
+    }
+
+    @Test
+    void successMetricFailureDoesNotChangePublishSuccess() {
+        ChatMessageEventEnvelope event =
+                ChatMessageEventEnvelope.messageCreated(message());
+        publisher = new SimpleBrokerChatMessagePublisher(
+                messagingTemplate,
+                ThrowingMeterRegistry.counter(
+                        "chat.message.broadcast.success"));
+
+        publisher.publish(event);
+
+        verify(messagingTemplate).convertAndSend(
+                "/topic/rooms/room-1/messages",
+                event);
+    }
+
+    @Test
+    void failureMetricFailureDoesNotReplacePublishFailure() {
+        ChatMessageEventEnvelope event =
+                ChatMessageEventEnvelope.messageCreated(message());
+        RuntimeException publishFailure =
+                new IllegalStateException("broker unavailable");
+        doThrow(publishFailure)
+                .when(messagingTemplate)
+                .convertAndSend(
+                        "/topic/rooms/room-1/messages",
+                        event);
+        publisher = new SimpleBrokerChatMessagePublisher(
+                messagingTemplate,
+                ThrowingMeterRegistry.counter(
+                        "chat.message.broadcast.failures"));
+
+        assertThatThrownBy(() -> publisher.publish(event))
+                .isSameAs(publishFailure);
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.hamcheeze.chat.application;
 
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
+import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
@@ -12,16 +14,19 @@ public final class ChatCommandResultSender {
 
     private final ObjectProvider<SimpMessagingTemplate> messagingTemplate;
     private final ChatCommandResultMapper mapper;
+    private final ActiveConnectionRegistry activeConnections;
     private final Counter rejectedCounter;
     private final Counter failedCounter;
 
     public ChatCommandResultSender(
             ObjectProvider<SimpMessagingTemplate> messagingTemplate,
             ChatCommandResultMapper mapper,
+            ActiveConnectionRegistry activeConnections,
             MeterRegistry meterRegistry
     ) {
         this.messagingTemplate = messagingTemplate;
         this.mapper = mapper;
+        this.activeConnections = activeConnections;
         this.rejectedCounter =
                 meterRegistry.counter("chat.command.rejected");
         this.failedCounter =
@@ -33,6 +38,9 @@ public final class ChatCommandResultSender {
             String connectionId,
             ChatCommandResult result
     ) {
+        if (!activeConnections.isActive(userId, connectionId)) {
+            return;
+        }
         SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create();
         headers.setSessionId(connectionId);
         headers.setLeaveMutable(true);
@@ -42,9 +50,13 @@ public final class ChatCommandResultSender {
                 mapper.toEnvelope(result),
                 headers.getMessageHeaders());
         if (result instanceof ChatCommandRejected) {
-            rejectedCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.command.rejected",
+                    rejectedCounter);
         } else if (result instanceof ChatCommandFailed) {
-            failedCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.command.failed",
+                    failedCounter);
         }
     }
 }

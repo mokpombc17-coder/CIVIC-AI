@@ -10,6 +10,7 @@ import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
 import com.hamcheeze.chat.pipeline.QueuedChatCommand;
 import io.micrometer.core.instrument.Counter;
@@ -65,7 +66,9 @@ public final class ChatMessageProcessor {
         try {
             processCommand(queuedCommand.command());
         } catch (ChatMessageStoreException exception) {
-            processingFailureCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.pipeline.processing.failures",
+                    processingFailureCounter);
             AdmittedChatCommand command = queuedCommand.command();
             log.error(
                     "Chat message persistence failed: roomId={}, userId={}, connectionId={}, clientMessageId={}",
@@ -82,7 +85,9 @@ public final class ChatMessageProcessor {
                             true,
                             null));
         } catch (RuntimeException exception) {
-            processingFailureCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.pipeline.processing.failures",
+                    processingFailureCounter);
             AdmittedChatCommand command = queuedCommand.command();
             log.error(
                     "Unexpected chat message processing failure: roomId={}, userId={}, clientMessageId={}",
@@ -165,7 +170,9 @@ public final class ChatMessageProcessor {
                     command.connectionId(),
                     result);
         } catch (RuntimeException exception) {
-            resultSendFailureCounter.increment();
+            BestEffortMetricRecorder.increment(
+                    "chat.command.result.send.failures",
+                    resultSendFailureCounter);
             log.error(
                     "Failed to send chat command result: userId={}, connectionId={}, clientMessageId={}, resultType={}",
                     command.userId(),
