@@ -1,6 +1,10 @@
 package com.hamcheeze.chat.message.mongo;
 
 import com.hamcheeze.chat.message.ChatMessageStore;
+import com.mongodb.ReadConcern;
+import com.mongodb.ReadPreference;
+import com.mongodb.TransactionOptions;
+import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.mongodb.health.MongoHealthIndicator;
@@ -31,11 +35,24 @@ public class MongoChatMessageStoreConfiguration {
         return new MongoHealthIndicator(mongoClient);
     }
 
+    @Bean(name = "chatMessageMongoTransactionOptions")
+    TransactionOptions chatMessageMongoTransactionOptions() {
+        return TransactionOptions.builder()
+                .readConcern(ReadConcern.SNAPSHOT)
+                .writeConcern(WriteConcern.MAJORITY)
+                .readPreference(ReadPreference.primary())
+                .build();
+    }
+
     @Bean
     MongoTransactionManager mongoTransactionManager(
-            MongoDatabaseFactory databaseFactory
+            MongoDatabaseFactory databaseFactory,
+            @Qualifier("chatMessageMongoTransactionOptions")
+            TransactionOptions transactionOptions
     ) {
-        return new MongoTransactionManager(databaseFactory);
+        return new MongoTransactionManager(
+                databaseFactory,
+                transactionOptions);
     }
 
     @Bean(name = "mongoTransactionTemplate")

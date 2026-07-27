@@ -21,6 +21,10 @@ import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.hamcheeze.chat.websocket.config.LocalRoomProperties;
 import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
+import com.mongodb.ReadConcern;
+import com.mongodb.ReadPreference;
+import com.mongodb.TransactionOptions;
+import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,6 +77,10 @@ class LocalProfileApplicationTests
     private MongoTransactionManager mongoTransactionManager;
 
     @Autowired
+    @Qualifier("chatMessageMongoTransactionOptions")
+    private TransactionOptions transactionOptions;
+
+    @Autowired
     @Qualifier("mongoTransactionTemplate")
     private TransactionTemplate mongoTransactionTemplate;
 
@@ -123,6 +131,28 @@ class LocalProfileApplicationTests
         assertThat(mongoDatabaseFactory).isNotNull();
         assertThat(mongoTransactionManager).isNotNull();
         assertThat(mongoTransactionTemplate).isNotNull();
+        assertThat(applicationContext.getBeansOfType(
+                TransactionOptions.class))
+                .hasSize(1)
+                .containsEntry(
+                        "chatMessageMongoTransactionOptions",
+                        transactionOptions);
+        assertThat(applicationContext.getBeansOfType(
+                MongoTransactionManager.class))
+                .hasSize(1)
+                .containsValue(mongoTransactionManager);
+        assertThat(applicationContext.getBeansOfType(
+                TransactionTemplate.class))
+                .hasSize(1)
+                .containsEntry(
+                        "mongoTransactionTemplate",
+                        mongoTransactionTemplate);
+        assertThat(transactionOptions.getReadConcern())
+                .isEqualTo(ReadConcern.SNAPSHOT);
+        assertThat(transactionOptions.getWriteConcern())
+                .isEqualTo(WriteConcern.MAJORITY);
+        assertThat(transactionOptions.getReadPreference())
+                .isEqualTo(ReadPreference.primary());
         assertThat(mongoTransactionManager.getDatabaseFactory())
                 .isSameAs(mongoDatabaseFactory);
         assertThat(mongoOperations)
