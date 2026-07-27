@@ -3,7 +3,7 @@
 하나의 Next.js 애플리케이션을 데스크톱/모바일 브라우저와 Expo WebView에서 함께 사용하는 템플릿이다.
 React Native는 별도의 제품 UI를 다시 구현하지 않고, WebView와 모바일 운영체제 기능을 연결하는 얇은 셸로 유지한다.
 
-기준 시점: **2026-07-23**
+기준 시점: **2026-07-27**
 
 ## 구성
 
@@ -81,22 +81,7 @@ pnpm install
 pnpm check
 ```
 
-### 5. codegraph 활성화
-
-CodeGraph는 소스 코드에서 로컬 semantic index를 생성한다.
-`.codegraph/`의 생성 데이터는 Git에 포함하지 않는다.
-
-```bash
-# 최초 한 번
-pnpm exec codegraph init
-
-pnpm exec codegraph telemetry off
-
-# 상태 확인
-pnpm codegraph:status
-```
-
-### 6. Next.js 실행
+### 5. Next.js 실행
 
 ```bash
 pnpm dev:web
@@ -105,7 +90,7 @@ pnpm dev:web
 기본 주소는 `http://localhost:3000`이다. 운영 Spring Boot가 없어도 홈과 브리지 예제는 동작한다.
 `/api/upstream-health` 예제만 `OPERATIONS_API_URL`의 서버를 호출한다.
 
-### 7. 모바일 앱 실행
+### 6. 모바일 앱 실행
 
 모바일은 Expo Development Build 기반의 WebView 셸이다. 최초 한 번 네이티브 앱을 빌드한다.
 
@@ -145,3 +130,59 @@ Internet :443
 `apps/web/next.config.ts`는 `output: "standalone"`을 사용한다. Nginx document root에 `.next`를 복사하는 방식이 아니라,
 Next.js Node 프로세스가 `.next` 결과를 사용해 HTML/RSC/JS/CSS/API를 제공한다.
 `deploy/nginx/next-webview.conf`는 reverse proxy 시작점이다.
+
+## 선택: CodeGraph 및 Codex 연동
+
+CodeGraph는 소스 코드에서 symbol, import, 호출 관계 및 변경 영향 범위를 추출하여 로컬 semantic index를 생성하는 개발 도구다. 웹 및 모바일 애플리케이션 실행에는 필요하지 않다.
+
+CodeGraph 인덱스는 `.codegraph/`에 생성되며 Git에 포함하지 않는다.
+
+### 최초 초기화
+
+```bash
+# 익명 사용 통계를 비활성화할 경우 최초 인덱싱 전에 한 번 실행
+pnpm exec codegraph telemetry off
+
+# 프로젝트의 로컬 코드 그래프 생성
+pnpm codegraph:init
+
+# 인덱스 상태 확인
+pnpm codegraph:status
+```
+
+### 인덱스 동기화
+
+Codex에서 CodeGraph MCP 서버가 실행 중이면 파일 변경 사항이 자동으로 인덱스에 반영된다. 일반적인 Codex 작업 중에는 수동 동기화가 필요하지 않다.
+
+다음 상황에서는 증분 동기화를 실행한다.
+
+```bash
+pnpm codegraph:sync
+```
+
+- CodeGraph MCP가 실행되지 않은 동안 파일을 변경한 경우
+- 다른 브랜치로 전환하거나 외부 변경 사항을 가져온 경우
+- CodeGraph CLI만 직접 사용하는 경우
+- `pnpm codegraph:status`에서 pending change 또는 pending reference가 확인된 경우
+- 로컬 CodeGraph 보고서를 생성하기 전
+
+전체 그래프를 다시 생성해야 하는 경우에는 다음을 실행한다.
+
+```bash
+pnpm codegraph index
+```
+
+### Codex 연결 확인
+
+이 저장소의 `.codex/config.toml`은 프로젝트에 설치된 CodeGraph를 Codex MCP 서버로 연결한다.
+
+1. Codex에서 이 프로젝트를 신뢰한다.
+2. `pnpm install`과 `pnpm codegraph:init`을 완료한다.
+3. Codex CLI 또는 IDE 확장을 재시작한다.
+4. 연결 상태를 확인한다.
+
+```bash
+codex mcp list
+```
+
+Codex TUI에서는 `/mcp` 명령으로 연결 상태를 확인할 수 있다.
