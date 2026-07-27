@@ -4,8 +4,8 @@
 
 ## 표기 규칙과 범위
 
-- `[Server]`: `"use client"` 지시문이 없는 Server Component
-- `[Client]`: `"use client"` 지시문이 있는 Client Component
+- `[Server]`: App Router가 Server Component로 렌더링하며 Client module graph에 포함되지 않은 컴포넌트
+- `[Client]`: `"use client"` 경계를 선언했거나 해당 경계가 시작한 Client module graph에 포함된 컴포넌트
 - `[conditional]`: 컴포넌트 자체가 조건에 따라 `null`을 반환하거나 App Router가 런타임 상태에 따라 선택하는 UI
 - `[dynamic]`: `next/dynamic`, `React.lazy`, `lazy()` 또는 동적 `import()`로 로드되는 컴포넌트
 - `[slot: ...]`: `children`, slot, provider처럼 소스만으로 실제 자식을 하나로 확정할 수 없는 관계

@@ -94,11 +94,6 @@ pnpm dev:web
 
 모바일은 Expo Development Build 기반의 WebView 셸이다. 최초 한 번 네이티브 앱을 빌드한다.
 
-- **브리지 최소화**: 일반 HTTP와 WebSocket은 WebView의 Next.js가 직접 처리하고, 공유·푸시·딥링크 같은 네이티브 경계만 브리지를 사용한다.
-
-WebView bridge의 책임과 처리 흐름은
-[`docs/architecture/webview-bridge.md`](./docs/architecture/webview-bridge.md)를 참고한다.
-
 ```bash
 # Android
 pnpm --filter @app/mobile run android
@@ -135,6 +130,22 @@ Internet :443
 `apps/web/next.config.ts`는 `output: "standalone"`을 사용한다. Nginx document root에 `.next`를 복사하는 방식이 아니라,
 Next.js Node 프로세스가 `.next` 결과를 사용해 HTML/RSC/JS/CSS/API를 제공한다.
 `deploy/nginx/next-webview.conf`는 reverse proxy 시작점이다.
+
+## 아키텍처 문서
+
+- [WebView bridge](./docs/architecture/webview-bridge.md)
+- [apps/web React component tree](./docs/architecture/react-component-tree.md)
+  
+
+## CI
+
+GitHub Actions는 `main` 대상 pull request와 `main` push에서 다음 검증을 수행한다.
+
+```text
+pnpm install --frozen-lockfile
+pnpm check
+pnpm build:web
+```
 
 ## 선택: CodeGraph 및 Codex 연동
 
