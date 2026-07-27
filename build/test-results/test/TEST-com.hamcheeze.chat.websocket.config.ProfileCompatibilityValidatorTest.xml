@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.hamcheeze.chat.websocket.config.ProfileCompatibilityValidatorTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-07-23T07:51:38.918Z" hostname="junseokui-MacBookPro.local" time="0.005">
-  <properties/>
-  <testcase name="rejectsConflictingTemporaryAndProductionProfiles()" classname="com.hamcheeze.chat.websocket.config.ProfileCompatibilityValidatorTest" time="0.002"/>
-  <testcase name="acceptsOneExplicitProfile()" classname="com.hamcheeze.chat.websocket.config.ProfileCompatibilityValidatorTest" time="0.001"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

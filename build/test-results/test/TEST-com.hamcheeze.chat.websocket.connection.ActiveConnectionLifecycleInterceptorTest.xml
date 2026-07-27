@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptorTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-07-23T07:51:38.923Z" hostname="junseokui-MacBookPro.local" time="0.046">
-  <properties/>
-  <testcase name="closesOnlyTheReplacedConnectionAfterRegistrySwap()" classname="com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptorTest" time="0.006"/>
-  <testcase name="blocksLateSendFromInactiveConnection()" classname="com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptorTest" time="0.002"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>
