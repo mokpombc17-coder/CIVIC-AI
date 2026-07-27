@@ -3,6 +3,7 @@ package com.hamcheeze.chat.message.mongo;
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
 import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
+import com.hamcheeze.chat.message.ConflictingChatMessage;
 import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -101,6 +103,150 @@ class MongoChatMessageStoreRetryTest {
         assertThat(store(meterRegistry).append(message()))
                 .isEqualTo(stored("candidate-id"));
         verify(transactionOperations, times(1)).execute(any());
+    }
+
+    @Test
+    void unknownRecoveryUsesCandidateDocumentWhenItMatchesRequest() {
+        MongoException unknownCommit =
+                labelled(
+                        MongoException
+                                .UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL);
+        when(transactionOperations.execute(any()))
+                .thenThrow(unknownCommit);
+        MongoChatMessageDocument candidateDocument =
+                document("candidate-id");
+        stubIdempotencyMissThenCandidateDocument(
+                candidateDocument);
+        AtomicInteger generatedIds = new AtomicInteger();
+
+        assertThat(store(
+                meterRegistry,
+                () -> {
+                    generatedIds.incrementAndGet();
+                    return "candidate-id";
+                }).append(message()))
+                .isEqualTo(stored("candidate-id"));
+
+        assertThat(generatedIds).hasValue(1);
+        verify(transactionOperations, times(1)).execute(any());
+        verify(mongoOperations, times(2)).findOne(
+                any(),
+                eq(MongoChatMessageDocument.class));
+        assertThat(meterRegistry.counter(
+                RETRY_METRIC,
+                "reason",
+                "unknown_commit").count()).isZero();
+    }
+
+    @Test
+    void unknownRecoveryReturnsConflictWhenCandidateDocumentContentDiffers() {
+        MongoException unknownCommit =
+                labelled(
+                        MongoException
+                                .UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL);
+        when(transactionOperations.execute(any()))
+                .thenThrow(unknownCommit);
+        MongoChatMessageDocument candidateDocument =
+                document(
+                        "candidate-id",
+                        "room-1",
+                        "user-1",
+                        "client-1",
+                        "different");
+        stubIdempotencyMissThenCandidateDocument(
+                candidateDocument);
+
+        assertThat(store(meterRegistry).append(message()))
+                .isEqualTo(new ConflictingChatMessage(
+                        candidateDocument.toDomain()));
+
+        verify(transactionOperations, times(1)).execute(any());
+        verify(mongoOperations, times(2)).findOne(
+                any(),
+                eq(MongoChatMessageDocument.class));
+    }
+
+    @Test
+    void unknownCandidateMessageIdOwnedByDifferentRequestIsPermanentCollision() {
+        MongoException unknownCommit =
+                labelled(
+                        MongoException
+                                .UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL);
+        when(transactionOperations.execute(any()))
+                .thenThrow(unknownCommit);
+        stubIdempotencyMissThenCandidateDocument(
+                document(
+                        "candidate-id",
+                        "other-room",
+                        "user-1",
+                        "client-1",
+                        "hello"));
+
+        assertThatThrownBy(() ->
+                store(meterRegistry).append(message()))
+                .isInstanceOf(ChatMessageStoreException.class)
+                .satisfies(exception -> {
+                    ChatMessageStoreException storeException =
+                            (ChatMessageStoreException) exception;
+                    assertThat(storeException.kind()).isEqualTo(
+                            ChatMessageStoreFailureKind.PERMANENT);
+                    assertThat(storeException.retryable()).isFalse();
+                });
+
+        verify(transactionOperations, times(1)).execute(any());
+        verify(mongoOperations, times(2)).findOne(
+                any(),
+                eq(MongoChatMessageDocument.class));
+    }
+
+    @Test
+    void duplicateRecoveryUsesNormalContextForMatchingCandidateDocument() {
+        when(transactionOperations.execute(any()))
+                .thenThrow(new DuplicateKeyException(
+                        "concurrent insert"));
+        MongoChatMessageDocument candidateDocument =
+                document("candidate-id");
+        stubIdempotencyMissThenCandidateDocument(
+                candidateDocument);
+
+        assertThat(store(meterRegistry).append(message()))
+                .isEqualTo(new DuplicateChatMessage(
+                        candidateDocument.toDomain()));
+
+        verify(transactionOperations, times(1)).execute(any());
+        verify(mongoOperations, times(2)).findOne(
+                any(),
+                eq(MongoChatMessageDocument.class));
+    }
+
+    @Test
+    void duplicateCandidateMessageIdOwnedByDifferentRequestIsPermanentCollision() {
+        when(transactionOperations.execute(any()))
+                .thenThrow(new DuplicateKeyException(
+                        "concurrent insert"));
+        stubIdempotencyMissThenCandidateDocument(
+                document(
+                        "candidate-id",
+                        "room-1",
+                        "other-user",
+                        "client-1",
+                        "hello"));
+
+        assertThatThrownBy(() ->
+                store(meterRegistry).append(message()))
+                .isInstanceOf(ChatMessageStoreException.class)
+                .satisfies(exception -> {
+                    ChatMessageStoreException storeException =
+                            (ChatMessageStoreException) exception;
+                    assertThat(storeException.kind()).isEqualTo(
+                            ChatMessageStoreFailureKind.PERMANENT);
+                    assertThat(storeException.retryable()).isFalse();
+                });
+
+        verify(transactionOperations, times(1)).execute(any());
+        verify(mongoOperations, times(2)).findOne(
+                any(),
+                eq(MongoChatMessageDocument.class));
     }
 
     @Test
@@ -493,15 +639,65 @@ class MongoChatMessageStoreRetryTest {
     }
 
     private MongoChatMessageDocument document(String messageId) {
+        return document(
+                messageId,
+                "room-1",
+                "user-1",
+                "client-1",
+                "hello");
+    }
+
+    private MongoChatMessageDocument document(
+            String messageId,
+            String roomId,
+            String senderUserId,
+            String clientMessageId,
+            String content
+    ) {
         return new MongoChatMessageDocument(
                 messageId,
                 MongoChatMessageDocument.CURRENT_SCHEMA_VERSION,
-                "room-1",
+                roomId,
                 1L,
-                "user-1",
-                "client-1",
-                "hello",
+                senderUserId,
+                clientMessageId,
+                content,
                 NOW);
+    }
+
+    private void stubIdempotencyMissThenCandidateDocument(
+            MongoChatMessageDocument candidateDocument
+    ) {
+        AtomicInteger lookupCalls = new AtomicInteger();
+        when(mongoOperations.findOne(
+                any(),
+                eq(MongoChatMessageDocument.class)))
+                .thenAnswer(invocation -> {
+                    Query query = invocation.getArgument(0);
+                    int call = lookupCalls.incrementAndGet();
+                    if (call == 1) {
+                        java.util.List<org.bson.Document> criteria =
+                                query.getQueryObject().getList(
+                                        "$and",
+                                        org.bson.Document.class);
+                        assertThat(criteria)
+                                .contains(
+                                        new org.bson.Document(
+                                                "roomId",
+                                                "room-1"),
+                                        new org.bson.Document(
+                                                "senderUserId",
+                                                "user-1"),
+                                        new org.bson.Document(
+                                                "clientMessageId",
+                                                "client-1"));
+                        return null;
+                    }
+                    assertThat(call).isEqualTo(2);
+                    assertThat(query.getQueryObject())
+                            .containsEntry("_id", "candidate-id");
+                    return candidateDocument;
+                });
     }
 
     private MongoException labelled(String label) {

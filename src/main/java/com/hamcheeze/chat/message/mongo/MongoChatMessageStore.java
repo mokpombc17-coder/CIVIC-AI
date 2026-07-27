@@ -406,11 +406,11 @@ public final class MongoChatMessageStore implements ChatMessageStore {
         MongoChatMessageDocument messageIdCollision =
                 findByMessageId(candidateMessageId);
         if (messageIdCollision != null) {
-            throw failure(
-                    ChatMessageStoreFailureKind.PERMANENT,
-                    "Generated duplicate messageId: "
-                            + candidateMessageId,
-                    null);
+            return resolveCandidateMessageDocument(
+                    messageIdCollision,
+                    newMessage,
+                    candidateMessageId,
+                    resolutionContext);
         }
         return null;
     }
@@ -433,13 +433,48 @@ public final class MongoChatMessageStore implements ChatMessageStore {
         MongoChatMessageDocument messageIdCollision =
                 findByMessageId(candidateMessageId);
         if (messageIdCollision != null) {
+            return resolveCandidateMessageDocument(
+                    messageIdCollision,
+                    newMessage,
+                    candidateMessageId,
+                    ExistingMessageResolutionContext
+                            .UNKNOWN_COMMIT_RECOVERY);
+        }
+        return null;
+    }
+
+    private StoreChatMessageResult resolveCandidateMessageDocument(
+            MongoChatMessageDocument candidateDocument,
+            NewChatMessage newMessage,
+            String candidateMessageId,
+            ExistingMessageResolutionContext resolutionContext
+    ) {
+        if (!hasSameIdempotencyKey(
+                candidateDocument,
+                newMessage)) {
             throw failure(
                     ChatMessageStoreFailureKind.PERMANENT,
                     "Generated duplicate messageId: "
                             + candidateMessageId,
                     null);
         }
-        return null;
+
+        return resultForExisting(
+                candidateDocument,
+                newMessage,
+                candidateMessageId,
+                resolutionContext);
+    }
+
+    private boolean hasSameIdempotencyKey(
+            MongoChatMessageDocument document,
+            NewChatMessage message
+    ) {
+        return document.roomId().equals(message.roomId())
+                && document.senderUserId().equals(
+                message.senderUserId())
+                && document.clientMessageId().equals(
+                message.clientMessageId());
     }
 
     private StoreChatMessageResult resultForExisting(
