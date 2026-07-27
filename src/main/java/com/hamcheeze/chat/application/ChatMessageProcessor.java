@@ -82,7 +82,7 @@ public final class ChatMessageProcessor {
                     new ChatCommandFailed(
                             command.clientMessageId(),
                             ChatCommandFailedCode.PERSISTENCE_FAILED,
-                            true,
+                            exception.retryable(),
                             null));
         } catch (RuntimeException exception) {
             BestEffortMetricRecorder.increment(

@@ -3,6 +3,7 @@ package com.hamcheeze.chat.message.inmemory;
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
+import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
 import com.hamcheeze.chat.message.ConflictingChatMessage;
 import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.IdempotencyKey;
@@ -88,6 +89,7 @@ public final class InMemoryChatMessageStore
                     "messageIdGenerator returned null");
             if (messagesById.containsKey(messageId)) {
                 throw new ChatMessageStoreException(
+                        ChatMessageStoreFailureKind.PERMANENT,
                         "Generated duplicate messageId: " + messageId);
             }
 
@@ -121,6 +123,7 @@ public final class InMemoryChatMessageStore
                     "chat.message.store.failures",
                     failureCounter);
             throw new ChatMessageStoreException(
+                    ChatMessageStoreFailureKind.PERMANENT,
                     "Failed to append in-memory chat message",
                     exception);
         } finally {

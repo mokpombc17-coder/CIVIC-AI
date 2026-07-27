@@ -4,6 +4,7 @@ import com.hamcheeze.chat.application.ChatCommandResultEnvelope;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
+import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
 import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
@@ -281,6 +282,7 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                             secondAccepted.clientMessageId());
 
             doThrow(new ChatMessageStoreException(
+                    ChatMessageStoreFailureKind.TRANSIENT,
                     "simulated persistence failure"))
                     .when(messageStore)
                     .append(argThat(message ->

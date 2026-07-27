@@ -5,6 +5,7 @@ import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.application.local.LocalAllowListRoomAuthorizationService;
 import com.hamcheeze.chat.delivery.SimpleBrokerChatMessagePublisher;
+import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
 import com.hamcheeze.chat.pipeline.ChatMessagePipeline;
@@ -15,12 +16,14 @@ import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.hamcheeze.chat.websocket.config.LocalRoomProperties;
 import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
+import com.mongodb.client.MongoClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.health.contributor.Status;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -76,6 +79,14 @@ class LocalProfileApplicationTests {
         assertThat(processor).isNotNull();
         assertThat(publisher).isNotNull();
         assertThat(store).isNotNull();
+        assertThat(applicationContext.getBeansOfType(
+                ChatMessageStore.class))
+                .hasSize(1)
+                .containsValue(store);
+        assertThat(applicationContext.getBeansOfType(
+                MongoClient.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(
+                MongoOperations.class)).isEmpty();
         assertThat(jwtDecoder).isNotNull();
         assertThat(jwtProperties.getIssuer()).isEqualTo("chat-local");
         assertThat(roomProperties.getAllowedRooms())

@@ -6,7 +6,9 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.time.Duration;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -45,6 +47,9 @@ public final class ThrowingMeterRegistry {
         SimpleMeterRegistry registry = counter(counterName);
         Timer timer = throwingTimer();
         doReturn(timer).when(registry).timer(timerName);
+        doReturn(timer).when(registry).timer(
+                eq(timerName),
+                any(String[].class));
         return registry;
     }
 

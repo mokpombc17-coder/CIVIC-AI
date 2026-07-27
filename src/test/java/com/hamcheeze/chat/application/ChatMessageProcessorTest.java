@@ -5,6 +5,7 @@ import com.hamcheeze.chat.delivery.ChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
+import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
 import com.hamcheeze.chat.message.ConflictingChatMessage;
 import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.StoredChatMessage;
@@ -119,7 +120,9 @@ class ChatMessageProcessorTest {
     @Test
     void persistenceFailureReturnsRetryableFailure() {
         when(store.append(any())).thenThrow(
-                new ChatMessageStoreException("store unavailable"));
+                new ChatMessageStoreException(
+                        ChatMessageStoreFailureKind.TRANSIENT,
+                        "store unavailable"));
 
         processor.process(queued());
 
@@ -135,6 +138,46 @@ class ChatMessageProcessorTest {
         assertThat(meterRegistry.counter(
                 "chat.pipeline.processing.failures").count())
                 .isEqualTo(1);
+    }
+
+    @Test
+    void permanentPersistenceFailureIsNotRetryable() {
+        when(store.append(any())).thenThrow(
+                new ChatMessageStoreException(
+                        ChatMessageStoreFailureKind.PERMANENT,
+                        "invalid storage configuration"));
+
+        processor.process(queued());
+
+        verifyNoPublish();
+        verify(resultSender).send(
+                "user-1",
+                "connection-1",
+                new ChatCommandFailed(
+                        "550e8400-e29b-41d4-a716-446655440000",
+                        ChatCommandFailedCode.PERSISTENCE_FAILED,
+                        false,
+                        null));
+    }
+
+    @Test
+    void unknownPersistenceOutcomeIsRetryable() {
+        when(store.append(any())).thenThrow(
+                new ChatMessageStoreException(
+                        ChatMessageStoreFailureKind.OUTCOME_UNKNOWN,
+                        "commit result unknown"));
+
+        processor.process(queued());
+
+        verifyNoPublish();
+        verify(resultSender).send(
+                "user-1",
+                "connection-1",
+                new ChatCommandFailed(
+                        "550e8400-e29b-41d4-a716-446655440000",
+                        ChatCommandFailedCode.PERSISTENCE_FAILED,
+                        true,
+                        null));
     }
 
     @Test
@@ -201,7 +244,9 @@ class ChatMessageProcessorTest {
     @Test
     void processingFailureMetricFailureStillSendsPersistenceFailure() {
         when(store.append(any())).thenThrow(
-                new ChatMessageStoreException("store unavailable"));
+                new ChatMessageStoreException(
+                        ChatMessageStoreFailureKind.TRANSIENT,
+                        "store unavailable"));
         processor = new ChatMessageProcessor(
                 store,
                 publisher,
