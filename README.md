@@ -81,7 +81,14 @@ pnpm install
 pnpm check
 ```
 
-### 5. Next.js 실행
+### 5. codegraph 활성화
+
+```bash
+chmod +x scripts/generate-codegraph-docs.sh
+pnpm exec codegraph telemetry off
+```
+
+### 6. Next.js 실행
 
 ```bash
 pnpm dev:web
@@ -90,7 +97,7 @@ pnpm dev:web
 기본 주소는 `http://localhost:3000`이다. 운영 Spring Boot가 없어도 홈과 브리지 예제는 동작한다.
 `/api/upstream-health` 예제만 `OPERATIONS_API_URL`의 서버를 호출한다.
 
-### 6. 모바일 앱 실행
+### 7. 모바일 앱 실행
 
 모바일은 Expo Development Build 기반의 WebView 셸이다. 최초 한 번 네이티브 앱을 빌드한다.
 
