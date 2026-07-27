@@ -36,7 +36,7 @@ packages/typescript-config
 - **Turborepo 미사용**: 앱 2개와 공유 패키지 2개 수준에서는 pnpm filter만으로 충분하다.
 - **Expo Router 미사용**: 네이티브 화면은 WebView 하나이므로 라우팅 소유자는 Next.js다.
 - **TanStack Query 미포함**: 페이지 초기 조회는 Server Component를 기본으로 하고, 클라이언트가 서버 상태를 소유해야 할 화면에서만 추가한다.
-- **Tailwind 미포함**: 렌더링 구조와 배포 경계를 확인하는 템플릿이므로 스타일 도구를 강제하지 않는다.
+- **Tailwind CSS 포함**: 웹의 기본 스타일링 도구로 Tailwind CSS를 사용한다.
 - **운영 DB 직접 접근 없음**: Next.js는 Spring Boot API를 호출하는 웹 프레젠테이션 서버/BFF다.
 - **브리지 최소화**: 일반 HTTP와 WebSocket은 WebView의 Next.js가 직접 처리하고, 공유·푸시·딥링크 같은 네이티브 경계만 브리지를 사용한다.
 
@@ -83,9 +83,17 @@ pnpm check
 
 ### 5. codegraph 활성화
 
+CodeGraph는 소스 코드에서 로컬 semantic index를 생성한다.
+`.codegraph/`의 생성 데이터는 Git에 포함하지 않는다.
+
 ```bash
-chmod +x scripts/generate-codegraph-docs.sh
+# 최초 한 번
+pnpm exec codegraph init
+
 pnpm exec codegraph telemetry off
+
+# 상태 확인
+pnpm codegraph:status
 ```
 
 ### 6. Next.js 실행
