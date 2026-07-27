@@ -183,35 +183,78 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             String candidateMessageId,
             Instant candidateCreatedAt
     ) {
+        boolean unresolvedUnknownCommitSeen = false;
+        Throwable unknownCommitCause = null;
         for (int attempt = 1;
              attempt <= MAX_TRANSACTION_ATTEMPTS;
              attempt++) {
+            ExistingMessageResolutionContext resolutionContext =
+                    unresolvedUnknownCommitSeen
+                            ? ExistingMessageResolutionContext
+                            .UNKNOWN_COMMIT_RECOVERY
+                            : ExistingMessageResolutionContext
+                            .NORMAL_APPEND;
             try {
                 StoreChatMessageResult result =
                         transactionOperations.execute(status ->
                                 appendInTransaction(
                                         newMessage,
                                         candidateMessageId,
-                                        candidateCreatedAt));
+                                        candidateCreatedAt,
+                                        resolutionContext));
                 return Objects.requireNonNull(
                         result,
                         "transaction returned null");
             } catch (RuntimeException exception) {
                 if (exceptionClassifier.isDuplicateKey(exception)) {
-                    StoreChatMessageResult resolved =
-                            resolveDuplicateKey(
-                                    newMessage,
-                                    candidateMessageId);
+                    StoreChatMessageResult resolved;
+                    try {
+                        resolved = resolveDuplicateKey(
+                                newMessage,
+                                candidateMessageId,
+                                resolutionContext);
+                    } catch (RuntimeException resolutionFailure) {
+                        Optional<ChatMessageStoreFailureKind>
+                                resolutionKind =
+                                exceptionClassifier.classify(
+                                        resolutionFailure);
+                        if (resolutionKind.isEmpty()) {
+                            throw resolutionFailure;
+                        }
+                        if (resolutionKind.get()
+                                != ChatMessageStoreFailureKind.PERMANENT
+                                && attempt
+                                < MAX_TRANSACTION_ATTEMPTS) {
+                            backoffBeforeRetry(
+                                    attempt,
+                                    unresolvedUnknownCommitSeen,
+                                    unknownCommitCause);
+                            recordRetry(
+                                    RetryReason.DUPLICATE_RACE);
+                            continue;
+                        }
+                        throw classifiedFailure(
+                                resolutionKind.get(),
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause,
+                                "MongoDB duplicate result lookup failed",
+                                resolutionFailure);
+                    }
                     if (resolved != null) {
                         return resolved;
                     }
                     if (attempt < MAX_TRANSACTION_ATTEMPTS) {
-                        backoffBeforeRetry(attempt);
+                        backoffBeforeRetry(
+                                attempt,
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause);
                         recordRetry(RetryReason.DUPLICATE_RACE);
                         continue;
                     }
-                    throw failure(
+                    throw classifiedFailure(
                             ChatMessageStoreFailureKind.TRANSIENT,
+                            unresolvedUnknownCommitSeen,
+                            unknownCommitCause,
                             "MongoDB duplicate race retry limit exceeded",
                             exception);
                 }
@@ -225,20 +268,58 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                 ChatMessageStoreFailureKind kind =
                         classification.get();
                 if (kind == ChatMessageStoreFailureKind.OUTCOME_UNKNOWN) {
-                    StoreChatMessageResult resolved =
-                            resolveUnknownCommit(
-                                    newMessage,
-                                    candidateMessageId);
+                    if (!unresolvedUnknownCommitSeen) {
+                        unresolvedUnknownCommitSeen = true;
+                        unknownCommitCause = exception;
+                    }
+                    StoreChatMessageResult resolved;
+                    try {
+                        resolved = resolveUnknownCommit(
+                                newMessage,
+                                candidateMessageId);
+                    } catch (RuntimeException resolutionFailure) {
+                        Optional<ChatMessageStoreFailureKind>
+                                resolutionKind =
+                                exceptionClassifier.classify(
+                                        resolutionFailure);
+                        if (resolutionKind.isEmpty()) {
+                            throw resolutionFailure;
+                        }
+                        if (resolutionKind.get()
+                                != ChatMessageStoreFailureKind.PERMANENT
+                                && attempt
+                                < MAX_TRANSACTION_ATTEMPTS) {
+                            backoffBeforeRetry(
+                                    attempt,
+                                    unresolvedUnknownCommitSeen,
+                                    unknownCommitCause);
+                            recordRetry(RetryReason.UNKNOWN_COMMIT);
+                            continue;
+                        }
+                        throw classifiedFailure(
+                                ChatMessageStoreFailureKind
+                                        .OUTCOME_UNKNOWN,
+                                true,
+                                unknownCommitCause,
+                                "MongoDB unknown commit result lookup "
+                                        + "failed",
+                                resolutionFailure);
+                    }
                     if (resolved != null) {
                         return resolved;
                     }
                     if (attempt < MAX_TRANSACTION_ATTEMPTS) {
-                        backoffBeforeRetry(attempt);
+                        backoffBeforeRetry(
+                                attempt,
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause);
                         recordRetry(RetryReason.UNKNOWN_COMMIT);
                         continue;
                     }
-                    throw failure(
+                    throw classifiedFailure(
                             ChatMessageStoreFailureKind.OUTCOME_UNKNOWN,
+                            true,
+                            unknownCommitCause,
                             "MongoDB transaction outcome could not be "
                                     + "determined",
                             exception);
@@ -246,19 +327,26 @@ public final class MongoChatMessageStore implements ChatMessageStore {
 
                 if (kind == ChatMessageStoreFailureKind.TRANSIENT) {
                     if (attempt < MAX_TRANSACTION_ATTEMPTS) {
-                        backoffBeforeRetry(attempt);
+                        backoffBeforeRetry(
+                                attempt,
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause);
                         recordRetry(
                                 RetryReason.TRANSIENT_TRANSACTION);
                         continue;
                     }
-                    throw failure(
+                    throw classifiedFailure(
                             ChatMessageStoreFailureKind.TRANSIENT,
+                            unresolvedUnknownCommitSeen,
+                            unknownCommitCause,
                             "MongoDB transaction retry limit exceeded",
                             exception);
                 }
 
-                throw failure(
+                throw classifiedFailure(
                         ChatMessageStoreFailureKind.PERMANENT,
+                        unresolvedUnknownCommitSeen,
+                        unknownCommitCause,
                         "Permanent MongoDB message store failure",
                         exception);
             }
@@ -270,7 +358,8 @@ public final class MongoChatMessageStore implements ChatMessageStore {
     private StoreChatMessageResult appendInTransaction(
             NewChatMessage newMessage,
             String candidateMessageId,
-            Instant candidateCreatedAt
+            Instant candidateCreatedAt,
+            ExistingMessageResolutionContext resolutionContext
     ) {
         MongoChatMessageDocument existing =
                 findByIdempotencyKey(newMessage);
@@ -278,7 +367,8 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             return resultForExisting(
                     existing,
                     newMessage,
-                    candidateMessageId);
+                    candidateMessageId,
+                    resolutionContext);
         }
 
         long roomSequence =
@@ -300,7 +390,8 @@ public final class MongoChatMessageStore implements ChatMessageStore {
 
     private StoreChatMessageResult resolveDuplicateKey(
             NewChatMessage newMessage,
-            String candidateMessageId
+            String candidateMessageId,
+            ExistingMessageResolutionContext resolutionContext
     ) {
         MongoChatMessageDocument existing =
                 findByIdempotencyKey(newMessage);
@@ -308,7 +399,8 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             return resultForExisting(
                     existing,
                     newMessage,
-                    candidateMessageId);
+                    candidateMessageId,
+                    resolutionContext);
         }
 
         MongoChatMessageDocument messageIdCollision =
@@ -333,7 +425,9 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             return resultForExisting(
                     existing,
                     newMessage,
-                    candidateMessageId);
+                    candidateMessageId,
+                    ExistingMessageResolutionContext
+                            .UNKNOWN_COMMIT_RECOVERY);
         }
 
         MongoChatMessageDocument messageIdCollision =
@@ -351,13 +445,17 @@ public final class MongoChatMessageStore implements ChatMessageStore {
     private StoreChatMessageResult resultForExisting(
             MongoChatMessageDocument existing,
             NewChatMessage newMessage,
-            String candidateMessageId
+            String candidateMessageId,
+            ExistingMessageResolutionContext resolutionContext
     ) {
         ChatMessage message = existing.toDomain();
         if (!existing.content().equals(newMessage.content())) {
             return new ConflictingChatMessage(message);
         }
-        if (existing.messageId().equals(candidateMessageId)) {
+        if (resolutionContext
+                == ExistingMessageResolutionContext
+                .UNKNOWN_COMMIT_RECOVERY
+                && existing.messageId().equals(candidateMessageId)) {
             return new StoredChatMessage(message);
         }
         return new DuplicateChatMessage(message);
@@ -393,20 +491,52 @@ public final class MongoChatMessageStore implements ChatMessageStore {
         return new ChatMessageStoreException(kind, message, cause);
     }
 
+    private ChatMessageStoreException classifiedFailure(
+            ChatMessageStoreFailureKind classifiedKind,
+            boolean unresolvedUnknownCommitSeen,
+            Throwable unknownCommitCause,
+            String message,
+            Throwable currentCause
+    ) {
+        if (!unresolvedUnknownCommitSeen) {
+            return failure(
+                    classifiedKind,
+                    message,
+                    currentCause);
+        }
+
+        ChatMessageStoreException outcomeUnknown =
+                failure(
+                        ChatMessageStoreFailureKind.OUTCOME_UNKNOWN,
+                        message,
+                        unknownCommitCause);
+        if (currentCause != null
+                && currentCause != unknownCommitCause) {
+            outcomeUnknown.addSuppressed(currentCause);
+        }
+        return outcomeUnknown;
+    }
+
     private void recordRetry(RetryReason reason) {
         BestEffortMetricRecorder.increment(
                 RETRY_METRIC,
                 retryCounters.get(reason));
     }
 
-    private void backoffBeforeRetry(int completedAttempt) {
+    private void backoffBeforeRetry(
+            int completedAttempt,
+            boolean unresolvedUnknownCommitSeen,
+            Throwable unknownCommitCause
+    ) {
         try {
             Thread.sleep(
                     RETRY_BACKOFF_MILLIS * completedAttempt);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw failure(
+            throw classifiedFailure(
                     ChatMessageStoreFailureKind.TRANSIENT,
+                    unresolvedUnknownCommitSeen,
+                    unknownCommitCause,
                     "MongoDB transaction retry interrupted",
                     exception);
         }
@@ -464,6 +594,11 @@ public final class MongoChatMessageStore implements ChatMessageStore {
         TRANSIENT_TRANSACTION,
         UNKNOWN_COMMIT,
         DUPLICATE_RACE
+    }
+
+    private enum ExistingMessageResolutionContext {
+        NORMAL_APPEND,
+        UNKNOWN_COMMIT_RECOVERY
     }
 
     private enum AppendResult {

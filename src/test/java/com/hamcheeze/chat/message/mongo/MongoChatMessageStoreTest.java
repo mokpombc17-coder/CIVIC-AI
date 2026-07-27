@@ -22,9 +22,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -34,6 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -146,6 +145,24 @@ class MongoChatMessageStoreTest {
     }
 
     @Test
+    void sameKeyAndContentIsDuplicateEvenWhenGeneratedIdMatchesExistingId() {
+        MongoChatMessageStore firstStore =
+                newStore(() -> "fixed-id");
+        firstStore.append(
+                message("room-1", "user-1", "client-1", "hello"));
+        MongoChatMessageStore secondStore =
+                newStore(() -> "fixed-id");
+
+        StoreChatMessageResult result = secondStore.append(
+                message("room-1", "user-1", "client-1", "hello"));
+
+        assertThat(result).isInstanceOf(DuplicateChatMessage.class);
+        assertThat(result).isNotInstanceOf(StoredChatMessage.class);
+        assertThat(messages().countDocuments()).isEqualTo(1L);
+        assertThat(lastSequence("room-1")).isEqualTo(1L);
+    }
+
+    @Test
     void sameKeyAndDifferentContentReturnsConflictWithoutSequenceUse() {
         StoredChatMessage first =
                 (StoredChatMessage) store.append(
@@ -239,7 +256,7 @@ class MongoChatMessageStoreTest {
     }
 
     @Test
-    void parallelMessagesInSameRoomHaveGaplessUniqueSequences()
+    void fullyConcurrentMessagesKeepCommittedRoomSequencesGapless()
             throws Exception {
         int requestCount = 6;
         List<Callable<StoreChatMessageResult>> calls =
@@ -251,27 +268,44 @@ class MongoChatMessageStoreTest {
                                 "client-" + index,
                                 "content-" + index));
 
-        List<StoreChatMessageResult> results =
-                new ArrayList<>();
-        for (int offset = 0;
-             offset < requestCount;
-             offset += 2) {
-            results.addAll(runConcurrently(
-                    calls.subList(offset, offset + 2)));
-        }
-        Set<Long> sequences = new HashSet<>();
-        for (StoreChatMessageResult result : results) {
-            assertThat(result).isInstanceOf(StoredChatMessage.class);
-            sequences.add(
-                    ((StoredChatMessage) result)
-                            .message()
-                            .roomSequence());
-        }
+        List<ConcurrentAppendOutcome> outcomes =
+                runFullyConcurrently(calls);
+        List<StoredChatMessage> stored = outcomes.stream()
+                .map(ConcurrentAppendOutcome::result)
+                .filter(StoredChatMessage.class::isInstance)
+                .map(StoredChatMessage.class::cast)
+                .toList();
+        List<ChatMessageStoreException> failures =
+                outcomes.stream()
+                        .map(ConcurrentAppendOutcome::failure)
+                        .filter(java.util.Objects::nonNull)
+                        .toList();
+        List<Long> sequences = stored.stream()
+                .map(result -> result.message().roomSequence())
+                .sorted()
+                .toList();
+        List<Long> expectedSequences = LongStream.rangeClosed(
+                        1L,
+                        stored.size())
+                .boxed()
+                .toList();
 
-        assertThat(sequences).containsExactlyInAnyOrder(
-                1L, 2L, 3L, 4L, 5L, 6L);
-        assertThat(messages().countDocuments())
+        assertThat(outcomes).hasSize(requestCount);
+        assertThat(stored.size() + failures.size())
                 .isEqualTo(requestCount);
+        assertThat(stored).isNotEmpty();
+        assertThat(failures)
+                .allSatisfy(failure -> {
+                    assertThat(failure.kind()).isEqualTo(
+                            ChatMessageStoreFailureKind.TRANSIENT);
+                    assertThat(failure.retryable()).isTrue();
+                });
+        assertThat(sequences).containsExactlyElementsOf(
+                expectedSequences);
+        assertThat(messages().countDocuments())
+                .isEqualTo(stored.size());
+        assertThat(lastSequence("room-1"))
+                .isEqualTo(stored.size());
     }
 
     @Test
@@ -498,6 +532,73 @@ class MongoChatMessageStoreTest {
         return runConcurrently(calls, calls.size());
     }
 
+    private List<ConcurrentAppendOutcome> runFullyConcurrently(
+            List<Callable<StoreChatMessageResult>> calls
+    ) throws Exception {
+        List<Callable<ConcurrentAppendOutcome>> capturedCalls =
+                calls.stream()
+                        .map(call ->
+                                (Callable<ConcurrentAppendOutcome>)
+                                        () -> {
+                                            try {
+                                                return ConcurrentAppendOutcome
+                                                        .stored(
+                                                                call.call());
+                                            } catch (
+                                                    ChatMessageStoreException
+                                                            exception) {
+                                                return ConcurrentAppendOutcome
+                                                        .failed(
+                                                                exception);
+                                            }
+                                        })
+                        .toList();
+        return runCapturedConcurrently(capturedCalls);
+    }
+
+    private List<ConcurrentAppendOutcome> runCapturedConcurrently(
+            List<Callable<ConcurrentAppendOutcome>> calls
+    ) throws Exception {
+        ExecutorService executor =
+                Executors.newFixedThreadPool(calls.size());
+        CountDownLatch ready = new CountDownLatch(calls.size());
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<ConcurrentAppendOutcome>> futures =
+                    new ArrayList<>();
+            for (Callable<ConcurrentAppendOutcome> call : calls) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException(
+                                "Concurrent test start timed out");
+                    }
+                    return call.call();
+                }));
+            }
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            List<ConcurrentAppendOutcome> results =
+                    new ArrayList<>();
+            for (Future<ConcurrentAppendOutcome> future : futures) {
+                try {
+                    results.add(future.get(20, TimeUnit.SECONDS));
+                } catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    if (cause instanceof Exception checked) {
+                        throw checked;
+                    }
+                    throw exception;
+                }
+            }
+            return results;
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+    }
+
     private List<StoreChatMessageResult> runConcurrently(
             List<Callable<StoreChatMessageResult>> calls,
             int maxConcurrency
@@ -557,5 +658,23 @@ class MongoChatMessageStoreTest {
         assertThat(index.containsKey("sparse")).isFalse();
         assertThat(index.containsKey("partialFilterExpression"))
                 .isFalse();
+    }
+
+    private record ConcurrentAppendOutcome(
+            StoreChatMessageResult result,
+            ChatMessageStoreException failure
+    ) {
+
+        static ConcurrentAppendOutcome stored(
+                StoreChatMessageResult result
+        ) {
+            return new ConcurrentAppendOutcome(result, null);
+        }
+
+        static ConcurrentAppendOutcome failed(
+                ChatMessageStoreException failure
+        ) {
+            return new ConcurrentAppendOutcome(null, failure);
+        }
     }
 }
