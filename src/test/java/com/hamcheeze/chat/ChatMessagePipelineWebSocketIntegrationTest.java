@@ -52,6 +52,13 @@ import static org.mockito.Mockito.doThrow;
 @ActiveProfiles("limit-test")
 class ChatMessagePipelineWebSocketIntegrationTest {
 
+    private static final String CLIENT_MESSAGE_ID =
+            "550e8400-e29b-41d4-a716-446655440000";
+    private static final String SECOND_CLIENT_MESSAGE_ID =
+            "550e8400-e29b-41d4-a716-446655440001";
+    private static final String FAILED_CLIENT_MESSAGE_ID =
+            "550e8400-e29b-41d4-a716-446655440002";
+
     @LocalServerPort
     private int port;
 
@@ -174,7 +181,9 @@ class ChatMessagePipelineWebSocketIntegrationTest {
 
             session.send(
                     "/app/rooms/test-room/messages",
-                    new ChatSendCommand("client-1", "  hello  "));
+                    new ChatSendCommand(
+                            CLIENT_MESSAGE_ID,
+                            "  hello  "));
 
             byte[] rawRoomMessage =
                     rawRoomMessages.poll(5, TimeUnit.SECONDS);
@@ -203,9 +212,13 @@ class ChatMessagePipelineWebSocketIntegrationTest {
                     .doesNotContain("local-user-1");
             assertThat(accepted).isNotNull();
             assertThat(accepted.status()).isEqualTo("ACCEPTED");
+            assertThat(accepted.clientMessageId())
+                    .isEqualTo(CLIENT_MESSAGE_ID);
             assertThat(accepted.messageId())
                     .isEqualTo(roomMessage.payload().messageId());
             assertThat(accepted.roomSequence()).isEqualTo(1);
+            assertThat(roomMessage.payload().clientMessageId())
+                    .isEqualTo(accepted.clientMessageId());
             assertThat(messageStore.findById(accepted.messageId()))
                     .get()
                     .extracting(message -> message.senderUserId())
@@ -213,18 +226,22 @@ class ChatMessagePipelineWebSocketIntegrationTest {
 
             session.send(
                     "/app/rooms/test-room/messages",
-                    new ChatSendCommand("client-1", "hello"));
+                    new ChatSendCommand(CLIENT_MESSAGE_ID, "hello"));
             ChatCommandResultEnvelope duplicate =
                     commandResults.poll(5, TimeUnit.SECONDS);
 
             assertThat(duplicate).isNotNull();
             assertThat(duplicate.status()).isEqualTo("DUPLICATE");
+            assertThat(duplicate.clientMessageId())
+                    .isEqualTo(CLIENT_MESSAGE_ID);
             assertThat(duplicate.messageId())
                     .isEqualTo(accepted.messageId());
+            assertThat(duplicate.roomSequence())
+                    .isEqualTo(accepted.roomSequence());
 
             session.send(
                     "/app/rooms/test-room/messages",
-                    new ChatSendCommand("client-1", "changed"));
+                    new ChatSendCommand(CLIENT_MESSAGE_ID, "changed"));
             ChatCommandResultEnvelope conflict =
                     commandResults.poll(5, TimeUnit.SECONDS);
 
@@ -233,19 +250,47 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             assertThat(conflict.code())
                     .isEqualTo("IDEMPOTENCY_CONFLICT");
             assertThat(conflict.retryable()).isFalse();
+            assertThat(conflict.clientMessageId())
+                    .isEqualTo(CLIENT_MESSAGE_ID);
             assertThat(rawRoomMessages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
+
+            session.send(
+                    "/app/rooms/test-room/messages",
+                    new ChatSendCommand(
+                            SECOND_CLIENT_MESSAGE_ID,
+                            "second"));
+            ChatMessageEventEnvelope secondRoomMessage =
+                    objectMapper.readValue(
+                            rawRoomMessages.poll(
+                                    5, TimeUnit.SECONDS),
+                            ChatMessageEventEnvelope.class);
+            ChatCommandResultEnvelope secondAccepted =
+                    commandResults.poll(5, TimeUnit.SECONDS);
+
+            assertThat(secondAccepted).isNotNull();
+            assertThat(secondAccepted.status()).isEqualTo("ACCEPTED");
+            assertThat(secondAccepted.clientMessageId())
+                    .isEqualTo(SECOND_CLIENT_MESSAGE_ID);
+            assertThat(secondAccepted.roomSequence()).isEqualTo(2);
+            assertThat(secondRoomMessage.payload().messageId())
+                    .isEqualTo(secondAccepted.messageId());
+            assertThat(secondRoomMessage.payload().roomSequence())
+                    .isEqualTo(secondAccepted.roomSequence());
+            assertThat(secondRoomMessage.payload().clientMessageId())
+                    .isEqualTo(
+                            secondAccepted.clientMessageId());
 
             doThrow(new ChatMessageStoreException(
                     "simulated persistence failure"))
                     .when(messageStore)
                     .append(argThat(message ->
                             message.clientMessageId().equals(
-                                    "client-persistence-failure")));
+                                    FAILED_CLIENT_MESSAGE_ID)));
             session.send(
                     "/app/rooms/test-room/messages",
                     new ChatSendCommand(
-                            "client-persistence-failure",
+                            FAILED_CLIENT_MESSAGE_ID,
                             "not stored"));
             ChatCommandResultEnvelope persistenceFailed =
                     commandResults.poll(5, TimeUnit.SECONDS);
@@ -255,6 +300,29 @@ class ChatMessagePipelineWebSocketIntegrationTest {
             assertThat(persistenceFailed.code())
                     .isEqualTo("PERSISTENCE_FAILED");
             assertThat(persistenceFailed.retryable()).isTrue();
+            assertThat(persistenceFailed.clientMessageId())
+                    .isEqualTo(FAILED_CLIENT_MESSAGE_ID);
+            assertThat(rawRoomMessages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+
+            int storedBeforeInvalidCommand = messageStore.size();
+            session.send(
+                    "/app/rooms/test-room/messages",
+                    new ChatSendCommand(
+                            "client-message-1",
+                            "invalid id"));
+            ChatCommandResultEnvelope invalidClientMessageId =
+                    commandResults.poll(5, TimeUnit.SECONDS);
+
+            assertThat(invalidClientMessageId).isNotNull();
+            assertThat(invalidClientMessageId.status())
+                    .isEqualTo("REJECTED");
+            assertThat(invalidClientMessageId.code())
+                    .isEqualTo("INVALID_CLIENT_MESSAGE_ID");
+            assertThat(invalidClientMessageId.retryable()).isFalse();
+            assertThat(invalidClientMessageId.clientMessageId()).isNull();
+            assertThat(messageStore.size())
+                    .isEqualTo(storedBeforeInvalidCommand);
             assertThat(rawRoomMessages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
         } finally {

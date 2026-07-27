@@ -21,7 +21,7 @@ class ChatCommandControllerTest {
                 SimpMessageHeaderAccessor.create();
         headers.setSessionId("connection-1");
         ChatSendCommand command =
-                new ChatSendCommand("client-1", "hello");
+                new ChatSendCommand("550e8400-e29b-41d4-a716-446655440000", "hello");
 
         controller.send("room-1", command, principal, headers);
 

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.health.contributor.Status;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Duration;
@@ -32,6 +33,12 @@ class LimitTestInMemoryPipelineApplicationTests {
     @Autowired
     private ChatPipelineHealthIndicator pipelineHealth;
 
+    @Value("${spring.lifecycle.timeout-per-shutdown-phase}")
+    private Duration lifecyclePhaseTimeout;
+
+    @Value("${chat.message-pipeline.shutdown-drain-timeout-ms}")
+    private long pipelineDrainTimeoutMs;
+
     @Test
     void runsQueueStoreBroadcastAndResultCycle() throws Exception {
         assertThat(pipeline)
@@ -46,13 +53,20 @@ class LimitTestInMemoryPipelineApplicationTests {
                         "local-user-1",
                         "local-connection-1",
                         "test-room",
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         "hello"));
 
         assertThat(acceptance).isEqualTo(
                 PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
         awaitStoreSize(1, Duration.ofSeconds(2));
         assertThat(store.size()).isEqualTo(1);
+    }
+
+    @Test
+    void lifecyclePhaseTimeoutExceedsPipelineDrainTimeout() {
+        assertThat(lifecyclePhaseTimeout)
+                .isGreaterThan(Duration.ofMillis(
+                        pipelineDrainTimeoutMs));
     }
 
     private void awaitStoreSize(

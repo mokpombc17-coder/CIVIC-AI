@@ -73,7 +73,7 @@ class ChatMessageProcessorTest {
                 "user-1",
                 "connection-1",
                 new ChatCommandOutcome(
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         ChatCommandOutcomeCode.ACCEPTED,
                         "message-1",
                         1L));
@@ -91,7 +91,7 @@ class ChatMessageProcessorTest {
                 "user-1",
                 "connection-1",
                 new ChatCommandOutcome(
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         ChatCommandOutcomeCode.DUPLICATE,
                         "message-1",
                         1L));
@@ -109,7 +109,7 @@ class ChatMessageProcessorTest {
                 "user-1",
                 "connection-1",
                 new ChatCommandRejected(
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         ChatCommandRejectedCode.IDEMPOTENCY_CONFLICT,
                         false,
                         null));
@@ -127,7 +127,7 @@ class ChatMessageProcessorTest {
                 "user-1",
                 "connection-1",
                 new ChatCommandFailed(
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         ChatCommandFailedCode.PERSISTENCE_FAILED,
                         true,
                         null));
@@ -156,7 +156,7 @@ class ChatMessageProcessorTest {
                 "user-1",
                 "connection-1",
                 new ChatCommandOutcome(
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         ChatCommandOutcomeCode.ACCEPTED,
                         "message-1",
                         1L));
@@ -164,7 +164,7 @@ class ChatMessageProcessorTest {
                 "user-1",
                 "connection-1",
                 new ChatCommandOutcome(
-                        "client-2",
+                        "550e8400-e29b-41d4-a716-446655440001",
                         ChatCommandOutcomeCode.ACCEPTED,
                         "message-2",
                         2L));
@@ -211,7 +211,7 @@ class ChatMessageProcessorTest {
                         "user-1",
                         "connection-1",
                         "room-1",
-                        "client-" + suffix,
+                        clientMessageId(suffix),
                         "hello"),
                 Instant.parse("2026-07-24T00:00:00Z"));
     }
@@ -227,8 +227,17 @@ class ChatMessageProcessorTest {
                 "room-1",
                 sequence,
                 "user-1",
-                "client-" + suffix,
+                clientMessageId(suffix),
                 "hello",
                 Instant.parse("2026-07-24T00:00:01Z"));
+    }
+
+    private String clientMessageId(String suffix) {
+        return switch (suffix) {
+            case "1" -> "550e8400-e29b-41d4-a716-446655440000";
+            case "2" -> "550e8400-e29b-41d4-a716-446655440001";
+            default -> throw new IllegalArgumentException(
+                    "Unsupported test suffix: " + suffix);
+        };
     }
 }

@@ -44,15 +44,15 @@ class InMemoryChatMessageStoreTest {
     @Test
     void storesMessagesWithIndependentRoomSequences() {
         StoredChatMessage first = (StoredChatMessage) store.append(
-                message("room-1", "user-1", "client-1", "hello"));
+                message("room-1", "user-1", "550e8400-e29b-41d4-a716-446655440000", "hello"));
         StoredChatMessage second = (StoredChatMessage) store.append(
-                message("room-1", "user-1", "client-2", "again"));
+                message("room-1", "user-1", "550e8400-e29b-41d4-a716-446655440001", "again"));
         StoredChatMessage anotherRoom =
                 (StoredChatMessage) store.append(
                         message(
                                 "room-2",
                                 "user-1",
-                                "client-3",
+                                "550e8400-e29b-41d4-a716-446655440002",
                                 "other"));
 
         assertThat(first.message().roomSequence()).isEqualTo(1);
@@ -69,14 +69,14 @@ class InMemoryChatMessageStoreTest {
     @Test
     void sameKeyAndNormalizedContentReturnsOriginalDuplicate() {
         StoredChatMessage stored = (StoredChatMessage) store.append(
-                message("room-1", "user-1", "client-1", "hello"));
+                message("room-1", "user-1", "550e8400-e29b-41d4-a716-446655440000", "hello"));
 
         DuplicateChatMessage duplicate =
                 (DuplicateChatMessage) store.append(
                         message(
                                 "room-1",
                                 "user-1",
-                                "client-1",
+                                "550e8400-e29b-41d4-a716-446655440000",
                                 "hello"));
 
         assertThat(duplicate.message()).isEqualTo(stored.message());
@@ -88,17 +88,17 @@ class InMemoryChatMessageStoreTest {
     @Test
     void sameKeyAndDifferentNormalizedContentReturnsConflict() {
         StoredChatMessage stored = (StoredChatMessage) store.append(
-                message("room-1", "user-1", "client-1", "hello"));
+                message("room-1", "user-1", "550e8400-e29b-41d4-a716-446655440000", "hello"));
 
         ConflictingChatMessage conflict =
                 (ConflictingChatMessage) store.append(
                         message(
                                 "room-1",
                                 "user-1",
-                                "client-1",
+                                "550e8400-e29b-41d4-a716-446655440000",
                                 "changed"));
         StoredChatMessage next = (StoredChatMessage) store.append(
-                message("room-1", "user-1", "client-2", "next"));
+                message("room-1", "user-1", "550e8400-e29b-41d4-a716-446655440001", "next"));
 
         assertThat(conflict.existingMessage())
                 .isEqualTo(stored.message());
@@ -114,19 +114,19 @@ class InMemoryChatMessageStoreTest {
                 message(
                         "room-1",
                         "user-1",
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         "first"))).message();
         ChatMessage otherUser = ((StoredChatMessage) store.append(
                 message(
                         "room-1",
                         "user-2",
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         "second"))).message();
         ChatMessage otherRoom = ((StoredChatMessage) store.append(
                 message(
                         "room-2",
                         "user-1",
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         "third"))).message();
 
         assertThat(first.messageId()).isNotEqualTo(
@@ -144,10 +144,10 @@ class InMemoryChatMessageStoreTest {
                         () -> "same-message-id",
                         meterRegistry);
         collidingStore.append(
-                message("room-1", "user-1", "client-1", "first"));
+                message("room-1", "user-1", "550e8400-e29b-41d4-a716-446655440000", "first"));
 
         assertThatThrownBy(() -> collidingStore.append(
-                message("room-1", "user-1", "client-2", "second")))
+                message("room-1", "user-1", "550e8400-e29b-41d4-a716-446655440001", "second")))
                 .isInstanceOf(ChatMessageStoreException.class);
         assertThat(collidingStore.size()).isEqualTo(1);
         assertThat(meterRegistry.counter(
@@ -168,7 +168,9 @@ class InMemoryChatMessageStoreTest {
                                 message(
                                         "room-1",
                                         "user-" + current,
-                                        "client-" + current,
+                                        String.format(
+                                                "00000000-0000-0000-0000-%012x",
+                                                current),
                                         "message-" + current))));
             }
 

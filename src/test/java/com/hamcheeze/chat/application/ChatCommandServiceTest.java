@@ -27,6 +27,9 @@ import static org.mockito.Mockito.when;
 
 class ChatCommandServiceTest {
 
+    private static final String CLIENT_MESSAGE_ID =
+            "550e8400-e29b-41d4-a716-446655440000";
+
     private final ActiveConnectionRegistry activeConnections =
             mock(ActiveConnectionRegistry.class);
     private final RoomAuthorizationService authorization =
@@ -70,12 +73,12 @@ class ChatCommandServiceTest {
                 "user-1",
                 "connection-1",
                 "room-1",
-                new ChatSendCommand("client-1", "hello"));
+                new ChatSendCommand(CLIENT_MESSAGE_ID, "hello"));
 
         verifyNoInteractions(limiter);
         ChatCommandResult result = capturedResult();
         assertThat(result).isEqualTo(new ChatCommandFailed(
-                "client-1",
+                CLIENT_MESSAGE_ID,
                 ChatCommandFailedCode.CHAT_PIPELINE_UNAVAILABLE,
                 true,
                 null));
@@ -90,12 +93,12 @@ class ChatCommandServiceTest {
                 "user-1",
                 "connection-1",
                 "room-1",
-                new ChatSendCommand("client-1", "hello"));
+                new ChatSendCommand(CLIENT_MESSAGE_ID, "hello"));
 
         verify(pipeline, never()).availability();
         verifyNoInteractions(limiter);
         assertThat(capturedResult()).isEqualTo(new ChatCommandFailed(
-                "client-1",
+                CLIENT_MESSAGE_ID,
                 ChatCommandFailedCode.ROOM_AUTHORIZATION_UNAVAILABLE,
                 true,
                 null));
@@ -116,12 +119,14 @@ class ChatCommandServiceTest {
                 "user-1",
                 "connection-1",
                 "room-1",
-                new ChatSendCommand("client-1", "  hello  "));
+                new ChatSendCommand(CLIENT_MESSAGE_ID, "  hello  "));
 
         ArgumentCaptor<AdmittedChatCommand> command =
                 ArgumentCaptor.forClass(AdmittedChatCommand.class);
         verify(pipeline).tryAccept(command.capture());
         assertThat(command.getValue().content()).isEqualTo("hello");
+        assertThat(command.getValue().clientMessageId())
+                .isEqualTo(CLIENT_MESSAGE_ID);
         verify(reservation).commit();
         verify(reservation).close();
         verifyNoInteractions(resultSender);
@@ -141,12 +146,12 @@ class ChatCommandServiceTest {
                 "user-1",
                 "connection-1",
                 "room-1",
-                new ChatSendCommand("client-1", "hello"));
+                new ChatSendCommand(CLIENT_MESSAGE_ID, "hello"));
 
         verify(reservation, never()).commit();
         verify(reservation).close();
         assertThat(capturedResult()).isEqualTo(new ChatCommandRejected(
-                "client-1",
+                CLIENT_MESSAGE_ID,
                 ChatCommandRejectedCode.SERVER_BUSY,
                 true,
                 null));
@@ -167,12 +172,12 @@ class ChatCommandServiceTest {
                 "user-1",
                 "connection-1",
                 "room-1",
-                new ChatSendCommand("client-1", "hello"));
+                new ChatSendCommand(CLIENT_MESSAGE_ID, "hello"));
 
         verify(reservation, never()).commit();
         verify(reservation).close();
         assertThat(capturedResult()).isEqualTo(new ChatCommandFailed(
-                "client-1",
+                CLIENT_MESSAGE_ID,
                 ChatCommandFailedCode.CHAT_PIPELINE_UNAVAILABLE,
                 true,
                 null));
@@ -193,11 +198,11 @@ class ChatCommandServiceTest {
                 "user-1",
                 "connection-1",
                 "room-1",
-                new ChatSendCommand("client-1", "hello"));
+                new ChatSendCommand(CLIENT_MESSAGE_ID, "hello"));
 
         verify(reservation).close();
         assertThat(capturedResult()).isEqualTo(new ChatCommandFailed(
-                "client-1",
+                CLIENT_MESSAGE_ID,
                 ChatCommandFailedCode.INTERNAL_ERROR,
                 true,
                 null));
@@ -217,6 +222,32 @@ class ChatCommandServiceTest {
                 false,
                 null));
         verifyNoInteractions(authorization, pipeline, limiter);
+    }
+
+    @Test
+    void canonicalizesUppercaseClientMessageIdBeforeAdmission() {
+        AdmissionReservation reservation = grantedReservation();
+        when(authorization.authorizeMessageSend("user-1", "room-1"))
+                .thenReturn(RoomAuthorizationDecision.ALLOWED);
+        when(pipeline.availability())
+                .thenReturn(PipelineAvailability.AVAILABLE);
+        when(limiter.tryReserve("user-1", 1)).thenReturn(reservation);
+        when(pipeline.tryAccept(any()))
+                .thenReturn(PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
+
+        service.handle(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new ChatSendCommand(
+                        CLIENT_MESSAGE_ID.toUpperCase(),
+                        "hello"));
+
+        ArgumentCaptor<AdmittedChatCommand> command =
+                ArgumentCaptor.forClass(AdmittedChatCommand.class);
+        verify(pipeline).tryAccept(command.capture());
+        assertThat(command.getValue().clientMessageId())
+                .isEqualTo(CLIENT_MESSAGE_ID);
     }
 
     private AdmissionReservation grantedReservation() {

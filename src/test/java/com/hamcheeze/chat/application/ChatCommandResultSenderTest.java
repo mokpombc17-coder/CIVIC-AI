@@ -27,7 +27,7 @@ class ChatCommandResultSenderTest {
                 new ChatCommandResultMapper(),
                 new SimpleMeterRegistry());
         ChatCommandOutcome result = new ChatCommandOutcome(
-                "client-1",
+                "550e8400-e29b-41d4-a716-446655440000",
                 ChatCommandOutcomeCode.ACCEPTED,
                 "message-1",
                 1L);
@@ -38,7 +38,7 @@ class ChatCommandResultSenderTest {
                 eq("user-1"),
                 eq("/queue/command-results"),
                 eq(new ChatCommandResultEnvelope(
-                        "client-1",
+                        "550e8400-e29b-41d4-a716-446655440000",
                         "ACCEPTED",
                         null,
                         false,

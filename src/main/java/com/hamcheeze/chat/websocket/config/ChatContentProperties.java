@@ -2,8 +2,8 @@ package com.hamcheeze.chat.websocket.config;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -14,8 +14,6 @@ import java.util.List;
 @ConfigurationProperties("chat.websocket.message")
 public class ChatContentProperties {
 
-    @NotBlank
-    private String clientMessageIdRegex = "^[A-Za-z0-9._:-]{1,128}$";
     @NotBlank
     private String roomIdRegex = "^[A-Za-z0-9_-]{1,64}$";
     @Min(1)
@@ -29,14 +27,6 @@ public class ChatContentProperties {
     @NotEmpty
     private List<String> rejectC0ControlCharactersExcept =
             new ArrayList<>(List.of("TAB", "LF", "CR"));
-
-    public String getClientMessageIdRegex() {
-        return clientMessageIdRegex;
-    }
-
-    public void setClientMessageIdRegex(String value) {
-        this.clientMessageIdRegex = value;
-    }
 
     public String getRoomIdRegex() {
         return roomIdRegex;

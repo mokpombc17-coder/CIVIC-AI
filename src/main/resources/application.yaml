@@ -1,6 +1,8 @@
 spring:
   application:
     name: chat-server
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 chat:
   websocket:
@@ -47,7 +49,6 @@ chat:
         burst-max-accepted: 100
 
     message:
-      client-message-id-regex: "^[A-Za-z0-9._:-]{1,128}$"
       room-id-regex: "^[A-Za-z0-9_-]{1,64}$"
       max-content-code-points: 2000
       max-content-utf8-bytes: 8192

@@ -11,6 +11,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ChatCommandValidatorTest {
 
+    private static final String CLIENT_MESSAGE_ID =
+            "550e8400-e29b-41d4-a716-446655440000";
+
     private ChatCommandValidator validator;
 
     @BeforeEach
@@ -21,15 +24,34 @@ class ChatCommandValidatorTest {
     @Test
     void validatesAndNormalizesContentOnce() {
         ValidatedChatContent content =
-                validator.validateContent("  hello 😀  ", "client-1");
+                validator.validateContent(
+                        "  hello 😀  ", CLIENT_MESSAGE_ID);
 
         assertThat(content.normalizedContent()).isEqualTo("hello 😀");
         assertThat(content.codePointCount()).isEqualTo(7);
         assertThat(content.utf8ByteCount()).isEqualTo(10);
     }
 
+    @Test
+    void acceptsCanonicalUuidAndCanonicalizesUppercaseUuid() {
+        assertThat(validator.validateClientMessageId(CLIENT_MESSAGE_ID))
+                .isEqualTo(CLIENT_MESSAGE_ID);
+        assertThat(validator.validateClientMessageId(
+                "550E8400-E29B-41D4-A716-446655440000"))
+                .isEqualTo(CLIENT_MESSAGE_ID);
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"bad id", "한글", "id/segment", "id\u0001"})
+    @ValueSource(strings = {
+            "",
+            " 550e8400-e29b-41d4-a716-446655440000",
+            "550e8400-e29b-41d4-a716-446655440000 ",
+            "client-message-1",
+            "550e8400e29b41d4a716446655440000",
+            "550e8400-e29b-41d4-a716",
+            "550e8400-e29b-41d4-a716-4466554400000",
+            "550e8400-e29b-41d4-a716-44665544000g"
+    })
     void rejectsInvalidClientMessageIds(String value) {
         assertThatThrownBy(() -> validator.validateClientMessageId(value))
                 .isInstanceOf(ChatValidationException.class)
@@ -40,15 +62,15 @@ class ChatCommandValidatorTest {
     }
 
     @Test
-    void rejectsMissingAndTooLongClientMessageIdsWithNullResponseId() {
+    void rejectsMissingClientMessageIdWithNullResponseId() {
         assertInvalidClientMessageId(null);
-        assertInvalidClientMessageId("a".repeat(129));
     }
 
     @Test
     void rejectsForbiddenC0BeforeStripButAllowsTabLfCr() {
         assertThatThrownBy(() ->
-                validator.validateContent(" hello\u0001 ", "client-1"))
+                validator.validateContent(
+                        " hello\u0001 ", CLIENT_MESSAGE_ID))
                 .isInstanceOf(ChatValidationException.class)
                 .extracting(exception ->
                         ((ChatValidationException) exception).code())
@@ -56,7 +78,7 @@ class ChatCommandValidatorTest {
                         ChatCommandRejectedCode.INVALID_CONTROL_CHARACTER);
 
         assertThat(validator.validateContent(
-                "\t hello\r\n", "client-1").normalizedContent())
+                "\t hello\r\n", CLIENT_MESSAGE_ID).normalizedContent())
                 .isEqualTo("hello");
     }
 
@@ -73,7 +95,7 @@ class ChatCommandValidatorTest {
         ChatCommandValidator byteLimitValidator =
                 new ChatCommandValidator(byteLimitProperties);
         assertThatThrownBy(() -> byteLimitValidator.validateContent(
-                "😀".repeat(2_100), "client-1"))
+                "😀".repeat(2_100), CLIENT_MESSAGE_ID))
                 .isInstanceOf(ChatValidationException.class)
                 .extracting(exception ->
                         ((ChatValidationException) exception).code())
@@ -94,7 +116,7 @@ class ChatCommandValidatorTest {
             ChatCommandRejectedCode code
     ) {
         assertThatThrownBy(() ->
-                validator.validateContent(content, "client-1"))
+                validator.validateContent(content, CLIENT_MESSAGE_ID))
                 .isInstanceOf(ChatValidationException.class)
                 .extracting(exception ->
                         ((ChatValidationException) exception).code())

@@ -5,19 +5,16 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
-import java.util.regex.Pattern;
+import java.util.UUID;
 
 @Component
 public final class ChatCommandValidator {
 
-    private final Pattern clientMessageIdPattern;
     private final int maximumCodePoints;
     private final int maximumUtf8Bytes;
     private final Set<Integer> allowedC0CodePoints;
 
     public ChatCommandValidator(ChatContentProperties properties) {
-        this.clientMessageIdPattern =
-                Pattern.compile(properties.getClientMessageIdRegex());
         this.maximumCodePoints = properties.getMaxContentCodePoints();
         this.maximumUtf8Bytes = properties.getMaxContentUtf8Bytes();
         this.allowedC0CodePoints =
@@ -27,12 +24,19 @@ public final class ChatCommandValidator {
     }
 
     public String validateClientMessageId(String clientMessageId) {
-        if (clientMessageId == null
-                || !clientMessageIdPattern.matcher(clientMessageId).matches()) {
+        if (clientMessageId == null) {
             throw new ChatValidationException(
                     ChatCommandRejectedCode.INVALID_CLIENT_MESSAGE_ID, null);
         }
-        return clientMessageId;
+        try {
+            String canonical = UUID.fromString(clientMessageId).toString();
+            if (!canonical.equalsIgnoreCase(clientMessageId)) {
+                throw invalidClientMessageId();
+            }
+            return canonical;
+        } catch (IllegalArgumentException exception) {
+            throw invalidClientMessageId();
+        }
     }
 
     public ValidatedChatContent validateContent(
@@ -87,5 +91,10 @@ public final class ChatCommandValidator {
             default -> throw new IllegalArgumentException(
                     "Unsupported C0 exception: " + name);
         };
+    }
+
+    private static ChatValidationException invalidClientMessageId() {
+        return new ChatValidationException(
+                ChatCommandRejectedCode.INVALID_CLIENT_MESSAGE_ID, null);
     }
 }

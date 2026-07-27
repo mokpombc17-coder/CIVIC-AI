@@ -87,12 +87,12 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                 return invocation.callRealMethod();
             }).when(resultSender).send(any(), any(), any());
 
-            assertThat(pipeline.tryAccept(command("client-1")))
+            assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440000")))
                     .isEqualTo(
                             PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
             assertThat(messageStore.firstStarted.await(
                     1, TimeUnit.SECONDS)).isTrue();
-            assertThat(pipeline.tryAccept(command("client-2")))
+            assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440001")))
                     .isEqualTo(
                             PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
 
@@ -102,7 +102,7 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                     pipeline,
                     PipelineState.STOPPING,
                     Duration.ofSeconds(2));
-            assertThat(pipeline.tryAccept(command("client-late")))
+            assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440012")))
                     .isEqualTo(PipelineAcceptance.UNAVAILABLE);
             assertThat(simpleBroker.isRunning()).isTrue();
 

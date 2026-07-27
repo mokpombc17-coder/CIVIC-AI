@@ -40,13 +40,13 @@ class InMemoryChatMessagePipelineTest {
 
         assertThat(pipeline.availability())
                 .isEqualTo(PipelineAvailability.UNAVAILABLE);
-        assertThat(pipeline.tryAccept(command("client-before")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440010")))
                 .isEqualTo(PipelineAcceptance.UNAVAILABLE);
 
         pipeline.start();
         assertThat(pipeline.availability())
                 .isEqualTo(PipelineAvailability.AVAILABLE);
-        assertThat(pipeline.tryAccept(command("client-1")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440000")))
                 .isEqualTo(
                         PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
 
@@ -61,7 +61,7 @@ class InMemoryChatMessagePipelineTest {
         pipeline.stop(stopped::countDown);
         assertThat(stopped.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(pipeline.state()).isEqualTo(PipelineState.STOPPED);
-        assertThat(pipeline.tryAccept(command("client-after")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440011")))
                 .isEqualTo(PipelineAcceptance.UNAVAILABLE);
     }
 
@@ -79,15 +79,15 @@ class InMemoryChatMessagePipelineTest {
         pipeline = pipeline(processor, 1, 1_000);
         pipeline.start();
 
-        assertThat(pipeline.tryAccept(command("client-1")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440000")))
                 .isEqualTo(
                         PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
         assertThat(processingFirst.await(1, TimeUnit.SECONDS))
                 .isTrue();
-        assertThat(pipeline.tryAccept(command("client-2")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440001")))
                 .isEqualTo(
                         PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
-        assertThat(pipeline.tryAccept(command("client-3")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440002")))
                 .isEqualTo(PipelineAcceptance.BUSY);
 
         releaseFirst.countDown();
@@ -106,20 +106,20 @@ class InMemoryChatMessagePipelineTest {
         pipeline = pipeline(processor, 10, 1_000);
         pipeline.start();
 
-        assertThat(pipeline.tryAccept(command("client-1")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440000")))
                 .isEqualTo(
                         PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
-        assertThat(pipeline.tryAccept(command("client-2")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440001")))
                 .isEqualTo(
                         PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
-        assertThat(pipeline.tryAccept(command("client-3")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440002")))
                 .isEqualTo(
                         PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
 
         CountDownLatch stopped = new CountDownLatch(1);
         pipeline.stop(stopped::countDown);
 
-        assertThat(pipeline.tryAccept(command("client-late")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440012")))
                 .isEqualTo(PipelineAcceptance.UNAVAILABLE);
         assertThat(processed.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(stopped.await(2, TimeUnit.SECONDS)).isTrue();
@@ -158,10 +158,10 @@ class InMemoryChatMessagePipelineTest {
         pipeline = pipeline(processor, 2, 1_000);
         pipeline.start();
 
-        pipeline.tryAccept(command("client-1"));
+        pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440000"));
         assertThat(processingFirst.await(1, TimeUnit.SECONDS))
                 .isTrue();
-        pipeline.tryAccept(command("client-2"));
+        pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440001"));
 
         AtomicInteger callbackCount = new AtomicInteger();
         AtomicBoolean callbackAfterWorkerExit = new AtomicBoolean();
@@ -178,7 +178,7 @@ class InMemoryChatMessagePipelineTest {
 
         assertThat(pipeline.state())
                 .isEqualTo(PipelineState.STOPPING);
-        assertThat(pipeline.tryAccept(command("client-late")))
+        assertThat(pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440012")))
                 .isEqualTo(PipelineAcceptance.UNAVAILABLE);
         assertThat(stopped.await(100, TimeUnit.MILLISECONDS))
                 .isFalse();
@@ -211,8 +211,8 @@ class InMemoryChatMessagePipelineTest {
         pipeline = pipeline(processor, 10, 1_000);
         pipeline.start();
 
-        pipeline.tryAccept(command("client-1"));
-        pipeline.tryAccept(command("client-2"));
+        pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440000"));
+        pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440001"));
 
         assertThat(secondProcessed.await(2, TimeUnit.SECONDS))
                 .isTrue();
@@ -252,10 +252,10 @@ class InMemoryChatMessagePipelineTest {
                 meterRegistry);
         pipeline.start();
 
-        pipeline.tryAccept(command("client-1"));
+        pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440000"));
         assertThat(processingFirst.await(1, TimeUnit.SECONDS))
                 .isTrue();
-        pipeline.tryAccept(command("client-2"));
+        pipeline.tryAccept(command("550e8400-e29b-41d4-a716-446655440001"));
 
         CountDownLatch stopped = new CountDownLatch(1);
         pipeline.stop(stopped::countDown);
