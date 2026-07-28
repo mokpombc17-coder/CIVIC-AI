@@ -141,6 +141,10 @@ origin을 사용한다.
 - iOS는 WebView의 back/forward swipe gesture를 사용한다.
 - WebView 로딩 실패 시 오류 화면과 다시 시도 버튼을 표시한다.
 
+로딩과 오류 화면은 프레임워크 이름을 노출하지 않는 서비스 중립적인 기본 문구를 사용한다. 실제
+제품에서는 `src/webview/WebAppView.tsx`와 `apps/web/app/loading.tsx`의 문구를 서비스 이름과
+문체에 맞게 수정한다.
+
 ## Native bridge
 
 웹과 네이티브 메시지는 `packages/bridge`의 versioned Zod schema를 함께 사용한다. 현재 bridge가

@@ -380,21 +380,21 @@ export function WebAppView() {
         javaScriptEnabled
         mediaPlaybackRequiresUserAction
         mixedContentMode="never"
-        onError={(event) => {
+        onError={() => {
           showFailure({
-            title: "웹 애플리케이션에 연결하지 못했습니다.",
-            detail: event.nativeEvent.description,
+            title: "서비스에 연결하지 못했습니다.",
+            detail: "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
           });
         }}
         onHttpError={(event) => {
-          const { statusCode, url } = event.nativeEvent;
+          const { url } = event.nativeEvent;
           if (!isMainDocumentHttpError(url, currentDocumentUrlRef.current)) {
             return;
           }
 
           showFailure({
-            title: "웹 애플리케이션을 불러오지 못했습니다.",
-            detail: `서버가 HTTP ${statusCode} 응답을 반환했습니다.`,
+            title: "서비스를 불러오지 못했습니다.",
+            detail: "요청을 처리하는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
           });
         }}
         onLoadEnd={handleLoadEnd}
@@ -411,16 +411,14 @@ export function WebAppView() {
         }}
         onContentProcessDidTerminate={() => {
           showFailure({
-            title: "웹 화면이 중단되었습니다.",
-            detail: "iOS WebView 프로세스가 종료되었습니다. 다시 시도해 주세요.",
+            title: "화면을 불러오는 중 문제가 발생했습니다.",
+            detail: "화면을 다시 불러와 주세요.",
           });
         }}
-        onRenderProcessGone={(event) => {
+        onRenderProcessGone={() => {
           showFailure({
-            title: "웹 화면이 중단되었습니다.",
-            detail: event.nativeEvent.didCrash
-              ? "Android WebView 프로세스가 비정상 종료되었습니다."
-              : "Android WebView 프로세스가 종료되었습니다.",
+            title: "화면을 불러오는 중 문제가 발생했습니다.",
+            detail: "화면을 다시 불러와 주세요.",
           });
         }}
         onShouldStartLoadWithRequest={(request) => {
@@ -451,7 +449,7 @@ export function WebAppView() {
       {loading && !failure ? (
         <View accessibilityRole="progressbar" style={[StyleSheet.absoluteFill, styles.overlay]}>
           <ActivityIndicator size="large" />
-          <Text style={styles.overlayText}>Next.js를 불러오는 중…</Text>
+          <Text style={styles.overlayText}>서비스를 불러오는 중…</Text>
         </View>
       ) : null}
 
