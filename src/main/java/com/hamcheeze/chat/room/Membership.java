@@ -35,7 +35,7 @@ public final class Membership {
         this.joinedAt =
                 RoomDomainValidation.requireStateTime(joinedAt);
         this.version = RoomDomainValidation.requireVersion(version);
-        validateState(status, joinedAt, leftAt, bannedAt);
+        validateState(role, status, joinedAt, leftAt, bannedAt);
         this.leftAt = leftAt;
         this.bannedAt = bannedAt;
     }
@@ -228,11 +228,16 @@ public final class Membership {
     }
 
     private static void validateState(
+            MembershipRole role,
             MembershipStatus status,
             Instant joinedAt,
             Instant leftAt,
             Instant bannedAt
     ) {
+        if (role == MembershipRole.OWNER
+                && status == MembershipStatus.BANNED) {
+            invalidState();
+        }
         switch (status) {
             case ACTIVE -> {
                 if (leftAt != null || bannedAt != null) {

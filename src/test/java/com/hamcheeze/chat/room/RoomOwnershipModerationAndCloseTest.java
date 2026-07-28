@@ -110,7 +110,7 @@ class RoomOwnershipModerationAndCloseTest {
     }
 
     @Test
-    void rejectsTargetThatAlreadyHasOwnerRole() {
+    void rejectsNonOwnerTargetWithOwnerRole() {
         Room room = activeRoom("owner-1", 2, 0);
         Membership currentOwner =
                 owner("owner-1", MembershipStatus.ACTIVE, 0);
@@ -123,7 +123,7 @@ class RoomOwnershipModerationAndCloseTest {
                         currentOwner,
                         anotherOwner,
                         "owner-1"),
-                RoomDomainErrorCode.TARGET_MEMBERSHIP_NOT_MEMBER);
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
     }
 
     @Test
@@ -295,6 +295,39 @@ class RoomOwnershipModerationAndCloseTest {
     }
 
     @Test
+    void rejectsOwnerRoleMismatchesOnBan() {
+        Room room = activeRoom("owner-1", 2, 7);
+        Membership ownerWithMemberRole =
+                member("owner-1", MembershipStatus.ACTIVE, 3);
+        Membership nonOwnerWithOwnerRole =
+                owner("user-2", MembershipStatus.ACTIVE, 4);
+
+        assertFailure(
+                () -> RoomMembershipTransitions.banMember(
+                        room,
+                        ownerWithMemberRole,
+                        "owner-1",
+                        TRANSITION_AT),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+        assertFailure(
+                () -> RoomMembershipTransitions.banMember(
+                        room,
+                        nonOwnerWithOwnerRole,
+                        "owner-1",
+                        TRANSITION_AT),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+
+        assertThat(room.activeMemberCount()).isEqualTo(2);
+        assertThat(room.version()).isEqualTo(7);
+        assertThat(ownerWithMemberRole.status())
+                .isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(ownerWithMemberRole.version()).isEqualTo(3);
+        assertThat(nonOwnerWithOwnerRole.status())
+                .isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(nonOwnerWithOwnerRole.version()).isEqualTo(4);
+    }
+
+    @Test
     void activeBanCannotReduceCountBelowOwner() {
         Room room = activeRoom("owner-1", 1, 4);
         Membership member =
@@ -439,6 +472,39 @@ class RoomOwnershipModerationAndCloseTest {
                         "owner-1",
                         TRANSITION_AT),
                 RoomDomainErrorCode.MEMBERSHIP_ROOM_MISMATCH);
+    }
+
+    @Test
+    void rejectsOwnerRoleMismatchesOnUnban() {
+        Room room = activeRoom("owner-1", 2, 7);
+        Membership ownerWithMemberRole =
+                member("owner-1", MembershipStatus.ACTIVE, 3);
+        Membership nonOwnerWithOwnerRole =
+                owner("user-2", MembershipStatus.LEFT, 4);
+
+        assertFailure(
+                () -> RoomMembershipTransitions.unbanMember(
+                        room,
+                        ownerWithMemberRole,
+                        "owner-1",
+                        TRANSITION_AT),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+        assertFailure(
+                () -> RoomMembershipTransitions.unbanMember(
+                        room,
+                        nonOwnerWithOwnerRole,
+                        "owner-1",
+                        TRANSITION_AT),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+
+        assertThat(room.activeMemberCount()).isEqualTo(2);
+        assertThat(room.version()).isEqualTo(7);
+        assertThat(ownerWithMemberRole.status())
+                .isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(ownerWithMemberRole.version()).isEqualTo(3);
+        assertThat(nonOwnerWithOwnerRole.status())
+                .isEqualTo(MembershipStatus.LEFT);
+        assertThat(nonOwnerWithOwnerRole.version()).isEqualTo(4);
     }
 
     @Test

@@ -189,6 +189,14 @@ class RoomJoinLeaveTest {
                         "user-2",
                         TRANSITION_AT),
                 RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+        assertFailure(
+                () -> RoomMembershipTransitions.joinRoom(
+                        room,
+                        ownerMembership(MembershipStatus.LEFT),
+                        null,
+                        "owner-1",
+                        TRANSITION_AT),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
     }
 
     @Test
@@ -255,6 +263,78 @@ class RoomJoinLeaveTest {
                         "user-2",
                         TRANSITION_AT),
                 RoomDomainErrorCode.MEMBERSHIP_BANNED);
+    }
+
+    @Test
+    void rejectsRoomOwnerRestoredWithMemberRoleOnLeave() {
+        Room room = activeRoom(2, 7, JoinPolicy.OPEN);
+        Membership mismatchedMembership = Membership.restore(
+                "membership-owner",
+                "room-1",
+                "owner-1",
+                MembershipRole.MEMBER,
+                MembershipStatus.ACTIVE,
+                CREATED_AT,
+                null,
+                null,
+                4);
+        Room originalRoom = room;
+        Membership originalMembership = mismatchedMembership;
+
+        assertFailure(
+                () -> RoomMembershipTransitions.leaveRoom(
+                        room,
+                        mismatchedMembership,
+                        "owner-1",
+                        TRANSITION_AT),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+
+        assertThat(room).isSameAs(originalRoom);
+        assertThat(mismatchedMembership)
+                .isSameAs(originalMembership);
+        assertUnchanged(
+                room,
+                mismatchedMembership,
+                MembershipRole.MEMBER,
+                2,
+                7,
+                4);
+    }
+
+    @Test
+    void rejectsNonOwnerRestoredWithOwnerRoleOnLeave() {
+        Room room = activeRoom(2, 7, JoinPolicy.OPEN);
+        Membership mismatchedMembership = Membership.restore(
+                "membership-user-2",
+                "room-1",
+                "user-2",
+                MembershipRole.OWNER,
+                MembershipStatus.ACTIVE,
+                CREATED_AT,
+                null,
+                null,
+                4);
+        Room originalRoom = room;
+        Membership originalMembership = mismatchedMembership;
+
+        assertFailure(
+                () -> RoomMembershipTransitions.leaveRoom(
+                        room,
+                        mismatchedMembership,
+                        "user-2",
+                        TRANSITION_AT),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+
+        assertThat(room).isSameAs(originalRoom);
+        assertThat(mismatchedMembership)
+                .isSameAs(originalMembership);
+        assertUnchanged(
+                room,
+                mismatchedMembership,
+                MembershipRole.OWNER,
+                2,
+                7,
+                4);
     }
 
     @Test
@@ -398,6 +478,29 @@ class RoomJoinLeaveTest {
                         ? CREATED_AT.plusSeconds(20) : null,
                 null,
                 0);
+    }
+
+    private void assertUnchanged(
+            Room room,
+            Membership membership,
+            MembershipRole role,
+            int activeMemberCount,
+            long roomVersion,
+            long membershipVersion
+    ) {
+        assertThat(room.activeMemberCount())
+                .isEqualTo(activeMemberCount);
+        assertThat(room.version()).isEqualTo(roomVersion);
+        assertThat(room.ownerUserId()).isEqualTo("owner-1");
+        assertThat(room.status()).isEqualTo(RoomStatus.ACTIVE);
+        assertThat(membership.status())
+                .isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(membership.role()).isEqualTo(role);
+        assertThat(membership.version())
+                .isEqualTo(membershipVersion);
+        assertThat(membership.joinedAt()).isEqualTo(CREATED_AT);
+        assertThat(membership.leftAt()).isNull();
+        assertThat(membership.bannedAt()).isNull();
     }
 
     private void assertFailure(

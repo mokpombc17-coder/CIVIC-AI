@@ -158,6 +158,26 @@ class RoomCreationAndRestoreTest {
                 null,
                 CREATED_AT.plusSeconds(20),
                 3);
+        Membership activeOwner = Membership.restore(
+                "membership-owner-active",
+                "room-1",
+                "owner-1",
+                MembershipRole.OWNER,
+                MembershipStatus.ACTIVE,
+                CREATED_AT,
+                null,
+                null,
+                4);
+        Membership leftOwner = Membership.restore(
+                "membership-owner-left",
+                "room-1",
+                "owner-1",
+                MembershipRole.OWNER,
+                MembershipStatus.LEFT,
+                CREATED_AT,
+                CREATED_AT.plusSeconds(30),
+                null,
+                5);
 
         assertThat(active.status())
                 .isEqualTo(MembershipStatus.ACTIVE);
@@ -165,6 +185,30 @@ class RoomCreationAndRestoreTest {
                 .isEqualTo(CREATED_AT.plusSeconds(10));
         assertThat(banned.bannedAt())
                 .isEqualTo(CREATED_AT.plusSeconds(20));
+        assertThat(activeOwner.role())
+                .isEqualTo(MembershipRole.OWNER);
+        assertThat(activeOwner.status())
+                .isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(leftOwner.role())
+                .isEqualTo(MembershipRole.OWNER);
+        assertThat(leftOwner.status())
+                .isEqualTo(MembershipStatus.LEFT);
+    }
+
+    @Test
+    void rejectsOwnerBannedMembershipRestore() {
+        assertFailure(
+                () -> Membership.restore(
+                        "membership-owner",
+                        "room-1",
+                        "owner-1",
+                        MembershipRole.OWNER,
+                        MembershipStatus.BANNED,
+                        CREATED_AT,
+                        null,
+                        CREATED_AT.plusSeconds(20),
+                        0),
+                RoomDomainErrorCode.INVALID_DOMAIN_STATE);
     }
 
     @Test

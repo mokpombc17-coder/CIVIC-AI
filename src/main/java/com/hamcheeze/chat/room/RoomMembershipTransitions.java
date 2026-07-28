@@ -69,7 +69,13 @@ public final class RoomMembershipTransitions {
         }
         requireSameRoom(room, existingMembership);
         requireSameUser(targetUserId, existingMembership);
-        requireOwnerConsistencyForJoin(room, existingMembership);
+        requireOwnerRoleConsistency(room, existingMembership);
+        if (existingMembership.role() == MembershipRole.OWNER
+                && existingMembership.status()
+                != MembershipStatus.ACTIVE) {
+            throw failure(
+                    RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+        }
         if (existingMembership.status()
                 == MembershipStatus.ACTIVE) {
             return new JoinRoomTransition(
@@ -104,6 +110,7 @@ public final class RoomMembershipTransitions {
         requireSameUser(
                 RoomDomainValidation.requireUserId(userId),
                 existing);
+        requireOwnerRoleConsistency(room, existing);
         Instant leftAt =
                 requireTransitionTime(room, transitionTime);
         if (existing.role() == MembershipRole.OWNER) {
@@ -140,6 +147,7 @@ public final class RoomMembershipTransitions {
                 requireTargetMembership(targetMembership);
         requireActiveOwnerMembership(room, currentOwner);
         requireSameRoom(room, target);
+        requireOwnerRoleConsistency(room, target);
         if (target.userId().equals(room.ownerUserId())) {
             throw failure(
                     RoomDomainErrorCode.OWNERSHIP_TARGET_MUST_DIFFER);
@@ -179,9 +187,10 @@ public final class RoomMembershipTransitions {
         Membership target =
                 requireTargetMembership(targetMembership);
         requireSameRoom(room, target);
+        requireOwnerRoleConsistency(room, target);
         Instant bannedAt =
                 requireTransitionTime(room, transitionTime);
-        requireMemberTarget(room, target);
+        requireMemberTarget(target);
         if (target.status() == MembershipStatus.BANNED) {
             return new BanMemberTransition(
                     BanMemberTransition.Outcome.ALREADY_BANNED,
@@ -212,9 +221,10 @@ public final class RoomMembershipTransitions {
         Membership target =
                 requireTargetMembership(targetMembership);
         requireSameRoom(room, target);
+        requireOwnerRoleConsistency(room, target);
         Instant leftAt =
                 requireTransitionTime(room, transitionTime);
-        requireMemberTarget(room, target);
+        requireMemberTarget(target);
         if (target.status() != MembershipStatus.BANNED) {
             return new UnbanMemberTransition(
                     UnbanMemberTransition.Outcome.ALREADY_UNBANNED,
@@ -321,17 +331,15 @@ public final class RoomMembershipTransitions {
         }
     }
 
-    private static void requireOwnerConsistencyForJoin(
+    private static void requireOwnerRoleConsistency(
             Room room,
             Membership membership
     ) {
-        boolean isRoomOwner =
+        boolean representsRoomOwner =
                 membership.userId().equals(room.ownerUserId());
         boolean hasOwnerRole =
                 membership.role() == MembershipRole.OWNER;
-        if (isRoomOwner != hasOwnerRole
-                || hasOwnerRole
-                && membership.status() != MembershipStatus.ACTIVE) {
+        if (representsRoomOwner != hasOwnerRole) {
             throw failure(
                     RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
         }
@@ -367,12 +375,8 @@ public final class RoomMembershipTransitions {
         }
     }
 
-    private static void requireMemberTarget(
-            Room room,
-            Membership target
-    ) {
-        if (target.userId().equals(room.ownerUserId())
-                || target.role() == MembershipRole.OWNER) {
+    private static void requireMemberTarget(Membership target) {
+        if (target.role() == MembershipRole.OWNER) {
             throw failure(
                     RoomDomainErrorCode.OWNER_CANNOT_BE_BANNED);
         }
