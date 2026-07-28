@@ -23,6 +23,11 @@ import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptStore;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.mongo.MongoRoomStore;
+import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
+import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
+import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
+import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
@@ -111,6 +116,22 @@ class LocalProfileApplicationTests
     private RoomCommandReceiptStore roomCommandReceiptStore;
 
     @Autowired
+    private RoomCommandService roomCommandService;
+
+    @Autowired
+    private IdempotentRoomCommandExecutor idempotentRoomCommandExecutor;
+
+    @Autowired
+    private RoomCommandFingerprintFactory roomCommandFingerprintFactory;
+
+    @Autowired
+    private RoomCommandResultCodec roomCommandResultCodec;
+
+    @Autowired
+    private MongoRoomCommandExceptionClassifier
+            mongoRoomCommandExceptionClassifier;
+
+    @Autowired
     private JwtDecoder jwtDecoder;
 
     @Autowired
@@ -162,8 +183,11 @@ class LocalProfileApplicationTests
                 TransactionOptions.class))
                 .hasSize(1)
                 .containsEntry(
-                        "chatMessageMongoTransactionOptions",
+                        "mongoTransactionOptions",
                         transactionOptions);
+        assertThat(applicationContext.getBean(
+                "chatMessageMongoTransactionOptions"))
+                .isSameAs(transactionOptions);
         assertThat(applicationContext.getBeansOfType(
                 MongoTransactionManager.class))
                 .hasSize(1)
@@ -209,6 +233,26 @@ class LocalProfileApplicationTests
         assertThat(roomCommandReceiptStore)
                 .isInstanceOf(
                         MongoRoomCommandReceiptStore.class);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandService.class))
+                .hasSize(1)
+                .containsValue(roomCommandService);
+        assertThat(applicationContext.getBeansOfType(
+                IdempotentRoomCommandExecutor.class))
+                .hasSize(1)
+                .containsValue(idempotentRoomCommandExecutor);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandFingerprintFactory.class))
+                .hasSize(1)
+                .containsValue(roomCommandFingerprintFactory);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandResultCodec.class))
+                .hasSize(1)
+                .containsValue(roomCommandResultCodec);
+        assertThat(applicationContext.getBeansOfType(
+                MongoRoomCommandExceptionClassifier.class))
+                .hasSize(1)
+                .containsValue(mongoRoomCommandExceptionClassifier);
         assertThat(mongoOperations.collectionExists(
                 MongoChatMessageDocument.COLLECTION_NAME)).isTrue();
         assertThat(mongoOperations.collectionExists(

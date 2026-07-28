@@ -5,6 +5,12 @@ spring:
     timeout-per-shutdown-phase: 30s
 
 chat:
+  room:
+    command:
+      receipt-ttl: 1h
+      max-attempts: 3
+      retry-backoff: 10ms
+
   message-pipeline:
     queue-capacity: ${CHAT_MESSAGE_PIPELINE_QUEUE_CAPACITY:100}
     shutdown-drain-timeout-ms: ${CHAT_MESSAGE_PIPELINE_SHUTDOWN_DRAIN_TIMEOUT_MS:10000}

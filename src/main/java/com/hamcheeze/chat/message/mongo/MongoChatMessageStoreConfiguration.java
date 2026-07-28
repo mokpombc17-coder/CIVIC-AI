@@ -1,18 +1,12 @@
 package com.hamcheeze.chat.message.mongo;
 
 import com.hamcheeze.chat.message.ChatMessageStore;
-import com.mongodb.ReadConcern;
-import com.mongodb.ReadPreference;
-import com.mongodb.TransactionOptions;
-import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.mongodb.health.MongoHealthIndicator;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.mongodb.MongoDatabaseFactory;
-import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -33,33 +27,6 @@ public class MongoChatMessageStoreConfiguration {
             MongoClient mongoClient
     ) {
         return new MongoHealthIndicator(mongoClient);
-    }
-
-    @Bean(name = "chatMessageMongoTransactionOptions")
-    TransactionOptions chatMessageMongoTransactionOptions() {
-        return TransactionOptions.builder()
-                .readConcern(ReadConcern.SNAPSHOT)
-                .writeConcern(WriteConcern.MAJORITY)
-                .readPreference(ReadPreference.primary())
-                .build();
-    }
-
-    @Bean
-    MongoTransactionManager mongoTransactionManager(
-            MongoDatabaseFactory databaseFactory,
-            @Qualifier("chatMessageMongoTransactionOptions")
-            TransactionOptions transactionOptions
-    ) {
-        return new MongoTransactionManager(
-                databaseFactory,
-                transactionOptions);
-    }
-
-    @Bean(name = "mongoTransactionTemplate")
-    TransactionTemplate mongoTransactionTemplate(
-            MongoTransactionManager transactionManager
-    ) {
-        return new TransactionTemplate(transactionManager);
     }
 
     @Bean(initMethod = "initialize")
