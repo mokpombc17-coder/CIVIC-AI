@@ -10,6 +10,7 @@ import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceipt;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.StoredRoomCommandResult;
+import com.hamcheeze.chat.room.query.CursorSlice;
 import com.hamcheeze.chat.support.MongoRuntimeTestContainer;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoClient;
@@ -46,6 +47,7 @@ class MongoRoomStoresIntegrationTest {
     private static MongoRoomStore roomStore;
     private static MongoMembershipStore membershipStore;
     private static MongoRoomCommandReceiptStore receiptStore;
+    private static MongoRoomQueryReader queryReader;
 
     @BeforeAll
     static void startMongo() {
@@ -63,6 +65,7 @@ class MongoRoomStoresIntegrationTest {
         membershipStore = new MongoMembershipStore(mongoTemplate);
         receiptStore =
                 new MongoRoomCommandReceiptStore(mongoTemplate);
+        queryReader = new MongoRoomQueryReader(mongoTemplate);
     }
 
     @AfterAll
@@ -456,6 +459,70 @@ class MongoRoomStoresIntegrationTest {
     }
 
     @Test
+    void queryReaderUsesStableMembershipCursorAndBatchRoomLookup() {
+        Room room1 = room(
+                "room-1",
+                RoomStatus.ACTIVE,
+                2,
+                null,
+                0);
+        Room room2 = room(
+                "room-2",
+                RoomStatus.ACTIVE,
+                2,
+                null,
+                0);
+        roomStore.insert(room1);
+        roomStore.insert(room2);
+        membershipStore.insert(member(
+                "membership-01",
+                "room-1",
+                "user-1",
+                MembershipRole.MEMBER,
+                MembershipStatus.ACTIVE,
+                0));
+        membershipStore.insert(member(
+                "membership-02",
+                "room-2",
+                "user-1",
+                MembershipRole.MEMBER,
+                MembershipStatus.ACTIVE,
+                0));
+        membershipStore.insert(member(
+                "membership-03",
+                "room-2",
+                "user-2",
+                MembershipRole.MEMBER,
+                MembershipStatus.LEFT,
+                0));
+
+        CursorSlice<Membership> first =
+                queryReader.findMembershipsByUserAndStatus(
+                        "user-1",
+                        MembershipStatus.ACTIVE,
+                        null,
+                        1);
+        CursorSlice<Membership> second =
+                queryReader.findMembershipsByUserAndStatus(
+                        "user-1",
+                        MembershipStatus.ACTIVE,
+                        first.items().getFirst().membershipId(),
+                        1);
+
+        assertThat(first.items())
+                .extracting(Membership::membershipId)
+                .containsExactly("membership-01");
+        assertThat(first.hasNext()).isTrue();
+        assertThat(second.items())
+                .extracting(Membership::membershipId)
+                .containsExactly("membership-02");
+        assertThat(second.hasNext()).isFalse();
+        assertThat(queryReader.findRoomsByIds(
+                List.of("room-2", "room-1")))
+                .containsExactlyInAnyOrder(room1, room2);
+    }
+
+    @Test
     void receiptStoreInsertsAndFindsOpaqueResult() {
         RoomCommandReceipt receipt =
                 receipt("receipt-1", "user-1");
@@ -534,6 +601,22 @@ class MongoRoomStoresIntegrationTest {
                 MongoRoomSchemaInitializer
                         .MEMBERSHIP_USER_STATUS_INDEX_NAME,
                 new Document("userId", 1).append("status", 1),
+                false);
+        assertIndex(
+                membershipIndexes,
+                MongoRoomSchemaInitializer
+                        .MEMBERSHIP_USER_STATUS_CURSOR_INDEX_NAME,
+                new Document("userId", 1)
+                        .append("status", 1)
+                        .append("_id", 1),
+                false);
+        assertIndex(
+                membershipIndexes,
+                MongoRoomSchemaInitializer
+                        .MEMBERSHIP_ROOM_STATUS_CURSOR_INDEX_NAME,
+                new Document("roomId", 1)
+                        .append("status", 1)
+                        .append("_id", 1),
                 false);
         Document ownerIndex = index(
                 membershipIndexes,

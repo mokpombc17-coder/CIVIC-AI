@@ -24,6 +24,12 @@ import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.mongo.MongoRoomStore;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
+import com.hamcheeze.chat.room.mongo.MongoRoomQueryReader;
+import com.hamcheeze.chat.room.api.AuthenticatedUserIdResolver;
+import com.hamcheeze.chat.room.api.RoomApiExceptionHandler;
+import com.hamcheeze.chat.room.api.RoomCommandController;
+import com.hamcheeze.chat.room.api.RoomCommandHttpMapper;
+import com.hamcheeze.chat.room.api.RoomQueryController;
 import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
@@ -31,6 +37,9 @@ import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
+import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
+import com.hamcheeze.chat.room.query.RoomQueryReader;
+import com.hamcheeze.chat.room.query.RoomQueryService;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
@@ -56,6 +65,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -130,6 +140,30 @@ class LocalProfileApplicationTests
     @Autowired
     private MongoRoomCommandExceptionClassifier
             mongoRoomCommandExceptionClassifier;
+
+    @Autowired
+    private RoomCommandController roomCommandController;
+
+    @Autowired
+    private RoomQueryController roomQueryController;
+
+    @Autowired
+    private RoomQueryService roomQueryService;
+
+    @Autowired
+    private RoomQueryReader roomQueryReader;
+
+    @Autowired
+    private RoomCommandHttpMapper roomCommandHttpMapper;
+
+    @Autowired
+    private RoomApiExceptionHandler roomApiExceptionHandler;
+
+    @Autowired
+    private AuthenticatedUserIdResolver authenticatedUserIdResolver;
+
+    @Autowired
+    private RoomQueryCursorCodec roomQueryCursorCodec;
 
     @Autowired
     private JwtDecoder jwtDecoder;
@@ -253,6 +287,42 @@ class LocalProfileApplicationTests
                 MongoRoomCommandExceptionClassifier.class))
                 .hasSize(1)
                 .containsValue(mongoRoomCommandExceptionClassifier);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandController.class))
+                .hasSize(1)
+                .containsValue(roomCommandController);
+        assertThat(applicationContext.getBeansOfType(
+                RoomQueryController.class))
+                .hasSize(1)
+                .containsValue(roomQueryController);
+        assertThat(applicationContext.getBeansOfType(
+                RoomQueryService.class))
+                .hasSize(1)
+                .containsValue(roomQueryService);
+        assertThat(applicationContext.getBeansOfType(
+                RoomQueryReader.class))
+                .hasSize(1)
+                .containsValue(roomQueryReader);
+        assertThat(roomQueryReader)
+                .isInstanceOf(MongoRoomQueryReader.class);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandHttpMapper.class))
+                .hasSize(1)
+                .containsValue(roomCommandHttpMapper);
+        assertThat(applicationContext.getBeansOfType(
+                RoomApiExceptionHandler.class))
+                .hasSize(1)
+                .containsValue(roomApiExceptionHandler);
+        assertThat(applicationContext.getBeansOfType(
+                AuthenticatedUserIdResolver.class))
+                .hasSize(1)
+                .containsValue(authenticatedUserIdResolver);
+        assertThat(applicationContext.getBeansOfType(
+                RoomQueryCursorCodec.class))
+                .hasSize(1)
+                .containsValue(roomQueryCursorCodec);
+        assertThat(applicationContext.getBeansOfType(
+                SecurityFilterChain.class)).hasSize(1);
         assertThat(mongoOperations.collectionExists(
                 MongoChatMessageDocument.COLLECTION_NAME)).isTrue();
         assertThat(mongoOperations.collectionExists(

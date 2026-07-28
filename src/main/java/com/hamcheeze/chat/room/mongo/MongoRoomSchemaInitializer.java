@@ -17,6 +17,12 @@ public final class MongoRoomSchemaInitializer {
             "ix_chat_membership_room_status";
     public static final String MEMBERSHIP_USER_STATUS_INDEX_NAME =
             "ix_chat_membership_user_status";
+    public static final String
+            MEMBERSHIP_USER_STATUS_CURSOR_INDEX_NAME =
+            "ix_chat_membership_user_status_cursor";
+    public static final String
+            MEMBERSHIP_ROOM_STATUS_CURSOR_INDEX_NAME =
+            "ix_chat_membership_room_status_cursor";
     public static final String MEMBERSHIP_OWNER_INDEX_NAME =
             "uk_chat_membership_room_owner";
     public static final String RECEIPT_REQUEST_INDEX_NAME =
@@ -59,6 +65,22 @@ public final class MongoRoomSchemaInitializer {
                         .on("userId", Sort.Direction.ASC)
                         .on("status", Sort.Direction.ASC)
                         .named(MEMBERSHIP_USER_STATUS_INDEX_NAME));
+        mongoOperations
+                .indexOps(MongoMembershipDocument.COLLECTION_NAME)
+                .createIndex(new Index()
+                        .on("userId", Sort.Direction.ASC)
+                        .on("status", Sort.Direction.ASC)
+                        .on("_id", Sort.Direction.ASC)
+                        .named(
+                                MEMBERSHIP_USER_STATUS_CURSOR_INDEX_NAME));
+        mongoOperations
+                .indexOps(MongoMembershipDocument.COLLECTION_NAME)
+                .createIndex(new Index()
+                        .on("roomId", Sort.Direction.ASC)
+                        .on("status", Sort.Direction.ASC)
+                        .on("_id", Sort.Direction.ASC)
+                        .named(
+                                MEMBERSHIP_ROOM_STATUS_CURSOR_INDEX_NAME));
         mongoOperations
                 .indexOps(MongoMembershipDocument.COLLECTION_NAME)
                 .createIndex(new Index()

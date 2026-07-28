@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.mongo;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
+import com.hamcheeze.chat.room.query.RoomQueryReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.core.MongoOperations;
@@ -39,5 +40,13 @@ public class MongoRoomPersistenceConfiguration {
             MongoRoomSchemaInitializer schemaInitializer
     ) {
         return new MongoRoomCommandReceiptStore(mongoOperations);
+    }
+
+    @Bean
+    RoomQueryReader roomQueryReader(
+            MongoOperations mongoOperations,
+            MongoRoomSchemaInitializer schemaInitializer
+    ) {
+        return new MongoRoomQueryReader(mongoOperations);
     }
 }
