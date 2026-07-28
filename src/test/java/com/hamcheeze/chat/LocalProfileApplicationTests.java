@@ -16,6 +16,16 @@ import com.hamcheeze.chat.pipeline.ChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.InMemoryChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.PipelineAcceptance;
 import com.hamcheeze.chat.pipeline.PipelineAvailability;
+import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
+import com.hamcheeze.chat.room.mongo.MongoMembershipStore;
+import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
+import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptStore;
+import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
+import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
+import com.hamcheeze.chat.room.mongo.MongoRoomStore;
+import com.hamcheeze.chat.room.persistence.MembershipStore;
+import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
+import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
@@ -30,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.health.contributor.Status;
+import org.springframework.boot.mongodb.health.MongoHealthIndicator;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
@@ -88,6 +99,18 @@ class LocalProfileApplicationTests
     private MongoChatMessageSchemaInitializer schemaInitializer;
 
     @Autowired
+    private MongoRoomSchemaInitializer roomSchemaInitializer;
+
+    @Autowired
+    private RoomStore roomStore;
+
+    @Autowired
+    private MembershipStore membershipStore;
+
+    @Autowired
+    private RoomCommandReceiptStore roomCommandReceiptStore;
+
+    @Autowired
     private JwtDecoder jwtDecoder;
 
     @Autowired
@@ -127,6 +150,10 @@ class LocalProfileApplicationTests
                 MongoClient.class)).hasSize(1);
         assertThat(applicationContext.getBeansOfType(
                 MongoOperations.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                MongoDatabaseFactory.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                MongoHealthIndicator.class)).hasSize(1);
         assertThat(mongoClient).isNotNull();
         assertThat(mongoDatabaseFactory).isNotNull();
         assertThat(mongoTransactionManager).isNotNull();
@@ -161,6 +188,27 @@ class LocalProfileApplicationTests
                 .getMongoDatabaseFactory())
                 .isSameAs(mongoDatabaseFactory);
         assertThat(schemaInitializer).isNotNull();
+        assertThat(roomSchemaInitializer).isNotNull();
+        assertThat(applicationContext.getBeansOfType(
+                RoomStore.class))
+                .hasSize(1)
+                .containsEntry("roomStore", roomStore);
+        assertThat(roomStore).isInstanceOf(MongoRoomStore.class);
+        assertThat(applicationContext.getBeansOfType(
+                MembershipStore.class))
+                .hasSize(1)
+                .containsEntry("membershipStore", membershipStore);
+        assertThat(membershipStore)
+                .isInstanceOf(MongoMembershipStore.class);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandReceiptStore.class))
+                .hasSize(1)
+                .containsEntry(
+                        "roomCommandReceiptStore",
+                        roomCommandReceiptStore);
+        assertThat(roomCommandReceiptStore)
+                .isInstanceOf(
+                        MongoRoomCommandReceiptStore.class);
         assertThat(mongoOperations.collectionExists(
                 MongoChatMessageDocument.COLLECTION_NAME)).isTrue();
         assertThat(mongoOperations.collectionExists(
@@ -172,6 +220,22 @@ class LocalProfileApplicationTests
                 .contains(
                         "uk_chat_message_idempotency",
                         "uk_chat_message_room_sequence");
+        assertThat(mongoOperations.collectionExists(
+                MongoRoomDocument.COLLECTION_NAME)).isTrue();
+        assertThat(mongoOperations.collectionExists(
+                MongoMembershipDocument.COLLECTION_NAME)).isTrue();
+        assertThat(mongoOperations.collectionExists(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isTrue();
+        assertThat(mongoOperations.indexOps(
+                MongoMembershipDocument.COLLECTION_NAME)
+                .getIndexInfo())
+                .extracting(index -> index.getName())
+                .contains(
+                        "uk_chat_membership_room_user",
+                        "ix_chat_membership_room_status",
+                        "ix_chat_membership_user_status",
+                        "uk_chat_membership_room_owner");
         assertThat(jwtDecoder).isNotNull();
         assertThat(jwtProperties.getIssuer()).isEqualTo("chat-local");
         assertThat(roomProperties.getAllowedRooms())

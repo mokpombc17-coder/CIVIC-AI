@@ -2,6 +2,9 @@ package com.hamcheeze.chat.support;
 
 import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
 import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
+import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
+import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
+import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,5 +34,14 @@ public abstract class MongoRuntimeIntegrationTest {
         mongoOperations.remove(
                 new Query(),
                 MongoRoomSequenceDocument.COLLECTION_NAME);
+        mongoOperations.remove(
+                new Query(),
+                MongoRoomDocument.COLLECTION_NAME);
+        mongoOperations.remove(
+                new Query(),
+                MongoMembershipDocument.COLLECTION_NAME);
+        mongoOperations.remove(
+                new Query(),
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME);
     }
 }
