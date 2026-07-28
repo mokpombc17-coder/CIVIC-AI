@@ -371,10 +371,6 @@ export function WebAppView() {
           });
         }}
         onLoadEnd={handleLoadEnd}
-        onLoadStart={() => {
-          setLoading(true);
-          webReadyRef.current = false;
-        }}
         onMessage={(event) => void handleBridgeRequest(event.nativeEvent.data)}
         onNavigationStateChange={(navigation) => setCanGoBack(navigation.canGoBack)}
         onOpenWindow={(event) => {
