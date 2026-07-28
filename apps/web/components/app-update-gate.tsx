@@ -1,25 +1,14 @@
 "use client";
 
-import type { NativeContext } from "@repo/bridge";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  isNativeShell,
-  requestNativeContext,
-  requestNativeResponse,
-  subscribeNativeMessages,
-} from "@/lib/native/bridge-client";
-import {
-  getRequiredMobileUpdate,
-  type MobileConfig,
-  type RequiredMobileUpdate,
-} from "@/lib/mobile/mobile-config";
+import { isNativeShell, subscribeNativeMessages } from "@/lib/native/bridge-client";
+import type { MobileConfig, RequiredMobileUpdate } from "@/lib/mobile/mobile-config";
 
 export function AppUpdateGate({ children }: { children: ReactNode }) {
-  const nativeContextRef = useRef<NativeContext | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
   const [requiredUpdate, setRequiredUpdate] = useState<RequiredMobileUpdate | null>(null);
 
-  const checkForUpdate = useCallback(async (nativeContext: NativeContext) => {
+  const checkForUpdate = useCallback(async () => {
     requestControllerRef.current?.abort();
     const controller = new AbortController();
     requestControllerRef.current = controller;
@@ -34,25 +23,11 @@ export function AppUpdateGate({ children }: { children: ReactNode }) {
       }
 
       const config = (await response.json()) as MobileConfig;
-      setRequiredUpdate(getRequiredMobileUpdate(nativeContext, config));
+      setRequiredUpdate(config.requiredUpdate);
     } catch {
       // Keep the last known decision. An initial config failure fails open.
     }
   }, []);
-
-  const refreshNativeContext = useCallback(async () => {
-    try {
-      const message = await requestNativeResponse(requestNativeContext, ["NATIVE_CONTEXT"], 10_000);
-      if (message.type !== "NATIVE_CONTEXT") {
-        return;
-      }
-
-      nativeContextRef.current = message.payload;
-      await checkForUpdate(message.payload);
-    } catch {
-      // The browser and an unavailable native bridge both fail open.
-    }
-  }, [checkForUpdate]);
 
   useEffect(() => {
     if (!isNativeShell()) {
@@ -64,23 +39,27 @@ export function AppUpdateGate({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (nativeContextRef.current) {
-        void checkForUpdate(nativeContextRef.current);
-      } else {
-        void refreshNativeContext();
-      }
+      void checkForUpdate();
     });
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void checkForUpdate();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const initialCheckId = window.setTimeout(() => {
-      void refreshNativeContext();
+      void checkForUpdate();
     }, 0);
 
     return () => {
       window.clearTimeout(initialCheckId);
       requestControllerRef.current?.abort();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       unsubscribe();
     };
-  }, [checkForUpdate, refreshNativeContext]);
+  }, [checkForUpdate]);
 
   if (!requiredUpdate) {
     return children;
@@ -110,12 +89,7 @@ export function AppUpdateGate({ children }: { children: ReactNode }) {
         <button
           className="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700"
           onClick={() => {
-            const nativeContext = nativeContextRef.current;
-            if (nativeContext) {
-              void checkForUpdate(nativeContext);
-            } else {
-              void refreshNativeContext();
-            }
+            void checkForUpdate();
           }}
           type="button"
         >

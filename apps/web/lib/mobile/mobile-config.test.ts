@@ -18,6 +18,7 @@ const config: MobileConfig = {
     ios: { minimumBuildVersion: 8 },
     android: { minimumBuildVersion: 12 },
   },
+  requiredUpdate: null,
   oauth: {
     callbackUrl: "nextwebview://auth/callback",
   },

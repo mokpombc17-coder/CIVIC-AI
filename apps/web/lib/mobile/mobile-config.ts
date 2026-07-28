@@ -2,6 +2,13 @@ import type { NativeContext } from "@repo/bridge";
 
 export type MobilePlatform = NativeContext["platform"];
 
+export type RequiredMobileUpdate = {
+  platform: MobilePlatform;
+  currentBuildVersion: number;
+  minimumBuildVersion: number;
+  storeUrl: string;
+};
+
 export type MobileConfig = {
   store: Record<MobilePlatform, string | null>;
   update: Record<
@@ -10,21 +17,15 @@ export type MobileConfig = {
       minimumBuildVersion: number | null;
     }
   >;
+  requiredUpdate: RequiredMobileUpdate | null;
   oauth: {
     callbackUrl: string;
   };
 };
 
-export type RequiredMobileUpdate = {
-  platform: MobilePlatform;
-  currentBuildVersion: number;
-  minimumBuildVersion: number;
-  storeUrl: string;
-};
-
 export function getRequiredMobileUpdate(
-  nativeContext: NativeContext,
-  config: MobileConfig,
+  nativeContext: Pick<NativeContext, "platform" | "buildVersion">,
+  config: Pick<MobileConfig, "store" | "update">,
 ): RequiredMobileUpdate | null {
   const currentBuildVersion = parseBuildVersion(nativeContext.buildVersion);
   const minimumBuildVersion = config.update[nativeContext.platform].minimumBuildVersion;

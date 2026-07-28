@@ -2,6 +2,16 @@ import { z } from "zod";
 
 export const BRIDGE_VERSION = 2 as const;
 export const NATIVE_TO_WEB_EVENT = "next-native-bridge-message" as const;
+export const NATIVE_SHELL_USER_AGENT_PRODUCT = "NextWebViewShell" as const;
+
+export const KNOWN_NATIVE_CAPABILITIES = [
+  "share",
+  "deep-link",
+  "app-state",
+  "oauth",
+  "download",
+  "push",
+] as const;
 
 const bridgeEnvelopeSchema = z.object({
   version: z.literal(BRIDGE_VERSION),
@@ -24,7 +34,15 @@ const nativeContextSchema = z.object({
   platform: z.enum(["ios", "android"]),
   appVersion: z.string().min(1).max(64),
   buildVersion: z.string().min(1).max(64),
-  capabilities: z.array(z.enum(["share", "deep-link", "app-state", "oauth", "download", "push"])),
+  // Capabilities are extensible within a protocol version. Older web bundles
+  // must be able to ignore a capability introduced by a newer native build.
+  capabilities: z.array(
+    z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  ),
 });
 
 export const webToNativeMessageSchema = z.discriminatedUnion("type", [
@@ -135,6 +153,13 @@ export type WebToNativeMessage = z.infer<typeof webToNativeMessageSchema>;
 export type NativeToWebMessage = z.infer<typeof nativeToWebMessageSchema>;
 export type NativeContext = z.infer<typeof nativeContextSchema>;
 export type NativeCapability = NativeContext["capabilities"][number];
+export type KnownNativeCapability = (typeof KNOWN_NATIVE_CAPABILITIES)[number];
+export type NativeShellIdentity = {
+  platform: NativeContext["platform"];
+  appVersion: string;
+  buildVersion: string;
+  bridgeVersion: number;
+};
 
 export function parseWebToNativeMessage(raw: string): WebToNativeMessage | null {
   return parseMessage(raw, webToNativeMessageSchema);
@@ -151,6 +176,52 @@ export function serializeBridgeMessage(message: WebToNativeMessage | NativeToWeb
 export function createBridgeId(prefix: "web" | "native"): string {
   const random = Math.random().toString(36).slice(2, 12);
   return `${prefix}-${Date.now().toString(36)}-${random}`;
+}
+
+export function createNativeShellUserAgent(
+  identity: Omit<NativeShellIdentity, "bridgeVersion"> & {
+    bridgeVersion?: number;
+  },
+): string {
+  const appVersion = encodeURIComponent(identity.appVersion);
+  const buildVersion = encodeURIComponent(identity.buildVersion);
+  const bridgeVersion = identity.bridgeVersion ?? BRIDGE_VERSION;
+
+  return `${NATIVE_SHELL_USER_AGENT_PRODUCT}/${appVersion} (${identity.platform}; build/${buildVersion}; bridge/${bridgeVersion})`;
+}
+
+export function parseNativeShellUserAgent(userAgent: string | null): NativeShellIdentity | null {
+  if (!userAgent) {
+    return null;
+  }
+
+  const match = userAgent.match(
+    /NextWebViewShell\/([^\s();]+) \((ios|android); build\/([^\s();]+); bridge\/([1-9]\d*)\)/,
+  );
+  if (!match) {
+    return null;
+  }
+
+  const [, encodedAppVersion, platform, encodedBuildVersion, rawBridgeVersion] = match;
+  if (!encodedAppVersion || !platform || !encodedBuildVersion || !rawBridgeVersion) {
+    return null;
+  }
+
+  const bridgeVersion = Number(rawBridgeVersion);
+  if (!Number.isSafeInteger(bridgeVersion)) {
+    return null;
+  }
+
+  try {
+    return {
+      appVersion: decodeURIComponent(encodedAppVersion),
+      platform: platform as NativeShellIdentity["platform"],
+      buildVersion: decodeURIComponent(encodedBuildVersion),
+      bridgeVersion,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function parseMessage<T extends z.ZodType>(raw: string, schema: T): z.infer<T> | null {

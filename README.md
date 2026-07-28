@@ -135,7 +135,6 @@ Next.js Node 프로세스가 `.next` 결과를 사용해 HTML/RSC/JS/CSS/API를 
 
 - [WebView bridge](./docs/architecture/webview-bridge.md)
 - [apps/web React component tree](./docs/architecture/react-component-tree.md)
-  
 
 ## CI
 

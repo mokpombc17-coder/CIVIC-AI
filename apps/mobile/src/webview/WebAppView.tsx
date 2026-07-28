@@ -2,10 +2,11 @@ import {
   BRIDGE_VERSION,
   NATIVE_TO_WEB_EVENT,
   createBridgeId,
+  createNativeShellUserAgent,
   parseWebToNativeMessage,
   serializeBridgeMessage,
+  type KnownNativeCapability,
   type NativeContext,
-  type NativeCapability,
   type NativeToWebMessage,
   type WebToNativeMessage,
 } from "@repo/bridge";
@@ -40,6 +41,7 @@ import {
   subscribeNotificationLinks,
 } from "../notifications/native-notifications";
 import { normalizeDeepLink } from "./deep-link";
+import { isMainDocumentHttpError } from "./load-policy";
 
 type WebViewHandle = ElementRef<typeof WebView>;
 
@@ -52,13 +54,15 @@ export function WebAppView() {
   const webViewRef = useRef<WebViewHandle>(null);
   const pendingDeepLinkRef = useRef<string | null>(null);
   const webReadyRef = useRef(false);
+  const loadFailedRef = useRef(false);
+  const currentDocumentUrlRef = useRef(WEB_APP_URL);
   const [webViewKey, setWebViewKey] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<LoadFailure | null>(null);
 
   const nativeContext = useMemo<NativeContext>(() => {
-    const capabilities: NativeCapability[] = ["share", "deep-link", "app-state"];
+    const capabilities: KnownNativeCapability[] = ["share", "deep-link", "app-state"];
     if (OAUTH_ENABLED) {
       capabilities.push("oauth");
     }
@@ -76,6 +80,10 @@ export function WebAppView() {
       capabilities,
     };
   }, []);
+  const nativeShellUserAgent = useMemo(
+    () => createNativeShellUserAgent(nativeContext),
+    [nativeContext],
+  );
 
   const postToWeb = useCallback((message: NativeToWebMessage) => {
     const serialized = serializeBridgeMessage(message);
@@ -336,11 +344,22 @@ export function WebAppView() {
   }, [canGoBack]);
 
   const handleLoadEnd = () => {
+    if (loadFailedRef.current) {
+      return;
+    }
+
     setLoading(false);
-    setFailure(null);
+  };
+
+  const showFailure = (nextFailure: LoadFailure) => {
+    loadFailedRef.current = true;
+    setLoading(false);
+    setFailure(nextFailure);
   };
 
   const retry = () => {
+    loadFailedRef.current = false;
+    currentDocumentUrlRef.current = WEB_APP_URL;
     setFailure(null);
     setLoading(true);
     webReadyRef.current = false;
@@ -352,9 +371,7 @@ export function WebAppView() {
       <WebView
         key={webViewKey}
         ref={webViewRef}
-        applicationNameForUserAgent={`${Application.applicationName ?? "NextWebViewShell"}/${
-          Application.nativeApplicationVersion ?? "development"
-        }`}
+        applicationNameForUserAgent={nativeShellUserAgent}
         allowsBackForwardNavigationGestures
         allowsInlineMediaPlayback
         cacheEnabled
@@ -364,17 +381,47 @@ export function WebAppView() {
         mediaPlaybackRequiresUserAction
         mixedContentMode="never"
         onError={(event) => {
-          setLoading(false);
-          setFailure({
+          showFailure({
             title: "웹 애플리케이션에 연결하지 못했습니다.",
             detail: event.nativeEvent.description,
           });
         }}
+        onHttpError={(event) => {
+          const { statusCode, url } = event.nativeEvent;
+          if (!isMainDocumentHttpError(url, currentDocumentUrlRef.current)) {
+            return;
+          }
+
+          showFailure({
+            title: "웹 애플리케이션을 불러오지 못했습니다.",
+            detail: `서버가 HTTP ${statusCode} 응답을 반환했습니다.`,
+          });
+        }}
         onLoadEnd={handleLoadEnd}
+        onLoadStart={(event) => {
+          currentDocumentUrlRef.current = event.nativeEvent.url;
+        }}
         onMessage={(event) => void handleBridgeRequest(event.nativeEvent.data)}
-        onNavigationStateChange={(navigation) => setCanGoBack(navigation.canGoBack)}
+        onNavigationStateChange={(navigation) => {
+          currentDocumentUrlRef.current = navigation.url;
+          setCanGoBack(navigation.canGoBack);
+        }}
         onOpenWindow={(event) => {
           void openExternalUrl(event.nativeEvent.targetUrl);
+        }}
+        onContentProcessDidTerminate={() => {
+          showFailure({
+            title: "웹 화면이 중단되었습니다.",
+            detail: "iOS WebView 프로세스가 종료되었습니다. 다시 시도해 주세요.",
+          });
+        }}
+        onRenderProcessGone={(event) => {
+          showFailure({
+            title: "웹 화면이 중단되었습니다.",
+            detail: event.nativeEvent.didCrash
+              ? "Android WebView 프로세스가 비정상 종료되었습니다."
+              : "Android WebView 프로세스가 종료되었습니다.",
+          });
         }}
         onShouldStartLoadWithRequest={(request) => {
           const { url } = request;

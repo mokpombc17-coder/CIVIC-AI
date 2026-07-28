@@ -1,10 +1,11 @@
+import { parseNativeShellUserAgent } from "@repo/bridge";
 import { serverEnv } from "@/lib/server/env";
-import type { MobileConfig } from "@/lib/mobile/mobile-config";
+import { getRequiredMobileUpdate, type MobileConfig } from "@/lib/mobile/mobile-config";
 
 export const dynamic = "force-dynamic";
 
-export function GET(): Response {
-  const config = {
+export function GET(request: Request): Response {
+  const baseConfig = {
     store: {
       ios: serverEnv.IOS_APP_STORE_URL ?? null,
       android: serverEnv.ANDROID_PLAY_STORE_URL ?? null,
@@ -20,6 +21,12 @@ export function GET(): Response {
     oauth: {
       callbackUrl: `${serverEnv.MOBILE_APP_SCHEME}://auth/callback`,
     },
+  } satisfies Omit<MobileConfig, "requiredUpdate">;
+
+  const nativeIdentity = parseNativeShellUserAgent(request.headers.get("user-agent"));
+  const config = {
+    ...baseConfig,
+    requiredUpdate: nativeIdentity ? getRequiredMobileUpdate(nativeIdentity, baseConfig) : null,
   } satisfies MobileConfig;
 
   return Response.json(config, {
