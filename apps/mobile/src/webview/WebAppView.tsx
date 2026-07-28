@@ -12,7 +12,15 @@ import {
 } from "@repo/bridge";
 import * as Application from "expo-application";
 import { useNetworkState } from "expo-network";
-import { type ElementRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ElementRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -48,29 +56,24 @@ import {
   shouldAutoRetryAfterNetworkRecovery,
   type NetworkAvailability,
 } from "./network-state";
+import { initialWebViewLoadState, reduceWebViewLoadState, type LoadFailure } from "./load-state";
 
 type WebViewHandle = ElementRef<typeof WebView>;
-
-type LoadFailure = {
-  kind: "network" | "http" | "process";
-  title: string;
-  detail: string;
-};
 
 export function WebAppView() {
   const webViewRef = useRef<WebViewHandle>(null);
   const pendingDeepLinkRef = useRef<string | null>(null);
   const webReadyRef = useRef(false);
-  const loadFailedRef = useRef(false);
   const currentDocumentUrlRef = useRef(WEB_APP_URL);
   const previousNetworkAvailabilityRef = useRef<NetworkAvailability>("unknown");
   const [webViewKey, setWebViewKey] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [failure, setFailure] = useState<LoadFailure | null>(null);
+  const [loadState, dispatchLoad] = useReducer(reduceWebViewLoadState, initialWebViewLoadState);
   const networkState = useNetworkState();
   const networkAvailability = getNetworkAvailability(networkState);
   const isOffline = networkAvailability === "offline";
+  const loading = loadState.status === "loading";
+  const failure = loadState.status === "failed" ? loadState.failure : null;
 
   const nativeContext = useMemo<NativeContext>(() => {
     const capabilities: KnownNativeCapability[] = ["share", "deep-link", "app-state"];
@@ -355,24 +358,19 @@ export function WebAppView() {
   }, [canGoBack]);
 
   const handleLoadEnd = () => {
-    if (loadFailedRef.current) {
-      return;
-    }
-
-    setLoading(false);
+    dispatchLoad({ type: "LOAD_SUCCEEDED" });
   };
 
   const showFailure = (nextFailure: LoadFailure) => {
-    loadFailedRef.current = true;
-    setLoading(false);
-    setFailure(nextFailure);
+    dispatchLoad({
+      type: "LOAD_FAILED",
+      failure: nextFailure,
+    });
   };
 
   const retry = useCallback(() => {
-    loadFailedRef.current = false;
     currentDocumentUrlRef.current = WEB_APP_URL;
-    setFailure(null);
-    setLoading(true);
+    dispatchLoad({ type: "RETRY" });
     webReadyRef.current = false;
     setWebViewKey((value) => value + 1);
   }, []);
