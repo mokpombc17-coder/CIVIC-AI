@@ -140,6 +140,9 @@ origin을 사용한다.
 - Android 하드웨어 뒤로가기는 WebView 이동 기록이 있을 때만 소비한다.
 - iOS는 WebView의 back/forward swipe gesture를 사용한다.
 - WebView 로딩 실패 시 오류 화면과 다시 시도 버튼을 표시한다.
+- 네트워크 연결이 끊기면 오프라인 화면을 표시한다.
+- 연결 복구 시 네트워크 로딩 실패 상태에서만 자동으로 다시 시도하며, 정상 화면은 강제로 새로고침하지
+  않는다.
 
 로딩과 오류 화면은 프레임워크 이름을 노출하지 않는 서비스 중립적인 기본 문구를 사용한다. 실제
 제품에서는 `src/webview/WebAppView.tsx`와 `apps/web/app/loading.tsx`의 문구를 서비스 이름과

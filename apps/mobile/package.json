@@ -21,6 +21,7 @@
     "expo-dev-client": "catalog:",
     "expo-file-system": "catalog:",
     "expo-linking": "catalog:",
+    "expo-network": "~57.0.1",
     "expo-notifications": "catalog:",
     "expo-sharing": "catalog:",
     "expo-web-browser": "catalog:",

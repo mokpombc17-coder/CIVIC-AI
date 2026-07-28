@@ -11,6 +11,7 @@ import {
   type WebToNativeMessage,
 } from "@repo/bridge";
 import * as Application from "expo-application";
+import { useNetworkState } from "expo-network";
 import { type ElementRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -42,10 +43,16 @@ import {
 } from "../notifications/native-notifications";
 import { normalizeDeepLink } from "./deep-link";
 import { isMainDocumentHttpError } from "./load-policy";
+import {
+  getNetworkAvailability,
+  shouldAutoRetryAfterNetworkRecovery,
+  type NetworkAvailability,
+} from "./network-state";
 
 type WebViewHandle = ElementRef<typeof WebView>;
 
 type LoadFailure = {
+  kind: "network" | "http" | "process";
   title: string;
   detail: string;
 };
@@ -56,10 +63,14 @@ export function WebAppView() {
   const webReadyRef = useRef(false);
   const loadFailedRef = useRef(false);
   const currentDocumentUrlRef = useRef(WEB_APP_URL);
+  const previousNetworkAvailabilityRef = useRef<NetworkAvailability>("unknown");
   const [webViewKey, setWebViewKey] = useState(0);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<LoadFailure | null>(null);
+  const networkState = useNetworkState();
+  const networkAvailability = getNetworkAvailability(networkState);
+  const isOffline = networkAvailability === "offline";
 
   const nativeContext = useMemo<NativeContext>(() => {
     const capabilities: KnownNativeCapability[] = ["share", "deep-link", "app-state"];
@@ -357,14 +368,29 @@ export function WebAppView() {
     setFailure(nextFailure);
   };
 
-  const retry = () => {
+  const retry = useCallback(() => {
     loadFailedRef.current = false;
     currentDocumentUrlRef.current = WEB_APP_URL;
     setFailure(null);
     setLoading(true);
     webReadyRef.current = false;
     setWebViewKey((value) => value + 1);
-  };
+  }, []);
+
+  useEffect(() => {
+    const previous = previousNetworkAvailabilityRef.current;
+    previousNetworkAvailabilityRef.current = networkAvailability;
+
+    if (
+      shouldAutoRetryAfterNetworkRecovery(
+        previous,
+        networkAvailability,
+        failure?.kind === "network",
+      )
+    ) {
+      retry();
+    }
+  }, [failure?.kind, networkAvailability, retry]);
 
   return (
     <View style={styles.container}>
@@ -382,6 +408,7 @@ export function WebAppView() {
         mixedContentMode="never"
         onError={() => {
           showFailure({
+            kind: "network",
             title: "서비스에 연결하지 못했습니다.",
             detail: "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
           });
@@ -393,6 +420,7 @@ export function WebAppView() {
           }
 
           showFailure({
+            kind: "http",
             title: "서비스를 불러오지 못했습니다.",
             detail: "요청을 처리하는 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
           });
@@ -411,12 +439,14 @@ export function WebAppView() {
         }}
         onContentProcessDidTerminate={() => {
           showFailure({
+            kind: "process",
             title: "화면을 불러오는 중 문제가 발생했습니다.",
             detail: "화면을 다시 불러와 주세요.",
           });
         }}
         onRenderProcessGone={() => {
           showFailure({
+            kind: "process",
             title: "화면을 불러오는 중 문제가 발생했습니다.",
             detail: "화면을 다시 불러와 주세요.",
           });
@@ -446,14 +476,21 @@ export function WebAppView() {
         thirdPartyCookiesEnabled={false}
       />
 
-      {loading && !failure ? (
+      {loading && !failure && !isOffline ? (
         <View accessibilityRole="progressbar" style={[StyleSheet.absoluteFill, styles.overlay]}>
           <ActivityIndicator size="large" />
           <Text style={styles.overlayText}>서비스를 불러오는 중…</Text>
         </View>
       ) : null}
 
-      {failure ? (
+      {isOffline ? (
+        <View accessibilityRole="alert" style={[StyleSheet.absoluteFill, styles.overlay]}>
+          <Text style={styles.errorTitle}>인터넷에 연결되어 있지 않습니다.</Text>
+          <Text style={styles.errorDetail}>네트워크 연결이 복구되면 자동으로 다시 확인합니다.</Text>
+        </View>
+      ) : null}
+
+      {failure && !isOffline ? (
         <View accessibilityRole="alert" style={[StyleSheet.absoluteFill, styles.overlay]}>
           <Text style={styles.errorTitle}>{failure.title}</Text>
           <Text style={styles.errorDetail}>{failure.detail}</Text>
