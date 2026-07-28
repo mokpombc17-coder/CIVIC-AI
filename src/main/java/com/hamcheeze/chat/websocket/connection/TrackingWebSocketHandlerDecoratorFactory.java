@@ -89,7 +89,9 @@ public final class TrackingWebSocketHandlerDecoratorFactory
                 cancelFirstMessageTimeout(session.getId());
                 registry.remove(session.getId());
                 if (!CloseStatus.NORMAL.equals(closeStatus)
-                        && closeStatus.getCode() != 4001) {
+                        && closeStatus.getCode() != 4001
+                        && closeStatus.getCode() != 4002
+                        && closeStatus.getCode() != 4003) {
                     BestEffortMetricRecorder.increment(
                             "websocket.connections.abnormally_closed",
                             abnormalCloseCounter);

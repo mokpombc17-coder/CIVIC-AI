@@ -140,6 +140,36 @@ public final class InMemoryChatSubscriptionRegistry
     }
 
     @Override
+    public boolean hasRoomSubscription(
+            String connectionId,
+            String roomId
+    ) {
+        lock.lock();
+        try {
+            Map<String, SubscriptionDescriptor> subscriptions =
+                    byConnection.get(connectionId);
+            return subscriptions != null
+                    && subscriptions.values().stream().anyMatch(
+                    descriptor -> roomId.equals(descriptor.roomId()));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public Set<String> findConnectionIdsByRoom(String roomId) {
+        lock.lock();
+        try {
+            Set<String> connections = roomConnections.get(roomId);
+            return connections == null
+                    ? Set.of()
+                    : Set.copyOf(connections);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
     public int activeSubscriptionCount() {
         lock.lock();
         try {

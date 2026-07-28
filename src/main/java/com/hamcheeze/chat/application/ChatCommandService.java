@@ -63,23 +63,6 @@ public final class ChatCommandService {
             ValidatedChatContent content = validator.validateContent(
                     command.content(), clientMessageId);
 
-            RoomAuthorizationDecision authorization =
-                    roomAuthorizationService.authorizeMessageSend(userId, roomId);
-            if (authorization == RoomAuthorizationDecision.FORBIDDEN) {
-                reject(
-                        userId, connectionId, clientMessageId,
-                        ChatCommandRejectedCode.ROOM_SEND_FORBIDDEN,
-                        false, null);
-                return;
-            }
-            if (authorization == RoomAuthorizationDecision.UNAVAILABLE) {
-                fail(
-                        userId, connectionId, clientMessageId,
-                        ChatCommandFailedCode.ROOM_AUTHORIZATION_UNAVAILABLE,
-                        true);
-                return;
-            }
-
             if (pipeline.availability() == PipelineAvailability.UNAVAILABLE) {
                 fail(
                         userId, connectionId, clientMessageId,
@@ -111,6 +94,28 @@ public final class ChatCommandService {
                                 ChatCommandRejectedCode.SERVER_BUSY,
                                 true, reservation.retryAfterMs());
                     }
+                    return;
+                }
+
+                RoomAuthorizationDecision authorization =
+                        roomAuthorizationService.authorizeMessageSend(
+                                userId,
+                                roomId);
+                if (authorization
+                        == RoomAuthorizationDecision.FORBIDDEN) {
+                    reject(
+                            userId, connectionId, clientMessageId,
+                            ChatCommandRejectedCode.ROOM_SEND_FORBIDDEN,
+                            false, null);
+                    return;
+                }
+                if (authorization
+                        == RoomAuthorizationDecision.UNAVAILABLE) {
+                    fail(
+                            userId, connectionId, clientMessageId,
+                            ChatCommandFailedCode
+                                    .ROOM_AUTHORIZATION_UNAVAILABLE,
+                            true);
                     return;
                 }
 

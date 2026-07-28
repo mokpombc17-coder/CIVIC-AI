@@ -16,6 +16,7 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -80,6 +81,11 @@ class ChatMessagePipelineWebSocketIntegrationTest
 
     @MockitoSpyBean(name = "chatMessageStore")
     private ChatMessageStore messageStore;
+
+    @BeforeEach
+    void seedMembershipAuthorizationFixture() {
+        seedActiveRoom("test-room", "local-user-1");
+    }
 
     @Test
     void authenticatesStoresPublishesAndReturnsFinalResults()

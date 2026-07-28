@@ -23,6 +23,7 @@ import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.RoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
+import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.idempotency.PreparedRoomCommand;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
@@ -50,6 +51,8 @@ public final class RoomCommandService {
     private final RoomCommandIdGenerator idGenerator;
     private final Clock clock;
     private final RoomCommandProperties properties;
+    private final RoomCommandAccessRevocationCoordinator
+            accessRevocationCoordinator;
 
     public RoomCommandService(
             RoomStore roomStore,
@@ -59,6 +62,28 @@ public final class RoomCommandService {
             RoomCommandIdGenerator idGenerator,
             Clock clock,
             RoomCommandProperties properties
+    ) {
+        this(
+                roomStore,
+                membershipStore,
+                executor,
+                fingerprintFactory,
+                idGenerator,
+                clock,
+                properties,
+                RoomCommandAccessRevocationCoordinator.disabled());
+    }
+
+    public RoomCommandService(
+            RoomStore roomStore,
+            MembershipStore membershipStore,
+            IdempotentRoomCommandExecutor executor,
+            RoomCommandFingerprintFactory fingerprintFactory,
+            RoomCommandIdGenerator idGenerator,
+            Clock clock,
+            RoomCommandProperties properties,
+            RoomCommandAccessRevocationCoordinator
+                    accessRevocationCoordinator
     ) {
         this.roomStore = Objects.requireNonNull(roomStore, "roomStore");
         this.membershipStore = Objects.requireNonNull(
@@ -73,6 +98,9 @@ public final class RoomCommandService {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.properties =
                 Objects.requireNonNull(properties, "properties");
+        this.accessRevocationCoordinator = Objects.requireNonNull(
+                accessRevocationCoordinator,
+                "accessRevocationCoordinator");
     }
 
     public RoomCommandExecution createRoom(
@@ -130,13 +158,16 @@ public final class RoomCommandService {
                 transitionTime,
                 command.roomId(),
                 null);
-        return executor.execute(prepared, () -> executeDomain(
+        RoomCommandExecution execution = executor.execute(
+                prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
                 null,
                 () -> leaveRoomInTransaction(
                         command,
                         transitionTime)));
+        accessRevocationCoordinator.afterCommand(execution);
+        return execution;
     }
 
     public RoomCommandExecution transferOwnership(
@@ -162,13 +193,16 @@ public final class RoomCommandService {
                 transitionTime,
                 command.roomId(),
                 command.targetUserId());
-        return executor.execute(prepared, () -> executeDomain(
+        RoomCommandExecution execution = executor.execute(
+                prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
                 command.targetUserId(),
                 () -> banMemberInTransaction(
                         command,
                         transitionTime)));
+        accessRevocationCoordinator.afterCommand(execution);
+        return execution;
     }
 
     public RoomCommandExecution unbanMember(
@@ -196,13 +230,16 @@ public final class RoomCommandService {
                 transitionTime,
                 command.roomId(),
                 null);
-        return executor.execute(prepared, () -> executeDomain(
+        RoomCommandExecution execution = executor.execute(
+                prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
                 null,
                 () -> closeRoomInTransaction(
                         command,
                         transitionTime)));
+        accessRevocationCoordinator.afterCommand(execution);
+        return execution;
     }
 
     private RoomCommandResult joinRoomInTransaction(

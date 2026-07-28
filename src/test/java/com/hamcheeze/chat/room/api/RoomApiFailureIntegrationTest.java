@@ -53,6 +53,10 @@ class RoomApiFailureIntegrationTest
                 503,
                 true);
         assertFailure(
+                RoomCommandFailureKind.ACCESS_REVOCATION_FAILED,
+                503,
+                true);
+        assertFailure(
                 RoomCommandFailureKind.DATA_INTEGRITY,
                 500,
                 false);
@@ -103,7 +107,9 @@ class RoomApiFailureIntegrationTest
                         "chat_rooms",
                         "MongoException",
                         "internal stack");
-        if (kind == RoomCommandFailureKind.OUTCOME_UNKNOWN) {
+        if (kind == RoomCommandFailureKind.OUTCOME_UNKNOWN
+                || kind == RoomCommandFailureKind
+                .ACCESS_REVOCATION_FAILED) {
             org.assertj.core.api.Assertions.assertThat(body)
                     .contains("same Idempotency-Key");
         }

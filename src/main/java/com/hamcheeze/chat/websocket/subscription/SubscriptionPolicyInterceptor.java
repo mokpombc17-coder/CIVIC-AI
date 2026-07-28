@@ -118,6 +118,27 @@ public final class SubscriptionPolicyInterceptor
                     registration.rejectionCode());
             return null;
         }
+        if (descriptor.roomScoped()) {
+            RoomAuthorizationDecision decision =
+                    roomAuthorizationService.authorizeSubscription(
+                            userId,
+                            descriptor.roomId());
+            if (decision != RoomAuthorizationDecision.ALLOWED) {
+                subscriptions.remove(
+                        connectionId,
+                        accessor.getSubscriptionId());
+                reject(
+                        userId,
+                        connectionId,
+                        destination,
+                        decision == RoomAuthorizationDecision.FORBIDDEN
+                                ? SubscriptionRejectedCode
+                                .ROOM_SUBSCRIPTION_FORBIDDEN
+                                : SubscriptionRejectedCode
+                                .ROOM_AUTHORIZATION_UNAVAILABLE);
+                return null;
+            }
+        }
         return message;
     }
 

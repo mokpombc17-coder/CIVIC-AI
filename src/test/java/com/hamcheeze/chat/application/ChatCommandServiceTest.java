@@ -85,9 +85,14 @@ class ChatCommandServiceTest {
     }
 
     @Test
-    void roomAuthorizationUnavailablePrecedesPipelineCheck() {
+    void finalRoomAuthorizationUnavailableRollsBackReservation() {
+        AdmissionReservation reservation = grantedReservation();
         when(authorization.authorizeMessageSend("user-1", "room-1"))
                 .thenReturn(RoomAuthorizationDecision.UNAVAILABLE);
+        when(pipeline.availability())
+                .thenReturn(PipelineAvailability.AVAILABLE);
+        when(limiter.tryReserve("user-1", 1))
+                .thenReturn(reservation);
 
         service.handle(
                 "user-1",
@@ -95,8 +100,9 @@ class ChatCommandServiceTest {
                 "room-1",
                 new ChatSendCommand(CLIENT_MESSAGE_ID, "hello"));
 
-        verify(pipeline, never()).availability();
-        verifyNoInteractions(limiter);
+        verify(pipeline, never()).tryAccept(any());
+        verify(reservation, never()).commit();
+        verify(reservation).close();
         assertThat(capturedResult()).isEqualTo(new ChatCommandFailed(
                 CLIENT_MESSAGE_ID,
                 ChatCommandFailedCode.ROOM_AUTHORIZATION_UNAVAILABLE,

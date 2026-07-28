@@ -16,17 +16,13 @@ class ProfileScopedConfigurationTest {
                             "spring.profiles.active=prod",
                             "chat.security.local-jwt.secret="
                                     + "should-not-bind-in-prod-32-bytes")
-                    .withUserConfiguration(
-                            LocalJwtConfiguration.class,
-                            LocalRoomAuthorizationConfiguration.class);
+                    .withUserConfiguration(LocalJwtConfiguration.class);
 
     @Test
-    void prodDoesNotCreateLocalJwtOrRoomProperties() {
+    void prodDoesNotCreateLocalJwtProperties() {
         contextRunner.run(context -> {
             assertThat(context.getBeansOfType(
                     LocalJwtProperties.class)).isEmpty();
-            assertThat(context.getBeansOfType(
-                    LocalRoomProperties.class)).isEmpty();
             assertThat(context.getBeansOfType(
                     JwtDecoder.class)).isEmpty();
         });

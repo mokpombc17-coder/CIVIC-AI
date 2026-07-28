@@ -3,7 +3,6 @@ package com.hamcheeze.chat;
 import com.hamcheeze.chat.application.ChatMessageProcessor;
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
-import com.hamcheeze.chat.application.local.LocalAllowListRoomAuthorizationService;
 import com.hamcheeze.chat.delivery.SimpleBrokerChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
@@ -31,6 +30,8 @@ import com.hamcheeze.chat.room.api.RoomCommandController;
 import com.hamcheeze.chat.room.api.RoomCommandHttpMapper;
 import com.hamcheeze.chat.room.api.RoomQueryController;
 import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.access.RoomAccessRevocationPort;
+import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
@@ -40,11 +41,14 @@ import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.query.RoomQueryService;
+import com.hamcheeze.chat.room.authorization.MembershipRoomAuthorizationService;
+import com.hamcheeze.chat.room.authorization.RoomAccessReader;
+import com.hamcheeze.chat.room.mongo.MongoRoomAccessReader;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
-import com.hamcheeze.chat.websocket.config.LocalRoomProperties;
 import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
+import com.hamcheeze.chat.websocket.access.WebSocketRoomAccessRevoker;
 import com.mongodb.ReadConcern;
 import com.mongodb.ReadPreference;
 import com.mongodb.TransactionOptions;
@@ -172,10 +176,10 @@ class LocalProfileApplicationTests
     private LocalJwtProperties jwtProperties;
 
     @Autowired
-    private LocalRoomProperties roomProperties;
+    private RoomAuthorizationService authorizationService;
 
     @Autowired
-    private RoomAuthorizationService authorizationService;
+    private RoomAccessReader roomAccessReader;
 
     @Autowired
     private ChatPipelineHealthIndicator pipelineHealth;
@@ -272,6 +276,15 @@ class LocalProfileApplicationTests
                 .hasSize(1)
                 .containsValue(roomCommandService);
         assertThat(applicationContext.getBeansOfType(
+                RoomCommandAccessRevocationCoordinator.class))
+                .hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                RoomAccessRevocationPort.class))
+                .hasSize(1)
+                .allSatisfy((name, port) ->
+                        assertThat(port).isInstanceOf(
+                                WebSocketRoomAccessRevoker.class));
+        assertThat(applicationContext.getBeansOfType(
                 IdempotentRoomCommandExecutor.class))
                 .hasSize(1)
                 .containsValue(idempotentRoomCommandExecutor);
@@ -352,14 +365,20 @@ class LocalProfileApplicationTests
                         "uk_chat_membership_room_owner");
         assertThat(jwtDecoder).isNotNull();
         assertThat(jwtProperties.getIssuer()).isEqualTo("chat-local");
-        assertThat(roomProperties.getAllowedRooms())
-                .containsExactly("test-room");
         assertThat(authorizationService)
                 .isInstanceOf(
-                        LocalAllowListRoomAuthorizationService.class);
+                        MembershipRoomAuthorizationService.class);
+        assertThat(applicationContext.getBeansOfType(
+                RoomAuthorizationService.class))
+                .hasSize(1)
+                .containsValue(authorizationService);
+        assertThat(roomAccessReader)
+                .isInstanceOf(MongoRoomAccessReader.class);
+        assertThat(applicationContext.getBeansOfType(
+                RoomAccessReader.class)).hasSize(1);
         assertThat(authorizationService.authorizeSubscription(
                 "user-1", "test-room"))
-                .isEqualTo(RoomAuthorizationDecision.ALLOWED);
+                .isEqualTo(RoomAuthorizationDecision.FORBIDDEN);
         assertThat(authorizationService.authorizeMessageSend(
                 "user-1", "not-allowed"))
                 .isEqualTo(RoomAuthorizationDecision.FORBIDDEN);

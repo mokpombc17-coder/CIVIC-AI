@@ -47,6 +47,21 @@ class InMemoryActiveConnectionRegistryTest {
     }
 
     @Test
+    void exposesLockedBidirectionalLookupSnapshots() {
+        InMemoryActiveConnectionRegistry registry = registry(2);
+        registry.activate("user-1", "connection-1");
+
+        assertThat(registry.findConnectionIdByUser("user-1"))
+                .contains("connection-1");
+        assertThat(registry.findUserIdByConnection("connection-1"))
+                .contains("user-1");
+
+        registry.deactivate("user-1", "connection-1");
+        assertThat(registry.findConnectionIdByUser("user-1")).isEmpty();
+        assertThat(registry.findUserIdByConnection("connection-1")).isEmpty();
+    }
+
+    @Test
     void rejectsTheFiveHundredAndFirstAuthenticatedConnection() {
         InMemoryActiveConnectionRegistry registry = registry(500);
         for (int index = 0; index < 500; index++) {

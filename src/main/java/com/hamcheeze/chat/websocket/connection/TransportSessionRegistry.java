@@ -36,15 +36,24 @@ public final class TransportSessionRegistry {
     }
 
     public boolean closeReplaced(String connectionId) {
+        return close(connectionId, CONNECTION_REPLACED)
+                == TransportSessionCloseResult.CLOSED;
+    }
+
+    public TransportSessionCloseResult close(
+            String connectionId,
+            CloseStatus closeStatus
+    ) {
         WebSocketSession session = sessions.get(connectionId);
         if (session == null || !session.isOpen()) {
-            return false;
+            return TransportSessionCloseResult
+                    .ALREADY_CLOSED_OR_MISSING;
         }
         try {
-            session.close(CONNECTION_REPLACED);
-            return true;
-        } catch (IOException exception) {
-            return false;
+            session.close(closeStatus);
+            return TransportSessionCloseResult.CLOSED;
+        } catch (IOException | RuntimeException exception) {
+            return TransportSessionCloseResult.FAILED;
         }
     }
 }

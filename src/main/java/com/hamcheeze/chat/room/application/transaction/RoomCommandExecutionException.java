@@ -31,6 +31,8 @@ public final class RoomCommandExecutionException
         return kind == RoomCommandFailureKind.TRANSIENT
                 || kind == RoomCommandFailureKind
                 .CONCURRENCY_RETRY_EXHAUSTED
-                || kind == RoomCommandFailureKind.OUTCOME_UNKNOWN;
+                || kind == RoomCommandFailureKind.OUTCOME_UNKNOWN
+                || kind == RoomCommandFailureKind
+                .ACCESS_REVOCATION_FAILED;
     }
 }

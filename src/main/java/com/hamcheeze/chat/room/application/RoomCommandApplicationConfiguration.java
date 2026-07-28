@@ -1,12 +1,15 @@
 package com.hamcheeze.chat.room.application;
 
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
+import com.hamcheeze.chat.room.application.access.RoomAccessRevocationPort;
+import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
+import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -67,7 +70,9 @@ public class RoomCommandApplicationConfiguration {
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
-            RoomCommandProperties properties
+            RoomCommandProperties properties,
+            RoomCommandAccessRevocationCoordinator
+                    accessRevocationCoordinator
     ) {
         return new RoomCommandService(
                 roomStore,
@@ -76,6 +81,18 @@ public class RoomCommandApplicationConfiguration {
                 fingerprintFactory,
                 idGenerator,
                 Clock.systemUTC(),
-                properties);
+                properties,
+                accessRevocationCoordinator);
+    }
+
+    @Bean
+    RoomCommandAccessRevocationCoordinator
+    roomCommandAccessRevocationCoordinator(
+            RoomAccessReader accessReader,
+            RoomAccessRevocationPort revocationPort
+    ) {
+        return new RoomCommandAccessRevocationCoordinator(
+                accessReader,
+                revocationPort);
     }
 }

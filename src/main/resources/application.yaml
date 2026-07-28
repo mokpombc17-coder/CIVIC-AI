@@ -10,6 +10,8 @@ chat:
       receipt-ttl: 1h
       max-attempts: 3
       retry-backoff: 10ms
+    authorization:
+      max-consistency-attempts: 3
 
   message-pipeline:
     queue-capacity: ${CHAT_MESSAGE_PIPELINE_QUEUE_CAPACITY:100}

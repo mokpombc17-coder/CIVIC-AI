@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Component
@@ -74,6 +75,26 @@ public final class InMemoryActiveConnectionRegistry
             connectionByUser.remove(userId);
             userByConnection.remove(connectionId);
             return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public Optional<String> findConnectionIdByUser(String userId) {
+        lock.lock();
+        try {
+            return Optional.ofNullable(connectionByUser.get(userId));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public Optional<String> findUserIdByConnection(String connectionId) {
+        lock.lock();
+        try {
+            return Optional.ofNullable(userByConnection.get(connectionId));
         } finally {
             lock.unlock();
         }

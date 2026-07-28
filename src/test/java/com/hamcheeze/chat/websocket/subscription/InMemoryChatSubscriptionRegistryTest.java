@@ -36,6 +36,11 @@ class InMemoryChatSubscriptionRegistryTest {
 
         assertThat(registry.activeSubscriptionCount()).isEqualTo(2);
         assertThat(registry.activeRoomSubscriberCount()).isOne();
+        assertThat(registry.hasRoomSubscription(
+                "connection-1",
+                "room-1")).isTrue();
+        assertThat(registry.findConnectionIdsByRoom("room-1"))
+                .containsExactly("connection-1");
     }
 
     @Test

@@ -91,7 +91,7 @@ class SubscriptionPolicyInterceptorTest {
     }
 
     @Test
-    void roomDestinationChecksAuthorizationBeforeRegistration() {
+    void roomDestinationChecksAuthorizationBeforeAndAfterRegistration() {
         when(authorization.authorizeSubscription("user-1", "room-1"))
                 .thenReturn(RoomAuthorizationDecision.ALLOWED);
         when(registry.register(eq("connection-1"), any()))
@@ -100,8 +100,31 @@ class SubscriptionPolicyInterceptorTest {
                 subscribe("/topic/rooms/room-1/messages");
 
         assertThat(interceptor.preSend(message, null)).isSameAs(message);
-        verify(authorization).authorizeSubscription("user-1", "room-1");
+        verify(authorization, org.mockito.Mockito.times(2))
+                .authorizeSubscription("user-1", "room-1");
         verify(registry).register(eq("connection-1"), any());
+    }
+
+    @Test
+    void authorizationLostAfterRegistrationRemovesSubscription() {
+        when(authorization.authorizeSubscription("user-1", "room-1"))
+                .thenReturn(
+                        RoomAuthorizationDecision.ALLOWED,
+                        RoomAuthorizationDecision.FORBIDDEN);
+        when(registry.register(eq("connection-1"), any()))
+                .thenReturn(SubscriptionRegistrationResult.accepted());
+        Message<byte[]> message =
+                subscribe("/topic/rooms/room-1/messages");
+
+        assertThat(interceptor.preSend(message, null)).isNull();
+
+        verify(registry).remove("connection-1", "sub-1");
+        ArgumentCaptor<SubscriptionRejected> result =
+                ArgumentCaptor.forClass(SubscriptionRejected.class);
+        verify(sender).send(
+                eq("user-1"), eq("connection-1"), result.capture());
+        assertThat(result.getValue().code()).isEqualTo(
+                SubscriptionRejectedCode.ROOM_SUBSCRIPTION_FORBIDDEN);
     }
 
     private static Message<byte[]> subscribe(String destination) {
