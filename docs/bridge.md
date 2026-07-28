@@ -33,8 +33,8 @@ BRIDGE_ERROR
   "sentAt": 1784775600000,
   "type": "SHARE",
   "payload": {
-    "title": "토론방",
-    "url": "https://app.example.com/rooms/123"
+    "title": "예시 리소스",
+    "url": "https://app.example.com/resources/123"
   }
 }
 ```

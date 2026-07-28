@@ -187,10 +187,10 @@ provider access token은 네이티브 앱이나 bridge payload에 전달하지 �
 공개 콘텐츠 링크는 custom scheme보다 HTTPS URL을 사용한다.
 
 ```text
-https://app.example.com/orders/123
+https://app.example.com/resources/123
 
-앱 설치됨     → 앱 실행 → WebView의 /orders/123
-앱 설치 안 됨 → 브라우저의 /orders/123
+앱 설치됨     → 앱 실행 → WebView의 /resources/123
+앱 설치 안 됨 → 브라우저의 /resources/123
 ```
 
 활성화 순서는 다음과 같다.

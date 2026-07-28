@@ -3,10 +3,10 @@
 이 템플릿은 HTTPS URL을 웹과 앱의 공통 콘텐츠 식별자로 사용한다.
 
 ```text
-https://app.example.com/rooms/123
+https://app.example.com/resources/123
 
-앱 설치됨     → 앱 실행 → WebView에서 /rooms/123
-앱 설치 안 됨 → 브라우저에서 /rooms/123
+앱 설치됨     → 앱 실행 → WebView에서 /resources/123
+앱 설치 안 됨 → 브라우저에서 /resources/123
 ```
 
 ## iOS Universal Links
@@ -28,7 +28,7 @@ https://app.example.com/rooms/123
 React Native `Linking`이 URL을 수신한 뒤 `DEEP_LINK` bridge message를 보낸다.
 Next.js는 origin을 검증하고 `router.push()`로 이동한다. WebView를 새로 생성하지 않으므로 공유 layout의 Client state를 유지한다.
 
-푸시 payload의 `data.url`도 같은 처리 경로를 사용한다. `/orders/123` 같은 상대 경로와 설정된
+푸시 payload의 `data.url`도 같은 처리 경로를 사용한다. `/resources/123` 같은 상대 경로와 설정된
 웹 origin의 절대 URL만 허용한다.
 
 ## Disabled by default

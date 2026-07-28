@@ -9,14 +9,14 @@ beforeAll(async () => {
 
 describe("normalizeDeepLink", () => {
   it("maps the native scheme to the configured web origin", () => {
-    expect(normalizeDeepLink("nextwebview://products/123?tab=details#price")).toBe(
-      "http://localhost:3000/products/123?tab=details#price",
+    expect(normalizeDeepLink("nextwebview://resources/123?tab=details#section")).toBe(
+      "http://localhost:3000/resources/123?tab=details#section",
     );
   });
 
   it("accepts safe relative application routes", () => {
-    expect(normalizeDeepLink("/orders/123?from=push")).toBe(
-      "http://localhost:3000/orders/123?from=push",
+    expect(normalizeDeepLink("/resources/123?from=push")).toBe(
+      "http://localhost:3000/resources/123?from=push",
     );
   });
 

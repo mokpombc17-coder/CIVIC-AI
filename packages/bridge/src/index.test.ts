@@ -30,8 +30,8 @@ describe("bridge protocol", () => {
       ...envelope,
       type: "DOWNLOAD_FILE",
       payload: {
-        url: "https://app.example.com/invoices/1.pdf",
-        fileName: "invoice.pdf",
+        url: "https://app.example.com/files/example.pdf",
+        fileName: "example.pdf",
       },
     },
     {

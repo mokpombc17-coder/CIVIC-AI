@@ -20,7 +20,8 @@
 - Next.js App Router가 웹 문서와 응답 헤더를 소유한다.
 - `apps/web/next.config.ts`가 현재 `X-Content-Type-Options`, `Referrer-Policy`,
   `X-Frame-Options`, `Permissions-Policy`를 설정한다.
-- Nginx는 TLS 종료, Next.js reverse proxy와 `/ws/chat/` WebSocket proxy를 담당한다.
+- Nginx는 TLS 종료와 Next.js reverse proxy를 담당한다. 서비스별 WebSocket upstream이
+  필요하면 실제 경로와 서버가 정해진 뒤 별도 `location`으로 추가한다.
 - Expo 앱은 동일한 웹 애플리케이션을 WebView로 로드한다. bridge의 `postMessage` 자체는
   CSP 네트워크 source가 아니다.
 
@@ -31,17 +32,17 @@ origin과 배포 단계별 정책을 코드 리뷰할 수 있고, Nginx와 다�
 
 ## 적용 전 확정할 값
 
-| 항목              | 확인할 내용                                                                 |
-| ----------------- | --------------------------------------------------------------------------- |
-| `WEB_ORIGIN`      | 실제 HTTPS 웹 origin                                                        |
-| `APP_WSS_ORIGIN`  | `/ws/chat/`가 사용하는 실제 `wss://` origin                                 |
-| `APP_API_ORIGINS` | 브라우저가 직접 호출하는 API origin. Server Component/BFF의 upstream은 제외 |
-| `SCRIPT_ORIGINS`  | 분석, 태그 매니저 등 외부 script origin                                     |
-| `STYLE_ORIGINS`   | 외부 stylesheet origin                                                      |
-| `IMAGE_ORIGINS`   | 사용자 업로드 및 이미지 CDN origin                                          |
-| `FONT_ORIGINS`    | 외부 font origin                                                            |
-| `FRAME_ORIGINS`   | 결제·인증 등 실제 iframe 사용 origin                                        |
-| `REPORT_ENDPOINT` | CSP 보고서를 수신할 HTTPS endpoint                                          |
+| 항목                | 확인할 내용                                                                 |
+| ------------------- | --------------------------------------------------------------------------- |
+| `WEB_ORIGIN`        | 실제 HTTPS 웹 origin                                                        |
+| `WEBSOCKET_ORIGINS` | 브라우저가 실제로 연결하는 `wss://` origin. 사용하지 않으면 추가하지 않음   |
+| `APP_API_ORIGINS`   | 브라우저가 직접 호출하는 API origin. Server Component/BFF의 upstream은 제외 |
+| `SCRIPT_ORIGINS`    | 분석, 태그 매니저 등 외부 script origin                                     |
+| `STYLE_ORIGINS`     | 외부 stylesheet origin                                                      |
+| `IMAGE_ORIGINS`     | 사용자 업로드 및 이미지 CDN origin                                          |
+| `FONT_ORIGINS`      | 외부 font origin                                                            |
+| `FRAME_ORIGINS`     | 결제·인증 등 실제 iframe 사용 origin                                        |
+| `REPORT_ENDPOINT`   | CSP 보고서를 수신할 HTTPS endpoint                                          |
 
 origin은 scheme과 host를 포함해 정확히 기록한다. `https:` 또는 `wss:`처럼 모든 host를
 허용하는 source 표현식과 `*`는 사용하지 않는다.
@@ -60,7 +61,7 @@ script-src 'self' 'unsafe-inline' <SCRIPT_ORIGINS>;
 style-src 'self' 'unsafe-inline' <STYLE_ORIGINS>;
 img-src 'self' data: blob: <IMAGE_ORIGINS>;
 font-src 'self' <FONT_ORIGINS>;
-connect-src 'self' <APP_WSS_ORIGIN> <APP_API_ORIGINS>;
+connect-src 'self' <WEBSOCKET_ORIGINS> <APP_API_ORIGINS>;
 media-src 'self' blob: <MEDIA_ORIGINS>;
 worker-src 'self' blob:;
 manifest-src 'self';
@@ -116,8 +117,8 @@ Content-Security-Policy-Report-Only: <POLICY>; report-uri /api/security/csp-repo
 ### 1. Origin 목록 작성
 
 production과 동일한 preview 빌드에서 브라우저 Network 기록을 수집한다. 홈과 모든 주요
-route, 이미지, 다운로드, OAuth, WebSocket, 분석 도구를 확인하고 directive별 origin
-목록을 작성한다.
+route, 이미지, 다운로드, OAuth, 선택적으로 사용하는 WebSocket과 분석 도구를 확인하고
+directive별 origin 목록을 작성한다.
 
 ### 2. Preview에서 Report-Only 활성화
 
@@ -141,7 +142,7 @@ Android와 iOS production 계열 빌드에서 다음 흐름을 확인한다.
 
 - 앱 최초 로드와 route 이동
 - 오프라인 이후 자동 재시도
-- WebSocket 연결
+- WebSocket 연결(사용하는 서비스만)
 - OAuth 시작과 callback
 - 파일 다운로드
 - 필수 앱 업데이트 화면
@@ -185,7 +186,7 @@ Prerendering 전략에 영향을 준다. 따라서 이 템플릿의 기본값으
 - [ ] query, fragment와 민감한 header가 저장되지 않는다.
 - [ ] 허용 origin에 wildcard가 없다.
 - [ ] production 빌드의 모든 주요 route를 브라우저와 WebView에서 확인했다.
-- [ ] WebSocket, OAuth, 다운로드와 deep link 회귀가 없다.
+- [ ] 사용하는 WebSocket, OAuth, 다운로드와 deep link 회귀가 없다.
 - [ ] 차단 모드 승격 및 rollback 절차를 운영자가 확인했다.
 
 ## 참고 자료
