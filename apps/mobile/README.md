@@ -97,11 +97,23 @@ EXPO_PUBLIC_WEB_APP_URL=http://localhost:3000
 
 ### Android Emulator
 
-호스트의 3000 포트를 emulator localhost로 전달한다.
+Android Development Build는 두 개의 로컬 개발 서버를 사용한다.
+
+| 포트   | 서버    | 역할                                         |
+| ------ | ------- | -------------------------------------------- |
+| `8081` | Metro   | Expo 네이티브 셸의 JavaScript bundle 제공    |
+| `3000` | Next.js | WebView에서 표시할 웹 애플리케이션 화면 제공 |
+
+호스트의 두 포트를 emulator localhost로 전달한다.
 
 ```bash
+adb reverse tcp:8081 tcp:8081
 adb reverse tcp:3000 tcp:3000
 ```
+
+Emulator 또는 ADB 서버를 다시 시작했다면 두 명령을 다시 실행한다. 앱이 이미 설치된 상태에서는
+`pnpm dev:mobile`로 Metro를 실행하고 Metro 터미널에서 `a`를 눌러 Development Build를 열 수
+있다.
 
 그 뒤 WebView 주소는 localhost로 유지한다.
 
@@ -259,6 +271,13 @@ pnpm --filter @app/mobile exec expo export --platform all
 APNs/FCM 동작은 development/preview/production build를 실제 기기에 설치해 별도로 검증한다.
 
 ## 문제 해결
+
+### Development Build가 JavaScript를 불러오지 못함
+
+- `Starting Metro Bundler`가 표시된 터미널이 실행 중인지 확인하거나 `pnpm dev:mobile`을 실행한다.
+- `curl http://localhost:8081/status`가 `packager-status:running`을 반환하는지 확인한다.
+- Android emulator에서는 `adb reverse tcp:8081 tcp:8081`을 다시 실행한다.
+- Metro 터미널에서 `r`을 누르거나 emulator의 Development Build를 Reload한다.
 
 ### WebView가 Next.js에 연결되지 않음
 

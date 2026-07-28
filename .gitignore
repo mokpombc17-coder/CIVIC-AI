@@ -2,5 +2,11 @@ node_modules
 .DS_STORE
 .next
 .expo/
+.env
 .env*.local
 *.tsbuildinfo
+
+# Expo-generated files
+/apps/mobile/expo-env.d.ts
+/apps/mobile/android/
+/apps/mobile/ios/
