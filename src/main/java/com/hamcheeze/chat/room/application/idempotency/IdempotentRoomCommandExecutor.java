@@ -93,24 +93,29 @@ public final class IdempotentRoomCommandExecutor {
                                     exception);
                     if (duplicateKind.isPresent()) {
                         DuplicateKeyKind kind = duplicateKind.get();
-                        if (kind == DuplicateKeyKind.RECEIPT_REQUEST
-                                || kind == DuplicateKeyKind.UNKNOWN) {
-                            Optional<RoomCommandExecution> recovered =
-                                    resolveAfterFailure(command);
-                            if (recovered.isPresent()) {
-                                return recovered.get();
-                            }
+                        Optional<RoomCommandExecution> recovered =
+                                resolveAfterFailure(command);
+                        if (recovered.isPresent()) {
+                            return recovered.get();
                         }
-                        if (kind == DuplicateKeyKind.ROOM_ID
+                        if (unresolvedUnknownCommit) {
+                            lastRetryReason =
+                                    RetryReason.UNKNOWN_COMMIT;
+                            lastRetryCause = exception;
+                        } else if (kind == DuplicateKeyKind.ROOM_ID
                                 || kind
-                                == DuplicateKeyKind.MEMBERSHIP_ID) {
+                                == DuplicateKeyKind.MEMBERSHIP_ID
+                                || kind
+                                == DuplicateKeyKind.RECEIPT_ID) {
                             throw failure(
                                     RoomCommandFailureKind.PERMANENT,
                                     "Generated room command ID collision",
                                     exception);
+                        } else {
+                            lastRetryReason =
+                                    RetryReason.CONCURRENCY;
+                            lastRetryCause = exception;
                         }
-                        lastRetryReason = RetryReason.CONCURRENCY;
-                        lastRetryCause = exception;
                     } else if (exceptionClassifier
                             .isTransient(exception)) {
                         lastRetryReason = RetryReason.TRANSIENT;

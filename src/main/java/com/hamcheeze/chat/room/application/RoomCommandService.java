@@ -265,6 +265,13 @@ public final class RoomCommandService {
                     null);
         }
         requireOwnerInvariant(room);
+        if (room.status() == RoomStatus.CLOSED) {
+            return rejection(
+                    command.commandType(),
+                    RoomCommandResultCode.ROOM_CLOSED,
+                    command.roomId(),
+                    null);
+        }
         Membership membership = membershipStore
                 .findByRoomIdAndUserId(
                         room.roomId(),
@@ -311,6 +318,14 @@ public final class RoomCommandService {
                     command.targetUserId());
         }
         Membership currentOwner = requireOwnerInvariant(room);
+        RoomCommandResult precondition = ownerCommandRejection(
+                command.commandType(),
+                room,
+                command.requesterUserId(),
+                command.targetUserId());
+        if (precondition != null) {
+            return precondition;
+        }
         Membership target = membershipStore
                 .findByRoomIdAndUserId(
                         room.roomId(),
@@ -356,6 +371,14 @@ public final class RoomCommandService {
                     command.targetUserId());
         }
         requireOwnerInvariant(room);
+        RoomCommandResult precondition = ownerCommandRejection(
+                command.commandType(),
+                room,
+                command.requesterUserId(),
+                command.targetUserId());
+        if (precondition != null) {
+            return precondition;
+        }
         Membership target = membershipStore
                 .findByRoomIdAndUserId(
                         room.roomId(),
@@ -403,6 +426,14 @@ public final class RoomCommandService {
                     command.targetUserId());
         }
         requireOwnerInvariant(room);
+        RoomCommandResult precondition = ownerCommandRejection(
+                command.commandType(),
+                room,
+                command.requesterUserId(),
+                command.targetUserId());
+        if (precondition != null) {
+            return precondition;
+        }
         Membership target = membershipStore
                 .findByRoomIdAndUserId(
                         room.roomId(),
@@ -507,6 +538,29 @@ public final class RoomCommandService {
                     "Room owner membership invariant is broken");
         }
         return owner;
+    }
+
+    private RoomCommandResult ownerCommandRejection(
+            RoomCommandType commandType,
+            Room room,
+            String requesterUserId,
+            String targetUserId
+    ) {
+        if (room.status() == RoomStatus.CLOSED) {
+            return rejection(
+                    commandType,
+                    RoomCommandResultCode.ROOM_CLOSED,
+                    room.roomId(),
+                    targetUserId);
+        }
+        if (!room.ownerUserId().equals(requesterUserId)) {
+            return rejection(
+                    commandType,
+                    RoomCommandResultCode.NOT_ROOM_OWNER,
+                    room.roomId(),
+                    targetUserId);
+        }
+        return null;
     }
 
     private void replaceRoom(Room room, long expectedVersion) {

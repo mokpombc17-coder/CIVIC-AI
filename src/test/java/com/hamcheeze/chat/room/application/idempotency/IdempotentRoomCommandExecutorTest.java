@@ -14,6 +14,10 @@ import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.StoredRoomCommandResult;
 import com.mongodb.MongoException;
+import com.mongodb.MongoWriteException;
+import com.mongodb.ServerAddress;
+import com.mongodb.WriteError;
+import org.bson.BsonDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
@@ -285,6 +289,96 @@ class IdempotentRoomCommandExecutorTest {
     }
 
     @Test
+    void unknownCommitThenRoomIdDuplicateRecoversReceipt() {
+        PreparedRoomCommand command = prepared("unknown-duplicate");
+        RoomCommandResult storedResult = joined();
+        receipts.hiddenFinds = 3;
+        AtomicInteger transactionCalls = new AtomicInteger();
+        AtomicInteger actionCalls = new AtomicInteger();
+        TransactionOperations operations = new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> callback) {
+                int transactionCall =
+                        transactionCalls.incrementAndGet();
+                T value = callback.doInTransaction(null);
+                if (transactionCall == 1) {
+                    MongoException unknown =
+                            new MongoException("unknown commit");
+                    unknown.addLabel(
+                            MongoRoomCommandExceptionClassifier
+                                    .UNKNOWN_TRANSACTION_COMMIT_RESULT);
+                    throw unknown;
+                }
+                return value;
+            }
+        };
+
+        RoomCommandExecution execution = executor(operations)
+                .execute(command, () -> {
+                    if (actionCalls.incrementAndGet() == 1) {
+                        return storedResult;
+                    }
+                    throw duplicateId("chat_rooms");
+                });
+
+        assertThat(execution.result()).isEqualTo(storedResult);
+        assertThat(execution.replayed()).isTrue();
+        assertThat(actionCalls).hasValue(2);
+        assertThat(transactionCalls).hasValue(2);
+        assertThat(receipts.findCalls).isEqualTo(4);
+    }
+
+    @Test
+    void unknownCommitThenGeneratedIdDuplicateExhaustionIsUnknown() {
+        properties.setMaxAttempts(2);
+        AtomicInteger transactionCalls = new AtomicInteger();
+        TransactionOperations operations = new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> callback) {
+                if (transactionCalls.incrementAndGet() == 1) {
+                    MongoException unknown =
+                            new MongoException("unknown commit");
+                    unknown.addLabel(
+                            MongoRoomCommandExceptionClassifier
+                                    .UNKNOWN_TRANSACTION_COMMIT_RESULT);
+                    throw unknown;
+                }
+                return callback.doInTransaction(null);
+            }
+        };
+
+        assertThatThrownBy(() -> executor(operations)
+                .execute(
+                        prepared("unknown-id-collision"),
+                        () -> {
+                            throw duplicateId("chat_memberships");
+                        }))
+                .isInstanceOfSatisfying(
+                        RoomCommandExecutionException.class,
+                        exception -> {
+                            assertThat(exception.kind())
+                                    .isEqualTo(
+                                            RoomCommandFailureKind
+                                                    .OUTCOME_UNKNOWN);
+                            assertThat(exception.retryable()).isTrue();
+                        });
+    }
+
+    @Test
+    void generatedIdDuplicateWithoutUnknownCommitIsPermanent() {
+        assertPermanentGeneratedIdCollision(
+                "chat_rooms",
+                "room-id-collision");
+    }
+
+    @Test
+    void receiptIdDuplicateWithoutUnknownCommitIsPermanent() {
+        assertPermanentGeneratedIdCollision(
+                "chat_room_command_receipts",
+                "receipt-id-collision");
+    }
+
+    @Test
     void retryExhaustionIsReportedWithoutReceipt() {
         properties.setMaxAttempts(2);
 
@@ -312,6 +406,36 @@ class IdempotentRoomCommandExecutorTest {
                 codec,
                 new MongoRoomCommandExceptionClassifier(),
                 properties);
+    }
+
+    private void assertPermanentGeneratedIdCollision(
+            String collection,
+            String fingerprint
+    ) {
+        assertThatThrownBy(() -> executor(
+                TransactionOperations.withoutTransaction())
+                .execute(prepared(fingerprint), () -> {
+                    throw duplicateId(collection);
+                }))
+                .isInstanceOfSatisfying(
+                        RoomCommandExecutionException.class,
+                        exception -> {
+                            assertThat(exception.kind())
+                                    .isEqualTo(
+                                            RoomCommandFailureKind
+                                                    .PERMANENT);
+                            assertThat(exception.retryable()).isFalse();
+                        });
+    }
+
+    private MongoWriteException duplicateId(String collection) {
+        return new MongoWriteException(
+                new WriteError(
+                        11000,
+                        collection,
+                        BsonDocument.parse(
+                                "{keyPattern:{_id:1}}")),
+                new ServerAddress());
     }
 
     private PreparedRoomCommand prepared(String fingerprint) {
@@ -373,6 +497,8 @@ class IdempotentRoomCommandExecutorTest {
 
         private RoomCommandReceipt receipt;
         private int insertCalls;
+        private int findCalls;
+        private int hiddenFinds;
         private boolean throwDuplicateAfterInsert;
 
         @Override
@@ -380,6 +506,10 @@ class IdempotentRoomCommandExecutorTest {
                 String requesterUserId,
                 String clientRequestId
         ) {
+            findCalls++;
+            if (findCalls <= hiddenFinds) {
+                return Optional.empty();
+            }
             return Optional.ofNullable(receipt);
         }
 

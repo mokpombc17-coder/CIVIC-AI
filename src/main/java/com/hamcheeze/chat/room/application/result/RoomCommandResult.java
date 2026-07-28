@@ -41,6 +41,25 @@ public record RoomCommandResult(
         requireVersion(
                 newOwnerMembershipVersion,
                 "newOwnerMembershipVersion");
+        validateSemantics(
+                commandType,
+                code,
+                roomId,
+                membershipId,
+                membershipUserId,
+                ownerMembershipId,
+                ownerUserId,
+                previousOwnerUserId,
+                newOwnerUserId,
+                previousOwnerMembershipId,
+                newOwnerMembershipId,
+                targetUserId,
+                targetMembershipId,
+                roomVersion,
+                membershipVersion,
+                ownerMembershipVersion,
+                previousOwnerMembershipVersion,
+                newOwnerMembershipVersion);
     }
 
     public static RoomCommandResult created(
@@ -213,5 +232,169 @@ public record RoomCommandResult(
             throw new IllegalArgumentException(
                     fieldName + " must not be negative");
         }
+    }
+
+    private static void validateSemantics(
+            RoomCommandType commandType,
+            RoomCommandResultCode code,
+            String roomId,
+            String membershipId,
+            String membershipUserId,
+            String ownerMembershipId,
+            String ownerUserId,
+            String previousOwnerUserId,
+            String newOwnerUserId,
+            String previousOwnerMembershipId,
+            String newOwnerMembershipId,
+            String targetUserId,
+            String targetMembershipId,
+            Long roomVersion,
+            Long membershipVersion,
+            Long ownerMembershipVersion,
+            Long previousOwnerMembershipVersion,
+            Long newOwnerMembershipVersion
+    ) {
+        requireNonBlank(roomId, "roomId");
+        if (code.rejection()) {
+            return;
+        }
+        if (!supports(commandType, code)) {
+            throw new IllegalArgumentException(
+                    "Result code " + code
+                            + " is not valid for " + commandType);
+        }
+        switch (code) {
+            case ROOM_CREATED -> {
+                requireNonBlank(
+                        ownerMembershipId,
+                        "ownerMembershipId");
+                requireNonBlank(ownerUserId, "ownerUserId");
+                requireRequiredVersion(
+                        roomVersion,
+                        "roomVersion");
+                requireRequiredVersion(
+                        ownerMembershipVersion,
+                        "ownerMembershipVersion");
+            }
+            case JOINED, REJOINED, ALREADY_ACTIVE,
+                    LEFT, ALREADY_LEFT -> {
+                requireNonBlank(membershipId, "membershipId");
+                requireNonBlank(
+                        membershipUserId,
+                        "membershipUserId");
+                requireRequiredVersion(
+                        roomVersion,
+                        "roomVersion");
+                requireRequiredVersion(
+                        membershipVersion,
+                        "membershipVersion");
+            }
+            case OWNERSHIP_TRANSFERRED -> {
+                requireNonBlank(
+                        previousOwnerUserId,
+                        "previousOwnerUserId");
+                requireNonBlank(
+                        newOwnerUserId,
+                        "newOwnerUserId");
+                requireNonBlank(
+                        previousOwnerMembershipId,
+                        "previousOwnerMembershipId");
+                requireNonBlank(
+                        newOwnerMembershipId,
+                        "newOwnerMembershipId");
+                requireRequiredVersion(
+                        roomVersion,
+                        "roomVersion");
+                requireRequiredVersion(
+                        previousOwnerMembershipVersion,
+                        "previousOwnerMembershipVersion");
+                requireRequiredVersion(
+                        newOwnerMembershipVersion,
+                        "newOwnerMembershipVersion");
+            }
+            case BANNED, ALREADY_BANNED,
+                    UNBANNED, ALREADY_UNBANNED -> {
+                requireNonBlank(targetUserId, "targetUserId");
+                requireNonBlank(
+                        targetMembershipId,
+                        "targetMembershipId");
+                requireRequiredVersion(
+                        roomVersion,
+                        "roomVersion");
+                requireRequiredVersion(
+                        membershipVersion,
+                        "membershipVersion");
+            }
+            case CLOSED, ALREADY_CLOSED -> {
+                requireNonBlank(
+                        ownerMembershipId,
+                        "ownerMembershipId");
+                requireNonBlank(ownerUserId, "ownerUserId");
+                requireRequiredVersion(
+                        roomVersion,
+                        "roomVersion");
+                requireRequiredVersion(
+                        ownerMembershipVersion,
+                        "ownerMembershipVersion");
+            }
+            default -> throw new IllegalArgumentException(
+                    "Unsupported success result code: " + code);
+        }
+    }
+
+    private static boolean supports(
+            RoomCommandType commandType,
+            RoomCommandResultCode code
+    ) {
+        return switch (commandType) {
+            case CREATE_ROOM ->
+                    code == RoomCommandResultCode.ROOM_CREATED;
+            case JOIN_ROOM ->
+                    code == RoomCommandResultCode.JOINED
+                            || code
+                            == RoomCommandResultCode.REJOINED
+                            || code
+                            == RoomCommandResultCode.ALREADY_ACTIVE;
+            case LEAVE_ROOM ->
+                    code == RoomCommandResultCode.LEFT
+                            || code
+                            == RoomCommandResultCode.ALREADY_LEFT;
+            case TRANSFER_OWNERSHIP ->
+                    code == RoomCommandResultCode
+                            .OWNERSHIP_TRANSFERRED;
+            case BAN_MEMBER ->
+                    code == RoomCommandResultCode.BANNED
+                            || code
+                            == RoomCommandResultCode.ALREADY_BANNED;
+            case UNBAN_MEMBER ->
+                    code == RoomCommandResultCode.UNBANNED
+                            || code
+                            == RoomCommandResultCode.ALREADY_UNBANNED;
+            case CLOSE_ROOM ->
+                    code == RoomCommandResultCode.CLOSED
+                            || code
+                            == RoomCommandResultCode.ALREADY_CLOSED;
+        };
+    }
+
+    private static void requireNonBlank(
+            String value,
+            String fieldName
+    ) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(
+                    fieldName + " must not be blank");
+        }
+    }
+
+    private static void requireRequiredVersion(
+            Long version,
+            String fieldName
+    ) {
+        if (version == null) {
+            throw new IllegalArgumentException(
+                    fieldName + " must not be null");
+        }
+        requireVersion(version, fieldName);
     }
 }

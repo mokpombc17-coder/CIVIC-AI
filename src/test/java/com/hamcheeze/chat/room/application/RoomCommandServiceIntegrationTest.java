@@ -32,6 +32,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -40,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -325,6 +327,157 @@ class RoomCommandServiceIntegrationTest
         assertThat(membership(roomId, "user-2").status())
                 .isEqualTo(MembershipStatus.LEFT);
         assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void transferPrioritizesRoomStateAndRequesterBeforeTargetLookup() {
+        String activeRoom = roomWithActiveMember();
+        String missingRequestId = requestId();
+        assertRejectionReplay(
+                activeRoom,
+                RoomCommandResultCode.NOT_ROOM_OWNER,
+                () -> service.transferOwnership(
+                        new TransferOwnershipCommand(
+                                "non-owner",
+                                missingRequestId,
+                                activeRoom,
+                                "missing-user")));
+        String existingRequestId = requestId();
+        assertRejectionReplay(
+                activeRoom,
+                RoomCommandResultCode.NOT_ROOM_OWNER,
+                () -> service.transferOwnership(
+                        new TransferOwnershipCommand(
+                                "non-owner",
+                                existingRequestId,
+                                activeRoom,
+                                "user-2")));
+
+        String closedRoom = closedRoomWithFormerMember();
+        String closedMissingRequestId = requestId();
+        assertRejectionReplay(
+                closedRoom,
+                RoomCommandResultCode.ROOM_CLOSED,
+                () -> service.transferOwnership(
+                        new TransferOwnershipCommand(
+                                "owner-2",
+                                closedMissingRequestId,
+                                closedRoom,
+                                "missing-user")));
+        String closedExistingRequestId = requestId();
+        assertRejectionReplay(
+                closedRoom,
+                RoomCommandResultCode.ROOM_CLOSED,
+                () -> service.transferOwnership(
+                        new TransferOwnershipCommand(
+                                "owner-2",
+                                closedExistingRequestId,
+                                closedRoom,
+                                "user-2")));
+    }
+
+    @Test
+    void banPrioritizesRoomStateAndRequesterBeforeTargetLookup() {
+        String activeRoom = roomWithActiveMember();
+        String missingRequestId = requestId();
+        assertRejectionReplay(
+                activeRoom,
+                RoomCommandResultCode.NOT_ROOM_OWNER,
+                () -> service.banMember(new BanMemberCommand(
+                        "non-owner",
+                        missingRequestId,
+                        activeRoom,
+                        "missing-user")));
+        String existingRequestId = requestId();
+        assertRejectionReplay(
+                activeRoom,
+                RoomCommandResultCode.NOT_ROOM_OWNER,
+                () -> service.banMember(new BanMemberCommand(
+                        "non-owner",
+                        existingRequestId,
+                        activeRoom,
+                        "user-2")));
+
+        String closedRoom = closedRoomWithFormerMember();
+        String closedMissingRequestId = requestId();
+        assertRejectionReplay(
+                closedRoom,
+                RoomCommandResultCode.ROOM_CLOSED,
+                () -> service.banMember(new BanMemberCommand(
+                        "owner-2",
+                        closedMissingRequestId,
+                        closedRoom,
+                        "missing-user")));
+        String closedExistingRequestId = requestId();
+        assertRejectionReplay(
+                closedRoom,
+                RoomCommandResultCode.ROOM_CLOSED,
+                () -> service.banMember(new BanMemberCommand(
+                        "owner-2",
+                        closedExistingRequestId,
+                        closedRoom,
+                        "user-2")));
+    }
+
+    @Test
+    void unbanPrioritizesRoomStateAndRequesterBeforeTargetLookup() {
+        String activeRoom = roomWithActiveMember();
+        String missingRequestId = requestId();
+        assertRejectionReplay(
+                activeRoom,
+                RoomCommandResultCode.NOT_ROOM_OWNER,
+                () -> service.unbanMember(new UnbanMemberCommand(
+                        "non-owner",
+                        missingRequestId,
+                        activeRoom,
+                        "missing-user")));
+        String existingRequestId = requestId();
+        assertRejectionReplay(
+                activeRoom,
+                RoomCommandResultCode.NOT_ROOM_OWNER,
+                () -> service.unbanMember(new UnbanMemberCommand(
+                        "non-owner",
+                        existingRequestId,
+                        activeRoom,
+                        "user-2")));
+
+        String closedRoom = closedRoomWithFormerMember();
+        String closedMissingRequestId = requestId();
+        assertRejectionReplay(
+                closedRoom,
+                RoomCommandResultCode.ROOM_CLOSED,
+                () -> service.unbanMember(new UnbanMemberCommand(
+                        "owner-2",
+                        closedMissingRequestId,
+                        closedRoom,
+                        "missing-user")));
+        String closedExistingRequestId = requestId();
+        assertRejectionReplay(
+                closedRoom,
+                RoomCommandResultCode.ROOM_CLOSED,
+                () -> service.unbanMember(new UnbanMemberCommand(
+                        "owner-2",
+                        closedExistingRequestId,
+                        closedRoom,
+                        "user-2")));
+    }
+
+    @Test
+    void leavePrioritizesClosedRoomBeforeMissingMembership() {
+        String roomId = createOpenRoom("owner-1");
+        service.closeRoom(new CloseRoomCommand(
+                "owner-1",
+                requestId(),
+                roomId));
+        String leaveRequestId = requestId();
+
+        assertRejectionReplay(
+                roomId,
+                RoomCommandResultCode.ROOM_CLOSED,
+                () -> service.leaveRoom(new LeaveRoomCommand(
+                        "missing-user",
+                        leaveRequestId,
+                        roomId)));
     }
 
     @Test
@@ -616,6 +769,32 @@ class RoomCommandServiceIntegrationTest
         return createRoom(ownerUserId, JoinPolicy.OPEN);
     }
 
+    private String roomWithActiveMember() {
+        String roomId = createOpenRoom("owner-1");
+        service.joinRoom(new JoinRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        return roomId;
+    }
+
+    private String closedRoomWithFormerMember() {
+        String roomId = createOpenRoom("owner-2");
+        service.joinRoom(new JoinRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        service.leaveRoom(new LeaveRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        service.closeRoom(new CloseRoomCommand(
+                "owner-2",
+                requestId(),
+                roomId));
+        return roomId;
+    }
+
     private String createRoom(
             String ownerUserId,
             JoinPolicy joinPolicy
@@ -649,14 +828,47 @@ class RoomCommandServiceIntegrationTest
                 .orElseThrow();
     }
 
-    private void assertRoomInvariants(String roomId) {
-        Room room = roomStore.findById(roomId).orElseThrow();
-        List<Membership> memberships = mongoOperations.find(
+    private void assertRejectionReplay(
+            String roomId,
+            RoomCommandResultCode expectedCode,
+            Supplier<RoomCommandExecution> command
+    ) {
+        Room roomBefore = roomStore.findById(roomId).orElseThrow();
+        List<Membership> membershipsBefore =
+                memberships(roomId);
+        long receiptsBefore = count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME);
+
+        RoomCommandExecution first = command.get();
+        RoomCommandExecution replay = command.get();
+
+        assertThat(first.result().code()).isEqualTo(expectedCode);
+        assertThat(first.replayed()).isFalse();
+        assertThat(replay.result()).isEqualTo(first.result());
+        assertThat(replay.replayed()).isTrue();
+        assertThat(roomStore.findById(roomId)).contains(roomBefore);
+        assertThat(memberships(roomId))
+                .containsExactlyElementsOf(membershipsBefore);
+        assertThat(count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isEqualTo(receiptsBefore + 1);
+        assertRoomInvariants(roomId);
+    }
+
+    private List<Membership> memberships(String roomId) {
+        return mongoOperations.find(
                         Query.query(Criteria.where("roomId").is(roomId)),
                         MongoMembershipDocument.class)
                 .stream()
                 .map(MongoMembershipDocument::toDomain)
+                .sorted(Comparator.comparing(
+                        Membership::membershipId))
                 .toList();
+    }
+
+    private void assertRoomInvariants(String roomId) {
+        Room room = roomStore.findById(roomId).orElseThrow();
+        List<Membership> memberships = memberships(roomId);
         List<Membership> owners = memberships.stream()
                 .filter(membership ->
                         membership.role() == MembershipRole.OWNER)

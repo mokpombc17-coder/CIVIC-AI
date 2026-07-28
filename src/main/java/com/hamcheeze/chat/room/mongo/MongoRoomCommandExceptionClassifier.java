@@ -122,6 +122,12 @@ public final class MongoRoomCommandExceptionClassifier {
         if (hasKeys(keyPattern, "_id")) {
             if (message != null
                     && message.contains(
+                    MongoRoomCommandReceiptDocument
+                            .COLLECTION_NAME)) {
+                return DuplicateKeyKind.RECEIPT_ID;
+            }
+            if (message != null
+                    && message.contains(
                     MongoRoomDocument.COLLECTION_NAME)) {
                 return DuplicateKeyKind.ROOM_ID;
             }
@@ -173,6 +179,7 @@ public final class MongoRoomCommandExceptionClassifier {
 
     public enum DuplicateKeyKind {
         RECEIPT_REQUEST,
+        RECEIPT_ID,
         ROOM_ID,
         MEMBERSHIP_ID,
         MEMBERSHIP_RELATION,

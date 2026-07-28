@@ -4,6 +4,7 @@ import com.hamcheeze.chat.room.application.result.RoomCommandResult;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
+import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.StoredRoomCommandResult;
 import org.junit.jupiter.api.Test;
@@ -79,6 +80,101 @@ class RoomCommandResultCodecTest {
                 RoomCommandType.LEAVE_ROOM))
                 .isInstanceOf(RoomCommandExecutionException.class)
                 .hasMessageContaining("does not match");
+    }
+
+    @Test
+    void rejectsSuccessCodeThatDoesNotBelongToCommandType() {
+        assertThatThrownBy(() -> new RoomCommandResult(
+                RoomCommandType.JOIN_ROOM,
+                RoomCommandResultCode.ROOM_CREATED,
+                "room-1",
+                null,
+                null,
+                "owner-membership",
+                "owner-1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0L,
+                null,
+                0L,
+                null,
+                null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(RoomCommandResultCode.JOINED)),
+                "\"code\":\"JOINED\"",
+                "\"code\":\"ROOM_CREATED\""));
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(RoomCommandResultCode.CLOSED)),
+                "\"code\":\"CLOSED\"",
+                "\"code\":\"JOINED\""));
+    }
+
+    @Test
+    void rejectsMissingRequiredSuccessSnapshotFields() {
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(
+                        RoomCommandResultCode.ROOM_CREATED)),
+                "\"ownerMembershipId\":\"owner-membership\"",
+                "\"ownerMembershipId\":null"));
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(RoomCommandResultCode.JOINED)),
+                "\"membershipVersion\":6",
+                "\"membershipVersion\":null"));
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(
+                        RoomCommandResultCode
+                                .OWNERSHIP_TRANSFERRED)),
+                "\"newOwnerUserId\":\"owner-2\"",
+                "\"newOwnerUserId\":null"));
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(RoomCommandResultCode.BANNED)),
+                "\"targetMembershipId\":\"target-membership-1\"",
+                "\"targetMembershipId\":null"));
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(RoomCommandResultCode.CLOSED)),
+                "\"ownerMembershipVersion\":5",
+                "\"ownerMembershipVersion\":null"));
+    }
+
+    private void assertPermanentDecodeFailure(
+            StoredRoomCommandResult stored
+    ) {
+        assertThatThrownBy(() -> codec.decode(
+                stored,
+                RoomCommandType.valueOf(
+                        payloadCommandType(stored))))
+                .isInstanceOfSatisfying(
+                        RoomCommandExecutionException.class,
+                        exception -> assertThat(exception.kind())
+                                .isEqualTo(
+                                        RoomCommandFailureKind
+                                                .PERMANENT));
+    }
+
+    private StoredRoomCommandResult changed(
+            StoredRoomCommandResult stored,
+            String existing,
+            String replacement
+    ) {
+        return new StoredRoomCommandResult(
+                stored.resultType(),
+                stored.resultSchemaVersion(),
+                stored.payload().replace(existing, replacement));
+    }
+
+    private String payloadCommandType(
+            StoredRoomCommandResult stored
+    ) {
+        String marker = "\"commandType\":\"";
+        int start = stored.payload().indexOf(marker) + marker.length();
+        int end = stored.payload().indexOf('"', start);
+        return stored.payload().substring(start, end);
     }
 
     private RoomCommandResult result(RoomCommandResultCode code) {
