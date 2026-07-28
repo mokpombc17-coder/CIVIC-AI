@@ -243,6 +243,31 @@ Custom scheme은 OAuth callback과 개발 보조 수단이다. 앱 미설치 시
 새 권한을 추가할 때는 실제 기능 진입 시점에 요청하고, 거부 상태에서도 웹의 핵심 기능을 사용할 수
 있어야 한다.
 
+## 필수 앱 업데이트
+
+네이티브 권한, SDK 또는 bridge 기능이 추가되어 이전 앱 binary와 호환되지 않을 때는 웹 서버의
+최소 build version 정책을 사용한다. 두 값이 비어 있으면 필수 업데이트 기능은 비활성화된다.
+
+```dotenv
+IOS_MINIMUM_BUILD_VERSION=
+ANDROID_MINIMUM_BUILD_VERSION=
+```
+
+모바일 셸은 앱의 `buildNumber` 또는 `versionCode`를 WebView에 전달한다. 웹은 최초 연결과 앱이
+foreground로 돌아올 때 `/api/mobile/config`를 다시 조회하고, 현재 build가 최소값보다 낮으면
+플랫폼별 스토어 링크로 이동하는 필수 업데이트 화면을 표시한다.
+
+새 앱을 스토어에 제출한 뒤에는 다음 순서를 지킨다.
+
+1. 새 build가 실제로 설치 가능한 상태인지 확인한다.
+2. `IOS_APP_STORE_URL` 또는 `ANDROID_PLAY_STORE_URL`이 올바른지 확인한다.
+3. 해당 플랫폼의 최소 build version을 새 값으로 변경한다.
+4. Next.js를 다시 배포한다.
+
+스토어에서 새 build를 받을 수 있기 전에 최소값을 올리면 사용자가 앱에 진입할 수 없으므로,
+단계적 배포 중에는 최소값을 올리지 않는다. Production EAS build는 `eas.json`의
+`autoIncrement` 설정으로 build version을 증가시킨다.
+
 ## 프로덕션 체크리스트
 
 - 앱 표시 이름과 slug를 서비스 값으로 교체한다.
@@ -253,6 +278,7 @@ Custom scheme은 OAuth callback과 개발 보조 수단이다. 앱 미설치 시
 - OAuth provider callback URL과 BFF session adapter를 연결한다.
 - 푸시 token 저장소와 사용자 해제 처리를 연결한다.
 - 웹의 `IOS_APP_STORE_URL`, `ANDROID_PLAY_STORE_URL`은 스토어 등록 후 입력한다.
+- 네이티브 호환성이 깨지는 release는 스토어 배포 완료 후 최소 build version을 갱신한다.
 - 실제 기기에서 뒤로가기, OAuth, 딥링크, 다운로드, 알림 클릭을 검증한다.
 
 스토어 URL이 비어 있으면 웹 설치 배너는 렌더링되지 않는다. Universal/App Link와 스토어 URL

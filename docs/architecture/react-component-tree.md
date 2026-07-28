@@ -6,7 +6,7 @@
 
 - `[Server]`: App Router가 Server Component로 렌더링하며 Client module graph에 포함되지 않은 컴포넌트
 - `[Client]`: `"use client"` 경계를 선언했거나 해당 경계가 시작한 Client module graph에 포함된 컴포넌트
-- `[conditional]`: 컴포넌트 자체가 조건에 따라 `null`을 반환하거나 App Router가 런타임 상태에 따라 선택하는 UI
+- `[conditional]`: 컴포넌트가 조건에 따라 출력 분기를 선택하거나 `null`을 반환하고, 또는 App Router가 런타임 상태에 따라 선택하는 UI
 - `[dynamic]`: `next/dynamic`, `React.lazy`, `lazy()` 또는 동적 `import()`로 로드되는 컴포넌트
 - `[slot: ...]`: `children`, slot, provider처럼 소스만으로 실제 자식을 하나로 확정할 수 없는 관계
 - `div`, `section`, `main`, `header` 등의 intrinsic HTML element는 제외했다.
@@ -22,13 +22,15 @@
 RootLayout [Server] (apps/web/app/layout.tsx)
 └── AppShell [Client] (apps/web/components/app-shell.tsx)
     ├── NativeBridgeRuntime [Client] (apps/web/components/native-bridge-runtime.tsx)
-    ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
-    │   └── 조건: store URL이 없으면 null 반환
-    └── children [slot: App Router가 route child를 제공]
-        └── HomePage [Server] (apps/web/app/page.tsx)
-            ├── RuntimeQueryPanel [Client] (apps/web/components/runtime-query-panel.tsx)
-            ├── UpstreamHealthPanel [Client] (apps/web/components/upstream-health-panel.tsx)
-            └── NativeBridgePanel [Client] (apps/web/components/native-bridge-panel.tsx)
+    └── AppUpdateGate [Client] [conditional] (apps/web/components/app-update-gate.tsx)
+        ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
+        ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
+        │   └── 조건: store URL이 없으면 null 반환
+        └── children [slot: App Router가 route child를 제공]
+            └── HomePage [Server] (apps/web/app/page.tsx)
+                ├── RuntimeQueryPanel [Client] (apps/web/components/runtime-query-panel.tsx)
+                ├── UpstreamHealthPanel [Client] (apps/web/components/upstream-health-panel.tsx)
+                └── NativeBridgePanel [Client] (apps/web/components/native-bridge-panel.tsx)
 ```
 
 `RuntimeQueryPanel`, `UpstreamHealthPanel`, `NativeBridgePanel` 내부에는 조건부 UI가 있지만 모두 intrinsic HTML element이므로 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
@@ -41,10 +43,12 @@ RootLayout [Server] (apps/web/app/layout.tsx)
 RootLayout [Server] (apps/web/app/layout.tsx)
 └── AppShell [Client] (apps/web/components/app-shell.tsx)
     ├── NativeBridgeRuntime [Client] (apps/web/components/native-bridge-runtime.tsx)
-    ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
-    │   └── 조건: store URL이 없으면 null 반환
-    └── children [slot: App Router가 route child를 제공]
-        └── ArchitecturePage [Server] (apps/web/app/architecture/page.tsx)
+    └── AppUpdateGate [Client] [conditional] (apps/web/components/app-update-gate.tsx)
+        ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
+        ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
+        │   └── 조건: store URL이 없으면 null 반환
+        └── children [slot: App Router가 route child를 제공]
+            └── ArchitecturePage [Server] (apps/web/app/architecture/page.tsx)
 ```
 
 `ArchitecturePage`는 프로젝트에서 정의한 다른 React 컴포넌트를 렌더링하지 않는다.
@@ -68,13 +72,14 @@ NotFound [Server] [conditional: unmatched route 또는 notFound()]
 
 ## 전체 component dependency graph
 
-실선은 소스에 직접 나타나는 프로젝트 컴포넌트 렌더링 관계다. 점선은 App Router 또는 `children` slot이 런타임에 결정하는 관계다. `AppInstallBanner` 호출은 직접 관계지만, 컴포넌트 자체의 출력이 조건부이므로 edge label에 이를 표시했다.
+실선은 소스에 직접 나타나는 프로젝트 컴포넌트 렌더링 관계다. 점선은 App Router 또는 `children` slot이 런타임에 결정하는 관계다. `AppUpdateGate`는 정책 판정에 따라 전달받은 `children` 또는 자체 안내 UI를 선택하며, `AppInstallBanner` 호출은 직접 관계지만 컴포넌트 자체의 출력이 조건부이므로 edge label에 이를 표시했다.
 
 ```mermaid
 flowchart TD
     RootLayout["RootLayout [Server]<br/>apps/web/app/layout.tsx"]
     AppShell["AppShell [Client]<br/>apps/web/components/app-shell.tsx"]
     NativeBridgeRuntime["NativeBridgeRuntime [Client]<br/>apps/web/components/native-bridge-runtime.tsx"]
+    AppUpdateGate["AppUpdateGate [Client] [conditional]<br/>apps/web/components/app-update-gate.tsx"]
     AppInstallBanner["AppInstallBanner [Client] [conditional]<br/>apps/web/components/app-install-banner.tsx"]
     ChildrenSlot["children slot<br/>App Router가 실제 자식을 결정"]
 
@@ -92,8 +97,9 @@ flowchart TD
 
     RootLayout --> AppShell
     AppShell --> NativeBridgeRuntime
-    AppShell -->|"component output conditional"| AppInstallBanner
-    AppShell --> ChildrenSlot
+    AppShell -->|"update policy branch"| AppUpdateGate
+    AppUpdateGate -->|"component output conditional"| AppInstallBanner
+    AppUpdateGate --> ChildrenSlot
 
     ChildrenSlot -. "route /" .-> HomePage
     HomePage --> RuntimeQueryPanel
@@ -111,6 +117,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppInstallBanner,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ErrorPage client;
     class ChildrenSlot,SpecialBoundary framework;
 ```

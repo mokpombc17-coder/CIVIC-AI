@@ -57,6 +57,13 @@ describe("bridge protocol", () => {
         expoPushToken: "ExponentPushToken[example]",
       },
     },
+    {
+      ...envelope,
+      type: "APP_STATE_CHANGED",
+      payload: {
+        state: "active",
+      },
+    },
   ])("accepts the $type native response", (message) => {
     expect(parseNativeToWebMessage(serializeBridgeMessage(message))).toEqual(message);
   });

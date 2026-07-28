@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isNativeShell } from "@/lib/native/bridge-client";
-
-type MobileConfig = {
-  store: {
-    ios: string | null;
-    android: string | null;
-  };
-};
+import type { MobileConfig } from "@/lib/mobile/mobile-config";
 
 export function AppInstallBanner() {
   const [storeUrl, setStoreUrl] = useState<string | null>(null);
