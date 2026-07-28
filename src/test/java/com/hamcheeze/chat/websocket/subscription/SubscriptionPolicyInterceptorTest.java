@@ -102,7 +102,12 @@ class SubscriptionPolicyInterceptorTest {
         assertThat(interceptor.preSend(message, null)).isSameAs(message);
         verify(authorization, org.mockito.Mockito.times(2))
                 .authorizeSubscription("user-1", "room-1");
-        verify(registry).register(eq("connection-1"), any());
+        ArgumentCaptor<SubscriptionDescriptor> descriptor =
+                ArgumentCaptor.forClass(SubscriptionDescriptor.class);
+        verify(registry).register(
+                eq("connection-1"),
+                descriptor.capture());
+        assertThat(descriptor.getValue().userId()).isEqualTo("user-1");
     }
 
     @Test

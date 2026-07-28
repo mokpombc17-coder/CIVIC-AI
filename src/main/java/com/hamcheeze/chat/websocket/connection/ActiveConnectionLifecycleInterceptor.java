@@ -2,8 +2,11 @@ package com.hamcheeze.chat.websocket.connection;
 
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
+import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -12,24 +15,46 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
+import java.util.EnumMap;
+import java.util.Map;
 
 @Component
 public final class ActiveConnectionLifecycleInterceptor
         implements ChannelInterceptor {
 
+    private static final Logger log = LoggerFactory.getLogger(
+            ActiveConnectionLifecycleInterceptor.class);
+    private static final String REPLACEMENT_CLOSE_METRIC =
+            "websocket.connections.replacement_close";
+
     private final ActiveConnectionRegistry activeConnections;
     private final TransportSessionRegistry transportSessions;
+    private final ChatSubscriptionRegistry subscriptions;
     private final Counter replacedCounter;
+    private final Map<TransportSessionCloseResult, Counter>
+            replacementCloseCounters;
 
     public ActiveConnectionLifecycleInterceptor(
             ActiveConnectionRegistry activeConnections,
             TransportSessionRegistry transportSessions,
+            ChatSubscriptionRegistry subscriptions,
             MeterRegistry meterRegistry
     ) {
         this.activeConnections = activeConnections;
         this.transportSessions = transportSessions;
+        this.subscriptions = subscriptions;
         this.replacedCounter =
                 meterRegistry.counter("websocket.connections.replaced");
+        this.replacementCloseCounters =
+                new EnumMap<>(TransportSessionCloseResult.class);
+        for (TransportSessionCloseResult result
+                : TransportSessionCloseResult.values()) {
+            replacementCloseCounters.put(
+                    result,
+                    Counter.builder(REPLACEMENT_CLOSE_METRIC)
+                            .tag("result", metricResult(result))
+                            .register(meterRegistry));
+        }
     }
 
     @Override
@@ -62,8 +87,47 @@ public final class ActiveConnectionLifecycleInterceptor
             BestEffortMetricRecorder.increment(
                     "websocket.connections.replaced",
                     replacedCounter);
-            transportSessions.closeReplaced(replaced);
+            TransportSessionCloseResult closeResult =
+                    transportSessions.close(
+                            replaced,
+                            TransportSessionRegistry.CONNECTION_REPLACED);
+            BestEffortMetricRecorder.increment(
+                    REPLACEMENT_CLOSE_METRIC,
+                    replacementCloseCounters.get(closeResult));
+            handleReplacementClose(replaced, closeResult);
         }
+    }
+
+    private void handleReplacementClose(
+            String replacedConnectionId,
+            TransportSessionCloseResult closeResult
+    ) {
+        if (closeResult
+                == TransportSessionCloseResult.ALREADY_CLOSED_OR_MISSING) {
+            subscriptions.removeAll(replacedConnectionId);
+            activeConnections
+                    .findUserIdByConnection(replacedConnectionId)
+                    .ifPresent(userId -> activeConnections.deactivate(
+                            userId,
+                            replacedConnectionId));
+            transportSessions.remove(replacedConnectionId);
+            return;
+        }
+        if (closeResult == TransportSessionCloseResult.FAILED) {
+            log.warn(
+                    "Replaced WebSocket connection close failed; tracking is retained for later revocation");
+        }
+    }
+
+    private static String metricResult(
+            TransportSessionCloseResult result
+    ) {
+        return switch (result) {
+            case CLOSED -> "closed";
+            case ALREADY_CLOSED_OR_MISSING ->
+                    "already_closed_or_missing";
+            case FAILED -> "failed";
+        };
     }
 
     private void verifyActive(StompHeaderAccessor accessor) {

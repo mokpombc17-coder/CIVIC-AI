@@ -20,6 +20,11 @@ public interface ChatSubscriptionRegistry {
 
     Set<String> findConnectionIdsByRoom(String roomId);
 
+    Set<String> findConnectionIdsByUserAndRoom(
+            String userId,
+            String roomId
+    );
+
     int activeSubscriptionCount();
 
     int activeRoomSubscriberCount();

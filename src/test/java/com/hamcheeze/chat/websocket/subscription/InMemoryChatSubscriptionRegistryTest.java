@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InMemoryChatSubscriptionRegistryTest {
 
@@ -41,6 +42,9 @@ class InMemoryChatSubscriptionRegistryTest {
                 "room-1")).isTrue();
         assertThat(registry.findConnectionIdsByRoom("room-1"))
                 .containsExactly("connection-1");
+        assertThat(registry.findConnectionIdsByUserAndRoom(
+                "user-1",
+                "room-1")).containsExactly("connection-1");
     }
 
     @Test
@@ -114,6 +118,7 @@ class InMemoryChatSubscriptionRegistryTest {
                     "connection-1",
                     new SubscriptionDescriptor(
                             "sub-" + index,
+                            "user-1",
                             "/user/queue/test-" + index,
                             DestinationKind.USER_SYSTEM_EVENTS,
                             null)).registered())
@@ -124,11 +129,66 @@ class InMemoryChatSubscriptionRegistryTest {
                 "connection-1",
                 new SubscriptionDescriptor(
                         "sub-5",
+                        "user-1",
                         "/user/queue/test-5",
                         DestinationKind.USER_SYSTEM_EVENTS,
                         null)).rejectionCode())
                 .isEqualTo(
                         SubscriptionRejectedCode.SUBSCRIPTION_LIMIT_EXCEEDED);
+    }
+
+    @Test
+    void findsDistinctRoomConnectionsForUserAndExcludesPersonalSubscriptions() {
+        registry.register(
+                "connection-1",
+                descriptor("sub-1", "user-1", "room-1", "messages"));
+        registry.register(
+                "connection-1",
+                descriptor("sub-2", "user-1", "room-1", "events"));
+        registry.register(
+                "connection-2",
+                descriptor("sub-3", "user-1", "room-1", "messages"));
+        registry.register(
+                "connection-3",
+                descriptor("sub-4", "user-2", "room-1", "messages"));
+        registry.register(
+                "connection-4",
+                new SubscriptionDescriptor(
+                        "sub-5",
+                        "user-1",
+                        "/user/queue/command-results",
+                        DestinationKind.USER_COMMAND_RESULTS,
+                        null));
+
+        assertThat(registry.findConnectionIdsByUserAndRoom(
+                "user-1",
+                "room-1"))
+                .containsExactlyInAnyOrder("connection-1", "connection-2");
+
+        registry.remove("connection-1", "sub-1");
+        assertThat(registry.findConnectionIdsByUserAndRoom(
+                "user-1",
+                "room-1")).containsExactlyInAnyOrder(
+                "connection-1",
+                "connection-2");
+
+        registry.remove("connection-1", "sub-2");
+        registry.removeAll("connection-2");
+        assertThat(registry.findConnectionIdsByUserAndRoom(
+                "user-1",
+                "room-1")).isEmpty();
+    }
+
+    @Test
+    void rejectsSubscriptionsForDifferentUsersOnSameConnection() {
+        registry.register(
+                "connection-1",
+                descriptor("sub-1", "user-1", "room-1", "messages"));
+
+        assertThatThrownBy(() -> registry.register(
+                "connection-1",
+                descriptor("sub-2", "user-2", "room-1", "events")))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     private static SubscriptionDescriptor descriptor(
@@ -138,6 +198,21 @@ class InMemoryChatSubscriptionRegistryTest {
     ) {
         return new SubscriptionDescriptor(
                 subscriptionId,
+                "user-1",
+                "/topic/rooms/" + roomId + "/" + suffix,
+                DestinationKind.TOPIC_ROOM_MESSAGES,
+                roomId);
+    }
+
+    private static SubscriptionDescriptor descriptor(
+            String subscriptionId,
+            String userId,
+            String roomId,
+            String suffix
+    ) {
+        return new SubscriptionDescriptor(
+                subscriptionId,
+                userId,
                 "/topic/rooms/" + roomId + "/" + suffix,
                 DestinationKind.TOPIC_ROOM_MESSAGES,
                 roomId);

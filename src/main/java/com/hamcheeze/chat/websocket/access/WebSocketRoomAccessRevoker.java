@@ -72,21 +72,11 @@ public final class WebSocketRoomAccessRevoker
             String roomId,
             RoomAccessRevocationReason reason
     ) {
-        String connectionId = activeConnections
-                .findConnectionIdByUser(userId)
-                .orElse(null);
-        if (connectionId == null
-                || !subscriptions.hasRoomSubscription(
-                connectionId,
-                roomId)) {
-            RoomAccessRevocationSummary summary =
-                    RoomAccessRevocationSummary.noOp();
-            record("user", reason, summary);
-            return summary;
-        }
         RoomAccessRevocationSummary summary =
                 closeConnections(
-                        Set.of(connectionId),
+                        subscriptions.findConnectionIdsByUserAndRoom(
+                                userId,
+                                roomId),
                         closeStatus(reason));
         record("user", reason, summary);
         log(reason, roomId, summary);

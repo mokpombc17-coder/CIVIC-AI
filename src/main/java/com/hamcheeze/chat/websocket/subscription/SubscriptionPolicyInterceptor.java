@@ -109,6 +109,7 @@ public final class SubscriptionPolicyInterceptor
                 connectionId,
                 new SubscriptionDescriptor(
                         accessor.getSubscriptionId(),
+                        userId,
                         destination,
                         descriptor.kind(),
                         descriptor.roomId()));

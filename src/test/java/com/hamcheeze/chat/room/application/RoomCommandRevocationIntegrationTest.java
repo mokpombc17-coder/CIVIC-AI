@@ -19,16 +19,35 @@ import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
+import com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptor;
+import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
+import com.hamcheeze.chat.websocket.connection.TransportSessionRegistry;
+import com.hamcheeze.chat.websocket.protocol.DestinationKind;
+import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
+import com.hamcheeze.chat.websocket.subscription.SubscriptionDescriptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.simp.stomp.StompCommand;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.web.socket.WebSocketSession;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -46,6 +65,18 @@ class RoomCommandRevocationIntegrationTest
 
     @jakarta.annotation.Resource
     private RoomCommandReceiptStore receipts;
+
+    @jakarta.annotation.Resource
+    private ActiveConnectionRegistry activeConnections;
+
+    @jakarta.annotation.Resource
+    private ChatSubscriptionRegistry subscriptions;
+
+    @jakarta.annotation.Resource
+    private TransportSessionRegistry transportSessions;
+
+    @jakarta.annotation.Resource
+    private ActiveConnectionLifecycleInterceptor connectionLifecycle;
 
     @MockitoSpyBean
     private RoomAccessRevocationPort revocationPort;
@@ -155,6 +186,98 @@ class RoomCommandRevocationIntegrationTest
                 .isEqualTo(roomVersion);
     }
 
+    @Test
+    void failedReplacementCloseIsRetriedByLeaveReceiptReplay()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        join(roomId, "user-2");
+        String staleConnectionId = "stale-" + uuid();
+        String currentConnectionId = "current-" + uuid();
+        WebSocketSession staleSession = failingThenSucceedingSession(
+                staleConnectionId,
+                2);
+        trackSubscribedConnection(
+                staleSession,
+                "user-2",
+                roomId);
+
+        connectionLifecycle.preSend(
+                connect("user-2", currentConnectionId),
+                null);
+
+        assertThat(subscriptions.findConnectionIdsByUserAndRoom(
+                "user-2",
+                roomId)).containsExactly(staleConnectionId);
+        String requestId = uuid();
+        LeaveRoomCommand command =
+                new LeaveRoomCommand("user-2", requestId, roomId);
+
+        assertRevocationFailure(() -> commandService.leaveRoom(command));
+        long roomVersion =
+                rooms.findById(roomId).orElseThrow().version();
+        long membershipVersion = memberships
+                .findByRoomIdAndUserId(roomId, "user-2")
+                .orElseThrow().version();
+        assertThat(subscriptions.findConnectionIdsByUserAndRoom(
+                "user-2",
+                roomId)).containsExactly(staleConnectionId);
+        assertThat(activeConnections.findConnectionIdByUser("user-2"))
+                .contains(currentConnectionId);
+
+        RoomCommandExecution replay = commandService.leaveRoom(command);
+
+        assertThat(replay.replayed()).isTrue();
+        assertThat(rooms.findById(roomId).orElseThrow().version())
+                .isEqualTo(roomVersion);
+        assertThat(memberships
+                .findByRoomIdAndUserId(roomId, "user-2")
+                .orElseThrow().version())
+                .isEqualTo(membershipVersion);
+        assertThat(subscriptions.findConnectionIdsByUserAndRoom(
+                "user-2",
+                roomId)).isEmpty();
+        assertThat(activeConnections.findConnectionIdByUser("user-2"))
+                .contains(currentConnectionId);
+        verify(staleSession, org.mockito.Mockito.times(3))
+                .close(any());
+    }
+
+    @Test
+    void failedReplacementCloseIsIncludedInBanRevocation()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        join(roomId, "user-2");
+        String staleConnectionId = "stale-" + uuid();
+        String currentConnectionId = "current-" + uuid();
+        WebSocketSession staleSession = failingThenSucceedingSession(
+                staleConnectionId,
+                1);
+        trackSubscribedConnection(
+                staleSession,
+                "user-2",
+                roomId);
+
+        connectionLifecycle.preSend(
+                connect("user-2", currentConnectionId),
+                null);
+        RoomCommandExecution execution = commandService.banMember(
+                new BanMemberCommand(
+                        "owner-1",
+                        uuid(),
+                        roomId,
+                        "user-2"));
+
+        assertThat(execution.result().code().name())
+                .isEqualTo("BANNED");
+        assertThat(subscriptions.findConnectionIdsByUserAndRoom(
+                "user-2",
+                roomId)).isEmpty();
+        assertThat(activeConnections.findConnectionIdByUser("user-2"))
+                .contains(currentConnectionId);
+        verify(staleSession, org.mockito.Mockito.times(2))
+                .close(any());
+    }
+
     private String createRoom(String ownerUserId) {
         return commandService.createRoom(new CreateRoomCommand(
                         ownerUserId,
@@ -170,6 +293,63 @@ class RoomCommandRevocationIntegrationTest
                 userId,
                 uuid(),
                 roomId));
+    }
+
+    private void trackSubscribedConnection(
+            WebSocketSession session,
+            String userId,
+            String roomId
+    ) {
+        transportSessions.register(session);
+        activeConnections.activate(userId, session.getId());
+        subscriptions.register(
+                session.getId(),
+                new SubscriptionDescriptor(
+                        "sub-" + uuid(),
+                        userId,
+                        "/topic/rooms/" + roomId + "/messages",
+                        DestinationKind.TOPIC_ROOM_MESSAGES,
+                        roomId));
+    }
+
+    private static WebSocketSession failingThenSucceedingSession(
+            String connectionId,
+            int failureCount
+    ) throws IOException {
+        WebSocketSession session = mock(WebSocketSession.class);
+        when(session.getId()).thenReturn(connectionId);
+        when(session.isOpen()).thenReturn(true);
+        if (failureCount == 2) {
+            doThrow(
+                    new IOException("replacement close failed"),
+                    new IOException("revocation close failed"))
+                    .doNothing()
+                    .when(session)
+                    .close(any());
+        } else {
+            doThrow(new IOException("replacement close failed"))
+                    .doNothing()
+                    .when(session)
+                    .close(any());
+        }
+        return session;
+    }
+
+    private static Message<byte[]> connect(
+            String userId,
+            String connectionId
+    ) {
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.setSessionId(connectionId);
+        accessor.setUser(
+                UsernamePasswordAuthenticationToken.authenticated(
+                        userId,
+                        "n/a",
+                        List.of()));
+        return MessageBuilder.createMessage(
+                new byte[0],
+                accessor.getMessageHeaders());
     }
 
     private void failThenSucceedUser(

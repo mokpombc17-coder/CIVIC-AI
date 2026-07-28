@@ -47,6 +47,11 @@ public final class InMemoryChatSubscriptionRegistry
         try {
             Map<String, SubscriptionDescriptor> subscriptions =
                     byConnection.computeIfAbsent(connectionId, ignored -> new HashMap<>());
+            if (subscriptions.values().stream().anyMatch(existing ->
+                    !existing.userId().equals(descriptor.userId()))) {
+                throw new IllegalStateException(
+                        "A connection cannot contain subscriptions for multiple users");
+            }
             if (subscriptions.containsKey(descriptor.subscriptionId())
                     || properties.isRejectDuplicateDestination()
                     && subscriptions.values().stream().anyMatch(existing ->
@@ -164,6 +169,27 @@ public final class InMemoryChatSubscriptionRegistry
             return connections == null
                     ? Set.of()
                     : Set.copyOf(connections);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public Set<String> findConnectionIdsByUserAndRoom(
+            String userId,
+            String roomId
+    ) {
+        lock.lock();
+        try {
+            Set<String> connections = new HashSet<>();
+            byConnection.forEach((connectionId, descriptors) -> {
+                if (descriptors.values().stream().anyMatch(descriptor ->
+                        userId.equals(descriptor.userId())
+                                && roomId.equals(descriptor.roomId()))) {
+                    connections.add(connectionId);
+                }
+            });
+            return Set.copyOf(connections);
         } finally {
             lock.unlock();
         }

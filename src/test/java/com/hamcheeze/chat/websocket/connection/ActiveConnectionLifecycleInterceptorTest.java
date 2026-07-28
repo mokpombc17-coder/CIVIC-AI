@@ -2,6 +2,7 @@ package com.hamcheeze.chat.websocket.connection;
 
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
+import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.Message;
@@ -12,6 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,19 +23,68 @@ class ActiveConnectionLifecycleInterceptorTest {
             mock(ActiveConnectionRegistry.class);
     private final TransportSessionRegistry transport =
             mock(TransportSessionRegistry.class);
+    private final ChatSubscriptionRegistry subscriptions =
+            mock(ChatSubscriptionRegistry.class);
     private final ActiveConnectionLifecycleInterceptor interceptor =
             new ActiveConnectionLifecycleInterceptor(
-                    registry, transport, new SimpleMeterRegistry());
+                    registry,
+                    transport,
+                    subscriptions,
+                    new SimpleMeterRegistry());
 
     @Test
-    void closesOnlyTheReplacedConnectionAfterRegistrySwap() {
+    void closedReplacementIsHandledWithoutEagerCleanup() {
         when(registry.activate("user-1", "connection-2"))
                 .thenReturn(
                         ConnectionActivation.activated("connection-1"));
+        when(transport.close(
+                "connection-1",
+                TransportSessionRegistry.CONNECTION_REPLACED))
+                .thenReturn(TransportSessionCloseResult.CLOSED);
 
         interceptor.preSend(connect("connection-2"), null);
 
-        verify(transport).closeReplaced("connection-1");
+        verify(transport).close(
+                "connection-1",
+                TransportSessionRegistry.CONNECTION_REPLACED);
+        verify(subscriptions, never()).removeAll("connection-1");
+        verify(transport, never()).remove("connection-1");
+    }
+
+    @Test
+    void alreadyClosedReplacementCleansStaleTracking() {
+        when(registry.activate("user-1", "connection-2"))
+                .thenReturn(
+                        ConnectionActivation.activated("connection-1"));
+        when(transport.close(
+                "connection-1",
+                TransportSessionRegistry.CONNECTION_REPLACED))
+                .thenReturn(TransportSessionCloseResult
+                        .ALREADY_CLOSED_OR_MISSING);
+
+        interceptor.preSend(connect("connection-2"), null);
+
+        verify(subscriptions).removeAll("connection-1");
+        verify(transport).remove("connection-1");
+        verify(registry, never()).deactivate(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void failedReplacementCloseRetainsTrackingForLaterRevocation() {
+        when(registry.activate("user-1", "connection-2"))
+                .thenReturn(
+                        ConnectionActivation.activated("connection-1"));
+        when(transport.close(
+                "connection-1",
+                TransportSessionRegistry.CONNECTION_REPLACED))
+                .thenReturn(TransportSessionCloseResult.FAILED);
+
+        interceptor.preSend(connect("connection-2"), null);
+
+        verify(subscriptions, never()).removeAll("connection-1");
+        verify(transport, never()).remove("connection-1");
     }
 
     @Test
@@ -45,13 +96,20 @@ class ActiveConnectionLifecycleInterceptorTest {
                 new ActiveConnectionLifecycleInterceptor(
                         registry,
                         transport,
+                        subscriptions,
                         ThrowingMeterRegistry.counter(
                                 "websocket.connections.replaced"));
+        when(transport.close(
+                "connection-1",
+                TransportSessionRegistry.CONNECTION_REPLACED))
+                .thenReturn(TransportSessionCloseResult.CLOSED);
 
         metricFailingInterceptor.preSend(
                 connect("connection-2"), null);
 
-        verify(transport).closeReplaced("connection-1");
+        verify(transport).close(
+                "connection-1",
+                TransportSessionRegistry.CONNECTION_REPLACED);
     }
 
     @Test
