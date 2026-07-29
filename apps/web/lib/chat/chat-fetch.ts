@@ -1,6 +1,11 @@
 "use client";
 
 import { CHAT_API_BASE_URL } from "./chat-config";
+import {
+  isChatProblemDetails,
+  type ChatFieldError,
+  type ChatProblemDetails,
+} from "./chat-problem-details";
 
 type FetchRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -16,6 +21,10 @@ export type ChatFetch = <TResponse = unknown>(
 
 export class ChatApiError extends Error {
   override readonly name = "ChatApiError";
+  readonly problem: ChatProblemDetails | undefined;
+  readonly code: string | undefined;
+  readonly retryable: boolean;
+  readonly fieldErrors: readonly ChatFieldError[];
 
   constructor(
     readonly status: number,
@@ -24,6 +33,11 @@ export class ChatApiError extends Error {
     readonly body: unknown,
   ) {
     super(createHttpErrorMessage(status, statusText, body));
+
+    this.problem = isChatProblemDetails(body) ? body : undefined;
+    this.code = this.problem?.code;
+    this.retryable = this.problem?.retryable ?? false;
+    this.fieldErrors = this.problem?.fieldErrors ?? [];
   }
 }
 
