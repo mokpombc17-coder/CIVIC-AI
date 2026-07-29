@@ -76,6 +76,7 @@ class RoomEventWebSocketIntegrationTest
                 new CreateRoomCommand(
                         "owner-1",
                         uuid(),
+                        "Test room",
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN));
         String roomId = created.result().roomId();

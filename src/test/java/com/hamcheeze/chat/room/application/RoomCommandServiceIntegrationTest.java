@@ -103,6 +103,7 @@ class RoomCommandServiceIntegrationTest
                 new CreateRoomCommand(
                         "owner-1",
                         requestId,
+                        "Different room",
                         RoomVisibility.UNLISTED,
                         JoinPolicy.INVITE_ONLY));
 
@@ -815,6 +816,7 @@ class RoomCommandServiceIntegrationTest
         return new CreateRoomCommand(
                 ownerUserId,
                 requestId,
+                "Test room",
                 RoomVisibility.LISTED,
                 joinPolicy);
     }

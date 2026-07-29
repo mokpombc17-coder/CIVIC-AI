@@ -41,6 +41,7 @@ class RoomCommandInputAndFingerprintTest {
         assertThatThrownBy(() -> new CreateRoomCommand(
                 " ",
                 REQUEST_ID,
+                "Test room",
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -80,9 +81,36 @@ class RoomCommandInputAndFingerprintTest {
         assertThatThrownBy(() -> new CreateRoomCommand(
                 "user-1",
                 REQUEST_ID,
+                "Test room",
                 null,
                 JoinPolicy.OPEN))
                 .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void canonicalizesAndValidatesRoomName() {
+        CreateRoomCommand command = new CreateRoomCommand(
+                "user-1",
+                REQUEST_ID,
+                "  Test room  ",
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+
+        assertThat(command.name()).isEqualTo("Test room");
+        assertThatThrownBy(() -> new CreateRoomCommand(
+                "user-1",
+                REQUEST_ID,
+                " ",
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new CreateRoomCommand(
+                "user-1",
+                REQUEST_ID,
+                "a".repeat(101),
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -127,13 +155,22 @@ class RoomCommandInputAndFingerprintTest {
         String listed = fingerprints.create(new CreateRoomCommand(
                 "user-1",
                 REQUEST_ID,
+                "Test room",
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN));
         String unlisted = fingerprints.create(new CreateRoomCommand(
                 "user-1",
                 REQUEST_ID,
+                "Test room",
                 RoomVisibility.UNLISTED,
                 JoinPolicy.INVITE_ONLY));
+        String anotherName = fingerprints.create(
+                new CreateRoomCommand(
+                        "user-1",
+                        REQUEST_ID,
+                        "Another room",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN));
 
         assertThat(List.of(
                 join,
@@ -142,7 +179,8 @@ class RoomCommandInputAndFingerprintTest {
                 transferUser2,
                 transferUser3,
                 listed,
-                unlisted)).doesNotHaveDuplicates();
+                unlisted,
+                anotherName)).doesNotHaveDuplicates();
     }
 
     private List<RoomCommand> commands(String requestId) {
@@ -150,6 +188,7 @@ class RoomCommandInputAndFingerprintTest {
                 new CreateRoomCommand(
                         "user-1",
                         requestId,
+                        "Test room",
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN),
                 new JoinRoomCommand(

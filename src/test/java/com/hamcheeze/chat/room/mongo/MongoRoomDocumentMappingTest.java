@@ -28,6 +28,7 @@ class MongoRoomDocumentMappingTest {
     void activeRoomRoundTrips() {
         Room room = Room.restore(
                 "room-1",
+                "Active room",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -40,7 +41,8 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(1);
+        assertThat(document.schemaVersion()).isEqualTo(2);
+        assertThat(document.name()).isEqualTo("Active room");
         assertThat(document.toDomain()).isEqualTo(room);
     }
 
@@ -48,6 +50,7 @@ class MongoRoomDocumentMappingTest {
     void closedRoomRoundTrips() {
         Room room = Room.restore(
                 "room-1",
+                "Closed room",
                 "owner-1",
                 RoomStatus.CLOSED,
                 RoomVisibility.UNLISTED,
@@ -60,8 +63,28 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(1);
+        assertThat(document.schemaVersion()).isEqualTo(2);
+        assertThat(document.name()).isEqualTo("Closed room");
         assertThat(document.toDomain()).isEqualTo(room);
+    }
+
+    @Test
+    void legacyRoomWithoutNameUsesRoomIdAsFallback() {
+        MongoRoomDocument legacy = new MongoRoomDocument(
+                "legacy-room",
+                1,
+                null,
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                CREATED_AT,
+                null,
+                0);
+
+        assertThat(legacy.toDomain().name())
+                .isEqualTo("legacy-room");
     }
 
     @Test
@@ -181,7 +204,8 @@ class MongoRoomDocumentMappingTest {
     void unsupportedSchemaVersionsFailExplicitly() {
         MongoRoomDocument roomDocument = new MongoRoomDocument(
                 "room-1",
-                2,
+                3,
+                "Test room",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -219,13 +243,16 @@ class MongoRoomDocumentMappingTest {
 
         assertUnsupportedSchema(
                 roomDocument::toDomain,
-                MongoRoomDocument.COLLECTION_NAME);
+                MongoRoomDocument.COLLECTION_NAME,
+                3);
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
-                MongoMembershipDocument.COLLECTION_NAME);
+                MongoMembershipDocument.COLLECTION_NAME,
+                2);
         assertUnsupportedSchema(
                 receiptDocument::toDomain,
-                MongoRoomCommandReceiptDocument.COLLECTION_NAME);
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME,
+                2);
     }
 
     @Test
@@ -307,11 +334,13 @@ class MongoRoomDocumentMappingTest {
 
     private void assertUnsupportedSchema(
             Runnable mapping,
-            String collectionName
+            String collectionName,
+            int schemaVersion
     ) {
         assertThatThrownBy(mapping::run)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(collectionName)
-                .hasMessageContaining("2");
+                .hasMessageContaining(
+                        Integer.toString(schemaVersion));
     }
 }

@@ -102,8 +102,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", uppercaseKey)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
+                                .content("""
                                 {
+                                  "name":"  Test room  ",
                                   "visibility":"LISTED",
                                   "joinPolicy":"OPEN",
                                   "requesterUserId":"forged-user"
@@ -206,12 +207,35 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"joinPolicy\":\"OPEN\"}"))
+                        .content("""
+                                {
+                                  "name":"Test room",
+                                  "joinPolicy":"OPEN"
+                                }
+                                """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code")
                         .value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.fieldErrors[0].field")
                         .value("visibility"));
+
+        mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-1")))
+                        .header("Idempotency-Key", requestId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":" ",
+                                  "visibility":"LISTED",
+                                  "joinPolicy":"OPEN"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.fieldErrors[0].field")
+                        .value("name"));
 
         assertThat(count(MongoRoomDocument.COLLECTION_NAME)).isZero();
         assertThat(count(MongoMembershipDocument.COLLECTION_NAME))
@@ -490,6 +514,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 "no-store")))
                 .andExpect(jsonPath("$.participationStatus")
                         .value("ACTIVE"))
+                .andExpect(jsonPath("$.name")
+                        .value("Test room"))
                 .andExpect(jsonPath("$.myMembership.userId")
                         .value("user-2"));
         mockMvc.perform(get(
@@ -505,7 +531,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("user-2"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].roomId")
-                        .value(roomId));
+                        .value(roomId))
+                .andExpect(jsonPath("$.items[0].name")
+                        .value("Test room"));
         MvcResult firstPage = mockMvc.perform(get(
                                 "/api/v1/rooms/{roomId}/memberships",
                                 roomId)
@@ -573,6 +601,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         new CreateRoomCommand(
                                 "owner-1",
                                 requestId(),
+                                "Unlisted room",
                                 RoomVisibility.UNLISTED,
                                 JoinPolicy.OPEN))
                 .result()
@@ -669,6 +698,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
         return commandService.createRoom(new CreateRoomCommand(
                         owner,
                         requestId(),
+                        "Test room",
                         RoomVisibility.LISTED,
                         joinPolicy))
                 .result()
@@ -702,6 +732,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     private String createBody(String joinPolicy) {
         return """
                 {
+                  "name":"Test room",
                   "visibility":"LISTED",
                   "joinPolicy":"%s"
                 }

@@ -62,6 +62,7 @@ public class RoomCommandController {
         return map(commandService.createRoom(new CreateRoomCommand(
                 requester,
                 requestId,
+                request.name(),
                 request.visibility(),
                 request.joinPolicy())));
     }

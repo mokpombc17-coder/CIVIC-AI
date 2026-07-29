@@ -5,7 +5,10 @@ import java.util.Objects;
 
 public final class Room {
 
+    public static final int MAX_NAME_LENGTH = 100;
+
     private final String roomId;
+    private final String name;
     private final String ownerUserId;
     private final RoomStatus status;
     private final RoomVisibility visibility;
@@ -17,6 +20,7 @@ public final class Room {
 
     private Room(
             String roomId,
+            String name,
             String ownerUserId,
             RoomStatus status,
             RoomVisibility visibility,
@@ -27,6 +31,7 @@ public final class Room {
             long version
     ) {
         this.roomId = RoomDomainValidation.requireRoomId(roomId);
+        this.name = RoomDomainValidation.requireRoomName(name);
         this.ownerUserId =
                 RoomDomainValidation.requireUserId(ownerUserId);
         this.status = RoomDomainValidation.requireStateValue(status);
@@ -48,6 +53,7 @@ public final class Room {
 
     public static Room restore(
             String roomId,
+            String name,
             String ownerUserId,
             RoomStatus status,
             RoomVisibility visibility,
@@ -58,6 +64,31 @@ public final class Room {
             long version
     ) {
         return new Room(
+                roomId,
+                name,
+                ownerUserId,
+                status,
+                visibility,
+                joinPolicy,
+                activeMemberCount,
+                createdAt,
+                closedAt,
+                version);
+    }
+
+    public static Room restore(
+            String roomId,
+            String ownerUserId,
+            RoomStatus status,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            int activeMemberCount,
+            Instant createdAt,
+            Instant closedAt,
+            long version
+    ) {
+        return restore(
+                roomId,
                 roomId,
                 ownerUserId,
                 status,
@@ -71,6 +102,7 @@ public final class Room {
 
     static Room create(
             String roomId,
+            String name,
             String ownerUserId,
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
@@ -78,6 +110,7 @@ public final class Room {
     ) {
         return new Room(
                 roomId,
+                name,
                 ownerUserId,
                 RoomStatus.ACTIVE,
                 visibility,
@@ -155,6 +188,7 @@ public final class Room {
     ) {
         return new Room(
                 roomId,
+                name,
                 nextOwnerUserId,
                 nextStatus,
                 visibility,
@@ -195,6 +229,10 @@ public final class Room {
 
     public String roomId() {
         return roomId;
+    }
+
+    public String name() {
+        return name;
     }
 
     public String ownerUserId() {
@@ -240,6 +278,7 @@ public final class Room {
         return activeMemberCount == room.activeMemberCount
                 && version == room.version
                 && roomId.equals(room.roomId)
+                && name.equals(room.name)
                 && ownerUserId.equals(room.ownerUserId)
                 && status == room.status
                 && visibility == room.visibility
@@ -252,6 +291,7 @@ public final class Room {
     public int hashCode() {
         return Objects.hash(
                 roomId,
+                name,
                 ownerUserId,
                 status,
                 visibility,
@@ -265,6 +305,7 @@ public final class Room {
     @Override
     public String toString() {
         return "Room[roomId=" + roomId
+                + ", name=" + name
                 + ", ownerUserId=" + ownerUserId
                 + ", status=" + status
                 + ", visibility=" + visibility

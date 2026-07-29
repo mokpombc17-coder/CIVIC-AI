@@ -9,6 +9,7 @@ public final class RoomMembershipTransitions {
 
     public static RoomCreationResult createRoom(
             String roomId,
+            String name,
             String ownerMembershipId,
             String ownerUserId,
             RoomVisibility visibility,
@@ -19,6 +20,7 @@ public final class RoomMembershipTransitions {
                 RoomDomainValidation.requireTransitionTime(createdAt);
         Room room = Room.create(
                 roomId,
+                name,
                 ownerUserId,
                 visibility,
                 joinPolicy,
@@ -32,6 +34,24 @@ public final class RoomMembershipTransitions {
                 RoomCreationResult.Outcome.CREATED,
                 room,
                 ownerMembership);
+    }
+
+    public static RoomCreationResult createRoom(
+            String roomId,
+            String ownerMembershipId,
+            String ownerUserId,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            Instant createdAt
+    ) {
+        return createRoom(
+                roomId,
+                roomId,
+                ownerMembershipId,
+                ownerUserId,
+                visibility,
+                joinPolicy,
+                createdAt);
     }
 
     public static JoinRoomTransition joinRoom(

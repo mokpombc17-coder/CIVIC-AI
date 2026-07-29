@@ -142,12 +142,14 @@ Idempotency-Key: <uuid>
 
 ```json
 {
+  "name": "시민 AI 토론방",
   "visibility": "LISTED",
   "joinPolicy": "OPEN"
 }
 ```
 
-두 필드는 모두 필수다.
+세 필드는 모두 필수다. `name`은 앞뒤 공백을 제거한 뒤 빈 문자열일 수 없으며 최대
+100자까지 허용한다.
 
 응답 `201 Created`:
 
@@ -362,6 +364,7 @@ GET /api/v1/rooms/{roomId}
 ```json
 {
   "roomId": "room-01",
+  "name": "시민 AI 토론방",
   "ownerUserId": "local-user-1",
   "status": "ACTIVE",
   "visibility": "LISTED",
@@ -427,6 +430,7 @@ GET /api/v1/me/rooms?cursor={cursor}&limit=20
   "items": [
     {
       "roomId": "room-01",
+      "name": "시민 AI 토론방",
       "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",

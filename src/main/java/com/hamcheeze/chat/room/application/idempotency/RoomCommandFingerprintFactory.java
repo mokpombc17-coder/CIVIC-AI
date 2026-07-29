@@ -23,6 +23,7 @@ public final class RoomCommandFingerprintFactory {
         append(canonical, "commandType", command.commandType().name());
         append(canonical, "requesterUserId", command.requesterUserId());
         if (command instanceof CreateRoomCommand createRoom) {
+            append(canonical, "name", createRoom.name());
             append(canonical, "visibility", createRoom.visibility().name());
             append(canonical, "joinPolicy", createRoom.joinPolicy().name());
         } else if (command instanceof JoinRoomCommand joinRoom) {

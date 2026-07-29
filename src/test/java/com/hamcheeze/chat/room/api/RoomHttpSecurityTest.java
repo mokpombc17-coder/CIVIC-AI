@@ -195,6 +195,7 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     private String createBody() {
         return """
                 {
+                  "name":"Test room",
                   "visibility":"LISTED",
                   "joinPolicy":"OPEN"
                 }

@@ -94,6 +94,7 @@ class RoomCommandEventIntegrationTest
                 new CreateRoomCommand(
                         "owner-1",
                         ownerRequestId,
+                        "Test room",
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN));
 
@@ -226,6 +227,7 @@ class RoomCommandEventIntegrationTest
         return commandService.createRoom(new CreateRoomCommand(
                         ownerUserId,
                         uuid(),
+                        "Test room",
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .result()

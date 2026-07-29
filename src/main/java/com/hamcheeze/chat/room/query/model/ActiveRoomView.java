@@ -10,6 +10,7 @@ import java.time.Instant;
 
 public record ActiveRoomView(
         String roomId,
+        String name,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,

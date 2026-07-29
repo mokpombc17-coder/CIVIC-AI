@@ -143,6 +143,7 @@ public final class RoomCommandService {
             RoomCreationResult creation =
                     RoomMembershipTransitions.createRoom(
                             candidateRoomId,
+                            command.name(),
                             candidateOwnerMembershipId,
                             command.requesterUserId(),
                             command.visibility(),

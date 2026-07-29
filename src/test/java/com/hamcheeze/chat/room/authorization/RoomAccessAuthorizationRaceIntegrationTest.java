@@ -250,6 +250,7 @@ class RoomAccessAuthorizationRaceIntegrationTest
                         new CreateRoomCommand(
                                 ownerUserId,
                                 uuid(),
+                                "Test room",
                                 RoomVisibility.LISTED,
                                 JoinPolicy.OPEN))
                 .result()

@@ -19,6 +19,20 @@ final class RoomDomainValidation {
         return roomId;
     }
 
+    static String requireRoomName(String name) {
+        if (name == null) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode.INVALID_ROOM_NAME);
+        }
+        String canonical = name.trim();
+        if (canonical.isEmpty()
+                || canonical.length() > Room.MAX_NAME_LENGTH) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode.INVALID_ROOM_NAME);
+        }
+        return canonical;
+    }
+
     static String requireMembershipId(String membershipId) {
         if (membershipId == null || membershipId.isBlank()) {
             throw new RoomDomainException(

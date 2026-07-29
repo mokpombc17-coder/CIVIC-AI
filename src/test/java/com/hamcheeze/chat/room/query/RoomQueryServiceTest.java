@@ -76,6 +76,8 @@ class RoomQueryServiceTest {
         assertThat(service.roomDetail("none", "room-1")
                 .participationStatus())
                 .isEqualTo(RoomParticipationStatus.NOT_JOINED);
+        assertThat(service.roomDetail("none", "room-1").name())
+                .isEqualTo("room-1");
         assertThat(service.roomDetail("active", "room-1")
                 .participationStatus())
                 .isEqualTo(RoomParticipationStatus.ACTIVE);
@@ -127,6 +129,9 @@ class RoomQueryServiceTest {
 
         assertThat(page.items())
                 .extracting(ActiveRoomView::roomId)
+                .containsExactly("room-1");
+        assertThat(page.items())
+                .extracting(ActiveRoomView::name)
                 .containsExactly("room-1");
         verify(reader).findMembershipsByUserAndStatus(
                 "user-1",

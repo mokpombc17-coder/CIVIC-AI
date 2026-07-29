@@ -41,6 +41,7 @@ public final class RoomQueryService {
                 .orElse(null);
         return new RoomDetailView(
                 room.roomId(),
+                room.name(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),
@@ -184,6 +185,7 @@ public final class RoomQueryService {
         }
         return new ActiveRoomView(
                 room.roomId(),
+                room.name(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),

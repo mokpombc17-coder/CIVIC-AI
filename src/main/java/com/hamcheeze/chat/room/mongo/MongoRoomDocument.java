@@ -17,6 +17,7 @@ public record MongoRoomDocument(
         @MongoId(FieldType.STRING)
         String roomId,
         int schemaVersion,
+        String name,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -28,11 +29,16 @@ public record MongoRoomDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_rooms";
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
+    static final int LEGACY_SCHEMA_VERSION = 1;
 
     @PersistenceCreator
     public MongoRoomDocument {
         Objects.requireNonNull(roomId, "roomId");
+        if (schemaVersion == LEGACY_SCHEMA_VERSION && name == null) {
+            name = roomId;
+        }
+        Objects.requireNonNull(name, "name");
         Objects.requireNonNull(ownerUserId, "ownerUserId");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(visibility, "visibility");
@@ -45,6 +51,7 @@ public record MongoRoomDocument(
         return new MongoRoomDocument(
                 room.roomId(),
                 CURRENT_SCHEMA_VERSION,
+                room.name(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),
@@ -59,6 +66,7 @@ public record MongoRoomDocument(
         requireCurrentSchema();
         return Room.restore(
                 roomId,
+                name,
                 ownerUserId,
                 status,
                 visibility,
@@ -70,7 +78,8 @@ public record MongoRoomDocument(
     }
 
     private void requireCurrentSchema() {
-        if (schemaVersion != CURRENT_SCHEMA_VERSION) {
+        if (schemaVersion != LEGACY_SCHEMA_VERSION
+                && schemaVersion != CURRENT_SCHEMA_VERSION) {
             throw new IllegalStateException(
                     "Unsupported schemaVersion "
                             + schemaVersion

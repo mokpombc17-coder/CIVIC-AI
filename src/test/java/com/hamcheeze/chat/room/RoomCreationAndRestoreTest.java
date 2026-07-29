@@ -17,6 +17,7 @@ class RoomCreationAndRestoreTest {
         RoomCreationResult result =
                 RoomMembershipTransitions.createRoom(
                         "room-1",
+                        "  Test room  ",
                         "membership-owner",
                         "owner-1",
                         RoomVisibility.LISTED,
@@ -26,6 +27,7 @@ class RoomCreationAndRestoreTest {
         assertThat(result.outcome())
                 .isEqualTo(RoomCreationResult.Outcome.CREATED);
         assertThat(result.room().roomId()).isEqualTo("room-1");
+        assertThat(result.room().name()).isEqualTo("Test room");
         assertThat(result.room().ownerUserId())
                 .isEqualTo("owner-1");
         assertThat(result.room().status())
@@ -69,6 +71,30 @@ class RoomCreationAndRestoreTest {
     }
 
     @Test
+    void rejectsInvalidRoomName() {
+        assertFailure(
+                () -> RoomMembershipTransitions.createRoom(
+                        "room-1",
+                        " ",
+                        "owner",
+                        "owner-1",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN,
+                        CREATED_AT),
+                RoomDomainErrorCode.INVALID_ROOM_NAME);
+        assertFailure(
+                () -> RoomMembershipTransitions.createRoom(
+                        "room-1",
+                        "a".repeat(Room.MAX_NAME_LENGTH + 1),
+                        "owner",
+                        "owner-1",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN,
+                        CREATED_AT),
+                RoomDomainErrorCode.INVALID_ROOM_NAME);
+    }
+
+    @Test
     void rejectsInvalidOwnerAndOwnerMembershipIds() {
         assertFailure(
                 () -> create("room-1", " ", "owner-1",
@@ -107,6 +133,7 @@ class RoomCreationAndRestoreTest {
                 CREATED_AT.plusSeconds(60), 5);
 
         assertThat(active.status()).isEqualTo(RoomStatus.ACTIVE);
+        assertThat(active.name()).isEqualTo("room-1");
         assertThat(active.activeMemberCount()).isEqualTo(2);
         assertThat(active.version()).isEqualTo(4);
         assertThat(closed.status()).isEqualTo(RoomStatus.CLOSED);

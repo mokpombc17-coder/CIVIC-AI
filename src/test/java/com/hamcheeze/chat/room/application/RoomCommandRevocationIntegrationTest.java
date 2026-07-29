@@ -313,6 +313,7 @@ class RoomCommandRevocationIntegrationTest
         return commandService.createRoom(new CreateRoomCommand(
                         ownerUserId,
                         uuid(),
+                        "Test room",
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .result()

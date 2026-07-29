@@ -10,6 +10,7 @@ import java.time.Instant;
 
 public record RoomDetailResponse(
         String roomId,
+        String name,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -25,6 +26,7 @@ public record RoomDetailResponse(
     public static RoomDetailResponse from(RoomDetailView view) {
         return new RoomDetailResponse(
                 view.roomId(),
+                view.name(),
                 view.ownerUserId(),
                 view.status(),
                 view.visibility(),

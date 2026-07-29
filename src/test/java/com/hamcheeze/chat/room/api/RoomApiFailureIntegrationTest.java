@@ -100,6 +100,7 @@ class RoomApiFailureIntegrationTest
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "name":"Test room",
                                   "visibility":"LISTED",
                                   "joinPolicy":"OPEN"
                                 }

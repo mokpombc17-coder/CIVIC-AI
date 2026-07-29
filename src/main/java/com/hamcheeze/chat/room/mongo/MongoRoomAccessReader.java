@@ -111,8 +111,9 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
         }
         requireSchema(
                 document,
-                MongoRoomDocument.CURRENT_SCHEMA_VERSION,
-                MongoRoomDocument.COLLECTION_NAME);
+                MongoRoomDocument.COLLECTION_NAME,
+                MongoRoomDocument.LEGACY_SCHEMA_VERSION,
+                MongoRoomDocument.CURRENT_SCHEMA_VERSION);
         return new RoomProjection(
                 enumValue(document, "status", RoomStatus.class),
                 longValue(document, "version"));
@@ -140,8 +141,8 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
         }
         requireSchema(
                 document,
-                MongoMembershipDocument.CURRENT_SCHEMA_VERSION,
-                MongoMembershipDocument.COLLECTION_NAME);
+                MongoMembershipDocument.COLLECTION_NAME,
+                MongoMembershipDocument.CURRENT_SCHEMA_VERSION);
         if (!roomId.equals(document.getString("roomId"))
                 || !userId.equals(document.getString("userId"))) {
             throw new RoomAccessReadException(
@@ -165,14 +166,19 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
 
     private static void requireSchema(
             Document document,
-            int expected,
-            String collection
+            String collection,
+            int... supportedVersions
     ) {
         Number value = document.get("schemaVersion", Number.class);
-        if (value == null || value.intValue() != expected) {
-            throw new RoomAccessReadException(
-                    "Unsupported schemaVersion in " + collection);
+        if (value != null) {
+            for (int supported : supportedVersions) {
+                if (value.intValue() == supported) {
+                    return;
+                }
+            }
         }
+        throw new RoomAccessReadException(
+                "Unsupported schemaVersion in " + collection);
     }
 
     private static long longValue(
