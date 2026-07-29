@@ -37,6 +37,29 @@ RootLayout [Server] (apps/web/app/layout.tsx)
 
 `TemporaryLoginPanel`, `RuntimeQueryPanel`, `UpstreamHealthPanel`, `NativeBridgePanel` 내부에는 조건부 UI가 있지만 모두 intrinsic HTML element이므로 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
 
+## Route `/chat`와 `/chat/[roomId]`
+
+`ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성한다.
+목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가 provider의 `children` slot으로
+전달된다. 실제 REST query와 mutation은 이후 채팅 기능 컴포넌트가 같은 cache를 공유한다.
+
+```text
+RootLayout [Server] (apps/web/app/layout.tsx)
+└── AppShell [Client] (apps/web/components/app-shell.tsx)
+    ├── NativeBridgeRuntime [Client] (apps/web/components/native-bridge-runtime.tsx)
+    └── AppUpdateGate [Client] [conditional] (apps/web/components/app-update-gate.tsx)
+        ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
+        └── children [slot: App Router가 route child를 제공]
+            └── ChatLayout [Server] (apps/web/app/chat/layout.tsx)
+                └── ChatQueryProvider [Client] (apps/web/components/chat-query-provider.tsx)
+                    └── children [slot: nested page를 제공]
+                        ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
+                        └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
+```
+
+`ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
+제외한다. Devtools 출력은 development 환경에서만 활성화된다.
+
 ## Route `/architecture`
 
 `/architecture`에는 별도의 nested layout이 없다. 따라서 root layout의 `children`이 바로 `ArchitecturePage`로 결정된다.
@@ -91,6 +114,12 @@ flowchart TD
     UpstreamHealthPanel["UpstreamHealthPanel [Client]<br/>apps/web/components/upstream-health-panel.tsx"]
     NativeBridgePanel["NativeBridgePanel [Client]<br/>apps/web/components/native-bridge-panel.tsx"]
 
+    ChatLayout["ChatLayout [Server]<br/>apps/web/app/chat/layout.tsx"]
+    ChatQueryProvider["ChatQueryProvider [Client]<br/>apps/web/components/chat-query-provider.tsx"]
+    ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
+    ChatPage["ChatPage [Server]<br/>apps/web/app/chat/page.tsx"]
+    ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
+
     ArchitecturePage["ArchitecturePage [Server]<br/>apps/web/app/architecture/page.tsx"]
 
     SpecialBoundary["App Router root-segment special UI<br/>framework-managed; direct JSX parent 미확정"]
@@ -110,6 +139,12 @@ flowchart TD
     HomePage --> UpstreamHealthPanel
     HomePage --> NativeBridgePanel
 
+    ChildrenSlot -. "route /chat" .-> ChatLayout
+    ChatLayout --> ChatQueryProvider
+    ChatQueryProvider --> ChatChildrenSlot
+    ChatChildrenSlot -. "route /chat" .-> ChatPage
+    ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
+
     ChildrenSlot -. "route /architecture" .-> ArchitecturePage
 
     SpecialBoundary -. "loading state" .-> Loading
@@ -120,7 +155,7 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,HomePage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ErrorPage client;
-    class ChildrenSlot,SpecialBoundary framework;
+    class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,ArchitecturePage,Loading,NotFound server;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ErrorPage client;
+    class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

@@ -32,6 +32,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               구조
             </Link>
+            <Link
+              aria-current={
+                pathname === "/chat" || pathname.startsWith("/chat/") ? "page" : undefined
+              }
+              href="/chat"
+            >
+              채팅
+            </Link>
           </nav>
 
           <button
