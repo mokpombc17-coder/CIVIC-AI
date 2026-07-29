@@ -11,7 +11,7 @@
 ## 계층
 
 ```text
-TanStack Query hook (다음 작업)
+TanStack Query hook
   → chatRoomApi
     → Zod request/response contract
       → chatFetch
@@ -64,6 +64,55 @@ retryable 오류 또는 네트워크 재시도
 API 함수 내부에서 재시도마다 key를 새로 만들면 서버가 기존 요청과 같은 작업으로 식별할 수
 없으므로 금지한다. TanStack Query mutation도 retry command 객체를 mutation 생명주기 동안
 유지해야 한다.
+
+## TanStack Query 정책
+
+### Query key
+
+모든 방 REST cache는 `["chat", "rooms"]` 아래에 둔다.
+
+```text
+public-list
+my-list
+detail/{roomId}
+my-membership/{roomId}
+membership-list/{roomId}
+```
+
+목록의 `limit`과 멤버 목록의 `status`는 결과 집합을 바꾸므로 query key에 포함한다. cursor는
+동일한 목록의 다음 page를 가리키므로 query key에 넣지 않고 infinite query의 `pageParam`으로
+관리한다.
+
+### Query
+
+- 공개 방 목록, 내 방 목록과 멤버 목록은 `useInfiniteQuery`를 사용한다.
+- 방 상세와 내 멤버십은 roomId별 `useQuery`를 사용한다.
+- cursor가 `null`인 첫 page에서는 query parameter를 보내지 않는다.
+- 서버가 반환한 `nextCursor`를 해석하지 않고 다음 page parameter로 전달한다.
+
+### Mutation
+
+모든 mutation은 자동 retry를 사용하지 않는다. 사용자가 재시도하거나 이후 재시도 정책을
+적용할 때 mutation variables에 보관된 기존 `IdempotentCommand`를 다시 사용한다.
+
+Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를 기존 cache에 임의로 병합하지
+않는다.
+
+```text
+방 생성 성공
+  → 공개 방 목록 무효화
+  → 내 방 목록 무효화
+
+방 상태 Command 성공
+  → 공개 방 목록 무효화
+  → 내 방 목록 무효화
+  → 해당 방 상세 무효화
+  → 해당 방의 내 멤버십 무효화
+  → 해당 방 멤버 목록 무효화
+```
+
+서버의 최신 전체 표현을 다시 조회하는 방식을 사용하면 Command별 부분 응답을 조합하면서
+발생하는 cache 불일치를 피할 수 있다.
 
 ## 구현된 endpoint
 
