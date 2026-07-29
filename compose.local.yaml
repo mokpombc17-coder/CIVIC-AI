@@ -16,6 +16,14 @@ services:
         - >-
           mongosh --quiet --eval "
           try {
+            const expectedHost = 'mongodb:27017';
+            const config = rs.conf();
+            if (config.members.length !== 1
+                || config.members[0].host !== expectedHost) {
+              config.members = [{ _id: 0, host: expectedHost }];
+              rs.reconfig(config, { force: true });
+              quit(1);
+            }
             const status = rs.status();
             quit(status.myState === 1 ? 0 : 1);
           } catch (error) {
@@ -24,7 +32,7 @@ services:
               try {
                 rs.initiate({
                   _id: 'rs0',
-                  members: [{ _id: 0, host: 'localhost:27017' }]
+                  members: [{ _id: 0, host: 'mongodb:27017' }]
                 });
               } catch (ignored) {
               }
@@ -35,6 +43,21 @@ services:
       timeout: 5s
       retries: 30
       start_period: 5s
+
+  chat-resource-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      CHAT_MONGODB_URI: >-
+        mongodb://mongodb:27017/chat_local?replicaSet=rs0&retryWrites=true&w=majority
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8082:8082"
 
 volumes:
   mongodb-data:
