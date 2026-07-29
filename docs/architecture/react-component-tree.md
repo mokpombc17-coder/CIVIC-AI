@@ -41,9 +41,10 @@ RootLayout [Server] (apps/web/app/layout.tsx)
 
 `ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
 그 안에 `ChatRealtimeProvider`를 배치한다. 실시간 Provider는 STOMP Client를 직접 노출하지
-않고 교체 가능한 transport를 제공하므로, 이후 연결 소유권을 SharedWorker로 옮겨도 하위 채팅
-컴포넌트의 사용 계약은 유지된다. 목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가
-Provider의 `children` slot으로 전달된다.
+않고 교체 가능한 transport를 제공한다. SharedWorker 지원 브라우저에서는 Worker가 STOMP Client를
+소유하고, 미지원 단일 WebView에서는 Direct transport를 사용한다. 두 환경 모두 하위 채팅
+컴포넌트의 사용 계약은 같다. 목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가 Provider의
+`children` slot으로 전달된다.
 
 ```text
 RootLayout [Server] (apps/web/app/layout.tsx)

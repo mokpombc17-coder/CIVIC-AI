@@ -8,10 +8,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import {
-  attachChatSharedWorkerProbe,
-  isChatSharedWorkerProbeEnabled,
-} from "@/lib/chat/realtime/chat-shared-worker-probe";
+import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
 import { createChatRealtimeTransport } from "@/lib/chat/realtime/create-chat-realtime-transport";
 import type {
   ChatConnectionSnapshot,
@@ -23,14 +20,7 @@ const ChatRealtimeContext = createContext<ChatRealtimeTransport | null>(null);
 export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   const [transport] = useState(createChatRealtimeTransport);
 
-  useEffect(() => transport.attach(), [transport]);
-  useEffect(() => {
-    if (!isChatSharedWorkerProbeEnabled(window.location.search)) {
-      return;
-    }
-
-    return attachChatSharedWorkerProbe();
-  }, []);
+  useEffect(() => attachChatRealtimePageLifecycle(transport, window), [transport]);
 
   return <ChatRealtimeContext value={transport}>{children}</ChatRealtimeContext>;
 }

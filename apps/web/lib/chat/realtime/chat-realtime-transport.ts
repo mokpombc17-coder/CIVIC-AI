@@ -2,7 +2,7 @@ export type ChatConnectionStatus =
   "idle" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "disconnected" | "error";
 
 export type ChatRealtimeError = Readonly<{
-  source: "stomp" | "websocket";
+  source: "stomp" | "websocket" | "worker";
   message: string;
 }>;
 

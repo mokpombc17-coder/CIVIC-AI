@@ -1,6 +1,20 @@
 import { DirectStompTransport } from "./direct-stomp-transport";
-import type { ChatRealtimeTransport } from "./chat-realtime-transport";
+import type {
+  ChatRealtimeTransport,
+  ChatRealtimeTransportFactory,
+} from "./chat-realtime-transport";
+import { SharedWorkerTransport } from "./shared-worker-transport";
 
-export function createChatRealtimeTransport(): ChatRealtimeTransport {
-  return new DirectStompTransport();
+type CreateChatRealtimeTransportOptions = {
+  createDirectTransport?: ChatRealtimeTransportFactory;
+  createSharedWorkerTransport?: ChatRealtimeTransportFactory;
+  supportsSharedWorker?: boolean;
+};
+
+export function createChatRealtimeTransport({
+  createDirectTransport = () => new DirectStompTransport(),
+  createSharedWorkerTransport = () => new SharedWorkerTransport(),
+  supportsSharedWorker = typeof SharedWorker !== "undefined",
+}: CreateChatRealtimeTransportOptions = {}): ChatRealtimeTransport {
+  return supportsSharedWorker ? createSharedWorkerTransport() : createDirectTransport();
 }

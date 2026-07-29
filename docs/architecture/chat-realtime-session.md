@@ -8,8 +8,8 @@
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: `DirectStompTransport`
-- 목표 구현: `SharedWorkerTransport`와 SharedWorker 소유 STOMP Client
+- 현재 구현: `SharedWorkerTransport`와 SharedWorker 소유 STOMP Client
+- 다음 구현: SharedWorker 소유 단일 활성 방 lease와 STOMP subscription
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
 브라우저에서 같은 사용자가 Chat Resource Server와 맺는 WebSocket 연결과 활성 채팅방 구독을
@@ -76,14 +76,24 @@ SharedWorker가 연결 소유권을 가진다.
 ### 현재
 
 ```text
-ChatRealtimeProvider
-  → DirectStompTransport
-    → @stomp/stompjs Client
-      → WebSocket
+SharedWorker 지원 브라우저
+  ChatRealtimeProvider
+    → SharedWorkerTransport
+      → MessagePort
+        → Chat SharedWorker
+          → @stomp/stompjs Client 1개
+            → WebSocket 1개
+
+SharedWorker 미지원 단일 WebView
+  ChatRealtimeProvider
+    → DirectStompTransport
+      → @stomp/stompjs Client
+        → WebSocket
 ```
 
-현재 구현은 탭마다 `DirectStompTransport`를 만들기 때문에 여러 탭에서 여러 WebSocket이 생길
-수 있다. 이 구현은 SharedWorker를 사용할 수 없는 단일 WebView 런타임의 fallback으로 남긴다.
+SharedWorker 지원 여부는 transport factory가 판단한다. 지원 브라우저에서는 탭마다
+`SharedWorkerTransport`와 MessagePort를 만들지만 STOMP Client는 Worker 안에서 하나만 생성한다.
+SharedWorker 미지원 환경에서만 `DirectStompTransport`를 사용한다.
 
 ### 목표
 
@@ -453,6 +463,7 @@ ChatRealtimeProvider mount
 ### 탭 detach
 
 정상적인 route cleanup과 `pagehide`에서 `DETACH`를 전송하고 MessagePort를 닫는다.
+페이지가 bfcache에서 `pageshow`로 복원되면 같은 transport가 새 MessagePort로 다시 attach한다.
 
 - 비활성 port면 port만 제거한다.
 - 활성 room owner면 room lease를 해제하고 room subscription을 정리한다.
@@ -664,15 +675,20 @@ room subscription status
 - 같은 origin의 두 탭에서 동일한 Worker instance와 서로 다른 port 연결을 확인했다.
 - 한 탭이 채팅 route를 벗어나면 연결 수가 `2 → 1`로 감소하는 것을 확인했다.
 
-이 probe는 2단계에서 `SharedWorkerTransport`로 대체한다. query parameter가 없을 때는 현재의
-`DirectStompTransport`만 동작한다.
+probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코드에는 남아 있지 않다.
 
 ### 2. 연결 소유권 이동
 
-- `SharedWorkerTransport`를 구현한다.
-- Worker 안에서 기존 `createChatStompClient()`를 사용한다.
-- connection snapshot을 모든 port에 전달한다.
-- Direct fallback을 유지한다.
+진행 상태: 완료 (2026-07-29)
+
+- `SharedWorkerTransport`가 탭별 MessagePort와 외부 store snapshot을 관리한다.
+- `ChatSharedWorkerRuntime`이 Worker 안에서 기존 `createChatStompClient()`를 한 번만 생성한다.
+- `ATTACH`, `DETACH`, `RECONNECT`, `CONNECTION_SNAPSHOT` 계약을 구현했다.
+- 첫 port에서 STOMP를 활성화하고 마지막 port가 떨어질 때만 비활성화한다.
+- 비활성화 도중 새 port가 연결되면 완료 후 STOMP를 다시 활성화한다.
+- Worker 실행 오류에서는 Direct 연결을 추가하지 않으며 명시적인 reconnect만 허용한다.
+- SharedWorker 자체가 지원되지 않는 환경에서만 Direct fallback을 사용한다.
+- 실제 두 탭에서 SharedWorker target 1개와 page 소유 채팅 WebSocket 0개를 확인했다.
 
 ### 3. 단일 활성 방 lease
 
