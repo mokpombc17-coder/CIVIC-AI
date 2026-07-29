@@ -111,6 +111,7 @@ class RoomCommandEventMapperTest {
         assertThat(payload.roomVersion()).isEqualTo(0);
         assertThat(payload.owner().role())
                 .isEqualTo(MembershipRole.OWNER);
+        assertThat(payload.owner().userId()).isEqualTo("owner-1");
         assertThat(payload.owner().status())
                 .isEqualTo(MembershipStatus.ACTIVE);
         assertThat(plan.userRecipients()).containsExactly("owner-1");
@@ -128,6 +129,8 @@ class RoomCommandEventMapperTest {
         assertThat(payload.roomStatus()).isEqualTo(RoomStatus.ACTIVE);
         assertThat(payload.member().role())
                 .isEqualTo(MembershipRole.MEMBER);
+        assertThat(payload.member().userId())
+                .isEqualTo(recipients.iterator().next());
         assertThat(payload.member().status()).isEqualTo(status);
         assertThat(payload.member().membershipVersion()).isEqualTo(3);
         assertThat(plan.userRecipients()).isEqualTo(recipients);
@@ -141,8 +144,12 @@ class RoomCommandEventMapperTest {
                         plan.event().payload();
         assertThat(payload.previousOwner().role())
                 .isEqualTo(MembershipRole.MEMBER);
+        assertThat(payload.previousOwner().userId())
+                .isEqualTo("owner-1");
         assertThat(payload.newOwner().role())
                 .isEqualTo(MembershipRole.OWNER);
+        assertThat(payload.newOwner().userId())
+                .isEqualTo("owner-2");
         assertThat(plan.userRecipients())
                 .containsExactlyInAnyOrder("owner-1", "owner-2");
     }
@@ -155,6 +162,7 @@ class RoomCommandEventMapperTest {
         assertThat(payload.roomStatus()).isEqualTo(RoomStatus.CLOSED);
         assertThat(payload.owner().role())
                 .isEqualTo(MembershipRole.OWNER);
+        assertThat(payload.owner().userId()).isEqualTo("owner-1");
         assertThat(payload.owner().status())
                 .isEqualTo(MembershipStatus.LEFT);
         assertThat(plan.userRecipients()).containsExactly("owner-1");

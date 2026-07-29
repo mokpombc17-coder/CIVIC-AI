@@ -140,13 +140,17 @@ class RoomEventWebSocketIntegrationTest
                     .get("membershipVersion")
                     .asLong())
                     .isEqualTo(joined.result().membershipVersion());
+            assertThat(roomEvent.get("payload")
+                    .get("member")
+                    .get("userId")
+                    .asText())
+                    .isEqualTo("user-2");
             String publicJson = new String(
                     roomBytes,
                     StandardCharsets.UTF_8);
             assertThat(publicJson)
-                    .doesNotContain("user-2")
+                    .contains("\"userId\":\"user-2\"")
                     .doesNotContain("owner-1")
-                    .doesNotContain("userId")
                     .doesNotContain("clientRequestId");
         } finally {
             disconnect(ownerSession);

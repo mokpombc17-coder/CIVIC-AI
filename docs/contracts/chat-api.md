@@ -762,6 +762,7 @@ payload:
     "roomStatus": "ACTIVE",
     "member": {
       "membershipId": "membership-02",
+      "userId": "local-user-2",
       "role": "MEMBER",
       "status": "ACTIVE",
       "membershipVersion": 1
@@ -791,6 +792,9 @@ payload 형태:
 | `ROOM_MEMBER_JOINED`, `ROOM_MEMBER_REJOINED`, `ROOM_MEMBER_LEFT`, `ROOM_MEMBER_BANNED`, `ROOM_MEMBER_UNBANNED` | `member` |
 | `ROOM_OWNERSHIP_TRANSFERRED` | `previousOwner`, `newOwner` |
 | `ROOM_CLOSED` | `owner` |
+
+모든 `member`, `owner`, `previousOwner`, `newOwner` 상태 객체에는 플랫폼 사용자 식별자인
+`userId`와 방 멤버십 식별자인 `membershipId`가 함께 포함됩니다.
 
 ### 사용자 System 이벤트
 

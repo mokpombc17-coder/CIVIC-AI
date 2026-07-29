@@ -94,27 +94,32 @@ public final class RoomCommandEventMapper {
                     RoomStatus.ACTIVE,
                     new RoomMemberState(
                             result.ownerMembershipId(),
+                            result.ownerUserId(),
                             MembershipRole.OWNER,
                             MembershipStatus.ACTIVE,
                             result.ownerMembershipVersion()));
             case JOINED, REJOINED -> memberPayload(
                     result,
                     result.membershipId(),
+                    result.membershipUserId(),
                     result.membershipVersion(),
                     MembershipStatus.ACTIVE);
             case LEFT -> memberPayload(
                     result,
                     result.membershipId(),
+                    result.membershipUserId(),
                     result.membershipVersion(),
                     MembershipStatus.LEFT);
             case BANNED -> memberPayload(
                     result,
                     result.targetMembershipId(),
+                    result.targetUserId(),
                     result.membershipVersion(),
                     MembershipStatus.BANNED);
             case UNBANNED -> memberPayload(
                     result,
                     result.targetMembershipId(),
+                    result.targetUserId(),
                     result.membershipVersion(),
                     MembershipStatus.LEFT);
             case OWNERSHIP_TRANSFERRED ->
@@ -124,11 +129,13 @@ public final class RoomCommandEventMapper {
                             RoomStatus.ACTIVE,
                             new RoomMemberState(
                                     result.previousOwnerMembershipId(),
+                                    result.previousOwnerUserId(),
                                     MembershipRole.MEMBER,
                                     MembershipStatus.ACTIVE,
                                     result.previousOwnerMembershipVersion()),
                             new RoomMemberState(
                                     result.newOwnerMembershipId(),
+                                    result.newOwnerUserId(),
                                     MembershipRole.OWNER,
                                     MembershipStatus.ACTIVE,
                                     result.newOwnerMembershipVersion()));
@@ -138,6 +145,7 @@ public final class RoomCommandEventMapper {
                     RoomStatus.CLOSED,
                     new RoomMemberState(
                             result.ownerMembershipId(),
+                            result.ownerUserId(),
                             MembershipRole.OWNER,
                             MembershipStatus.LEFT,
                             result.ownerMembershipVersion()));
@@ -150,6 +158,7 @@ public final class RoomCommandEventMapper {
     private static RoomMemberChangedEventPayload memberPayload(
             RoomCommandResult result,
             String membershipId,
+            String userId,
             Long membershipVersion,
             MembershipStatus membershipStatus
     ) {
@@ -159,6 +168,7 @@ public final class RoomCommandEventMapper {
                 RoomStatus.ACTIVE,
                 new RoomMemberState(
                         membershipId,
+                        userId,
                         MembershipRole.MEMBER,
                         membershipStatus,
                         membershipVersion));

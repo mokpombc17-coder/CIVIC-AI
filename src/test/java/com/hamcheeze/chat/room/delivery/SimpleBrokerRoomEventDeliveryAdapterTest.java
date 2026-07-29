@@ -151,6 +151,7 @@ class SimpleBrokerRoomEventDeliveryAdapterTest {
                         RoomStatus.ACTIVE,
                         new RoomMemberState(
                                 "membership-1",
+                                "user-1",
                                 MembershipRole.MEMBER,
                                 MembershipStatus.ACTIVE,
                                 0)));
