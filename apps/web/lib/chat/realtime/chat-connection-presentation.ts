@@ -37,6 +37,11 @@ const CHAT_CONNECTION_PRESENTATIONS = {
     tone: "negative",
     canReconnect: true,
   },
+  replaced: {
+    label: "다른 환경에서 연결됨",
+    tone: "negative",
+    canReconnect: false,
+  },
   error: {
     label: "연결 오류",
     tone: "negative",

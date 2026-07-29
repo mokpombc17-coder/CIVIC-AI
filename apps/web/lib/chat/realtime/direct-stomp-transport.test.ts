@@ -82,6 +82,33 @@ describe("DirectStompTransport", () => {
     expect(listener).toHaveBeenCalled();
   });
 
+  it("4001 CONNECTION_REPLACED에서는 자동 및 수동 재연결을 중단한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    client.onWebSocketClose({
+      code: 4001,
+      reason: "CONNECTION_REPLACED",
+    } as CloseEvent);
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(transport.getSnapshot()).toEqual({
+      status: "replaced",
+      error: {
+        source: "websocket",
+        code: "CONNECTION_REPLACED",
+        message: "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.",
+      },
+    });
+
+    transport.reconnect();
+
+    expect(client.activate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+  });
+
   it("활성 연결은 강제로 닫아 재연결하고 비활성 연결은 다시 activate한다", () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);

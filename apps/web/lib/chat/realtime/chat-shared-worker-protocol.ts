@@ -75,6 +75,7 @@ const CONNECTION_STATUSES = new Set<ChatConnectionSnapshot["status"]>([
   "reconnecting",
   "disconnecting",
   "disconnected",
+  "replaced",
   "error",
 ]);
 
@@ -123,6 +124,7 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
           (snapshot.error.source === "stomp" ||
             snapshot.error.source === "websocket" ||
             snapshot.error.source === "worker") &&
+          (snapshot.error.code === undefined || snapshot.error.code === "CONNECTION_REPLACED") &&
           typeof snapshot.error.message === "string"))
     );
   }

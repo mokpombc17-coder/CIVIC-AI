@@ -10,6 +10,7 @@ describe("getChatConnectionPresentation", () => {
     ["reconnecting", "재연결 중", "pending"],
     ["disconnecting", "연결 종료 중", "neutral"],
     ["disconnected", "연결 끊김", "negative"],
+    ["replaced", "다른 환경에서 연결됨", "negative"],
     ["error", "연결 오류", "negative"],
   ] satisfies ReadonlyArray<
     readonly [
@@ -30,4 +31,8 @@ describe("getChatConnectionPresentation", () => {
       expect(getChatConnectionPresentation(status).canReconnect).toBe(true);
     },
   );
+
+  it("다른 환경에서 교체된 연결은 수동 재연결도 노출하지 않는다", () => {
+    expect(getChatConnectionPresentation("replaced").canReconnect).toBe(false);
+  });
 });

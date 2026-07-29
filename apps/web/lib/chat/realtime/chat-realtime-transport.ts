@@ -1,10 +1,27 @@
 export type ChatConnectionStatus =
-  "idle" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "disconnected" | "error";
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "disconnecting"
+  | "disconnected"
+  | "replaced"
+  | "error";
 
 export type ChatRealtimeError = Readonly<{
   source: "stomp" | "websocket" | "worker";
+  code?: "CONNECTION_REPLACED";
   message: string;
 }>;
+
+export const CHAT_CONNECTION_REPLACED_CLOSE_CODE = 4001;
+export const CHAT_CONNECTION_REPLACED_REASON = "CONNECTION_REPLACED";
+export const CHAT_CONNECTION_REPLACED_MESSAGE =
+  "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.";
+
+export function isChatConnectionReplacedCloseEvent(event: Pick<CloseEvent, "code">): boolean {
+  return event.code === CHAT_CONNECTION_REPLACED_CLOSE_CODE;
+}
 
 export type ChatConnectionSnapshot = Readonly<{
   status: ChatConnectionStatus;

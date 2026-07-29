@@ -134,6 +134,41 @@ describe("ChatSharedWorkerRuntime", () => {
     });
   });
 
+  it("4001 CONNECTION_REPLACED를 모든 port에 알리고 재연결을 중단한다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const portA = createFakePort();
+    const portB = createFakePort();
+
+    runtime.connectPort(portA);
+    runtime.connectPort(portB);
+    portA.send({ type: "ATTACH", portId: "port-a" });
+    portB.send({ type: "ATTACH", portId: "port-b" });
+    client.onConnect({} as IFrame);
+    client.onWebSocketClose({
+      code: 4001,
+      reason: "CONNECTION_REPLACED",
+    } as CloseEvent);
+
+    const replacedSnapshot = {
+      status: "replaced",
+      error: {
+        source: "websocket",
+        code: "CONNECTION_REPLACED",
+        message: "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.",
+      },
+    };
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(portA.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual(replacedSnapshot);
+    expect(portB.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual(replacedSnapshot);
+
+    portA.send({ type: "RECONNECT", portId: "port-a" });
+
+    expect(client.activate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+  });
+
   it("첫 방 claim을 활성 lease로 만들고 같은 owner의 중복 claim은 generation을 유지한다", () => {
     const client = createFakeStompClient();
     const runtime = new ChatSharedWorkerRuntime(client);

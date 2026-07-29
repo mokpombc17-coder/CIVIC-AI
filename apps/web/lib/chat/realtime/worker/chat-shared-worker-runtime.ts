@@ -1,8 +1,10 @@
 import type { Client, IFrame, IMessage } from "@stomp/stompjs";
-import type {
-  ChatConnectionSnapshot,
-  ChatConnectionStatus,
-  ChatRealtimeError,
+import {
+  CHAT_CONNECTION_REPLACED_MESSAGE,
+  isChatConnectionReplacedCloseEvent,
+  type ChatConnectionSnapshot,
+  type ChatConnectionStatus,
+  type ChatRealtimeError,
 } from "../chat-realtime-transport";
 import {
   getChatRoomEventsDestination,
@@ -107,6 +109,11 @@ export class ChatSharedWorkerRuntime {
     };
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
+
+      if (isChatConnectionReplacedCloseEvent(event)) {
+        this.stopConnectionReplacedReconnect();
+        return;
+      }
 
       if (this.getAttachedPortCount() === 0 || this.deactivation || !this.client.active) {
         this.snapshot = {
@@ -303,6 +310,10 @@ export class ChatSharedWorkerRuntime {
   }
 
   private reconnect(): void {
+    if (this.snapshot.status === "replaced") {
+      return;
+    }
+
     if (this.client.active) {
       this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
@@ -311,6 +322,24 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.startConnection();
+  }
+
+  private stopConnectionReplacedReconnect(): void {
+    this.pendingRoomActivation = null;
+
+    try {
+      void this.client.deactivate().catch(() => {
+        // deactivate flips Client.active synchronously, so a rejected cleanup must not restart it.
+      });
+    } catch {
+      // Keep the terminal replacement state even if the STOMP cleanup itself throws.
+    }
+
+    this.setSnapshot("replaced", {
+      source: "websocket",
+      code: "CONNECTION_REPLACED",
+      message: CHAT_CONNECTION_REPLACED_MESSAGE,
+    });
   }
 
   private claimRoom(

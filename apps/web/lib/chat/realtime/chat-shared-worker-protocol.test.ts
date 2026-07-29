@@ -2,6 +2,36 @@ import { describe, expect, it } from "vitest";
 import { isChatSharedWorkerCommand, isChatSharedWorkerEvent } from "./chat-shared-worker-protocol";
 
 describe("chat shared worker protocol", () => {
+  it("연결 교체 snapshot의 terminal 상태와 오류 code를 검증한다", () => {
+    const snapshotEvent = {
+      type: "CONNECTION_SNAPSHOT",
+      workerInstanceId: "worker-1",
+      attachedPortCount: 2,
+      snapshot: {
+        status: "replaced",
+        error: {
+          source: "websocket",
+          code: "CONNECTION_REPLACED",
+          message: "다른 환경에서 연결됨",
+        },
+      },
+    };
+
+    expect(isChatSharedWorkerEvent(snapshotEvent)).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...snapshotEvent,
+        snapshot: {
+          ...snapshotEvent.snapshot,
+          error: {
+            ...snapshotEvent.snapshot.error,
+            code: "UNKNOWN_CLOSE_CODE",
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
   it("방 lease command의 correlation 필드를 검증한다", () => {
     expect(
       isChatSharedWorkerCommand({

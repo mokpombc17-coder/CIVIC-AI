@@ -8,12 +8,14 @@ import {
   ChatStompSubscriptionManager,
   parseChatSubscriptionRejection,
 } from "./chat-stomp-subscription-manager";
-import type {
-  ChatConnectionSnapshot,
-  ChatConnectionStatus,
-  ChatRealtimeError,
-  ChatRealtimeTransport,
-  ChatRoomSessionSnapshot,
+import {
+  CHAT_CONNECTION_REPLACED_MESSAGE,
+  isChatConnectionReplacedCloseEvent,
+  type ChatConnectionSnapshot,
+  type ChatConnectionStatus,
+  type ChatRealtimeError,
+  type ChatRealtimeTransport,
+  type ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
 
 export type DirectStompClient = Pick<
@@ -94,6 +96,11 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     };
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
+
+      if (isChatConnectionReplacedCloseEvent(event)) {
+        this.stopConnectionReplacedReconnect();
+        return;
+      }
 
       if (this.attachmentCount === 0 || !this.client.active) {
         this.setSnapshot("disconnected", null);
@@ -218,7 +225,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   };
 
   readonly reconnect = (): void => {
-    if (this.attachmentCount === 0) {
+    if (this.attachmentCount === 0 || this.snapshot.status === "replaced") {
       return;
     }
 
@@ -268,6 +275,22 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private setSnapshot(status: ChatConnectionStatus, error: ChatRealtimeError | null): void {
     this.snapshot = { status, error };
     this.listeners.forEach((listener) => listener());
+  }
+
+  private stopConnectionReplacedReconnect(): void {
+    try {
+      void this.client.deactivate().catch(() => {
+        // deactivate flips Client.active synchronously, so a rejected cleanup must not restart it.
+      });
+    } catch {
+      // Keep the terminal replacement state even if the STOMP cleanup itself throws.
+    }
+
+    this.setSnapshot("replaced", {
+      source: "websocket",
+      code: "CONNECTION_REPLACED",
+      message: CHAT_CONNECTION_REPLACED_MESSAGE,
+    });
   }
 
   private setRoomSnapshot(snapshot: ChatRoomSessionSnapshot): void {

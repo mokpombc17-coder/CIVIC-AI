@@ -496,12 +496,27 @@ MessagePort 오류 처리, SharedWorker 자체의 owner 생명주기 및 이후�
 ### WebSocket 재연결
 
 STOMP 재연결이 완료되면 기존 subscription은 유지된 것으로 간주하지 않는다.
+단, 서버가 `4001 / CONNECTION_REPLACED`로 종료한 연결은 재연결 대상에서 제외한다.
 
 1. user queue 두 개를 다시 구독한다.
 2. 현재 `ActiveRoomLease`가 있으면 현재 generation으로 방 topic을 다시 구독한다.
 3. active owner 탭에 재동기화 필요 상태를 알린다.
 4. 메시지 이력 API가 확정되면 마지막 `roomSequence` 이후의 누락 메시지를 복구한다.
 5. 복구 도중 generation이 바뀌면 이전 복구 결과를 폐기한다.
+
+### 다른 환경의 연결에 의한 교체
+
+같은 사용자가 다른 브라우저, 프로필 또는 기기에서 새 연결을 만들면 서버가 기존 연결을
+WebSocket close code `4001`, reason `CONNECTION_REPLACED`로 종료한다.
+
+- SharedWorker와 Direct fallback은 close callback에서 STOMP Client를 `deactivate()`한다.
+- connection snapshot을 `replaced` 상태와 `CONNECTION_REPLACED` 오류 code로 전환한다.
+- SharedWorker는 같은 terminal snapshot을 연결된 모든 port에 전달한다.
+- 일반 자동 재연결과 기존 `RECONNECT` 명령을 모두 중단한다.
+- UI는 `다른 환경에서 연결됨`을 표시하고 일반적인 `다시 연결` 버튼을 노출하지 않는다.
+
+이는 서로 다른 환경이 번갈아 상대 연결을 교체하는 재연결 경쟁을 막기 위한 terminal
+상태다. 향후 명시적인 선점 UX가 필요하면 일반 재연결과 구분된 별도 사용자 동작으로 추가한다.
 
 ### 인증 변경
 
@@ -529,6 +544,7 @@ connected
 reconnecting
 disconnecting
 disconnected
+replaced
 error
 ```
 
@@ -599,7 +615,8 @@ WebSocket이 살아 있는 상태에서 fallback을 만들면 단일 연결 불�
 - Worker가 단일 재연결 루프를 소유한다.
 - 탭의 `RECONNECT` 요청 여러 개를 하나의 재연결 시도로 합친다.
 - 모든 port에 동일한 connection snapshot을 전달한다.
-- 비재시도 인증 오류를 식별할 수 있는 서버 close/error 계약이 확정되면 무한 재연결을 중단한다.
+- `4001 / CONNECTION_REPLACED`는 terminal `replaced` 상태로 전환하고 재연결하지 않는다.
+- 그 밖의 비재시도 인증 오류는 서버 close/error 계약이 확정되면 같은 방식으로 분류한다.
 
 ### 방 구독 거절
 
@@ -707,6 +724,8 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 - 첫 port에서 STOMP를 활성화하고 마지막 port가 떨어질 때만 비활성화한다.
 - 비활성화 도중 새 port가 연결되면 완료 후 STOMP를 다시 활성화한다.
 - Worker 실행 오류에서는 Direct 연결을 추가하지 않으며 명시적인 reconnect만 허용한다.
+- `4001 / CONNECTION_REPLACED`에서는 STOMP를 비활성화하고 모든 port에 terminal
+  `replaced` 상태를 전달한다.
 - SharedWorker 자체가 지원되지 않는 환경에서만 Direct fallback을 사용한다.
 - 실제 두 탭에서 SharedWorker target 1개와 page 소유 채팅 WebSocket 0개를 확인했다.
 
@@ -817,8 +836,9 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 유지한다. 백엔드는 같은 WebSocket session의 STOMP frame을 수신 순서대로 처리하며, 위 순서에는
 별도 receipt 대기가 필요하지 않음을 최종 확인했다.
 
-- STOMP `SUBSCRIBE` 성공을 확인할 receipt 또는 승인 event 제공 여부
-- WebSocket handshake 인증 실패 시 close code와 reason
+- `ROOM_SUBSCRIPTIONS_READY`의 destination, payload 및 sequence watermark
+- `ROOM_SUBSCRIPTIONS_READY`와 room claim generation의 correlation 방식
+- `4001 / CONNECTION_REPLACED` 외 WebSocket handshake 인증 실패의 close code와 reason
 - 비재시도 인증 오류와 일시적 인프라 오류 구분
 - reconnect 복구 API의 최종 endpoint와 pagination
 - `roomSequence` 누락 범위 처리
