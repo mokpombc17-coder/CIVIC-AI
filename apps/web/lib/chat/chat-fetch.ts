@@ -1,8 +1,6 @@
 "use client";
 
-const DEFAULT_CHAT_API_URL = "http://localhost:8081";
-
-export const CHAT_API_URL = process.env.NEXT_PUBLIC_CHAT_API_URL ?? DEFAULT_CHAT_API_URL;
+import { CHAT_API_BASE_URL } from "./chat-config";
 
 type FetchRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -42,7 +40,7 @@ export class ChatResponseParseError extends Error {
 }
 
 export function createChatFetch({
-  baseUrl = CHAT_API_URL,
+  baseUrl = CHAT_API_BASE_URL,
   request = fetch,
 }: CreateChatFetchOptions = {}): ChatFetch {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);

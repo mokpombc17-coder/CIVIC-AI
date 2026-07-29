@@ -9,7 +9,6 @@ describe("chatFetch", () => {
       Response.json({ roomId: "room-1" }, { status: 200 }),
     );
     const chatFetch = createChatFetch({
-      baseUrl: "http://localhost:8081",
       request,
     });
 
@@ -21,7 +20,7 @@ describe("chatFetch", () => {
     const [input, init] = request.mock.calls[0]!;
     const headers = new Headers(init?.headers);
 
-    expect(input.toString()).toBe("http://localhost:8081/rooms/room-1");
+    expect(input.toString()).toBe("http://localhost:8082/api/v1/rooms/room-1");
     expect(init?.credentials).toBe("include");
     expect(init?.cache).toBe("no-store");
     expect(headers.get("Accept")).toBe("application/json");
@@ -88,7 +87,7 @@ describe("chatFetch", () => {
     expect(error).toMatchObject({
       status: 404,
       statusText: "Not Found",
-      url: "http://localhost:8081/rooms/missing",
+      url: "http://localhost:8082/api/v1/rooms/missing",
       body: {
         detail: "Room not found.",
         code: "ROOM_NOT_FOUND",
@@ -114,7 +113,7 @@ describe("chatFetch", () => {
     expect(error).toBeInstanceOf(ChatResponseParseError);
     expect(error).toMatchObject({
       status: 200,
-      url: "http://localhost:8081/rooms",
+      url: "http://localhost:8082/api/v1/rooms",
       message: "Chat API 응답 JSON을 해석하지 못했습니다. (HTTP 200)",
     });
   });

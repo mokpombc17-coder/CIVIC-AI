@@ -75,7 +75,7 @@ JWT는 응답 body로 반환하지 않으며 `NEXT_PUBLIC_*` 환경변수로 노
 
 ```text
 http://localhost:3000
-http://localhost:8081
+http://localhost:8082
 ```
 
 `localhost`와 `127.0.0.1`을 섞으면 서로 다른 cookie host가 된다.
@@ -145,7 +145,7 @@ civic-ai-local-auth-fixture-signing-key-v1-public-do-not-use-in-production
 
 ## Chat Resource Server 전달 계약
 
-로컬 Chat Resource Server는 `http://localhost:8081`에서 실행하며 다음 계약을 전달받는다.
+로컬 Chat Resource Server는 `http://localhost:8082`에서 실행하며 다음 계약을 전달받는다.
 
 ```text
 JWT algorithm: HS256
@@ -156,6 +156,7 @@ JWT subject claim: sub
 JWT scope claim: scope
 Cookie name: civic_ai_access_token
 Allowed web origin: http://localhost:3000
+REST API prefix: /api/v1
 WebSocket endpoint: /ws
 ```
 
