@@ -12,7 +12,7 @@
 - `div`, `section`, `main`, `header` 등의 intrinsic HTML element는 제외했다.
 - `next/link`의 `Link`처럼 프로젝트 외부에서 정의된 컴포넌트도 제외했다.
 - 조사 범위에서 `[dynamic]`에 해당하는 컴포넌트는 확인되지 않았다.
-- 조건부로 렌더링되는 intrinsic element는 트리에 나타내지 않는다. 프로젝트 정의 컴포넌트 호출 자체가 조건식 안에 있는 경우도 확인되지 않았다.
+- 조건부로 렌더링되는 intrinsic element는 트리에 나타내지 않는다. 프로젝트 정의 컴포넌트 호출이 조건식 안에 있으면 `[conditional]`로 표시한다.
 
 ## Route `/`
 
@@ -28,12 +28,14 @@ RootLayout [Server] (apps/web/app/layout.tsx)
         │   └── 조건: store URL이 없으면 null 반환
         └── children [slot: App Router가 route child를 제공]
             └── HomePage [Server] (apps/web/app/page.tsx)
+                ├── TemporaryLoginPanel [Client] [conditional] (apps/web/components/temporary-login-panel.tsx)
+                │   └── 조건: NODE_ENV가 production이 아닐 때만 렌더링
                 ├── RuntimeQueryPanel [Client] (apps/web/components/runtime-query-panel.tsx)
                 ├── UpstreamHealthPanel [Client] (apps/web/components/upstream-health-panel.tsx)
                 └── NativeBridgePanel [Client] (apps/web/components/native-bridge-panel.tsx)
 ```
 
-`RuntimeQueryPanel`, `UpstreamHealthPanel`, `NativeBridgePanel` 내부에는 조건부 UI가 있지만 모두 intrinsic HTML element이므로 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
+`TemporaryLoginPanel`, `RuntimeQueryPanel`, `UpstreamHealthPanel`, `NativeBridgePanel` 내부에는 조건부 UI가 있지만 모두 intrinsic HTML element이므로 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
 
 ## Route `/architecture`
 
@@ -72,7 +74,7 @@ NotFound [Server] [conditional: unmatched route 또는 notFound()]
 
 ## 전체 component dependency graph
 
-실선은 소스에 직접 나타나는 프로젝트 컴포넌트 렌더링 관계다. 점선은 App Router 또는 `children` slot이 런타임에 결정하는 관계다. `AppUpdateGate`는 정책 판정에 따라 전달받은 `children` 또는 자체 안내 UI를 선택하며, `AppInstallBanner` 호출은 직접 관계지만 컴포넌트 자체의 출력이 조건부이므로 edge label에 이를 표시했다.
+실선은 소스에 직접 나타나는 프로젝트 컴포넌트 렌더링 관계다. 점선은 App Router 또는 `children` slot이 런타임에 결정하는 관계다. `AppUpdateGate`는 정책 판정에 따라 전달받은 `children` 또는 자체 안내 UI를 선택하며, `AppInstallBanner`와 `TemporaryLoginPanel`은 조건부 관계를 edge label에 표시했다.
 
 ```mermaid
 flowchart TD
@@ -84,6 +86,7 @@ flowchart TD
     ChildrenSlot["children slot<br/>App Router가 실제 자식을 결정"]
 
     HomePage["HomePage [Server]<br/>apps/web/app/page.tsx"]
+    TemporaryLoginPanel["TemporaryLoginPanel [Client] [conditional]<br/>apps/web/components/temporary-login-panel.tsx"]
     RuntimeQueryPanel["RuntimeQueryPanel [Client]<br/>apps/web/components/runtime-query-panel.tsx"]
     UpstreamHealthPanel["UpstreamHealthPanel [Client]<br/>apps/web/components/upstream-health-panel.tsx"]
     NativeBridgePanel["NativeBridgePanel [Client]<br/>apps/web/components/native-bridge-panel.tsx"]
@@ -102,6 +105,7 @@ flowchart TD
     AppUpdateGate --> ChildrenSlot
 
     ChildrenSlot -. "route /" .-> HomePage
+    HomePage -->|"non-production only"| TemporaryLoginPanel
     HomePage --> RuntimeQueryPanel
     HomePage --> UpstreamHealthPanel
     HomePage --> NativeBridgePanel
@@ -117,6 +121,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ErrorPage client;
     class ChildrenSlot,SpecialBoundary framework;
 ```

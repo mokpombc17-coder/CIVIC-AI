@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import { NativeBridgePanel } from "@/components/native-bridge-panel";
 import { RuntimeQueryPanel } from "@/components/runtime-query-panel";
+import { TemporaryLoginPanel } from "@/components/temporary-login-panel";
 import { UpstreamHealthPanel } from "@/components/upstream-health-panel";
 import { selectWorkspaceAction } from "@/app/actions";
+import { PLATFORM_AUTH_COOKIE_NAME } from "@/lib/server/auth/platform-auth-contract";
 
 type HomePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -14,6 +16,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const workspace =
     firstQueryValue(query.workspace) ?? cookieStore.get("demo-workspace")?.value ?? "미선택";
   const actionError = firstQueryValue(query.actionError);
+  const hasTemporarySession = cookieStore.has(PLATFORM_AUTH_COOKIE_NAME);
 
   return (
     <div className="page-stack">
@@ -25,6 +28,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           사용한다. 네이티브 코드는 운영체제 경계에서만 개입한다.
         </p>
       </section>
+
+      {process.env.NODE_ENV !== "production" ? (
+        <TemporaryLoginPanel initialAuthenticated={hasTemporarySession} />
+      ) : null}
 
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 text-blue-950 shadow-sm">
         <p className="text-sm font-bold tracking-widest text-blue-600 uppercase">Tailwind CSS v4</p>
