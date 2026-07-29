@@ -8,8 +8,8 @@
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·STOMP subscription 전환
-- 다음 구현: 멀티탭 활성 방 UX와 실시간 payload 전달
+- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·STOMP subscription 전환·멀티탭 UX
+- 다음 구현: 수정 API 명세에 따른 실시간 payload 전달
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
 브라우저에서 같은 사용자가 Chat Resource Server와 맺는 WebSocket 연결과 활성 채팅방 구독을
@@ -119,7 +119,8 @@ SharedWorker로 바뀌어도 다음 컴포넌트와 Hook의 사용 계약은 유
 ### 채팅 페이지
 
 - `/chat/[roomId]` 진입 시 방 소유권을 요청한다.
-- 탭이 다시 visible/focus 상태가 되면 방 소유권을 다시 요청한다.
+- 다른 탭에서 선점된 뒤 사용자가 재활성화 버튼을 누르면 방 소유권을 다시 요청한다.
+- bfcache에서 페이지가 복원되면 끊어진 MessagePort를 다시 연결한 뒤 방 소유권을 복구한다.
 - `/chat/[roomId]`를 벗어나면 자신이 가진 방 소유권을 해제한다.
 - Worker가 전달한 탭별 활성 상태에 따라 입력과 전송 UI를 제어한다.
 - HttpOnly JWT를 읽거나 Worker로 전달하지 않는다.
@@ -281,8 +282,10 @@ generation 1의 callback이 room-03 활성화 이후 도착하면 현재 상태�
 
 ### 이전 탭을 다시 보는 경우
 
-비활성 탭 A가 다시 visible/focus 상태가 되면 같은 방에 대한 소유권을 다시 요청한다. Worker는
-현재 owner를 교체하고 기존 owner 탭에 `ROOM_REPLACED`를 전달한다.
+비활성 탭 A를 다시 보는 것만으로는 같은 방의 소유권을 자동으로 선점하지 않는다. 사용자가
+`이 탭에서 다시 활성화`를 누르면 Worker가 현재 owner를 교체하고 기존 owner 탭에
+`ROOM_REPLACED`를 전달한다. 탭 포커스만으로 자동 선점하면 두 탭을 오갈 때마다 입력 권한이
+의도치 않게 이동하므로 명시적인 사용자 동작을 요구한다.
 
 탭 포커스만으로 REST `join`, `leave`, `close` command를 실행하지 않는다.
 
@@ -734,9 +737,14 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 
 ### 4. UX 연결
 
+진행 상태: 완료 (2026-07-29)
+
 - `다른 탭에서 채팅방을 사용 중입니다.` 안내를 추가한다.
 - `이 탭에서 다시 활성화` 동작을 연결한다.
 - 비활성 탭의 입력과 전송을 차단한다.
+- `/chat/[roomId]` 진입과 이탈을 `CLAIM_ROOM`, `RELEASE_ROOM`에 연결한다.
+- bfcache `pageshow`에서는 transport 재연결 이후 현재 방을 다시 claim한다.
+- 메시지 전송 버튼은 5단계 payload 연동 전까지 별도로 비활성화한다.
 
 ### 5. 수정 API 명세 반영
 

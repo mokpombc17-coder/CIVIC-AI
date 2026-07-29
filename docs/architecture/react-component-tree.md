@@ -60,7 +60,8 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                             ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
                             │   └── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
-                                └── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
+                                ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
+                                └── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
@@ -127,6 +128,7 @@ flowchart TD
     ChatPage["ChatPage [Server]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
+    ChatRoomSessionControls["ChatRoomSessionControls [Client]<br/>apps/web/components/chat-room-session-controls.tsx"]
 
     ArchitecturePage["ArchitecturePage [Server]<br/>apps/web/app/architecture/page.tsx"]
 
@@ -155,6 +157,7 @@ flowchart TD
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
     ChatPage --> ChatConnectionStatus
     ChatRoomPage --> ChatConnectionStatus
+    ChatRoomPage --> ChatRoomSessionControls
 
     ChildrenSlot -. "route /architecture" .-> ArchitecturePage
 
@@ -167,6 +170,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatConnectionStatus,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatConnectionStatus,ChatRoomSessionControls,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

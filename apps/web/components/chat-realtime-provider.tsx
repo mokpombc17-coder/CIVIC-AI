@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -9,10 +10,12 @@ import {
   type ReactNode,
 } from "react";
 import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
+import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realtime-room-lifecycle";
 import { createChatRealtimeTransport } from "@/lib/chat/realtime/create-chat-realtime-transport";
 import type {
   ChatConnectionSnapshot,
   ChatRealtimeTransport,
+  ChatRoomSessionSnapshot,
 } from "@/lib/chat/realtime/chat-realtime-transport";
 
 const ChatRealtimeContext = createContext<ChatRealtimeTransport | null>(null);
@@ -38,6 +41,29 @@ export function useChatRealtimeConnection(): ChatConnectionSnapshot & {
   return {
     ...snapshot,
     reconnect: transport.reconnect,
+  };
+}
+
+export function useChatRealtimeRoom(roomId: string): ChatRoomSessionSnapshot & {
+  isActive: boolean;
+  reactivate: () => void;
+} {
+  const transport = useChatRealtimeTransport();
+  const snapshot = useSyncExternalStore(
+    transport.observeRoom,
+    transport.getRoomSnapshot,
+    transport.getRoomSnapshot,
+  );
+  const reactivate = useCallback(() => {
+    transport.claimRoom(roomId);
+  }, [roomId, transport]);
+
+  useEffect(() => attachChatRealtimeRoomLifecycle(transport, roomId, window), [roomId, transport]);
+
+  return {
+    ...snapshot,
+    isActive: snapshot.status === "active" && snapshot.roomId === roomId,
+    reactivate,
   };
 }
 

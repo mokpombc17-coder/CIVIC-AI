@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
+import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
 import {
   PLACEHOLDER_CURRENT_USER_ID,
   findPlaceholderChatRoom,
@@ -116,20 +117,7 @@ export default async function ChatRoomPage({ params }: ChatRoomPageProps) {
           </ol>
         </div>
 
-        <div className="flex gap-3 border-t border-slate-200 bg-white p-4">
-          <label className="sr-only" htmlFor="chat-message">
-            메시지
-          </label>
-          <input
-            className="min-w-0 flex-1 cursor-not-allowed rounded-xl border border-slate-300 bg-slate-100 px-4 py-3 text-slate-500"
-            disabled
-            id="chat-message"
-            placeholder="WebSocket 연결 후 메시지를 입력할 수 있습니다."
-          />
-          <button className="primary-button cursor-not-allowed opacity-50" disabled type="button">
-            전송
-          </button>
-        </div>
+        <ChatRoomSessionControls roomId={room.id} />
       </section>
     </div>
   );
