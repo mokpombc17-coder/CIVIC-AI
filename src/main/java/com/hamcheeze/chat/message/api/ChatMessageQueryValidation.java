@@ -28,15 +28,37 @@ final class ChatMessageQueryValidation {
         return roomId;
     }
 
-    static long afterSequence(Long afterSequence) {
-        long resolved = afterSequence == null ? 0 : afterSequence;
-        if (resolved < 0) {
+    static void cursors(
+            Long beforeSequence,
+            Long afterSequence
+    ) {
+        if (beforeSequence != null && afterSequence != null) {
+            throw new RoomApiInputException(
+                    RoomApiErrorCode.INVALID_REQUEST,
+                    HttpStatus.BAD_REQUEST,
+                    "beforeSequence and afterSequence "
+                            + "must not be used together");
+        }
+    }
+
+    static long beforeSequence(long beforeSequence) {
+        if (beforeSequence < 1) {
+            throw new RoomApiInputException(
+                    RoomApiErrorCode.INVALID_REQUEST,
+                    HttpStatus.BAD_REQUEST,
+                    "beforeSequence must be at least 1");
+        }
+        return beforeSequence;
+    }
+
+    static long afterSequence(long afterSequence) {
+        if (afterSequence < 0) {
             throw new RoomApiInputException(
                     RoomApiErrorCode.INVALID_REQUEST,
                     HttpStatus.BAD_REQUEST,
                     "afterSequence must not be negative");
         }
-        return resolved;
+        return afterSequence;
     }
 
     static int limit(Integer limit) {

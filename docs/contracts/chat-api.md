@@ -54,6 +54,13 @@
 > 같은 방을 여러 탭에서 열 때 기존 topic 구독을 재사용하고 owner tab만
 > 교체하는 방식도 허용합니다. `ROOM_REPLACED`는 프론트 내부 이벤트로 관리해
 > 주세요.
+>
+> 메시지 이력 조회 계약도 보강했습니다. 채팅방 최초 진입 시에는 커서 없이
+> `GET /api/v1/rooms/{roomId}/messages?limit=50`을 호출하면 최신 메시지
+> 50개를 오름차순으로 반환합니다. 과거 이력은 응답의
+> `nextBeforeSequence`를 다음 요청의 `beforeSequence`로 전달해 조회해 주세요.
+> WebSocket 재연결이나 sequence 누락 복구에는 마지막으로 연속 적용한
+> sequence를 `afterSequence`로 전달합니다.
 
 ## 인증 및 공통 요청 규칙
 
@@ -553,46 +560,95 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
 
 ## 메시지 이력 Query API
 
+채팅방 최초 진입:
+
 ```http
-GET /api/v1/rooms/{roomId}/messages?afterSequence=0&limit=50
+GET /api/v1/rooms/{roomId}/messages?limit=50
 ```
 
-- `afterSequence`: 선택 사항. 기본값 `0`. 이 값보다 큰 `roomSequence`만 조회한다.
-- `limit`: 선택 사항. 기본값 `50`, 허용 범위 `1~100`.
+이전 이력 조회:
+
+```http
+GET /api/v1/rooms/{roomId}/messages?beforeSequence=71&limit=50
+```
+
+재연결 또는 누락 복구:
+
+```http
+GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
+```
+
+요청 query parameter:
+
+| Parameter | 필수 여부 | 계약 |
+| --- | --- | --- |
+| `beforeSequence` | 선택 | 이 값보다 작은 메시지 중 가장 가까운 과거 메시지부터 최대 `limit`개를 조회한다. `1` 이상이어야 한다. |
+| `afterSequence` | 선택 | 이 값보다 큰 메시지를 순방향으로 최대 `limit`개 조회한다. `0` 이상이어야 한다. |
+| `limit` | 선택 | 기본값 `50`, 허용 범위 `1~100` |
+
+- `beforeSequence`와 `afterSequence`를 모두 생략하면 가장 최근 메시지부터
+  최대 `limit`개를 조회한다.
+- `beforeSequence`와 `afterSequence`는 동시에 사용할 수 없다. 함께 전달하면
+  `400 INVALID_REQUEST`를 반환한다.
+- 명시적인 `afterSequence=0`은 전체 이력을 처음부터 순방향으로 조회할 때
+  사용한다. 채팅방 최초 진입의 기본 요청은 아니다.
 - 메시지는 `roomSequence` 오름차순으로 반환한다.
 - `chat:rooms:read` scope와 해당 방의 활성 멤버십이 필요하다.
 - 응답에는 `Cache-Control: no-store`가 포함된다.
 
-응답:
+최신 메시지를 조회했고 더 오래된 메시지가 남아 있는 응답 예:
 
 ```json
 {
   "items": [
     {
-      "messageId": "message-01",
+      "messageId": "message-119",
       "roomId": "room-01",
-      "roomSequence": 1,
+      "roomSequence": 119,
       "senderUserId": "local-user-1",
       "clientMessageId": "ed7d2fe8-996d-4660-822f-e84af1218743",
       "content": "안녕하세요.",
       "createdAt": "2026-07-29T04:40:00Z"
+    },
+    {
+      "messageId": "message-120",
+      "roomId": "room-01",
+      "roomSequence": 120,
+      "senderUserId": "local-user-2",
+      "clientMessageId": "a42cc7c9-354c-4a67-b6b7-2f660942b21d",
+      "content": "반갑습니다.",
+      "createdAt": "2026-07-29T04:40:01Z"
     }
   ],
+  "nextBeforeSequence": 119,
   "nextAfterSequence": null,
-  "hasNext": false
+  "hasMore": true
 }
 ```
 
-`hasNext`가 `true`이면 다음 요청의 `afterSequence`에 `nextAfterSequence`를 전달한다.
+응답 cursor 계약:
+
+| 조회 방향 | `hasMore=true`일 때 설정되는 필드 | 다음 요청 |
+| --- | --- | --- |
+| 최초 최신 조회 또는 `beforeSequence` 조회 | `nextBeforeSequence` | `beforeSequence={nextBeforeSequence}` |
+| `afterSequence` 조회 | `nextAfterSequence` | `afterSequence={nextAfterSequence}` |
+
+- `hasMore=false`이면 `nextBeforeSequence`와 `nextAfterSequence`는 모두
+  `null`이다.
+- 빈 방도 `200`을 반환하며 `items`는 빈 배열, 두 cursor는 `null`,
+  `hasMore`는 `false`이다.
+
 활성 멤버가 아니면 `403 ACCESS_DENIED`, 권한 확인이 일시적으로 불가능하면
 `503 AUTHORIZATION_UNAVAILABLE`, 메시지 조회가 일시적으로 불가능하면
 `503 MESSAGE_HISTORY_UNAVAILABLE`를 반환한다.
 
-WebSocket 재연결 시에는 메시지 topic을 먼저 구독하고, 구독이 완료될 때까지 들어온 이벤트를
-버퍼링한 상태에서 마지막으로 연속 적용한 sequence를 `afterSequence`로 이 API를 호출한다.
-REST 이력을 먼저 sequence 순서로 적용한 뒤 버퍼링한 이벤트를 적용하며, `messageId` 또는
-`roomSequence`로 중복을 제거한다. sequence 누락을 감지한 경우에도 같은 방식으로 마지막 연속
-sequence 이후를 다시 조회한다.
+최초 진입 시에는 메시지 topic을 먼저 구독하고, 구독 이후 들어오는 이벤트를
+버퍼링한 상태에서 cursor 없는 최신 이력 요청을 호출한다. REST 응답을 먼저 적용한 뒤
+버퍼링한 이벤트를 적용하며, `messageId` 또는 `roomSequence`로 중복을 제거한다.
+
+WebSocket 재연결 시에도 메시지 topic을 먼저 구독하고, 마지막으로 연속 적용한
+sequence를 `afterSequence`로 이 API를 호출한다. sequence 누락을 감지한 경우에도
+같은 방식으로 마지막 연속 sequence 이후를 다시 조회한다.
 
 ## REST 오류 응답
 
@@ -1008,6 +1064,7 @@ python3 scripts/frontend-local-smoke.py
 8. `/user/queue/system-events`를 구독한다.
 9. `/topic/rooms/{roomId}/messages`를 구독한다.
 10. `/topic/rooms/{roomId}/room-events`를 구독한다.
-11. `GET /api/v1/rooms/{roomId}/messages?afterSequence=0`으로 기존 메시지를 조회한다.
+11. `GET /api/v1/rooms/{roomId}/messages`로 최신 메시지를 조회하고,
+    이전 이력은 `beforeSequence` cursor로 조회한다.
 12. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
 13. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.

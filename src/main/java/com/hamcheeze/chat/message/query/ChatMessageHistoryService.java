@@ -4,8 +4,11 @@ import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.message.ChatMessage;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 public final class ChatMessageHistoryService {
 
@@ -22,13 +25,74 @@ public final class ChatMessageHistoryService {
                 "authorizationService");
     }
 
+    public ChatMessageHistoryPage findLatest(
+            String userId,
+            String roomId,
+            int limit
+    ) {
+        requireCommonInputs(userId, roomId, limit);
+        authorize(userId, roomId);
+        return backwardPage(
+                read(() -> reader.findLatest(
+                        roomId,
+                        limit + 1)),
+                limit);
+    }
+
+    public ChatMessageHistoryPage findBefore(
+            String userId,
+            String roomId,
+            long beforeSequence,
+            int limit
+    ) {
+        requireCommonInputs(userId, roomId, limit);
+        if (beforeSequence < 1) {
+            throw new IllegalArgumentException(
+                    "beforeSequence must be at least 1");
+        }
+        authorize(userId, roomId);
+        return backwardPage(
+                read(() -> reader.findBefore(
+                        roomId,
+                        beforeSequence,
+                        limit + 1)),
+                limit);
+    }
+
     public ChatMessageHistoryPage findAfter(
             String userId,
             String roomId,
             long afterSequence,
             int limit
     ) {
-        requireInputs(userId, roomId, afterSequence, limit);
+        requireCommonInputs(userId, roomId, limit);
+        if (afterSequence < 0) {
+            throw new IllegalArgumentException(
+                    "afterSequence must not be negative");
+        }
+        authorize(userId, roomId);
+        List<ChatMessage> found = read(() -> reader.findAfter(
+                roomId,
+                afterSequence,
+                limit + 1));
+        boolean hasMore = found.size() > limit;
+        List<ChatMessage> items = hasMore
+                ? List.copyOf(found.subList(0, limit))
+                : List.copyOf(found);
+        Long nextAfterSequence = hasMore
+                ? items.getLast().roomSequence()
+                : null;
+        return new ChatMessageHistoryPage(
+                items,
+                null,
+                nextAfterSequence,
+                hasMore);
+    }
+
+    private void authorize(
+            String userId,
+            String roomId
+    ) {
         RoomAuthorizationDecision decision =
                 authorizationService.authorizeMessageHistory(
                         userId,
@@ -44,13 +108,36 @@ public final class ChatMessageHistoryService {
                             .AUTHORIZATION_UNAVAILABLE,
                     "Room authorization is temporarily unavailable");
         }
+    }
 
-        List<ChatMessage> found;
+    private static ChatMessageHistoryPage backwardPage(
+            List<ChatMessage> found,
+            int limit
+    ) {
+        boolean hasMore = found.size() > limit;
+        List<ChatMessage> newestFirst = hasMore
+                ? found.subList(0, limit)
+                : found;
+        List<ChatMessage> items =
+                new ArrayList<>(newestFirst);
+        Collections.reverse(items);
+        List<ChatMessage> immutableItems =
+                List.copyOf(items);
+        Long nextBeforeSequence = hasMore
+                ? immutableItems.getFirst().roomSequence()
+                : null;
+        return new ChatMessageHistoryPage(
+                immutableItems,
+                nextBeforeSequence,
+                null,
+                hasMore);
+    }
+
+    private static List<ChatMessage> read(
+            Supplier<List<ChatMessage>> operation
+    ) {
         try {
-            found = reader.findAfter(
-                    roomId,
-                    afterSequence,
-                    limit + 1);
+            return operation.get();
         } catch (RuntimeException exception) {
             throw new ChatMessageHistoryException(
                     ChatMessageHistoryErrorCode
@@ -58,23 +145,11 @@ public final class ChatMessageHistoryService {
                     "Message history is temporarily unavailable",
                     exception);
         }
-        boolean hasNext = found.size() > limit;
-        List<ChatMessage> items = hasNext
-                ? List.copyOf(found.subList(0, limit))
-                : List.copyOf(found);
-        Long nextAfterSequence = hasNext
-                ? items.getLast().roomSequence()
-                : null;
-        return new ChatMessageHistoryPage(
-                items,
-                nextAfterSequence,
-                hasNext);
     }
 
-    private static void requireInputs(
+    private static void requireCommonInputs(
             String userId,
             String roomId,
-            long afterSequence,
             int limit
     ) {
         if (userId == null || userId.isBlank()) {
@@ -84,10 +159,6 @@ public final class ChatMessageHistoryService {
         if (roomId == null || roomId.isBlank()) {
             throw new IllegalArgumentException(
                     "roomId must not be blank");
-        }
-        if (afterSequence < 0) {
-            throw new IllegalArgumentException(
-                    "afterSequence must not be negative");
         }
         if (limit < 1 || limit > 100) {
             throw new IllegalArgumentException(

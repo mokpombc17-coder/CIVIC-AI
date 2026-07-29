@@ -24,22 +24,45 @@ public final class MongoChatMessageHistoryReader
     }
 
     @Override
+    public List<ChatMessage> findLatest(
+            String roomId,
+            int limit
+    ) {
+        requireRoomIdAndLimit(roomId, limit);
+        return findBackward(
+                Criteria.where("roomId").is(roomId),
+                limit);
+    }
+
+    @Override
+    public List<ChatMessage> findBefore(
+            String roomId,
+            long beforeSequence,
+            int limit
+    ) {
+        requireRoomIdAndLimit(roomId, limit);
+        if (beforeSequence < 1) {
+            throw new IllegalArgumentException(
+                    "beforeSequence must be at least 1");
+        }
+        return findBackward(
+                Criteria.where("roomId")
+                        .is(roomId)
+                        .and("roomSequence")
+                        .lt(beforeSequence),
+                limit);
+    }
+
+    @Override
     public List<ChatMessage> findAfter(
             String roomId,
             long afterSequence,
             int limit
     ) {
-        if (roomId == null || roomId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "roomId must not be blank");
-        }
+        requireRoomIdAndLimit(roomId, limit);
         if (afterSequence < 0) {
             throw new IllegalArgumentException(
                     "afterSequence must not be negative");
-        }
-        if (limit < 1) {
-            throw new IllegalArgumentException(
-                    "limit must be positive");
         }
         Query query = Query.query(
                         Criteria.where("roomId")
@@ -57,5 +80,37 @@ public final class MongoChatMessageHistoryReader
                 .stream()
                 .map(MongoChatMessageDocument::toDomain)
                 .toList();
+    }
+
+    private List<ChatMessage> findBackward(
+            Criteria criteria,
+            int limit
+    ) {
+        Query query = Query.query(criteria)
+                .with(Sort.by(
+                        Sort.Direction.DESC,
+                        "roomSequence"))
+                .limit(limit);
+        return mongoOperations.find(
+                        query,
+                        MongoChatMessageDocument.class,
+                        MongoChatMessageDocument.COLLECTION_NAME)
+                .stream()
+                .map(MongoChatMessageDocument::toDomain)
+                .toList();
+    }
+
+    private static void requireRoomIdAndLimit(
+            String roomId,
+            int limit
+    ) {
+        if (roomId == null || roomId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "roomId must not be blank");
+        }
+        if (limit < 1) {
+            throw new IllegalArgumentException(
+                    "limit must be positive");
+        }
     }
 }

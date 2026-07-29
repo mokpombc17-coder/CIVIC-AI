@@ -7,8 +7,9 @@ import java.util.List;
 
 public record ChatMessageHistoryResponse(
         List<ChatMessagePayload> items,
+        Long nextBeforeSequence,
         Long nextAfterSequence,
-        boolean hasNext
+        boolean hasMore
 ) {
 
     public static ChatMessageHistoryResponse from(
@@ -18,7 +19,8 @@ public record ChatMessageHistoryResponse(
                 page.items().stream()
                         .map(ChatMessagePayload::from)
                         .toList(),
+                page.nextBeforeSequence(),
                 page.nextAfterSequence(),
-                page.hasNext());
+                page.hasMore());
     }
 }

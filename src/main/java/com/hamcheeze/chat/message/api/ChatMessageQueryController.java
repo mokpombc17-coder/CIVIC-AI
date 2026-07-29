@@ -31,15 +31,39 @@ public class ChatMessageQueryController {
     public ResponseEntity<ChatMessageHistoryResponse> messages(
             Authentication authentication,
             @PathVariable String roomId,
+            @RequestParam(required = false) Long beforeSequence,
             @RequestParam(required = false) Long afterSequence,
             @RequestParam(required = false) Integer limit
     ) {
-        ChatMessageHistoryPage page = historyService.findAfter(
-                userIdResolver.resolve(authentication),
-                ChatMessageQueryValidation.roomId(roomId),
-                ChatMessageQueryValidation.afterSequence(
-                        afterSequence),
-                ChatMessageQueryValidation.limit(limit));
+        ChatMessageQueryValidation.cursors(
+                beforeSequence,
+                afterSequence);
+        String userId = userIdResolver.resolve(authentication);
+        String validatedRoomId =
+                ChatMessageQueryValidation.roomId(roomId);
+        int validatedLimit =
+                ChatMessageQueryValidation.limit(limit);
+        ChatMessageHistoryPage page;
+        if (beforeSequence != null) {
+            page = historyService.findBefore(
+                    userId,
+                    validatedRoomId,
+                    ChatMessageQueryValidation.beforeSequence(
+                            beforeSequence),
+                    validatedLimit);
+        } else if (afterSequence != null) {
+            page = historyService.findAfter(
+                    userId,
+                    validatedRoomId,
+                    ChatMessageQueryValidation.afterSequence(
+                            afterSequence),
+                    validatedLimit);
+        } else {
+            page = historyService.findLatest(
+                    userId,
+                    validatedRoomId,
+                    validatedLimit);
+        }
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(ChatMessageHistoryResponse.from(page));
