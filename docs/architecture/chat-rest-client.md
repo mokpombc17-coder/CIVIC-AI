@@ -5,8 +5,8 @@
 - 작성일: 2026-07-29
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
-- 구현 범위: 방 Command 및 Query 계약
-- 보류 범위: 메시지 이력 pagination
+- 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약
+- 후속 범위: 메시지 이력 TanStack Query와 WebSocket 이벤트 병합
 
 ## 계층
 
@@ -42,6 +42,7 @@ TanStack Query hook
 - 공개 방, 내 방, 방 상세와 멤버십 응답
 - cursor pagination 응답
 - 방 Command 성공 응답 code와 version
+- 채팅 메시지와 최신·과거·복구 이력 응답
 
 서버가 반환하는 `Instant`는 timezone offset이 있는 ISO-8601 문자열로 검증한다. cursor는
 해석하지 않는 opaque 문자열이며 다음 요청에 URL encoding하여 그대로 전달한다.
@@ -133,15 +134,24 @@ Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를
 - `GET /rooms/{roomId}/memberships/me`
 - `GET /me/rooms`
 - `GET /rooms/{roomId}/memberships`
+- `GET /rooms/{roomId}/messages`
 
-## 보류된 메시지 이력
+## 메시지 이력 REST 계약
 
-메시지 이력은 백엔드가 다음 세 조회 모드의 구체적인 query 및 response pagination 필드를 확정한
-후 추가한다.
+`chatRoomApi.getRoomMessages`는 조회 목적을 명시적인 mode로 구분한다.
 
-- 최초 진입의 최근 메시지
-- `beforeSequence` 기반 과거 이력
-- `afterSequence` 기반 재연결 및 누락 복구
+```text
+latest → ?limit=50
+before → ?beforeSequence={sequence}&limit=50
+after  → ?afterSequence={sequence}&limit=50
+```
 
-`beforeSequence`와 `afterSequence`를 동시에 보내지 않는 규칙과 모든 응답의
-`roomSequence` 오름차순 정렬은 이미 합의됐지만, 임시 필드명을 추측하여 API에 넣지 않는다.
+- `latest`는 최초 진입의 최근 메시지를 조회한다.
+- `before`는 `nextBeforeSequence`를 사용해 과거 이력을 조회한다.
+- `after`는 마지막 연속 sequence 이후를 조회해 재연결 및 누락을 복구한다.
+- discriminated union으로 `beforeSequence`와 `afterSequence`의 동시 전송을 구조적으로 막는다.
+- 응답 메시지가 요청한 방에 속하고 `roomSequence`가 오름차순인지 검증한다.
+- `hasMore`와 조회 방향별 cursor가 일치하지 않으면 계약 오류로 처리한다.
+
+TanStack Query의 과거 이력 pagination과 WebSocket 이벤트 버퍼 병합은 REST 계층 위에서 별도로
+구현한다. 이 단계에서 `after` 복구 조회를 일반 화면 pagination과 섞지 않는다.

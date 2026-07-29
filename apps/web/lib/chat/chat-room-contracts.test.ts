@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  chatMessageContentSchema,
   createRoomRequestSchema,
+  createMessageHistoryResponseSchema,
+  messageHistoryRequestSchema,
   publicRoomListResponseSchema,
   roomDetailsSchema,
   roomIdSchema,
@@ -61,4 +64,67 @@ describe("chat room REST contracts", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("메시지 이력 조회 방향을 동시에 지정할 수 없게 한다", () => {
+    expect(
+      messageHistoryRequestSchema.safeParse({
+        mode: "before",
+        beforeSequence: 71,
+        afterSequence: 120,
+        limit: 50,
+      }).success,
+    ).toBe(false);
+    expect(
+      messageHistoryRequestSchema.safeParse({
+        mode: "after",
+        afterSequence: 0,
+        limit: 50,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("메시지 content의 서버 제약을 검증하되 줄바꿈은 보존한다", () => {
+    expect(chatMessageContentSchema.safeParse("안녕하세요.\n반갑습니다.").success).toBe(true);
+    expect(chatMessageContentSchema.safeParse("   ").success).toBe(false);
+    expect(chatMessageContentSchema.safeParse("허용되지 않음\u0000").success).toBe(false);
+    expect(chatMessageContentSchema.safeParse("😀".repeat(2_001)).success).toBe(false);
+  });
+
+  it("조회 방향 cursor와 roomSequence 오름차순을 검증한다", () => {
+    const latestSchema = createMessageHistoryResponseSchema(
+      {
+        mode: "latest",
+      },
+      "room-01",
+    );
+
+    expect(
+      latestSchema.safeParse({
+        items: [createMessage(119), createMessage(120)],
+        nextBeforeSequence: 119,
+        nextAfterSequence: null,
+        hasMore: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      latestSchema.safeParse({
+        items: [createMessage(120), createMessage(119)],
+        nextBeforeSequence: null,
+        nextAfterSequence: 120,
+        hasMore: true,
+      }).success,
+    ).toBe(false);
+  });
 });
+
+function createMessage(roomSequence: number) {
+  return {
+    messageId: `message-${roomSequence}`,
+    roomId: "room-01",
+    roomSequence,
+    senderUserId: "local-user-1",
+    clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
+    content: "안녕하세요.",
+    createdAt: "2026-07-29T04:40:00Z",
+  };
+}

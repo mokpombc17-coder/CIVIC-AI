@@ -5,6 +5,7 @@ import { chatFetch, type ChatFetch } from "./chat-fetch";
 import {
   banRoomMemberResponseSchema,
   closeRoomResponseSchema,
+  createMessageHistoryResponseSchema,
   createRoomRequestSchema,
   createRoomResponseSchema,
   cursorPaginationParamsSchema,
@@ -12,6 +13,7 @@ import {
   joinRoomResponseSchema,
   leaveRoomResponseSchema,
   membershipStatusSchema,
+  messageHistoryRequestSchema,
   myRoomListResponseSchema,
   publicRoomListResponseSchema,
   roomDetailsSchema,
@@ -29,6 +31,8 @@ import {
   type CursorPaginationParams,
   type JoinRoomResponse,
   type LeaveRoomResponse,
+  type MessageHistoryRequest,
+  type MessageHistoryResponse,
   type MyRoomListResponse,
   type PublicRoomListResponse,
   type RoomDetails,
@@ -79,6 +83,7 @@ export type ChatRoomApi = Readonly<{
     roomId: string,
     params?: RoomMembershipListParams,
   ): Promise<RoomMembershipListResponse>;
+  getRoomMessages(roomId: string, request?: MessageHistoryRequest): Promise<MessageHistoryResponse>;
 }>;
 
 export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
@@ -221,6 +226,18 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
         createListPath(`${createRoomPath(roomId)}/memberships`, parsedParams),
       );
     },
+
+    async getRoomMessages(roomId, historyRequest = { mode: "latest" }) {
+      const parsedRoomId = roomIdSchema.parse(roomId);
+      const parsedRequest = messageHistoryRequestSchema.parse(historyRequest);
+
+      return requestAndParse(
+        request,
+        `${parsedRequest.mode} 메시지 이력 응답`,
+        createMessageHistoryResponseSchema(parsedRequest, parsedRoomId),
+        createMessageHistoryPath(parsedRoomId, parsedRequest),
+      );
+    },
   };
 }
 
@@ -257,6 +274,23 @@ function createCommandHeaders(idempotencyKey: string, hasBody = false): Headers 
 
 function createRoomPath(roomId: string): string {
   return `/rooms/${roomIdSchema.parse(roomId)}`;
+}
+
+function createMessageHistoryPath(
+  roomId: string,
+  request: z.output<typeof messageHistoryRequestSchema>,
+): string {
+  const searchParams = new URLSearchParams();
+
+  if (request.mode === "before") {
+    searchParams.set("beforeSequence", String(request.beforeSequence));
+  } else if (request.mode === "after") {
+    searchParams.set("afterSequence", String(request.afterSequence));
+  }
+
+  searchParams.set("limit", String(request.limit ?? 50));
+
+  return `/rooms/${roomId}/messages?${searchParams.toString()}`;
 }
 
 function createListPath(

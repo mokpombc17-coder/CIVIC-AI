@@ -76,6 +76,96 @@ describe("chatRoomApi queries", () => {
   });
 });
 
+describe("chatRoomApi message history", () => {
+  it("최신·과거·복구 이력의 query parameter를 구분한다", async () => {
+    const { calls, request } = createQueuedChatFetch(
+      {
+        items: [CHAT_MESSAGE],
+        nextBeforeSequence: 119,
+        nextAfterSequence: null,
+        hasMore: true,
+      },
+      {
+        items: [
+          {
+            ...CHAT_MESSAGE,
+            messageId: "message-70",
+            roomSequence: 70,
+          },
+        ],
+        nextBeforeSequence: null,
+        nextAfterSequence: null,
+        hasMore: false,
+      },
+      {
+        items: [CHAT_MESSAGE],
+        nextBeforeSequence: null,
+        nextAfterSequence: 120,
+        hasMore: true,
+      },
+    );
+    const api = createChatRoomApi(request);
+
+    await api.getRoomMessages("room-01");
+    await api.getRoomMessages("room-01", {
+      mode: "before",
+      beforeSequence: 119,
+      limit: 25,
+    });
+    await api.getRoomMessages("room-01", {
+      mode: "after",
+      afterSequence: 0,
+      limit: 100,
+    });
+
+    expect(calls.map(({ path }) => path)).toEqual([
+      "/rooms/room-01/messages?limit=50",
+      "/rooms/room-01/messages?beforeSequence=119&limit=25",
+      "/rooms/room-01/messages?afterSequence=0&limit=100",
+    ]);
+  });
+
+  it("조회 방향과 다른 cursor 또는 다른 roomId 응답을 거절한다", async () => {
+    const { request } = createQueuedChatFetch({
+      items: [
+        {
+          ...CHAT_MESSAGE,
+          roomId: "room-02",
+        },
+      ],
+      nextBeforeSequence: null,
+      nextAfterSequence: 120,
+      hasMore: true,
+    });
+    const api = createChatRoomApi(request);
+
+    await expect(api.getRoomMessages("room-01")).rejects.toMatchObject({
+      name: "ChatRestContractError",
+      contract: "latest 메시지 이력 응답",
+    });
+  });
+
+  it("유효하지 않은 sequence와 limit은 HTTP 요청 전에 거절한다", async () => {
+    const { calls, request } = createQueuedChatFetch();
+    const api = createChatRoomApi(request);
+
+    await expect(
+      api.getRoomMessages("room-01", {
+        mode: "before",
+        beforeSequence: 0,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      api.getRoomMessages("room-01", {
+        mode: "after",
+        afterSequence: -1,
+        limit: 101,
+      }),
+    ).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe("chatRoomApi commands", () => {
   it("모든 방 command에 method와 Idempotency-Key를 적용한다", async () => {
     const { calls, request } = createQueuedChatFetch(
@@ -312,4 +402,14 @@ const CLOSE_ROOM_RESPONSE = {
   ownerUserId: "local-user-1",
   roomVersion: 5,
   ownerMembershipVersion: 3,
+};
+
+const CHAT_MESSAGE = {
+  messageId: "message-120",
+  roomId: "room-01",
+  roomSequence: 120,
+  senderUserId: "local-user-1",
+  clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
+  content: "안녕하세요.",
+  createdAt: "2026-07-29T04:40:00Z",
 };

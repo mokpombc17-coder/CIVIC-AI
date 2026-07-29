@@ -5,12 +5,30 @@ const versionSchema = z.number().int().nonnegative();
 const instantSchema = z.string().datetime({ offset: true });
 const nullableInstantSchema = instantSchema.nullable();
 const cursorSchema = z.string().min(1);
+const positiveSequenceSchema = z.number().int().min(1);
+const nonnegativeSequenceSchema = z.number().int().nonnegative();
+const messageHistoryLimitSchema = z.number().int().min(1).max(100);
 
 export const roomIdSchema = z
   .string()
   .regex(/^[A-Za-z0-9_-]{1,64}$/, "roomId 형식이 올바르지 않습니다.");
 export const roomNameSchema = z.string().trim().min(1).max(100);
 export const idempotencyKeySchema = z.string().uuid();
+export const chatMessageContentSchema = z
+  .string()
+  .refine((content) => content.trim().length > 0, "메시지는 공백으로만 구성될 수 없습니다.")
+  .refine(
+    (content) => Array.from(content).length <= 2_000,
+    "메시지는 Unicode code point 2,000자를 초과할 수 없습니다.",
+  )
+  .refine(
+    (content) => new TextEncoder().encode(content).length <= 8_192,
+    "메시지는 UTF-8 8,192 bytes를 초과할 수 없습니다.",
+  )
+  .refine(
+    (content) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(content),
+    "메시지에 허용되지 않은 제어 문자가 포함되어 있습니다.",
+  );
 
 export const roomVisibilitySchema = z.enum(["LISTED", "UNLISTED"]);
 export const joinPolicySchema = z.enum(["OPEN", "INVITE_ONLY"]);
@@ -157,6 +175,48 @@ export const closeRoomResponseSchema = commandResponseBaseSchema.extend({
   ownerMembershipVersion: versionSchema,
 });
 
+export const chatMessageSchema = z.object({
+  messageId: opaqueIdSchema,
+  roomId: roomIdSchema,
+  roomSequence: positiveSequenceSchema,
+  senderUserId: opaqueIdSchema,
+  clientMessageId: idempotencyKeySchema,
+  content: chatMessageContentSchema,
+  createdAt: instantSchema,
+});
+
+export const messageHistoryModeSchema = z.enum(["latest", "before", "after"]);
+
+export const messageHistoryRequestSchema = z.discriminatedUnion("mode", [
+  z
+    .object({
+      mode: z.literal("latest"),
+      limit: messageHistoryLimitSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("before"),
+      beforeSequence: positiveSequenceSchema,
+      limit: messageHistoryLimitSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("after"),
+      afterSequence: nonnegativeSequenceSchema,
+      limit: messageHistoryLimitSchema.optional(),
+    })
+    .strict(),
+]);
+
+const messageHistoryResponseBaseSchema = z.object({
+  items: z.array(chatMessageSchema),
+  nextBeforeSequence: positiveSequenceSchema.nullable(),
+  nextAfterSequence: nonnegativeSequenceSchema.nullable(),
+  hasMore: z.boolean(),
+});
+
 export const cursorPaginationParamsSchema = z.object({
   cursor: cursorSchema.optional(),
   limit: z.number().int().min(1).max(100).optional(),
@@ -189,8 +249,83 @@ export type TransferRoomOwnershipResponse = z.infer<typeof transferRoomOwnership
 export type BanRoomMemberResponse = z.infer<typeof banRoomMemberResponseSchema>;
 export type UnbanRoomMemberResponse = z.infer<typeof unbanRoomMemberResponseSchema>;
 export type CloseRoomResponse = z.infer<typeof closeRoomResponseSchema>;
+export type ChatMessage = z.infer<typeof chatMessageSchema>;
+export type MessageHistoryMode = z.infer<typeof messageHistoryModeSchema>;
+export type MessageHistoryRequest = z.input<typeof messageHistoryRequestSchema>;
+export type MessageHistoryResponse = z.infer<typeof messageHistoryResponseBaseSchema>;
 export type CursorPaginationParams = z.input<typeof cursorPaginationParamsSchema>;
 export type RoomMembershipListParams = z.input<typeof roomMembershipListParamsSchema>;
+
+export function createMessageHistoryResponseSchema(
+  request: MessageHistoryRequest,
+  expectedRoomId: string,
+) {
+  return messageHistoryResponseBaseSchema.superRefine((history, context) => {
+    const { mode } = request;
+    const expectsBeforeCursor = mode === "latest" || mode === "before";
+    const expectedCursor = expectsBeforeCursor
+      ? history.nextBeforeSequence
+      : history.nextAfterSequence;
+    const unexpectedCursor = expectsBeforeCursor
+      ? history.nextAfterSequence
+      : history.nextBeforeSequence;
+
+    if (history.hasMore && expectedCursor === null) {
+      context.addIssue({
+        code: "custom",
+        path: [expectsBeforeCursor ? "nextBeforeSequence" : "nextAfterSequence"],
+        message: `${mode} 조회에서 hasMore가 true이면 다음 sequence가 필요합니다.`,
+      });
+    }
+
+    if (!history.hasMore && expectedCursor !== null) {
+      context.addIssue({
+        code: "custom",
+        path: [expectsBeforeCursor ? "nextBeforeSequence" : "nextAfterSequence"],
+        message: "hasMore가 false이면 다음 sequence는 null이어야 합니다.",
+      });
+    }
+
+    if (unexpectedCursor !== null) {
+      context.addIssue({
+        code: "custom",
+        path: [expectsBeforeCursor ? "nextAfterSequence" : "nextBeforeSequence"],
+        message: `${mode} 조회에서 반대 방향 sequence를 반환할 수 없습니다.`,
+      });
+    }
+
+    history.items.forEach((message, index) => {
+      if (message.roomId !== expectedRoomId) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "roomId"],
+          message: "요청한 방과 다른 roomId의 메시지를 반환할 수 없습니다.",
+        });
+      }
+
+      if (
+        (request.mode === "before" && message.roomSequence >= request.beforeSequence) ||
+        (request.mode === "after" && message.roomSequence <= request.afterSequence)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "roomSequence"],
+          message: `${request.mode} 조회의 sequence 범위를 벗어난 메시지입니다.`,
+        });
+      }
+
+      const previousMessage = history.items[index - 1];
+
+      if (previousMessage && message.roomSequence <= previousMessage.roomSequence) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "roomSequence"],
+          message: "메시지는 roomSequence 오름차순이어야 합니다.",
+        });
+      }
+    });
+  });
+}
 
 function createCursorPageSchema<TItem extends z.ZodType>(itemSchema: TItem) {
   return z
