@@ -165,3 +165,21 @@ TanStack Query는 `latest + before` 과거 pagination과 화면용 page flatten�
 WebSocket 이벤트 버퍼, `after` 복구 결과 및 REST cache 병합은
 `ROOM_SUBSCRIPTIONS_READY`의 destination, payload와 watermark 계약이 확정된 뒤 실시간
 재동기화 계층에서 구현한다.
+
+## 메시지 병합 정책
+
+`mergeChatMessages`는 REST page, 복구 응답과 향후 WebSocket buffer를 동일한 `ChatMessage`
+집합으로 합치는 순수 함수다.
+
+- 입력 출처의 순서와 관계없이 `roomSequence` 오름차순으로 정렬한다.
+- `messageId`와 `roomSequence`가 같고 모든 불변 필드가 같은 메시지는 정상 중복으로 제거한다.
+- 같은 `messageId`의 내용이 다르거나 같은 `roomSequence`에 다른 메시지가 있으면 계약 충돌로
+  처리하고 덮어쓰지 않는다.
+- 요청한 방과 다른 `roomId`의 메시지를 섞지 않는다.
+- 정렬된 메시지 사이의 모든 누락 sequence 범위를 구조화된 `gaps`로 반환한다.
+- `afterSequence` checkpoint가 있으면 해당 값부터 연속으로 적용할 수 있는 마지막 sequence를
+  `lastContiguousSequence`로 반환한다.
+
+메시지 이력 Query의 화면용 flatten도 이 병합 함수를 사용한다. 최종 실시간 재동기화 계층은
+READY 이후 REST 응답과 그동안 쌓인 WebSocket buffer를 병합한 뒤 `gaps`가 있으면 마지막 연속
+sequence부터 `after` 복구를 반복한다.

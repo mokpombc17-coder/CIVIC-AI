@@ -7,6 +7,7 @@ import {
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
+import { mergeChatMessages } from "./chat-message-merge";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
 import type { ChatMessage, MembershipStatus, MessageHistoryResponse } from "./chat-room-contracts";
 
@@ -148,13 +149,17 @@ export function roomMessageHistoryInfiniteQueryOptions(
 }
 
 export function flattenRoomMessageHistoryPages(
+  roomId: string,
   pages: readonly MessageHistoryResponse[] | undefined,
 ): readonly ChatMessage[] {
   if (!pages || pages.length === 0) {
     return EMPTY_CHAT_MESSAGES;
   }
 
-  return [...pages].reverse().flatMap((page) => page.items);
+  return mergeChatMessages({
+    roomId,
+    sources: [...pages].reverse().map((page) => page.items),
+  }).messages;
 }
 
 export function usePublicRoomsQuery(params: ChatRoomListQueryParams = {}) {
@@ -183,8 +188,8 @@ export function useRoomMembershipsQuery(
 export function useRoomMessageHistoryQuery(roomId: string, params: ChatMessageHistoryQueryParams) {
   const query = useInfiniteQuery(roomMessageHistoryInfiniteQueryOptions(roomId, params));
   const messages = useMemo(
-    () => flattenRoomMessageHistoryPages(query.data?.pages),
-    [query.data?.pages],
+    () => flattenRoomMessageHistoryPages(roomId, query.data?.pages),
+    [query.data?.pages, roomId],
   );
 
   return {

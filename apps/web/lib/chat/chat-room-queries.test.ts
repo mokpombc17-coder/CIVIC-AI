@@ -142,7 +142,7 @@ describe("chat room query options", () => {
 
   it("최신 page부터 저장된 이력을 화면에서는 전체 sequence 오름차순으로 펼친다", () => {
     expect(
-      flattenRoomMessageHistoryPages([LATEST_MESSAGE_PAGE, OLDER_MESSAGE_PAGE]).map(
+      flattenRoomMessageHistoryPages("room-01", [LATEST_MESSAGE_PAGE, OLDER_MESSAGE_PAGE]).map(
         ({ roomSequence }) => roomSequence,
       ),
     ).toEqual([70, 71, 119, 120]);
