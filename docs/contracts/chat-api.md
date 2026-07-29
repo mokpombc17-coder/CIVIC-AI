@@ -55,6 +55,13 @@ await fetch("http://localhost:8082/api/v1/me/rooms", {
 });
 ```
 
+로컬 REST CORS 계약은 다음과 같다.
+
+- Allowed Origin: `http://localhost:3000` (`*` wildcard 사용 안 함)
+- Credentials: `true`
+- Allowed Methods: `GET`, `POST`, `OPTIONS`
+- Allowed Headers: `Content-Type`, `Idempotency-Key`, `Authorization`
+
 인증 쿠키가 없거나 유효하지 않으면 `401 Unauthorized`, 필요한 권한이
 없으면 `403 Forbidden`을 반환한다.
 

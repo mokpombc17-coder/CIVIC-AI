@@ -168,7 +168,52 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                         "http://localhost:3000"))
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
-                        "true"));
+                        "true"))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers
+                                        .containsString("GET"),
+                                org.hamcrest.Matchers
+                                        .containsString("POST"),
+                                org.hamcrest.Matchers
+                                        .containsString("OPTIONS"))))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers
+                                        .containsStringIgnoringCase(
+                                                "content-type"),
+                                org.hamcrest.Matchers
+                                        .containsStringIgnoringCase(
+                                                "idempotency-key"))));
+
+        mockMvc.perform(options(
+                                "/api/v1/rooms/room-1/messages")
+                        .header(
+                                HttpHeaders.ORIGIN,
+                                "http://localhost:3000")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                "GET")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "authorization"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        "http://localhost:3000"))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
+                        "true"))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        org.hamcrest.Matchers.containsString("GET")))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        org.hamcrest.Matchers
+                                .containsStringIgnoringCase(
+                                        "authorization")));
 
         mockMvc.perform(options("/api/v1/rooms")
                         .header(
@@ -177,6 +222,18 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                         .header(
                                 HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
                                 "POST"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(options("/api/v1/rooms")
+                        .header(
+                                HttpHeaders.ORIGIN,
+                                "http://localhost:3000")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                "POST")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "x-forbidden-header"))
                 .andExpect(status().isForbidden());
     }
 
