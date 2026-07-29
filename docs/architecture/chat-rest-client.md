@@ -78,11 +78,12 @@ my-list
 detail/{roomId}
 my-membership/{roomId}
 membership-list/{roomId}
+message-history/{roomId}
 ```
 
-목록의 `limit`과 멤버 목록의 `status`는 결과 집합을 바꾸므로 query key에 포함한다. cursor는
-동일한 목록의 다음 page를 가리키므로 query key에 넣지 않고 infinite query의 `pageParam`으로
-관리한다.
+목록과 메시지 이력의 `limit`, 멤버 목록의 `status`는 결과 집합을 바꾸므로 query key에
+포함한다. cursor와 `beforeSequence`는 동일한 목록의 다음 page를 가리키므로 query key에 넣지
+않고 infinite query의 `pageParam`으로 관리한다.
 
 ### Query
 
@@ -90,6 +91,13 @@ membership-list/{roomId}
 - 방 상세와 내 멤버십은 roomId별 `useQuery`를 사용한다.
 - cursor가 `null`인 첫 page에서는 query parameter를 보내지 않는다.
 - 서버가 반환한 `nextCursor`를 해석하지 않고 다음 page parameter로 전달한다.
+- 메시지 이력의 첫 page는 `latest`, 이후 page는 `nextBeforeSequence`를 사용한 `before` 조회다.
+- 메시지 이력 query는 `enabled`를 필수로 받아 구독 준비 barrier 이전에는 REST 요청을 시작하지
+  않는다.
+- 브라우저 focus나 네트워크 복구만으로 메시지 이력을 임의 refetch하지 않는다.
+- cache page는 `[최신, 과거, 더 과거]` 순서로 유지하고, 화면에는 page 순서를 뒤집어 전체
+  `roomSequence` 오름차순으로 제공한다.
+- `afterSequence` 복구는 infinite query page와 섞지 않고 실시간 재동기화 계층에서 처리한다.
 
 ### Mutation
 
@@ -153,5 +161,7 @@ after  → ?afterSequence={sequence}&limit=50
 - 응답 메시지가 요청한 방에 속하고 `roomSequence`가 오름차순인지 검증한다.
 - `hasMore`와 조회 방향별 cursor가 일치하지 않으면 계약 오류로 처리한다.
 
-TanStack Query의 과거 이력 pagination과 WebSocket 이벤트 버퍼 병합은 REST 계층 위에서 별도로
-구현한다. 이 단계에서 `after` 복구 조회를 일반 화면 pagination과 섞지 않는다.
+TanStack Query는 `latest + before` 과거 pagination과 화면용 page flatten을 구현한다.
+WebSocket 이벤트 버퍼, `after` 복구 결과 및 REST cache 병합은
+`ROOM_SUBSCRIPTIONS_READY`의 destination, payload와 watermark 계약이 확정된 뒤 실시간
+재동기화 계층에서 구현한다.

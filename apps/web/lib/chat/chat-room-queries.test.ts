@@ -1,13 +1,16 @@
-import { QueryClient } from "@tanstack/react-query";
+import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import {
   chatRoomQueryKeys,
+  flattenRoomMessageHistoryPages,
   myRoomMembershipQueryOptions,
   myRoomsInfiniteQueryOptions,
   publicRoomsInfiniteQueryOptions,
   roomDetailsQueryOptions,
+  roomMessageHistoryInfiniteQueryOptions,
   roomMembershipsInfiniteQueryOptions,
 } from "./chat-room-queries";
+import type { MessageHistoryResponse } from "./chat-room-contracts";
 
 describe("chat room query options", () => {
   it("공개 방 cursor를 page parameter로 전달하고 query key에서는 제외한다", async () => {
@@ -81,6 +84,69 @@ describe("chat room query options", () => {
       limit: 10,
     });
   });
+
+  it("메시지 이력은 READY 전 enabled=false에서 요청하지 않는다", async () => {
+    const getRoomMessages = vi.fn(async () => LATEST_MESSAGE_PAGE);
+    const options = roomMessageHistoryInfiniteQueryOptions(
+      "room-01",
+      {
+        enabled: false,
+        limit: 50,
+      },
+      { getRoomMessages },
+    );
+    const observer = new InfiniteQueryObserver(createQueryClient(), options);
+    const unsubscribe = observer.subscribe(() => {});
+
+    await Promise.resolve();
+
+    expect(options.queryKey).toEqual(chatRoomQueryKeys.messageHistory("room-01", 50));
+    expect(options.enabled).toBe(false);
+    expect(getRoomMessages).not.toHaveBeenCalled();
+
+    unsubscribe();
+  });
+
+  it("최초에는 latest를 조회하고 다음 page에는 nextBeforeSequence를 전달한다", async () => {
+    const getRoomMessages = vi
+      .fn<() => Promise<MessageHistoryResponse>>()
+      .mockResolvedValueOnce(LATEST_MESSAGE_PAGE)
+      .mockResolvedValueOnce(OLDER_MESSAGE_PAGE);
+    const options = roomMessageHistoryInfiniteQueryOptions(
+      "room-01",
+      {
+        enabled: true,
+        limit: 25,
+      },
+      { getRoomMessages },
+    );
+    const queryFn = options.queryFn as (context: {
+      pageParam: number | null;
+    }) => Promise<MessageHistoryResponse>;
+
+    const latestPage = await queryFn({ pageParam: null });
+    const nextPageParam = options.getNextPageParam?.(latestPage, [], null, []);
+
+    await queryFn({ pageParam: nextPageParam ?? null });
+
+    expect(getRoomMessages).toHaveBeenNthCalledWith(1, "room-01", {
+      mode: "latest",
+      limit: 25,
+    });
+    expect(getRoomMessages).toHaveBeenNthCalledWith(2, "room-01", {
+      mode: "before",
+      beforeSequence: 119,
+      limit: 25,
+    });
+  });
+
+  it("최신 page부터 저장된 이력을 화면에서는 전체 sequence 오름차순으로 펼친다", () => {
+    expect(
+      flattenRoomMessageHistoryPages([LATEST_MESSAGE_PAGE, OLDER_MESSAGE_PAGE]).map(
+        ({ roomSequence }) => roomSequence,
+      ),
+    ).toEqual([70, 71, 119, 120]);
+  });
 });
 
 function createQueryClient(): QueryClient {
@@ -125,3 +191,29 @@ const ROOM_DETAILS = {
   participationStatus: "ACTIVE" as const,
   myMembership: MEMBERSHIP,
 };
+
+const LATEST_MESSAGE_PAGE = {
+  items: [createMessage(119), createMessage(120)],
+  nextBeforeSequence: 119,
+  nextAfterSequence: null,
+  hasMore: true,
+} satisfies MessageHistoryResponse;
+
+const OLDER_MESSAGE_PAGE = {
+  items: [createMessage(70), createMessage(71)],
+  nextBeforeSequence: null,
+  nextAfterSequence: null,
+  hasMore: false,
+} satisfies MessageHistoryResponse;
+
+function createMessage(roomSequence: number) {
+  return {
+    messageId: `message-${roomSequence}`,
+    roomId: "room-01",
+    roomSequence,
+    senderUserId: "local-user-1",
+    clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
+    content: `메시지 ${roomSequence}`,
+    createdAt: "2026-07-29T04:40:00Z",
+  };
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   infiniteQueryOptions,
   queryOptions,
@@ -7,9 +8,11 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
-import type { MembershipStatus } from "./chat-room-contracts";
+import type { ChatMessage, MembershipStatus, MessageHistoryResponse } from "./chat-room-contracts";
 
 const DEFAULT_LIST_LIMIT = 20;
+const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
+const EMPTY_CHAT_MESSAGES: readonly ChatMessage[] = [];
 
 export type ChatRoomListQueryParams = Readonly<{
   limit?: number;
@@ -17,6 +20,11 @@ export type ChatRoomListQueryParams = Readonly<{
 
 export type ChatRoomMembershipListQueryParams = Readonly<{
   status?: MembershipStatus;
+  limit?: number;
+}>;
+
+export type ChatMessageHistoryQueryParams = Readonly<{
+  enabled: boolean;
   limit?: number;
 }>;
 
@@ -34,6 +42,9 @@ export const chatRoomQueryKeys = {
     [...chatRoomQueryKeys.all, "membership-list", roomId] as const,
   membershipList: (roomId: string, status: MembershipStatus, limit: number) =>
     [...chatRoomQueryKeys.membershipLists(roomId), { status, limit }] as const,
+  messageHistories: () => [...chatRoomQueryKeys.all, "message-history"] as const,
+  messageHistory: (roomId: string, limit: number) =>
+    [...chatRoomQueryKeys.messageHistories(), roomId, { limit }] as const,
 };
 
 export function publicRoomsInfiniteQueryOptions(
@@ -106,6 +117,46 @@ export function roomMembershipsInfiniteQueryOptions(
   });
 }
 
+export function roomMessageHistoryInfiniteQueryOptions(
+  roomId: string,
+  { enabled, limit = DEFAULT_MESSAGE_HISTORY_LIMIT }: ChatMessageHistoryQueryParams,
+  api: Pick<ChatRoomApi, "getRoomMessages"> = chatRoomApi,
+) {
+  return infiniteQueryOptions({
+    queryKey: chatRoomQueryKeys.messageHistory(roomId, limit),
+    enabled,
+    initialPageParam: null as number | null,
+    queryFn: ({ pageParam }) =>
+      api.getRoomMessages(
+        roomId,
+        pageParam === null
+          ? {
+              mode: "latest",
+              limit,
+            }
+          : {
+              mode: "before",
+              beforeSequence: pageParam,
+              limit,
+            },
+      ),
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextBeforeSequence : null),
+    staleTime: 0,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function flattenRoomMessageHistoryPages(
+  pages: readonly MessageHistoryResponse[] | undefined,
+): readonly ChatMessage[] {
+  if (!pages || pages.length === 0) {
+    return EMPTY_CHAT_MESSAGES;
+  }
+
+  return [...pages].reverse().flatMap((page) => page.items);
+}
+
 export function usePublicRoomsQuery(params: ChatRoomListQueryParams = {}) {
   return useInfiniteQuery(publicRoomsInfiniteQueryOptions(params));
 }
@@ -127,4 +178,17 @@ export function useRoomMembershipsQuery(
   params: ChatRoomMembershipListQueryParams = {},
 ) {
   return useInfiniteQuery(roomMembershipsInfiniteQueryOptions(roomId, params));
+}
+
+export function useRoomMessageHistoryQuery(roomId: string, params: ChatMessageHistoryQueryParams) {
+  const query = useInfiniteQuery(roomMessageHistoryInfiniteQueryOptions(roomId, params));
+  const messages = useMemo(
+    () => flattenRoomMessageHistoryPages(query.data?.pages),
+    [query.data?.pages],
+  );
+
+  return {
+    ...query,
+    messages,
+  };
 }
