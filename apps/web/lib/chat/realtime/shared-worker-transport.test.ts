@@ -157,6 +157,171 @@ describe("SharedWorkerTransport", () => {
       },
     });
   });
+
+  it("방 claim 결과와 owner 교체 이벤트를 탭의 room snapshot으로 변환한다", () => {
+    const worker = createFakeWorker();
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("port-1")
+      .mockReturnValueOnce("claim-1")
+      .mockReturnValueOnce("claim-2");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+    const roomListener = vi.fn();
+
+    transport.observeRoom(roomListener);
+    transport.attach();
+    transport.claimRoom("room-01");
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "claiming",
+      roomId: "room-01",
+    });
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "CLAIM_ROOM",
+      portId: "port-1",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "active",
+      roomId: "room-01",
+      generation: 1,
+      replacedByRoomId: null,
+      error: null,
+    });
+
+    worker.port.dispatchMessage({
+      type: "ROOM_REPLACED",
+      roomId: "room-01",
+      activatedRoomId: "room-02",
+      generation: 2,
+    });
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "replaced",
+      roomId: "room-01",
+      generation: 2,
+      replacedByRoomId: "room-02",
+      error: null,
+    });
+    expect(roomListener).toHaveBeenCalled();
+  });
+
+  it("새 claim 이후 늦게 도착한 이전 응답은 room snapshot에 반영하지 않는다", () => {
+    const worker = createFakeWorker();
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("port-1")
+      .mockReturnValueOnce("claim-1")
+      .mockReturnValueOnce("claim-2");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+
+    transport.attach();
+    transport.claimRoom("room-01");
+    transport.claimRoom("room-02");
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+    });
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "claiming",
+      roomId: "room-02",
+    });
+
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-2",
+      roomId: "room-02",
+      generation: 2,
+    });
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "active",
+      roomId: "room-02",
+      generation: 2,
+    });
+  });
+
+  it("현재 방 release만 local snapshot을 해제하고 오래된 release 응답은 무시한다", () => {
+    const worker = createFakeWorker();
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("port-1")
+      .mockReturnValueOnce("claim-1")
+      .mockReturnValueOnce("stale-release")
+      .mockReturnValueOnce("release-2");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+
+    transport.attach();
+    transport.claimRoom("room-02");
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-02",
+      generation: 2,
+    });
+
+    transport.releaseRoom("room-01");
+    worker.port.dispatchMessage({
+      type: "ROOM_RELEASED",
+      requestId: "stale-release",
+      roomId: "room-01",
+      generation: 2,
+    });
+    expect(transport.getRoomSnapshot().status).toBe("active");
+
+    transport.releaseRoom("room-02");
+    worker.port.dispatchMessage({
+      type: "ROOM_RELEASED",
+      requestId: "release-2",
+      roomId: "room-02",
+      generation: 3,
+    });
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "idle",
+      roomId: null,
+      generation: 3,
+      replacedByRoomId: null,
+      error: null,
+    });
+  });
+
+  it("방 명령을 보낼 port가 없으면 room session 오류를 노출한다", () => {
+    const transport = new SharedWorkerTransport({
+      createId: () => "request-1",
+      createWorker: () => createFakeWorker(),
+    });
+
+    transport.claimRoom("room-01");
+
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "error",
+      roomId: "room-01",
+      generation: 0,
+      replacedByRoomId: null,
+      error: {
+        code: "WORKER_UNAVAILABLE",
+        message: "SharedWorker port가 연결되어 있지 않습니다.",
+      },
+    });
+  });
 });
 
 type FakePort = {

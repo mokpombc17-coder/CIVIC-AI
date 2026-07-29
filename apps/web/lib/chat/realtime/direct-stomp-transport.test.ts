@@ -111,6 +111,46 @@ describe("DirectStompTransport", () => {
     expect(client.activate).not.toHaveBeenCalled();
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });
+
+  it("SharedWorker 미지원 환경에서도 동일한 방 세션 API를 제공한다", () => {
+    const transport = new DirectStompTransport(createFakeClient());
+    const listener = vi.fn();
+
+    transport.observeRoom(listener);
+    transport.claimRoom("room-01");
+
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "active",
+      roomId: "room-01",
+      generation: 1,
+      replacedByRoomId: null,
+      error: null,
+    });
+
+    transport.releaseRoom("room-01");
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "idle",
+      roomId: null,
+      generation: 2,
+      replacedByRoomId: null,
+      error: null,
+    });
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it("유효하지 않은 roomId는 Direct fallback에서도 로컬 오류로 거절한다", () => {
+    const transport = new DirectStompTransport(createFakeClient());
+
+    transport.claimRoom("invalid room");
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "error",
+      roomId: "invalid room",
+      error: {
+        code: "INVALID_ROOM_ID",
+      },
+    });
+  });
 });
 
 type FakeDirectStompClient = DirectStompClient & {

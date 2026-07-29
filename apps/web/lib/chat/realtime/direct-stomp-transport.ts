@@ -5,6 +5,7 @@ import type {
   ChatConnectionStatus,
   ChatRealtimeError,
   ChatRealtimeTransport,
+  ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
 
 export type DirectStompClient = Pick<
@@ -24,9 +25,21 @@ const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   error: null,
 };
 
+const INITIAL_ROOM_SNAPSHOT: ChatRoomSessionSnapshot = {
+  status: "idle",
+  roomId: null,
+  generation: 0,
+  replacedByRoomId: null,
+  error: null,
+};
+
+const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private readonly listeners = new Set<() => void>();
+  private readonly roomListeners = new Set<() => void>();
+  private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
 
   constructor(private readonly client: DirectStompClient = createChatStompClient()) {
@@ -89,12 +102,61 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
   readonly getSnapshot = (): ChatConnectionSnapshot => this.snapshot;
 
+  readonly getRoomSnapshot = (): ChatRoomSessionSnapshot => this.roomSnapshot;
+
   readonly observe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
 
     return () => {
       this.listeners.delete(listener);
     };
+  };
+
+  readonly observeRoom = (listener: () => void): (() => void) => {
+    this.roomListeners.add(listener);
+
+    return () => {
+      this.roomListeners.delete(listener);
+    };
+  };
+
+  readonly claimRoom = (roomId: string): void => {
+    if (!ROOM_ID_PATTERN.test(roomId)) {
+      this.setRoomSnapshot({
+        status: "error",
+        roomId,
+        generation: this.roomSnapshot.generation,
+        replacedByRoomId: null,
+        error: {
+          code: "INVALID_ROOM_ID",
+          message: "roomId는 영문자, 숫자, _, -로 구성된 1~64자 문자열이어야 합니다.",
+        },
+      });
+      return;
+    }
+
+    if (this.roomSnapshot.status === "active" && this.roomSnapshot.roomId === roomId) {
+      return;
+    }
+
+    this.setRoomSnapshot({
+      status: "active",
+      roomId,
+      generation: this.roomSnapshot.generation + 1,
+      replacedByRoomId: null,
+      error: null,
+    });
+  };
+
+  readonly releaseRoom = (roomId: string): void => {
+    if (this.roomSnapshot.roomId !== roomId) {
+      return;
+    }
+
+    this.setRoomSnapshot({
+      ...INITIAL_ROOM_SNAPSHOT,
+      generation: this.roomSnapshot.generation + 1,
+    });
   };
 
   readonly reconnect = (): void => {
@@ -126,10 +188,22 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         this.setSnapshot("disconnected", null);
       }
     });
+
+    if (this.roomSnapshot.status !== "idle") {
+      this.setRoomSnapshot({
+        ...INITIAL_ROOM_SNAPSHOT,
+        generation: this.roomSnapshot.generation + 1,
+      });
+    }
   }
 
   private setSnapshot(status: ChatConnectionStatus, error: ChatRealtimeError | null): void {
     this.snapshot = { status, error };
     this.listeners.forEach((listener) => listener());
+  }
+
+  private setRoomSnapshot(snapshot: ChatRoomSessionSnapshot): void {
+    this.roomSnapshot = snapshot;
+    this.roomListeners.forEach((listener) => listener());
   }
 }

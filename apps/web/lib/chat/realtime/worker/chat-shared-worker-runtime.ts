@@ -39,13 +39,23 @@ type ConnectedPort = {
   portId: string | null;
 };
 
+type ActiveRoomLease = Readonly<{
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   status: "idle",
   error: null,
 };
 
+const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
 export class ChatSharedWorkerRuntime {
+  private activeRoomLease: ActiveRoomLease | null = null;
   private deactivation: Promise<void> | null = null;
+  private generation = 0;
   private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
 
@@ -137,6 +147,16 @@ export class ChatSharedWorkerRuntime {
         if (connectedPort.attached && connectedPort.portId === command.portId) {
           this.reconnect();
         }
+        return;
+      case "CLAIM_ROOM":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.claimRoom(connectedPort, command);
+        }
+        return;
+      case "RELEASE_ROOM":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.releaseRoom(connectedPort, command);
+        }
     }
   }
 
@@ -159,6 +179,11 @@ export class ChatSharedWorkerRuntime {
   }
 
   private detachPort(connectedPort: ConnectedPort): void {
+    if (connectedPort.portId === this.activeRoomLease?.ownerPortId) {
+      this.generation += 1;
+      this.activeRoomLease = null;
+    }
+
     connectedPort.attached = false;
     connectedPort.port.removeEventListener("message", connectedPort.listener);
     this.ports.delete(connectedPort.port);
@@ -259,6 +284,94 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.startConnection();
+  }
+
+  private claimRoom(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "CLAIM_ROOM" }>,
+  ): void {
+    if (!ROOM_ID_PATTERN.test(command.roomId)) {
+      connectedPort.port.postMessage({
+        type: "ROOM_ACTIVATION_FAILED",
+        requestId: command.requestId,
+        roomId: command.roomId,
+        code: "INVALID_ROOM_ID",
+        message: "roomId는 영문자, 숫자, _, -로 구성된 1~64자 문자열이어야 합니다.",
+      });
+      return;
+    }
+
+    const portId = connectedPort.portId;
+
+    if (!portId) {
+      return;
+    }
+
+    const previousLease = this.activeRoomLease;
+
+    if (previousLease?.roomId === command.roomId && previousLease.ownerPortId === portId) {
+      connectedPort.port.postMessage({
+        type: "ROOM_ACTIVATED",
+        requestId: command.requestId,
+        roomId: command.roomId,
+        generation: previousLease.generation,
+      });
+      return;
+    }
+
+    this.generation += 1;
+    const nextLease: ActiveRoomLease = {
+      roomId: command.roomId,
+      ownerPortId: portId,
+      generation: this.generation,
+    };
+
+    if (previousLease && previousLease.ownerPortId !== portId) {
+      this.sendToPort(previousLease.ownerPortId, {
+        type: "ROOM_REPLACED",
+        roomId: previousLease.roomId,
+        activatedRoomId: command.roomId,
+        generation: nextLease.generation,
+      });
+    }
+
+    this.activeRoomLease = nextLease;
+    connectedPort.port.postMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: command.requestId,
+      roomId: command.roomId,
+      generation: nextLease.generation,
+    });
+  }
+
+  private releaseRoom(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "RELEASE_ROOM" }>,
+  ): void {
+    const lease = this.activeRoomLease;
+    const ownsLease =
+      lease?.ownerPortId === connectedPort.portId && lease.roomId === command.roomId;
+
+    if (ownsLease) {
+      this.generation += 1;
+      this.activeRoomLease = null;
+    }
+
+    connectedPort.port.postMessage({
+      type: "ROOM_RELEASED",
+      requestId: command.requestId,
+      roomId: command.roomId,
+      generation: this.generation,
+    });
+  }
+
+  private sendToPort(portId: string, event: ChatSharedWorkerEvent): void {
+    for (const connectedPort of this.ports.values()) {
+      if (connectedPort.attached && connectedPort.portId === portId) {
+        connectedPort.port.postMessage(event);
+        return;
+      }
+    }
   }
 
   private getAttachedPortCount(): number {

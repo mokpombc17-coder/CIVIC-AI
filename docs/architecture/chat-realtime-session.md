@@ -8,8 +8,8 @@
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: `SharedWorkerTransport`와 SharedWorker 소유 STOMP Client
-- 다음 구현: SharedWorker 소유 단일 활성 방 lease와 STOMP subscription
+- 현재 구현: SharedWorker 소유 STOMP Client와 단일 활성 방 lease 상태 머신
+- 다음 구현: lease를 실제 STOMP subscription 전환에 연결하고 멀티탭 UX 적용
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
 브라우저에서 같은 사용자가 Chat Resource Server와 맺는 WebSocket 연결과 활성 채팅방 구독을
@@ -332,11 +332,14 @@ type ChatWorkerCommand =
     }
   | {
       type: "CLAIM_ROOM";
+      portId: string;
       requestId: string;
       roomId: string;
     }
   | {
       type: "RELEASE_ROOM";
+      portId: string;
+      requestId: string;
       roomId: string;
     }
   | {
@@ -347,6 +350,7 @@ type ChatWorkerCommand =
     }
   | {
       type: "RECONNECT";
+      portId: string;
     }
   | {
       type: "AUTH_CHANGED";
@@ -366,6 +370,7 @@ type ChatWorkerEvent =
     }
   | {
       type: "ROOM_ACTIVATED";
+      requestId: string;
       roomId: string;
       generation: number;
     }
@@ -373,15 +378,20 @@ type ChatWorkerEvent =
       type: "ROOM_REPLACED";
       roomId: string;
       activatedRoomId: string;
+      generation: number;
     }
   | {
       type: "ROOM_RELEASED";
+      requestId: string;
       roomId: string;
+      generation: number;
     }
   | {
       type: "ROOM_ACTIVATION_FAILED";
+      requestId: string;
       roomId: string;
       code: string;
+      message: string;
     }
   | {
       type: "CHAT_MESSAGE_CREATED";
@@ -692,10 +702,21 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 
 ### 3. 단일 활성 방 lease
 
-- `CLAIM_ROOM`, `RELEASE_ROOM`, `ROOM_REPLACED` 계약을 구현한다.
-- 하나의 room topic subscription만 유지한다.
-- 같은 방 owner 교체 시 subscription을 재사용한다.
-- generation 기반 stale callback 차단을 구현한다.
+진행 상태: lease 상태 머신 완료 (2026-07-29), STOMP subscription 연결 보류
+
+- `CLAIM_ROOM`, `RELEASE_ROOM`, `ROOM_ACTIVATED`, `ROOM_REPLACED`,
+  `ROOM_RELEASED`, `ROOM_ACTIVATION_FAILED` 계약을 구현했다.
+- Worker가 `roomId`, `ownerPortId`, `generation`으로 구성된 단일 lease를 관리한다.
+- 같은 owner의 같은 방 claim은 generation을 유지하는 멱등 동작이다.
+- 같은 방의 다른 owner claim은 lease 소유권만 교체하는 것으로 모델링했다.
+- 다른 방 claim은 이전 owner에 `ROOM_REPLACED`를 보내고 새 lease를 선점한다.
+- owner의 release 또는 detach는 lease를 해제하며, 오래된 owner의 release는 현재 lease에 영향을
+  주지 않는다.
+- `requestId`와 `generation`으로 탭 transport가 늦게 도착한 응답을 무시한다.
+- SharedWorker 미지원 환경의 `DirectStompTransport`도 같은 방 세션 API를 제공한다.
+- 이 단계에서는 STOMP Client 타입에 `subscribe`/`unsubscribe`를 추가하지 않았다. lease
+  상태를 실제 topic 전환에 연결하는 작업은 백엔드 순서 보존 적용 확인과 사용자 확인 후
+  진행한다.
 
 ### 4. UX 연결
 
@@ -759,6 +780,20 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 ## 백엔드와 추가로 확정할 계약
 
 다음 항목은 프론트 정책만으로 확정할 수 없다.
+
+2026-07-29에 백엔드는 프론트의 선점 전환 및 같은 방 owner 교체 정책이 서버 제한과
+호환됨을 확인했다. 실제 다른 방 전환 순서는 아래 계약을 사용한다.
+
+```text
+1. 기존 방 /messages UNSUBSCRIBE
+2. 기존 방 /room-events UNSUBSCRIBE
+3. 새 방 /messages SUBSCRIBE
+4. 새 방 /room-events SUBSCRIBE
+```
+
+사용자 공통 `/user/queue/command-results`, `/user/queue/system-events` 구독은 이 전환 중에도
+유지한다. 백엔드의 STOMP inbound 순서 보존 설정과 방 전환 통합 테스트 적용 완료 회신을 받은
+뒤 실제 subscription 전환을 연결한다.
 
 - STOMP `SUBSCRIBE` 성공을 확인할 receipt 또는 승인 event 제공 여부
 - WebSocket handshake 인증 실패 시 close code와 reason

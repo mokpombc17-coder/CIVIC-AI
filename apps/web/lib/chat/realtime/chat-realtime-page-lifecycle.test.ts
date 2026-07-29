@@ -47,9 +47,19 @@ type FakeTransport = ChatRealtimeTransport & {
 function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
   return {
     attach: vi.fn(() => detachments.shift() ?? (() => {})),
+    claimRoom: () => {},
+    getRoomSnapshot: () => ({
+      status: "idle",
+      roomId: null,
+      generation: 0,
+      replacedByRoomId: null,
+      error: null,
+    }),
     getSnapshot: () => ({ status: "idle", error: null }),
+    observeRoom: () => () => {},
     observe: () => () => {},
     reconnect: () => {},
+    releaseRoom: () => {},
   };
 }
 
