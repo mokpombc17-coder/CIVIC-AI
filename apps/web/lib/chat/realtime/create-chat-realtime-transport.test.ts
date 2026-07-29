@@ -45,6 +45,7 @@ function createFakeTransport(): ChatRealtimeTransport {
       roomId: null,
       generation: 0,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: null,
     }),
     getSnapshot: () => ({ status: "idle", error: null }),

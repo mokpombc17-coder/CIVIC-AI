@@ -53,6 +53,7 @@ const INITIAL_ROOM_SNAPSHOT: ChatRoomSessionSnapshot = {
   roomId: null,
   generation: 0,
   replacedByRoomId: null,
+  watermarkSequence: null,
   error: null,
 };
 
@@ -127,6 +128,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       roomId,
       generation: this.roomSnapshot.generation,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: null,
     });
 
@@ -148,6 +150,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         roomId,
         generation: this.roomSnapshot.generation,
         replacedByRoomId: null,
+        watermarkSequence: null,
         error: null,
       });
     }
@@ -237,18 +240,42 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     switch (workerEvent.type) {
       case "CONNECTION_SNAPSHOT":
         this.setSnapshot(workerEvent.snapshot);
+
+        if (
+          workerEvent.snapshot.status === "reconnecting" &&
+          this.roomSnapshot.status === "active"
+        ) {
+          this.setRoomSnapshot({
+            ...this.roomSnapshot,
+            status: "claiming",
+            watermarkSequence: null,
+          });
+        }
+        return;
+      case "ROOM_SYNCING":
+        if (
+          workerEvent.generation >= this.roomSnapshot.generation &&
+          (!this.roomSnapshot.roomId || this.roomSnapshot.roomId === workerEvent.roomId)
+        ) {
+          this.setRoomSnapshot({
+            status: "claiming",
+            roomId: workerEvent.roomId,
+            generation: workerEvent.generation,
+            replacedByRoomId: null,
+            watermarkSequence: null,
+            error: null,
+          });
+        }
         return;
       case "ROOM_ACTIVATED":
-        if (
-          workerEvent.requestId === this.pendingRoomRequestId &&
-          workerEvent.generation >= this.roomSnapshot.generation
-        ) {
+        if (this.matchesRoomActivationEvent(workerEvent)) {
           this.pendingRoomRequestId = null;
           this.setRoomSnapshot({
             status: "active",
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: null,
+            watermarkSequence: workerEvent.watermarkSequence,
             error: null,
           });
         }
@@ -261,6 +288,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: workerEvent.activatedRoomId,
+            watermarkSequence: null,
             error: null,
           });
         }
@@ -285,9 +313,28 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: null,
+            watermarkSequence: null,
             error: {
               code: "SUBSCRIPTION_REJECTED",
               serverCode: workerEvent.code,
+              message: workerEvent.message,
+            },
+          });
+        }
+        return;
+      case "ROOM_SYNC_FAILED":
+        if (this.matchesRoomActivationEvent(workerEvent)) {
+          this.pendingRoomRequestId = null;
+          this.setRoomSnapshot({
+            status: "error",
+            roomId: workerEvent.roomId,
+            generation: workerEvent.generation,
+            replacedByRoomId: null,
+            watermarkSequence: null,
+            error: {
+              code: "SUBSCRIPTION_SYNC_REJECTED",
+              serverCode: workerEvent.code,
+              retryable: workerEvent.retryable,
               message: workerEvent.message,
             },
           });
@@ -301,6 +348,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: this.roomSnapshot.generation,
             replacedByRoomId: null,
+            watermarkSequence: null,
             error: {
               code: workerEvent.code,
               message: workerEvent.message,
@@ -309,6 +357,23 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         }
     }
   };
+
+  private matchesRoomActivationEvent(event: {
+    requestId: string;
+    roomId: string;
+    generation: number;
+  }): boolean {
+    const matchesPendingRequest = event.requestId === this.pendingRoomRequestId;
+    const matchesCurrentRoom =
+      this.pendingRoomRequestId === null &&
+      event.roomId === this.roomSnapshot.roomId &&
+      event.generation === this.roomSnapshot.generation;
+
+    return (
+      (matchesPendingRequest || matchesCurrentRoom) &&
+      event.generation >= this.roomSnapshot.generation
+    );
+  }
 
   private readonly handleMessageError = (): void => {
     this.setWorkerError(null, "SharedWorker 메시지를 역직렬화하지 못했습니다.");
@@ -389,6 +454,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       roomId,
       generation: this.roomSnapshot.generation,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: {
         code: "WORKER_UNAVAILABLE",
         message,

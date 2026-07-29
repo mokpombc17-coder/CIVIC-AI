@@ -10,7 +10,13 @@ import {
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
 } from "../chat-stomp-destinations";
-import { parseChatSubscriptionRejection } from "../chat-stomp-contracts";
+import {
+  parseChatRoomSubscriptionSyncRejected,
+  parseChatRoomSubscriptionsReady,
+  parseChatSubscriptionRejection,
+  type ChatRoomSubscriptionSyncRejected,
+  type ChatRoomSubscriptionsReady,
+} from "../chat-stomp-contracts";
 import { ChatStompSubscriptionManager } from "../chat-stomp-subscription-manager";
 import {
   isChatSharedWorkerCommand,
@@ -50,12 +56,20 @@ type ConnectedPort = {
 };
 
 type ActiveRoomLease = Readonly<{
+  requestId: string;
   roomId: string;
   ownerPortId: string;
   generation: number;
 }>;
 
 type PendingRoomActivation = Readonly<{
+  requestId: string;
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
+type PendingRoomSync = Readonly<{
   requestId: string;
   roomId: string;
   ownerPortId: string;
@@ -74,6 +88,7 @@ export class ChatSharedWorkerRuntime {
   private deactivation: Promise<void> | null = null;
   private generation = 0;
   private pendingRoomActivation: PendingRoomActivation | null = null;
+  private pendingRoomSync: PendingRoomSync | null = null;
   private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
   private readonly subscriptions: ChatStompSubscriptionManager;
@@ -81,6 +96,7 @@ export class ChatSharedWorkerRuntime {
   constructor(
     private readonly client: ChatSharedWorkerStompClient,
     private readonly workerInstanceId = crypto.randomUUID(),
+    private readonly createId = () => crypto.randomUUID(),
   ) {
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
       onSystemEvent: this.handleSystemEvent,
@@ -108,6 +124,7 @@ export class ChatSharedWorkerRuntime {
     };
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
+      this.pendingRoomSync = null;
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
@@ -213,6 +230,7 @@ export class ChatSharedWorkerRuntime {
       this.generation += 1;
       this.activeRoomLease = null;
       this.pendingRoomActivation = null;
+      this.pendingRoomSync = null;
     }
 
     connectedPort.attached = false;
@@ -325,6 +343,7 @@ export class ChatSharedWorkerRuntime {
 
   private stopConnectionReplacedReconnect(): void {
     this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
 
     try {
       void this.client.deactivate().catch(() => {
@@ -365,6 +384,11 @@ export class ChatSharedWorkerRuntime {
     const previousLease = this.activeRoomLease;
 
     if (previousLease?.roomId === command.roomId && previousLease.ownerPortId === portId) {
+      const nextLease = {
+        ...previousLease,
+        requestId: command.requestId,
+      };
+      this.activeRoomLease = nextLease;
       this.pendingRoomActivation = {
         requestId: command.requestId,
         roomId: command.roomId,
@@ -377,6 +401,7 @@ export class ChatSharedWorkerRuntime {
 
     this.generation += 1;
     const nextLease: ActiveRoomLease = {
+      requestId: command.requestId,
       roomId: command.roomId,
       ownerPortId: portId,
       generation: this.generation,
@@ -392,6 +417,7 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.activeRoomLease = nextLease;
+    this.pendingRoomSync = null;
     this.pendingRoomActivation = {
       requestId: command.requestId,
       roomId: command.roomId,
@@ -414,6 +440,7 @@ export class ChatSharedWorkerRuntime {
       this.generation += 1;
       this.activeRoomLease = null;
       this.pendingRoomActivation = null;
+      this.pendingRoomSync = null;
     }
 
     connectedPort.port.postMessage({
@@ -437,7 +464,12 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.setSnapshot("connected", null);
-    this.completePendingRoomActivation();
+
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      this.startRoomSync(lease);
+    }
   }
 
   private activatePendingRoom(): void {
@@ -468,30 +500,79 @@ export class ChatSharedWorkerRuntime {
     if (this.snapshot.status === "error") {
       this.setSnapshot("connected", null);
     }
-    this.completePendingRoomActivation();
+    this.startRoomSync(lease);
   }
 
-  private completePendingRoomActivation(): void {
-    const pending = this.pendingRoomActivation;
-    const lease = this.activeRoomLease;
-
+  private startRoomSync(lease: ActiveRoomLease): void {
     if (
-      !pending ||
-      !lease ||
+      !this.subscriptions.connected ||
       this.subscriptions.activeRoomId !== lease.roomId ||
-      pending.generation !== lease.generation ||
-      pending.ownerPortId !== lease.ownerPortId ||
-      pending.roomId !== lease.roomId
+      this.activeRoomLease !== lease
     ) {
       return;
     }
 
-    this.pendingRoomActivation = null;
-    this.sendToPort(pending.ownerPortId, {
+    const pendingSync: PendingRoomSync = {
+      requestId: this.createId(),
+      roomId: lease.roomId,
+      ownerPortId: lease.ownerPortId,
+      generation: lease.generation,
+    };
+    this.pendingRoomSync = pendingSync;
+    this.sendToPort(lease.ownerPortId, {
+      type: "ROOM_SYNCING",
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
+
+    try {
+      this.subscriptions.syncRoomSubscriptions(lease.roomId, pendingSync.requestId);
+    } catch (cause) {
+      this.pendingRoomSync = null;
+      this.handleRoomSyncFailure(
+        lease,
+        "ROOM_SUBSCRIPTION_SYNC_PUBLISH_FAILED",
+        true,
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : "채팅방 구독 준비 sync 요청을 전송하지 못했습니다.",
+      );
+    }
+  }
+
+  private completePendingRoomActivation(ready: ChatRoomSubscriptionsReady): void {
+    const pendingActivation = this.pendingRoomActivation;
+    const pendingSync = this.pendingRoomSync;
+    const lease = this.activeRoomLease;
+
+    if (
+      !pendingSync ||
+      !lease ||
+      this.subscriptions.activeRoomId !== lease.roomId ||
+      pendingSync.requestId !== ready.requestId ||
+      pendingSync.roomId !== ready.roomId ||
+      pendingSync.generation !== lease.generation ||
+      pendingSync.ownerPortId !== lease.ownerPortId ||
+      pendingSync.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    if (
+      pendingActivation &&
+      pendingActivation.generation === lease.generation &&
+      pendingActivation.ownerPortId === lease.ownerPortId &&
+      pendingActivation.roomId === lease.roomId
+    ) {
+      this.pendingRoomActivation = null;
+    }
+    this.pendingRoomSync = null;
+    this.sendToPort(lease.ownerPortId, {
       type: "ROOM_ACTIVATED",
-      requestId: pending.requestId,
-      roomId: pending.roomId,
-      generation: pending.generation,
+      requestId: lease.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      watermarkSequence: ready.watermarkSequence,
     });
   }
 
@@ -521,6 +602,7 @@ export class ChatSharedWorkerRuntime {
       this.tryReleaseRoom(lease.roomId);
     }
     this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
 
     if (lease) {
       this.generation += 1;
@@ -551,7 +633,50 @@ export class ChatSharedWorkerRuntime {
     });
   }
 
+  private handleRoomSyncFailure(
+    lease: ActiveRoomLease,
+    code: string,
+    retryable: boolean,
+    message: string,
+  ): void {
+    const currentLease = this.activeRoomLease;
+
+    if (
+      !currentLease ||
+      currentLease.generation !== lease.generation ||
+      currentLease.ownerPortId !== lease.ownerPortId ||
+      currentLease.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.pendingRoomActivation = null;
+    this.sendToPort(lease.ownerPortId, {
+      type: "ROOM_SYNC_FAILED",
+      requestId: lease.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      code,
+      retryable,
+      message,
+    });
+  }
+
   private readonly handleSystemEvent = (message: IMessage): void => {
+    const ready = parseChatRoomSubscriptionsReady(message.body);
+
+    if (ready) {
+      this.completePendingRoomActivation(ready);
+      return;
+    }
+
+    const syncRejection = parseChatRoomSubscriptionSyncRejected(message.body);
+
+    if (syncRejection) {
+      this.handleRoomSyncRejection(syncRejection);
+      return;
+    }
+
     const rejection = parseChatSubscriptionRejection(message.body);
     const lease = this.activeRoomLease;
 
@@ -566,6 +691,7 @@ export class ChatSharedWorkerRuntime {
 
     this.tryReleaseRoom(lease.roomId);
     this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
     this.generation += 1;
     this.activeRoomLease = null;
     this.sendToPort(lease.ownerPortId, {
@@ -576,6 +702,33 @@ export class ChatSharedWorkerRuntime {
       message: `서버가 ${rejection.destination} 구독을 거절했습니다.`,
     });
   };
+
+  private handleRoomSyncRejection(rejection: ChatRoomSubscriptionSyncRejected): void {
+    const pendingSync = this.pendingRoomSync;
+    const lease = this.activeRoomLease;
+
+    if (
+      !pendingSync ||
+      !lease ||
+      pendingSync.requestId !== rejection.requestId ||
+      pendingSync.roomId !== rejection.roomId ||
+      pendingSync.generation !== lease.generation ||
+      pendingSync.ownerPortId !== lease.ownerPortId ||
+      pendingSync.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.pendingRoomSync = null;
+    this.handleRoomSyncFailure(
+      lease,
+      rejection.code,
+      rejection.retryable,
+      rejection.retryable
+        ? "채팅방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
+        : "채팅방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
+    );
+  }
 
   private sendToPort(portId: string, event: ChatSharedWorkerEvent): void {
     for (const connectedPort of this.ports.values()) {

@@ -4,7 +4,13 @@ import {
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
 } from "./chat-stomp-destinations";
-import { parseChatSubscriptionRejection } from "./chat-stomp-contracts";
+import {
+  parseChatRoomSubscriptionSyncRejected,
+  parseChatRoomSubscriptionsReady,
+  parseChatSubscriptionRejection,
+  type ChatRoomSubscriptionSyncRejected,
+  type ChatRoomSubscriptionsReady,
+} from "./chat-stomp-contracts";
 import { ChatStompSubscriptionManager } from "./chat-stomp-subscription-manager";
 import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
@@ -40,20 +46,31 @@ const INITIAL_ROOM_SNAPSHOT: ChatRoomSessionSnapshot = {
   roomId: null,
   generation: 0,
   replacedByRoomId: null,
+  watermarkSequence: null,
   error: null,
 };
 
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
+type PendingRoomSync = Readonly<{
+  requestId: string;
+  roomId: string;
+  generation: number;
+}>;
+
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private readonly listeners = new Set<() => void>();
+  private pendingRoomSync: PendingRoomSync | null = null;
   private readonly roomListeners = new Set<() => void>();
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
   private readonly subscriptions: ChatStompSubscriptionManager;
 
-  constructor(private readonly client: DirectStompClient = createChatStompClient()) {
+  constructor(
+    private readonly client: DirectStompClient = createChatStompClient(),
+    private readonly createId = () => crypto.randomUUID(),
+  ) {
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
       onSystemEvent: this.handleSystemEvent,
     });
@@ -71,11 +88,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
       this.setSnapshot("connected", null);
 
-      if (this.roomSnapshot.status === "claiming" && this.roomSnapshot.roomId) {
-        this.setRoomSnapshot({
-          ...this.roomSnapshot,
-          status: "active",
-        });
+      if (this.roomSnapshot.roomId && this.roomSnapshot.status !== "idle") {
+        this.startRoomSync(this.roomSnapshot.roomId, this.roomSnapshot.generation);
       }
     };
     this.client.onStompError = (frame) => {
@@ -95,6 +109,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     };
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
+      this.pendingRoomSync = null;
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
@@ -113,6 +128,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
           }
         : this.snapshot.error;
 
+      if (this.roomSnapshot.roomId) {
+        this.setRoomSnapshot({
+          ...this.roomSnapshot,
+          status: "claiming",
+          watermarkSequence: null,
+          error: null,
+        });
+      }
       this.setSnapshot("reconnecting", error);
     };
   }
@@ -164,6 +187,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         roomId,
         generation: this.roomSnapshot.generation,
         replacedByRoomId: null,
+        watermarkSequence: null,
         error: {
           code: "INVALID_ROOM_ID",
           message: "roomId는 영문자, 숫자, _, -로 구성된 1~64자 문자열이어야 합니다.",
@@ -181,6 +205,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       roomId,
       generation: this.roomSnapshot.generation + 1,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: null,
     };
     this.setRoomSnapshot(claimingSnapshot);
@@ -196,10 +221,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       if (this.snapshot.status === "error") {
         this.setSnapshot("connected", null);
       }
-      this.setRoomSnapshot({
-        ...claimingSnapshot,
-        status: "active",
-      });
+      this.startRoomSync(roomId, claimingSnapshot.generation);
     }
   };
 
@@ -216,6 +238,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         message: getSubscriptionErrorMessage(cause, "기존 채팅방 STOMP 구독 해제에 실패했습니다."),
       });
     } finally {
+      this.pendingRoomSync = null;
       this.setRoomSnapshot({
         ...INITIAL_ROOM_SNAPSHOT,
         generation: this.roomSnapshot.generation + 1,
@@ -255,6 +278,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.subscriptions.disconnect();
+    this.pendingRoomSync = null;
     this.setSnapshot("disconnecting", null);
 
     void this.client.deactivate().then(() => {
@@ -277,6 +301,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   }
 
   private stopConnectionReplacedReconnect(): void {
+    this.pendingRoomSync = null;
+
     try {
       void this.client.deactivate().catch(() => {
         // deactivate flips Client.active synchronously, so a rejected cleanup must not restart it.
@@ -312,6 +338,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         roomId,
         generation: this.roomSnapshot.generation,
         replacedByRoomId: null,
+        watermarkSequence: null,
         error: {
           code: "SUBSCRIPTION_SETUP_FAILED",
           message,
@@ -326,6 +353,20 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   }
 
   private readonly handleSystemEvent = (message: IMessage): void => {
+    const ready = parseChatRoomSubscriptionsReady(message.body);
+
+    if (ready) {
+      this.completeRoomSync(ready);
+      return;
+    }
+
+    const syncRejection = parseChatRoomSubscriptionSyncRejected(message.body);
+
+    if (syncRejection) {
+      this.handleRoomSyncRejection(syncRejection);
+      return;
+    }
+
     const rejection = parseChatSubscriptionRejection(message.body);
     const roomId = this.roomSnapshot.roomId;
 
@@ -343,11 +384,13 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     } catch {
       // The server already rejected the room subscription; keep the rejection as the UI error.
     }
+    this.pendingRoomSync = null;
     this.setRoomSnapshot({
       status: "error",
       roomId,
       generation: this.roomSnapshot.generation + 1,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: {
         code: "SUBSCRIPTION_REJECTED",
         serverCode: rejection.code,
@@ -355,6 +398,110 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       },
     });
   };
+
+  private startRoomSync(roomId: string, generation: number): void {
+    if (
+      !this.subscriptions.connected ||
+      this.subscriptions.activeRoomId !== roomId ||
+      this.roomSnapshot.roomId !== roomId ||
+      this.roomSnapshot.generation !== generation
+    ) {
+      return;
+    }
+
+    const pendingSync: PendingRoomSync = {
+      requestId: this.createId(),
+      roomId,
+      generation,
+    };
+    this.pendingRoomSync = pendingSync;
+
+    try {
+      this.subscriptions.syncRoomSubscriptions(roomId, pendingSync.requestId);
+    } catch (cause) {
+      this.pendingRoomSync = null;
+      this.setRoomSyncError(
+        roomId,
+        generation,
+        "ROOM_SUBSCRIPTION_SYNC_PUBLISH_FAILED",
+        true,
+        getSubscriptionErrorMessage(cause, "채팅방 구독 준비 sync 요청을 전송하지 못했습니다."),
+      );
+    }
+  }
+
+  private completeRoomSync(ready: ChatRoomSubscriptionsReady): void {
+    const pendingSync = this.pendingRoomSync;
+
+    if (
+      !pendingSync ||
+      pendingSync.requestId !== ready.requestId ||
+      pendingSync.roomId !== ready.roomId ||
+      this.roomSnapshot.roomId !== pendingSync.roomId ||
+      this.roomSnapshot.generation !== pendingSync.generation
+    ) {
+      return;
+    }
+
+    this.pendingRoomSync = null;
+    this.setRoomSnapshot({
+      ...this.roomSnapshot,
+      status: "active",
+      watermarkSequence: ready.watermarkSequence,
+      error: null,
+    });
+  }
+
+  private handleRoomSyncRejection(rejection: ChatRoomSubscriptionSyncRejected): void {
+    const pendingSync = this.pendingRoomSync;
+
+    if (
+      !pendingSync ||
+      pendingSync.requestId !== rejection.requestId ||
+      pendingSync.roomId !== rejection.roomId ||
+      this.roomSnapshot.roomId !== pendingSync.roomId ||
+      this.roomSnapshot.generation !== pendingSync.generation
+    ) {
+      return;
+    }
+
+    this.pendingRoomSync = null;
+    this.setRoomSyncError(
+      rejection.roomId,
+      pendingSync.generation,
+      rejection.code,
+      rejection.retryable,
+      rejection.retryable
+        ? "채팅방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
+        : "채팅방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
+    );
+  }
+
+  private setRoomSyncError(
+    roomId: string,
+    generation: number,
+    serverCode: string,
+    retryable: boolean,
+    message: string,
+  ): void {
+    if (this.roomSnapshot.roomId !== roomId || this.roomSnapshot.generation !== generation) {
+      return;
+    }
+
+    this.setRoomSnapshot({
+      status: "error",
+      roomId,
+      generation,
+      replacedByRoomId: null,
+      watermarkSequence: null,
+      error: {
+        code: "SUBSCRIPTION_SYNC_REJECTED",
+        serverCode,
+        retryable,
+        message,
+      },
+    });
+  }
 }
 
 function getSubscriptionErrorMessage(cause: unknown, fallback: string): string {

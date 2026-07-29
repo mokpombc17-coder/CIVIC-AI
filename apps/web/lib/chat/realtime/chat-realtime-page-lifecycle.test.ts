@@ -53,6 +53,7 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
       roomId: null,
       generation: 0,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: null,
     }),
     getSnapshot: () => ({ status: "idle", error: null }),

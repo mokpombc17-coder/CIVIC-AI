@@ -154,6 +154,7 @@ describe("DirectStompTransport", () => {
       roomId: "room-01",
       generation: 1,
       replacedByRoomId: null,
+      watermarkSequence: 120,
       error: null,
     });
 
@@ -163,9 +164,87 @@ describe("DirectStompTransport", () => {
       roomId: null,
       generation: 2,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: null,
     });
     expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it("Direct fallback은 일치하는 READY를 받기 전까지 방을 활성화하지 않는다", () => {
+    const client = createFakeClient({ autoReady: false });
+    const transport = new DirectStompTransport(
+      client,
+      () => "550e8400-e29b-41d4-a716-446655440001",
+    );
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "claiming",
+      watermarkSequence: null,
+    });
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440099",
+        roomId: "room-01",
+        watermarkSequence: 99,
+      }),
+    );
+    expect(transport.getRoomSnapshot().status).toBe("claiming");
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        watermarkSequence: 120,
+      }),
+    );
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "active",
+      watermarkSequence: 120,
+    });
+  });
+
+  it("Direct fallback은 sync 거절의 재시도 가능 여부를 방 오류에 보존한다", () => {
+    const client = createFakeClient({ autoReady: false });
+    const transport = new DirectStompTransport(
+      client,
+      () => "550e8400-e29b-41d4-a716-446655440001",
+    );
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "REJECTED",
+        eventType: "ROOM_SUBSCRIPTION_SYNC_REJECTED",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        code: "ROOM_AUTHORIZATION_UNAVAILABLE",
+        retryable: true,
+      }),
+    );
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "error",
+      watermarkSequence: null,
+      error: {
+        code: "SUBSCRIPTION_SYNC_REJECTED",
+        serverCode: "ROOM_AUTHORIZATION_UNAVAILABLE",
+        retryable: true,
+      },
+    });
   });
 
   it("Direct fallback도 다른 방 전환 시 동일한 4-frame 순서를 사용한다", () => {
@@ -184,6 +263,7 @@ describe("DirectStompTransport", () => {
       "UNSUBSCRIBE /topic/rooms/room-01/room-events",
       "SUBSCRIBE /topic/rooms/room-02/messages",
       "SUBSCRIBE /topic/rooms/room-02/room-events",
+      "SEND /app/rooms/room-02/subscriptions/sync",
     ]);
     expect(transport.getRoomSnapshot()).toMatchObject({
       status: "active",
@@ -238,7 +318,7 @@ type FakeDirectStompClient = DirectStompClient & {
   setActive(active: boolean): void;
 };
 
-function createFakeClient(): FakeDirectStompClient {
+function createFakeClient({ autoReady = true } = {}): FakeDirectStompClient {
   let active = false;
   let nextSubscriptionId = 1;
   const frames: string[] = [];
@@ -266,7 +346,24 @@ function createFakeClient(): FakeDirectStompClient {
     onStompError: vi.fn(),
     onWebSocketClose: vi.fn(),
     onWebSocketError: vi.fn(),
-    publish: vi.fn(),
+    publish: vi.fn(({ body, destination }) => {
+      frames.push(`SEND ${destination}`);
+
+      if (autoReady && destination.endsWith("/subscriptions/sync")) {
+        const roomId = destination.split("/")[3];
+        const { requestId } = JSON.parse(body) as { requestId: string };
+        client.deliver(
+          "/user/queue/system-events",
+          JSON.stringify({
+            status: "READY",
+            eventType: "ROOM_SUBSCRIPTIONS_READY",
+            requestId,
+            roomId,
+            watermarkSequence: 120,
+          }),
+        );
+      }
+    }),
     subscribe: vi.fn((destination, callback) => {
       const id = `subscription-${nextSubscriptionId++}`;
       const destinationCallbacks = callbacks.get(destination) ?? new Map();

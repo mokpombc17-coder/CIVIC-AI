@@ -199,12 +199,14 @@ describe("ChatSharedWorkerRuntime", () => {
         requestId: "request-1",
         roomId: "room-01",
         generation: 1,
+        watermarkSequence: 120,
       },
       {
         type: "ROOM_ACTIVATED",
         requestId: "request-2",
         roomId: "room-01",
         generation: 1,
+        watermarkSequence: 120,
       },
     ]);
     expect(client.frames).toEqual([
@@ -212,7 +214,129 @@ describe("ChatSharedWorkerRuntime", () => {
       "SUBSCRIBE /user/queue/command-results",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SEND /app/rooms/room-01/subscriptions/sync",
+      "SEND /app/rooms/room-01/subscriptions/sync",
     ]);
+  });
+
+  it("일치하는 READY 전에는 lease를 활성화하지 않고 오래된 READY를 무시한다", () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const runtime = new ChatSharedWorkerRuntime(
+      client,
+      "worker-1",
+      () => "550e8400-e29b-41d4-a716-446655440001",
+    );
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+
+    expect(port.eventsOfType("ROOM_SYNCING").at(-1)).toEqual({
+      type: "ROOM_SYNCING",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(port.eventsOfType("ROOM_ACTIVATED")).toHaveLength(0);
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440099",
+        roomId: "room-01",
+        watermarkSequence: 99,
+      }),
+    );
+    expect(port.eventsOfType("ROOM_ACTIVATED")).toHaveLength(0);
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        watermarkSequence: 120,
+      }),
+    );
+    expect(port.eventsOfType("ROOM_ACTIVATED").at(-1)).toEqual({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+      watermarkSequence: 120,
+    });
+  });
+
+  it("sync 거절은 lease를 유지하고 새 requestId를 사용한 수동 재활성화를 허용한다", () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002");
+    const runtime = new ChatSharedWorkerRuntime(client, "worker-1", createId);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "REJECTED",
+        eventType: "ROOM_SUBSCRIPTION_SYNC_REJECTED",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        code: "ROOM_AUTHORIZATION_UNAVAILABLE",
+        retryable: true,
+      }),
+    );
+
+    expect(port.eventsOfType("ROOM_SYNC_FAILED").at(-1)).toMatchObject({
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+      code: "ROOM_AUTHORIZATION_UNAVAILABLE",
+      retryable: true,
+    });
+
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-2",
+      roomId: "room-01",
+    });
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440002",
+        roomId: "room-01",
+        watermarkSequence: 121,
+      }),
+    );
+
+    expect(port.eventsOfType("ROOM_ACTIVATED").at(-1)).toMatchObject({
+      requestId: "claim-2",
+      generation: 1,
+      watermarkSequence: 121,
+    });
+    expect(client.frames.filter((frame) => frame.includes("/subscriptions/sync"))).toHaveLength(2);
   });
 
   it("같은 방을 다른 port가 claim하면 구독 세대를 바꾸고 이전 owner를 교체한다", () => {
@@ -253,8 +377,9 @@ describe("ChatSharedWorkerRuntime", () => {
       requestId: "request-b",
       roomId: "room-01",
       generation: 2,
+      watermarkSequence: 120,
     });
-    expect(client.frames).toEqual([]);
+    expect(client.frames).toEqual(["SEND /app/rooms/room-01/subscriptions/sync"]);
   });
 
   it("다른 방 claim은 이전 owner를 교체하고 오래된 release가 새 lease를 해제하지 못한다", () => {
@@ -307,6 +432,8 @@ describe("ChatSharedWorkerRuntime", () => {
       "UNSUBSCRIBE /topic/rooms/room-01/room-events",
       "SUBSCRIBE /topic/rooms/room-02/messages",
       "SUBSCRIBE /topic/rooms/room-02/room-events",
+      "SEND /app/rooms/room-02/subscriptions/sync",
+      "SEND /app/rooms/room-02/subscriptions/sync",
     ]);
   });
 
@@ -404,6 +531,7 @@ describe("ChatSharedWorkerRuntime", () => {
       "SUBSCRIBE /user/queue/command-results",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SEND /app/rooms/room-01/subscriptions/sync",
     ]);
   });
 
@@ -482,7 +610,7 @@ type FakeStompClient = ChatSharedWorkerStompClient & {
   setActive(value: boolean): void;
 };
 
-function createFakeStompClient(): FakeStompClient {
+function createFakeStompClient({ autoReady = true } = {}): FakeStompClient {
   let active = false;
   let nextSubscriptionId = 1;
   const frames: string[] = [];
@@ -507,7 +635,24 @@ function createFakeStompClient(): FakeStompClient {
     onStompError: vi.fn(),
     onWebSocketClose: vi.fn(),
     onWebSocketError: vi.fn(),
-    publish: vi.fn(),
+    publish: vi.fn(({ body, destination }) => {
+      frames.push(`SEND ${destination}`);
+
+      if (autoReady && destination.endsWith("/subscriptions/sync")) {
+        const roomId = destination.split("/")[3];
+        const { requestId } = JSON.parse(body) as { requestId: string };
+        client.deliver(
+          "/user/queue/system-events",
+          JSON.stringify({
+            status: "READY",
+            eventType: "ROOM_SUBSCRIPTIONS_READY",
+            requestId,
+            roomId,
+            watermarkSequence: 120,
+          }),
+        );
+      }
+    }),
     setActive(value) {
       active = value;
     },

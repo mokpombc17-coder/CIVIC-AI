@@ -836,8 +836,28 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 유지한다. 백엔드는 같은 WebSocket session의 STOMP frame을 수신 순서대로 처리하며, 위 순서에는
 별도 receipt 대기가 필요하지 않음을 최종 확인했다.
 
-- `ROOM_SUBSCRIPTIONS_READY`의 destination, payload 및 sequence watermark
-- `ROOM_SUBSCRIPTIONS_READY`와 room claim generation의 correlation 방식
+구독 준비는 Native STOMP receipt가 아니라 애플리케이션 수준 barrier로 확인한다.
+
+```text
+방 topic SUBSCRIBE
+  → SEND /app/rooms/{roomId}/subscriptions/sync (sync requestId)
+  → /user/queue/system-events의 ROOM_SUBSCRIPTIONS_READY
+  → room session active
+```
+
+- Worker가 sync 요청별 UUID를 생성하고 현재 `roomId`, lease `generation`, owner port와 함께
+  보관한다.
+- READY의 `requestId`와 `roomId`가 현재 sync와 모두 일치할 때만 `ROOM_ACTIVATED`를 owner
+  탭으로 전달한다.
+- `watermarkSequence`는 room session snapshot에 보관해 다음 이력 복구 단계가 사용한다.
+- 늦게 도착한 이전 READY 및 sync 거절은 현재 lease를 변경하지 않는다.
+- sync 거절은 topic과 lease를 유지한 채 재시도 가능 여부를 오류 상태에 보존한다. 사용자가
+  다시 활성화하면 새 sync UUID로 sync 요청만 다시 보낸다.
+- WebSocket 재연결 후에도 공통 queue와 방 topic을 다시 구독한 다음 같은 barrier를 반복한다.
+- SharedWorker를 사용할 수 없는 Direct fallback도 동일한 상태 전이와 correlation을 사용한다.
+
+다음 계약은 여전히 백엔드 또는 후속 프론트 단계의 확인이 필요하다.
+
 - `4001 / CONNECTION_REPLACED` 외 WebSocket handshake 인증 실패의 close code와 reason
 - 비재시도 인증 오류와 일시적 인프라 오류 구분
 - reconnect 복구 API의 최종 endpoint와 pagination
@@ -845,8 +865,9 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 - 구독 거절 event와 `CLAIM_ROOM requestId` correlation 가능 여부
 - message 및 room event 최종 payload
 
-이 계약이 확정되기 전에도 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease 및 UX 소유권
-전환까지는 구현할 수 있다.
+현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환과 구독 준비
+barrier까지 구현되어 있다. 실시간 이벤트 버퍼와 REST snapshot 적용 handshake는 후속 단계에서
+이 상태 머신 위에 연결한다.
 
 ## 관련 코드와 문서
 

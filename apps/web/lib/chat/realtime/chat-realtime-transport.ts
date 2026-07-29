@@ -36,8 +36,10 @@ export type ChatRoomSessionError = Readonly<{
     | "INVALID_ROOM_ID"
     | "SUBSCRIPTION_SETUP_FAILED"
     | "SUBSCRIPTION_REJECTED"
+    | "SUBSCRIPTION_SYNC_REJECTED"
     | "WORKER_UNAVAILABLE";
   message: string;
+  retryable?: boolean;
   serverCode?: string;
 }>;
 
@@ -46,6 +48,7 @@ export type ChatRoomSessionSnapshot = Readonly<{
   roomId: string | null;
   generation: number;
   replacedByRoomId: string | null;
+  watermarkSequence: number | null;
   error: ChatRoomSessionError | null;
 }>;
 

@@ -66,8 +66,36 @@ describe("chat shared worker protocol", () => {
         requestId: "request-1",
         roomId: "room-01",
         generation: -1,
+        watermarkSequence: 120,
       }),
     ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_ACTIVATED",
+        requestId: "request-1",
+        roomId: "room-01",
+        generation: 1,
+        watermarkSequence: 120,
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_SYNCING",
+        roomId: "room-01",
+        generation: 1,
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_SYNC_FAILED",
+        requestId: "request-1",
+        roomId: "room-01",
+        generation: 1,
+        code: "ROOM_AUTHORIZATION_UNAVAILABLE",
+        retryable: true,
+        message: "retry",
+      }),
+    ).toBe(true);
     expect(
       isChatSharedWorkerEvent({
         type: "ROOM_ACTIVATION_FAILED",

@@ -191,12 +191,14 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-01",
       generation: 1,
+      watermarkSequence: 120,
     });
     expect(transport.getRoomSnapshot()).toEqual({
       status: "active",
       roomId: "room-01",
       generation: 1,
       replacedByRoomId: null,
+      watermarkSequence: 120,
       error: null,
     });
 
@@ -211,6 +213,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 2,
       replacedByRoomId: "room-02",
+      watermarkSequence: null,
       error: null,
     });
     expect(roomListener).toHaveBeenCalled();
@@ -236,6 +239,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-01",
       generation: 1,
+      watermarkSequence: 10,
     });
 
     expect(transport.getRoomSnapshot()).toMatchObject({
@@ -248,6 +252,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-2",
       roomId: "room-02",
       generation: 2,
+      watermarkSequence: 20,
     });
     expect(transport.getRoomSnapshot()).toMatchObject({
       status: "active",
@@ -276,6 +281,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-02",
       generation: 2,
+      watermarkSequence: 20,
     });
 
     transport.releaseRoom("room-01");
@@ -299,6 +305,7 @@ describe("SharedWorkerTransport", () => {
       roomId: null,
       generation: 3,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: null,
     });
   });
@@ -316,6 +323,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 0,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: {
         code: "WORKER_UNAVAILABLE",
         message: "SharedWorker port가 연결되어 있지 않습니다.",
@@ -344,10 +352,59 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 4,
       replacedByRoomId: null,
+      watermarkSequence: null,
       error: {
         code: "SUBSCRIPTION_REJECTED",
         serverCode: "ACTIVE_ROOM_LIMIT_EXCEEDED",
         message: "서버가 방 구독을 거절했습니다.",
+      },
+    });
+  });
+
+  it("구독 sync 진행과 거절을 room session 상태로 반영한다", () => {
+    const worker = createFakeWorker();
+    const transport = new SharedWorkerTransport({
+      createId: () => "port-1",
+      createWorker: () => worker,
+    });
+
+    transport.attach();
+    worker.port.dispatchMessage({
+      type: "ROOM_SYNCING",
+      roomId: "room-01",
+      generation: 1,
+    });
+
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "claiming",
+      roomId: "room-01",
+      generation: 1,
+      replacedByRoomId: null,
+      watermarkSequence: null,
+      error: null,
+    });
+
+    worker.port.dispatchMessage({
+      type: "ROOM_SYNC_FAILED",
+      requestId: "sync-1",
+      roomId: "room-01",
+      generation: 1,
+      code: "ROOM_AUTHORIZATION_UNAVAILABLE",
+      retryable: true,
+      message: "일시적으로 권한을 확인하지 못했습니다.",
+    });
+
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "error",
+      roomId: "room-01",
+      generation: 1,
+      replacedByRoomId: null,
+      watermarkSequence: null,
+      error: {
+        code: "SUBSCRIPTION_SYNC_REJECTED",
+        serverCode: "ROOM_AUTHORIZATION_UNAVAILABLE",
+        retryable: true,
+        message: "일시적으로 권한을 확인하지 못했습니다.",
       },
     });
   });

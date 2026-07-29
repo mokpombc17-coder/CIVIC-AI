@@ -36,10 +36,16 @@ export type ChatSharedWorkerEvent =
       snapshot: ChatConnectionSnapshot;
     }>
   | Readonly<{
+      type: "ROOM_SYNCING";
+      roomId: string;
+      generation: number;
+    }>
+  | Readonly<{
       type: "ROOM_ACTIVATED";
       requestId: string;
       roomId: string;
       generation: number;
+      watermarkSequence: number;
     }>
   | Readonly<{
       type: "ROOM_REPLACED";
@@ -65,6 +71,15 @@ export type ChatSharedWorkerEvent =
       roomId: string;
       generation: number;
       code: string;
+      message: string;
+    }>
+  | Readonly<{
+      type: "ROOM_SYNC_FAILED";
+      requestId: string;
+      roomId: string;
+      generation: number;
+      code: string;
+      retryable: boolean;
       message: string;
     }>;
 
@@ -137,12 +152,29 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
     );
   }
 
+  if (event.type === "ROOM_SYNCING") {
+    return typeof event.roomId === "string" && isGeneration(event.generation);
+  }
+
   if (event.type === "ROOM_SUBSCRIPTION_FAILED") {
     return (
       typeof event.roomId === "string" &&
       isGeneration(event.generation) &&
       typeof event.code === "string" &&
       event.code.length > 0 &&
+      typeof event.message === "string"
+    );
+  }
+
+  if (event.type === "ROOM_SYNC_FAILED") {
+    return (
+      typeof event.requestId === "string" &&
+      event.requestId.length > 0 &&
+      typeof event.roomId === "string" &&
+      isGeneration(event.generation) &&
+      typeof event.code === "string" &&
+      event.code.length > 0 &&
+      typeof event.retryable === "boolean" &&
       typeof event.message === "string"
     );
   }
@@ -165,7 +197,11 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
       );
     }
 
-    return hasRequestFields && isGeneration(event.generation);
+    return (
+      hasRequestFields &&
+      isGeneration(event.generation) &&
+      (event.type !== "ROOM_ACTIVATED" || isGeneration(event.watermarkSequence))
+    );
   }
 
   return false;
