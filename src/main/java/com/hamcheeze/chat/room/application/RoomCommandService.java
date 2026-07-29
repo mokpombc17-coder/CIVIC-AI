@@ -24,6 +24,7 @@ import com.hamcheeze.chat.room.application.command.RoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
 import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
+import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.idempotency.PreparedRoomCommand;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
@@ -51,8 +52,8 @@ public final class RoomCommandService {
     private final RoomCommandIdGenerator idGenerator;
     private final Clock clock;
     private final RoomCommandProperties properties;
-    private final RoomCommandAccessRevocationCoordinator
-            accessRevocationCoordinator;
+    private final RoomCommandPostCommitCoordinator
+            postCommitCoordinator;
 
     public RoomCommandService(
             RoomStore roomStore,
@@ -71,7 +72,7 @@ public final class RoomCommandService {
                 idGenerator,
                 clock,
                 properties,
-                RoomCommandAccessRevocationCoordinator.disabled());
+                RoomCommandPostCommitCoordinator.disabled());
     }
 
     public RoomCommandService(
@@ -84,6 +85,29 @@ public final class RoomCommandService {
             RoomCommandProperties properties,
             RoomCommandAccessRevocationCoordinator
                     accessRevocationCoordinator
+    ) {
+        this(
+                roomStore,
+                membershipStore,
+                executor,
+                fingerprintFactory,
+                idGenerator,
+                clock,
+                properties,
+                new RoomCommandPostCommitCoordinator(
+                        RoomCommandEventPropagationCoordinator.disabled(),
+                        accessRevocationCoordinator));
+    }
+
+    public RoomCommandService(
+            RoomStore roomStore,
+            MembershipStore membershipStore,
+            IdempotentRoomCommandExecutor executor,
+            RoomCommandFingerprintFactory fingerprintFactory,
+            RoomCommandIdGenerator idGenerator,
+            Clock clock,
+            RoomCommandProperties properties,
+            RoomCommandPostCommitCoordinator postCommitCoordinator
     ) {
         this.roomStore = Objects.requireNonNull(roomStore, "roomStore");
         this.membershipStore = Objects.requireNonNull(
@@ -98,9 +122,9 @@ public final class RoomCommandService {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.properties =
                 Objects.requireNonNull(properties, "properties");
-        this.accessRevocationCoordinator = Objects.requireNonNull(
-                accessRevocationCoordinator,
-                "accessRevocationCoordinator");
+        this.postCommitCoordinator = Objects.requireNonNull(
+                postCommitCoordinator,
+                "postCommitCoordinator");
     }
 
     public RoomCommandExecution createRoom(
@@ -115,7 +139,7 @@ public final class RoomCommandService {
                 transitionTime,
                 candidateRoomId,
                 null);
-        return executor.execute(prepared, () -> {
+        return complete(executor.execute(prepared, () -> {
             RoomCreationResult creation =
                     RoomMembershipTransitions.createRoom(
                             candidateRoomId,
@@ -129,7 +153,7 @@ public final class RoomCommandService {
             return RoomCommandResult.created(
                     creation.room(),
                     creation.ownerMembership());
-        });
+        }));
     }
 
     public RoomCommandExecution joinRoom(JoinRoomCommand command) {
@@ -141,14 +165,14 @@ public final class RoomCommandService {
                 transitionTime,
                 command.roomId(),
                 null);
-        return executor.execute(prepared, () -> executeDomain(
+        return complete(executor.execute(prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
                 null,
                 () -> joinRoomInTransaction(
                         command,
                         candidateMembershipId,
-                        transitionTime)));
+                        transitionTime))));
     }
 
     public RoomCommandExecution leaveRoom(LeaveRoomCommand command) {
@@ -166,8 +190,7 @@ public final class RoomCommandService {
                 () -> leaveRoomInTransaction(
                         command,
                         transitionTime)));
-        accessRevocationCoordinator.afterCommand(execution);
-        return execution;
+        return complete(execution);
     }
 
     public RoomCommandExecution transferOwnership(
@@ -179,11 +202,11 @@ public final class RoomCommandService {
                 transitionTime,
                 command.roomId(),
                 command.targetUserId());
-        return executor.execute(prepared, () -> executeDomain(
+        return complete(executor.execute(prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
                 command.targetUserId(),
-                () -> transferOwnershipInTransaction(command)));
+                () -> transferOwnershipInTransaction(command))));
     }
 
     public RoomCommandExecution banMember(BanMemberCommand command) {
@@ -201,8 +224,7 @@ public final class RoomCommandService {
                 () -> banMemberInTransaction(
                         command,
                         transitionTime)));
-        accessRevocationCoordinator.afterCommand(execution);
-        return execution;
+        return complete(execution);
     }
 
     public RoomCommandExecution unbanMember(
@@ -214,13 +236,13 @@ public final class RoomCommandService {
                 transitionTime,
                 command.roomId(),
                 command.targetUserId());
-        return executor.execute(prepared, () -> executeDomain(
+        return complete(executor.execute(prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
                 command.targetUserId(),
                 () -> unbanMemberInTransaction(
                         command,
-                        transitionTime)));
+                        transitionTime))));
     }
 
     public RoomCommandExecution closeRoom(CloseRoomCommand command) {
@@ -238,7 +260,13 @@ public final class RoomCommandService {
                 () -> closeRoomInTransaction(
                         command,
                         transitionTime)));
-        accessRevocationCoordinator.afterCommand(execution);
+        return complete(execution);
+    }
+
+    private RoomCommandExecution complete(
+            RoomCommandExecution execution
+    ) {
+        postCommitCoordinator.afterCommand(execution);
         return execution;
     }
 

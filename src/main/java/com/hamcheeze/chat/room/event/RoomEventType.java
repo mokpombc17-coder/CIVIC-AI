@@ -1,0 +1,12 @@
+package com.hamcheeze.chat.room.event;
+
+public enum RoomEventType {
+    ROOM_CREATED,
+    ROOM_MEMBER_JOINED,
+    ROOM_MEMBER_REJOINED,
+    ROOM_MEMBER_LEFT,
+    ROOM_OWNERSHIP_TRANSFERRED,
+    ROOM_MEMBER_BANNED,
+    ROOM_MEMBER_UNBANNED,
+    ROOM_CLOSED
+}

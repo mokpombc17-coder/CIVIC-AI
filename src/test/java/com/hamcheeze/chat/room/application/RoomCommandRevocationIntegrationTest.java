@@ -12,6 +12,8 @@ import com.hamcheeze.chat.room.application.command.CloseRoomCommand;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
+import com.hamcheeze.chat.room.application.event.RoomEventDeliveryOutcome;
+import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
@@ -25,6 +27,7 @@ import com.hamcheeze.chat.websocket.connection.TransportSessionRegistry;
 import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionDescriptor;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.messaging.Message;
@@ -43,9 +46,12 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -81,10 +87,24 @@ class RoomCommandRevocationIntegrationTest
     @MockitoSpyBean
     private RoomAccessRevocationPort revocationPort;
 
+    @MockitoSpyBean
+    private RoomEventDeliveryPort eventDeliveryPort;
+
+    @BeforeEach
+    void isolateEventDeliveryFromBroker() {
+        doReturn(RoomEventDeliveryOutcome.ACCEPTED)
+                .when(eventDeliveryPort)
+                .publishToRoom(any());
+        doReturn(RoomEventDeliveryOutcome.ACCEPTED)
+                .when(eventDeliveryPort)
+                .publishToUser(any(), any());
+    }
+
     @Test
     void leaveCommitsBeforeRevocationAndSameKeyRetriesOnlyRevocation() {
         String roomId = createRoom("owner-1");
         join(roomId, "user-2");
+        clearInvocations(eventDeliveryPort);
         String requestId = uuid();
         LeaveRoomCommand command =
                 new LeaveRoomCommand("user-2", requestId, roomId);
@@ -120,12 +140,16 @@ class RoomCommandRevocationIntegrationTest
                 .findByRoomIdAndUserId(roomId, "user-2")
                 .orElseThrow().version())
                 .isEqualTo(committed.version());
+        verify(eventDeliveryPort, times(1)).publishToRoom(any());
+        verify(eventDeliveryPort, times(1))
+                .publishToUser(eq("user-2"), any());
     }
 
     @Test
     void banFailureReplaysReceiptAndRetriesRevocation() {
         String roomId = createRoom("owner-1");
         join(roomId, "user-2");
+        clearInvocations(eventDeliveryPort);
         String requestId = uuid();
         BanMemberCommand command = new BanMemberCommand(
                 "owner-1",
@@ -157,11 +181,15 @@ class RoomCommandRevocationIntegrationTest
                 .findByRoomIdAndUserId(roomId, "user-2")
                 .orElseThrow().version())
                 .isEqualTo(membershipVersion);
+        verify(eventDeliveryPort, times(1)).publishToRoom(any());
+        verify(eventDeliveryPort, times(1))
+                .publishToUser(eq("user-2"), any());
     }
 
     @Test
     void closeFailureReplaysReceiptAndRetriesRoomRevocation() {
         String roomId = createRoom("owner-1");
+        clearInvocations(eventDeliveryPort);
         String requestId = uuid();
         CloseRoomCommand command =
                 new CloseRoomCommand("owner-1", requestId, roomId);
@@ -184,6 +212,9 @@ class RoomCommandRevocationIntegrationTest
         assertThat(replay.replayed()).isTrue();
         assertThat(rooms.findById(roomId).orElseThrow().version())
                 .isEqualTo(roomVersion);
+        verify(eventDeliveryPort, times(1)).publishToRoom(any());
+        verify(eventDeliveryPort, times(1))
+                .publishToUser(eq("owner-1"), any());
     }
 
     @Test

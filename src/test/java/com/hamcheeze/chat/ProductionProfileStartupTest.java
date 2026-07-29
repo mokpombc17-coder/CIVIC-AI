@@ -1,8 +1,12 @@
 package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.application.RoomAuthorizationService;
+import com.hamcheeze.chat.room.application.RoomCommandPostCommitCoordinator;
+import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
+import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
 import com.hamcheeze.chat.room.authorization.MembershipRoomAuthorizationService;
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
+import com.hamcheeze.chat.room.delivery.SimpleBrokerRoomEventDeliveryAdapter;
 import com.hamcheeze.chat.room.mongo.MongoRoomAccessReader;
 import com.hamcheeze.chat.support.MongoRuntimeTestContainer;
 import org.junit.jupiter.api.Test;
@@ -47,6 +51,18 @@ class ProductionProfileStartupTest {
                     .allSatisfy((name, reader) ->
                             assertThat(reader).isInstanceOf(
                                     MongoRoomAccessReader.class));
+            assertThat(context.getBeansOfType(
+                    RoomCommandPostCommitCoordinator.class))
+                    .hasSize(1);
+            assertThat(context.getBeansOfType(
+                    RoomCommandEventPropagationCoordinator.class))
+                    .hasSize(1);
+            assertThat(context.getBeansOfType(
+                    RoomEventDeliveryPort.class))
+                    .hasSize(1)
+                    .allSatisfy((name, delivery) ->
+                            assertThat(delivery).isInstanceOf(
+                                    SimpleBrokerRoomEventDeliveryAdapter.class));
         }
     }
 

@@ -30,8 +30,14 @@ import com.hamcheeze.chat.room.api.RoomCommandController;
 import com.hamcheeze.chat.room.api.RoomCommandHttpMapper;
 import com.hamcheeze.chat.room.api.RoomQueryController;
 import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.RoomCommandPostCommitCoordinator;
 import com.hamcheeze.chat.room.application.access.RoomAccessRevocationPort;
 import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
+import com.hamcheeze.chat.room.application.event.RoomCommandEventMapper;
+import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
+import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
+import com.hamcheeze.chat.room.application.event.RoomEventIdGenerator;
+import com.hamcheeze.chat.room.delivery.SimpleBrokerRoomEventDeliveryAdapter;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
@@ -278,6 +284,24 @@ class LocalProfileApplicationTests
         assertThat(applicationContext.getBeansOfType(
                 RoomCommandAccessRevocationCoordinator.class))
                 .hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandPostCommitCoordinator.class))
+                .hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandEventPropagationCoordinator.class))
+                .hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                RoomCommandEventMapper.class))
+                .hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                RoomEventIdGenerator.class))
+                .hasSize(1);
+        assertThat(applicationContext.getBeansOfType(
+                RoomEventDeliveryPort.class))
+                .hasSize(1)
+                .allSatisfy((name, port) ->
+                        assertThat(port).isInstanceOf(
+                                SimpleBrokerRoomEventDeliveryAdapter.class));
         assertThat(applicationContext.getBeansOfType(
                 RoomAccessRevocationPort.class))
                 .hasSize(1)
