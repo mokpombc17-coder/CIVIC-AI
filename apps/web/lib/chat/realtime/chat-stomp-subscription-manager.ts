@@ -1,12 +1,14 @@
 import type { Client, IMessage, StompSubscription } from "@stomp/stompjs";
+import { chatRoomSubscriptionSyncRequestSchema } from "./chat-stomp-contracts";
 import {
   CHAT_COMMAND_RESULTS_DESTINATION,
   CHAT_SYSTEM_EVENTS_DESTINATION,
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
+  getChatRoomSubscriptionSyncDestination,
 } from "./chat-stomp-destinations";
 
-export type ChatStompSubscriptionClient = Pick<Client, "subscribe">;
+export type ChatStompSubscriptionClient = Pick<Client, "publish" | "subscribe">;
 
 type ChatStompSubscriptionCallbacks = Readonly<{
   onCommandResult?: (message: IMessage) => void;
@@ -81,6 +83,22 @@ export class ChatStompSubscriptionManager {
       this.roomId = null;
       throw cause;
     }
+  }
+
+  syncRoomSubscriptions(roomId: string, requestId: string): void {
+    if (!this.isConnected || this.roomId !== roomId || this.roomSubscriptions?.roomId !== roomId) {
+      throw new Error("활성 방의 STOMP topic 구독이 준비되지 않았습니다.");
+    }
+
+    const request = chatRoomSubscriptionSyncRequestSchema.parse({ requestId });
+
+    this.client.publish({
+      destination: getChatRoomSubscriptionSyncDestination(roomId),
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
   }
 
   releaseRoom(roomId: string): void {

@@ -266,6 +266,7 @@ function createFakeClient(): FakeDirectStompClient {
     onStompError: vi.fn(),
     onWebSocketClose: vi.fn(),
     onWebSocketError: vi.fn(),
+    publish: vi.fn(),
     subscribe: vi.fn((destination, callback) => {
       const id = `subscription-${nextSubscriptionId++}`;
       const destinationCallbacks = callbacks.get(destination) ?? new Map();

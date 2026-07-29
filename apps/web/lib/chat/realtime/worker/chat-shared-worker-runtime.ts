@@ -28,6 +28,7 @@ export type ChatSharedWorkerStompClient = Pick<
   | "onStompError"
   | "onWebSocketClose"
   | "onWebSocketError"
+  | "publish"
   | "subscribe"
 >;
 

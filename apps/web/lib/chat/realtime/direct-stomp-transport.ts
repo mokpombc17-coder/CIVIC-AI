@@ -26,6 +26,7 @@ export type DirectStompClient = Pick<
   | "onStompError"
   | "onWebSocketClose"
   | "onWebSocketError"
+  | "publish"
   | "subscribe"
 >;
 

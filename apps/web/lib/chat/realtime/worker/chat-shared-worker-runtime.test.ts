@@ -507,6 +507,7 @@ function createFakeStompClient(): FakeStompClient {
     onStompError: vi.fn(),
     onWebSocketClose: vi.fn(),
     onWebSocketError: vi.fn(),
+    publish: vi.fn(),
     setActive(value) {
       active = value;
     },
