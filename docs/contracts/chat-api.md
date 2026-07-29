@@ -925,6 +925,31 @@ ROOM_AUTHORIZATION_UNAVAILABLE
 이 경우에는 앞의 `RoomEventEnvelope` 형태다. 프론트는 `status` 또는
 `eventType` 필드로 두 형태를 구분한다.
 
+## 최종 로컬 연동 스모크 테스트
+
+Docker Compose로 서버와 MongoDB를 실행한 뒤 프론트 연동 계약 전체를 한 번에 확인할 수 있다.
+
+```bash
+docker compose -f compose.local.yaml up --build -d
+python3 scripts/frontend-local-smoke.py
+```
+
+스크립트는 별도 Python 패키지 없이 다음 흐름을 검증한다.
+
+1. `http://localhost:8082/actuator/health`
+2. credential CORS preflight
+3. `civic_ai_access_token` 쿠키 JWT REST 인증
+4. 내 방 목록과 공개 방 목록
+5. `LISTED`, `OPEN` 방 생성과 상세 조회
+6. 쿠키 WebSocket handshake
+7. `Authorization` 헤더 없는 STOMP `CONNECT`
+8. 메시지 전송, command 결과, `CHAT_MESSAGE_CREATED`
+9. REST 메시지 이력 재동기화
+
+각 실행은 이름이 `frontend-smoke-`로 시작하는 테스트 방 하나와 메시지 하나를 로컬 MongoDB에
+추가한다. 다른 주소를 사용할 때는 `--base-url`, `--ws-url`, `--origin`, `--subject` 옵션으로
+덮어쓸 수 있다.
+
 ## 권장 프론트 연동 순서
 
 1. Next.js 임시 로그인을 실행한다.
