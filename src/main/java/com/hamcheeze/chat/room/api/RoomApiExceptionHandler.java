@@ -1,5 +1,8 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.message.api.ChatMessageQueryController;
+import com.hamcheeze.chat.message.query.ChatMessageHistoryErrorCode;
+import com.hamcheeze.chat.message.query.ChatMessageHistoryException;
 import com.hamcheeze.chat.room.api.dto.FieldErrorResponse;
 import com.hamcheeze.chat.room.application.idempotency.RoomClientRequestId;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
@@ -24,7 +27,8 @@ import java.util.List;
 
 @RestControllerAdvice(basePackageClasses = {
         RoomCommandController.class,
-        RoomQueryController.class
+        RoomQueryController.class,
+        ChatMessageQueryController.class
 })
 public class RoomApiExceptionHandler {
 
@@ -106,6 +110,36 @@ public class RoomApiExceptionHandler {
                 queryDetail(exception.code()),
                 request,
                 false,
+                null);
+    }
+
+    @ExceptionHandler(ChatMessageHistoryException.class)
+    ResponseEntity<ProblemDetail> messageHistory(
+            ChatMessageHistoryException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status =
+                exception.code()
+                        == ChatMessageHistoryErrorCode.ACCESS_DENIED
+                        ? HttpStatus.FORBIDDEN
+                        : HttpStatus.SERVICE_UNAVAILABLE;
+        boolean retryable = status
+                == HttpStatus.SERVICE_UNAVAILABLE;
+        String detail = switch (exception.code()) {
+            case ACCESS_DENIED ->
+                    "Only an active room member may read messages.";
+            case AUTHORIZATION_UNAVAILABLE ->
+                    "Room authorization is temporarily unavailable.";
+            case MESSAGE_HISTORY_UNAVAILABLE ->
+                    "Message history is temporarily unavailable.";
+        };
+        return problem(
+                status,
+                exception.code().name(),
+                "Message history query failed",
+                detail,
+                request,
+                retryable,
                 null);
     }
 

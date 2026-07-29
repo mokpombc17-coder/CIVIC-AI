@@ -64,6 +64,14 @@ public final class MembershipRoomAuthorizationService
         return authorize(Operation.SEND, userId, roomId);
     }
 
+    @Override
+    public RoomAuthorizationDecision authorizeMessageHistory(
+            String userId,
+            String roomId
+    ) {
+        return authorize(Operation.HISTORY, userId, roomId);
+    }
+
     private RoomAuthorizationDecision authorize(
             Operation operation,
             String userId,
@@ -112,7 +120,8 @@ public final class MembershipRoomAuthorizationService
 
     private enum Operation {
         SUBSCRIPTION("subscription"),
-        SEND("send");
+        SEND("send"),
+        HISTORY("history");
 
         private final String tag;
 

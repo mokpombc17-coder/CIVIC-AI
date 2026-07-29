@@ -11,4 +11,11 @@ public interface RoomAuthorizationService {
             String userId,
             String roomId
     );
+
+    default RoomAuthorizationDecision authorizeMessageHistory(
+            String userId,
+            String roomId
+    ) {
+        return authorizeSubscription(userId, roomId);
+    }
 }

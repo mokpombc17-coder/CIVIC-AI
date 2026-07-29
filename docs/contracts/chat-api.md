@@ -125,6 +125,7 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | `GET` | `/api/v1/rooms/{roomId}/memberships/me` | 내 멤버십 조회 | `200` |
 | `GET` | `/api/v1/me/rooms` | 내 활성 방 목록 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/memberships` | 방 멤버 목록 | `200` |
+| `GET` | `/api/v1/rooms/{roomId}/messages` | 채팅 메시지 이력 조회 | `200` |
 
 `roomId`는 영문자, 숫자, `_`, `-`로 구성된 1~64자 문자열이다.
 
@@ -485,6 +486,49 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
 }
 ```
 
+## 메시지 이력 Query API
+
+```http
+GET /api/v1/rooms/{roomId}/messages?afterSequence=0&limit=50
+```
+
+- `afterSequence`: 선택 사항. 기본값 `0`. 이 값보다 큰 `roomSequence`만 조회한다.
+- `limit`: 선택 사항. 기본값 `50`, 허용 범위 `1~100`.
+- 메시지는 `roomSequence` 오름차순으로 반환한다.
+- `chat:rooms:read` scope와 해당 방의 활성 멤버십이 필요하다.
+- 응답에는 `Cache-Control: no-store`가 포함된다.
+
+응답:
+
+```json
+{
+  "items": [
+    {
+      "messageId": "message-01",
+      "roomId": "room-01",
+      "roomSequence": 1,
+      "senderUserId": "local-user-1",
+      "clientMessageId": "ed7d2fe8-996d-4660-822f-e84af1218743",
+      "content": "안녕하세요.",
+      "createdAt": "2026-07-29T04:40:00Z"
+    }
+  ],
+  "nextAfterSequence": null,
+  "hasNext": false
+}
+```
+
+`hasNext`가 `true`이면 다음 요청의 `afterSequence`에 `nextAfterSequence`를 전달한다.
+활성 멤버가 아니면 `403 ACCESS_DENIED`, 권한 확인이 일시적으로 불가능하면
+`503 AUTHORIZATION_UNAVAILABLE`, 메시지 조회가 일시적으로 불가능하면
+`503 MESSAGE_HISTORY_UNAVAILABLE`를 반환한다.
+
+WebSocket 재연결 시에는 메시지 topic을 먼저 구독하고, 구독이 완료될 때까지 들어온 이벤트를
+버퍼링한 상태에서 마지막으로 연속 적용한 sequence를 `afterSequence`로 이 API를 호출한다.
+REST 이력을 먼저 sequence 순서로 적용한 뒤 버퍼링한 이벤트를 적용하며, `messageId` 또는
+`roomSequence`로 중복을 제거한다. sequence 누락을 감지한 경우에도 같은 방식으로 마지막 연속
+sequence 이후를 다시 조회한다.
+
 ## REST 오류 응답
 
 REST 오류는 `application/problem+json` 형식을 사용한다.
@@ -735,6 +779,7 @@ payload:
     "messageId": "message-01",
     "roomId": "room-01",
     "roomSequence": 1,
+    "senderUserId": "local-user-1",
     "clientMessageId": "ed7d2fe8-996d-4660-822f-e84af1218743",
     "content": "안녕하세요.",
     "createdAt": "2026-07-29T04:40:00Z"
@@ -846,5 +891,6 @@ ROOM_AUTHORIZATION_UNAVAILABLE
 7. `/user/queue/system-events`를 구독한다.
 8. `/topic/rooms/{roomId}/messages`를 구독한다.
 9. `/topic/rooms/{roomId}/room-events`를 구독한다.
-10. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
-11. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.
+10. `GET /api/v1/rooms/{roomId}/messages?afterSequence=0`으로 기존 메시지를 조회한다.
+11. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
+12. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.

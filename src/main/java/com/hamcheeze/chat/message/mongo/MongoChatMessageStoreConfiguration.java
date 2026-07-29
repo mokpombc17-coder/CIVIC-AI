@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.message.mongo;
 
 import com.hamcheeze.chat.message.ChatMessageStore;
+import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
 import com.mongodb.client.MongoClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.mongodb.health.MongoHealthIndicator;
@@ -54,5 +55,13 @@ public class MongoChatMessageStoreConfiguration {
                 () -> UUID.randomUUID().toString(),
                 exceptionClassifier,
                 meterRegistry);
+    }
+
+    @Bean
+    ChatMessageHistoryReader chatMessageHistoryReader(
+            MongoOperations mongoOperations,
+            MongoChatMessageSchemaInitializer schemaInitializer
+    ) {
+        return new MongoChatMessageHistoryReader(mongoOperations);
     }
 }
