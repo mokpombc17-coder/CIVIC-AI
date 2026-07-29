@@ -39,9 +39,11 @@ RootLayout [Server] (apps/web/app/layout.tsx)
 
 ## Route `/chat`와 `/chat/[roomId]`
 
-`ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성한다.
-목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가 provider의 `children` slot으로
-전달된다. 실제 REST query와 mutation은 이후 채팅 기능 컴포넌트가 같은 cache를 공유한다.
+`ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
+그 안에 `ChatRealtimeProvider`를 배치한다. 실시간 Provider는 STOMP Client를 직접 노출하지
+않고 교체 가능한 transport를 제공하므로, 이후 연결 소유권을 SharedWorker로 옮겨도 하위 채팅
+컴포넌트의 사용 계약은 유지된다. 목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가
+Provider의 `children` slot으로 전달된다.
 
 ```text
 RootLayout [Server] (apps/web/app/layout.tsx)
@@ -52,9 +54,10 @@ RootLayout [Server] (apps/web/app/layout.tsx)
         └── children [slot: App Router가 route child를 제공]
             └── ChatLayout [Server] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] (apps/web/components/chat-query-provider.tsx)
-                    └── children [slot: nested page를 제공]
-                        ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
-                        └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
+                    └── ChatRealtimeProvider [Client] (apps/web/components/chat-realtime-provider.tsx)
+                        └── children [slot: nested page를 제공]
+                            ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
+                            └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
@@ -116,6 +119,7 @@ flowchart TD
 
     ChatLayout["ChatLayout [Server]<br/>apps/web/app/chat/layout.tsx"]
     ChatQueryProvider["ChatQueryProvider [Client]<br/>apps/web/components/chat-query-provider.tsx"]
+    ChatRealtimeProvider["ChatRealtimeProvider [Client]<br/>apps/web/components/chat-realtime-provider.tsx"]
     ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
     ChatPage["ChatPage [Server]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
@@ -141,7 +145,8 @@ flowchart TD
 
     ChildrenSlot -. "route /chat" .-> ChatLayout
     ChatLayout --> ChatQueryProvider
-    ChatQueryProvider --> ChatChildrenSlot
+    ChatQueryProvider --> ChatRealtimeProvider
+    ChatRealtimeProvider --> ChatChildrenSlot
     ChatChildrenSlot -. "route /chat" .-> ChatPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
 
@@ -156,6 +161,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

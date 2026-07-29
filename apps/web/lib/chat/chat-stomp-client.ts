@@ -1,5 +1,3 @@
-"use client";
-
 import { Client, type debugFnType } from "@stomp/stompjs";
 import { CHAT_WEBSOCKET_URL } from "./chat-config";
 
