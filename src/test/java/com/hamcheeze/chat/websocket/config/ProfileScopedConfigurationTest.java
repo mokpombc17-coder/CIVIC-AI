@@ -15,11 +15,17 @@ class ProfileScopedConfigurationTest {
                     .withPropertyValues(
                             "spring.profiles.active=prod",
                             "chat.security.local-jwt.secret="
-                                    + "should-not-bind-in-prod-32-bytes")
+                                    + "civic-ai-local-auth-fixture-"
+                                    + "signing-key-v1-public-do-not-use-"
+                                    + "in-production",
+                            "chat.security.local-jwt.issuer="
+                                    + "http://localhost:3000/api/dev/auth",
+                            "chat.security.local-jwt.audience="
+                                    + "civic-ai-api")
                     .withUserConfiguration(LocalJwtConfiguration.class);
 
     @Test
-    void prodDoesNotCreateLocalJwtProperties() {
+    void prodDoesNotCreateLocalFixtureDecoder() {
         contextRunner.run(context -> {
             assertThat(context.getBeansOfType(
                     LocalJwtProperties.class)).isEmpty();
@@ -37,7 +43,7 @@ class ProfileScopedConfigurationTest {
                         "spring.security.oauth2.resourceserver.jwt.issuer-uri="
                                 + "https://issuer.example",
                         "spring.security.oauth2.resourceserver.jwt.audiences[0]="
-                                + "chat-server")
+                                + "civic-ai-api")
                 .run(context -> assertThat(context)
                         .hasSingleBean(JwtDecoder.class));
     }

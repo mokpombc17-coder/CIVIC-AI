@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
@@ -9,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,7 +22,6 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -29,6 +32,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("local")
 class RoomApiFailureIntegrationTest
         extends MongoRuntimeIntegrationTest {
+
+    private static JwtRequestPostProcessor jwt() {
+        return SecurityMockMvcRequestPostProcessors.jwt()
+                .authorities(
+                        new SimpleGrantedAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ)),
+                        new SimpleGrantedAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_WRITE)));
+    }
 
     @jakarta.annotation.Resource
     private MockMvc mockMvc;

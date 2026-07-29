@@ -12,13 +12,14 @@ public class LocalJwtProperties {
     @NotBlank
     @Size(min = 32)
     private String secret =
-            "chat-local-only-secret-key-32bytes";
+            "civic-ai-local-auth-fixture-signing-key-v1-"
+                    + "public-do-not-use-in-production";
 
     @NotBlank
-    private String issuer = "chat-local";
+    private String issuer = "http://localhost:3000/api/dev/auth";
 
     @NotBlank
-    private String audience = "chat-server";
+    private String audience = "civic-ai-api";
 
     public String getSecret() {
         return secret;

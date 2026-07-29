@@ -30,9 +30,20 @@ class LocalJwtConfigurationTest {
     }
 
     @Test
+    void usesFrontendEmulatorContractDefaults() {
+        assertThat(properties.getSecret()).isEqualTo(
+                "civic-ai-local-auth-fixture-signing-key-v1-"
+                        + "public-do-not-use-in-production");
+        assertThat(properties.getIssuer()).isEqualTo(
+                "http://localhost:3000/api/dev/auth");
+        assertThat(properties.getAudience()).isEqualTo("civic-ai-api");
+    }
+
+    @Test
     void acceptsLocalTokenWithExpectedIssuerAndAudience()
             throws Exception {
         String token = token(
+                "local-user-1",
                 properties.getIssuer(),
                 List.of(properties.getAudience()));
 
@@ -43,6 +54,7 @@ class LocalJwtConfigurationTest {
     @Test
     void rejectsUnexpectedAudience() throws Exception {
         String token = token(
+                "local-user-1",
                 properties.getIssuer(),
                 List.of("other-service"));
 
@@ -53,6 +65,7 @@ class LocalJwtConfigurationTest {
     @Test
     void rejectsUnexpectedIssuer() throws Exception {
         String token = token(
+                "local-user-1",
                 "other-issuer",
                 List.of(properties.getAudience()));
 
@@ -60,7 +73,19 @@ class LocalJwtConfigurationTest {
                 .isInstanceOf(RuntimeException.class);
     }
 
+    @Test
+    void rejectsBlankSubject() throws Exception {
+        String token = token(
+                " ",
+                properties.getIssuer(),
+                List.of(properties.getAudience()));
+
+        assertThatThrownBy(() -> decoder.decode(token))
+                .isInstanceOf(RuntimeException.class);
+    }
+
     private String token(
+            String subject,
             String issuer,
             List<String> audience
     ) throws Exception {
@@ -68,7 +93,7 @@ class LocalJwtConfigurationTest {
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),
                 new JWTClaimsSet.Builder()
-                        .subject("local-user-1")
+                        .subject(subject)
                         .issuer(issuer)
                         .audience(audience)
                         .issueTime(Date.from(now.minusSeconds(1)))

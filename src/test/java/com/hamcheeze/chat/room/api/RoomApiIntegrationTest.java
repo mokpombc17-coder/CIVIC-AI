@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.RoomCommandService;
@@ -18,6 +19,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -28,7 +32,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -43,6 +46,15 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
 
     private static final Pattern ROOM_ID = Pattern.compile(
             "\"roomId\":\"([^\"]+)\"");
+
+    private static JwtRequestPostProcessor jwt() {
+        return SecurityMockMvcRequestPostProcessors.jwt()
+                .authorities(
+                        new SimpleGrantedAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ)),
+                        new SimpleGrantedAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_WRITE)));
+    }
 
     @Autowired
     private MockMvc mockMvc;

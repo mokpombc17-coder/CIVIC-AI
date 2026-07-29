@@ -388,7 +388,9 @@ class LocalProfileApplicationTests
                         "ix_chat_membership_user_status",
                         "uk_chat_membership_room_owner");
         assertThat(jwtDecoder).isNotNull();
-        assertThat(jwtProperties.getIssuer()).isEqualTo("chat-local");
+        assertThat(jwtProperties.getIssuer()).isEqualTo(
+                "http://localhost:3000/api/dev/auth");
+        assertThat(jwtProperties.getAudience()).isEqualTo("civic-ai-api");
         assertThat(authorizationService)
                 .isInstanceOf(
                         MembershipRoomAuthorizationService.class);

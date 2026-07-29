@@ -458,6 +458,11 @@ class ChatMessagePipelineWebSocketIntegrationTest
                         .issuer(jwtProperties.getIssuer())
                         .audience(List.of(
                                 jwtProperties.getAudience()))
+                        .claim(
+                                "scope",
+                                "chat:connect chat:rooms:read "
+                                        + "chat:rooms:write "
+                                        + "chat:messages:write")
                         .issueTime(Date.from(now.minusSeconds(1)))
                         .expirationTime(Date.from(
                                 now.plusSeconds(3_600)))

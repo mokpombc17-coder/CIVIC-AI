@@ -13,9 +13,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 @Profile("local")
@@ -47,11 +51,43 @@ public class LocalJwtConfiguration {
                                         "invalid_token",
                                         "Required audience is missing",
                                         null));
+        OAuth2TokenValidator<Jwt> subjectValidator = jwt ->
+                jwt.getSubject() != null && !jwt.getSubject().isBlank()
+                        ? OAuth2TokenValidatorResult.success()
+                        : OAuth2TokenValidatorResult.failure(
+                                new OAuth2Error(
+                                        "invalid_token",
+                                        "Subject is required",
+                                        null));
         decoder.setJwtValidator(
                 new DelegatingOAuth2TokenValidator<>(
                         JwtValidators.createDefaultWithIssuer(
                                 properties.getIssuer()),
-                        audienceValidator));
+                        audienceValidator,
+                        subjectValidator));
         return decoder;
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(
+                List.of("http://localhost:3000"));
+        configuration.setAllowedMethods(
+                List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedHeaders(
+                List.of(
+                        "Content-Type",
+                        "Idempotency-Key",
+                        "Authorization"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3_600L);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration(
+                "/api/v1/**",
+                configuration);
+        return source;
     }
 }

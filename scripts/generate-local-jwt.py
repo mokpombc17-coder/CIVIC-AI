@@ -8,9 +8,23 @@ import json
 import os
 import sys
 import time
+import uuid
 
 
-DEFAULT_SECRET = "chat-local-only-secret-key-32bytes"
+DEFAULT_SECRET = (
+    "civic-ai-local-auth-fixture-signing-key-v1-"
+    "public-do-not-use-in-production"
+)
+DEFAULT_ISSUER = "http://localhost:3000/api/dev/auth"
+DEFAULT_AUDIENCE = "civic-ai-api"
+DEFAULT_SCOPE = " ".join(
+    (
+        "chat:connect",
+        "chat:rooms:read",
+        "chat:rooms:write",
+        "chat:messages:write",
+    )
+)
 
 
 def base64url(value: bytes) -> str:
@@ -41,6 +55,8 @@ def main() -> int:
 
     if args.ttl_seconds < 1:
         parser.error("--ttl-seconds must be at least 1")
+    if not args.subject.strip() or len(args.subject) > 128:
+        parser.error("subject must contain 1 to 128 characters")
 
     secret = os.environ.get("CHAT_LOCAL_JWT_SECRET", DEFAULT_SECRET)
     if len(secret.encode("utf-8")) < 32:
@@ -50,10 +66,10 @@ def main() -> int:
         )
         return 2
 
-    issuer = os.environ.get("CHAT_LOCAL_JWT_ISSUER", "chat-local")
+    issuer = os.environ.get("CHAT_LOCAL_JWT_ISSUER", DEFAULT_ISSUER)
     audience = os.environ.get(
         "CHAT_LOCAL_JWT_AUDIENCE",
-        "chat-server",
+        DEFAULT_AUDIENCE,
     )
     now = int(time.time())
 
@@ -64,6 +80,8 @@ def main() -> int:
             "exp": now + args.ttl_seconds,
             "iat": now,
             "iss": issuer,
+            "jti": str(uuid.uuid4()),
+            "scope": DEFAULT_SCOPE,
             "sub": args.subject,
         }
     )

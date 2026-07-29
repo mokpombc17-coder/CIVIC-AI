@@ -1,5 +1,6 @@
 package com.hamcheeze.chat;
 
+import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.RoomCommandService;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.messaging.converter.ByteArrayMessageConverter;
 import org.springframework.messaging.converter.CompositeMessageConverter;
 import org.springframework.messaging.converter.JacksonJsonMessageConverter;
@@ -172,13 +174,17 @@ class RoomEventWebSocketIntegrationTest
             String userId
     ) throws Exception {
         StompHeaders headers = new StompHeaders();
-        headers.set(
-                "Authorization",
-                "Bearer " + token(userId));
         headers.setHeartbeat(new long[]{10_000, 10_000});
+        WebSocketHttpHeaders webSocketHeaders =
+                new WebSocketHttpHeaders();
+        webSocketHeaders.add(
+                HttpHeaders.COOKIE,
+                CookieOrHeaderBearerTokenResolver.COOKIE_NAME
+                        + "="
+                        + token(userId));
         return client.connectAsync(
                         "ws://localhost:" + port + "/ws",
-                        new WebSocketHttpHeaders(),
+                        webSocketHeaders,
                         headers,
                         new StompSessionHandlerAdapter() {
                         })
@@ -212,6 +218,11 @@ class RoomEventWebSocketIntegrationTest
                         .subject(subject)
                         .issuer(jwtProperties.getIssuer())
                         .audience(List.of(jwtProperties.getAudience()))
+                        .claim(
+                                "scope",
+                                "chat:connect chat:rooms:read "
+                                        + "chat:rooms:write "
+                                        + "chat:messages:write")
                         .issueTime(Date.from(now.minusSeconds(1)))
                         .expirationTime(Date.from(
                                 now.plusSeconds(3_600)))
