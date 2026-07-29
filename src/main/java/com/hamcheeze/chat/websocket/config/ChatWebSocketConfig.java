@@ -82,6 +82,7 @@ public class ChatWebSocketConfig
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.setErrorHandler(stompErrorHandler);
+        registry.setPreserveReceiveOrder(true);
         registry.addEndpoint(endpointProperties.getEndpoint())
                 .setAllowedOriginPatterns(
                         endpointProperties.getAllowedOrigins()

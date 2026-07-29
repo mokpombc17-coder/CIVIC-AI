@@ -1,5 +1,6 @@
 package com.hamcheeze.chat;
 
+import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomVisibility;
@@ -156,6 +157,146 @@ class RoomEventWebSocketIntegrationTest
         } finally {
             disconnect(ownerSession);
             disconnect(memberSession);
+            client.stop();
+            scheduler.shutdown();
+        }
+    }
+
+    @Test
+    void switchesRoomsAfterOrderedUnsubscriptionsAndRejectsPrematureSwitch()
+            throws Exception {
+        String firstRoomId = commandService.createRoom(
+                new CreateRoomCommand(
+                        "owner-1",
+                        uuid(),
+                        "First room",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN))
+                .result()
+                .roomId();
+        String secondRoomId = commandService.createRoom(
+                new CreateRoomCommand(
+                        "owner-1",
+                        uuid(),
+                        "Second room",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN))
+                .result()
+                .roomId();
+
+        ThreadPoolTaskScheduler scheduler =
+                new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(2);
+        scheduler.setThreadNamePrefix("room-switch-stomp-");
+        scheduler.initialize();
+        WebSocketStompClient client = stompClient(scheduler);
+        StompSession session = null;
+        try {
+            session = connect(client, "owner-1");
+            int initialSubscriptionCount =
+                    subscriptions.activeSubscriptionCount();
+            BlockingQueue<byte[]> systemEvents =
+                    new LinkedBlockingQueue<>();
+            BlockingQueue<byte[]> secondRoomMessages =
+                    new LinkedBlockingQueue<>();
+
+            session.subscribe(
+                    "/user/queue/system-events",
+                    collectingHandler(systemEvents));
+            waitUntil(() -> subscriptions.activeSubscriptionCount()
+                    == initialSubscriptionCount + 1);
+
+            StompSession.Subscription firstRoomMessages =
+                    session.subscribe(
+                            "/topic/rooms/"
+                                    + firstRoomId
+                                    + "/messages",
+                            collectingHandler(
+                                    new LinkedBlockingQueue<>()));
+            StompSession.Subscription firstRoomEvents =
+                    session.subscribe(
+                            "/topic/rooms/"
+                                    + firstRoomId
+                                    + "/room-events",
+                            collectingHandler(
+                                    new LinkedBlockingQueue<>()));
+            waitUntil(() -> !subscriptions
+                    .findConnectionIdsByUserAndRoom(
+                            "owner-1",
+                            firstRoomId)
+                    .isEmpty());
+
+            firstRoomMessages.unsubscribe();
+            StompSession.Subscription prematureSecondRoom =
+                    session.subscribe(
+                            "/topic/rooms/"
+                                    + secondRoomId
+                                    + "/messages",
+                            collectingHandler(
+                                    new LinkedBlockingQueue<>()));
+
+            byte[] rejectionBytes =
+                    systemEvents.poll(5, TimeUnit.SECONDS);
+            assertThat(rejectionBytes).isNotNull();
+            JsonNode rejection =
+                    objectMapper.readTree(rejectionBytes);
+            assertThat(rejection.get("code").asText())
+                    .isEqualTo("ACTIVE_ROOM_LIMIT_EXCEEDED");
+            assertThat(session.isConnected()).isTrue();
+
+            prematureSecondRoom.unsubscribe();
+            firstRoomEvents.unsubscribe();
+            session.subscribe(
+                    "/topic/rooms/"
+                            + secondRoomId
+                            + "/messages",
+                    collectingHandler(secondRoomMessages));
+            session.subscribe(
+                    "/topic/rooms/"
+                            + secondRoomId
+                            + "/room-events",
+                    collectingHandler(
+                            new LinkedBlockingQueue<>()));
+
+            waitUntil(() -> subscriptions
+                    .findConnectionIdsByUserAndRoom(
+                            "owner-1",
+                            firstRoomId)
+                    .isEmpty()
+                    && !subscriptions
+                    .findConnectionIdsByUserAndRoom(
+                            "owner-1",
+                            secondRoomId)
+                    .isEmpty()
+                    && subscriptions.activeSubscriptionCount()
+                    == initialSubscriptionCount + 3);
+
+            String clientMessageId = uuid();
+            session.send(
+                    "/app/rooms/"
+                            + secondRoomId
+                            + "/messages",
+                    new ChatSendCommand(
+                            clientMessageId,
+                            "room switched"));
+
+            byte[] messageBytes =
+                    secondRoomMessages.poll(5, TimeUnit.SECONDS);
+            assertThat(messageBytes).isNotNull();
+            JsonNode message = objectMapper.readTree(messageBytes);
+            assertThat(message.get("eventType").asText())
+                    .isEqualTo("CHAT_MESSAGE_CREATED");
+            assertThat(message.get("payload")
+                    .get("roomId").asText())
+                    .isEqualTo(secondRoomId);
+            assertThat(message.get("payload")
+                    .get("clientMessageId").asText())
+                    .isEqualTo(clientMessageId);
+            assertThat(systemEvents.poll(
+                    250,
+                    TimeUnit.MILLISECONDS)).isNull();
+        } finally {
+            disconnect(session);
             client.stop();
             scheduler.shutdown();
         }

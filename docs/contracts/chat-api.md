@@ -10,7 +10,7 @@
 - REST API prefix: `/api/v1`
 
 현재 서버가 제공하는 범위는 방 관리 REST API와 실시간 채팅 WebSocket/STOMP이다.
-메시지 이력 조회 REST API는 아직 제공하지 않는다.
+메시지 이력 조회와 공개 방 목록 REST API도 제공한다.
 
 ## 프론트엔드 전달 문구
 
@@ -34,6 +34,26 @@
 > 상세 REST 및 STOMP 명세는 첨부한 `chat-api.md`를 참고해 주세요.
 > 백엔드는 현재 Docker에서 MongoDB와 함께 기동되며
 > `http://localhost:8082/actuator/health`가 `UP`인 상태입니다.
+>
+> SharedWorker의 활성 방 선점 전환 방식도 서버 계약과 호환되는 것으로
+> 최종 확인했습니다. 서버는 동일 WebSocket session의 STOMP frame을 수신
+> 순서대로 처리합니다.
+>
+> 방 전환 시 사용자 공통 queue 2개는 유지하고 다음 순서로 처리해 주세요.
+>
+> 1. 기존 방 `/messages` UNSUBSCRIBE
+> 2. 기존 방 `/room-events` UNSUBSCRIBE
+> 3. 새 방 `/messages` SUBSCRIBE
+> 4. 새 방 `/room-events` SUBSCRIBE
+>
+> 같은 session에서 위 frame을 순서대로 보내면 별도의 receipt 대기는 필요하지
+> 않습니다. 기존 방 topic이 하나라도 남은 상태에서 새 `roomId`를 구독하면
+> `ACTIVE_ROOM_LIMIT_EXCEEDED`로 해당 구독만 거절되며 WebSocket 연결은
+> 유지됩니다.
+>
+> 같은 방을 여러 탭에서 열 때 기존 topic 구독을 재사용하고 owner tab만
+> 교체하는 방식도 허용합니다. `ROOM_REPLACED`는 프론트 내부 이벤트로 관리해
+> 주세요.
 
 ## 인증 및 공통 요청 규칙
 
@@ -678,6 +698,32 @@ const client = new Client({
 
 로컬 기본 설정상 한 연결에서 활성 방 구독은 한 개, 전체 구독은 최대
 다섯 개다.
+
+### 활성 방 선점 전환
+
+SharedWorker는 사용자 공통 destination을 유지한 채 활성 방을 선점 방식으로 전환할 수 있다.
+서버는 동일한 WebSocket session에서 받은 STOMP frame을 수신 순서대로 처리한다.
+
+방 A에서 방 B로 전환할 때 다음 순서를 사용한다.
+
+```text
+UNSUBSCRIBE /topic/rooms/{roomA}/messages
+UNSUBSCRIBE /topic/rooms/{roomA}/room-events
+SUBSCRIBE   /topic/rooms/{roomB}/messages
+SUBSCRIBE   /topic/rooms/{roomB}/room-events
+```
+
+- 각 `UNSUBSCRIBE`에는 기존 `SUBSCRIBE`에서 사용한 subscription ID를 전달한다.
+- `/user/queue/command-results`와 `/user/queue/system-events` 구독은 방 전환 중에도 유지한다.
+- 기존 방의 마지막 room-scoped subscription이 제거되면 기존 `roomId`가 비활성화된다.
+- 같은 WebSocket session에서 위 네 frame을 순서대로 보내면 별도의 receipt 대기 없이 처리 순서가
+  보존된다.
+- 기존 방 topic이 하나라도 남은 상태에서 다른 `roomId`를 구독하면
+  `ACTIVE_ROOM_LIMIT_EXCEEDED`로 해당 구독만 거절하며 연결은 유지한다.
+- 같은 방을 여러 탭에서 열 때는 SharedWorker가 기존 topic 구독을 재사용하며 동일 destination을
+  중복 구독하지 않는다.
+- 탭 owner 교체와 `ROOM_REPLACED` 알림은 프론트 내부 상태이며 서버 WebSocket/STOMP 이벤트가
+  아니다.
 
 ### 메시지 전송
 
