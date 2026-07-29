@@ -580,6 +580,20 @@ class MongoRoomStoresIntegrationTest {
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME))
                 .isTrue();
 
+        List<Document> roomIndexes = mongoTemplate
+                .getCollection(
+                        MongoRoomDocument.COLLECTION_NAME)
+                .listIndexes(Document.class)
+                .into(new ArrayList<>());
+        assertIndex(
+                roomIndexes,
+                MongoRoomSchemaInitializer
+                        .LISTED_ROOM_CURSOR_INDEX_NAME,
+                new Document("status", 1)
+                        .append("visibility", 1)
+                        .append("_id", 1),
+                false);
+
         List<Document> membershipIndexes =
                 membershipCollection()
                         .listIndexes(Document.class)

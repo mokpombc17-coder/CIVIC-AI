@@ -128,6 +128,7 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | `POST` | `/api/v1/rooms/{roomId}/commands/ban-member` | 멤버 차단 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/unban-member` | 멤버 차단 해제 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/close` | 방 종료 | `200` |
+| `GET` | `/api/v1/rooms` | 공개 방 목록 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}` | 방 상세 조회 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/memberships/me` | 내 멤버십 조회 | `200` |
 | `GET` | `/api/v1/me/rooms` | 내 활성 방 목록 | `200` |
@@ -360,6 +361,43 @@ Idempotency-Key: <uuid>
 ```http
 Cache-Control: no-store
 ```
+
+### 공개 방 목록
+
+```http
+GET /api/v1/rooms?cursor={cursor}&limit=20
+```
+
+- `status=ACTIVE`, `visibility=LISTED`인 방만 반환한다.
+- `cursor`: 선택 사항. 서버가 반환한 `nextCursor`를 그대로 사용한다.
+- `limit`: 선택 사항. 기본값 `20`, 허용 범위 `1~100`.
+- `chat:rooms:read` scope가 필요하며, 목록 조회 자체에는 방 멤버십이 필요하지 않다.
+- `joinPolicy=OPEN`인 방은 기존 방 참여 API로 참여할 수 있다.
+- `joinPolicy=INVITE_ONLY`인 방도 목록에는 보이지만 현재 직접 참여할 수 없다.
+
+응답:
+
+```json
+{
+  "items": [
+    {
+      "roomId": "room-01",
+      "name": "시민 AI 토론방",
+      "ownerUserId": "local-user-1",
+      "status": "ACTIVE",
+      "visibility": "LISTED",
+      "joinPolicy": "OPEN",
+      "activeMemberCount": 2,
+      "createdAt": "2026-07-29T04:30:00Z",
+      "version": 2
+    }
+  ],
+  "nextCursor": null,
+  "hasNext": false
+}
+```
+
+`hasNext`가 `true`이면 다음 요청의 `cursor`에 `nextCursor`를 전달한다.
 
 ### 방 상세 조회
 
@@ -891,13 +929,14 @@ ROOM_AUTHORIZATION_UNAVAILABLE
 
 1. Next.js 임시 로그인을 실행한다.
 2. `GET /api/v1/me/rooms`로 REST 쿠키 인증을 확인한다.
-3. `POST /api/v1/rooms`로 방을 생성한다.
-4. `GET /api/v1/rooms/{roomId}`로 생성된 방을 확인한다.
-5. `ws://localhost:8082/ws`에 연결한다.
-6. `/user/queue/command-results`를 구독한다.
-7. `/user/queue/system-events`를 구독한다.
-8. `/topic/rooms/{roomId}/messages`를 구독한다.
-9. `/topic/rooms/{roomId}/room-events`를 구독한다.
-10. `GET /api/v1/rooms/{roomId}/messages?afterSequence=0`으로 기존 메시지를 조회한다.
-11. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
-12. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.
+3. `GET /api/v1/rooms`로 공개 방 목록을 확인한다.
+4. `POST /api/v1/rooms`로 방을 생성한다.
+5. `GET /api/v1/rooms/{roomId}`로 생성된 방을 확인한다.
+6. `ws://localhost:8082/ws`에 연결한다.
+7. `/user/queue/command-results`를 구독한다.
+8. `/user/queue/system-events`를 구독한다.
+9. `/topic/rooms/{roomId}/messages`를 구독한다.
+10. `/topic/rooms/{roomId}/room-events`를 구독한다.
+11. `GET /api/v1/rooms/{roomId}/messages?afterSequence=0`으로 기존 메시지를 조회한다.
+12. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
+13. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.

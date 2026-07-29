@@ -3,6 +3,8 @@ package com.hamcheeze.chat.room.query;
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomVisibility;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,4 +30,10 @@ public interface RoomQueryReader {
             int limit);
 
     List<Room> findRoomsByIds(List<String> roomIds);
+
+    CursorSlice<Room> findRoomsByStatusAndVisibility(
+            RoomStatus status,
+            RoomVisibility visibility,
+            String afterRoomId,
+            int limit);
 }

@@ -1,5 +1,7 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.room.query.ListedRoomQueryCursorCodec;
+import com.hamcheeze.chat.room.query.ListedRoomQueryService;
 import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.query.RoomQueryService;
@@ -30,6 +32,21 @@ public class RoomApiConfiguration {
             ObjectMapper objectMapper
     ) {
         return new RoomQueryCursorCodec(objectMapper);
+    }
+
+    @Bean
+    ListedRoomQueryCursorCodec listedRoomQueryCursorCodec(
+            ObjectMapper objectMapper
+    ) {
+        return new ListedRoomQueryCursorCodec(objectMapper);
+    }
+
+    @Bean
+    ListedRoomQueryService listedRoomQueryService(
+            RoomQueryReader reader,
+            ListedRoomQueryCursorCodec cursorCodec
+    ) {
+        return new ListedRoomQueryService(reader, cursorCodec);
     }
 
     @Bean

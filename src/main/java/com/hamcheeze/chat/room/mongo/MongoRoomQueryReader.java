@@ -3,6 +3,8 @@ package com.hamcheeze.chat.room.mongo;
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.CursorSlice;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import org.springframework.data.domain.Sort;
@@ -104,6 +106,45 @@ public final class MongoRoomQueryReader
                 .stream()
                 .map(MongoRoomDocument::toDomain)
                 .toList();
+    }
+
+    @Override
+    public CursorSlice<Room> findRoomsByStatusAndVisibility(
+            RoomStatus status,
+            RoomVisibility visibility,
+            String afterRoomId,
+            int limit
+    ) {
+        Objects.requireNonNull(status, "status");
+        Objects.requireNonNull(visibility, "visibility");
+        if (limit < 1) {
+            throw new IllegalArgumentException(
+                    "limit must be positive");
+        }
+        Criteria criteria = Criteria.where("status")
+                .is(status)
+                .and("visibility")
+                .is(visibility);
+        if (afterRoomId != null) {
+            requireText(afterRoomId, "afterRoomId");
+            criteria = new Criteria().andOperator(
+                    criteria,
+                    Criteria.where("_id").gt(afterRoomId));
+        }
+        List<Room> found = mongoOperations.find(
+                        Query.query(criteria)
+                                .with(Sort.by(
+                                        Sort.Direction.ASC,
+                                        "_id"))
+                                .limit(limit + 1),
+                        MongoRoomDocument.class)
+                .stream()
+                .map(MongoRoomDocument::toDomain)
+                .toList();
+        boolean hasNext = found.size() > limit;
+        return new CursorSlice<>(
+                hasNext ? found.subList(0, limit) : found,
+                hasNext);
     }
 
     private CursorSlice<Membership> findMemberships(
