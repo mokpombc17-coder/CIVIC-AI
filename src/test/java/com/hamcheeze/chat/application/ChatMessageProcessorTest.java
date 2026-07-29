@@ -71,6 +71,8 @@ class ChatMessageProcessorTest {
                 .isEqualTo("CHAT_MESSAGE_CREATED");
         assertThat(event.getValue().payload().messageId())
                 .isEqualTo("message-1");
+        assertThat(event.getValue().payload().senderUserId())
+                .isEqualTo("user-1");
         order.verify(resultSender).send(
                 "user-1",
                 "connection-1",

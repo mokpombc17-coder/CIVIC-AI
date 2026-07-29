@@ -9,6 +9,7 @@ public record ChatMessagePayload(
         String messageId,
         String roomId,
         long roomSequence,
+        String senderUserId,
         String clientMessageId,
         String content,
         Instant createdAt
@@ -17,6 +18,7 @@ public record ChatMessagePayload(
     public ChatMessagePayload {
         Objects.requireNonNull(messageId, "messageId");
         Objects.requireNonNull(roomId, "roomId");
+        Objects.requireNonNull(senderUserId, "senderUserId");
         Objects.requireNonNull(clientMessageId, "clientMessageId");
         Objects.requireNonNull(content, "content");
         Objects.requireNonNull(createdAt, "createdAt");
@@ -28,6 +30,7 @@ public record ChatMessagePayload(
                 message.messageId(),
                 message.roomId(),
                 message.roomSequence(),
+                message.senderUserId(),
                 message.clientMessageId(),
                 message.content(),
                 message.createdAt());

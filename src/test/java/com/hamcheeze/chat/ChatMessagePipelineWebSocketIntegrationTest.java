@@ -218,11 +218,13 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo("hello");
             assertThat(roomMessage.payload().roomSequence())
                     .isEqualTo(1);
+            assertThat(roomMessage.payload().senderUserId())
+                    .isEqualTo("local-user-1");
             assertThat(new String(
                     rawRoomMessage,
                     StandardCharsets.UTF_8))
-                    .doesNotContain("senderUserId")
-                    .doesNotContain("local-user-1");
+                    .contains(
+                            "\"senderUserId\":\"local-user-1\"");
             assertThat(accepted).isNotNull();
             assertThat(accepted.status()).isEqualTo("ACCEPTED");
             assertThat(accepted.clientMessageId())
@@ -308,6 +310,8 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(secondAccepted.messageId());
             assertThat(secondRoomMessage.payload().roomSequence())
                     .isEqualTo(secondAccepted.roomSequence());
+            assertThat(secondRoomMessage.payload().senderUserId())
+                    .isEqualTo("local-user-1");
             assertThat(secondRoomMessage.payload().clientMessageId())
                     .isEqualTo(
                             secondAccepted.clientMessageId());
