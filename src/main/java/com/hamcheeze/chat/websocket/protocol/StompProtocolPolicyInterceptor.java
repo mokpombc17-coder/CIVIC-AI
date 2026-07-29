@@ -74,9 +74,12 @@ public final class StompProtocolPolicyInterceptor implements ChannelInterceptor 
             StompHeaderAccessor accessor
     ) {
         String destination = accessor.getDestination();
-        if (destination == null
-                || destinationPolicy.classify(destination).kind()
-                != DestinationKind.APP_ROOM_MESSAGES) {
+        DestinationKind kind = destinationPolicy
+                .classify(destination)
+                .kind();
+        if (kind != DestinationKind.APP_ROOM_MESSAGES
+                && kind
+                != DestinationKind.APP_ROOM_SUBSCRIPTION_SYNC) {
             throw new StompPolicyException("INVALID_SEND_DESTINATION");
         }
         return message;

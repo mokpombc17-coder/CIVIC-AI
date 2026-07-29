@@ -347,7 +347,9 @@ def run_websocket_flow(
 
         subscriptions = (
             ("command-results", "/user/queue/command-results"),
+            ("system-events", "/user/queue/system-events"),
             ("room-messages", f"/topic/rooms/{room_id}/messages"),
+            ("room-events", f"/topic/rooms/{room_id}/room-events"),
         )
         for subscription_id, destination in subscriptions:
             client.send_text(
@@ -361,7 +363,56 @@ def run_websocket_flow(
                 )
             )
             print(f"       SUBSCRIBED {destination}")
-        time.sleep(0.2)
+
+        sync_request_id = str(uuid.uuid4())
+        sync_body = json.dumps({"requestId": sync_request_id})
+        client.send_text(
+            stomp_frame(
+                "SEND",
+                {
+                    "destination": (
+                        f"/app/rooms/{room_id}/subscriptions/sync"
+                    ),
+                    "content-type": "application/json",
+                    "content-length": str(
+                        len(sync_body.encode("utf-8"))
+                    ),
+                },
+                sync_body,
+            )
+        )
+
+        ready = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and ready is None:
+            _, _, body = receive_stomp(
+                client,
+                expected_commands=("MESSAGE",),
+                deadline=deadline,
+            )
+            document = json.loads(body)
+            if (
+                document.get("eventType")
+                == "ROOM_SUBSCRIPTIONS_READY"
+                and document.get("requestId") == sync_request_id
+            ):
+                ready = document
+            elif document.get("status") == "REJECTED":
+                raise AssertionError(
+                    f"구독 준비 sync가 거절됐습니다: {document}"
+                )
+
+        if ready is None:
+            raise AssertionError(
+                "ROOM_SUBSCRIPTIONS_READY 이벤트를 받지 못했습니다."
+            )
+        if ready.get("roomId") != room_id:
+            raise AssertionError("구독 준비 응답의 roomId가 다릅니다.")
+        if ready.get("watermarkSequence") != 0:
+            raise AssertionError(
+                "새 방의 구독 준비 watermarkSequence는 0이어야 합니다."
+            )
+        print("       ROOM SUBSCRIPTIONS READY")
 
         client_message_id = str(uuid.uuid4())
         message_body = json.dumps(
@@ -487,7 +538,10 @@ def main() -> int:
     ):
         raise AssertionError("생성한 LISTED 방이 공개 방 목록에 없습니다.")
 
-    print("[6/8] 쿠키 WebSocket handshake와 무헤더 STOMP CONNECT 확인")
+    print(
+        "[6/8] 쿠키 WebSocket handshake, 무헤더 STOMP CONNECT, "
+        "구독 준비 barrier 확인"
+    )
     client_message_id, room_sequence = run_websocket_flow(
         ws_url,
         args.origin,
@@ -517,7 +571,7 @@ def main() -> int:
 
     print(
         "PASS: 쿠키 인증 → CORS → 방 목록/생성/상세 → "
-        "WebSocket/STOMP → 메시지 이력 흐름이 정상입니다."
+        "WebSocket/STOMP 구독 준비 → 메시지 이력 흐름이 정상입니다."
     )
     return 0
 

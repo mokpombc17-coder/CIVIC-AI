@@ -61,6 +61,17 @@
 > `nextBeforeSequence`를 다음 요청의 `beforeSequence`로 전달해 조회해 주세요.
 > WebSocket 재연결이나 sequence 누락 복구에는 마지막으로 연속 적용한
 > sequence를 `afterSequence`로 전달합니다.
+>
+> 최초 진입과 재연결에서는 `/user/queue/system-events`를 먼저 구독하고
+> 방 topic 두 개를 구독한 뒤, 같은 STOMP session에서
+> `/app/rooms/{roomId}/subscriptions/sync`로 sync 요청을 보내 주세요.
+> `ROOM_SUBSCRIPTIONS_READY`를 수신한 뒤 REST 이력 조회를 시작합니다.
+> 프론트 이벤트 버퍼링은 방 topic의 `SUBSCRIBE`를 보내기 전에 시작해야 합니다.
+> Native STOMP `receipt`는 구독 준비 계약으로 사용하지 않습니다.
+>
+> 다른 브라우저나 디바이스의 새 연결이 기존 연결을 교체하면 서버는 기존
+> WebSocket을 close code `4001`, reason `CONNECTION_REPLACED`로 종료합니다.
+> 이 경우 기존 연결에서는 자동 재연결을 중단해 주세요.
 
 ## 인증 및 공통 요청 규칙
 
@@ -107,6 +118,7 @@ chat:messages:write
 | --- | --- |
 | WebSocket 연결 | `chat:connect` |
 | 방 및 멤버십 조회 | `chat:rooms:read` |
+| 방 topic 구독 및 구독 준비 sync | `chat:rooms:read` |
 | 방 생성 및 상태 변경 | `chat:rooms:write` |
 | 채팅 메시지 전송 | `chat:messages:write` |
 
@@ -642,12 +654,14 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
 `503 AUTHORIZATION_UNAVAILABLE`, 메시지 조회가 일시적으로 불가능하면
 `503 MESSAGE_HISTORY_UNAVAILABLE`를 반환한다.
 
-최초 진입 시에는 메시지 topic을 먼저 구독하고, 구독 이후 들어오는 이벤트를
-버퍼링한 상태에서 cursor 없는 최신 이력 요청을 호출한다. REST 응답을 먼저 적용한 뒤
-버퍼링한 이벤트를 적용하며, `messageId` 또는 `roomSequence`로 중복을 제거한다.
+최초 진입 시에는 방 topic을 구독하기 전에 실시간 이벤트 버퍼링을 시작한다.
+메시지·방 이벤트 topic을 구독하고 아래의 구독 준비 sync 요청에 대한
+`ROOM_SUBSCRIPTIONS_READY`를 받은 뒤 cursor 없는 최신 이력 요청을 호출한다.
+REST 응답을 먼저 적용한 뒤 버퍼링한 이벤트를 적용하며, `messageId` 또는
+`roomSequence`로 중복을 제거한다.
 
-WebSocket 재연결 시에도 메시지 topic을 먼저 구독하고, 마지막으로 연속 적용한
-sequence를 `afterSequence`로 이 API를 호출한다. sequence 누락을 감지한 경우에도
+WebSocket 재연결 시에도 같은 구독 준비 절차를 거친 뒤 마지막으로 연속 적용한
+sequence를 `afterSequence`로 이 API에 전달한다. sequence 누락을 감지한 경우에도
 같은 방식으로 마지막 연속 sequence 이후를 다시 조회한다.
 
 ## REST 오류 응답
@@ -718,6 +732,9 @@ ws://localhost:8082/ws
 - STOMP heartbeat는 송신·수신 모두 `10000ms`를 권장한다.
 - 한 사용자에게는 활성 연결 한 개만 유지한다. 새 연결이 생기면 기존
   연결이 교체될 수 있다.
+- 새 연결로 교체된 기존 연결은 close code `4001`, reason
+  `CONNECTION_REPLACED`로 종료한다. 기존 연결의 클라이언트는 이 조합을
+  수신하면 자동 재연결을 중단한다.
 
 `@stomp/stompjs` 예:
 
@@ -738,6 +755,7 @@ const client = new Client({
 | 동작 | Destination | 설명 |
 | --- | --- | --- |
 | `SEND` | `/app/rooms/{roomId}/messages` | 채팅 메시지 전송 |
+| `SEND` | `/app/rooms/{roomId}/subscriptions/sync` | 방 topic 구독 준비 확인 |
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/messages` | 방 채팅 메시지 수신 |
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/room-events` | 방 상태 변경 이벤트 수신 |
 | `SUBSCRIBE` | `/user/queue/command-results` | 내 메시지 전송 결과 수신 |
@@ -754,6 +772,88 @@ const client = new Client({
 
 로컬 기본 설정상 한 연결에서 활성 방 구독은 한 개, 전체 구독은 최대
 다섯 개다.
+
+### 구독 준비 barrier
+
+STOMP `SUBSCRIBE` frame을 보낸 것만으로 프론트가 서버의 구독 처리를
+확정해서는 안 된다. 서버는 Native STOMP `receipt`를 구독 준비 계약으로
+제공하지 않으며, 같은 STOMP session의 application-level sync 요청과
+`/user/queue/system-events` 응답을 barrier로 사용한다.
+
+최초 진입, 방 전환 후 이력 동기화, WebSocket 재연결 시 다음 순서를 사용한다.
+
+```text
+1. 실시간 방 이벤트 버퍼링 시작
+2. SUBSCRIBE /user/queue/system-events
+3. SUBSCRIBE /topic/rooms/{roomId}/messages
+4. SUBSCRIBE /topic/rooms/{roomId}/room-events
+5. SEND      /app/rooms/{roomId}/subscriptions/sync
+6. /user/queue/system-events에서 ROOM_SUBSCRIPTIONS_READY 수신
+7. REST 최신 이력 또는 afterSequence 이력 조회
+8. REST 결과 적용 후 버퍼 이벤트 병합 및 중복 제거
+```
+
+사용자 공통 `/user/queue/system-events` 구독은 WebSocket 연결마다 한 번만
+생성한다. 이미 구독되어 있다면 방 전환 때 2단계를 반복하지 않는다.
+프론트는 1단계를 방 topic `SUBSCRIBE`보다 먼저 실행해야 한다.
+
+sync destination:
+
+```text
+/app/rooms/{roomId}/subscriptions/sync
+```
+
+필요 scope는 `chat:rooms:read`이며, payload의 `requestId`는 요청별 UUID다.
+
+```json
+{
+  "requestId": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+서버는 동일 session에서 앞서 보낸 두 room topic `SUBSCRIBE`를 처리했고
+사용자의 활성 멤버십을 다시 확인한 경우에만 다음 응답을 같은 session의
+`/user/queue/system-events`로 전송한다.
+
+```json
+{
+  "status": "READY",
+  "eventType": "ROOM_SUBSCRIPTIONS_READY",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "roomId": "room-01",
+  "watermarkSequence": 120
+}
+```
+
+`watermarkSequence`는 READY를 생성할 때 서버에 저장되어 있던 해당 방의
+최신 `roomSequence`이며 빈 방은 `0`이다. 이 값은 REST 응답의 상한을
+고정하는 cursor가 아니다. REST 결과와 버퍼 이벤트는 계속
+`messageId`와 `roomSequence`로 중복을 제거한다.
+
+sync 요청이 거절되면 다음 형태를 사용한다.
+
+```json
+{
+  "status": "REJECTED",
+  "eventType": "ROOM_SUBSCRIPTION_SYNC_REJECTED",
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "roomId": "room-01",
+  "code": "ROOM_SUBSCRIPTIONS_NOT_READY",
+  "retryable": false
+}
+```
+
+| Code | `retryable` | 의미 |
+| --- | --- | --- |
+| `INVALID_SYNC_REQUEST` | `false` | `requestId`가 올바른 UUID가 아니다. |
+| `ROOM_SUBSCRIPTIONS_NOT_READY` | `false` | 같은 session에 필요한 방 topic 두 개가 모두 등록되지 않았다. 구독 거절 이벤트와 구독 순서를 확인한다. |
+| `ROOM_SUBSCRIPTION_FORBIDDEN` | `false` | 사용자가 해당 방의 활성 멤버가 아니다. |
+| `ROOM_AUTHORIZATION_UNAVAILABLE` | `true` | 멤버십 권한 확인이 일시적으로 불가능하다. |
+| `ROOM_SUBSCRIPTION_SYNC_UNAVAILABLE` | `true` | watermark 조회가 일시적으로 불가능하다. |
+
+`retryable=true`이면 연결과 topic 구독이 유지된 상태에서 새 `requestId`로
+sync 요청만 재시도할 수 있다. READY를 받기 전에는 REST snapshot을 시작하지
+않는다.
 
 ### 활성 방 선점 전환
 
@@ -1045,8 +1145,9 @@ python3 scripts/frontend-local-smoke.py
 5. `LISTED`, `OPEN` 방 생성과 상세 조회
 6. 쿠키 WebSocket handshake
 7. `Authorization` 헤더 없는 STOMP `CONNECT`
-8. 메시지 전송, command 결과, `CHAT_MESSAGE_CREATED`
-9. REST 메시지 이력 재동기화
+8. 방 topic 두 개의 구독 준비 sync와 `ROOM_SUBSCRIPTIONS_READY`
+9. 메시지 전송, command 결과, `CHAT_MESSAGE_CREATED`
+10. REST 메시지 이력 재동기화
 
 각 실행은 이름이 `frontend-smoke-`로 시작하는 테스트 방 하나와 메시지 하나를 로컬 MongoDB에
 추가한다. 다른 주소를 사용할 때는 `--base-url`, `--ws-url`, `--origin`, `--subject` 옵션으로
@@ -1062,9 +1163,15 @@ python3 scripts/frontend-local-smoke.py
 6. `ws://localhost:8082/ws`에 연결한다.
 7. `/user/queue/command-results`를 구독한다.
 8. `/user/queue/system-events`를 구독한다.
-9. `/topic/rooms/{roomId}/messages`를 구독한다.
-10. `/topic/rooms/{roomId}/room-events`를 구독한다.
-11. `GET /api/v1/rooms/{roomId}/messages`로 최신 메시지를 조회하고,
+9. 방 실시간 이벤트의 로컬 버퍼링을 시작한다.
+10. `/topic/rooms/{roomId}/messages`를 구독한다.
+11. `/topic/rooms/{roomId}/room-events`를 구독한다.
+12. 같은 STOMP session에서
+    `/app/rooms/{roomId}/subscriptions/sync`로 UUID `requestId`를 보낸다.
+13. `/user/queue/system-events`에서 같은 `requestId`의
+    `ROOM_SUBSCRIPTIONS_READY`를 기다린다.
+14. `GET /api/v1/rooms/{roomId}/messages`로 최신 메시지를 조회하고,
     이전 이력은 `beforeSequence` cursor로 조회한다.
-12. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
-13. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.
+15. REST 결과를 먼저 적용하고 버퍼 이벤트를 병합하며 중복을 제거한다.
+16. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
+17. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.

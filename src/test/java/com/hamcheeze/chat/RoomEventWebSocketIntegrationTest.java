@@ -11,6 +11,7 @@ import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
+import com.hamcheeze.chat.websocket.subscription.RoomSubscriptionSyncRequest;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -295,6 +296,96 @@ class RoomEventWebSocketIntegrationTest
             assertThat(systemEvents.poll(
                     250,
                     TimeUnit.MILLISECONDS)).isNull();
+        } finally {
+            disconnect(session);
+            client.stop();
+            scheduler.shutdown();
+        }
+    }
+
+    @Test
+    void confirmsRoomSubscriptionsBeforeHistorySynchronization()
+            throws Exception {
+        String roomId = commandService.createRoom(
+                new CreateRoomCommand(
+                        "owner-1",
+                        uuid(),
+                        "Subscription sync room",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN))
+                .result()
+                .roomId();
+
+        ThreadPoolTaskScheduler scheduler =
+                new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(2);
+        scheduler.setThreadNamePrefix(
+                "room-subscription-sync-stomp-");
+        scheduler.initialize();
+        WebSocketStompClient client = stompClient(scheduler);
+        StompSession session = null;
+        try {
+            session = connect(client, "owner-1");
+            BlockingQueue<byte[]> systemEvents =
+                    new LinkedBlockingQueue<>();
+            BlockingQueue<byte[]> roomMessages =
+                    new LinkedBlockingQueue<>();
+
+            session.subscribe(
+                    "/user/queue/system-events",
+                    collectingHandler(systemEvents));
+            session.subscribe(
+                    "/topic/rooms/" + roomId + "/messages",
+                    collectingHandler(roomMessages));
+            session.subscribe(
+                    "/topic/rooms/"
+                            + roomId
+                            + "/room-events",
+                    collectingHandler(
+                            new LinkedBlockingQueue<>()));
+
+            String requestId = uuid();
+            session.send(
+                    "/app/rooms/"
+                            + roomId
+                            + "/subscriptions/sync",
+                    new RoomSubscriptionSyncRequest(requestId));
+
+            byte[] readyBytes =
+                    systemEvents.poll(5, TimeUnit.SECONDS);
+            assertThat(readyBytes).isNotNull();
+            JsonNode ready = objectMapper.readTree(readyBytes);
+            assertThat(ready.get("status").asText())
+                    .isEqualTo("READY");
+            assertThat(ready.get("eventType").asText())
+                    .isEqualTo(
+                            "ROOM_SUBSCRIPTIONS_READY");
+            assertThat(ready.get("requestId").asText())
+                    .isEqualTo(requestId);
+            assertThat(ready.get("roomId").asText())
+                    .isEqualTo(roomId);
+            assertThat(ready.get("watermarkSequence")
+                    .asLong())
+                    .isZero();
+
+            String clientMessageId = uuid();
+            session.send(
+                    "/app/rooms/" + roomId + "/messages",
+                    new ChatSendCommand(
+                            clientMessageId,
+                            "after ready"));
+
+            byte[] messageBytes =
+                    roomMessages.poll(5, TimeUnit.SECONDS);
+            assertThat(messageBytes).isNotNull();
+            JsonNode message =
+                    objectMapper.readTree(messageBytes);
+            assertThat(message.get("payload")
+                    .get("clientMessageId").asText())
+                    .isEqualTo(clientMessageId);
+            assertThat(message.get("payload")
+                    .get("roomSequence").asLong())
+                    .isEqualTo(1L);
         } finally {
             disconnect(session);
             client.stop();

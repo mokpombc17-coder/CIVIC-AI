@@ -4,7 +4,7 @@ public record SubscriptionRejected(
         String status,
         SubscriptionRejectedCode code,
         String destination
-) {
+) implements SubscriptionSystemEvent {
     public SubscriptionRejected(
             SubscriptionRejectedCode code,
             String destination

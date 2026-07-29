@@ -75,6 +75,19 @@ class StompProtocolPolicyInterceptorTest {
                 .hasMessage("INVALID_SEND_DESTINATION");
     }
 
+    @Test
+    void acceptsRoomSubscriptionSyncSend() {
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.create(StompCommand.SEND);
+        accessor.setDestination(
+                "/app/rooms/room-1/subscriptions/sync");
+
+        Message<byte[]> message = message(accessor);
+
+        assertThat(interceptor.preSend(message, null))
+                .isSameAs(message);
+    }
+
     private static Message<byte[]> message(
             StompHeaderAccessor accessor
     ) {

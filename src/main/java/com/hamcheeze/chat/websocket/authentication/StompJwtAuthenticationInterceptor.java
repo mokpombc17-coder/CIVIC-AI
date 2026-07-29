@@ -1,6 +1,8 @@
 package com.hamcheeze.chat.websocket.authentication;
 
 import com.hamcheeze.chat.security.ChatScopes;
+import com.hamcheeze.chat.websocket.protocol.DestinationKind;
+import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
 import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -23,15 +25,20 @@ import java.util.Objects;
 public final class StompJwtAuthenticationInterceptor implements ChannelInterceptor {
 
     private final JwtDecoder jwtDecoder;
+    private final DestinationPolicy destinationPolicy;
     private final JwtAuthenticationConverter authenticationConverter =
             new JwtAuthenticationConverter();
 
     public StompJwtAuthenticationInterceptor(
-            JwtDecoder jwtDecoder
+            JwtDecoder jwtDecoder,
+            DestinationPolicy destinationPolicy
     ) {
         this.jwtDecoder = Objects.requireNonNull(
                 jwtDecoder,
                 "jwtDecoder");
+        this.destinationPolicy = Objects.requireNonNull(
+                destinationPolicy,
+                "destinationPolicy");
     }
 
     @Override
@@ -57,9 +64,21 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
         } else if (command == StompCommand.SUBSCRIBE) {
             requireScope(accessor.getUser(), ChatScopes.ROOMS_READ);
         } else if (command == StompCommand.SEND) {
-            requireScope(accessor.getUser(), ChatScopes.MESSAGES_WRITE);
+            requireScope(
+                    accessor.getUser(),
+                    sendScope(accessor.getDestination()));
         }
         return message;
+    }
+
+    private String sendScope(String destination) {
+        DestinationKind kind =
+                destinationPolicy.classify(destination).kind();
+        if (kind
+                == DestinationKind.APP_ROOM_SUBSCRIPTION_SYNC) {
+            return ChatScopes.ROOMS_READ;
+        }
+        return ChatScopes.MESSAGES_WRITE;
     }
 
     private void authenticateBearerFallback(

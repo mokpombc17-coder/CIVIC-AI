@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.websocket.subscription;
 
 import com.hamcheeze.chat.websocket.config.SubscriptionLimitProperties;
+import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
@@ -156,6 +157,29 @@ public final class InMemoryChatSubscriptionRegistry
             return subscriptions != null
                     && subscriptions.values().stream().anyMatch(
                     descriptor -> roomId.equals(descriptor.roomId()));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public boolean hasRoomSubscription(
+            String connectionId,
+            String userId,
+            String roomId,
+            DestinationKind kind
+    ) {
+        lock.lock();
+        try {
+            Map<String, SubscriptionDescriptor> subscriptions =
+                    byConnection.get(connectionId);
+            return subscriptions != null
+                    && subscriptions.values().stream().anyMatch(
+                    descriptor ->
+                            userId.equals(descriptor.userId())
+                                    && roomId.equals(
+                                    descriptor.roomId())
+                                    && kind == descriptor.kind());
         } finally {
             lock.unlock();
         }

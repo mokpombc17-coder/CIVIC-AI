@@ -34,6 +34,7 @@ import com.hamcheeze.chat.websocket.ratelimit.ChatAdmissionLimiter;
 import com.hamcheeze.chat.websocket.ratelimit.ConfiguredMessageTokenCostPolicy;
 import com.hamcheeze.chat.websocket.subscription.InMemoryChatSubscriptionRegistry;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionPolicyInterceptor;
+import com.hamcheeze.chat.websocket.subscription.SubscriptionRejected;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionRejectedCode;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionResultSender;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -191,7 +192,9 @@ class RoomAccessAuthorizationRaceIntegrationTest
                 eq(context.userId()),
                 eq("connection-1"),
                 org.mockito.ArgumentMatchers.argThat(result ->
-                        result.code() == SubscriptionRejectedCode
+                        result instanceof SubscriptionRejected rejected
+                                && rejected.code()
+                                == SubscriptionRejectedCode
                                 .ROOM_SUBSCRIPTION_FORBIDDEN));
         assertStateChanged(context, change);
     }

@@ -40,6 +40,24 @@ class InMemoryChatSubscriptionRegistryTest {
         assertThat(registry.hasRoomSubscription(
                 "connection-1",
                 "room-1")).isTrue();
+        assertThat(registry.hasRoomSubscription(
+                "connection-1",
+                "user-1",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_MESSAGES))
+                .isTrue();
+        assertThat(registry.hasRoomSubscription(
+                "connection-1",
+                "user-1",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_EVENTS))
+                .isTrue();
+        assertThat(registry.hasRoomSubscription(
+                "connection-1",
+                "user-2",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_MESSAGES))
+                .isFalse();
         assertThat(registry.findConnectionIdsByRoom("room-1"))
                 .containsExactly("connection-1");
         assertThat(registry.findConnectionIdsByUserAndRoom(
@@ -200,7 +218,7 @@ class InMemoryChatSubscriptionRegistryTest {
                 subscriptionId,
                 "user-1",
                 "/topic/rooms/" + roomId + "/" + suffix,
-                DestinationKind.TOPIC_ROOM_MESSAGES,
+                kind(suffix),
                 roomId);
     }
 
@@ -214,7 +232,13 @@ class InMemoryChatSubscriptionRegistryTest {
                 subscriptionId,
                 userId,
                 "/topic/rooms/" + roomId + "/" + suffix,
-                DestinationKind.TOPIC_ROOM_MESSAGES,
+                kind(suffix),
                 roomId);
+    }
+
+    private static DestinationKind kind(String suffix) {
+        return "events".equals(suffix)
+                ? DestinationKind.TOPIC_ROOM_EVENTS
+                : DestinationKind.TOPIC_ROOM_MESSAGES;
     }
 }

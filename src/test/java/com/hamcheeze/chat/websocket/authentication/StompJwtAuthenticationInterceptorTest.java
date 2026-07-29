@@ -1,6 +1,8 @@
 package com.hamcheeze.chat.websocket.authentication;
 
 import com.hamcheeze.chat.security.ChatScopes;
+import com.hamcheeze.chat.websocket.config.ChatContentProperties;
+import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
 import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.Message;
@@ -78,6 +80,8 @@ class StompJwtAuthenticationInterceptorTest {
                 ChatScopes.ROOMS_READ));
         StompHeaderAccessor send =
                 StompHeaderAccessor.create(StompCommand.SEND);
+        send.setDestination(
+                "/app/rooms/room-1/messages");
         send.setUser(authentication(
                 "user-1",
                 ChatScopes.MESSAGES_WRITE));
@@ -86,6 +90,32 @@ class StompJwtAuthenticationInterceptorTest {
         interceptor.preSend(message(send), null);
 
         verifyNoInteractions(decoder);
+    }
+
+    @Test
+    void subscriptionSyncSendRequiresRoomsReadScope() {
+        JwtDecoder decoder = mock(JwtDecoder.class);
+        StompJwtAuthenticationInterceptor interceptor =
+                interceptor(decoder);
+        StompHeaderAccessor sync =
+                StompHeaderAccessor.create(StompCommand.SEND);
+        sync.setDestination(
+                "/app/rooms/room-1/subscriptions/sync");
+        sync.setUser(authentication(
+                "user-1",
+                ChatScopes.ROOMS_READ));
+
+        interceptor.preSend(message(sync), null);
+
+        sync.setUser(authentication(
+                "user-1",
+                ChatScopes.MESSAGES_WRITE));
+        assertThatThrownBy(() ->
+                interceptor.preSend(message(sync), null))
+                .isInstanceOf(StompPolicyException.class)
+                .extracting(exception ->
+                        ((StompPolicyException) exception).code())
+                .isEqualTo("FORBIDDEN");
     }
 
     @Test
@@ -123,7 +153,9 @@ class StompJwtAuthenticationInterceptorTest {
     @Test
     void requiresJwtDecoderAtConstructionTime() {
         assertThatThrownBy(() ->
-                new StompJwtAuthenticationInterceptor(null))
+                new StompJwtAuthenticationInterceptor(
+                        null,
+                        destinationPolicy()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("jwtDecoder");
     }
@@ -131,7 +163,14 @@ class StompJwtAuthenticationInterceptorTest {
     private static StompJwtAuthenticationInterceptor interceptor(
             JwtDecoder decoder
     ) {
-        return new StompJwtAuthenticationInterceptor(decoder);
+        return new StompJwtAuthenticationInterceptor(
+                decoder,
+                destinationPolicy());
+    }
+
+    private static DestinationPolicy destinationPolicy() {
+        return new DestinationPolicy(
+                new ChatContentProperties());
     }
 
     private static JwtAuthenticationToken authentication(

@@ -24,7 +24,7 @@ public final class SubscriptionResultSender {
     public void send(
             String userId,
             String connectionId,
-            SubscriptionRejected result
+            SubscriptionSystemEvent result
     ) {
         try {
             SimpMessageHeaderAccessor headers =
@@ -38,8 +38,12 @@ public final class SubscriptionResultSender {
                     headers.getMessageHeaders());
         } catch (RuntimeException exception) {
             log.warn(
-                    "Failed to send subscription rejection: userId={}, connectionId={}, code={}",
-                    userId, connectionId, result.code(), exception);
+                    "Failed to send subscription system event: "
+                            + "userId={}, connectionId={}, eventType={}",
+                    userId,
+                    connectionId,
+                    result.getClass().getSimpleName(),
+                    exception);
         }
     }
 }

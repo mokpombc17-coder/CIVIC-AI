@@ -31,9 +31,17 @@ public final class DestinationPolicy {
                     DestinationKind.USER_SYSTEM_EVENTS, destination, null);
         }
         if (destination.startsWith(APP_PREFIX)) {
-            return roomDestination(
+            DestinationDescriptor messages = roomDestination(
                     destination, APP_PREFIX, "/messages",
                     DestinationKind.APP_ROOM_MESSAGES);
+            if (messages.kind() != DestinationKind.INVALID) {
+                return messages;
+            }
+            return roomDestination(
+                    destination,
+                    APP_PREFIX,
+                    "/subscriptions/sync",
+                    DestinationKind.APP_ROOM_SUBSCRIPTION_SYNC);
         }
         if (destination.startsWith(TOPIC_PREFIX)) {
             DestinationDescriptor messages = roomDestination(
