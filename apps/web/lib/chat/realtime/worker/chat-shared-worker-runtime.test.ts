@@ -1,4 +1,4 @@
-import type { IFrame } from "@stomp/stompjs";
+import type { IFrame, IMessage, StompSubscription } from "@stomp/stompjs";
 import { describe, expect, it, vi } from "vitest";
 import type {
   ChatSharedWorkerCommand,
@@ -135,7 +135,8 @@ describe("ChatSharedWorkerRuntime", () => {
   });
 
   it("첫 방 claim을 활성 lease로 만들고 같은 owner의 중복 claim은 generation을 유지한다", () => {
-    const runtime = new ChatSharedWorkerRuntime(createFakeStompClient());
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
     const port = createFakePort();
 
     runtime.connectPort(port);
@@ -146,6 +147,10 @@ describe("ChatSharedWorkerRuntime", () => {
       requestId: "request-1",
       roomId: "room-01",
     });
+
+    expect(port.eventsOfType("ROOM_ACTIVATED")).toHaveLength(0);
+
+    client.onConnect({} as IFrame);
     port.send({
       type: "CLAIM_ROOM",
       portId: "port-a",
@@ -167,10 +172,17 @@ describe("ChatSharedWorkerRuntime", () => {
         generation: 1,
       },
     ]);
+    expect(client.frames).toEqual([
+      "SUBSCRIBE /user/queue/system-events",
+      "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+    ]);
   });
 
   it("같은 방을 다른 port가 claim하면 구독 세대를 바꾸고 이전 owner를 교체한다", () => {
-    const runtime = new ChatSharedWorkerRuntime(createFakeStompClient());
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
     const portA = createFakePort();
     const portB = createFakePort();
 
@@ -178,12 +190,14 @@ describe("ChatSharedWorkerRuntime", () => {
     runtime.connectPort(portB);
     portA.send({ type: "ATTACH", portId: "port-a" });
     portB.send({ type: "ATTACH", portId: "port-b" });
+    client.onConnect({} as IFrame);
     portA.send({
       type: "CLAIM_ROOM",
       portId: "port-a",
       requestId: "request-a",
       roomId: "room-01",
     });
+    client.frames.length = 0;
     portB.send({
       type: "CLAIM_ROOM",
       portId: "port-b",
@@ -205,10 +219,12 @@ describe("ChatSharedWorkerRuntime", () => {
       roomId: "room-01",
       generation: 2,
     });
+    expect(client.frames).toEqual([]);
   });
 
   it("다른 방 claim은 이전 owner를 교체하고 오래된 release가 새 lease를 해제하지 못한다", () => {
-    const runtime = new ChatSharedWorkerRuntime(createFakeStompClient());
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
     const portA = createFakePort();
     const portB = createFakePort();
 
@@ -216,12 +232,14 @@ describe("ChatSharedWorkerRuntime", () => {
     runtime.connectPort(portB);
     portA.send({ type: "ATTACH", portId: "port-a" });
     portB.send({ type: "ATTACH", portId: "port-b" });
+    client.onConnect({} as IFrame);
     portA.send({
       type: "CLAIM_ROOM",
       portId: "port-a",
       requestId: "claim-a",
       roomId: "room-01",
     });
+    client.frames.length = 0;
     portB.send({
       type: "CLAIM_ROOM",
       portId: "port-b",
@@ -249,10 +267,17 @@ describe("ChatSharedWorkerRuntime", () => {
     });
     expect(portA.eventsOfType("ROOM_RELEASED").at(-1)?.generation).toBe(2);
     expect(portB.eventsOfType("ROOM_ACTIVATED").at(-1)?.generation).toBe(2);
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-02/messages",
+      "SUBSCRIBE /topic/rooms/room-02/room-events",
+    ]);
   });
 
   it("owner release와 detach는 lease를 해제하고 다음 claim에 새 generation을 부여한다", () => {
-    const runtime = new ChatSharedWorkerRuntime(createFakeStompClient());
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
     const portA = createFakePort();
     const portB = createFakePort();
 
@@ -260,6 +285,7 @@ describe("ChatSharedWorkerRuntime", () => {
     runtime.connectPort(portB);
     portA.send({ type: "ATTACH", portId: "port-a" });
     portB.send({ type: "ATTACH", portId: "port-b" });
+    client.onConnect({} as IFrame);
     portA.send({
       type: "CLAIM_ROOM",
       portId: "port-a",
@@ -292,11 +318,13 @@ describe("ChatSharedWorkerRuntime", () => {
   });
 
   it("유효하지 않은 roomId는 lease를 바꾸지 않고 요청 port에만 오류를 보낸다", () => {
-    const runtime = new ChatSharedWorkerRuntime(createFakeStompClient());
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
     const port = createFakePort();
 
     runtime.connectPort(port);
     port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
     port.send({
       type: "CLAIM_ROOM",
       portId: "port-a",
@@ -316,19 +344,116 @@ describe("ChatSharedWorkerRuntime", () => {
     });
     expect(port.eventsOfType("ROOM_ACTIVATED").at(-1)?.generation).toBe(1);
   });
+
+  it("재연결 시 공통 queue와 현재 활성 방 topic만 다시 구독한다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.frames.length = 0;
+
+    client.onWebSocketClose({ reason: "network lost" } as CloseEvent);
+    client.onConnect({} as IFrame);
+
+    expect(client.frames).toEqual([
+      "SUBSCRIBE /user/queue/system-events",
+      "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+    ]);
+  });
+
+  it("방 release는 방 topic만 순서대로 해제하고 공통 queue는 유지한다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.frames.length = 0;
+
+    port.send({
+      type: "RELEASE_ROOM",
+      portId: "port-a",
+      requestId: "release-1",
+      roomId: "room-01",
+    });
+
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+    ]);
+    expect(port.eventsOfType("ROOM_RELEASED").at(-1)?.generation).toBe(2);
+  });
+
+  it("서버의 방 구독 거절을 owner에게 전달하고 방 topic을 정리한다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.frames.length = 0;
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "REJECTED",
+        code: "ACTIVE_ROOM_LIMIT_EXCEEDED",
+        destination: "/topic/rooms/room-01/messages",
+      }),
+    );
+
+    expect(port.eventsOfType("ROOM_SUBSCRIPTION_FAILED").at(-1)).toMatchObject({
+      roomId: "room-01",
+      code: "ACTIVE_ROOM_LIMIT_EXCEEDED",
+    });
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+    ]);
+  });
 });
 
 type FakeStompClient = ChatSharedWorkerStompClient & {
   activate: ReturnType<typeof vi.fn<() => void>>;
   deactivate: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  deliver(destination: string, body: string): void;
   forceDisconnect: ReturnType<typeof vi.fn<() => void>>;
+  frames: string[];
   setActive(value: boolean): void;
 };
 
 function createFakeStompClient(): FakeStompClient {
   let active = false;
+  let nextSubscriptionId = 1;
+  const frames: string[] = [];
+  const callbacks = new Map<string, Map<string, (message: IMessage) => void>>();
 
-  return {
+  const client: FakeStompClient = {
     get active() {
       return active;
     },
@@ -338,7 +463,11 @@ function createFakeStompClient(): FakeStompClient {
     deactivate: vi.fn(async () => {
       active = false;
     }),
+    deliver(destination, body) {
+      callbacks.get(destination)?.forEach((callback) => callback({ body } as unknown as IMessage));
+    },
     forceDisconnect: vi.fn(),
+    frames,
     onConnect: vi.fn(),
     onStompError: vi.fn(),
     onWebSocketClose: vi.fn(),
@@ -346,7 +475,26 @@ function createFakeStompClient(): FakeStompClient {
     setActive(value) {
       active = value;
     },
+    subscribe: vi.fn((destination, callback) => {
+      const id = `subscription-${nextSubscriptionId++}`;
+      const destinationCallbacks = callbacks.get(destination) ?? new Map();
+      destinationCallbacks.set(id, callback);
+      callbacks.set(destination, destinationCallbacks);
+      frames.push(`SUBSCRIBE ${destination}`);
+
+      const subscription: StompSubscription = {
+        id,
+        unsubscribe() {
+          frames.push(`UNSUBSCRIBE ${destination}`);
+          destinationCallbacks.delete(id);
+        },
+      };
+
+      return subscription;
+    }),
   };
+
+  return client;
 }
 
 type FakePort = ChatSharedWorkerPort & {

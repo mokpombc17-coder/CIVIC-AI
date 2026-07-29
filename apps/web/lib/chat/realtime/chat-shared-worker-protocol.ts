@@ -57,7 +57,14 @@ export type ChatSharedWorkerEvent =
       type: "ROOM_ACTIVATION_FAILED";
       requestId: string;
       roomId: string;
-      code: "INVALID_ROOM_ID";
+      code: "INVALID_ROOM_ID" | "SUBSCRIPTION_SETUP_FAILED";
+      message: string;
+    }>
+  | Readonly<{
+      type: "ROOM_SUBSCRIPTION_FAILED";
+      roomId: string;
+      generation: number;
+      code: string;
       message: string;
     }>;
 
@@ -128,6 +135,16 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
     );
   }
 
+  if (event.type === "ROOM_SUBSCRIPTION_FAILED") {
+    return (
+      typeof event.roomId === "string" &&
+      isGeneration(event.generation) &&
+      typeof event.code === "string" &&
+      event.code.length > 0 &&
+      typeof event.message === "string"
+    );
+  }
+
   if (
     event.type === "ROOM_ACTIVATED" ||
     event.type === "ROOM_RELEASED" ||
@@ -140,7 +157,9 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
 
     if (event.type === "ROOM_ACTIVATION_FAILED") {
       return (
-        hasRequestFields && event.code === "INVALID_ROOM_ID" && typeof event.message === "string"
+        hasRequestFields &&
+        (event.code === "INVALID_ROOM_ID" || event.code === "SUBSCRIPTION_SETUP_FAILED") &&
+        typeof event.message === "string"
       );
     }
 

@@ -8,8 +8,8 @@
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: SharedWorker 소유 STOMP Client와 단일 활성 방 lease 상태 머신
-- 다음 구현: lease를 실제 STOMP subscription 전환에 연결하고 멀티탭 UX 적용
+- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·STOMP subscription 전환
+- 다음 구현: 멀티탭 활성 방 UX와 실시간 payload 전달
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
 브라우저에서 같은 사용자가 Chat Resource Server와 맺는 WebSocket 연결과 활성 채팅방 구독을
@@ -394,6 +394,13 @@ type ChatWorkerEvent =
       message: string;
     }
   | {
+      type: "ROOM_SUBSCRIPTION_FAILED";
+      roomId: string;
+      generation: number;
+      code: string;
+      message: string;
+    }
+  | {
       type: "CHAT_MESSAGE_CREATED";
       payload: unknown;
     }
@@ -702,7 +709,7 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 
 ### 3. 단일 활성 방 lease
 
-진행 상태: lease 상태 머신 완료 (2026-07-29), STOMP subscription 연결 보류
+진행 상태: 완료 (2026-07-29)
 
 - `CLAIM_ROOM`, `RELEASE_ROOM`, `ROOM_ACTIVATED`, `ROOM_REPLACED`,
   `ROOM_RELEASED`, `ROOM_ACTIVATION_FAILED` 계약을 구현했다.
@@ -714,9 +721,16 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
   주지 않는다.
 - `requestId`와 `generation`으로 탭 transport가 늦게 도착한 응답을 무시한다.
 - SharedWorker 미지원 환경의 `DirectStompTransport`도 같은 방 세션 API를 제공한다.
-- 이 단계에서는 STOMP Client 타입에 `subscribe`/`unsubscribe`를 추가하지 않았다. lease
-  상태를 실제 topic 전환에 연결하는 작업은 백엔드 순서 보존 적용 확인과 사용자 확인 후
-  진행한다.
+- 연결 직후 `/user/queue/system-events`, `/user/queue/command-results`를 한 번씩 구독한다.
+- 다른 방 전환은 기존 `/messages`, 기존 `/room-events`, 새 `/messages`, 새 `/room-events`
+  순서로 각각 `UNSUBSCRIBE`, `UNSUBSCRIBE`, `SUBSCRIBE`, `SUBSCRIBE` frame을 보낸다.
+- 같은 방 owner 교체에서는 기존 topic subscription을 재사용한다.
+- WebSocket 재연결 후 공통 queue와 현재 lease의 방 topic만 복구한다.
+- 서버의 구독 거절 system event를 감지하면 방 topic을 정리하고 owner 탭에
+  `ROOM_SUBSCRIPTION_FAILED`를 전달한다.
+- 확정된 구독 순서는 `ChatStompSubscriptionManager`에 한 번만 정의하며 SharedWorker와 Expo
+  WebView의 Direct fallback이 동일하게 사용한다.
+- STOMP message와 room-event payload 전달은 수정 API 명세 반영 단계에서 연결한다.
 
 ### 4. UX 연결
 
@@ -792,8 +806,8 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 ```
 
 사용자 공통 `/user/queue/command-results`, `/user/queue/system-events` 구독은 이 전환 중에도
-유지한다. 백엔드의 STOMP inbound 순서 보존 설정과 방 전환 통합 테스트 적용 완료 회신을 받은
-뒤 실제 subscription 전환을 연결한다.
+유지한다. 백엔드는 같은 WebSocket session의 STOMP frame을 수신 순서대로 처리하며, 위 순서에는
+별도 receipt 대기가 필요하지 않음을 최종 확인했다.
 
 - STOMP `SUBSCRIBE` 성공을 확인할 receipt 또는 승인 event 제공 여부
 - WebSocket handshake 인증 실패 시 close code와 reason

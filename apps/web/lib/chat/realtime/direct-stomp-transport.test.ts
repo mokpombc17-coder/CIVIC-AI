@@ -1,4 +1,4 @@
-import type { IFrame } from "@stomp/stompjs";
+import type { IFrame, IMessage, StompSubscription } from "@stomp/stompjs";
 import { describe, expect, it, vi } from "vitest";
 import { DirectStompTransport, type DirectStompClient } from "./direct-stomp-transport";
 
@@ -113,10 +113,13 @@ describe("DirectStompTransport", () => {
   });
 
   it("SharedWorker 미지원 환경에서도 동일한 방 세션 API를 제공한다", () => {
-    const transport = new DirectStompTransport(createFakeClient());
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
     const listener = vi.fn();
 
     transport.observeRoom(listener);
+    transport.attach();
+    client.onConnect({} as IFrame);
     transport.claimRoom("room-01");
 
     expect(transport.getRoomSnapshot()).toEqual({
@@ -135,7 +138,56 @@ describe("DirectStompTransport", () => {
       replacedByRoomId: null,
       error: null,
     });
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it("Direct fallback도 다른 방 전환 시 동일한 4-frame 순서를 사용한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.frames.length = 0;
+
+    transport.claimRoom("room-02");
+
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-02/messages",
+      "SUBSCRIBE /topic/rooms/room-02/room-events",
+    ]);
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "active",
+      roomId: "room-02",
+    });
+  });
+
+  it("Direct fallback도 서버 구독 거절을 room session 오류로 변환한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "REJECTED",
+        code: "ACTIVE_ROOM_LIMIT_EXCEEDED",
+        destination: "/topic/rooms/room-01/messages",
+      }),
+    );
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "error",
+      roomId: "room-01",
+      error: {
+        code: "SUBSCRIPTION_REJECTED",
+        serverCode: "ACTIVE_ROOM_LIMIT_EXCEEDED",
+      },
+    });
   });
 
   it("유효하지 않은 roomId는 Direct fallback에서도 로컬 오류로 거절한다", () => {
@@ -154,13 +206,18 @@ describe("DirectStompTransport", () => {
 });
 
 type FakeDirectStompClient = DirectStompClient & {
+  deliver(destination: string, body: string): void;
+  frames: string[];
   setActive(active: boolean): void;
 };
 
 function createFakeClient(): FakeDirectStompClient {
   let active = false;
+  let nextSubscriptionId = 1;
+  const frames: string[] = [];
+  const callbacks = new Map<string, Map<string, (message: IMessage) => void>>();
 
-  return {
+  const client: FakeDirectStompClient = {
     get active() {
       return active;
     },
@@ -173,10 +230,33 @@ function createFakeClient(): FakeDirectStompClient {
     deactivate: vi.fn(async () => {
       active = false;
     }),
+    deliver(destination, body) {
+      callbacks.get(destination)?.forEach((callback) => callback({ body } as unknown as IMessage));
+    },
     forceDisconnect: vi.fn(),
+    frames,
     onConnect: vi.fn(),
     onStompError: vi.fn(),
     onWebSocketClose: vi.fn(),
     onWebSocketError: vi.fn(),
+    subscribe: vi.fn((destination, callback) => {
+      const id = `subscription-${nextSubscriptionId++}`;
+      const destinationCallbacks = callbacks.get(destination) ?? new Map();
+      destinationCallbacks.set(id, callback);
+      callbacks.set(destination, destinationCallbacks);
+      frames.push(`SUBSCRIBE ${destination}`);
+
+      const subscription: StompSubscription = {
+        id,
+        unsubscribe() {
+          frames.push(`UNSUBSCRIBE ${destination}`);
+          destinationCallbacks.delete(id);
+        },
+      };
+
+      return subscription;
+    }),
   };
+
+  return client;
 }

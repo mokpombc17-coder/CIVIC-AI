@@ -15,8 +15,13 @@ export type ChatRoomSessionStatus =
   "idle" | "claiming" | "active" | "replaced" | "releasing" | "error";
 
 export type ChatRoomSessionError = Readonly<{
-  code: "INVALID_ROOM_ID" | "WORKER_UNAVAILABLE";
+  code:
+    | "INVALID_ROOM_ID"
+    | "SUBSCRIPTION_SETUP_FAILED"
+    | "SUBSCRIPTION_REJECTED"
+    | "WORKER_UNAVAILABLE";
   message: string;
+  serverCode?: string;
 }>;
 
 export type ChatRoomSessionSnapshot = Readonly<{

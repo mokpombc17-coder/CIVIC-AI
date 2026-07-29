@@ -1,9 +1,17 @@
-import type { Client, IFrame } from "@stomp/stompjs";
+import type { Client, IFrame, IMessage } from "@stomp/stompjs";
 import type {
   ChatConnectionSnapshot,
   ChatConnectionStatus,
   ChatRealtimeError,
 } from "../chat-realtime-transport";
+import {
+  getChatRoomEventsDestination,
+  getChatRoomMessagesDestination,
+} from "../chat-stomp-destinations";
+import {
+  ChatStompSubscriptionManager,
+  parseChatSubscriptionRejection,
+} from "../chat-stomp-subscription-manager";
 import {
   isChatSharedWorkerCommand,
   type ChatSharedWorkerCommand,
@@ -20,6 +28,7 @@ export type ChatSharedWorkerStompClient = Pick<
   | "onStompError"
   | "onWebSocketClose"
   | "onWebSocketError"
+  | "subscribe"
 >;
 
 type ChatSharedWorkerMessageListener = (event: MessageEvent<unknown>) => void;
@@ -45,6 +54,13 @@ type ActiveRoomLease = Readonly<{
   generation: number;
 }>;
 
+type PendingRoomActivation = Readonly<{
+  requestId: string;
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   status: "idle",
   error: null,
@@ -56,17 +72,20 @@ export class ChatSharedWorkerRuntime {
   private activeRoomLease: ActiveRoomLease | null = null;
   private deactivation: Promise<void> | null = null;
   private generation = 0;
+  private pendingRoomActivation: PendingRoomActivation | null = null;
   private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
+  private readonly subscriptions: ChatStompSubscriptionManager;
 
   constructor(
     private readonly client: ChatSharedWorkerStompClient,
     private readonly workerInstanceId = crypto.randomUUID(),
   ) {
+    this.subscriptions = new ChatStompSubscriptionManager(this.client, {
+      onSystemEvent: this.handleSystemEvent,
+    });
     this.client.onConnect = () => {
-      if (this.getAttachedPortCount() > 0) {
-        this.setSnapshot("connected", null);
-      }
+      this.handleConnected();
     };
     this.client.onStompError = (frame) => {
       if (this.getAttachedPortCount() === 0) {
@@ -87,6 +106,8 @@ export class ChatSharedWorkerRuntime {
       }
     };
     this.client.onWebSocketClose = (event) => {
+      this.subscriptions.disconnect();
+
       if (this.getAttachedPortCount() === 0 || this.deactivation || !this.client.active) {
         this.snapshot = {
           status: "disconnected",
@@ -179,9 +200,13 @@ export class ChatSharedWorkerRuntime {
   }
 
   private detachPort(connectedPort: ConnectedPort): void {
-    if (connectedPort.portId === this.activeRoomLease?.ownerPortId) {
+    const lease = this.activeRoomLease;
+
+    if (lease && connectedPort.portId === lease.ownerPortId) {
+      this.tryReleaseRoom(lease.roomId);
       this.generation += 1;
       this.activeRoomLease = null;
+      this.pendingRoomActivation = null;
     }
 
     connectedPort.attached = false;
@@ -221,6 +246,7 @@ export class ChatSharedWorkerRuntime {
       status: "disconnecting",
       error: null,
     };
+    this.subscriptions.disconnect();
 
     let operation: Promise<void>;
 
@@ -278,6 +304,7 @@ export class ChatSharedWorkerRuntime {
 
   private reconnect(): void {
     if (this.client.active) {
+      this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
       this.client.forceDisconnect();
       return;
@@ -310,12 +337,13 @@ export class ChatSharedWorkerRuntime {
     const previousLease = this.activeRoomLease;
 
     if (previousLease?.roomId === command.roomId && previousLease.ownerPortId === portId) {
-      connectedPort.port.postMessage({
-        type: "ROOM_ACTIVATED",
+      this.pendingRoomActivation = {
         requestId: command.requestId,
         roomId: command.roomId,
+        ownerPortId: portId,
         generation: previousLease.generation,
-      });
+      };
+      this.activatePendingRoom();
       return;
     }
 
@@ -336,12 +364,13 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.activeRoomLease = nextLease;
-    connectedPort.port.postMessage({
-      type: "ROOM_ACTIVATED",
+    this.pendingRoomActivation = {
       requestId: command.requestId,
       roomId: command.roomId,
+      ownerPortId: portId,
       generation: nextLease.generation,
-    });
+    };
+    this.activatePendingRoom();
   }
 
   private releaseRoom(
@@ -353,8 +382,10 @@ export class ChatSharedWorkerRuntime {
       lease?.ownerPortId === connectedPort.portId && lease.roomId === command.roomId;
 
     if (ownsLease) {
+      this.tryReleaseRoom(command.roomId);
       this.generation += 1;
       this.activeRoomLease = null;
+      this.pendingRoomActivation = null;
     }
 
     connectedPort.port.postMessage({
@@ -364,6 +395,159 @@ export class ChatSharedWorkerRuntime {
       generation: this.generation,
     });
   }
+
+  private handleConnected(): void {
+    if (this.getAttachedPortCount() === 0) {
+      return;
+    }
+
+    try {
+      this.subscriptions.connect();
+    } catch (cause) {
+      this.handleSubscriptionSetupFailure(cause);
+      return;
+    }
+
+    this.setSnapshot("connected", null);
+    this.completePendingRoomActivation();
+  }
+
+  private activatePendingRoom(): void {
+    const pending = this.pendingRoomActivation;
+    const lease = this.activeRoomLease;
+
+    if (
+      !pending ||
+      !lease ||
+      pending.generation !== lease.generation ||
+      pending.ownerPortId !== lease.ownerPortId ||
+      pending.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    try {
+      this.subscriptions.activateRoom(lease.roomId);
+    } catch (cause) {
+      this.handleSubscriptionSetupFailure(cause);
+      return;
+    }
+
+    if (!this.subscriptions.connected) {
+      return;
+    }
+
+    if (this.snapshot.status === "error") {
+      this.setSnapshot("connected", null);
+    }
+    this.completePendingRoomActivation();
+  }
+
+  private completePendingRoomActivation(): void {
+    const pending = this.pendingRoomActivation;
+    const lease = this.activeRoomLease;
+
+    if (
+      !pending ||
+      !lease ||
+      this.subscriptions.activeRoomId !== lease.roomId ||
+      pending.generation !== lease.generation ||
+      pending.ownerPortId !== lease.ownerPortId ||
+      pending.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.pendingRoomActivation = null;
+    this.sendToPort(pending.ownerPortId, {
+      type: "ROOM_ACTIVATED",
+      requestId: pending.requestId,
+      roomId: pending.roomId,
+      generation: pending.generation,
+    });
+  }
+
+  private tryReleaseRoom(roomId: string): void {
+    try {
+      this.subscriptions.releaseRoom(roomId);
+    } catch (cause) {
+      this.setSnapshot("error", {
+        source: "stomp",
+        message:
+          cause instanceof Error && cause.message.trim()
+            ? cause.message
+            : "기존 채팅방 STOMP 구독 해제에 실패했습니다.",
+      });
+    }
+  }
+
+  private handleSubscriptionSetupFailure(cause: unknown): void {
+    const message =
+      cause instanceof Error && cause.message.trim()
+        ? cause.message
+        : "채팅방 STOMP 구독을 설정하지 못했습니다.";
+    const pending = this.pendingRoomActivation;
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      this.tryReleaseRoom(lease.roomId);
+    }
+    this.pendingRoomActivation = null;
+
+    if (lease) {
+      this.generation += 1;
+      this.activeRoomLease = null;
+    }
+
+    if (pending) {
+      this.sendToPort(pending.ownerPortId, {
+        type: "ROOM_ACTIVATION_FAILED",
+        requestId: pending.requestId,
+        roomId: pending.roomId,
+        code: "SUBSCRIPTION_SETUP_FAILED",
+        message,
+      });
+    } else if (lease) {
+      this.sendToPort(lease.ownerPortId, {
+        type: "ROOM_SUBSCRIPTION_FAILED",
+        roomId: lease.roomId,
+        generation: this.generation,
+        code: "SUBSCRIPTION_SETUP_FAILED",
+        message,
+      });
+    }
+
+    this.setSnapshot("error", {
+      source: "stomp",
+      message,
+    });
+  }
+
+  private readonly handleSystemEvent = (message: IMessage): void => {
+    const rejection = parseChatSubscriptionRejection(message.body);
+    const lease = this.activeRoomLease;
+
+    if (
+      !rejection ||
+      !lease ||
+      (rejection.destination !== getChatRoomMessagesDestination(lease.roomId) &&
+        rejection.destination !== getChatRoomEventsDestination(lease.roomId))
+    ) {
+      return;
+    }
+
+    this.tryReleaseRoom(lease.roomId);
+    this.pendingRoomActivation = null;
+    this.generation += 1;
+    this.activeRoomLease = null;
+    this.sendToPort(lease.ownerPortId, {
+      type: "ROOM_SUBSCRIPTION_FAILED",
+      roomId: lease.roomId,
+      generation: this.generation,
+      code: rejection.code,
+      message: `서버가 ${rejection.destination} 구독을 거절했습니다.`,
+    });
+  };
 
   private sendToPort(portId: string, event: ChatSharedWorkerEvent): void {
     for (const connectedPort of this.ports.values()) {

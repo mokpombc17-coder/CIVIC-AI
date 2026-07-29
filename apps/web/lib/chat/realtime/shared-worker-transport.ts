@@ -277,6 +277,22 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           });
         }
         return;
+      case "ROOM_SUBSCRIPTION_FAILED":
+        if (workerEvent.generation >= this.roomSnapshot.generation) {
+          this.pendingRoomRequestId = null;
+          this.setRoomSnapshot({
+            status: "error",
+            roomId: workerEvent.roomId,
+            generation: workerEvent.generation,
+            replacedByRoomId: null,
+            error: {
+              code: "SUBSCRIPTION_REJECTED",
+              serverCode: workerEvent.code,
+              message: workerEvent.message,
+            },
+          });
+        }
+        return;
       case "ROOM_ACTIVATION_FAILED":
         if (workerEvent.requestId === this.pendingRoomRequestId) {
           this.pendingRoomRequestId = null;

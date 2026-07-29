@@ -47,5 +47,14 @@ describe("chat shared worker protocol", () => {
         message: "invalid",
       }),
     ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_SUBSCRIPTION_FAILED",
+        roomId: "room-01",
+        generation: 3,
+        code: "ACTIVE_ROOM_LIMIT_EXCEEDED",
+        message: "rejected",
+      }),
+    ).toBe(true);
   });
 });

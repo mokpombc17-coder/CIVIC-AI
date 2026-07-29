@@ -322,6 +322,35 @@ describe("SharedWorkerTransport", () => {
       },
     });
   });
+
+  it("서버의 방 구독 거절을 room session 오류로 보존한다", () => {
+    const worker = createFakeWorker();
+    const transport = new SharedWorkerTransport({
+      createId: () => "port-1",
+      createWorker: () => worker,
+    });
+
+    transport.attach();
+    worker.port.dispatchMessage({
+      type: "ROOM_SUBSCRIPTION_FAILED",
+      roomId: "room-01",
+      generation: 4,
+      code: "ACTIVE_ROOM_LIMIT_EXCEEDED",
+      message: "서버가 방 구독을 거절했습니다.",
+    });
+
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "error",
+      roomId: "room-01",
+      generation: 4,
+      replacedByRoomId: null,
+      error: {
+        code: "SUBSCRIPTION_REJECTED",
+        serverCode: "ACTIVE_ROOM_LIMIT_EXCEEDED",
+        message: "서버가 방 구독을 거절했습니다.",
+      },
+    });
+  });
 });
 
 type FakePort = {
