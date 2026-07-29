@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { PLACEHOLDER_CHAT_ROOMS } from "./_fixtures/chat-placeholder-data";
 
 export const metadata: Metadata = {
@@ -16,6 +17,7 @@ export default function ChatPage() {
           API 명세 연결 전 화면 흐름을 확인하기 위한 임시 목록입니다. 현재 표시되는 내용은 서버
           데이터가 아닙니다.
         </p>
+        <ChatConnectionStatus />
       </section>
 
       <section className="panel">

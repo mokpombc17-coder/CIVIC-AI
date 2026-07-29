@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import {
   PLACEHOLDER_CURRENT_USER_ID,
   findPlaceholderChatRoom,
@@ -49,10 +50,11 @@ export default async function ChatRoomPage({ params }: ChatRoomPageProps) {
               <h1 className="truncate text-xl font-bold text-slate-950">{room.name}</h1>
               <span className="status">임시 데이터</span>
             </div>
-            <p className="mt-1 text-sm text-slate-500">
-              참여자 {room.memberCount}명 · WebSocket 미연결
-            </p>
+            <p className="mt-1 text-sm text-slate-500">참여자 {room.memberCount}명</p>
             <p className="mt-1 truncate text-sm text-slate-500">{room.description}</p>
+            <div className="mt-2">
+              <ChatConnectionStatus />
+            </div>
           </div>
 
           <button
