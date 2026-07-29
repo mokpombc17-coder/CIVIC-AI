@@ -7,10 +7,6 @@ import {
 } from "./chat-stomp-destinations";
 
 export type ChatStompSubscriptionClient = Pick<Client, "subscribe">;
-export type ChatSubscriptionRejection = Readonly<{
-  code: string;
-  destination: string;
-}>;
 
 type ChatStompSubscriptionCallbacks = Readonly<{
   onCommandResult?: (message: IMessage) => void;
@@ -192,35 +188,4 @@ export class ChatStompSubscriptionManager {
 
 function ignoreStompMessage(): undefined {
   return undefined;
-}
-
-export function parseChatSubscriptionRejection(body: string): ChatSubscriptionRejection | null {
-  let value: unknown;
-
-  try {
-    value = JSON.parse(body);
-  } catch {
-    return null;
-  }
-
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const event = value as Record<string, unknown>;
-
-  if (
-    event.status !== "REJECTED" ||
-    typeof event.code !== "string" ||
-    !event.code ||
-    typeof event.destination !== "string" ||
-    !event.destination
-  ) {
-    return null;
-  }
-
-  return {
-    code: event.code,
-    destination: event.destination,
-  };
 }

@@ -4,10 +4,8 @@ import {
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
 } from "./chat-stomp-destinations";
-import {
-  ChatStompSubscriptionManager,
-  parseChatSubscriptionRejection,
-} from "./chat-stomp-subscription-manager";
+import { parseChatSubscriptionRejection } from "./chat-stomp-contracts";
+import { ChatStompSubscriptionManager } from "./chat-stomp-subscription-manager";
 import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
   isChatConnectionReplacedCloseEvent,
