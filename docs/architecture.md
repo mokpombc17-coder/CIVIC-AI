@@ -51,3 +51,9 @@ The bridge package contains only transport contracts; it must not contain domain
 
 The template does not grant the Next.js runtime access to the operational database. This keeps domain authorization, transaction boundaries,
 and schema ownership in Spring Boot. Next.js may own a separate session store or web-specific cache when the application requires it.
+
+## Detailed architecture documents
+
+- [채팅 실시간 세션과 멀티탭 정책](./architecture/chat-realtime-session.md)
+- [React component tree](./architecture/react-component-tree.md)
+- [WebView bridge](./architecture/webview-bridge.md)
