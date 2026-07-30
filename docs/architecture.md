@@ -55,5 +55,6 @@ and schema ownership in Spring Boot. Next.js may own a separate session store or
 ## Detailed architecture documents
 
 - [채팅 실시간 세션과 멀티탭 정책](./architecture/chat-realtime-session.md)
+- [채팅 메시지 Admission Control과 자동 재전송 정책](./architecture/chat-message-admission-control.md)
 - [React component tree](./architecture/react-component-tree.md)
 - [WebView bridge](./architecture/webview-bridge.md)

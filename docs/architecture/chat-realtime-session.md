@@ -470,9 +470,14 @@ publish에 성공하면 Worker는 `clientMessageId → ownerPortId, roomId` corr
 빠른 소유권 전환으로 인해 stale command가 도착할 수 있기 때문이다.
 
 `ACCEPTED`와 `DUPLICATE`는 성공으로 처리한다. `REJECTED` 또는 `FAILED`에서
-`retryable=true`이면 `retryAfterMs` 이후 동일한 `clientMessageId`와 동일한 content로만
-재전송한다. 사용자가 실패한 내용을 수정하면 새 메시지로 간주해 새 UUID를 발급한다. command
-결과가 오지 않으면 15초 뒤 같은 메시지를 재시도할 수 있도록 원문과 ID를 유지한다.
+`USER_RATE_LIMITED` 또는 `SERVER_BUSY`이고 `retryable=true`이면 사용자가 직접 재전송하지
+않는다. Worker–탭 delivery 계층이 서버의 `retryAfterMs`를 최소 대기시간으로 지키고 jitter를
+더한 뒤 동일한 `clientMessageId`와 strip된 동일 content로 자동 재전송한다. 이 중간 상태는
+사용자 오류로 표시하지 않으며, 자동 복구 한도를 초과했을 때만 terminal 실패를 표시한다.
+
+content 정규화, 자동 재전송 allowlist, jitter, 취소 생명주기와 테스트 기준은
+[채팅 메시지 Admission Control과 자동 재전송 정책](./chat-message-admission-control.md)을
+따른다.
 
 ## 생명주기
 
@@ -960,5 +965,6 @@ journal을 모두 갱신한 뒤에만 delivery를 ACK한다. 다음 단계에서
 - `apps/web/lib/chat/realtime/create-chat-realtime-transport.ts`
 - `apps/web/components/chat-realtime-provider.tsx`
 - `apps/web/components/chat-connection-status.tsx`
+- `docs/architecture/chat-message-admission-control.md`
 - `docs/contracts/platform-auth.md`
 - `docs/architecture/react-component-tree.md`
