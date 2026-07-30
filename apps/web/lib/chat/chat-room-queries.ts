@@ -9,11 +9,18 @@ import {
 } from "@tanstack/react-query";
 import { mergeChatMessages } from "./chat-message-merge";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
-import type { ChatMessage, MembershipStatus, MessageHistoryResponse } from "./chat-room-contracts";
+import type {
+  ChatMessage,
+  MembershipStatus,
+  MessageHistoryResponse,
+  MyRoomListItem,
+  PublicRoomListItem,
+} from "./chat-room-contracts";
 
 const DEFAULT_LIST_LIMIT = 20;
 export const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
 const EMPTY_CHAT_MESSAGES: readonly ChatMessage[] = [];
+const EMPTY_ROOM_LIST_ITEMS: readonly never[] = [];
 
 export type ChatRoomListQueryParams = Readonly<{
   limit?: number;
@@ -165,11 +172,29 @@ export function flattenRoomMessageHistoryPages(
 }
 
 export function usePublicRoomsQuery(params: ChatRoomListQueryParams = {}) {
-  return useInfiniteQuery(publicRoomsInfiniteQueryOptions(params));
+  const query = useInfiniteQuery(publicRoomsInfiniteQueryOptions(params));
+  const rooms = useMemo(
+    () => flattenRoomListPages<PublicRoomListItem>(query.data?.pages),
+    [query.data?.pages],
+  );
+
+  return {
+    ...query,
+    rooms,
+  };
 }
 
 export function useMyRoomsQuery(params: ChatRoomListQueryParams = {}) {
-  return useInfiniteQuery(myRoomsInfiniteQueryOptions(params));
+  const query = useInfiniteQuery(myRoomsInfiniteQueryOptions(params));
+  const rooms = useMemo(
+    () => flattenRoomListPages<MyRoomListItem>(query.data?.pages),
+    [query.data?.pages],
+  );
+
+  return {
+    ...query,
+    rooms,
+  };
 }
 
 export function useRoomDetailsQuery(roomId: string) {
@@ -198,4 +223,14 @@ export function useRoomMessageHistoryQuery(roomId: string, params: ChatMessageHi
     ...query,
     messages,
   };
+}
+
+export function flattenRoomListPages<TItem>(
+  pages: readonly { items: readonly TItem[] }[] | undefined,
+): readonly TItem[] {
+  if (!pages || pages.length === 0) {
+    return EMPTY_ROOM_LIST_ITEMS;
+  }
+
+  return pages.flatMap((page) => page.items);
 }

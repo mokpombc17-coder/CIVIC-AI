@@ -58,7 +58,8 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                     └── ChatRealtimeProvider [Client] (apps/web/components/chat-realtime-provider.tsx)
                         └── children [slot: nested page를 제공]
                             ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
-                            │   └── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
+                            │   └── ChatRoomListScreen [Client] (apps/web/components/chat-room-list-screen.tsx)
+                            │       └── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
                                     ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
@@ -127,6 +128,7 @@ flowchart TD
     ChatRealtimeProvider["ChatRealtimeProvider [Client]<br/>apps/web/components/chat-realtime-provider.tsx"]
     ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
     ChatPage["ChatPage [Server]<br/>apps/web/app/chat/page.tsx"]
+    ChatRoomListScreen["ChatRoomListScreen [Client]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
     ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
@@ -157,7 +159,8 @@ flowchart TD
     ChatRealtimeProvider --> ChatChildrenSlot
     ChatChildrenSlot -. "route /chat" .-> ChatPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
-    ChatPage --> ChatConnectionStatus
+    ChatPage --> ChatRoomListScreen
+    ChatRoomListScreen --> ChatConnectionStatus
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatConnectionStatus
     ChatRoomScreen --> ChatRoomSessionControls

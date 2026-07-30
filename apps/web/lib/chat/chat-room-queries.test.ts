@@ -2,6 +2,7 @@ import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import {
   chatRoomQueryKeys,
+  flattenRoomListPages,
   flattenRoomMessageHistoryPages,
   myRoomMembershipQueryOptions,
   myRoomsInfiniteQueryOptions,
@@ -44,6 +45,15 @@ describe("chat room query options", () => {
 
     expect(options.queryKey).toEqual(chatRoomQueryKeys.myList(20));
     expect(listMyRooms).toHaveBeenCalledWith({ limit: 20 });
+  });
+
+  it("여러 cursor page의 방을 서버 순서대로 펼친다", () => {
+    expect(
+      flattenRoomListPages([
+        { items: [{ roomId: "room-01" }, { roomId: "room-02" }] },
+        { items: [{ roomId: "room-03" }] },
+      ]),
+    ).toEqual([{ roomId: "room-01" }, { roomId: "room-02" }, { roomId: "room-03" }]);
   });
 
   it("방 상세와 내 멤버십을 roomId별로 분리한다", async () => {
