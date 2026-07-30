@@ -84,6 +84,32 @@ ROOM_CLOSED`는 동일 사용자의 두 탭 중 하나가 활성 방 구독을 �
 → 메시지 입력 및 "이 탭에서 다시 활성화" 차단 확인
 ```
 
+메시지 이력 UI는 서버의 기본 최신 조회 크기보다 많은 52개 메시지를 만든 뒤
+`beforeSequence` cursor를 실제로 사용하는지 검증한다.
+
+```text
+메시지 52개 전송
+→ 새로고침 후 cursor 없는 최신 50개 복구
+→ 첫 메시지는 보이지 않고 "이전 메시지 불러오기"가 표시되는지 확인
+→ 버튼 클릭
+→ beforeSequence=3 요청 확인
+→ 과거 2개가 앞에 병합되고 전체 52개가 시간순으로 표시되는지 확인
+```
+
+재연결 복구 테스트는 한 사용자의 SharedWorker WebSocket만 Chromium DevTools Protocol로
+오프라인 처리한다. 다른 사용자 연결은 유지해 단절 중 메시지를 실제 서버에 저장하고, 복귀한
+클라이언트가 마지막 연속 sequence 다음부터 복구하는지 검증한다.
+
+```text
+사용자 A와 B가 같은 방에서 단절 전 메시지 수신
+→ 사용자 A의 SharedWorker WebSocket 네트워크 단절
+→ 사용자 B가 메시지 2개 전송
+→ A 화면에는 아직 누락된 상태 확인
+→ A의 네트워크 복귀
+→ afterSequence=1 REST 요청 확인
+→ 누락 메시지 2개가 기존 메시지 뒤에 병합되는지 확인
+```
+
 ## 사전 조건
 
 Chat Resource Server와 MongoDB가 로컬 `http://localhost:8082`에서 실행 중이어야 한다.
