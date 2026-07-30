@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
+import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
 import type {
   MembershipStatus,
   RoomDetails,
@@ -172,8 +172,7 @@ export function ChatRoomMembershipPanel({ room, roomId }: { room: RoomDetails; r
     });
   }
 
-  const canRetry =
-    failedCommand !== null && commandError !== null && isRetryableChatCommandError(commandError);
+  const retryCommand = selectRetryableChatCommand(failedCommand, commandError);
   const isCommandPending = pendingCommand !== null;
 
   return (
@@ -232,11 +231,11 @@ export function ChatRoomMembershipPanel({ room, roomId }: { room: RoomDetails; r
               : "요청에 실패했습니다."}
           </p>
           <p className="mt-1 text-xs opacity-80">{toErrorMessage(commandError)}</p>
-          {canRetry ? (
+          {retryCommand ? (
             <button
               className="secondary-button mt-3"
               disabled={isCommandPending}
-              onClick={() => void execute(failedCommand)}
+              onClick={() => void execute(retryCommand)}
               type="button"
             >
               같은 요청으로 다시 시도

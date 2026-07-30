@@ -7,3 +7,14 @@ export function isRetryableChatCommandError(error: unknown): boolean {
 
   return error instanceof TypeError;
 }
+
+export function selectRetryableChatCommand<TCommand>(
+  command: TCommand | null,
+  error: unknown,
+): TCommand | null {
+  if (command === null || !isRetryableChatCommandError(error)) {
+    return null;
+  }
+
+  return command;
+}
