@@ -5,8 +5,8 @@
 - 작성일: 2026-07-29
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
-- 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약
-- 후속 범위: 채팅방 화면 연결과 `afterSequence` 자동 복구
+- 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 채팅방 상세·최신 이력 화면 연결
+- 후속 범위: 방 목록·Command 화면 연결과 `afterSequence` 자동 복구
 
 ## 계층
 

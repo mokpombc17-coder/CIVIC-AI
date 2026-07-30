@@ -1,10 +1,14 @@
 "use client";
 
-import { useChatRealtimeRoom } from "@/components/chat-realtime-provider";
+import type { ChatRealtimeRoomState } from "@/components/chat-realtime-provider";
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
-export function ChatRoomSessionControls({ roomId }: { roomId: string }) {
-  const session = useChatRealtimeRoom(roomId);
+type ChatRoomSessionControlsProps = Readonly<{
+  roomId: string;
+  session: ChatRealtimeRoomState;
+}>;
+
+export function ChatRoomSessionControls({ roomId, session }: ChatRoomSessionControlsProps) {
   const view = getChatRoomSessionView(session, roomId);
   const isUnavailable = view.kind !== "active";
 

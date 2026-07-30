@@ -60,8 +60,9 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                             ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
                             │   └── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
-                                ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
-                                └── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
+                                └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
+                                    ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
+                                    └── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
@@ -127,6 +128,7 @@ flowchart TD
     ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
     ChatPage["ChatPage [Server]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
+    ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client]<br/>apps/web/components/chat-room-session-controls.tsx"]
 
@@ -156,8 +158,9 @@ flowchart TD
     ChatChildrenSlot -. "route /chat" .-> ChatPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
     ChatPage --> ChatConnectionStatus
-    ChatRoomPage --> ChatConnectionStatus
-    ChatRoomPage --> ChatRoomSessionControls
+    ChatRoomPage --> ChatRoomScreen
+    ChatRoomScreen --> ChatConnectionStatus
+    ChatRoomScreen --> ChatRoomSessionControls
 
     ChildrenSlot -. "route /architecture" .-> ArchitecturePage
 

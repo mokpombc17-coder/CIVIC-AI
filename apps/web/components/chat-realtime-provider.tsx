@@ -20,6 +20,11 @@ import type {
 
 const ChatRealtimeContext = createContext<ChatRealtimeTransport | null>(null);
 
+export type ChatRealtimeRoomState = ChatRoomSessionSnapshot & {
+  isActive: boolean;
+  reactivate: () => void;
+};
+
 export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   const [transport] = useState(createChatRealtimeTransport);
 
@@ -44,10 +49,7 @@ export function useChatRealtimeConnection(): ChatConnectionSnapshot & {
   };
 }
 
-export function useChatRealtimeRoom(roomId: string): ChatRoomSessionSnapshot & {
-  isActive: boolean;
-  reactivate: () => void;
-} {
+export function useChatRealtimeRoom(roomId: string): ChatRealtimeRoomState {
   const transport = useChatRealtimeTransport();
   const snapshot = useSyncExternalStore(
     transport.observeRoom,

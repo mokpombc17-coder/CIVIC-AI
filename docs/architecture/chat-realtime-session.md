@@ -8,8 +8,9 @@
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·STOMP subscription 전환·멀티탭 UX
-- 다음 구현: 수정 API 명세에 따른 실시간 payload 전달
+- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·구독 준비 barrier·실시간 buffer·Query cache
+  병합·채팅방 읽기 화면
+- 다음 구현: 메시지 전송 Command, Room Event cache 반영과 `afterSequence` 누락 복구
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
 브라우저에서 같은 사용자가 Chat Resource Server와 맺는 WebSocket 연결과 활성 채팅방 구독을
