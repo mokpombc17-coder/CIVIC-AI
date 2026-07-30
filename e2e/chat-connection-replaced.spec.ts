@@ -7,7 +7,7 @@ const CONNECTION_REPLACED_MESSAGE =
   "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.";
 const RECONNECT_DELAY_GUARD_MS = 4_000;
 
-test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하고 자동 재연결을 중단한다", async ({
+test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하고 수동으로 복구한다", async ({
   browser,
 }, testInfo) => {
   const baseURL = String(testInfo.project.use.baseURL);
@@ -43,6 +43,14 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
 
       await expect(firstPage.getByText(CONNECTION_REPLACED_LABEL, { exact: true })).toBeVisible();
       await expect(secondPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+    });
+
+    await test.step("새 연결이 종료된 뒤 첫 번째 브라우저를 새로고침하면 수동으로 복구된다", async () => {
+      await secondPage.close();
+      await firstPage.reload();
+
+      await expect(firstPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(firstPage.getByText(CONNECTION_REPLACED_LABEL, { exact: true })).toHaveCount(0);
     });
   } finally {
     await Promise.all([firstContext.close(), secondContext.close()]);

@@ -64,3 +64,47 @@ test("같은 브라우저의 두 탭이 채팅방을 선점하고 다시 활성�
     await secondPage.close();
   }
 });
+
+test("활성 탭이 종료된 뒤 남은 탭이 수동으로 채팅방을 다시 활성화할 수 있다", async ({
+  context,
+  page: firstPage,
+}) => {
+  const roomName = `e2e-tab-close-${crypto.randomUUID()}`;
+
+  await authenticateDevUser(firstPage, context);
+  await createRoomAndEnter(firstPage, roomName);
+  await expect(firstPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+
+  const roomUrl = firstPage.url();
+  const secondPage = await context.newPage();
+
+  try {
+    await test.step("두 번째 탭이 채팅방 사용권을 선점한다", async () => {
+      await secondPage.goto(roomUrl);
+
+      await expect(secondPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expect(firstPage.getByText(REPLACED_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expect(firstPage.getByRole("textbox", { name: "메시지" })).toBeDisabled();
+    });
+
+    await test.step("활성 탭이 종료되어도 남은 탭은 자동으로 사용권을 선점하지 않는다", async () => {
+      await secondPage.close();
+
+      await expect(firstPage.getByText(REPLACED_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expect(firstPage.getByRole("button", { name: "이 탭에서 다시 활성화" })).toBeVisible();
+      await expect(firstPage.getByRole("textbox", { name: "메시지" })).toBeDisabled();
+    });
+
+    await test.step("남은 탭에서 명시적으로 다시 활성화하면 입력 권한을 되찾는다", async () => {
+      await firstPage.getByRole("button", { name: "이 탭에서 다시 활성화" }).click();
+
+      await expect(firstPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expect(firstPage.getByRole("textbox", { name: "메시지" })).toBeEnabled();
+      await expect(firstPage.getByText(REPLACED_ROOM_LABEL, { exact: true })).toBeHidden();
+    });
+  } finally {
+    if (!secondPage.isClosed()) {
+      await secondPage.close();
+    }
+  }
+});
