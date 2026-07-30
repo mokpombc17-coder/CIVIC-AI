@@ -24,7 +24,7 @@ export function ChatConnectionStatus() {
   return (
     <div
       className={`flex w-fit max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-full border px-3 py-1.5 text-xs font-semibold ${TONE_CLASS_NAMES[presentation.tone]}`}
-      role="status"
+      role={presentation.tone === "negative" ? "alert" : "status"}
     >
       <span
         aria-hidden="true"

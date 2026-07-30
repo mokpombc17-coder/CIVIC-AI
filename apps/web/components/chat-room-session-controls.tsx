@@ -4,13 +4,19 @@ import type { ChatRealtimeRoomState } from "@/components/chat-realtime-provider"
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
 type ChatRoomSessionControlsProps = Readonly<{
+  realtimeReady: boolean;
   roomId: string;
   session: ChatRealtimeRoomState;
 }>;
 
-export function ChatRoomSessionControls({ roomId, session }: ChatRoomSessionControlsProps) {
+export function ChatRoomSessionControls({
+  realtimeReady,
+  roomId,
+  session,
+}: ChatRoomSessionControlsProps) {
   const view = getChatRoomSessionView(session, roomId);
-  const isUnavailable = view.kind !== "active";
+  const canDraft = view.canDraft && realtimeReady;
+  const isUnavailable = !canDraft;
 
   return (
     <>
@@ -51,12 +57,14 @@ export function ChatRoomSessionControls({ roomId, session }: ChatRoomSessionCont
               ? "cursor-not-allowed bg-slate-100 text-slate-500"
               : "bg-white text-slate-950"
           }`}
-          disabled={!view.canDraft}
+          disabled={!canDraft}
           id={`chat-message-${roomId}`}
           placeholder={
-            view.canDraft
+            canDraft
               ? "메시지 전송 연동 전입니다. 초안만 입력할 수 있습니다."
-              : "이 탭을 활성화하면 메시지를 입력할 수 있습니다."
+              : view.canDraft
+                ? "메시지 동기화가 끝나면 입력할 수 있습니다."
+                : "이 탭을 활성화하면 메시지를 입력할 수 있습니다."
           }
         />
         <button

@@ -2,13 +2,13 @@
 
 ## 문서 상태
 
-- 작성일: 2026-07-29
+- 작성일: 2026-07-30
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면
   연결, 방 생성·공개 방 참여·나가기·방장 위임·차단·종료 관리 화면 연결,
-  `afterSequence` 기반 재연결·누락 자동 복구
-- 후속 범위: 버퍼 overflow·검증 실패 복구와 연결·오류 UX 보강
+  `afterSequence` 기반 재연결·누락 자동 복구, 연결·동기화 오류 UX
+- 후속 범위: 메시지 전송 command와 로컬 통합·E2E 스모크 테스트
 
 ## 계층
 
@@ -227,9 +227,36 @@ REST message-history cache 확인
 - 메시지 sequence gap이 있으면 cache 갱신과 ACK를 보류하고, 기존 마지막 연속 sequence부터
   해당 delivery의 최고 sequence까지 자동 복구한 뒤 같은 delivery를 다시 적용한다.
 - `overflowed=true` 또는 `invalidEventCount>0`은 메시지 REST만으로 Room Event까지 완전히
-  복원할 수 없으므로 현재는 cache 갱신과 ACK를 보류한다.
+  복원할 수 없으므로 cache 갱신과 ACK를 보류하고 페이지 새로고침으로 현재 방 세션과 Worker
+  buffer를 초기화하도록 안내한다. 같은 손상 delivery를 단순 재시도하지 않는다.
 - 병합 실패 delivery는 Worker transport에 남아 있으며 `retryPendingDelivery`로 같은 payload를
-  다시 처리할 수 있다.
+  다시 처리할 수 있다. sequence 누락과 일시적인 REST 오류만 이 경로로 재시도한다.
+
+## 연결·동기화 상태 UX
+
+채팅방 입력은 방 lease가 `active`인지만으로 열지 않는다. WebSocket 연결과 REST/Worker
+동기화가 모두 완료되어야 한다.
+
+```text
+WebSocket connected
+  + 현재 탭의 room lease active
+  + READY watermark까지 REST snapshot 복구 완료
+  + 보류 중인 Worker delivery 정상 병합
+  = 메시지 입력 가능
+```
+
+- 연결이 `connecting`, `reconnecting`, `disconnecting`이면 입력을 잠시 막고 준비 상태를
+  표시한다.
+- `4001 / CONNECTION_REPLACED`는 자동 재연결하지 않는 terminal 상태다. 방 snapshot이 이전
+  `active` 값을 보유해도 입력을 허용하지 않으며 다른 환경에서 연결되었다고 안내한다.
+- 일반 연결 오류는 상단 연결 상태의 `다시 연결` 동작을 사용한다. 방 재활성화 버튼으로
+  WebSocket 오류를 우회하지 않는다.
+- `afterSequence` 복구 중에는 진행 상태를 표시하고 입력을 막는다. 복구가 완료되어 coordinator가
+  동기화 완료 신호를 보낸 뒤에만 입력을 허용한다.
+- 인증·권한 오류에는 효과 없는 반복 재시도 버튼을 제공하지 않는다.
+- buffer overflow, 검증 실패, Room Event journal 충돌은 현재 cache의 무결성을 확신할 수 없는
+  오류이므로 페이지 새로고침으로 세션을 초기화한다. sequence gap이나 일시적인 서버 오류는
+  동일 snapshot과 delivery를 유지한 채 다시 동기화할 수 있다.
 
 ## 메시지 병합 정책
 

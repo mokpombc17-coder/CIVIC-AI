@@ -44,7 +44,9 @@ export type ChatRealtimeQueryCoordinatorOptions = Readonly<{
   limit?: number;
   onApplied?: (result: ApplyChatRealtimeDeliveryResult) => void;
   onError?: (error: unknown) => void;
+  onRecoveryStarted?: (throughSequence: number) => void;
   onRecovered?: (result: ChatMessageRecoveryResult) => void;
+  onSynchronized?: () => void;
   watermarkSequence?: number;
 }>;
 
@@ -174,6 +176,7 @@ export class ChatRealtimeQueryCoordinator {
 
     this.roomSnapshotApplied = true;
     this.transport.markRoomSnapshotApplied(roomId, generation);
+    this.options.onSynchronized?.();
   }
 
   private startRecovery(throughSequence: number, onRecovered: () => void): void {
@@ -188,6 +191,7 @@ export class ChatRealtimeQueryCoordinator {
       throughSequence,
     });
     this.recovery = operation;
+    this.options.onRecoveryStarted?.(throughSequence);
 
     void operation.then(
       (result) => {

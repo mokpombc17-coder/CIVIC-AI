@@ -18,6 +18,8 @@ type UseChatRealtimeQueryCoordinatorParams = Readonly<{
 
 export type ChatRealtimeQueryCoordinatorState = Readonly<{
   error: Error | null;
+  isRecovering: boolean;
+  isSynchronized: boolean;
   lastApplied: ApplyChatRealtimeDeliveryResult | null;
   retry: () => void;
 }>;
@@ -33,6 +35,8 @@ export function useChatRealtimeQueryCoordinator({
   const transport = useChatRealtimeTransport();
   const coordinatorRef = useRef<ChatRealtimeQueryCoordinator | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [isSynchronized, setIsSynchronized] = useState(false);
   const [lastApplied, setLastApplied] = useState<ApplyChatRealtimeDeliveryResult | null>(null);
 
   useEffect(() => {
@@ -52,6 +56,8 @@ export function useChatRealtimeQueryCoordinator({
     const reportError = (cause: unknown) => {
       scheduleStateUpdate(() => {
         setError(toCoordinatorError(cause));
+        setIsRecovering(false);
+        setIsSynchronized(false);
       });
     };
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
@@ -62,19 +68,38 @@ export function useChatRealtimeQueryCoordinator({
       onApplied(result) {
         scheduleStateUpdate(() => {
           setError(null);
+          setIsRecovering(false);
+          setIsSynchronized(true);
           setLastApplied(result);
         });
       },
       onError: reportError,
+      onRecoveryStarted() {
+        scheduleStateUpdate(() => {
+          setError(null);
+          setIsRecovering(true);
+          setIsSynchronized(false);
+        });
+      },
       onRecovered() {
         scheduleStateUpdate(() => {
           setError(null);
+          setIsRecovering(false);
+        });
+      },
+      onSynchronized() {
+        scheduleStateUpdate(() => {
+          setError(null);
+          setIsRecovering(false);
+          setIsSynchronized(true);
         });
       },
     });
     coordinatorRef.current = coordinator;
     scheduleStateUpdate(() => {
       setError(null);
+      setIsRecovering(false);
+      setIsSynchronized(false);
       setLastApplied(null);
     });
     coordinator.start();
@@ -108,6 +133,8 @@ export function useChatRealtimeQueryCoordinator({
 
   return {
     error,
+    isRecovering,
+    isSynchronized,
     lastApplied,
     retry,
   };

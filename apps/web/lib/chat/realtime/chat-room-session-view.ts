@@ -1,4 +1,14 @@
-import type { ChatRoomSessionSnapshot } from "./chat-realtime-transport";
+import type {
+  ChatConnectionStatus,
+  ChatRealtimeError,
+  ChatRoomSessionError,
+  ChatRoomSessionSnapshot,
+} from "./chat-realtime-transport";
+
+type ChatRoomSessionViewInput = ChatRoomSessionSnapshot & {
+  connectionError?: ChatRealtimeError | null;
+  connectionStatus?: ChatConnectionStatus;
+};
 
 export type ChatRoomSessionView =
   | {
@@ -17,9 +27,42 @@ export type ChatRoomSessionView =
     };
 
 export function getChatRoomSessionView(
-  snapshot: ChatRoomSessionSnapshot,
+  snapshot: ChatRoomSessionViewInput,
   roomId: string,
 ): ChatRoomSessionView {
+  if (snapshot.connectionStatus === "replaced") {
+    return {
+      kind: "error",
+      title: "다른 환경에서 채팅 연결을 사용 중입니다.",
+      description:
+        snapshot.connectionError?.message ??
+        "다른 브라우저, 프로필 또는 기기의 연결이 종료된 뒤 페이지를 새로고침해 주세요.",
+      canDraft: false,
+      canReactivate: false,
+    };
+  }
+
+  if (snapshot.connectionStatus === "disconnected" || snapshot.connectionStatus === "error") {
+    return {
+      kind: "error",
+      title: "실시간 채팅 연결을 사용할 수 없습니다.",
+      description:
+        snapshot.connectionError?.message ?? "상단의 다시 연결 버튼으로 연결을 복구해 주세요.",
+      canDraft: false,
+      canReactivate: false,
+    };
+  }
+
+  if (snapshot.connectionStatus !== undefined && snapshot.connectionStatus !== "connected") {
+    return {
+      kind: "pending",
+      title: "실시간 채팅 연결을 준비하고 있습니다.",
+      description: "서버 연결과 방 구독이 완료될 때까지 메시지 입력을 잠시 기다려 주세요.",
+      canDraft: false,
+      canReactivate: false,
+    };
+  }
+
   if (snapshot.status === "active" && snapshot.roomId === roomId) {
     return {
       kind: "active",
@@ -47,7 +90,7 @@ export function getChatRoomSessionView(
       title: "채팅방 실시간 연결을 활성화하지 못했습니다.",
       description: snapshot.error?.message ?? "잠시 후 이 탭에서 다시 활성화해 주세요.",
       canDraft: false,
-      canReactivate: true,
+      canReactivate: canReactivateRoomError(snapshot.error),
     };
   }
 
@@ -58,4 +101,21 @@ export function getChatRoomSessionView(
     canDraft: false,
     canReactivate: snapshot.status === "idle",
   };
+}
+
+function canReactivateRoomError(error: ChatRoomSessionError | null): boolean {
+  if (!error) {
+    return false;
+  }
+
+  switch (error.code) {
+    case "SUBSCRIPTION_SETUP_FAILED":
+    case "WORKER_UNAVAILABLE":
+      return true;
+    case "SUBSCRIPTION_REJECTED":
+    case "SUBSCRIPTION_SYNC_REJECTED":
+      return error.retryable === true || error.serverCode === "ROOM_AUTHORIZATION_UNAVAILABLE";
+    case "INVALID_ROOM_ID":
+      return false;
+  }
 }

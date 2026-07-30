@@ -15,9 +15,11 @@ describe("ChatRealtimeQueryCoordinator", () => {
   it("REST snapshot이 cache에 있어야 Worker에 적용 완료를 알린다", () => {
     const queryClient = new QueryClient();
     const transport = createFakeTransport();
+    const onSynchronized = vi.fn();
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId: "room-01",
       generation: 1,
+      onSynchronized,
     });
     coordinator.start();
 
@@ -35,6 +37,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
         generation: 1,
       },
     ]);
+    expect(onSynchronized).toHaveBeenCalledOnce();
   });
 
   it("cache가 READY watermark보다 뒤처지면 afterSequence 복구 후 적용 완료를 알린다", async () => {
@@ -44,12 +47,16 @@ describe("ChatRealtimeQueryCoordinator", () => {
       .fn()
       .mockResolvedValue(createAfterResponse([createMessage(2), createMessage(3)]));
     const onRecovered = vi.fn();
+    const onRecoveryStarted = vi.fn();
+    const onSynchronized = vi.fn();
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       api: { getRoomMessages },
       roomId: "room-01",
       generation: 1,
       watermarkSequence: 3,
+      onRecoveryStarted,
       onRecovered,
+      onSynchronized,
     });
     seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
     coordinator.start();
@@ -57,6 +64,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
     coordinator.notifyRoomSnapshotApplied();
 
     expect(transport.markedSnapshots).toEqual([]);
+    expect(onRecoveryStarted).toHaveBeenCalledWith(3);
     await vi.waitFor(() => {
       expect(transport.markedSnapshots).toEqual([
         {
@@ -81,6 +89,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
         throughSequence: 3,
       }),
     );
+    expect(onSynchronized).toHaveBeenCalledOnce();
   });
 
   it("복구 중 coordinator가 중지되면 완료된 요청이 이전 session을 활성화하지 않는다", async () => {

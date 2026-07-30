@@ -63,12 +63,15 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
                                     ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
+                                    ├── ChatRealtimeSyncStatus [Client] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                     ├── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
                                     └── ChatRoomMembershipPanel [Client] (apps/web/components/chat-room-membership-panel.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
-제외한다. Devtools 출력은 development 환경에서만 활성화된다.
+제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
+REST snapshot과 Worker buffer의 병합이 진행 중이거나 실패한 동안만 상태 UI를 렌더링하고,
+동기화 완료 상태에서는 `null`을 반환한다.
 
 ## Route `/architecture`
 
@@ -134,6 +137,7 @@ flowchart TD
     ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
+    ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client]<br/>apps/web/components/chat-room-session-controls.tsx"]
 
     ArchitecturePage["ArchitecturePage [Server]<br/>apps/web/app/architecture/page.tsx"]
@@ -165,6 +169,7 @@ flowchart TD
     ChatRoomListScreen --> ChatConnectionStatus
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatConnectionStatus
+    ChatRoomScreen -->|"sync pending/error only"| ChatRealtimeSyncStatus
     ChatRoomScreen --> ChatRoomSessionControls
     ChatRoomScreen --> ChatRoomMembershipPanel
 
@@ -179,6 +184,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatConnectionStatus,ChatRoomSessionControls,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

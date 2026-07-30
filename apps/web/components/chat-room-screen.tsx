@@ -8,6 +8,7 @@ import {
 } from "@/components/chat-realtime-provider";
 import { ChatRoomMembershipPanel } from "@/components/chat-room-membership-panel";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
+import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
@@ -81,17 +82,21 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
           session={session}
         />
 
-        {coordinatorEnabled && realtimeQuery.error ? (
-          <div className="border-t border-red-200 bg-red-50 px-5 py-4 text-red-950" role="alert">
-            <p className="text-sm font-semibold">실시간 메시지를 화면에 반영하지 못했습니다.</p>
-            <p className="mt-1 text-xs opacity-80">{realtimeQuery.error.message}</p>
-            <button className="secondary-button mt-3" onClick={realtimeQuery.retry} type="button">
-              실시간 이벤트 다시 병합
-            </button>
-          </div>
-        ) : null}
+        <ChatRealtimeSyncStatus
+          error={realtimeQuery.error}
+          isRecovering={realtimeQuery.isRecovering}
+          isSynchronized={realtimeQuery.isSynchronized}
+          onRetry={realtimeQuery.retry}
+          visible={coordinatorEnabled}
+        />
 
-        <ChatRoomSessionControls roomId={roomId} session={session} />
+        <ChatRoomSessionControls
+          realtimeReady={
+            coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null
+          }
+          roomId={roomId}
+          session={session}
+        />
       </section>
 
       {room ? <ChatRoomMembershipPanel room={room} roomId={roomId} /> : null}

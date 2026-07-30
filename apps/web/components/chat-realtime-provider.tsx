@@ -14,6 +14,8 @@ import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realti
 import { createChatRealtimeTransport } from "@/lib/chat/realtime/create-chat-realtime-transport";
 import type {
   ChatConnectionSnapshot,
+  ChatConnectionStatus,
+  ChatRealtimeError,
   ChatRealtimeTransport,
   ChatRoomSessionSnapshot,
 } from "@/lib/chat/realtime/chat-realtime-transport";
@@ -21,6 +23,8 @@ import type {
 const ChatRealtimeContext = createContext<ChatRealtimeTransport | null>(null);
 
 export type ChatRealtimeRoomState = ChatRoomSessionSnapshot & {
+  connectionError: ChatRealtimeError | null;
+  connectionStatus: ChatConnectionStatus;
   isActive: boolean;
   reactivate: () => void;
 };
@@ -51,7 +55,12 @@ export function useChatRealtimeConnection(): ChatConnectionSnapshot & {
 
 export function useChatRealtimeRoom(roomId: string): ChatRealtimeRoomState {
   const transport = useChatRealtimeTransport();
-  const snapshot = useSyncExternalStore(
+  const connectionSnapshot = useSyncExternalStore(
+    transport.observe,
+    transport.getSnapshot,
+    transport.getSnapshot,
+  );
+  const roomSnapshot = useSyncExternalStore(
     transport.observeRoom,
     transport.getRoomSnapshot,
     transport.getRoomSnapshot,
@@ -63,8 +72,13 @@ export function useChatRealtimeRoom(roomId: string): ChatRealtimeRoomState {
   useEffect(() => attachChatRealtimeRoomLifecycle(transport, roomId, window), [roomId, transport]);
 
   return {
-    ...snapshot,
-    isActive: snapshot.status === "active" && snapshot.roomId === roomId,
+    ...roomSnapshot,
+    connectionError: connectionSnapshot.error,
+    connectionStatus: connectionSnapshot.status,
+    isActive:
+      connectionSnapshot.status === "connected" &&
+      roomSnapshot.status === "active" &&
+      roomSnapshot.roomId === roomId,
     reactivate,
   };
 }
