@@ -405,6 +405,37 @@ describe("SharedWorkerTransport", () => {
     });
   });
 
+  it("ROOM_CLOSED 종료를 재시도 불가능한 room session 오류로 보존한다", () => {
+    const worker = createFakeWorker();
+    const transport = new SharedWorkerTransport({
+      createId: () => "port-1",
+      createWorker: () => worker,
+    });
+
+    transport.attach();
+    worker.port.dispatchMessage({
+      type: "ROOM_SUBSCRIPTION_FAILED",
+      roomId: "room-01",
+      generation: 4,
+      code: "ROOM_CLOSED",
+      message: "채팅방이 종료되어 실시간 연결이 해제되었습니다.",
+    });
+
+    expect(transport.getRoomSnapshot()).toEqual({
+      status: "error",
+      roomId: "room-01",
+      generation: 4,
+      replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
+      watermarkSequence: null,
+      error: {
+        code: "ROOM_CLOSED",
+        serverCode: "ROOM_CLOSED",
+        message: "채팅방이 종료되어 실시간 연결이 해제되었습니다.",
+      },
+    });
+  });
+
   it("구독 sync 진행과 거절을 room session 상태로 반영한다", () => {
     const worker = createFakeWorker();
     const transport = new SharedWorkerTransport({

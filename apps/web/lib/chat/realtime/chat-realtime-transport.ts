@@ -13,7 +13,7 @@ export type ChatConnectionStatus =
 
 export type ChatRealtimeError = Readonly<{
   source: "stomp" | "websocket" | "worker";
-  code?: "CONNECTION_REPLACED";
+  code?: "CONNECTION_REPLACED" | "ROOM_ACCESS_REVOKED" | "ROOM_CLOSED";
   message: string;
 }>;
 
@@ -21,9 +21,24 @@ export const CHAT_CONNECTION_REPLACED_CLOSE_CODE = 4001;
 export const CHAT_CONNECTION_REPLACED_REASON = "CONNECTION_REPLACED";
 export const CHAT_CONNECTION_REPLACED_MESSAGE =
   "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.";
+export const CHAT_ROOM_ACCESS_REVOKED_CLOSE_CODE = 4002;
+export const CHAT_ROOM_ACCESS_REVOKED_REASON = "ROOM_ACCESS_REVOKED";
+export const CHAT_ROOM_ACCESS_REVOKED_MESSAGE =
+  "채팅방 접근 상태가 변경되어 연결을 새로 만들고 방 상태를 다시 확인하고 있습니다.";
+export const CHAT_ROOM_CLOSED_CLOSE_CODE = 4003;
+export const CHAT_ROOM_CLOSED_REASON = "ROOM_CLOSED";
+export const CHAT_ROOM_CLOSED_MESSAGE = "채팅방이 종료되어 실시간 연결이 해제되었습니다.";
 
 export function isChatConnectionReplacedCloseEvent(event: Pick<CloseEvent, "code">): boolean {
   return event.code === CHAT_CONNECTION_REPLACED_CLOSE_CODE;
+}
+
+export function isChatRoomAccessRevokedCloseEvent(event: Pick<CloseEvent, "code">): boolean {
+  return event.code === CHAT_ROOM_ACCESS_REVOKED_CLOSE_CODE;
+}
+
+export function isChatRoomClosedCloseEvent(event: Pick<CloseEvent, "code">): boolean {
+  return event.code === CHAT_ROOM_CLOSED_CLOSE_CODE;
 }
 
 export type ChatConnectionSnapshot = Readonly<{
@@ -40,6 +55,7 @@ export type ChatRoomSessionError = Readonly<{
     | "SUBSCRIPTION_SETUP_FAILED"
     | "SUBSCRIPTION_REJECTED"
     | "SUBSCRIPTION_SYNC_REJECTED"
+    | "ROOM_CLOSED"
     | "WORKER_UNAVAILABLE";
   message: string;
   retryable?: boolean;

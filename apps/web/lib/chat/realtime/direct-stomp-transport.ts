@@ -23,7 +23,11 @@ import {
 import { ChatStompSubscriptionManager } from "./chat-stomp-subscription-manager";
 import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
+  CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
+  CHAT_ROOM_CLOSED_MESSAGE,
   isChatConnectionReplacedCloseEvent,
+  isChatRoomAccessRevokedCloseEvent,
+  isChatRoomClosedCloseEvent,
   type ChatConnectionSnapshot,
   type ChatConnectionStatus,
   type ChatMessageCommandEvent,
@@ -78,6 +82,7 @@ type RealtimeDeliverySession = Readonly<{
 
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
+  private connectionRestart: Promise<void> | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private readonly pendingMessageRooms = new Map<string, string>();
@@ -106,9 +111,11 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         return;
       }
 
-      const { generation, roomId, status } = this.roomSnapshot;
+      const { error: roomError, generation, roomId, status } = this.roomSnapshot;
+      const shouldRestoreRoom =
+        !!roomId && status !== "idle" && !(status === "error" && roomError?.code === "ROOM_CLOSED");
 
-      if (roomId && status !== "idle") {
+      if (shouldRestoreRoom && roomId) {
         this.realtimeBuffer.begin(roomId, generation);
       }
 
@@ -121,8 +128,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
       this.setSnapshot("connected", null);
 
-      if (this.roomSnapshot.roomId && this.roomSnapshot.status !== "idle") {
-        this.startRoomSync(this.roomSnapshot.roomId, this.roomSnapshot.generation);
+      if (shouldRestoreRoom && roomId) {
+        this.startRoomSync(roomId, generation);
       }
     };
     this.client.onStompError = (frame) => {
@@ -147,6 +154,20 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
+        return;
+      }
+
+      if (isChatRoomAccessRevokedCloseEvent(event)) {
+        this.restartAfterRoomAccessRevoked();
+        return;
+      }
+
+      if (isChatRoomClosedCloseEvent(event)) {
+        this.restartAfterRoomClosed();
+        return;
+      }
+
+      if (this.connectionRestart) {
         return;
       }
 
@@ -389,7 +410,11 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   };
 
   readonly reconnect = (): void => {
-    if (this.attachmentCount === 0 || this.snapshot.status === "replaced") {
+    if (
+      this.attachmentCount === 0 ||
+      this.snapshot.status === "replaced" ||
+      this.connectionRestart
+    ) {
       return;
     }
 
@@ -446,6 +471,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   }
 
   private stopConnectionReplacedReconnect(): void {
+    this.connectionRestart = null;
     this.pendingRoomSync = null;
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
@@ -463,6 +489,114 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       code: "CONNECTION_REPLACED",
       message: CHAT_CONNECTION_REPLACED_MESSAGE,
     });
+  }
+
+  private restartAfterRoomAccessRevoked(): void {
+    const roomId = this.roomSnapshot.roomId;
+
+    if (roomId) {
+      const generation = this.roomSnapshot.generation + 1;
+      this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
+      this.realtimeBuffer.begin(roomId, generation);
+      this.setRoomSnapshot({
+        status: "claiming",
+        roomId,
+        generation,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: null,
+        watermarkSequence: null,
+        error: null,
+      });
+    }
+
+    this.pendingMessageRooms.clear();
+    this.restartConnectionAfterServerClose({
+      source: "websocket",
+      code: "ROOM_ACCESS_REVOKED",
+      message: CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
+    });
+  }
+
+  private restartAfterRoomClosed(): void {
+    const roomId = this.roomSnapshot.roomId;
+
+    if (roomId) {
+      try {
+        this.subscriptions.releaseRoom(roomId);
+      } catch {
+        // The closed WebSocket cannot retain a usable room subscription.
+      }
+      this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
+      this.setRoomSnapshot({
+        status: "error",
+        roomId,
+        generation: this.roomSnapshot.generation + 1,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: null,
+        watermarkSequence: null,
+        error: {
+          code: "ROOM_CLOSED",
+          serverCode: "ROOM_CLOSED",
+          message: CHAT_ROOM_CLOSED_MESSAGE,
+        },
+      });
+    }
+
+    this.pendingMessageRooms.clear();
+    this.restartConnectionAfterServerClose({
+      source: "websocket",
+      code: "ROOM_CLOSED",
+      message: CHAT_ROOM_CLOSED_MESSAGE,
+    });
+  }
+
+  private restartConnectionAfterServerClose(error: ChatRealtimeError): void {
+    this.setSnapshot("reconnecting", error);
+
+    if (this.connectionRestart) {
+      return;
+    }
+
+    let operation: Promise<void>;
+
+    try {
+      operation = this.client.deactivate();
+    } catch (cause) {
+      this.setSnapshot("error", {
+        source: "websocket",
+        message: getSubscriptionErrorMessage(cause, "기존 WebSocket 연결을 폐기하지 못했습니다."),
+      });
+      return;
+    }
+
+    this.connectionRestart = operation;
+    void operation.then(
+      () => {
+        if (this.connectionRestart !== operation) {
+          return;
+        }
+
+        this.connectionRestart = null;
+
+        if (this.attachmentCount === 0) {
+          this.setSnapshot("disconnected", null);
+          return;
+        }
+
+        this.client.activate();
+      },
+      (cause: unknown) => {
+        if (this.connectionRestart !== operation) {
+          return;
+        }
+
+        this.connectionRestart = null;
+        this.setSnapshot("error", {
+          source: "websocket",
+          message: getSubscriptionErrorMessage(cause, "기존 WebSocket 연결을 폐기하지 못했습니다."),
+        });
+      },
+    );
   }
 
   private setRoomSnapshot(snapshot: ChatRoomSessionSnapshot): void {

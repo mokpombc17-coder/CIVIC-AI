@@ -431,7 +431,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             messageVisibleAfterSequence: null,
             watermarkSequence: null,
             error: {
-              code: "SUBSCRIPTION_REJECTED",
+              code: workerEvent.code === "ROOM_CLOSED" ? "ROOM_CLOSED" : "SUBSCRIPTION_REJECTED",
               serverCode: workerEvent.code,
               message: workerEvent.message,
             },

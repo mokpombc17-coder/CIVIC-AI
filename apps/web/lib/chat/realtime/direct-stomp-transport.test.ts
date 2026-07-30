@@ -109,6 +109,102 @@ describe("DirectStompTransport", () => {
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });
 
+  it("4002 ROOM_ACCESS_REVOKED에서는 기존 연결을 폐기하고 방 구독을 새로 구성한다", async () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.frames.length = 0;
+
+    client.onWebSocketClose({
+      code: 4002,
+      reason: "ROOM_ACCESS_REVOKED",
+    } as CloseEvent);
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+    expect(transport.getSnapshot()).toEqual({
+      status: "reconnecting",
+      error: {
+        source: "websocket",
+        code: "ROOM_ACCESS_REVOKED",
+        message: "채팅방 접근 상태가 변경되어 연결을 새로 만들고 방 상태를 다시 확인하고 있습니다.",
+      },
+    });
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "claiming",
+      roomId: "room-01",
+      generation: 2,
+      messageVisibleAfterSequence: null,
+      watermarkSequence: null,
+    });
+
+    transport.reconnect();
+    expect(client.activate).toHaveBeenCalledTimes(1);
+
+    await Promise.resolve();
+    expect(client.activate).toHaveBeenCalledTimes(2);
+
+    client.onConnect({} as IFrame);
+
+    expect(client.frames).toEqual([
+      "SUBSCRIBE /user/queue/system-events",
+      "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SEND /app/rooms/room-01/subscriptions/sync",
+    ]);
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "active",
+      roomId: "room-01",
+      generation: 2,
+    });
+  });
+
+  it("4003 ROOM_CLOSED에서는 닫힌 방 lease를 폐기하고 공통 queue만 다시 연결한다", async () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.frames.length = 0;
+
+    client.onWebSocketClose({
+      code: 4003,
+      reason: "ROOM_CLOSED",
+    } as CloseEvent);
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(transport.getRealtimeBufferSnapshot()).toBeNull();
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "error",
+      roomId: "room-01",
+      generation: 2,
+      error: {
+        code: "ROOM_CLOSED",
+        serverCode: "ROOM_CLOSED",
+      },
+    });
+
+    await Promise.resolve();
+    expect(client.activate).toHaveBeenCalledTimes(2);
+
+    client.onConnect({} as IFrame);
+
+    expect(client.frames).toEqual([
+      "SUBSCRIBE /user/queue/system-events",
+      "SUBSCRIBE /user/queue/command-results",
+    ]);
+    expect(transport.getSnapshot()).toEqual({
+      status: "connected",
+      error: null,
+    });
+    expect(transport.getRealtimeBufferSnapshot()).toBeNull();
+  });
+
   it("활성 연결은 강제로 닫아 재연결하고 비활성 연결은 다시 activate한다", () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);

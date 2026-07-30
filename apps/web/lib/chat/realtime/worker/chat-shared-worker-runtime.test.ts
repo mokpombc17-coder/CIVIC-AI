@@ -169,6 +169,141 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });
 
+  it("4002 ROOM_ACCESS_REVOKED에서는 새 연결에서 방 구독과 sync를 다시 구성한다", async () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002");
+    const runtime = new ChatSharedWorkerRuntime(client, "worker-1", createId);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        messageVisibleAfterSequence: 0,
+        watermarkSequence: 20,
+      }),
+    );
+    client.frames.length = 0;
+
+    client.onWebSocketClose({
+      code: 4002,
+      reason: "ROOM_ACCESS_REVOKED",
+    } as CloseEvent);
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+    expect(port.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual({
+      status: "reconnecting",
+      error: {
+        source: "websocket",
+        code: "ROOM_ACCESS_REVOKED",
+        message: "채팅방 접근 상태가 변경되어 연결을 새로 만들고 방 상태를 다시 확인하고 있습니다.",
+      },
+    });
+    expect(runtime.getRealtimeBufferSnapshot()).toMatchObject({
+      roomId: "room-01",
+      generation: 2,
+      events: [],
+    });
+
+    await Promise.resolve();
+    expect(client.activate).toHaveBeenCalledTimes(2);
+
+    client.onConnect({} as IFrame);
+
+    expect(client.frames).toEqual([
+      "SUBSCRIBE /user/queue/system-events",
+      "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SEND /app/rooms/room-01/subscriptions/sync",
+    ]);
+    expect(port.eventsOfType("ROOM_SYNCING").at(-1)).toMatchObject({
+      roomId: "room-01",
+      generation: 2,
+    });
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440002",
+        roomId: "room-01",
+        messageVisibleAfterSequence: 100,
+        watermarkSequence: 121,
+      }),
+    );
+
+    expect(port.eventsOfType("ROOM_ACTIVATED").at(-1)).toMatchObject({
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 2,
+      messageVisibleAfterSequence: 100,
+      watermarkSequence: 121,
+    });
+  });
+
+  it("4003 ROOM_CLOSED에서는 방 lease를 폐기하고 공통 queue만 다시 연결한다", async () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.frames.length = 0;
+
+    client.onWebSocketClose({
+      code: 4003,
+      reason: "ROOM_CLOSED",
+    } as CloseEvent);
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(runtime.getRealtimeBufferSnapshot()).toBeNull();
+    expect(port.eventsOfType("ROOM_SUBSCRIPTION_FAILED").at(-1)).toMatchObject({
+      roomId: "room-01",
+      generation: 2,
+      code: "ROOM_CLOSED",
+      message: "채팅방이 종료되어 실시간 연결이 해제되었습니다.",
+    });
+
+    await Promise.resolve();
+    expect(client.activate).toHaveBeenCalledTimes(2);
+
+    client.onConnect({} as IFrame);
+
+    expect(client.frames).toEqual([
+      "SUBSCRIBE /user/queue/system-events",
+      "SUBSCRIBE /user/queue/command-results",
+    ]);
+    expect(port.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual({
+      status: "connected",
+      error: null,
+    });
+  });
+
   it("첫 방 claim을 활성 lease로 만들고 같은 owner의 중복 claim은 generation을 유지한다", () => {
     const client = createFakeStompClient();
     const runtime = new ChatSharedWorkerRuntime(client);

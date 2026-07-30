@@ -211,7 +211,10 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
           (snapshot.error.source === "stomp" ||
             snapshot.error.source === "websocket" ||
             snapshot.error.source === "worker") &&
-          (snapshot.error.code === undefined || snapshot.error.code === "CONNECTION_REPLACED") &&
+          (snapshot.error.code === undefined ||
+            snapshot.error.code === "CONNECTION_REPLACED" ||
+            snapshot.error.code === "ROOM_ACCESS_REVOKED" ||
+            snapshot.error.code === "ROOM_CLOSED") &&
           typeof snapshot.error.message === "string"))
     );
   }

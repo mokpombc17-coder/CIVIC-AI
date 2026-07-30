@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isChatSharedWorkerCommand, isChatSharedWorkerEvent } from "./chat-shared-worker-protocol";
 
 describe("chat shared worker protocol", () => {
-  it("연결 교체 snapshot의 terminal 상태와 오류 code를 검증한다", () => {
+  it("서버 close snapshot의 상태와 오류 code를 검증한다", () => {
     const snapshotEvent = {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: "worker-1",
@@ -18,6 +18,32 @@ describe("chat shared worker protocol", () => {
     };
 
     expect(isChatSharedWorkerEvent(snapshotEvent)).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...snapshotEvent,
+        snapshot: {
+          status: "reconnecting",
+          error: {
+            source: "websocket",
+            code: "ROOM_ACCESS_REVOKED",
+            message: "방 접근 회수",
+          },
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...snapshotEvent,
+        snapshot: {
+          status: "reconnecting",
+          error: {
+            source: "websocket",
+            code: "ROOM_CLOSED",
+            message: "방 종료",
+          },
+        },
+      }),
+    ).toBe(true);
     expect(
       isChatSharedWorkerEvent({
         ...snapshotEvent,

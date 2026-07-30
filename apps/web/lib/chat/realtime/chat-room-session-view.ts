@@ -116,6 +116,7 @@ function canReactivateRoomError(error: ChatRoomSessionError | null): boolean {
     case "SUBSCRIPTION_SYNC_REJECTED":
       return error.retryable === true || error.serverCode === "ROOM_AUTHORIZATION_UNAVAILABLE";
     case "INVALID_ROOM_ID":
+    case "ROOM_CLOSED":
       return false;
   }
 }

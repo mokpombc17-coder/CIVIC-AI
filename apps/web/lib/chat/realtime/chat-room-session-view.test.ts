@@ -97,6 +97,32 @@ describe("getChatRoomSessionView", () => {
     });
   });
 
+  it("종료된 방은 다시 활성화할 수 없다", () => {
+    const view = getChatRoomSessionView(
+      {
+        status: "error",
+        roomId: "room-01",
+        generation: 4,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: null,
+        watermarkSequence: null,
+        error: {
+          code: "ROOM_CLOSED",
+          serverCode: "ROOM_CLOSED",
+          message: "채팅방이 종료되어 실시간 연결이 해제되었습니다.",
+        },
+      },
+      "room-01",
+    );
+
+    expect(view).toMatchObject({
+      kind: "error",
+      description: "채팅방이 종료되어 실시간 연결이 해제되었습니다.",
+      canDraft: false,
+      canReactivate: false,
+    });
+  });
+
   it("연결이 다른 환경으로 교체되면 활성 방이어도 입력과 재활성화를 막는다", () => {
     const view = getChatRoomSessionView(
       {

@@ -1,7 +1,11 @@
 import type { Client, IFrame, IMessage } from "@stomp/stompjs";
 import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
+  CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
+  CHAT_ROOM_CLOSED_MESSAGE,
   isChatConnectionReplacedCloseEvent,
+  isChatRoomAccessRevokedCloseEvent,
+  isChatRoomClosedCloseEvent,
   type ChatConnectionSnapshot,
   type ChatConnectionStatus,
   type ChatRealtimeError,
@@ -162,6 +166,16 @@ export class ChatSharedWorkerRuntime {
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
+        return;
+      }
+
+      if (isChatRoomAccessRevokedCloseEvent(event)) {
+        this.restartAfterRoomAccessRevoked();
+        return;
+      }
+
+      if (isChatRoomClosedCloseEvent(event)) {
+        this.restartAfterRoomClosed();
         return;
       }
 
@@ -416,6 +430,59 @@ export class ChatSharedWorkerRuntime {
       code: "CONNECTION_REPLACED",
       message: CHAT_CONNECTION_REPLACED_MESSAGE,
     });
+  }
+
+  private restartAfterRoomAccessRevoked(): void {
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      const refreshedLease: ActiveRoomLease = {
+        ...lease,
+        generation: lease.generation + 1,
+      };
+      this.generation = refreshedLease.generation;
+      this.activeRoomLease = refreshedLease;
+      this.pendingRoomActivation = refreshedLease;
+      this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.realtimeBuffer.begin(refreshedLease.roomId, refreshedLease.generation);
+    }
+
+    this.pendingMessageCommands.clear();
+    this.setSnapshot("reconnecting", {
+      source: "websocket",
+      code: "ROOM_ACCESS_REVOKED",
+      message: CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
+    });
+    this.stopConnection();
+  }
+
+  private restartAfterRoomClosed(): void {
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      this.tryReleaseRoom(lease.roomId);
+      this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.generation = lease.generation + 1;
+      this.activeRoomLease = null;
+      this.sendToPort(lease.ownerPortId, {
+        type: "ROOM_SUBSCRIPTION_FAILED",
+        roomId: lease.roomId,
+        generation: this.generation,
+        code: "ROOM_CLOSED",
+        message: CHAT_ROOM_CLOSED_MESSAGE,
+      });
+    }
+
+    this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
+    this.pendingMessageCommands.clear();
+    this.pauseRealtimeDelivery();
+    this.setSnapshot("reconnecting", {
+      source: "websocket",
+      code: "ROOM_CLOSED",
+      message: CHAT_ROOM_CLOSED_MESSAGE,
+    });
+    this.stopConnection();
   }
 
   private claimRoom(
