@@ -74,11 +74,13 @@ function createFakeTransport(): ChatRealtimeTransport {
       error: null,
     })),
     markRoomSnapshotApplied: vi.fn(),
+    observeMessageCommandEvent: vi.fn(() => vi.fn()),
     observeRealtimeEventDelivery: vi.fn(() => vi.fn()),
     observeRoom: vi.fn(() => vi.fn()),
     observe: vi.fn(() => vi.fn()),
     reconnect: vi.fn(),
     releaseRoom: vi.fn(),
+    sendRoomMessage: vi.fn(),
   };
 }
 

@@ -486,6 +486,71 @@ describe("SharedWorkerTransport", () => {
     expect(transport.getRealtimeEventDelivery()).toBeNull();
     expect(listener).toHaveBeenCalledTimes(2);
   });
+
+  it("메시지 전송 명령과 Worker command 결과를 탭 transport로 중계한다", () => {
+    const worker = createFakeWorker();
+    const createId = vi.fn().mockReturnValueOnce("port-1").mockReturnValueOnce("claim-1");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+    const listener = vi.fn();
+    const request = {
+      clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+      content: "안녕하세요.",
+    };
+
+    transport.attach();
+    worker.port.dispatchMessage({
+      type: "CONNECTION_SNAPSHOT",
+      workerInstanceId: "worker-1",
+      attachedPortCount: 1,
+      snapshot: {
+        status: "connected",
+        error: null,
+      },
+    });
+    transport.claimRoom("room-01");
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+      watermarkSequence: 0,
+    });
+    transport.observeMessageCommandEvent(listener);
+    transport.sendRoomMessage({ roomId: "room-01", request });
+
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "SEND_ROOM_MESSAGE",
+      portId: "port-1",
+      roomId: "room-01",
+      request,
+    });
+
+    worker.port.dispatchMessage({
+      type: "ROOM_MESSAGE_COMMAND_RESULT",
+      roomId: "room-01",
+      result: {
+        clientMessageId: request.clientMessageId,
+        status: "ACCEPTED",
+        code: null,
+        retryable: false,
+        retryAfterMs: null,
+        messageId: "message-01",
+        roomSequence: 1,
+      },
+    });
+
+    expect(listener).toHaveBeenCalledWith({
+      kind: "result",
+      roomId: "room-01",
+      result: expect.objectContaining({
+        clientMessageId: request.clientMessageId,
+        status: "ACCEPTED",
+      }),
+    });
+  });
 });
 
 type FakePort = {

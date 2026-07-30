@@ -1,4 +1,5 @@
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+import type { ChatMessageCommandResult, ChatMessageSendRequest } from "./chat-stomp-contracts";
 
 export type ChatConnectionStatus =
   | "idle"
@@ -54,6 +55,41 @@ export type ChatRoomSessionSnapshot = Readonly<{
   error: ChatRoomSessionError | null;
 }>;
 
+export type ChatRoomMessageSendCommand = Readonly<{
+  request: ChatMessageSendRequest;
+  roomId: string;
+}>;
+
+export type ChatMessageSendFailureCode =
+  "CONNECTION_NOT_READY" | "ROOM_NOT_ACTIVE" | "MESSAGE_PUBLISH_FAILED";
+
+export type ChatMessageCommandEvent =
+  | Readonly<{
+      kind: "result";
+      result: ChatMessageCommandResult;
+      roomId: string;
+    }>
+  | Readonly<{
+      kind: "failure";
+      clientMessageId: string;
+      code: ChatMessageSendFailureCode;
+      message: string;
+      retryable: boolean;
+      roomId: string;
+    }>;
+
+export class ChatMessageSendError extends Error {
+  override readonly name = "ChatMessageSendError";
+
+  constructor(
+    readonly code: ChatMessageSendFailureCode,
+    message: string,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+  }
+}
+
 export type ChatRealtimeTransport = {
   acknowledgeRealtimeEventDelivery(deliveryId: string): void;
   attach(): () => void;
@@ -62,11 +98,13 @@ export type ChatRealtimeTransport = {
   getRoomSnapshot(): ChatRoomSessionSnapshot;
   getSnapshot(): ChatConnectionSnapshot;
   markRoomSnapshotApplied(roomId: string, generation: number): void;
+  observeMessageCommandEvent(listener: (event: ChatMessageCommandEvent) => void): () => void;
   observeRealtimeEventDelivery(listener: () => void): () => void;
   observeRoom(listener: () => void): () => void;
   observe(listener: () => void): () => void;
   reconnect(): void;
   releaseRoom(roomId: string): void;
+  sendRoomMessage(command: ChatRoomMessageSendCommand): void;
 };
 
 export type ChatRealtimeTransportFactory = () => ChatRealtimeTransport;

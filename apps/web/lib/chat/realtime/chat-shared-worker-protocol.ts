@@ -1,6 +1,13 @@
 import type { ChatRealtimeBufferedEvent } from "./chat-realtime-event-buffer";
-import type { ChatConnectionSnapshot } from "./chat-realtime-transport";
-import { chatMessageCreatedEventSchema, chatRoomEventEnvelopeSchema } from "./chat-stomp-contracts";
+import type { ChatConnectionSnapshot, ChatMessageSendFailureCode } from "./chat-realtime-transport";
+import {
+  chatMessageCommandResultSchema,
+  chatMessageCreatedEventSchema,
+  chatMessageSendRequestSchema,
+  chatRoomEventEnvelopeSchema,
+  type ChatMessageCommandResult,
+  type ChatMessageSendRequest,
+} from "./chat-stomp-contracts";
 
 export const CHAT_SHARED_WORKER_NAME = "civic-ai-chat-realtime";
 
@@ -28,6 +35,12 @@ export type ChatSharedWorkerCommand =
       portId: string;
       requestId: string;
       roomId: string;
+    }>
+  | Readonly<{
+      type: "SEND_ROOM_MESSAGE";
+      portId: string;
+      roomId: string;
+      request: ChatMessageSendRequest;
     }>
   | Readonly<{
       type: "ROOM_SNAPSHOT_APPLIED";
@@ -98,6 +111,19 @@ export type ChatSharedWorkerEvent =
       message: string;
     }>
   | Readonly<{
+      type: "ROOM_MESSAGE_COMMAND_RESULT";
+      roomId: string;
+      result: ChatMessageCommandResult;
+    }>
+  | Readonly<{
+      type: "ROOM_MESSAGE_SEND_FAILED";
+      roomId: string;
+      clientMessageId: string;
+      code: ChatMessageSendFailureCode;
+      retryable: boolean;
+      message: string;
+    }>
+  | Readonly<{
       type: "ROOM_EVENTS_DELIVERED";
       deliveryId: string;
       roomId: string;
@@ -144,6 +170,13 @@ export function isChatSharedWorkerCommand(value: unknown): value is ChatSharedWo
       command.deliveryId.length > 0 &&
       typeof command.roomId === "string" &&
       isGeneration(command.generation)
+    );
+  }
+
+  if (command.type === "SEND_ROOM_MESSAGE") {
+    return (
+      typeof command.roomId === "string" &&
+      chatMessageSendRequestSchema.safeParse(command.request).success
     );
   }
 
@@ -212,6 +245,26 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
       isGeneration(event.generation) &&
       typeof event.code === "string" &&
       event.code.length > 0 &&
+      typeof event.retryable === "boolean" &&
+      typeof event.message === "string"
+    );
+  }
+
+  if (event.type === "ROOM_MESSAGE_COMMAND_RESULT") {
+    return (
+      typeof event.roomId === "string" &&
+      chatMessageCommandResultSchema.safeParse(event.result).success
+    );
+  }
+
+  if (event.type === "ROOM_MESSAGE_SEND_FAILED") {
+    return (
+      typeof event.roomId === "string" &&
+      typeof event.clientMessageId === "string" &&
+      event.clientMessageId.length > 0 &&
+      (event.code === "CONNECTION_NOT_READY" ||
+        event.code === "ROOM_NOT_ACTIVE" ||
+        event.code === "MESSAGE_PUBLISH_FAILED") &&
       typeof event.retryable === "boolean" &&
       typeof event.message === "string"
     );

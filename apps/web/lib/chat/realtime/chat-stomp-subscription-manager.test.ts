@@ -71,6 +71,49 @@ describe("ChatStompSubscriptionManager", () => {
     expect(() => manager.syncRoomSubscriptions("room-01", "not-a-uuid")).toThrow();
     expect(client.publish).not.toHaveBeenCalled();
   });
+
+  it("활성 방 메시지를 command destination으로 publish한다", () => {
+    const client = createFakeClient();
+    const manager = new ChatStompSubscriptionManager(client);
+    const request = {
+      clientMessageId: REQUEST_ID,
+      content: "안녕하세요.",
+    };
+
+    manager.connect();
+    manager.activateRoom("room-01");
+    manager.sendRoomMessage("room-01", request);
+
+    expect(client.publish).toHaveBeenLastCalledWith({
+      destination: "/app/rooms/room-01/messages",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+  });
+
+  it("활성 방이 아니거나 payload가 유효하지 않으면 메시지를 publish하지 않는다", () => {
+    const client = createFakeClient();
+    const manager = new ChatStompSubscriptionManager(client);
+
+    manager.connect();
+    manager.activateRoom("room-01");
+
+    expect(() =>
+      manager.sendRoomMessage("room-02", {
+        clientMessageId: REQUEST_ID,
+        content: "다른 방 메시지",
+      }),
+    ).toThrow("활성 방의 STOMP topic 구독이 준비되지 않았습니다.");
+    expect(() =>
+      manager.sendRoomMessage("room-01", {
+        clientMessageId: "not-a-uuid",
+        content: "잘못된 요청",
+      }),
+    ).toThrow();
+    expect(client.publish).not.toHaveBeenCalled();
+  });
 });
 
 type FakeStompClient = ChatStompSubscriptionClient & {

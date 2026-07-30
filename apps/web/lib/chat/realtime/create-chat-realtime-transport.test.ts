@@ -52,10 +52,12 @@ function createFakeTransport(): ChatRealtimeTransport {
     }),
     getSnapshot: () => ({ status: "idle", error: null }),
     markRoomSnapshotApplied: () => {},
+    observeMessageCommandEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
     observe: () => () => {},
     reconnect: () => {},
     releaseRoom: () => {},
+    sendRoomMessage: () => {},
   };
 }

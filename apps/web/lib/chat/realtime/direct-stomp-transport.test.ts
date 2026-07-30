@@ -389,6 +389,72 @@ describe("DirectStompTransport", () => {
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
+  it("Direct fallback에서 메시지를 publish하고 command 결과를 전송 호출자에게 전달한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+    const listener = vi.fn();
+    const request = {
+      clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+      content: "안녕하세요.",
+    };
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    transport.markRoomSnapshotApplied("room-01", 1);
+    transport.observeMessageCommandEvent(listener);
+    transport.sendRoomMessage({ roomId: "room-01", request });
+
+    expect(client.publish).toHaveBeenLastCalledWith({
+      destination: "/app/rooms/room-01/messages",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    client.deliver(
+      "/user/queue/command-results",
+      JSON.stringify({
+        clientMessageId: request.clientMessageId,
+        status: "ACCEPTED",
+        code: null,
+        retryable: false,
+        retryAfterMs: null,
+        messageId: "message-01",
+        roomSequence: 1,
+      }),
+    );
+
+    expect(listener).toHaveBeenCalledWith({
+      kind: "result",
+      roomId: "room-01",
+      result: expect.objectContaining({
+        clientMessageId: request.clientMessageId,
+        status: "ACCEPTED",
+      }),
+    });
+  });
+
+  it("REST snapshot 적용 전에는 Direct fallback 메시지 전송을 거절한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+
+    expect(() =>
+      transport.sendRoomMessage({
+        roomId: "room-01",
+        request: {
+          clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+          content: "아직 보내면 안 됩니다.",
+        },
+      }),
+    ).toThrow("현재 탭의 채팅방 동기화가 완료되지 않아");
+  });
+
   it("유효하지 않은 roomId는 Direct fallback에서도 로컬 오류로 거절한다", () => {
     const transport = new DirectStompTransport(createFakeClient());
 

@@ -826,6 +826,88 @@ describe("ChatSharedWorkerRuntime", () => {
       "UNSUBSCRIBE /topic/rooms/room-01/room-events",
     ]);
   });
+
+  it("owner tab의 메시지만 publish하고 command 결과를 원래 탭으로 돌려준다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const ownerPort = createFakePort();
+    const otherPort = createFakePort();
+    const request = {
+      clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+      content: "안녕하세요.",
+    };
+
+    runtime.connectPort(ownerPort);
+    runtime.connectPort(otherPort);
+    ownerPort.send({ type: "ATTACH", portId: "port-owner" });
+    otherPort.send({ type: "ATTACH", portId: "port-other" });
+    client.onConnect({} as IFrame);
+    ownerPort.send({
+      type: "CLAIM_ROOM",
+      portId: "port-owner",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    ownerPort.send({
+      type: "ROOM_SNAPSHOT_APPLIED",
+      portId: "port-owner",
+      roomId: "room-01",
+      generation: 1,
+    });
+
+    otherPort.send({
+      type: "SEND_ROOM_MESSAGE",
+      portId: "port-other",
+      roomId: "room-01",
+      request,
+    });
+
+    expect(otherPort.eventsOfType("ROOM_MESSAGE_SEND_FAILED").at(-1)).toMatchObject({
+      roomId: "room-01",
+      clientMessageId: request.clientMessageId,
+      code: "ROOM_NOT_ACTIVE",
+      retryable: true,
+    });
+
+    ownerPort.send({
+      type: "SEND_ROOM_MESSAGE",
+      portId: "port-owner",
+      roomId: "room-01",
+      request,
+    });
+
+    expect(client.publish).toHaveBeenLastCalledWith({
+      destination: "/app/rooms/room-01/messages",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    client.deliver(
+      "/user/queue/command-results",
+      JSON.stringify({
+        clientMessageId: request.clientMessageId,
+        status: "ACCEPTED",
+        code: null,
+        retryable: false,
+        retryAfterMs: null,
+        messageId: "message-01",
+        roomSequence: 1,
+      }),
+    );
+
+    expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT").at(-1)).toMatchObject({
+      roomId: "room-01",
+      result: {
+        clientMessageId: request.clientMessageId,
+        status: "ACCEPTED",
+        messageId: "message-01",
+        roomSequence: 1,
+      },
+    });
+    expect(otherPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
+  });
 });
 
 type FakeStompClient = ChatSharedWorkerStompClient & {

@@ -145,6 +145,58 @@ describe("chat shared worker protocol", () => {
     ).toBe(false);
   });
 
+  it("메시지 전송 command와 command-result event를 검증한다", () => {
+    const clientMessageId = "550e8400-e29b-41d4-a716-446655440000";
+
+    expect(
+      isChatSharedWorkerCommand({
+        type: "SEND_ROOM_MESSAGE",
+        portId: "port-1",
+        roomId: "room-01",
+        request: {
+          clientMessageId,
+          content: "안녕하세요.",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerCommand({
+        type: "SEND_ROOM_MESSAGE",
+        portId: "port-1",
+        roomId: "room-01",
+        request: {
+          clientMessageId: "invalid",
+          content: "안녕하세요.",
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_MESSAGE_COMMAND_RESULT",
+        roomId: "room-01",
+        result: {
+          clientMessageId,
+          status: "ACCEPTED",
+          code: null,
+          retryable: false,
+          retryAfterMs: null,
+          messageId: "message-01",
+          roomSequence: 1,
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_MESSAGE_SEND_FAILED",
+        roomId: "room-01",
+        clientMessageId,
+        code: "ROOM_NOT_ACTIVE",
+        retryable: true,
+        message: "방이 활성화되지 않았습니다.",
+      }),
+    ).toBe(true);
+  });
+
   it("실시간 event delivery의 순서와 payload room을 검증한다", () => {
     const delivery = {
       type: "ROOM_EVENTS_DELIVERED",

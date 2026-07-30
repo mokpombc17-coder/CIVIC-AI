@@ -2,15 +2,15 @@
 
 ## 문서 상태
 
-- 작성일: 2026-07-29
+- 작성일: 2026-07-30
 - 상태: 설계 결정
 - 적용 대상: `apps/web`의 브라우저 및 Expo WebView 채팅 런타임
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·구독 준비 barrier·실시간 buffer·Query cache
-  병합·채팅방 읽기 화면
-- 다음 구현: 메시지 전송 Command, Room Event cache 반영과 `afterSequence` 누락 복구
+- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·구독 준비 barrier·실시간 buffer·Query
+  cache 병합·`afterSequence` 누락 복구·메시지 전송 Command
+- 다음 구현: 로컬 통합 및 E2E 스모크 테스트
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
 브라우저에서 같은 사용자가 Chat Resource Server와 맺는 WebSocket 연결과 활성 채팅방 구독을
@@ -449,21 +449,30 @@ Worker가 `CLAIM_ROOM`을 받으면 다음 순서로 처리한다.
 
 ## 메시지 전송 정책
 
-Worker는 `SEND_MESSAGE`를 서버로 publish하기 전에 모두 검증한다.
+탭은 `SEND_ROOM_MESSAGE`로 Worker에 전송을 요청한다. Worker는 서버로 publish하기 전에 모두
+검증한다.
 
 ```text
 요청 portId === activeRoom.ownerPortId
 요청 roomId === activeRoom.roomId
 STOMP 연결 상태 === CONNECTED
-room subscription 상태 === ACTIVE
+ROOM_SNAPSHOT_APPLIED까지 완료된 실시간 delivery session === ACTIVE
 clientMessageId가 유효한 UUID
 content가 클라이언트 기본 제약을 통과
 ```
 
-검증에 실패하면 서버로 보내지 않고 요청한 탭에 `LOCAL_COMMAND_REJECTED`를 전달한다.
+검증에 실패하면 서버로 보내지 않고 요청한 탭에 `ROOM_MESSAGE_SEND_FAILED`를 전달한다.
+publish에 성공하면 Worker는 `clientMessageId → ownerPortId, roomId` correlation을 보관한다.
+`/user/queue/command-results`에서 결과를 받으면 `ROOM_MESSAGE_COMMAND_RESULT`로 원래 요청한
+탭에만 전달한다.
 
 활성 탭 UI가 비활성화되어 있어도 Worker 검증을 생략하지 않는다. UI event queue, 오래된 탭 코드,
 빠른 소유권 전환으로 인해 stale command가 도착할 수 있기 때문이다.
+
+`ACCEPTED`와 `DUPLICATE`는 성공으로 처리한다. `REJECTED` 또는 `FAILED`에서
+`retryable=true`이면 `retryAfterMs` 이후 동일한 `clientMessageId`와 동일한 content로만
+재전송한다. 사용자가 실패한 내용을 수정하면 새 메시지로 간주해 새 UUID를 발급한다. command
+결과가 오지 않으면 15초 뒤 같은 메시지를 재시도할 수 있도록 원문과 ID를 유지한다.
 
 ## 생명주기
 
@@ -764,9 +773,12 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 - 비활성 탭의 입력과 전송을 차단한다.
 - `/chat/[roomId]` 진입과 이탈을 `CLAIM_ROOM`, `RELEASE_ROOM`에 연결한다.
 - bfcache `pageshow`에서는 transport 재연결 이후 현재 방을 다시 claim한다.
-- 메시지 전송 버튼은 5단계 payload 연동 전까지 별도로 비활성화한다.
+- 메시지 입력은 WebSocket 연결, room lease, REST/Worker 동기화가 모두 완료된 동안만 허용한다.
+- 메시지 작성, 전송 진행, 서버 접수, 거절·실패와 동일 ID 재시도 UI를 연결한다.
 
 ### 5. 수정 API 명세 반영
+
+진행 상태: 완료 (2026-07-30)
 
 - Worker event payload 런타임 스키마를 작성한다.
 - message 및 room event를 active owner에게 전달한다.
@@ -927,20 +939,17 @@ Worker → 탭  ROOM_EVENTS_DELIVERED
 - Direct fallback도 transport API 수준에서 동일한 snapshot-applied → delivery → acknowledge
   흐름을 제공한다.
 
-다음 계약은 여전히 백엔드 또는 후속 프론트 단계의 확인이 필요하다.
+다음 계약은 로컬 통합 과정에서 추가 확인이 필요하다.
 
 - `4001 / CONNECTION_REPLACED` 외 WebSocket handshake 인증 실패의 close code와 reason
-- 비재시도 인증 오류와 일시적 인프라 오류 구분
-- reconnect 복구 API의 최종 endpoint와 pagination
-- `roomSequence` 누락 범위 처리
-- 구독 거절 event와 `CLAIM_ROOM requestId` correlation 가능 여부
-- message 및 room event 최종 payload
+- 실제 브라우저에서 command result와 message event의 도착 순서
+- 네트워크 단절 직전 publish된 command의 재연결 후 결과 처리
 
 현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환, 구독 준비
 barrier, 실시간 이벤트 버퍼, Worker–탭 REST snapshot 적용 handshake와 TanStack Query
-coordinator까지 구현되어 있다. coordinator는 메시지 cache와 Room Event journal을 모두
-갱신한 뒤에만 delivery를 ACK한다. 다음 단계에서는 이 coordinator를 채팅방 임시 화면의 실제
-REST query에 연결하고, 이후 `afterSequence` 복구와 Room Event cache 반영을 확장한다.
+coordinator, 메시지 전송 command까지 구현되어 있다. coordinator는 메시지 cache와 Room Event
+journal을 모두 갱신한 뒤에만 delivery를 ACK한다. 다음 단계에서는 실제 Chat Resource Server와
+멀티탭·재연결·메시지 재시도 흐름을 통합 검증한다.
 
 ## 관련 코드와 문서
 

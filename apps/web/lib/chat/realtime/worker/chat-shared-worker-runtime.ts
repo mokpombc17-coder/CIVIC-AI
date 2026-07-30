@@ -12,6 +12,7 @@ import {
 } from "../chat-stomp-destinations";
 import {
   parseChatMessageCreatedEvent,
+  parseChatMessageCommandResult,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
@@ -95,6 +96,11 @@ type PendingRealtimeDelivery = ChatRealtimeEventDelivery &
     ownerPortId: string;
   }>;
 
+type PendingMessageCommand = Readonly<{
+  ownerPortId: string;
+  roomId: string;
+}>;
+
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   status: "idle",
   error: null,
@@ -107,6 +113,7 @@ export class ChatSharedWorkerRuntime {
   private deactivation: Promise<void> | null = null;
   private generation = 0;
   private pendingRoomActivation: PendingRoomActivation | null = null;
+  private readonly pendingMessageCommands = new Map<string, PendingMessageCommand>();
   private pendingRoomSync: PendingRoomSync | null = null;
   private pendingRealtimeDelivery: PendingRealtimeDelivery | null = null;
   private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
@@ -122,6 +129,7 @@ export class ChatSharedWorkerRuntime {
     private readonly realtimeBuffer = new ChatRealtimeEventBuffer(),
   ) {
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
+      onCommandResult: this.handleMessageCommandResult,
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
       onSystemEvent: this.handleSystemEvent,
@@ -232,6 +240,11 @@ export class ChatSharedWorkerRuntime {
           this.releaseRoom(connectedPort, command);
         }
         return;
+      case "SEND_ROOM_MESSAGE":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.sendRoomMessage(connectedPort, command);
+        }
+        return;
       case "ROOM_SNAPSHOT_APPLIED":
         if (connectedPort.attached && connectedPort.portId === command.portId) {
           this.markRoomSnapshotApplied(connectedPort, command);
@@ -276,6 +289,7 @@ export class ChatSharedWorkerRuntime {
     }
 
     connectedPort.attached = false;
+    this.clearPendingMessageCommandsForPort(connectedPort.portId);
     connectedPort.port.removeEventListener("message", connectedPort.listener);
     this.ports.delete(connectedPort.port);
     connectedPort.port.close();
@@ -496,6 +510,69 @@ export class ChatSharedWorkerRuntime {
       roomId: command.roomId,
       generation: this.generation,
     });
+  }
+
+  private sendRoomMessage(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "SEND_ROOM_MESSAGE" }>,
+  ): void {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+    const portId = connectedPort.portId;
+
+    if (this.snapshot.status !== "connected") {
+      this.sendMessageFailure(
+        portId,
+        command.roomId,
+        command.request.clientMessageId,
+        "CONNECTION_NOT_READY",
+        true,
+        "WebSocket 연결이 준비되지 않아 메시지를 전송할 수 없습니다.",
+      );
+      return;
+    }
+
+    if (
+      !portId ||
+      !lease ||
+      !deliverySession ||
+      lease.ownerPortId !== portId ||
+      lease.roomId !== command.roomId ||
+      deliverySession.ownerPortId !== portId ||
+      deliverySession.roomId !== command.roomId ||
+      deliverySession.generation !== lease.generation
+    ) {
+      this.sendMessageFailure(
+        portId,
+        command.roomId,
+        command.request.clientMessageId,
+        "ROOM_NOT_ACTIVE",
+        true,
+        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 전송할 수 없습니다.",
+      );
+      return;
+    }
+
+    this.pendingMessageCommands.set(command.request.clientMessageId, {
+      ownerPortId: portId,
+      roomId: command.roomId,
+    });
+
+    try {
+      this.subscriptions.sendRoomMessage(command.roomId, command.request);
+    } catch (cause) {
+      this.pendingMessageCommands.delete(command.request.clientMessageId);
+      this.sendMessageFailure(
+        portId,
+        command.roomId,
+        command.request.clientMessageId,
+        "MESSAGE_PUBLISH_FAILED",
+        true,
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : "STOMP 메시지 전송에 실패했습니다.",
+      );
+    }
   }
 
   private handleConnected(): void {
@@ -889,6 +966,27 @@ export class ChatSharedWorkerRuntime {
     });
   };
 
+  private readonly handleMessageCommandResult = (message: IMessage): void => {
+    const result = parseChatMessageCommandResult(message.body);
+
+    if (!result) {
+      return;
+    }
+
+    const pending = this.pendingMessageCommands.get(result.clientMessageId);
+
+    if (!pending) {
+      return;
+    }
+
+    this.pendingMessageCommands.delete(result.clientMessageId);
+    this.sendToPort(pending.ownerPortId, {
+      type: "ROOM_MESSAGE_COMMAND_RESULT",
+      roomId: pending.roomId,
+      result,
+    });
+  };
+
   private readonly handleRoomMessage = (roomId: string, message: IMessage): void => {
     const lease = this.getCurrentBufferLease(roomId);
 
@@ -977,6 +1075,40 @@ export class ChatSharedWorkerRuntime {
       if (connectedPort.attached && connectedPort.portId === portId) {
         connectedPort.port.postMessage(event);
         return;
+      }
+    }
+  }
+
+  private sendMessageFailure(
+    portId: string | null,
+    roomId: string,
+    clientMessageId: string,
+    code: "CONNECTION_NOT_READY" | "ROOM_NOT_ACTIVE" | "MESSAGE_PUBLISH_FAILED",
+    retryable: boolean,
+    message: string,
+  ): void {
+    if (!portId) {
+      return;
+    }
+
+    this.sendToPort(portId, {
+      type: "ROOM_MESSAGE_SEND_FAILED",
+      roomId,
+      clientMessageId,
+      code,
+      retryable,
+      message,
+    });
+  }
+
+  private clearPendingMessageCommandsForPort(portId: string | null): void {
+    if (!portId) {
+      return;
+    }
+
+    for (const [clientMessageId, pending] of this.pendingMessageCommands) {
+      if (pending.ownerPortId === portId) {
+        this.pendingMessageCommands.delete(clientMessageId);
       }
     }
   }

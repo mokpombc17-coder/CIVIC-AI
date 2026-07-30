@@ -4,11 +4,14 @@ import {
   type ChatSharedWorkerCommand,
 } from "./chat-shared-worker-protocol";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
-import type {
-  ChatConnectionSnapshot,
-  ChatRealtimeError,
-  ChatRealtimeTransport,
-  ChatRoomSessionSnapshot,
+import {
+  ChatMessageSendError,
+  type ChatConnectionSnapshot,
+  type ChatMessageCommandEvent,
+  type ChatRealtimeError,
+  type ChatRealtimeTransport,
+  type ChatRoomMessageSendCommand,
+  type ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
 
 type SharedWorkerTransportMessageListener = (event: MessageEvent<unknown>) => void;
@@ -64,6 +67,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly createId: () => string;
   private readonly createWorker: () => SharedWorkerTransportWorker;
   private readonly listeners = new Set<() => void>();
+  private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private pendingRoomRequestId: string | null = null;
   private portId: string | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
@@ -119,6 +123,16 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
     return () => {
       this.roomListeners.delete(listener);
+    };
+  };
+
+  readonly observeMessageCommandEvent = (
+    listener: (event: ChatMessageCommandEvent) => void,
+  ): (() => void) => {
+    this.messageCommandListeners.add(listener);
+
+    return () => {
+      this.messageCommandListeners.delete(listener);
     };
   };
 
@@ -210,6 +224,38 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
     if (posted) {
       this.setRealtimeEventDelivery(null);
+    }
+  };
+
+  readonly sendRoomMessage = ({ request, roomId }: ChatRoomMessageSendCommand): void => {
+    if (this.snapshot.status !== "connected") {
+      throw new ChatMessageSendError(
+        "CONNECTION_NOT_READY",
+        "WebSocket 연결이 준비되지 않아 메시지를 전송할 수 없습니다.",
+        true,
+      );
+    }
+
+    if (this.roomSnapshot.status !== "active" || this.roomSnapshot.roomId !== roomId) {
+      throw new ChatMessageSendError(
+        "ROOM_NOT_ACTIVE",
+        "현재 탭에서 활성화된 채팅방이 아니어서 메시지를 전송할 수 없습니다.",
+        true,
+      );
+    }
+
+    const posted = this.postRoomCommand({
+      type: "SEND_ROOM_MESSAGE",
+      roomId,
+      request,
+    });
+
+    if (!posted) {
+      throw new ChatMessageSendError(
+        "MESSAGE_PUBLISH_FAILED",
+        "SharedWorker에 메시지 전송 명령을 전달하지 못했습니다.",
+        true,
+      );
     }
   };
 
@@ -415,6 +461,23 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           });
         }
         return;
+      case "ROOM_MESSAGE_COMMAND_RESULT":
+        this.emitMessageCommandEvent({
+          kind: "result",
+          roomId: workerEvent.roomId,
+          result: workerEvent.result,
+        });
+        return;
+      case "ROOM_MESSAGE_SEND_FAILED":
+        this.emitMessageCommandEvent({
+          kind: "failure",
+          roomId: workerEvent.roomId,
+          clientMessageId: workerEvent.clientMessageId,
+          code: workerEvent.code,
+          retryable: workerEvent.retryable,
+          message: workerEvent.message,
+        });
+        return;
       case "ROOM_EVENTS_DELIVERED":
         if (
           this.roomSnapshot.status === "active" &&
@@ -433,6 +496,10 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         }
     }
   };
+
+  private emitMessageCommandEvent(event: ChatMessageCommandEvent): void {
+    this.messageCommandListeners.forEach((listener) => listener(event));
+  }
 
   private matchesRoomActivationEvent(event: {
     requestId: string;
@@ -507,6 +574,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     command:
       | Omit<Extract<ChatSharedWorkerCommand, { type: "CLAIM_ROOM" }>, "portId">
       | Omit<Extract<ChatSharedWorkerCommand, { type: "RELEASE_ROOM" }>, "portId">
+      | Omit<Extract<ChatSharedWorkerCommand, { type: "SEND_ROOM_MESSAGE" }>, "portId">
       | Omit<Extract<ChatSharedWorkerCommand, { type: "ROOM_SNAPSHOT_APPLIED" }>, "portId">
       | Omit<Extract<ChatSharedWorkerCommand, { type: "ROOM_EVENTS_APPLIED" }>, "portId">,
   ): boolean {

@@ -6,6 +6,7 @@ import {
 } from "./chat-stomp-destinations";
 import {
   parseChatMessageCreatedEvent,
+  parseChatMessageCommandResult,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
@@ -25,8 +26,11 @@ import {
   isChatConnectionReplacedCloseEvent,
   type ChatConnectionSnapshot,
   type ChatConnectionStatus,
+  type ChatMessageCommandEvent,
   type ChatRealtimeError,
   type ChatRealtimeTransport,
+  ChatMessageSendError,
+  type ChatRoomMessageSendCommand,
   type ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
 
@@ -74,6 +78,8 @@ type RealtimeDeliverySession = Readonly<{
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private readonly listeners = new Set<() => void>();
+  private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly pendingMessageRooms = new Map<string, string>();
   private pendingRoomSync: PendingRoomSync | null = null;
   private realtimeDeliverySession: RealtimeDeliverySession | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
@@ -89,6 +95,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     private readonly realtimeBuffer = new ChatRealtimeEventBuffer(),
   ) {
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
+      onCommandResult: this.handleMessageCommandResult,
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
       onSystemEvent: this.handleSystemEvent,
@@ -212,6 +219,16 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     };
   };
 
+  readonly observeMessageCommandEvent = (
+    listener: (event: ChatMessageCommandEvent) => void,
+  ): (() => void) => {
+    this.messageCommandListeners.add(listener);
+
+    return () => {
+      this.messageCommandListeners.delete(listener);
+    };
+  };
+
   readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
     this.realtimeEventDeliveryListeners.add(listener);
 
@@ -331,6 +348,42 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.deliverRealtimeEvents(false);
   };
 
+  readonly sendRoomMessage = ({ request, roomId }: ChatRoomMessageSendCommand): void => {
+    if (this.snapshot.status !== "connected") {
+      throw new ChatMessageSendError(
+        "CONNECTION_NOT_READY",
+        "WebSocket 연결이 준비되지 않아 메시지를 전송할 수 없습니다.",
+        true,
+      );
+    }
+
+    if (
+      this.roomSnapshot.status !== "active" ||
+      this.roomSnapshot.roomId !== roomId ||
+      this.realtimeDeliverySession?.roomId !== roomId ||
+      this.realtimeDeliverySession.generation !== this.roomSnapshot.generation
+    ) {
+      throw new ChatMessageSendError(
+        "ROOM_NOT_ACTIVE",
+        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 전송할 수 없습니다.",
+        true,
+      );
+    }
+
+    this.pendingMessageRooms.set(request.clientMessageId, roomId);
+
+    try {
+      this.subscriptions.sendRoomMessage(roomId, request);
+    } catch (cause) {
+      this.pendingMessageRooms.delete(request.clientMessageId);
+      throw new ChatMessageSendError(
+        "MESSAGE_PUBLISH_FAILED",
+        cause instanceof Error ? cause.message : "STOMP 메시지 전송에 실패했습니다.",
+        true,
+      );
+    }
+  };
+
   readonly reconnect = (): void => {
     if (this.attachmentCount === 0 || this.snapshot.status === "replaced") {
       return;
@@ -364,6 +417,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     this.subscriptions.disconnect();
     this.pendingRoomSync = null;
+    this.pendingMessageRooms.clear();
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
     this.setSnapshot("disconnecting", null);
@@ -442,6 +496,28 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       message,
     });
   }
+
+  private readonly handleMessageCommandResult = (message: IMessage): void => {
+    const result = parseChatMessageCommandResult(message.body);
+
+    if (!result) {
+      return;
+    }
+
+    const roomId = this.pendingMessageRooms.get(result.clientMessageId);
+
+    if (!roomId) {
+      return;
+    }
+
+    this.pendingMessageRooms.delete(result.clientMessageId);
+    const event: ChatMessageCommandEvent = {
+      kind: "result",
+      roomId,
+      result,
+    };
+    this.messageCommandListeners.forEach((listener) => listener(event));
+  };
 
   private readonly handleSystemEvent = (message: IMessage): void => {
     const ready = parseChatRoomSubscriptionsReady(message.body);

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatRealtimeRoomState } from "@/components/chat-realtime-provider";
+import { useChatMessageComposer } from "@/components/use-chat-message-composer";
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
 type ChatRoomSessionControlsProps = Readonly<{
@@ -16,7 +17,11 @@ export function ChatRoomSessionControls({
 }: ChatRoomSessionControlsProps) {
   const view = getChatRoomSessionView(session, roomId);
   const canDraft = view.canDraft && realtimeReady;
-  const isUnavailable = !canDraft;
+  const composer = useChatMessageComposer({
+    enabled: canDraft,
+    roomId,
+  });
+  const isUnavailable = !canDraft || composer.isSending;
 
   return (
     <>
@@ -47,7 +52,34 @@ export function ChatRoomSessionControls({
         </div>
       </div>
 
-      <div className="flex gap-3 border-t border-slate-200 bg-white p-4">
+      {composer.errorMessage ? (
+        <div className="border-t border-red-200 bg-red-50 px-5 py-3 text-red-950" role="alert">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm">{composer.errorMessage}</p>
+            {composer.canRetry ? (
+              <button className="secondary-button" onClick={composer.retry} type="button">
+                같은 메시지 다시 전송
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : composer.sent ? (
+        <div
+          aria-live="polite"
+          className="border-t border-emerald-200 bg-emerald-50 px-5 py-3 text-sm text-emerald-950"
+          role="status"
+        >
+          서버가 메시지를 접수했습니다.
+        </div>
+      ) : null}
+
+      <form
+        className="flex gap-3 border-t border-slate-200 bg-white p-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          composer.send();
+        }}
+      >
         <label className="sr-only" htmlFor={`chat-message-${roomId}`}>
           메시지
         </label>
@@ -57,25 +89,28 @@ export function ChatRoomSessionControls({
               ? "cursor-not-allowed bg-slate-100 text-slate-500"
               : "bg-white text-slate-950"
           }`}
-          disabled={!canDraft}
+          disabled={isUnavailable}
           id={`chat-message-${roomId}`}
+          onChange={(event) => composer.setDraft(event.target.value)}
           placeholder={
-            canDraft
-              ? "메시지 전송 연동 전입니다. 초안만 입력할 수 있습니다."
-              : view.canDraft
-                ? "메시지 동기화가 끝나면 입력할 수 있습니다."
-                : "이 탭을 활성화하면 메시지를 입력할 수 있습니다."
+            composer.isSending
+              ? "메시지 전송 결과를 확인하고 있습니다."
+              : canDraft
+                ? "메시지를 입력해 주세요."
+                : view.canDraft
+                  ? "메시지 동기화가 끝나면 입력할 수 있습니다."
+                  : "이 탭을 활성화하면 메시지를 입력할 수 있습니다."
           }
+          value={composer.draft}
         />
         <button
-          className="primary-button cursor-not-allowed opacity-50"
-          disabled
-          title="메시지 payload 연동 후 활성화됩니다."
-          type="button"
+          className={`primary-button ${composer.canSend ? "" : "cursor-not-allowed opacity-50"}`}
+          disabled={!composer.canSend}
+          type="submit"
         >
-          전송
+          {composer.isSending ? "전송 중" : "전송"}
         </button>
-      </div>
+      </form>
     </>
   );
 }
