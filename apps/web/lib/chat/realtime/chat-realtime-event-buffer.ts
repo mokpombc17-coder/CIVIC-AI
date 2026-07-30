@@ -28,16 +28,22 @@ export type ChatRealtimeEventBufferSnapshot = Readonly<{
   roomId: string;
   generation: number;
   events: readonly ChatRealtimeBufferedEvent[];
+  throughBufferSequence: number;
   overflowed: boolean;
   invalidEventCount: number;
 }>;
+
+export type ChatRealtimeEventDelivery = ChatRealtimeEventBufferSnapshot &
+  Readonly<{
+    deliveryId: string;
+  }>;
 
 type ActiveBuffer = {
   roomId: string;
   generation: number;
   events: ChatRealtimeBufferedEvent[];
   nextBufferSequence: number;
-  overflowed: boolean;
+  lastDroppedBufferSequence: number | null;
   invalidEventCount: number;
 };
 
@@ -60,7 +66,7 @@ export class ChatRealtimeEventBuffer {
       generation,
       events: [],
       nextBufferSequence: 1,
-      overflowed: false,
+      lastDroppedBufferSequence: null,
       invalidEventCount: 0,
     };
   }
@@ -123,9 +129,45 @@ export class ChatRealtimeEventBuffer {
       roomId: activeBuffer.roomId,
       generation: activeBuffer.generation,
       events: [...activeBuffer.events],
-      overflowed: activeBuffer.overflowed,
+      throughBufferSequence: activeBuffer.nextBufferSequence - 1,
+      overflowed: activeBuffer.lastDroppedBufferSequence !== null,
       invalidEventCount: activeBuffer.invalidEventCount,
     };
+  }
+
+  acknowledge(
+    roomId: string,
+    generation: number,
+    throughBufferSequence: number,
+    invalidEventCount: number,
+  ): boolean {
+    const activeBuffer = this.getMatchingBuffer(roomId, generation);
+
+    if (
+      !activeBuffer ||
+      !Number.isSafeInteger(throughBufferSequence) ||
+      throughBufferSequence < 0 ||
+      throughBufferSequence >= activeBuffer.nextBufferSequence ||
+      !Number.isSafeInteger(invalidEventCount) ||
+      invalidEventCount < 0 ||
+      invalidEventCount > activeBuffer.invalidEventCount
+    ) {
+      return false;
+    }
+
+    activeBuffer.events = activeBuffer.events.filter(
+      (event) => event.bufferSequence > throughBufferSequence,
+    );
+    activeBuffer.invalidEventCount -= invalidEventCount;
+
+    if (
+      activeBuffer.lastDroppedBufferSequence !== null &&
+      activeBuffer.lastDroppedBufferSequence <= throughBufferSequence
+    ) {
+      activeBuffer.lastDroppedBufferSequence = null;
+    }
+
+    return true;
   }
 
   private append(roomId: string, generation: number, event: UnsequencedChatRealtimeEvent): boolean {
@@ -150,8 +192,11 @@ export class ChatRealtimeEventBuffer {
     activeBuffer.nextBufferSequence += 1;
 
     if (activeBuffer.events.length === this.capacity) {
-      activeBuffer.events.shift();
-      activeBuffer.overflowed = true;
+      const droppedEvent = activeBuffer.events.shift();
+
+      if (droppedEvent) {
+        activeBuffer.lastDroppedBufferSequence = droppedEvent.bufferSequence;
+      }
     }
 
     activeBuffer.events.push(bufferedEvent);

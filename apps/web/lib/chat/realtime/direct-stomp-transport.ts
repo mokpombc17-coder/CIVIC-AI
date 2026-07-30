@@ -16,6 +16,7 @@ import {
 } from "./chat-stomp-contracts";
 import {
   ChatRealtimeEventBuffer,
+  type ChatRealtimeEventDelivery,
   type ChatRealtimeEventBufferSnapshot,
 } from "./chat-realtime-event-buffer";
 import { ChatStompSubscriptionManager } from "./chat-stomp-subscription-manager";
@@ -65,10 +66,18 @@ type PendingRoomSync = Readonly<{
   generation: number;
 }>;
 
+type RealtimeDeliverySession = Readonly<{
+  roomId: string;
+  generation: number;
+}>;
+
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private readonly listeners = new Set<() => void>();
   private pendingRoomSync: PendingRoomSync | null = null;
+  private realtimeDeliverySession: RealtimeDeliverySession | null = null;
+  private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
+  private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
@@ -126,6 +135,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
+      this.pauseRealtimeDelivery();
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
@@ -183,6 +193,9 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   readonly getRealtimeBufferSnapshot = (): ChatRealtimeEventBufferSnapshot | null =>
     this.realtimeBuffer.getSnapshot();
 
+  readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
+    this.realtimeEventDelivery;
+
   readonly observe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
 
@@ -196,6 +209,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     return () => {
       this.roomListeners.delete(listener);
+    };
+  };
+
+  readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
+    this.realtimeEventDeliveryListeners.add(listener);
+
+    return () => {
+      this.realtimeEventDeliveryListeners.delete(listener);
     };
   };
 
@@ -230,6 +251,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       watermarkSequence: null,
       error: null,
     };
+    this.pauseRealtimeDelivery();
     this.setRoomSnapshot(claimingSnapshot);
     this.realtimeBuffer.begin(roomId, claimingSnapshot.generation);
 
@@ -262,12 +284,51 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       });
     } finally {
       this.pendingRoomSync = null;
+      this.pauseRealtimeDelivery();
       this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
       this.setRoomSnapshot({
         ...INITIAL_ROOM_SNAPSHOT,
         generation: this.roomSnapshot.generation + 1,
       });
     }
+  };
+
+  readonly markRoomSnapshotApplied = (roomId: string, generation: number): void => {
+    if (
+      this.roomSnapshot.status !== "active" ||
+      this.roomSnapshot.roomId !== roomId ||
+      this.roomSnapshot.generation !== generation
+    ) {
+      return;
+    }
+
+    this.realtimeDeliverySession = {
+      roomId,
+      generation,
+    };
+    this.deliverRealtimeEvents(true);
+  };
+
+  readonly acknowledgeRealtimeEventDelivery = (deliveryId: string): void => {
+    const delivery = this.realtimeEventDelivery;
+
+    if (!delivery || delivery.deliveryId !== deliveryId) {
+      return;
+    }
+
+    const acknowledged = this.realtimeBuffer.acknowledge(
+      delivery.roomId,
+      delivery.generation,
+      delivery.throughBufferSequence,
+      delivery.invalidEventCount,
+    );
+
+    if (!acknowledged) {
+      return;
+    }
+
+    this.setRealtimeEventDelivery(null);
+    this.deliverRealtimeEvents(false);
   };
 
   readonly reconnect = (): void => {
@@ -303,6 +364,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     this.subscriptions.disconnect();
     this.pendingRoomSync = null;
+    this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
     this.setSnapshot("disconnecting", null);
 
@@ -327,6 +389,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
   private stopConnectionReplacedReconnect(): void {
     this.pendingRoomSync = null;
+    this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
 
     try {
@@ -372,6 +435,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         },
       });
     }
+    this.pauseRealtimeDelivery();
 
     this.setSnapshot("error", {
       source: "stomp",
@@ -419,6 +483,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       // The server already rejected the room subscription; keep the rejection as the UI error.
     }
     this.pendingRoomSync = null;
+    this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
     this.setRoomSnapshot({
       status: "error",
@@ -444,11 +509,15 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     const event = parseChatMessageCreatedEvent(message.body);
 
     if (!event) {
-      this.realtimeBuffer.recordInvalidEvent(roomId, generation);
+      if (this.realtimeBuffer.recordInvalidEvent(roomId, generation)) {
+        this.deliverRealtimeEvents(false);
+      }
       return;
     }
 
-    this.realtimeBuffer.appendMessage(roomId, generation, event);
+    if (this.realtimeBuffer.appendMessage(roomId, generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
   };
 
   private readonly handleRoomEvent = (roomId: string, message: IMessage): void => {
@@ -458,7 +527,9 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       const generation = this.getCurrentBufferGeneration(roomId);
 
       if (generation !== null) {
-        this.realtimeBuffer.recordInvalidEvent(roomId, generation);
+        if (this.realtimeBuffer.recordInvalidEvent(roomId, generation)) {
+          this.deliverRealtimeEvents(false);
+        }
       }
       return;
     }
@@ -473,7 +544,9 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
-    this.realtimeBuffer.appendRoomEvent(roomId, generation, event);
+    if (this.realtimeBuffer.appendRoomEvent(roomId, generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
   }
 
   private getCurrentBufferGeneration(roomId: string): number | null {
@@ -490,6 +563,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
+    this.pauseRealtimeDelivery();
     const pendingSync: PendingRoomSync = {
       requestId: this.createId(),
       roomId,
@@ -582,6 +656,52 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         message,
       },
     });
+  }
+
+  private deliverRealtimeEvents(force: boolean): void {
+    const session = this.realtimeDeliverySession;
+
+    if (
+      !session ||
+      this.realtimeEventDelivery ||
+      this.roomSnapshot.roomId !== session.roomId ||
+      this.roomSnapshot.generation !== session.generation
+    ) {
+      return;
+    }
+
+    const snapshot = this.realtimeBuffer.getSnapshot();
+
+    if (
+      !snapshot ||
+      snapshot.roomId !== session.roomId ||
+      snapshot.generation !== session.generation ||
+      (!force &&
+        snapshot.events.length === 0 &&
+        !snapshot.overflowed &&
+        snapshot.invalidEventCount === 0)
+    ) {
+      return;
+    }
+
+    this.setRealtimeEventDelivery({
+      ...snapshot,
+      deliveryId: this.createId(),
+    });
+  }
+
+  private pauseRealtimeDelivery(): void {
+    this.realtimeDeliverySession = null;
+    this.setRealtimeEventDelivery(null);
+  }
+
+  private setRealtimeEventDelivery(delivery: ChatRealtimeEventDelivery | null): void {
+    if (this.realtimeEventDelivery === delivery) {
+      return;
+    }
+
+    this.realtimeEventDelivery = delivery;
+    this.realtimeEventDeliveryListeners.forEach((listener) => listener());
   }
 }
 

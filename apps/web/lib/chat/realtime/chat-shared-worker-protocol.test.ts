@@ -115,4 +115,78 @@ describe("chat shared worker protocol", () => {
       }),
     ).toBe(true);
   });
+
+  it("REST 적용과 실시간 delivery 확인 command를 검증한다", () => {
+    expect(
+      isChatSharedWorkerCommand({
+        type: "ROOM_SNAPSHOT_APPLIED",
+        portId: "port-1",
+        roomId: "room-01",
+        generation: 1,
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerCommand({
+        type: "ROOM_EVENTS_APPLIED",
+        portId: "port-1",
+        deliveryId: "delivery-1",
+        roomId: "room-01",
+        generation: 1,
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerCommand({
+        type: "ROOM_EVENTS_APPLIED",
+        portId: "port-1",
+        deliveryId: "",
+        roomId: "room-01",
+        generation: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("실시간 event delivery의 순서와 payload room을 검증한다", () => {
+    const delivery = {
+      type: "ROOM_EVENTS_DELIVERED",
+      deliveryId: "delivery-1",
+      roomId: "room-01",
+      generation: 1,
+      throughBufferSequence: 1,
+      overflowed: false,
+      invalidEventCount: 0,
+      events: [
+        {
+          bufferSequence: 1,
+          kind: "message",
+          event: {
+            eventVersion: 1,
+            eventType: "CHAT_MESSAGE_CREATED",
+            payload: {
+              messageId: "message-01",
+              roomId: "room-01",
+              roomSequence: 1,
+              senderUserId: "local-user-1",
+              clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+              content: "안녕하세요.",
+              createdAt: "2026-07-30T00:00:00Z",
+            },
+          },
+        },
+      ],
+    };
+
+    expect(isChatSharedWorkerEvent(delivery)).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...delivery,
+        roomId: "room-02",
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        ...delivery,
+        throughBufferSequence: 0,
+      }),
+    ).toBe(false);
+  });
 });

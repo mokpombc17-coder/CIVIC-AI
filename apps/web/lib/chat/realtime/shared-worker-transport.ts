@@ -3,6 +3,7 @@ import {
   isChatSharedWorkerEvent,
   type ChatSharedWorkerCommand,
 } from "./chat-shared-worker-protocol";
+import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type {
   ChatConnectionSnapshot,
   ChatRealtimeError,
@@ -65,6 +66,8 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly listeners = new Set<() => void>();
   private pendingRoomRequestId: string | null = null;
   private portId: string | null = null;
+  private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
+  private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
@@ -100,6 +103,9 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
   readonly getRoomSnapshot = (): ChatRoomSessionSnapshot => this.roomSnapshot;
 
+  readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
+    this.realtimeEventDelivery;
+
   readonly observe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
 
@@ -116,12 +122,21 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     };
   };
 
+  readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
+    this.realtimeEventDeliveryListeners.add(listener);
+
+    return () => {
+      this.realtimeEventDeliveryListeners.delete(listener);
+    };
+  };
+
   readonly claimRoom = (roomId: string): void => {
     if (this.roomSnapshot.status === "active" && this.roomSnapshot.roomId === roomId) {
       return;
     }
 
     const requestId = this.createId();
+    this.setRealtimeEventDelivery(null);
     this.pendingRoomRequestId = requestId;
     this.setRoomSnapshot({
       status: "claiming",
@@ -144,6 +159,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     const releasesCurrentRoom = this.roomSnapshot.roomId === roomId;
 
     if (releasesCurrentRoom) {
+      this.setRealtimeEventDelivery(null);
       this.pendingRoomRequestId = requestId;
       this.setRoomSnapshot({
         status: "releasing",
@@ -160,6 +176,41 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       requestId,
       roomId,
     });
+  };
+
+  readonly markRoomSnapshotApplied = (roomId: string, generation: number): void => {
+    if (
+      this.roomSnapshot.status !== "active" ||
+      this.roomSnapshot.roomId !== roomId ||
+      this.roomSnapshot.generation !== generation
+    ) {
+      return;
+    }
+
+    this.postRoomCommand({
+      type: "ROOM_SNAPSHOT_APPLIED",
+      roomId,
+      generation,
+    });
+  };
+
+  readonly acknowledgeRealtimeEventDelivery = (deliveryId: string): void => {
+    const delivery = this.realtimeEventDelivery;
+
+    if (!delivery || delivery.deliveryId !== deliveryId) {
+      return;
+    }
+
+    const posted = this.postRoomCommand({
+      type: "ROOM_EVENTS_APPLIED",
+      deliveryId,
+      roomId: delivery.roomId,
+      generation: delivery.generation,
+    });
+
+    if (posted) {
+      this.setRealtimeEventDelivery(null);
+    }
   };
 
   readonly reconnect = (): void => {
@@ -227,6 +278,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       error: null,
     });
     this.pendingRoomRequestId = null;
+    this.setRealtimeEventDelivery(null);
     this.setRoomSnapshot(INITIAL_ROOM_SNAPSHOT);
   }
 
@@ -245,6 +297,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           workerEvent.snapshot.status === "reconnecting" &&
           this.roomSnapshot.status === "active"
         ) {
+          this.setRealtimeEventDelivery(null);
           this.setRoomSnapshot({
             ...this.roomSnapshot,
             status: "claiming",
@@ -257,6 +310,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           workerEvent.generation >= this.roomSnapshot.generation &&
           (!this.roomSnapshot.roomId || this.roomSnapshot.roomId === workerEvent.roomId)
         ) {
+          this.setRealtimeEventDelivery(null);
           this.setRoomSnapshot({
             status: "claiming",
             roomId: workerEvent.roomId,
@@ -283,6 +337,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       case "ROOM_REPLACED":
         if (workerEvent.generation >= this.roomSnapshot.generation) {
           this.pendingRoomRequestId = null;
+          this.setRealtimeEventDelivery(null);
           this.setRoomSnapshot({
             status: "replaced",
             roomId: workerEvent.roomId,
@@ -299,6 +354,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           workerEvent.generation >= this.roomSnapshot.generation
         ) {
           this.pendingRoomRequestId = null;
+          this.setRealtimeEventDelivery(null);
           this.setRoomSnapshot({
             ...INITIAL_ROOM_SNAPSHOT,
             generation: workerEvent.generation,
@@ -308,6 +364,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       case "ROOM_SUBSCRIPTION_FAILED":
         if (workerEvent.generation >= this.roomSnapshot.generation) {
           this.pendingRoomRequestId = null;
+          this.setRealtimeEventDelivery(null);
           this.setRoomSnapshot({
             status: "error",
             roomId: workerEvent.roomId,
@@ -325,6 +382,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       case "ROOM_SYNC_FAILED":
         if (this.matchesRoomActivationEvent(workerEvent)) {
           this.pendingRoomRequestId = null;
+          this.setRealtimeEventDelivery(null);
           this.setRoomSnapshot({
             status: "error",
             roomId: workerEvent.roomId,
@@ -343,6 +401,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       case "ROOM_ACTIVATION_FAILED":
         if (workerEvent.requestId === this.pendingRoomRequestId) {
           this.pendingRoomRequestId = null;
+          this.setRealtimeEventDelivery(null);
           this.setRoomSnapshot({
             status: "error",
             roomId: workerEvent.roomId,
@@ -353,6 +412,23 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
               code: workerEvent.code,
               message: workerEvent.message,
             },
+          });
+        }
+        return;
+      case "ROOM_EVENTS_DELIVERED":
+        if (
+          this.roomSnapshot.status === "active" &&
+          workerEvent.roomId === this.roomSnapshot.roomId &&
+          workerEvent.generation === this.roomSnapshot.generation
+        ) {
+          this.setRealtimeEventDelivery({
+            deliveryId: workerEvent.deliveryId,
+            roomId: workerEvent.roomId,
+            generation: workerEvent.generation,
+            events: workerEvent.events,
+            throughBufferSequence: workerEvent.throughBufferSequence,
+            overflowed: workerEvent.overflowed,
+            invalidEventCount: workerEvent.invalidEventCount,
           });
         }
     }
@@ -420,6 +496,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       status: "error",
       error,
     });
+    this.setRealtimeEventDelivery(null);
 
     if (this.roomSnapshot.status !== "idle" && this.roomSnapshot.roomId) {
       this.setRoomWorkerError(this.roomSnapshot.roomId, error.message);
@@ -429,11 +506,13 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private postRoomCommand(
     command:
       | Omit<Extract<ChatSharedWorkerCommand, { type: "CLAIM_ROOM" }>, "portId">
-      | Omit<Extract<ChatSharedWorkerCommand, { type: "RELEASE_ROOM" }>, "portId">,
-  ): void {
+      | Omit<Extract<ChatSharedWorkerCommand, { type: "RELEASE_ROOM" }>, "portId">
+      | Omit<Extract<ChatSharedWorkerCommand, { type: "ROOM_SNAPSHOT_APPLIED" }>, "portId">
+      | Omit<Extract<ChatSharedWorkerCommand, { type: "ROOM_EVENTS_APPLIED" }>, "portId">,
+  ): boolean {
     if (!this.connection || !this.portId) {
       this.setRoomWorkerError(command.roomId, "SharedWorker port가 연결되어 있지 않습니다.");
-      return;
+      return false;
     }
 
     try {
@@ -441,14 +520,17 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         ...command,
         portId: this.portId,
       });
+      return true;
     } catch (cause) {
       this.closeConnection(false);
       this.setWorkerError(cause, "SharedWorker에 방 세션 명령을 전달하지 못했습니다.");
+      return false;
     }
   }
 
   private setRoomWorkerError(roomId: string, message: string): void {
     this.pendingRoomRequestId = null;
+    this.setRealtimeEventDelivery(null);
     this.setRoomSnapshot({
       status: "error",
       roomId,
@@ -465,6 +547,15 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private setRoomSnapshot(snapshot: ChatRoomSessionSnapshot): void {
     this.roomSnapshot = snapshot;
     this.roomListeners.forEach((listener) => listener());
+  }
+
+  private setRealtimeEventDelivery(delivery: ChatRealtimeEventDelivery | null): void {
+    if (this.realtimeEventDelivery === delivery) {
+      return;
+    }
+
+    this.realtimeEventDelivery = delivery;
+    this.realtimeEventDeliveryListeners.forEach((listener) => listener());
   }
 
   private setSnapshot(snapshot: ChatConnectionSnapshot): void {

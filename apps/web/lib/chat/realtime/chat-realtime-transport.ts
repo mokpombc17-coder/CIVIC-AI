@@ -1,3 +1,5 @@
+import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+
 export type ChatConnectionStatus =
   | "idle"
   | "connecting"
@@ -53,10 +55,14 @@ export type ChatRoomSessionSnapshot = Readonly<{
 }>;
 
 export type ChatRealtimeTransport = {
+  acknowledgeRealtimeEventDelivery(deliveryId: string): void;
   attach(): () => void;
   claimRoom(roomId: string): void;
+  getRealtimeEventDelivery(): ChatRealtimeEventDelivery | null;
   getRoomSnapshot(): ChatRoomSessionSnapshot;
   getSnapshot(): ChatConnectionSnapshot;
+  markRoomSnapshotApplied(roomId: string, generation: number): void;
+  observeRealtimeEventDelivery(listener: () => void): () => void;
   observeRoom(listener: () => void): () => void;
   observe(listener: () => void): () => void;
   reconnect(): void;

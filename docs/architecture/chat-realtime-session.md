@@ -869,6 +869,10 @@ buffer begin
   → sync SEND
   → READY
   → REST snapshot 적용 완료 전까지 계속 buffer
+  → ROOM_SNAPSHOT_APPLIED
+  → ROOM_EVENTS_DELIVERED
+  → 탭 cache 적용
+  → ROOM_EVENTS_APPLIED
 ```
 
 - `/topic/rooms/{roomId}/messages`의 `CHAT_MESSAGE_CREATED`와 방 topic의 Room Event를 런타임
@@ -890,6 +894,38 @@ buffer begin
   기록한다.
 - SharedWorker 미지원 환경의 Direct fallback도 같은 버퍼 구현을 사용한다.
 
+### Worker–탭 REST 적용 handshake
+
+`ROOM_ACTIVATED`는 구독 준비 완료를 뜻하지만 REST snapshot이 TanStack Query cache에 반영된
+상태까지 뜻하지는 않는다. 탭은 REST snapshot 적용을 마친 뒤 현재 `roomId`와 `generation`으로
+`markRoomSnapshotApplied`를 호출한다.
+
+SharedWorker transport에서는 다음 protocol로 변환한다.
+
+```text
+탭 → Worker  ROOM_SNAPSHOT_APPLIED
+Worker → 탭  ROOM_EVENTS_DELIVERED
+탭 → Worker  ROOM_EVENTS_APPLIED
+```
+
+- Worker는 현재 owner port, 활성 room lease, generation과 READY 상태가 모두 일치할 때만
+  `ROOM_SNAPSHOT_APPLIED`를 받는다.
+- 동시에 하나의 delivery만 전송한다. 탭의 확인을 기다리는 동안 들어온 이벤트는 같은 버퍼에
+  계속 쌓고 다음 delivery로 보낸다.
+- delivery에는 `deliveryId`, `throughBufferSequence`, `overflowed`, `invalidEventCount`가
+  포함된다.
+- `ROOM_EVENTS_APPLIED`는 해당 delivery의 `throughBufferSequence`까지만 제거한다. delivery
+  이후 도착한 더 큰 sequence의 이벤트는 제거하지 않는다.
+- stale `deliveryId`, 다른 owner port, room 또는 generation의 확인은 무시한다.
+- 최초 delivery는 이벤트가 없어도 전송한다. 이 왕복이 끝나면 탭과 Worker가 같은
+  generation에서 snapshot 이후 실시간 전달 단계로 전환했음을 확인할 수 있다.
+- 첫 delivery 확인 뒤에는 새 이벤트가 생길 때마다 같은 단일 in-flight 규칙으로 후속 delivery를
+  전송한다.
+- reconnect의 `ROOM_SYNCING`, 방 전환, release, owner 교체와 terminal 오류에서는 진행 중
+  delivery를 폐기한다. 버퍼 자체의 유지·폐기는 앞 절의 생명주기 정책을 따른다.
+- Direct fallback도 transport API 수준에서 동일한 snapshot-applied → delivery → acknowledge
+  흐름을 제공한다.
+
 다음 계약은 여전히 백엔드 또는 후속 프론트 단계의 확인이 필요하다.
 
 - `4001 / CONNECTION_REPLACED` 외 WebSocket handshake 인증 실패의 close code와 reason
@@ -900,8 +936,9 @@ buffer begin
 - message 및 room event 최종 payload
 
 현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환, 구독 준비
-barrier와 실시간 이벤트 버퍼까지 구현되어 있다. Worker–탭 REST snapshot 적용 handshake는
-후속 단계에서 이 상태 머신 위에 연결한다.
+barrier, 실시간 이벤트 버퍼와 Worker–탭 REST snapshot 적용 handshake까지 구현되어 있다.
+다음 단계에서는 TanStack Query coordinator가 이 transport 계약을 사용해 REST snapshot,
+delivery와 `afterSequence` 복구 결과를 실제 cache에 병합한다.
 
 ## 관련 코드와 문서
 

@@ -22,6 +22,7 @@ import {
 } from "../chat-stomp-contracts";
 import {
   ChatRealtimeEventBuffer,
+  type ChatRealtimeEventDelivery,
   type ChatRealtimeEventBufferSnapshot,
 } from "../chat-realtime-event-buffer";
 import { ChatStompSubscriptionManager } from "../chat-stomp-subscription-manager";
@@ -83,6 +84,17 @@ type PendingRoomSync = Readonly<{
   generation: number;
 }>;
 
+type RealtimeDeliverySession = Readonly<{
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
+type PendingRealtimeDelivery = ChatRealtimeEventDelivery &
+  Readonly<{
+    ownerPortId: string;
+  }>;
+
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   status: "idle",
   error: null,
@@ -96,7 +108,10 @@ export class ChatSharedWorkerRuntime {
   private generation = 0;
   private pendingRoomActivation: PendingRoomActivation | null = null;
   private pendingRoomSync: PendingRoomSync | null = null;
+  private pendingRealtimeDelivery: PendingRealtimeDelivery | null = null;
   private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
+  private readyRoomSession: RealtimeDeliverySession | null = null;
+  private realtimeDeliverySession: RealtimeDeliverySession | null = null;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
   private readonly subscriptions: ChatStompSubscriptionManager;
 
@@ -135,6 +150,7 @@ export class ChatSharedWorkerRuntime {
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
+      this.pauseRealtimeDelivery();
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
@@ -215,6 +231,16 @@ export class ChatSharedWorkerRuntime {
         if (connectedPort.attached && connectedPort.portId === command.portId) {
           this.releaseRoom(connectedPort, command);
         }
+        return;
+      case "ROOM_SNAPSHOT_APPLIED":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.markRoomSnapshotApplied(connectedPort, command);
+        }
+        return;
+      case "ROOM_EVENTS_APPLIED":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.acknowledgeRealtimeEvents(connectedPort, command);
+        }
     }
   }
 
@@ -242,6 +268,7 @@ export class ChatSharedWorkerRuntime {
     if (lease && connectedPort.portId === lease.ownerPortId) {
       this.tryReleaseRoom(lease.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.pauseRealtimeDelivery();
       this.generation += 1;
       this.activeRoomLease = null;
       this.pendingRoomActivation = null;
@@ -359,6 +386,7 @@ export class ChatSharedWorkerRuntime {
   private stopConnectionReplacedReconnect(): void {
     this.pendingRoomActivation = null;
     this.pendingRoomSync = null;
+    this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
 
     try {
@@ -398,6 +426,7 @@ export class ChatSharedWorkerRuntime {
     }
 
     const previousLease = this.activeRoomLease;
+    this.pauseRealtimeDelivery();
 
     if (previousLease?.roomId === command.roomId && previousLease.ownerPortId === portId) {
       const nextLease = {
@@ -454,6 +483,7 @@ export class ChatSharedWorkerRuntime {
     if (ownsLease && lease) {
       this.tryReleaseRoom(command.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.pauseRealtimeDelivery();
       this.generation += 1;
       this.activeRoomLease = null;
       this.pendingRoomActivation = null;
@@ -535,6 +565,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    this.pauseRealtimeDelivery();
     const pendingSync: PendingRoomSync = {
       requestId: this.createId(),
       roomId: lease.roomId,
@@ -590,6 +621,11 @@ export class ChatSharedWorkerRuntime {
       this.pendingRoomActivation = null;
     }
     this.pendingRoomSync = null;
+    this.readyRoomSession = {
+      roomId: lease.roomId,
+      ownerPortId: lease.ownerPortId,
+      generation: lease.generation,
+    };
     this.sendToPort(lease.ownerPortId, {
       type: "ROOM_ACTIVATED",
       requestId: lease.requestId,
@@ -613,6 +649,122 @@ export class ChatSharedWorkerRuntime {
     }
   }
 
+  private markRoomSnapshotApplied(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "ROOM_SNAPSHOT_APPLIED" }>,
+  ): void {
+    const lease = this.activeRoomLease;
+    const readySession = this.readyRoomSession;
+
+    if (
+      !lease ||
+      !readySession ||
+      !connectedPort.portId ||
+      lease.ownerPortId !== connectedPort.portId ||
+      lease.roomId !== command.roomId ||
+      lease.generation !== command.generation ||
+      readySession.ownerPortId !== lease.ownerPortId ||
+      readySession.roomId !== lease.roomId ||
+      readySession.generation !== lease.generation ||
+      this.pendingRoomActivation ||
+      this.pendingRoomSync ||
+      this.subscriptions.activeRoomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.realtimeDeliverySession = {
+      roomId: lease.roomId,
+      ownerPortId: lease.ownerPortId,
+      generation: lease.generation,
+    };
+    this.deliverRealtimeEvents(true);
+  }
+
+  private acknowledgeRealtimeEvents(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "ROOM_EVENTS_APPLIED" }>,
+  ): void {
+    const pending = this.pendingRealtimeDelivery;
+
+    if (
+      !pending ||
+      connectedPort.portId !== pending.ownerPortId ||
+      command.deliveryId !== pending.deliveryId ||
+      command.roomId !== pending.roomId ||
+      command.generation !== pending.generation
+    ) {
+      return;
+    }
+
+    const acknowledged = this.realtimeBuffer.acknowledge(
+      pending.roomId,
+      pending.generation,
+      pending.throughBufferSequence,
+      pending.invalidEventCount,
+    );
+
+    if (!acknowledged) {
+      return;
+    }
+
+    this.pendingRealtimeDelivery = null;
+    this.deliverRealtimeEvents(false);
+  }
+
+  private deliverRealtimeEvents(force: boolean): void {
+    const session = this.realtimeDeliverySession;
+    const lease = this.activeRoomLease;
+
+    if (
+      !session ||
+      !lease ||
+      this.pendingRealtimeDelivery ||
+      session.roomId !== lease.roomId ||
+      session.ownerPortId !== lease.ownerPortId ||
+      session.generation !== lease.generation
+    ) {
+      return;
+    }
+
+    const snapshot = this.realtimeBuffer.getSnapshot();
+
+    if (
+      !snapshot ||
+      snapshot.roomId !== session.roomId ||
+      snapshot.generation !== session.generation ||
+      (!force &&
+        snapshot.events.length === 0 &&
+        !snapshot.overflowed &&
+        snapshot.invalidEventCount === 0)
+    ) {
+      return;
+    }
+
+    const delivery: PendingRealtimeDelivery = {
+      ...snapshot,
+      deliveryId: this.createId(),
+      ownerPortId: session.ownerPortId,
+    };
+    this.pendingRealtimeDelivery = delivery;
+    this.sendToPort(session.ownerPortId, {
+      type: "ROOM_EVENTS_DELIVERED",
+      deliveryId: delivery.deliveryId,
+      roomId: delivery.roomId,
+      generation: delivery.generation,
+      events: delivery.events,
+      throughBufferSequence: delivery.throughBufferSequence,
+      overflowed: delivery.overflowed,
+      invalidEventCount: delivery.invalidEventCount,
+    });
+  }
+
+  private pauseRealtimeDelivery(): void {
+    this.readyRoomSession = null;
+    this.realtimeDeliverySession = null;
+    this.pendingRealtimeDelivery = null;
+  }
+
   private handleSubscriptionSetupFailure(cause: unknown): void {
     const message =
       cause instanceof Error && cause.message.trim()
@@ -625,6 +777,7 @@ export class ChatSharedWorkerRuntime {
       this.tryReleaseRoom(lease.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
     }
+    this.pauseRealtimeDelivery();
     this.pendingRoomActivation = null;
     this.pendingRoomSync = null;
 
@@ -722,6 +875,7 @@ export class ChatSharedWorkerRuntime {
 
     this.tryReleaseRoom(lease.roomId);
     this.realtimeBuffer.clear(lease.roomId, lease.generation);
+    this.pauseRealtimeDelivery();
     this.pendingRoomActivation = null;
     this.pendingRoomSync = null;
     this.generation += 1;
@@ -745,11 +899,15 @@ export class ChatSharedWorkerRuntime {
     const event = parseChatMessageCreatedEvent(message.body);
 
     if (!event) {
-      this.realtimeBuffer.recordInvalidEvent(roomId, lease.generation);
+      if (this.realtimeBuffer.recordInvalidEvent(roomId, lease.generation)) {
+        this.deliverRealtimeEvents(false);
+      }
       return;
     }
 
-    this.realtimeBuffer.appendMessage(roomId, lease.generation, event);
+    if (this.realtimeBuffer.appendMessage(roomId, lease.generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
   };
 
   private readonly handleRoomEvent = (roomId: string, message: IMessage): void => {
@@ -759,7 +917,9 @@ export class ChatSharedWorkerRuntime {
       const lease = this.getCurrentBufferLease(roomId);
 
       if (lease) {
-        this.realtimeBuffer.recordInvalidEvent(roomId, lease.generation);
+        if (this.realtimeBuffer.recordInvalidEvent(roomId, lease.generation)) {
+          this.deliverRealtimeEvents(false);
+        }
       }
       return;
     }
@@ -774,7 +934,9 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
-    this.realtimeBuffer.appendRoomEvent(roomId, lease.generation, event);
+    if (this.realtimeBuffer.appendRoomEvent(roomId, lease.generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
   }
 
   private getCurrentBufferLease(roomId: string): ActiveRoomLease | null {

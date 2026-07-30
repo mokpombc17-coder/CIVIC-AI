@@ -38,8 +38,10 @@ describe("createChatRealtimeTransport", () => {
 
 function createFakeTransport(): ChatRealtimeTransport {
   return {
+    acknowledgeRealtimeEventDelivery: () => {},
     attach: () => () => {},
     claimRoom: () => {},
+    getRealtimeEventDelivery: () => null,
     getRoomSnapshot: () => ({
       status: "idle",
       roomId: null,
@@ -49,6 +51,8 @@ function createFakeTransport(): ChatRealtimeTransport {
       error: null,
     }),
     getSnapshot: () => ({ status: "idle", error: null }),
+    markRoomSnapshotApplied: () => {},
+    observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
     observe: () => () => {},
     reconnect: () => {},

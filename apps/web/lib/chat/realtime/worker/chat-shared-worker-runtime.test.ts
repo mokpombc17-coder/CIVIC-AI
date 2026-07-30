@@ -341,6 +341,104 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(runtime.getRealtimeBufferSnapshot()?.events).toHaveLength(3);
   });
 
+  it("REST 적용 뒤 한 delivery씩 보내고 확인 대기 중 이벤트는 다음 delivery로 보존한다", () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440003")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440004");
+    const runtime = new ChatSharedWorkerRuntime(client, "worker-1", createId);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(1)));
+    port.send({
+      type: "ROOM_SNAPSHOT_APPLIED",
+      portId: "port-a",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(port.eventsOfType("ROOM_EVENTS_DELIVERED")).toHaveLength(0);
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        watermarkSequence: 1,
+      }),
+    );
+
+    expect(port.eventsOfType("ROOM_EVENTS_DELIVERED")).toHaveLength(0);
+
+    port.send({
+      type: "ROOM_SNAPSHOT_APPLIED",
+      portId: "port-a",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(port.eventsOfType("ROOM_EVENTS_DELIVERED").at(-1)).toMatchObject({
+      deliveryId: "550e8400-e29b-41d4-a716-446655440002",
+      roomId: "room-01",
+      generation: 1,
+      throughBufferSequence: 1,
+      events: [{ bufferSequence: 1, event: { payload: { roomSequence: 1 } } }],
+    });
+
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(2)));
+    expect(port.eventsOfType("ROOM_EVENTS_DELIVERED")).toHaveLength(1);
+
+    port.send({
+      type: "ROOM_EVENTS_APPLIED",
+      portId: "port-a",
+      deliveryId: "stale-delivery",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(port.eventsOfType("ROOM_EVENTS_DELIVERED")).toHaveLength(1);
+
+    port.send({
+      type: "ROOM_EVENTS_APPLIED",
+      portId: "port-a",
+      deliveryId: "550e8400-e29b-41d4-a716-446655440002",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(port.eventsOfType("ROOM_EVENTS_DELIVERED").at(-1)).toMatchObject({
+      deliveryId: "550e8400-e29b-41d4-a716-446655440003",
+      throughBufferSequence: 2,
+      events: [{ bufferSequence: 2, event: { payload: { roomSequence: 2 } } }],
+    });
+    expect(runtime.getRealtimeBufferSnapshot()?.events).toHaveLength(1);
+
+    port.send({
+      type: "ROOM_EVENTS_APPLIED",
+      portId: "port-a",
+      deliveryId: "550e8400-e29b-41d4-a716-446655440003",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(runtime.getRealtimeBufferSnapshot()?.events).toEqual([]);
+
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(3)));
+    expect(port.eventsOfType("ROOM_EVENTS_DELIVERED").at(-1)).toMatchObject({
+      deliveryId: "550e8400-e29b-41d4-a716-446655440004",
+      events: [{ bufferSequence: 3, event: { payload: { roomSequence: 3 } } }],
+    });
+  });
+
   it("방 전환·재연결·release에서 현재 동기화 주기에 맞게 버퍼를 교체하거나 폐기한다", () => {
     const client = createFakeStompClient({ autoReady: false });
     const createId = vi

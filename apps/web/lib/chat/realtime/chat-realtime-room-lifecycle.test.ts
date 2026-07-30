@@ -57,8 +57,10 @@ describe("attachChatRealtimeRoomLifecycle", () => {
 
 function createFakeTransport(): ChatRealtimeTransport {
   return {
+    acknowledgeRealtimeEventDelivery: vi.fn(),
     attach: vi.fn(() => vi.fn()),
     claimRoom: vi.fn(),
+    getRealtimeEventDelivery: vi.fn(() => null),
     getRoomSnapshot: vi.fn(() => ({
       status: "idle" as const,
       roomId: null,
@@ -71,6 +73,8 @@ function createFakeTransport(): ChatRealtimeTransport {
       status: "idle" as const,
       error: null,
     })),
+    markRoomSnapshotApplied: vi.fn(),
+    observeRealtimeEventDelivery: vi.fn(() => vi.fn()),
     observeRoom: vi.fn(() => vi.fn()),
     observe: vi.fn(() => vi.fn()),
     reconnect: vi.fn(),

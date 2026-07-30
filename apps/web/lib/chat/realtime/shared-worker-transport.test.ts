@@ -408,6 +408,84 @@ describe("SharedWorkerTransport", () => {
       },
     });
   });
+
+  it("REST 적용을 Worker에 알리고 delivery를 확인한 뒤 ack command를 보낸다", () => {
+    const worker = createFakeWorker();
+    const createId = vi.fn().mockReturnValueOnce("port-1").mockReturnValueOnce("claim-1");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+    const listener = vi.fn();
+
+    transport.attach();
+    transport.claimRoom("room-01");
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+      watermarkSequence: 1,
+    });
+    transport.markRoomSnapshotApplied("room-01", 1);
+
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "ROOM_SNAPSHOT_APPLIED",
+      portId: "port-1",
+      roomId: "room-01",
+      generation: 1,
+    });
+
+    transport.observeRealtimeEventDelivery(listener);
+    worker.port.dispatchMessage({
+      type: "ROOM_EVENTS_DELIVERED",
+      deliveryId: "delivery-1",
+      roomId: "room-01",
+      generation: 1,
+      throughBufferSequence: 1,
+      overflowed: false,
+      invalidEventCount: 0,
+      events: [
+        {
+          bufferSequence: 1,
+          kind: "message",
+          event: {
+            eventVersion: 1,
+            eventType: "CHAT_MESSAGE_CREATED",
+            payload: {
+              messageId: "message-01",
+              roomId: "room-01",
+              roomSequence: 1,
+              senderUserId: "local-user-1",
+              clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+              content: "안녕하세요.",
+              createdAt: "2026-07-30T00:00:00Z",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(transport.getRealtimeEventDelivery()).toMatchObject({
+      deliveryId: "delivery-1",
+      roomId: "room-01",
+      generation: 1,
+      throughBufferSequence: 1,
+    });
+
+    transport.acknowledgeRealtimeEventDelivery("delivery-1");
+
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "ROOM_EVENTS_APPLIED",
+      portId: "port-1",
+      deliveryId: "delivery-1",
+      roomId: "room-01",
+      generation: 1,
+    });
+    expect(transport.getRealtimeEventDelivery()).toBeNull();
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
 });
 
 type FakePort = {

@@ -6,7 +6,7 @@
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약
-- 후속 범위: 메시지 이력 TanStack Query와 WebSocket 이벤트 병합
+- 후속 범위: 메시지 이력 TanStack Query와 WebSocket delivery 병합 coordinator
 
 ## 계층
 
@@ -164,8 +164,9 @@ after  → ?afterSequence={sequence}&limit=50
 TanStack Query는 `latest + before` 과거 pagination과 화면용 page flatten을 구현한다.
 `ROOM_SUBSCRIPTIONS_READY`의 destination, payload와 watermark 계약은 확정되어 Worker와
 Direct fallback의 구독 준비 상태 머신에 반영했다. WebSocket 이벤트 버퍼도 READY 전부터
-메시지와 Room Event를 보관하도록 구현했다. 버퍼 전달, `after` 복구 결과 및 REST cache 병합은
-이 READY 상태를 시작점으로 후속 실시간 재동기화 계층에서 구현한다.
+메시지와 Room Event를 보관하도록 구현했다. REST snapshot 적용 후 버퍼를 한 delivery씩
+전달하고 탭의 적용 확인 범위까지만 제거하는 Worker–탭 handshake도 구현했다. 다음 단계에서는
+TanStack Query coordinator가 이 delivery와 `after` 복구 결과를 REST cache에 병합한다.
 
 ## 메시지 병합 정책
 

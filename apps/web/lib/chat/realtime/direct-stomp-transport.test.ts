@@ -341,6 +341,54 @@ describe("DirectStompTransport", () => {
     });
   });
 
+  it("Direct fallback도 REST 적용 뒤 delivery를 순차 전달하고 ack 범위만 제거한다", () => {
+    const client = createFakeClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440003");
+    const transport = new DirectStompTransport(client, createId);
+    const listener = vi.fn();
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(1)));
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        watermarkSequence: 1,
+      }),
+    );
+
+    transport.observeRealtimeEventDelivery(listener);
+    transport.markRoomSnapshotApplied("room-01", 1);
+
+    expect(transport.getRealtimeEventDelivery()).toMatchObject({
+      deliveryId: "550e8400-e29b-41d4-a716-446655440002",
+      throughBufferSequence: 1,
+      events: [{ bufferSequence: 1, event: { payload: { roomSequence: 1 } } }],
+    });
+
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(2)));
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    transport.acknowledgeRealtimeEventDelivery("550e8400-e29b-41d4-a716-446655440002");
+
+    expect(transport.getRealtimeEventDelivery()).toMatchObject({
+      deliveryId: "550e8400-e29b-41d4-a716-446655440003",
+      throughBufferSequence: 2,
+      events: [{ bufferSequence: 2, event: { payload: { roomSequence: 2 } } }],
+    });
+    expect(transport.getRealtimeBufferSnapshot()?.events).toHaveLength(1);
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
   it("유효하지 않은 roomId는 Direct fallback에서도 로컬 오류로 거절한다", () => {
     const transport = new DirectStompTransport(createFakeClient());
 

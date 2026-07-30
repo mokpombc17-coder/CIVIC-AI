@@ -1,4 +1,6 @@
+import type { ChatRealtimeBufferedEvent } from "./chat-realtime-event-buffer";
 import type { ChatConnectionSnapshot } from "./chat-realtime-transport";
+import { chatMessageCreatedEventSchema, chatRoomEventEnvelopeSchema } from "./chat-stomp-contracts";
 
 export const CHAT_SHARED_WORKER_NAME = "civic-ai-chat-realtime";
 
@@ -26,6 +28,19 @@ export type ChatSharedWorkerCommand =
       portId: string;
       requestId: string;
       roomId: string;
+    }>
+  | Readonly<{
+      type: "ROOM_SNAPSHOT_APPLIED";
+      portId: string;
+      roomId: string;
+      generation: number;
+    }>
+  | Readonly<{
+      type: "ROOM_EVENTS_APPLIED";
+      portId: string;
+      deliveryId: string;
+      roomId: string;
+      generation: number;
     }>;
 
 export type ChatSharedWorkerEvent =
@@ -81,6 +96,16 @@ export type ChatSharedWorkerEvent =
       code: string;
       retryable: boolean;
       message: string;
+    }>
+  | Readonly<{
+      type: "ROOM_EVENTS_DELIVERED";
+      deliveryId: string;
+      roomId: string;
+      generation: number;
+      events: readonly ChatRealtimeBufferedEvent[];
+      throughBufferSequence: number;
+      overflowed: boolean;
+      invalidEventCount: number;
     }>;
 
 const CONNECTION_STATUSES = new Set<ChatConnectionSnapshot["status"]>([
@@ -107,6 +132,19 @@ export function isChatSharedWorkerCommand(value: unknown): value is ChatSharedWo
 
   if (command.type === "ATTACH" || command.type === "DETACH" || command.type === "RECONNECT") {
     return true;
+  }
+
+  if (command.type === "ROOM_SNAPSHOT_APPLIED") {
+    return typeof command.roomId === "string" && isGeneration(command.generation);
+  }
+
+  if (command.type === "ROOM_EVENTS_APPLIED") {
+    return (
+      typeof command.deliveryId === "string" &&
+      command.deliveryId.length > 0 &&
+      typeof command.roomId === "string" &&
+      isGeneration(command.generation)
+    );
   }
 
   return (
@@ -179,6 +217,28 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
     );
   }
 
+  if (event.type === "ROOM_EVENTS_DELIVERED") {
+    const throughBufferSequence = event.throughBufferSequence;
+
+    return (
+      typeof event.deliveryId === "string" &&
+      event.deliveryId.length > 0 &&
+      typeof event.roomId === "string" &&
+      isGeneration(event.generation) &&
+      Array.isArray(event.events) &&
+      isGeneration(throughBufferSequence) &&
+      event.events.every(isChatRealtimeBufferedEvent) &&
+      hasStrictlyIncreasingBufferSequences(event.events) &&
+      event.events.every(
+        (bufferedEvent) =>
+          bufferedEvent.bufferSequence <= throughBufferSequence &&
+          bufferedEvent.event.payload.roomId === event.roomId,
+      ) &&
+      typeof event.overflowed === "boolean" &&
+      isGeneration(event.invalidEventCount)
+    );
+  }
+
   if (
     event.type === "ROOM_ACTIVATED" ||
     event.type === "ROOM_RELEASED" ||
@@ -209,4 +269,28 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
 
 function isGeneration(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isChatRealtimeBufferedEvent(value: unknown): value is ChatRealtimeBufferedEvent {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const event = value as Partial<ChatRealtimeBufferedEvent>;
+
+  if (!Number.isSafeInteger(event.bufferSequence) || (event.bufferSequence ?? 0) < 1) {
+    return false;
+  }
+
+  return event.kind === "message"
+    ? chatMessageCreatedEventSchema.safeParse(event.event).success
+    : event.kind === "room" && chatRoomEventEnvelopeSchema.safeParse(event.event).success;
+}
+
+function hasStrictlyIncreasingBufferSequences(
+  events: readonly ChatRealtimeBufferedEvent[],
+): boolean {
+  return events.every(
+    (event, index) => index === 0 || events[index - 1]!.bufferSequence < event.bufferSequence,
+  );
 }

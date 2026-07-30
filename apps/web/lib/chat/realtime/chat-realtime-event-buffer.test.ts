@@ -67,6 +67,7 @@ describe("ChatRealtimeEventBuffer", () => {
       roomId: "room-02",
       generation: 2,
       events: [],
+      throughBufferSequence: 0,
       overflowed: false,
       invalidEventCount: 0,
     });
@@ -103,6 +104,49 @@ describe("ChatRealtimeEventBuffer", () => {
         },
       ],
     });
+  });
+
+  it("delivery 확인 시 전달 범위만 제거하고 확인 대기 중 도착한 이벤트는 유지한다", () => {
+    const buffer = new ChatRealtimeEventBuffer();
+
+    buffer.begin("room-01", 1);
+    buffer.appendMessage("room-01", 1, createMessageEvent(1));
+    buffer.recordInvalidEvent("room-01", 1);
+    const delivery = buffer.getSnapshot()!;
+
+    buffer.appendMessage("room-01", 1, createMessageEvent(2));
+    buffer.recordInvalidEvent("room-01", 1);
+
+    expect(
+      buffer.acknowledge(
+        delivery.roomId,
+        delivery.generation,
+        delivery.throughBufferSequence,
+        delivery.invalidEventCount,
+      ),
+    ).toBe(true);
+    expect(buffer.getSnapshot()).toMatchObject({
+      roomId: "room-01",
+      generation: 1,
+      throughBufferSequence: 2,
+      invalidEventCount: 1,
+      events: [
+        {
+          bufferSequence: 2,
+          event: { payload: { roomSequence: 2 } },
+        },
+      ],
+    });
+  });
+
+  it("stale delivery 확인은 현재 버퍼를 변경하지 않는다", () => {
+    const buffer = new ChatRealtimeEventBuffer();
+
+    buffer.begin("room-01", 2);
+    buffer.appendMessage("room-01", 2, createMessageEvent(1));
+
+    expect(buffer.acknowledge("room-01", 1, 1, 0)).toBe(false);
+    expect(buffer.getSnapshot()?.events).toHaveLength(1);
   });
 
   it("현재 lease와 일치하는 clear만 버퍼를 폐기한다", () => {
