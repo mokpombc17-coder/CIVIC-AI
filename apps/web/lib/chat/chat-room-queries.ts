@@ -57,8 +57,10 @@ export const chatRoomQueryKeys = {
   membershipList: (roomId: string, status: MembershipStatus, limit: number) =>
     [...chatRoomQueryKeys.membershipLists(roomId), { status, limit }] as const,
   messageHistories: () => [...chatRoomQueryKeys.all, "message-history"] as const,
+  messageHistoriesForRoom: (roomId: string) =>
+    [...chatRoomQueryKeys.messageHistories(), roomId] as const,
   messageHistory: (roomId: string, limit: number) =>
-    [...chatRoomQueryKeys.messageHistories(), roomId, { limit }] as const,
+    [...chatRoomQueryKeys.messageHistoriesForRoom(roomId), { limit }] as const,
   roomEventJournals: () => [...chatRoomQueryKeys.all, "room-event-journal"] as const,
   roomEventJournal: (roomId: string) => [...chatRoomQueryKeys.roomEventJournals(), roomId] as const,
 };

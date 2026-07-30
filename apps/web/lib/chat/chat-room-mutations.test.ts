@@ -38,6 +38,7 @@ describe("chat room mutation options", () => {
   it("방 상태 Command 성공 시 해당 방과 모든 목록 캐시를 무효화한다", async () => {
     const queryClient = createQueryClient();
     seedRoomQueries(queryClient);
+    seedMessageHistories(queryClient);
     const joinRoom = vi.fn(async () => JOIN_ROOM_RESPONSE);
     const observer = new MutationObserver(
       queryClient,
@@ -61,6 +62,75 @@ describe("chat room mutation options", () => {
     expect(
       isInvalidated(queryClient, chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20)),
     ).toBe(true);
+    expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50))).toBe(
+      "room-01-50",
+    );
+  });
+
+  it("재참여 성공 시 해당 방의 모든 메시지 이력 cache를 라우팅 전에 제거한다", async () => {
+    const queryClient = createQueryClient();
+    seedRoomQueries(queryClient);
+    seedMessageHistories(queryClient);
+    const joinRoom = vi.fn(async () => ({
+      ...JOIN_ROOM_RESPONSE,
+      code: "REJOINED" as const,
+      replayed: true,
+    }));
+    const observer = new MutationObserver(
+      queryClient,
+      joinRoomMutationOptions(queryClient, { joinRoom }),
+    );
+
+    await observer.mutate(createJoinVariables());
+
+    expect(
+      queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 20)),
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50)),
+    ).toBeUndefined();
+    expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-02", 50))).toBe(
+      "room-02-50",
+    );
+  });
+
+  it("이미 활성 상태인 중복 참여는 메시지 접근 경계를 바꾸지 않으므로 cache를 유지한다", async () => {
+    const queryClient = createQueryClient();
+    seedMessageHistories(queryClient);
+    const joinRoom = vi.fn(async () => ({
+      ...JOIN_ROOM_RESPONSE,
+      code: "ALREADY_ACTIVE" as const,
+    }));
+    const observer = new MutationObserver(
+      queryClient,
+      joinRoomMutationOptions(queryClient, { joinRoom }),
+    );
+
+    await observer.mutate(createJoinVariables());
+
+    expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 20))).toBe(
+      "room-01-20",
+    );
+    expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50))).toBe(
+      "room-01-50",
+    );
+  });
+
+  it("재참여 요청이 실패하면 기존 메시지 cache를 유지한다", async () => {
+    const queryClient = createQueryClient();
+    seedMessageHistories(queryClient);
+    const error = new Error("재참여 실패");
+    const joinRoom = vi.fn(async () => Promise.reject(error));
+    const observer = new MutationObserver(
+      queryClient,
+      joinRoomMutationOptions(queryClient, { joinRoom }),
+    );
+
+    await expect(observer.mutate(createJoinVariables())).rejects.toBe(error);
+
+    expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50))).toBe(
+      "room-01-50",
+    );
   });
 
   it("mutation 자동 재시도를 끄고 기존 IdempotentCommand를 그대로 전달한다", async () => {
@@ -103,6 +173,22 @@ function seedRoomQueries(queryClient: QueryClient): void {
   queryClient.setQueryData(chatRoomQueryKeys.detail("room-01"), "detail");
   queryClient.setQueryData(chatRoomQueryKeys.myMembership("room-01"), "membership");
   queryClient.setQueryData(chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20), "members");
+}
+
+function seedMessageHistories(queryClient: QueryClient): void {
+  queryClient.setQueryData(chatRoomQueryKeys.messageHistory("room-01", 20), "room-01-20");
+  queryClient.setQueryData(chatRoomQueryKeys.messageHistory("room-01", 50), "room-01-50");
+  queryClient.setQueryData(chatRoomQueryKeys.messageHistory("room-02", 50), "room-02-50");
+}
+
+function createJoinVariables() {
+  return {
+    roomId: "room-01",
+    command: {
+      idempotencyKey: IDEMPOTENCY_KEY,
+      body: undefined,
+    },
+  };
 }
 
 function isInvalidated(queryClient: QueryClient, queryKey: readonly unknown[]): boolean {

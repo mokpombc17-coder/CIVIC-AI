@@ -37,7 +37,15 @@ export function joinRoomMutationOptions(
     mutationFn: ({ roomId, command }: RoomCommandVariables<undefined>) =>
       api.joinRoom(roomId, command),
     retry: false,
-    onSuccess: (_response, { roomId }) => invalidateRoomState(queryClient, roomId),
+    onSuccess: (response, { roomId }) => {
+      if (response.code === "REJOINED") {
+        queryClient.removeQueries({
+          queryKey: chatRoomQueryKeys.messageHistoriesForRoom(roomId),
+        });
+      }
+
+      return invalidateRoomState(queryClient, roomId);
+    },
   });
 }
 
