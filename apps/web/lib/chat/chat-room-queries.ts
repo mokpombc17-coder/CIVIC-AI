@@ -12,7 +12,7 @@ import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
 import type { ChatMessage, MembershipStatus, MessageHistoryResponse } from "./chat-room-contracts";
 
 const DEFAULT_LIST_LIMIT = 20;
-const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
+export const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
 const EMPTY_CHAT_MESSAGES: readonly ChatMessage[] = [];
 
 export type ChatRoomListQueryParams = Readonly<{
@@ -46,6 +46,8 @@ export const chatRoomQueryKeys = {
   messageHistories: () => [...chatRoomQueryKeys.all, "message-history"] as const,
   messageHistory: (roomId: string, limit: number) =>
     [...chatRoomQueryKeys.messageHistories(), roomId, { limit }] as const,
+  roomEventJournals: () => [...chatRoomQueryKeys.all, "room-event-journal"] as const,
+  roomEventJournal: (roomId: string) => [...chatRoomQueryKeys.roomEventJournals(), roomId] as const,
 };
 
 export function publicRoomsInfiniteQueryOptions(

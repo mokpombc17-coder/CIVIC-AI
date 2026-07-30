@@ -936,9 +936,10 @@ Worker → 탭  ROOM_EVENTS_DELIVERED
 - message 및 room event 최종 payload
 
 현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환, 구독 준비
-barrier, 실시간 이벤트 버퍼와 Worker–탭 REST snapshot 적용 handshake까지 구현되어 있다.
-다음 단계에서는 TanStack Query coordinator가 이 transport 계약을 사용해 REST snapshot,
-delivery와 `afterSequence` 복구 결과를 실제 cache에 병합한다.
+barrier, 실시간 이벤트 버퍼, Worker–탭 REST snapshot 적용 handshake와 TanStack Query
+coordinator까지 구현되어 있다. coordinator는 메시지 cache와 Room Event journal을 모두
+갱신한 뒤에만 delivery를 ACK한다. 다음 단계에서는 이 coordinator를 채팅방 임시 화면의 실제
+REST query에 연결하고, 이후 `afterSequence` 복구와 Room Event cache 반영을 확장한다.
 
 ## 관련 코드와 문서
 

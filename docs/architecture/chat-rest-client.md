@@ -6,7 +6,7 @@
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약
-- 후속 범위: 메시지 이력 TanStack Query와 WebSocket delivery 병합 coordinator
+- 후속 범위: 채팅방 화면 연결과 `afterSequence` 자동 복구
 
 ## 계층
 
@@ -168,6 +168,37 @@ Direct fallback의 구독 준비 상태 머신에 반영했다. WebSocket 이벤
 전달하고 탭의 적용 확인 범위까지만 제거하는 Worker–탭 handshake도 구현했다. 다음 단계에서는
 TanStack Query coordinator가 이 delivery와 `after` 복구 결과를 REST cache에 병합한다.
 
+## 실시간 Query coordinator
+
+`ChatRealtimeQueryCoordinator`는 REST snapshot과 Worker delivery 사이의 적용 순서를
+관리한다.
+
+```text
+REST message-history cache 확인
+  → ROOM_SNAPSHOT_APPLIED
+  → ROOM_EVENTS_DELIVERED
+  → 메시지 infinite query 병합
+  → Room Event journal 병합
+  → ROOM_EVENTS_APPLIED
+```
+
+- REST message-history의 첫 page가 cache에 없으면 snapshot 적용 완료를 Worker에 알리지 않는다.
+- 실시간 메시지는 기존 모든 page와 `messageId`, `roomSequence` 기준으로 병합한 뒤 최신
+  page에 넣는다. 과거 page와 pagination cursor 및 `pageParams`는 유지한다.
+- 같은 메시지의 정상 재전달은 중복 저장하지 않는다. 같은 ID 또는 sequence의 불변 필드가
+  다르면 cache를 변경하지 않는다.
+- Room Event는 `["chat", "rooms", "room-event-journal", roomId]` query에 `eventId` 기준으로
+  보관한다. 다음 Room Event 처리 단계에서 이 journal을 방 상세·멤버십 cache에 반영한다.
+- 메시지 cache와 Room Event journal의 다음 값을 먼저 계산한 뒤 둘 다 정상일 때만 실제
+  cache를 갱신한다. 따라서 Room Event 충돌 때문에 메시지만 먼저 반영되는 부분 성공을 막는다.
+- 두 cache 갱신이 끝난 뒤에만 delivery ACK를 전송한다. ACK 전에 탭이 중단되면 같은 delivery가
+  다시 와도 병합이 멱등적으로 동작한다.
+- 다른 room 또는 generation의 delivery는 coordinator가 소비하지 않는다.
+- `overflowed=true`, `invalidEventCount>0` 또는 메시지 sequence gap이 있으면 cache 갱신과
+  ACK를 보류한다. 이 delivery는 후속 `afterSequence` 복구 단계가 해결한 뒤 다시 적용한다.
+- 병합 실패 delivery는 Worker transport에 남아 있으며 `retryPendingDelivery`로 같은 payload를
+  다시 처리할 수 있다.
+
 ## 메시지 병합 정책
 
 `mergeChatMessages`는 REST page, 복구 응답과 향후 WebSocket buffer를 동일한 `ChatMessage`
@@ -182,6 +213,6 @@ TanStack Query coordinator가 이 delivery와 `after` 복구 결과를 REST cach
 - `afterSequence` checkpoint가 있으면 해당 값부터 연속으로 적용할 수 있는 마지막 sequence를
   `lastContiguousSequence`로 반환한다.
 
-메시지 이력 Query의 화면용 flatten도 이 병합 함수를 사용한다. 최종 실시간 재동기화 계층은
-READY 이후 REST 응답과 그동안 쌓인 WebSocket buffer를 병합한 뒤 `gaps`가 있으면 마지막 연속
-sequence부터 `after` 복구를 반복한다.
+메시지 이력 Query의 화면용 flatten과 실시간 Query coordinator가 모두 이 병합 함수를
+사용한다. coordinator는 gap을 발견하면 ACK를 보류한다. 후속 실시간 재동기화 계층은 마지막
+연속 sequence부터 `after` 복구를 반복하고, gap이 해소된 뒤 보류 중인 delivery를 재적용한다.
