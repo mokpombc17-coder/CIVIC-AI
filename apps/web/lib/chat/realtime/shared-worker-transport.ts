@@ -57,6 +57,7 @@ const INITIAL_ROOM_SNAPSHOT: ChatRoomSessionSnapshot = {
   roomId: null,
   generation: 0,
   replacedByRoomId: null,
+  messageVisibleAfterSequence: null,
   watermarkSequence: null,
   error: null,
 };
@@ -157,6 +158,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       roomId,
       generation: this.roomSnapshot.generation,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     });
@@ -184,6 +186,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         roomId,
         generation: this.roomSnapshot.generation,
         replacedByRoomId: null,
+        messageVisibleAfterSequence: null,
         watermarkSequence: null,
         error: null,
       });
@@ -352,6 +355,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           this.setRoomSnapshot({
             ...this.roomSnapshot,
             status: "claiming",
+            messageVisibleAfterSequence: null,
             watermarkSequence: null,
           });
         }
@@ -367,6 +371,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: null,
+            messageVisibleAfterSequence: null,
             watermarkSequence: null,
             error: null,
           });
@@ -380,6 +385,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: null,
+            messageVisibleAfterSequence: workerEvent.messageVisibleAfterSequence,
             watermarkSequence: workerEvent.watermarkSequence,
             error: null,
           });
@@ -394,6 +400,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: workerEvent.activatedRoomId,
+            messageVisibleAfterSequence: null,
             watermarkSequence: null,
             error: null,
           });
@@ -421,6 +428,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: null,
+            messageVisibleAfterSequence: null,
             watermarkSequence: null,
             error: {
               code: "SUBSCRIPTION_REJECTED",
@@ -439,6 +447,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: workerEvent.generation,
             replacedByRoomId: null,
+            messageVisibleAfterSequence: null,
             watermarkSequence: null,
             error: {
               code: "SUBSCRIPTION_SYNC_REJECTED",
@@ -458,6 +467,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             roomId: workerEvent.roomId,
             generation: this.roomSnapshot.generation,
             replacedByRoomId: null,
+            messageVisibleAfterSequence: null,
             watermarkSequence: null,
             error: {
               code: workerEvent.code,
@@ -624,6 +634,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       roomId,
       generation: this.roomSnapshot.generation,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: {
         code: "WORKER_UNAVAILABLE",

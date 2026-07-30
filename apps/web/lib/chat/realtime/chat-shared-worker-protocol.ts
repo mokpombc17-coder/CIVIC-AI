@@ -73,6 +73,7 @@ export type ChatSharedWorkerEvent =
       requestId: string;
       roomId: string;
       generation: number;
+      messageVisibleAfterSequence: number;
       watermarkSequence: number;
     }>
   | Readonly<{
@@ -313,7 +314,8 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
     return (
       hasRequestFields &&
       isGeneration(event.generation) &&
-      (event.type !== "ROOM_ACTIVATED" || isGeneration(event.watermarkSequence))
+      (event.type !== "ROOM_ACTIVATED" ||
+        (isGeneration(event.messageVisibleAfterSequence) && isGeneration(event.watermarkSequence)))
     );
   }
 

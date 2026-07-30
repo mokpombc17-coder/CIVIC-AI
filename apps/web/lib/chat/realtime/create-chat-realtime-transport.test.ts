@@ -47,6 +47,7 @@ function createFakeTransport(): ChatRealtimeTransport {
       roomId: null,
       generation: 0,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     }),

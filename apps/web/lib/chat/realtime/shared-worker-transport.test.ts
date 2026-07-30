@@ -222,6 +222,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 120,
     });
     expect(transport.getRoomSnapshot()).toEqual({
@@ -229,6 +230,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 1,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 120,
       error: null,
     });
@@ -244,6 +246,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 2,
       replacedByRoomId: "room-02",
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     });
@@ -270,6 +273,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 5,
       watermarkSequence: 10,
     });
 
@@ -283,12 +287,14 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-2",
       roomId: "room-02",
       generation: 2,
+      messageVisibleAfterSequence: 10,
       watermarkSequence: 20,
     });
     expect(transport.getRoomSnapshot()).toMatchObject({
       status: "active",
       roomId: "room-02",
       generation: 2,
+      messageVisibleAfterSequence: 10,
     });
   });
 
@@ -312,6 +318,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-02",
       generation: 2,
+      messageVisibleAfterSequence: 10,
       watermarkSequence: 20,
     });
 
@@ -336,6 +343,7 @@ describe("SharedWorkerTransport", () => {
       roomId: null,
       generation: 3,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     });
@@ -357,6 +365,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 0,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: {
         code: "WORKER_UNAVAILABLE",
@@ -386,6 +395,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 4,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: {
         code: "SUBSCRIPTION_REJECTED",
@@ -414,6 +424,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 1,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     });
@@ -433,6 +444,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 1,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: {
         code: "SUBSCRIPTION_SYNC_REJECTED",
@@ -459,6 +471,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       watermarkSequence: 1,
     });
     transport.markRoomSnapshotApplied("room-01", 1);
@@ -550,6 +563,7 @@ describe("SharedWorkerTransport", () => {
       requestId: "claim-1",
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       watermarkSequence: 0,
     });
     transport.observeMessageCommandEvent(listener);

@@ -199,6 +199,7 @@ describe("ChatSharedWorkerRuntime", () => {
         requestId: "request-1",
         roomId: "room-01",
         generation: 1,
+        messageVisibleAfterSequence: 100,
         watermarkSequence: 120,
       },
       {
@@ -206,6 +207,7 @@ describe("ChatSharedWorkerRuntime", () => {
         requestId: "request-2",
         roomId: "room-01",
         generation: 1,
+        messageVisibleAfterSequence: 100,
         watermarkSequence: 120,
       },
     ]);
@@ -252,6 +254,7 @@ describe("ChatSharedWorkerRuntime", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440099",
         roomId: "room-01",
+        messageVisibleAfterSequence: 90,
         watermarkSequence: 99,
       }),
     );
@@ -264,6 +267,7 @@ describe("ChatSharedWorkerRuntime", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440001",
         roomId: "room-01",
+        messageVisibleAfterSequence: 100,
         watermarkSequence: 120,
       }),
     );
@@ -272,6 +276,7 @@ describe("ChatSharedWorkerRuntime", () => {
       requestId: "claim-1",
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 120,
     });
   });
@@ -334,6 +339,7 @@ describe("ChatSharedWorkerRuntime", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440001",
         roomId: "room-01",
+        messageVisibleAfterSequence: 10,
         watermarkSequence: 11,
       }),
     );
@@ -377,6 +383,7 @@ describe("ChatSharedWorkerRuntime", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440001",
         roomId: "room-01",
+        messageVisibleAfterSequence: 0,
         watermarkSequence: 1,
       }),
     );
@@ -554,6 +561,7 @@ describe("ChatSharedWorkerRuntime", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440002",
         roomId: "room-01",
+        messageVisibleAfterSequence: 100,
         watermarkSequence: 121,
       }),
     );
@@ -561,6 +569,7 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(port.eventsOfType("ROOM_ACTIVATED").at(-1)).toMatchObject({
       requestId: "claim-2",
       generation: 1,
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 121,
     });
     expect(client.frames.filter((frame) => frame.includes("/subscriptions/sync"))).toHaveLength(2);
@@ -604,6 +613,7 @@ describe("ChatSharedWorkerRuntime", () => {
       requestId: "request-b",
       roomId: "room-01",
       generation: 2,
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 120,
     });
     expect(client.frames).toEqual(["SEND /app/rooms/room-01/subscriptions/sync"]);
@@ -957,6 +967,7 @@ function createFakeStompClient({ autoReady = true } = {}): FakeStompClient {
             eventType: "ROOM_SUBSCRIPTIONS_READY",
             requestId,
             roomId,
+            messageVisibleAfterSequence: 100,
             watermarkSequence: 120,
           }),
         );

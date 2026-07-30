@@ -29,6 +29,7 @@ export const chatRoomSubscriptionsReadySchema = z.object({
   eventType: z.literal("ROOM_SUBSCRIPTIONS_READY"),
   requestId: requestIdSchema,
   roomId: roomIdSchema,
+  messageVisibleAfterSequence: nonnegativeSequenceSchema,
   watermarkSequence: nonnegativeSequenceSchema,
 });
 

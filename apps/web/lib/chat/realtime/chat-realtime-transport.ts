@@ -51,6 +51,7 @@ export type ChatRoomSessionSnapshot = Readonly<{
   roomId: string | null;
   generation: number;
   replacedByRoomId: string | null;
+  messageVisibleAfterSequence: number | null;
   watermarkSequence: number | null;
   error: ChatRoomSessionError | null;
 }>;

@@ -708,6 +708,7 @@ export class ChatSharedWorkerRuntime {
       requestId: lease.requestId,
       roomId: lease.roomId,
       generation: lease.generation,
+      messageVisibleAfterSequence: ready.messageVisibleAfterSequence,
       watermarkSequence: ready.watermarkSequence,
     });
   }

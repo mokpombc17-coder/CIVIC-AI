@@ -50,6 +50,7 @@ describe("chat subscription sync contracts", () => {
       eventType: "ROOM_SUBSCRIPTIONS_READY",
       requestId: REQUEST_ID,
       roomId: "room-01",
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 120,
     };
 
@@ -65,6 +66,7 @@ describe("chat subscription sync contracts", () => {
           eventType: "ROOM_SUBSCRIPTIONS_READY",
           requestId: REQUEST_ID,
           roomId: "room-01",
+          messageVisibleAfterSequence: 0,
           watermarkSequence: 0,
         }),
       ),
@@ -76,7 +78,20 @@ describe("chat subscription sync contracts", () => {
           eventType: "ROOM_SUBSCRIPTIONS_READY",
           requestId: REQUEST_ID,
           roomId: "room-01",
+          messageVisibleAfterSequence: 0,
           watermarkSequence: -1,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatRoomSubscriptionsReady(
+        JSON.stringify({
+          status: "READY",
+          eventType: "ROOM_SUBSCRIPTIONS_READY",
+          requestId: REQUEST_ID,
+          roomId: "room-01",
+          messageVisibleAfterSequence: -1,
+          watermarkSequence: 0,
         }),
       ),
     ).toBeNull();

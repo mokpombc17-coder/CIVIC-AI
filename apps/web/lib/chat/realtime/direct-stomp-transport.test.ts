@@ -154,6 +154,7 @@ describe("DirectStompTransport", () => {
       roomId: "room-01",
       generation: 1,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 120,
       error: null,
     });
@@ -164,6 +165,7 @@ describe("DirectStompTransport", () => {
       roomId: null,
       generation: 2,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     });
@@ -183,6 +185,7 @@ describe("DirectStompTransport", () => {
 
     expect(transport.getRoomSnapshot()).toMatchObject({
       status: "claiming",
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
     });
 
@@ -193,6 +196,7 @@ describe("DirectStompTransport", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440099",
         roomId: "room-01",
+        messageVisibleAfterSequence: 90,
         watermarkSequence: 99,
       }),
     );
@@ -205,11 +209,13 @@ describe("DirectStompTransport", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440001",
         roomId: "room-01",
+        messageVisibleAfterSequence: 100,
         watermarkSequence: 120,
       }),
     );
     expect(transport.getRoomSnapshot()).toMatchObject({
       status: "active",
+      messageVisibleAfterSequence: 100,
       watermarkSequence: 120,
     });
   });
@@ -271,6 +277,7 @@ describe("DirectStompTransport", () => {
 
     expect(transport.getRoomSnapshot()).toMatchObject({
       status: "error",
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: {
         code: "SUBSCRIPTION_SYNC_REJECTED",
@@ -285,6 +292,7 @@ describe("DirectStompTransport", () => {
       status: "claiming",
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     });
@@ -362,6 +370,7 @@ describe("DirectStompTransport", () => {
         eventType: "ROOM_SUBSCRIPTIONS_READY",
         requestId: "550e8400-e29b-41d4-a716-446655440001",
         roomId: "room-01",
+        messageVisibleAfterSequence: 0,
         watermarkSequence: 1,
       }),
     );
@@ -517,6 +526,7 @@ function createFakeClient({ autoReady = true } = {}): FakeDirectStompClient {
             eventType: "ROOM_SUBSCRIPTIONS_READY",
             requestId,
             roomId,
+            messageVisibleAfterSequence: 100,
             watermarkSequence: 120,
           }),
         );

@@ -58,6 +58,7 @@ const INITIAL_ROOM_SNAPSHOT: ChatRoomSessionSnapshot = {
   roomId: null,
   generation: 0,
   replacedByRoomId: null,
+  messageVisibleAfterSequence: null,
   watermarkSequence: null,
   error: null,
 };
@@ -165,6 +166,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         this.setRoomSnapshot({
           ...this.roomSnapshot,
           status: "claiming",
+          messageVisibleAfterSequence: null,
           watermarkSequence: null,
           error: null,
         });
@@ -244,6 +246,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         roomId,
         generation: this.roomSnapshot.generation,
         replacedByRoomId: null,
+        messageVisibleAfterSequence: null,
         watermarkSequence: null,
         error: {
           code: "INVALID_ROOM_ID",
@@ -265,6 +268,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
           ? this.roomSnapshot.generation
           : this.roomSnapshot.generation + 1,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: null,
     };
@@ -482,6 +486,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         roomId,
         generation: this.roomSnapshot.generation,
         replacedByRoomId: null,
+        messageVisibleAfterSequence: null,
         watermarkSequence: null,
         error: {
           code: "SUBSCRIPTION_SETUP_FAILED",
@@ -566,6 +571,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       roomId,
       generation: this.roomSnapshot.generation + 1,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: {
         code: "SUBSCRIPTION_REJECTED",
@@ -678,6 +684,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.setRoomSnapshot({
       ...this.roomSnapshot,
       status: "active",
+      messageVisibleAfterSequence: ready.messageVisibleAfterSequence,
       watermarkSequence: ready.watermarkSequence,
       error: null,
     });
@@ -724,6 +731,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       roomId,
       generation,
       replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
       watermarkSequence: null,
       error: {
         code: "SUBSCRIPTION_SYNC_REJECTED",

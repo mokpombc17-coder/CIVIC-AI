@@ -66,6 +66,7 @@ describe("chat shared worker protocol", () => {
         requestId: "request-1",
         roomId: "room-01",
         generation: -1,
+        messageVisibleAfterSequence: 100,
         watermarkSequence: 120,
       }),
     ).toBe(false);
@@ -75,9 +76,20 @@ describe("chat shared worker protocol", () => {
         requestId: "request-1",
         roomId: "room-01",
         generation: 1,
+        messageVisibleAfterSequence: 100,
         watermarkSequence: 120,
       }),
     ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_ACTIVATED",
+        requestId: "request-1",
+        roomId: "room-01",
+        generation: 1,
+        messageVisibleAfterSequence: -1,
+        watermarkSequence: 120,
+      }),
+    ).toBe(false);
     expect(
       isChatSharedWorkerEvent({
         type: "ROOM_SYNCING",
