@@ -19,6 +19,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       onSynchronized,
     });
     coordinator.start();
@@ -40,6 +41,31 @@ describe("ChatRealtimeQueryCoordinator", () => {
     expect(onSynchronized).toHaveBeenCalledOnce();
   });
 
+  it("빈 snapshot의 참여 경계가 watermark와 같으면 복구 없이 동기화한다", () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const getRoomMessages = vi.fn();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      api: { getRoomMessages },
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 100,
+      watermarkSequence: 100,
+    });
+    seedMessageHistory(queryClient, "room-01", [[]]);
+    coordinator.start();
+
+    coordinator.notifyRoomSnapshotApplied();
+
+    expect(getRoomMessages).not.toHaveBeenCalled();
+    expect(transport.markedSnapshots).toEqual([
+      {
+        roomId: "room-01",
+        generation: 1,
+      },
+    ]);
+  });
+
   it("cache가 READY watermark보다 뒤처지면 afterSequence 복구 후 적용 완료를 알린다", async () => {
     const queryClient = new QueryClient();
     const transport = createFakeTransport();
@@ -53,6 +79,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
       api: { getRoomMessages },
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       watermarkSequence: 3,
       onRecoveryStarted,
       onRecovered,
@@ -107,6 +134,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
       api: { getRoomMessages },
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       watermarkSequence: 2,
       onRecovered,
     });
@@ -138,6 +166,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
       api: { getRoomMessages },
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       onError,
     });
     seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
@@ -169,6 +198,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       onApplied,
     });
     seedMessageHistory(queryClient, "room-01", [
@@ -203,12 +233,57 @@ describe("ChatRealtimeQueryCoordinator", () => {
     );
   });
 
+  it("참여 경계 이하의 buffered message는 폐기하고 Room Event는 계속 적용한다", () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const onApplied = vi.fn();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 100,
+      onApplied,
+    });
+    seedMessageHistory(queryClient, "room-01", [[]]);
+    coordinator.start();
+
+    transport.emit(
+      createDelivery({
+        deliveryId: "delivery-boundary",
+        events: [
+          createBufferedMessage(99, 1),
+          createBufferedMessage(100, 2),
+          createBufferedMessage(101, 3),
+          createBufferedRoomEvent("event-boundary", 4),
+        ],
+      }),
+    );
+
+    expect(
+      getMessageHistory(queryClient, "room-01").pages[0]?.items.map(
+        (message) => message.roomSequence,
+      ),
+    ).toEqual([101]);
+    expect(
+      queryClient
+        .getQueryData<ChatRoomEventJournal>(chatRoomQueryKeys.roomEventJournal("room-01"))
+        ?.events.map((event) => event.eventId),
+    ).toEqual(["event-boundary"]);
+    expect(transport.acknowledgedDeliveries).toEqual(["delivery-boundary"]);
+    expect(onApplied).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageCount: 1,
+        roomEventCount: 1,
+      }),
+    );
+  });
+
   it("재전달된 메시지와 Room Event는 중복 저장하지 않고 다시 ACK할 수 있다", () => {
     const queryClient = new QueryClient();
     const transport = createFakeTransport();
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
     });
     const firstDelivery = createDelivery({
       deliveryId: "delivery-1",
@@ -262,6 +337,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       onError,
     });
     seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
@@ -296,6 +372,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId: "room-01",
       generation: 2,
+      messageVisibleAfterSequence: 0,
     });
     seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
     coordinator.start();
@@ -319,6 +396,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId: "room-01",
       generation: 1,
+      messageVisibleAfterSequence: 0,
       onError,
     });
     seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
@@ -359,6 +437,27 @@ describe("applyChatRealtimeEventDelivery", () => {
       }),
     );
     expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([createMessage(1)]);
+  });
+
+  it("보이는 cache가 비어 있으면 참여 경계 다음 sequence부터 연속성을 검사한다", () => {
+    const queryClient = new QueryClient();
+    seedMessageHistory(queryClient, "room-01", [[]]);
+
+    expect(() =>
+      applyChatRealtimeEventDelivery(
+        queryClient,
+        createDelivery({
+          events: [createBufferedMessage(103, 1)],
+        }),
+        DEFAULT_MESSAGE_HISTORY_LIMIT,
+        100,
+      ),
+    ).toThrowError(
+      expect.objectContaining({
+        code: "MESSAGE_SEQUENCE_GAP",
+      }),
+    );
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([]);
   });
 
   it.each([

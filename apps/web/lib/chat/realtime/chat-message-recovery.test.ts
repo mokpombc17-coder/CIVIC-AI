@@ -16,6 +16,7 @@ describe("recoverChatMessageHistory", () => {
 
     const result = await recoverChatMessageHistory(queryClient, {
       api: { getRoomMessages },
+      messageVisibleAfterSequence: 0,
       roomId: "room-01",
       throughSequence: 3,
     });
@@ -40,6 +41,7 @@ describe("recoverChatMessageHistory", () => {
     const result = await recoverChatMessageHistory(queryClient, {
       api: { getRoomMessages },
       limit: 2,
+      messageVisibleAfterSequence: 0,
       roomId: "room-01",
       throughSequence: 4,
     });
@@ -72,6 +74,7 @@ describe("recoverChatMessageHistory", () => {
 
     await recoverChatMessageHistory(queryClient, {
       api: { getRoomMessages },
+      messageVisibleAfterSequence: 0,
       roomId: "room-01",
       throughSequence: 4,
     });
@@ -90,6 +93,7 @@ describe("recoverChatMessageHistory", () => {
     await expect(
       recoverChatMessageHistory(queryClient, {
         api: { getRoomMessages },
+        messageVisibleAfterSequence: 0,
         roomId: "room-01",
         throughSequence: 3,
       }),
@@ -107,6 +111,7 @@ describe("recoverChatMessageHistory", () => {
     await expect(
       recoverChatMessageHistory(queryClient, {
         api: { getRoomMessages },
+        messageVisibleAfterSequence: 0,
         roomId: "room-01",
         throughSequence: 2,
       }),
@@ -114,6 +119,51 @@ describe("recoverChatMessageHistory", () => {
       code: "MESSAGE_RECOVERY_STALLED",
     } satisfies Partial<ChatMessageRecoveryError>);
     expect(getRoomMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it("보이는 메시지가 없으면 참여 경계부터 복구를 시작한다", async () => {
+    const queryClient = new QueryClient();
+    const getRoomMessages = vi
+      .fn()
+      .mockResolvedValue(createAfterResponse([createMessage(101), createMessage(102)], null));
+    seedMessageHistory(queryClient, []);
+
+    const result = await recoverChatMessageHistory(queryClient, {
+      api: { getRoomMessages },
+      messageVisibleAfterSequence: 100,
+      roomId: "room-01",
+      throughSequence: 102,
+    });
+
+    expect(getRoomMessages).toHaveBeenCalledWith("room-01", {
+      mode: "after",
+      afterSequence: 100,
+      limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
+    });
+    expect(getCachedSequences(queryClient)).toEqual([101, 102]);
+    expect(result).toMatchObject({
+      fromSequence: 100,
+      throughSequence: 102,
+    });
+  });
+
+  it("최근 snapshot의 시작 sequence를 참여 경계 누락으로 오인하지 않는다", async () => {
+    const queryClient = new QueryClient();
+    const getRoomMessages = vi.fn();
+    seedMessageHistory(queryClient, [createMessage(119), createMessage(120)]);
+
+    const result = await recoverChatMessageHistory(queryClient, {
+      api: { getRoomMessages },
+      messageVisibleAfterSequence: 100,
+      roomId: "room-01",
+      throughSequence: 120,
+    });
+
+    expect(getRoomMessages).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      fromSequence: 120,
+      throughSequence: 120,
+    });
   });
 });
 

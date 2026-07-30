@@ -29,6 +29,7 @@ export class ChatMessageRecoveryError extends Error {
 type RecoverChatMessageHistoryOptions = Readonly<{
   api: Pick<ChatRoomApi, "getRoomMessages">;
   limit?: number;
+  messageVisibleAfterSequence: number;
   roomId: string;
   throughSequence: number;
 }>;
@@ -38,11 +39,13 @@ export async function recoverChatMessageHistory(
   {
     api,
     limit = DEFAULT_MESSAGE_HISTORY_LIMIT,
+    messageVisibleAfterSequence,
     roomId,
     throughSequence,
   }: RecoverChatMessageHistoryOptions,
 ): Promise<ChatMessageRecoveryResult> {
   assertSequence(throughSequence);
+  assertSequence(messageVisibleAfterSequence);
 
   const queryKey = chatRoomQueryKeys.messageHistory(roomId, limit);
   const initialHistory = queryClient.getQueryData<ChatMessageHistoryData>(queryKey);
@@ -54,8 +57,8 @@ export async function recoverChatMessageHistory(
     );
   }
 
-  const initialMerge = inspectMessageHistory(roomId, initialHistory);
-  const fromSequence = initialMerge.lastContiguousSequence ?? 0;
+  const initialMerge = inspectMessageHistory(roomId, initialHistory, messageVisibleAfterSequence);
+  const fromSequence = initialMerge.lastContiguousSequence ?? messageVisibleAfterSequence;
 
   if (fromSequence >= throughSequence) {
     return {
@@ -79,10 +82,18 @@ export async function recoverChatMessageHistory(
       limit,
     });
     requestCount += 1;
-    recoveredMessages.push(...response.items);
-    workingHistory = mergeMessagesIntoChatHistory(roomId, workingHistory, response.items).history;
+    const visibleItems = response.items.filter(
+      (message) => message.roomSequence > messageVisibleAfterSequence,
+    );
+    recoveredMessages.push(...visibleItems);
+    workingHistory = mergeMessagesIntoChatHistory(roomId, workingHistory, visibleItems).history;
 
-    const recoveryMerge = inspectMessageHistory(roomId, workingHistory, fromSequence);
+    const recoveryMerge = inspectMessageHistory(
+      roomId,
+      workingHistory,
+      messageVisibleAfterSequence,
+      fromSequence,
+    );
     const nextContiguousSequence = recoveryMerge.lastContiguousSequence ?? fromSequence;
 
     if (nextContiguousSequence <= lastContiguousSequence) {
@@ -126,7 +137,12 @@ export async function recoverChatMessageHistory(
     currentHistory,
     recoveredMessages,
   ).history;
-  const finalMerge = inspectMessageHistory(roomId, finalHistory, fromSequence);
+  const finalMerge = inspectMessageHistory(
+    roomId,
+    finalHistory,
+    messageVisibleAfterSequence,
+    fromSequence,
+  );
   const finalSequence = finalMerge.lastContiguousSequence ?? fromSequence;
 
   if (finalSequence < throughSequence) {
@@ -149,8 +165,14 @@ export async function recoverChatMessageHistory(
 export function getLastContiguousMessageSequence(
   roomId: string,
   history: ChatMessageHistoryData,
+  messageVisibleAfterSequence: number,
 ): number {
-  return inspectMessageHistory(roomId, history).lastContiguousSequence ?? 0;
+  assertSequence(messageVisibleAfterSequence);
+
+  return (
+    inspectMessageHistory(roomId, history, messageVisibleAfterSequence).lastContiguousSequence ??
+    messageVisibleAfterSequence
+  );
 }
 
 export function mergeMessagesIntoChatHistory(
@@ -197,11 +219,14 @@ export function mergeMessagesIntoChatHistory(
 function inspectMessageHistory(
   roomId: string,
   history: ChatMessageHistoryData,
+  messageVisibleAfterSequence: number,
   afterSequence?: number,
 ): ChatMessageMergeResult {
   return mergeChatMessages({
     roomId,
-    sources: history.pages.map((page) => page.items),
+    sources: history.pages.map((page) =>
+      page.items.filter((message) => message.roomSequence > messageVisibleAfterSequence),
+    ),
     ...(afterSequence === undefined ? {} : { afterSequence }),
   });
 }

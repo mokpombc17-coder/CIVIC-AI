@@ -32,6 +32,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
   });
   const coordinatorEnabled =
+    session.messageVisibleAfterSequence !== null &&
     session.watermarkSequence !== null &&
     isChatRoomSnapshotReadyForRealtimeMerge({
       hasMessageHistory: messageHistory.data !== undefined,
@@ -44,6 +45,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     roomId,
     generation: session.generation,
     limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
+    messageVisibleAfterSequence: session.messageVisibleAfterSequence ?? 0,
     watermarkSequence: session.watermarkSequence ?? 0,
   });
   const room = roomQuery.data;

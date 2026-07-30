@@ -42,6 +42,7 @@ export type ChatRealtimeQueryCoordinatorOptions = Readonly<{
   roomId: string;
   generation: number;
   limit?: number;
+  messageVisibleAfterSequence: number;
   onApplied?: (result: ApplyChatRealtimeDeliveryResult) => void;
   onError?: (error: unknown) => void;
   onRecoveryStarted?: (throughSequence: number) => void;
@@ -110,7 +111,11 @@ export class ChatRealtimeQueryCoordinator {
       this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
     );
     const watermarkSequence = this.options.watermarkSequence ?? 0;
-    const lastContiguousSequence = getLastContiguousMessageSequence(roomId, history);
+    const lastContiguousSequence = getLastContiguousMessageSequence(
+      roomId,
+      history,
+      this.options.messageVisibleAfterSequence,
+    );
 
     if (lastContiguousSequence >= watermarkSequence) {
       this.completeRoomSnapshot(roomId, generation);
@@ -147,6 +152,7 @@ export class ChatRealtimeQueryCoordinator {
         this.queryClient,
         delivery,
         this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
+        this.options.messageVisibleAfterSequence,
       );
       this.transport.acknowledgeRealtimeEventDelivery(delivery.deliveryId);
       this.options.onApplied?.(result);
@@ -159,6 +165,7 @@ export class ChatRealtimeQueryCoordinator {
           this.queryClient,
           delivery,
           this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
+          this.options.messageVisibleAfterSequence,
         );
 
         this.startRecovery(throughSequence, this.handleRealtimeEventDelivery);
@@ -187,6 +194,7 @@ export class ChatRealtimeQueryCoordinator {
     const operation = recoverChatMessageHistory(this.queryClient, {
       api: this.options.api ?? chatRoomApi,
       limit: this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
+      messageVisibleAfterSequence: this.options.messageVisibleAfterSequence,
       roomId: this.options.roomId,
       throughSequence,
     });
@@ -225,6 +233,7 @@ export function applyChatRealtimeEventDelivery(
   queryClient: QueryClient,
   delivery: ChatRealtimeEventDelivery,
   limit = DEFAULT_MESSAGE_HISTORY_LIMIT,
+  messageVisibleAfterSequence = 0,
 ): ApplyChatRealtimeDeliveryResult {
   if (delivery.overflowed) {
     throw new ChatRealtimeQueryCoordinatorError(
@@ -242,13 +251,25 @@ export function applyChatRealtimeEventDelivery(
 
   const messageHistoryKey = chatRoomQueryKeys.messageHistory(delivery.roomId, limit);
   const currentHistory = requireMessageHistory(queryClient, delivery.roomId, limit);
-  const messageEvents = delivery.events.filter((event) => event.kind === "message");
+  const hadVisibleMessage = currentHistory.pages.some((page) =>
+    page.items.some((message) => message.roomSequence > messageVisibleAfterSequence),
+  );
+  const messageEvents = delivery.events
+    .filter((event) => event.kind === "message")
+    .filter((event) => event.event.payload.roomSequence > messageVisibleAfterSequence);
   const roomEvents = delivery.events.filter((event) => event.kind === "room");
-  const { history: nextHistory, merge: messageMerge } = mergeMessagesIntoChatHistory(
+  const { history: nextHistory } = mergeMessagesIntoChatHistory(
     delivery.roomId,
     currentHistory,
     messageEvents.map((event) => event.event.payload),
   );
+  const messageMerge = mergeChatMessages({
+    roomId: delivery.roomId,
+    sources: nextHistory.pages.map((page) =>
+      page.items.filter((message) => message.roomSequence > messageVisibleAfterSequence),
+    ),
+    ...(hadVisibleMessage ? {} : { afterSequence: messageVisibleAfterSequence }),
+  });
   const roomEventJournalKey = chatRoomQueryKeys.roomEventJournal(delivery.roomId);
   const currentRoomEventJournal =
     queryClient.getQueryData<ChatRoomEventJournal>(roomEventJournalKey);
@@ -374,17 +395,21 @@ function getDeliveryRecoveryTarget(
   queryClient: QueryClient,
   delivery: ChatRealtimeEventDelivery,
   limit: number,
+  messageVisibleAfterSequence: number,
 ): number {
   const history = requireMessageHistory(queryClient, delivery.roomId, limit);
   const merge = mergeChatMessages({
     roomId: delivery.roomId,
     sources: [
-      ...history.pages.map((page) => page.items),
+      ...history.pages.map((page) =>
+        page.items.filter((message) => message.roomSequence > messageVisibleAfterSequence),
+      ),
       delivery.events
         .filter((event) => event.kind === "message")
+        .filter((event) => event.event.payload.roomSequence > messageVisibleAfterSequence)
         .map((event) => event.event.payload),
     ],
   });
 
-  return merge.messages.at(-1)?.roomSequence ?? 0;
+  return merge.messages.at(-1)?.roomSequence ?? messageVisibleAfterSequence;
 }
