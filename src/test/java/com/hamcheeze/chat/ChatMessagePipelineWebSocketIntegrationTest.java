@@ -3,14 +3,20 @@ package com.hamcheeze.chat;
 import com.hamcheeze.chat.application.ChatCommandResultEnvelope;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
+import com.hamcheeze.chat.delivery.ChatMessagePublisher;
+import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
 import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
 import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
 import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
+import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
+import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
+import com.hamcheeze.chat.websocket.subscription.SubscriptionDescriptor;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -44,12 +50,16 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest(
@@ -79,8 +89,17 @@ class ChatMessagePipelineWebSocketIntegrationTest
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private RoomCommandService roomCommandService;
+
+    @Autowired
+    private ChatMessagePublisher messagePublisher;
+
     @MockitoSpyBean(name = "chatMessageStore")
     private ChatMessageStore messageStore;
+
+    @MockitoSpyBean
+    private ChatSubscriptionRegistry subscriptions;
 
     @BeforeEach
     void seedMembershipAuthorizationFixture() {
@@ -402,6 +421,88 @@ class ChatMessagePipelineWebSocketIntegrationTest
         }
     }
 
+    @Test
+    void simpleBrokerDropsDelayedMessageAtJoinBoundary()
+            throws Exception {
+        mongoOperations.save(new MongoRoomSequenceDocument(
+                "test-room", 100, 0));
+        roomCommandService.joinRoom(new JoinRoomCommand(
+                "local-user-2",
+                java.util.UUID.randomUUID().toString(),
+                "test-room"));
+        assertThat(membershipStore.findByRoomIdAndUserId(
+                        "test-room", "local-user-2")
+                .orElseThrow()
+                .messageVisibleAfterSequence())
+                .isEqualTo(100);
+
+        ThreadPoolTaskScheduler scheduler =
+                new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("stomp-visibility-test-");
+        scheduler.initialize();
+        WebSocketStompClient client = new WebSocketStompClient(
+                new StandardWebSocketClient());
+        client.setMessageConverter(new CompositeMessageConverter(
+                List.of(
+                        new ByteArrayMessageConverter(),
+                        new JacksonJsonMessageConverter())));
+        client.setTaskScheduler(scheduler);
+        client.start();
+
+        StompSession session = null;
+        try {
+            StompHeaders connectHeaders = new StompHeaders();
+            connectHeaders.set(
+                    "Authorization",
+                    "Bearer " + token("local-user-2"));
+            session = client.connectAsync(
+                            "ws://localhost:" + port + "/ws",
+                            new WebSocketHttpHeaders(),
+                            connectHeaders,
+                            new StompSessionHandlerAdapter() {
+                            })
+                    .get(5, TimeUnit.SECONDS);
+            BlockingQueue<ChatMessageEventEnvelope> messages =
+                    new LinkedBlockingQueue<>();
+            CountDownLatch subscribed = new CountDownLatch(1);
+            doAnswer(invocation -> {
+                Object result = invocation.callRealMethod();
+                SubscriptionDescriptor descriptor =
+                        invocation.getArgument(1);
+                if ("local-user-2".equals(descriptor.userId())
+                        && descriptor.kind()
+                        == com.hamcheeze.chat.websocket.protocol
+                        .DestinationKind.TOPIC_ROOM_MESSAGES) {
+                    subscribed.countDown();
+                }
+                return result;
+            }).when(subscriptions).register(
+                    anyString(),
+                    any(SubscriptionDescriptor.class));
+            session.subscribe(
+                    "/topic/rooms/test-room/messages",
+                    collectingHandler(
+                            ChatMessageEventEnvelope.class,
+                            messages));
+            assertThat(subscribed.await(5, TimeUnit.SECONDS)).isTrue();
+
+            messagePublisher.publish(event(100));
+            assertThat(messages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+
+            messagePublisher.publish(event(101));
+            assertThat(messages.poll(5, TimeUnit.SECONDS))
+                    .isEqualTo(event(101));
+        } finally {
+            if (session != null && session.isConnected()) {
+                session.disconnect();
+            }
+            client.stop();
+            scheduler.shutdown();
+        }
+    }
+
     private long storedMessageCount() {
         return mongoOperations.count(
                 new Query(),
@@ -415,6 +516,20 @@ class ChatMessagePipelineWebSocketIntegrationTest
                         MongoRoomSequenceDocument.class);
         assertThat(sequence).isNotNull();
         return sequence.lastSequence();
+    }
+
+    private static ChatMessageEventEnvelope event(long sequence) {
+        return ChatMessageEventEnvelope.messageCreated(
+                new ChatMessage(
+                        "message-" + sequence,
+                        "test-room",
+                        sequence,
+                        "local-user-1",
+                        "550e8400-e29b-41d4-a716-44665544%04d"
+                                .formatted(sequence),
+                        "message " + sequence,
+                        Instant.parse("2026-07-24T00:00:00Z")
+                                .plusSeconds(sequence)));
     }
 
     private <T> StompFrameHandler collectingHandler(

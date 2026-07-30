@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -140,6 +141,24 @@ public final class InMemoryChatSubscriptionRegistry
                     .distinct()
                     .forEach(roomId -> removeRoomConnection(roomId, connectionId));
             return removed.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public Optional<SubscriptionDescriptor> find(
+            String connectionId,
+            String subscriptionId
+    ) {
+        lock.lock();
+        try {
+            Map<String, SubscriptionDescriptor> subscriptions =
+                    byConnection.get(connectionId);
+            return subscriptions == null
+                    ? Optional.empty()
+                    : Optional.ofNullable(
+                            subscriptions.get(subscriptionId));
         } finally {
             lock.unlock();
         }

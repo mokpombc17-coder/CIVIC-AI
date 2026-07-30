@@ -7,6 +7,7 @@ import com.hamcheeze.chat.websocket.metrics.OutboundMetricsInterceptor;
 import com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptor;
 import com.hamcheeze.chat.websocket.protocol.ChatStompErrorHandler;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionPolicyInterceptor;
+import com.hamcheeze.chat.websocket.subscription.ChatMessageVisibilityOutboundInterceptor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -44,6 +45,8 @@ public class ChatWebSocketConfig
     private final StompProtocolPolicyInterceptor protocolInterceptor;
     private final ActiveConnectionLifecycleInterceptor connectionInterceptor;
     private final SubscriptionPolicyInterceptor subscriptionInterceptor;
+    private final ChatMessageVisibilityOutboundInterceptor
+            messageVisibilityOutboundInterceptor;
     private final OutboundMetricsInterceptor outboundMetricsInterceptor;
     private final ChatStompErrorHandler stompErrorHandler;
 
@@ -61,6 +64,8 @@ public class ChatWebSocketConfig
             StompProtocolPolicyInterceptor protocolInterceptor,
             ActiveConnectionLifecycleInterceptor connectionInterceptor,
             SubscriptionPolicyInterceptor subscriptionInterceptor,
+            ChatMessageVisibilityOutboundInterceptor
+                    messageVisibilityOutboundInterceptor,
             OutboundMetricsInterceptor outboundMetricsInterceptor,
             ChatStompErrorHandler stompErrorHandler
     ) {
@@ -75,6 +80,8 @@ public class ChatWebSocketConfig
         this.protocolInterceptor = protocolInterceptor;
         this.connectionInterceptor = connectionInterceptor;
         this.subscriptionInterceptor = subscriptionInterceptor;
+        this.messageVisibilityOutboundInterceptor =
+                messageVisibilityOutboundInterceptor;
         this.outboundMetricsInterceptor = outboundMetricsInterceptor;
         this.stompErrorHandler = stompErrorHandler;
     }
@@ -113,7 +120,9 @@ public class ChatWebSocketConfig
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {
         registration.taskExecutor(outboundExecutor);
-        registration.interceptors(outboundMetricsInterceptor);
+        registration.interceptors(
+                messageVisibilityOutboundInterceptor,
+                outboundMetricsInterceptor);
     }
 
     @Override

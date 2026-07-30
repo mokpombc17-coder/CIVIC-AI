@@ -701,6 +701,7 @@ class MongoRoomStoresIntegrationTest {
                         ? CREATED_AT.plusSeconds(10) : null,
                 status == MembershipStatus.BANNED
                         ? CREATED_AT.plusSeconds(10) : null,
+                10,
                 version);
     }
 

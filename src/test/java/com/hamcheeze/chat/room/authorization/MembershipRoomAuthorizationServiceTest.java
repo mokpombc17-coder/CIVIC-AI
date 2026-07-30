@@ -46,11 +46,13 @@ class MembershipRoomAuthorizationServiceTest {
                         2,
                         null,
                         null,
+                        null,
                         RoomAccessState.ROOM_CLOSED),
                 new RoomAccessSnapshot(
                         "room-1",
                         RoomStatus.ACTIVE,
                         2,
+                        null,
                         null,
                         null,
                         RoomAccessState.MEMBERSHIP_NOT_FOUND),
@@ -95,6 +97,7 @@ class MembershipRoomAuthorizationServiceTest {
                         1,
                         MembershipStatus.LEFT,
                         1L,
+                        10L,
                         RoomAccessState.ACTIVE_MEMBER));
 
         assertThat(service.authorizeSubscription("user-1", "room-1"))
@@ -121,6 +124,7 @@ class MembershipRoomAuthorizationServiceTest {
                 3,
                 membershipStatus,
                 2L,
+                10L,
                 state);
     }
 }

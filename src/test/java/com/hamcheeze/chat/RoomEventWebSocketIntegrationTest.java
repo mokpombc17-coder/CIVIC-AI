@@ -364,6 +364,9 @@ class RoomEventWebSocketIntegrationTest
                     .isEqualTo(requestId);
             assertThat(ready.get("roomId").asText())
                     .isEqualTo(roomId);
+            assertThat(ready.get(
+                    "messageVisibleAfterSequence").asLong())
+                    .isZero();
             assertThat(ready.get("watermarkSequence")
                     .asLong())
                     .isZero();

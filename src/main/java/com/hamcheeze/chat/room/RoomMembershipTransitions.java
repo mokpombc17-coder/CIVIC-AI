@@ -59,33 +59,70 @@ public final class RoomMembershipTransitions {
             Membership existingMembership,
             String membershipId,
             String userId,
+            Instant transitionTime,
+            long messageVisibleAfterSequence
+    ) {
+        JoinRoomTransition.Outcome outcome = determineJoinOutcome(
+                room,
+                existingMembership,
+                membershipId,
+                userId,
+                transitionTime);
+        if (outcome == JoinRoomTransition.Outcome.ALREADY_ACTIVE) {
+            return new JoinRoomTransition(
+                    outcome,
+                    room,
+                    existingMembership,
+                    false);
+        }
+        Instant joinedAt =
+                requireTransitionTime(room, transitionTime);
+        if (outcome == JoinRoomTransition.Outcome.JOINED) {
+            Membership membership = Membership.createMember(
+                    membershipId,
+                    room.roomId(),
+                    userId,
+                    joinedAt,
+                    messageVisibleAfterSequence);
+            return new JoinRoomTransition(
+                    outcome,
+                    room.memberJoined(),
+                    membership,
+                    true);
+        }
+        Membership membership = existingMembership.reactivateAt(
+                joinedAt,
+                messageVisibleAfterSequence);
+        return new JoinRoomTransition(
+                outcome,
+                room.memberJoined(),
+                membership,
+                false);
+    }
+
+    public static JoinRoomTransition.Outcome determineJoinOutcome(
+            Room room,
+            Membership existingMembership,
+            String membershipId,
+            String userId,
             Instant transitionTime
     ) {
         requireRoom(room);
         requireActive(room);
-        Instant joinedAt =
-                requireTransitionTime(room, transitionTime);
+        requireTransitionTime(room, transitionTime);
         if (room.joinPolicy() != JoinPolicy.OPEN) {
             throw failure(RoomDomainErrorCode.JOIN_POLICY_NOT_OPEN);
         }
         String targetUserId =
                 RoomDomainValidation.requireUserId(userId);
         if (existingMembership == null) {
+            RoomDomainValidation.requireMembershipId(membershipId);
             if (targetUserId.equals(room.ownerUserId())) {
                 throw failure(
                         RoomDomainErrorCode
                                 .OWNER_MEMBERSHIP_MISMATCH);
             }
-            Membership membership = Membership.createMember(
-                    membershipId,
-                    room.roomId(),
-                    targetUserId,
-                    joinedAt);
-            return new JoinRoomTransition(
-                    JoinRoomTransition.Outcome.JOINED,
-                    room.memberJoined(),
-                    membership,
-                    true);
+            return JoinRoomTransition.Outcome.JOINED;
         }
         requireSameRoom(room, existingMembership);
         requireSameUser(targetUserId, existingMembership);
@@ -98,23 +135,13 @@ public final class RoomMembershipTransitions {
         }
         if (existingMembership.status()
                 == MembershipStatus.ACTIVE) {
-            return new JoinRoomTransition(
-                    JoinRoomTransition.Outcome.ALREADY_ACTIVE,
-                    room,
-                    existingMembership,
-                    false);
+            return JoinRoomTransition.Outcome.ALREADY_ACTIVE;
         }
         if (existingMembership.status()
                 == MembershipStatus.BANNED) {
             throw failure(RoomDomainErrorCode.MEMBERSHIP_BANNED);
         }
-        Membership membership =
-                existingMembership.reactivateAt(joinedAt);
-        return new JoinRoomTransition(
-                JoinRoomTransition.Outcome.REJOINED,
-                room.memberJoined(),
-                membership,
-                false);
+        return JoinRoomTransition.Outcome.REJOINED;
     }
 
     public static LeaveRoomTransition leaveRoom(

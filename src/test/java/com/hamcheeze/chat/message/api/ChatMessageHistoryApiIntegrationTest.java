@@ -6,6 +6,8 @@ import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
+import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
+import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -148,6 +150,60 @@ class ChatMessageHistoryApiIntegrationTest
     }
 
     @Test
+    void memberCannotReadAtOrBelowJoinBoundaryWithAnyCursor()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        appendMessages(roomId, "owner-1", 100);
+        roomCommandService.joinRoom(new JoinRoomCommand(
+                "user-2", UUID.randomUUID().toString(), roomId));
+        appendMessages(roomId, "owner-1", 30);
+
+        var membership = membershipStore
+                .findByRoomIdAndUserId(roomId, "user-2")
+                .orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(
+                        membership.messageVisibleAfterSequence())
+                .isEqualTo(100);
+
+        assertRange(roomId, null, null, 101, 130, 30);
+        assertRange(roomId, "beforeSequence", "200", 101, 130, 30);
+        assertEmpty(roomId, "beforeSequence", "101");
+        assertEmpty(roomId, "beforeSequence", "50");
+        assertRange(roomId, "afterSequence", "0", 101, 130, 30);
+        assertRange(roomId, "afterSequence", "50", 101, 130, 30);
+        assertRange(roomId, "afterSequence", "100", 101, 130, 30);
+        assertRange(roomId, "afterSequence", "120", 121, 130, 10);
+    }
+
+    @Test
+    void rejoinReplacesBoundaryAndHidesEarlierParticipationWindow()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        appendMessages(roomId, "owner-1", 3);
+        roomCommandService.joinRoom(new JoinRoomCommand(
+                "user-2", UUID.randomUUID().toString(), roomId));
+        append(roomId, "owner-1", "message 4");
+        roomCommandService.leaveRoom(new LeaveRoomCommand(
+                "user-2", UUID.randomUUID().toString(), roomId));
+        append(roomId, "owner-1", "message 5");
+        append(roomId, "owner-1", "message 6");
+        roomCommandService.joinRoom(new JoinRoomCommand(
+                "user-2", UUID.randomUUID().toString(), roomId));
+
+        org.assertj.core.api.Assertions.assertThat(
+                membershipStore.findByRoomIdAndUserId(
+                                roomId, "user-2")
+                        .orElseThrow()
+                        .messageVisibleAfterSequence())
+                .isEqualTo(6);
+        assertEmpty(roomId, "afterSequence", "0");
+        assertEmpty(roomId, "beforeSequence", "100");
+
+        append(roomId, "owner-1", "message 7");
+        assertRange(roomId, "afterSequence", "0", 7, 7, 1);
+    }
+
+    @Test
     void emptyRoomReturnsEmptyLatestPage() throws Exception {
         String roomId = createRoom("owner-1");
 
@@ -263,6 +319,59 @@ class ChatMessageHistoryApiIntegrationTest
                 senderUserId,
                 UUID.randomUUID().toString(),
                 content));
+    }
+
+    private void assertRange(
+            String roomId,
+            String cursorName,
+            String cursorValue,
+            long first,
+            long last,
+            int count
+    ) throws Exception {
+        var request = get(
+                        "/api/v1/rooms/{roomId}/messages",
+                        roomId)
+                .with(jwt("user-2", ChatScopes.ROOMS_READ))
+                .queryParam("limit", "100");
+        if (cursorName != null) {
+            request.queryParam(cursorName, cursorValue);
+        }
+        mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(count))
+                .andExpect(jsonPath("$.items[0].roomSequence")
+                        .value(first))
+                .andExpect(jsonPath(
+                        "$.items[" + (count - 1)
+                                + "].roomSequence")
+                        .value(last))
+                .andExpect(jsonPath("$.nextBeforeSequence")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.nextAfterSequence")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.hasMore").value(false));
+    }
+
+    private void assertEmpty(
+            String roomId,
+            String cursorName,
+            String cursorValue
+    ) throws Exception {
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}/messages",
+                                roomId)
+                        .with(jwt(
+                                "user-2",
+                                ChatScopes.ROOMS_READ))
+                        .queryParam(cursorName, cursorValue))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.nextBeforeSequence")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.nextAfterSequence")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.hasMore").value(false));
     }
 
     private JwtRequestPostProcessor jwt(

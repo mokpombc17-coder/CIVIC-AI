@@ -129,7 +129,9 @@ class MongoRoomDocumentMappingTest {
         memberships.forEach(membership -> {
             MongoMembershipDocument document =
                     MongoMembershipDocument.fromDomain(membership);
-            assertThat(document.schemaVersion()).isEqualTo(1);
+            assertThat(document.schemaVersion()).isEqualTo(2);
+            assertThat(document.messageVisibleAfterSequence())
+                    .isEqualTo(10);
             assertThat(document.toDomain()).isEqualTo(membership);
         });
     }
@@ -217,7 +219,7 @@ class MongoRoomDocumentMappingTest {
         MongoMembershipDocument membershipDocument =
                 new MongoMembershipDocument(
                         "membership-1",
-                        2,
+                        3,
                         "room-1",
                         "user-1",
                         MembershipRole.MEMBER,
@@ -225,6 +227,7 @@ class MongoRoomDocumentMappingTest {
                         CREATED_AT,
                         null,
                         null,
+                        10L,
                         0);
         MongoRoomCommandReceiptDocument receiptDocument =
                 new MongoRoomCommandReceiptDocument(
@@ -248,7 +251,7 @@ class MongoRoomDocumentMappingTest {
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,
-                2);
+                3);
         assertUnsupportedSchema(
                 receiptDocument::toDomain,
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME,
@@ -277,6 +280,29 @@ class MongoRoomDocumentMappingTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void legacyMissingAndNegativeMembershipBoundariesFailClosed() {
+        MongoMembershipDocument legacy = new MongoMembershipDocument(
+                "membership-1", 1, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                CREATED_AT, null, null, 10L, 0);
+
+        assertUnsupportedSchema(
+                legacy::toDomain,
+                MongoMembershipDocument.COLLECTION_NAME,
+                1);
+        assertThatThrownBy(() -> new MongoMembershipDocument(
+                "membership-1", 2, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                CREATED_AT, null, null, null, 0))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new MongoMembershipDocument(
+                "membership-1", 2, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                CREATED_AT, null, null, -1L, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private Membership membership(
             String membershipId,
             MembershipRole role,
@@ -294,6 +320,7 @@ class MongoRoomDocumentMappingTest {
                 CREATED_AT,
                 leftAt,
                 bannedAt,
+                10,
                 version);
     }
 
@@ -306,7 +333,7 @@ class MongoRoomDocumentMappingTest {
     ) {
         return new MongoMembershipDocument(
                 "membership-1",
-                1,
+                2,
                 "room-1",
                 "user-1",
                 role,
@@ -314,6 +341,7 @@ class MongoRoomDocumentMappingTest {
                 CREATED_AT,
                 leftAt,
                 bannedAt,
+                10L,
                 version);
     }
 

@@ -1,9 +1,9 @@
 package com.hamcheeze.chat.websocket.subscription;
 
-import com.hamcheeze.chat.application.RoomAuthorizationDecision;
-import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccess;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccessResolver;
 import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,8 +25,8 @@ class RoomSubscriptionSyncServiceTest {
 
     private final ChatSubscriptionRegistry subscriptions =
             mock(ChatSubscriptionRegistry.class);
-    private final RoomAuthorizationService authorization =
-            mock(RoomAuthorizationService.class);
+    private final RoomMessageAccessResolver accessResolver =
+            mock(RoomMessageAccessResolver.class);
     private final ChatMessageHistoryReader historyReader =
             mock(ChatMessageHistoryReader.class);
     private final SubscriptionResultSender resultSender =
@@ -34,18 +34,16 @@ class RoomSubscriptionSyncServiceTest {
     private final RoomSubscriptionSyncService service =
             new RoomSubscriptionSyncService(
                     subscriptions,
-                    authorization,
+                    accessResolver,
                     historyReader,
                     resultSender);
 
     @Test
     void returnsReadyWithLatestCommittedSequence() {
         allowRequiredSubscriptions();
-        when(authorization.authorizeSubscription(
-                "user-1",
-                "room-1"))
-                .thenReturn(RoomAuthorizationDecision.ALLOWED);
-        when(historyReader.findLatest("room-1", 1))
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(100));
+        when(historyReader.findLatest("room-1", 0, 1))
                 .thenReturn(List.of(message(120)));
 
         service.synchronize(
@@ -60,17 +58,16 @@ class RoomSubscriptionSyncServiceTest {
                 .isEqualTo("ROOM_SUBSCRIPTIONS_READY");
         assertThat(ready.requestId()).isEqualTo(REQUEST_ID);
         assertThat(ready.roomId()).isEqualTo("room-1");
+        assertThat(ready.messageVisibleAfterSequence()).isEqualTo(100);
         assertThat(ready.watermarkSequence()).isEqualTo(120);
     }
 
     @Test
     void emptyRoomUsesZeroWatermark() {
         allowRequiredSubscriptions();
-        when(authorization.authorizeSubscription(
-                "user-1",
-                "room-1"))
-                .thenReturn(RoomAuthorizationDecision.ALLOWED);
-        when(historyReader.findLatest("room-1", 1))
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(0));
+        when(historyReader.findLatest("room-1", 0, 1))
                 .thenReturn(List.of());
 
         service.synchronize(
@@ -110,16 +107,14 @@ class RoomSubscriptionSyncServiceTest {
                 RoomSubscriptionSyncErrorCode
                         .ROOM_SUBSCRIPTIONS_NOT_READY);
         assertThat(rejected.retryable()).isFalse();
-        verifyNoInteractions(authorization, historyReader);
+        verifyNoInteractions(accessResolver, historyReader);
     }
 
     @Test
     void mapsAuthorizationAndWatermarkFailures() {
         allowRequiredSubscriptions();
-        when(authorization.authorizeSubscription(
-                "user-1",
-                "room-1"))
-                .thenReturn(RoomAuthorizationDecision.UNAVAILABLE);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.unavailable());
 
         service.synchronize(
                 "user-1",
@@ -134,11 +129,9 @@ class RoomSubscriptionSyncServiceTest {
                         .ROOM_AUTHORIZATION_UNAVAILABLE);
         assertThat(unavailable.retryable()).isTrue();
 
-        when(authorization.authorizeSubscription(
-                "user-1",
-                "room-1"))
-                .thenReturn(RoomAuthorizationDecision.ALLOWED);
-        when(historyReader.findLatest("room-1", 1))
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(100));
+        when(historyReader.findLatest("room-1", 0, 1))
                 .thenThrow(new IllegalStateException("mongo down"));
 
         service.synchronize(
@@ -181,7 +174,7 @@ class RoomSubscriptionSyncServiceTest {
                         .INVALID_SYNC_REQUEST);
         verifyNoInteractions(
                 subscriptions,
-                authorization,
+                accessResolver,
                 historyReader);
     }
 

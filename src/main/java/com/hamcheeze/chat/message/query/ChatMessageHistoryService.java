@@ -1,7 +1,8 @@
 package com.hamcheeze.chat.message.query;
 
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
-import com.hamcheeze.chat.application.RoomAuthorizationService;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccess;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccessResolver;
 import com.hamcheeze.chat.message.ChatMessage;
 
 import java.util.ArrayList;
@@ -13,16 +14,16 @@ import java.util.function.Supplier;
 public final class ChatMessageHistoryService {
 
     private final ChatMessageHistoryReader reader;
-    private final RoomAuthorizationService authorizationService;
+    private final RoomMessageAccessResolver accessResolver;
 
     public ChatMessageHistoryService(
             ChatMessageHistoryReader reader,
-            RoomAuthorizationService authorizationService
+            RoomMessageAccessResolver accessResolver
     ) {
         this.reader = Objects.requireNonNull(reader, "reader");
-        this.authorizationService = Objects.requireNonNull(
-                authorizationService,
-                "authorizationService");
+        this.accessResolver = Objects.requireNonNull(
+                accessResolver,
+                "accessResolver");
     }
 
     public ChatMessageHistoryPage findLatest(
@@ -31,10 +32,11 @@ public final class ChatMessageHistoryService {
             int limit
     ) {
         requireCommonInputs(userId, roomId, limit);
-        authorize(userId, roomId);
+        long boundary = requireBoundary(userId, roomId);
         return backwardPage(
                 read(() -> reader.findLatest(
                         roomId,
+                        boundary,
                         limit + 1)),
                 limit);
     }
@@ -50,10 +52,11 @@ public final class ChatMessageHistoryService {
             throw new IllegalArgumentException(
                     "beforeSequence must be at least 1");
         }
-        authorize(userId, roomId);
+        long boundary = requireBoundary(userId, roomId);
         return backwardPage(
                 read(() -> reader.findBefore(
                         roomId,
+                        boundary,
                         beforeSequence,
                         limit + 1)),
                 limit);
@@ -70,10 +73,14 @@ public final class ChatMessageHistoryService {
             throw new IllegalArgumentException(
                     "afterSequence must not be negative");
         }
-        authorize(userId, roomId);
+        long boundary = requireBoundary(userId, roomId);
+        long effectiveAfterSequence = Math.max(
+                afterSequence,
+                boundary);
         List<ChatMessage> found = read(() -> reader.findAfter(
                 roomId,
-                afterSequence,
+                boundary,
+                effectiveAfterSequence,
                 limit + 1));
         boolean hasMore = found.size() > limit;
         List<ChatMessage> items = hasMore
@@ -89,25 +96,25 @@ public final class ChatMessageHistoryService {
                 hasMore);
     }
 
-    private void authorize(
+    private long requireBoundary(
             String userId,
             String roomId
     ) {
-        RoomAuthorizationDecision decision =
-                authorizationService.authorizeMessageHistory(
-                        userId,
-                        roomId);
-        if (decision == RoomAuthorizationDecision.FORBIDDEN) {
+        RoomMessageAccess access = accessResolver.resolve(
+                userId,
+                roomId);
+        if (access.decision() == RoomAuthorizationDecision.FORBIDDEN) {
             throw new ChatMessageHistoryException(
                     ChatMessageHistoryErrorCode.ACCESS_DENIED,
                     "Only an active room member can read messages");
         }
-        if (decision == RoomAuthorizationDecision.UNAVAILABLE) {
+        if (access.decision() == RoomAuthorizationDecision.UNAVAILABLE) {
             throw new ChatMessageHistoryException(
                     ChatMessageHistoryErrorCode
                             .AUTHORIZATION_UNAVAILABLE,
                     "Room authorization is temporarily unavailable");
         }
+        return access.messageVisibleAfterSequence();
     }
 
     private static ChatMessageHistoryPage backwardPage(

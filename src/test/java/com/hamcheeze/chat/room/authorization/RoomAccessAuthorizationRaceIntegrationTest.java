@@ -79,6 +79,9 @@ class RoomAccessAuthorizationRaceIntegrationTest
     @jakarta.annotation.Resource
     private RoomAuthorizationService authorization;
 
+    @jakarta.annotation.Resource
+    private RoomMessageAccessResolver messageAccessResolver;
+
     @Test
     void subscribeVsLeaveCannotRetainLeftMembershipSubscription()
             throws Exception {
@@ -152,8 +155,8 @@ class RoomAccessAuthorizationRaceIntegrationTest
     private void assertSubscribeRace(AccessChange change)
             throws Exception {
         RaceContext context = createContext(change);
-        BlockingSubscriptionAuthorization blocking =
-                new BlockingSubscriptionAuthorization(authorization);
+        BlockingMessageAccess blocking =
+                new BlockingMessageAccess(messageAccessResolver);
         InMemoryChatSubscriptionRegistry subscriptions =
                 new InMemoryChatSubscriptionRegistry(
                         new SubscriptionLimitProperties(),
@@ -163,8 +166,9 @@ class RoomAccessAuthorizationRaceIntegrationTest
         SubscriptionPolicyInterceptor interceptor =
                 new SubscriptionPolicyInterceptor(
                         new DestinationPolicy(
-                                new ChatContentProperties()),
-                        blocking,
+                        new ChatContentProperties()),
+                        authorization,
+                        blocking.resolver(),
                         subscriptions,
                         sender,
                         new SimpleMeterRegistry());
@@ -361,10 +365,10 @@ class RoomAccessAuthorizationRaceIntegrationTest
     ) {
     }
 
-    private static final class BlockingSubscriptionAuthorization
-            implements RoomAuthorizationService {
+    private static final class BlockingMessageAccess {
 
-        private final RoomAuthorizationService delegate;
+        private final RoomMessageAccessResolver resolver =
+                mock(RoomMessageAccessResolver.class);
         private final AtomicBoolean first =
                 new AtomicBoolean(true);
         private final CountDownLatch firstDecision =
@@ -372,32 +376,24 @@ class RoomAccessAuthorizationRaceIntegrationTest
         private final CountDownLatch release =
                 new CountDownLatch(1);
 
-        private BlockingSubscriptionAuthorization(
-                RoomAuthorizationService delegate
+        private BlockingMessageAccess(
+                RoomMessageAccessResolver delegate
         ) {
-            this.delegate = delegate;
+            when(resolver.resolve(anyString(), anyString()))
+                    .thenAnswer(invocation -> {
+                        RoomMessageAccess access = delegate.resolve(
+                                invocation.getArgument(0),
+                                invocation.getArgument(1));
+                        if (first.compareAndSet(true, false)) {
+                            firstDecision.countDown();
+                            await(release);
+                        }
+                        return access;
+                    });
         }
 
-        @Override
-        public RoomAuthorizationDecision authorizeSubscription(
-                String userId,
-                String roomId
-        ) {
-            RoomAuthorizationDecision decision =
-                    delegate.authorizeSubscription(userId, roomId);
-            if (first.compareAndSet(true, false)) {
-                firstDecision.countDown();
-                await(release);
-            }
-            return decision;
-        }
-
-        @Override
-        public RoomAuthorizationDecision authorizeMessageSend(
-                String userId,
-                String roomId
-        ) {
-            return delegate.authorizeMessageSend(userId, roomId);
+        private RoomMessageAccessResolver resolver() {
+            return resolver;
         }
 
         private void awaitFirstDecision() {

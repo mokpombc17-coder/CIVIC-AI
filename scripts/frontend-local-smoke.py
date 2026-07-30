@@ -408,6 +408,10 @@ def run_websocket_flow(
             )
         if ready.get("roomId") != room_id:
             raise AssertionError("구독 준비 응답의 roomId가 다릅니다.")
+        if ready.get("messageVisibleAfterSequence") != 0:
+            raise AssertionError(
+                "방장의 messageVisibleAfterSequence는 0이어야 합니다."
+            )
         if ready.get("watermarkSequence") != 0:
             raise AssertionError(
                 "새 방의 구독 준비 watermarkSequence는 0이어야 합니다."

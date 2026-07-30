@@ -7,7 +7,8 @@ public record SubscriptionDescriptor(
         String userId,
         String destination,
         DestinationKind kind,
-        String roomId
+        String roomId,
+        Long messageVisibleAfterSequence
 ) {
 
     public SubscriptionDescriptor {
@@ -22,6 +23,16 @@ public record SubscriptionDescriptor(
         } else if (roomId != null && roomId.isBlank()) {
             throw new IllegalArgumentException(
                     "roomId must not be blank");
+        }
+        if (kind == DestinationKind.TOPIC_ROOM_MESSAGES) {
+            if (messageVisibleAfterSequence == null
+                    || messageVisibleAfterSequence < 0) {
+                throw new IllegalArgumentException(
+                        "Message subscriptions require a valid boundary");
+            }
+        } else if (messageVisibleAfterSequence != null) {
+            throw new IllegalArgumentException(
+                    "Only message subscriptions may have a boundary");
         }
     }
 

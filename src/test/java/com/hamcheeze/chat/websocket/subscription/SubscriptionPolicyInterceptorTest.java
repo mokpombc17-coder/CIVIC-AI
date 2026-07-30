@@ -3,6 +3,8 @@ package com.hamcheeze.chat.websocket.subscription;
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccess;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccessResolver;
 import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -27,6 +29,8 @@ class SubscriptionPolicyInterceptorTest {
 
     private final RoomAuthorizationService authorization =
             mock(RoomAuthorizationService.class);
+    private final RoomMessageAccessResolver messageAccessResolver =
+            mock(RoomMessageAccessResolver.class);
     private final ChatSubscriptionRegistry registry =
             mock(ChatSubscriptionRegistry.class);
     private final SubscriptionResultSender sender =
@@ -38,6 +42,7 @@ class SubscriptionPolicyInterceptorTest {
         interceptor = new SubscriptionPolicyInterceptor(
                 new DestinationPolicy(new ChatContentProperties()),
                 authorization,
+                messageAccessResolver,
                 registry,
                 sender,
                 new SimpleMeterRegistry());
@@ -63,6 +68,7 @@ class SubscriptionPolicyInterceptorTest {
         interceptor = new SubscriptionPolicyInterceptor(
                 new DestinationPolicy(new ChatContentProperties()),
                 authorization,
+                messageAccessResolver,
                 registry,
                 sender,
                 ThrowingMeterRegistry.counter(
@@ -92,30 +98,32 @@ class SubscriptionPolicyInterceptorTest {
 
     @Test
     void roomDestinationChecksAuthorizationBeforeAndAfterRegistration() {
-        when(authorization.authorizeSubscription("user-1", "room-1"))
-                .thenReturn(RoomAuthorizationDecision.ALLOWED);
+        when(messageAccessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(100));
         when(registry.register(eq("connection-1"), any()))
                 .thenReturn(SubscriptionRegistrationResult.accepted());
         Message<byte[]> message =
                 subscribe("/topic/rooms/room-1/messages");
 
         assertThat(interceptor.preSend(message, null)).isSameAs(message);
-        verify(authorization, org.mockito.Mockito.times(2))
-                .authorizeSubscription("user-1", "room-1");
+        verify(messageAccessResolver, org.mockito.Mockito.times(2))
+                .resolve("user-1", "room-1");
         ArgumentCaptor<SubscriptionDescriptor> descriptor =
                 ArgumentCaptor.forClass(SubscriptionDescriptor.class);
         verify(registry).register(
                 eq("connection-1"),
                 descriptor.capture());
         assertThat(descriptor.getValue().userId()).isEqualTo("user-1");
+        assertThat(descriptor.getValue().messageVisibleAfterSequence())
+                .isEqualTo(100);
     }
 
     @Test
     void authorizationLostAfterRegistrationRemovesSubscription() {
-        when(authorization.authorizeSubscription("user-1", "room-1"))
+        when(messageAccessResolver.resolve("user-1", "room-1"))
                 .thenReturn(
-                        RoomAuthorizationDecision.ALLOWED,
-                        RoomAuthorizationDecision.FORBIDDEN);
+                        RoomMessageAccess.allowed(100),
+                        RoomMessageAccess.forbidden());
         when(registry.register(eq("connection-1"), any()))
                 .thenReturn(SubscriptionRegistrationResult.accepted());
         Message<byte[]> message =

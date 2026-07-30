@@ -91,6 +91,14 @@ final class RoomDomainValidation {
         return version;
     }
 
+    static long requireMessageVisibleAfterSequence(long sequence) {
+        if (sequence < 0) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode.INVALID_DOMAIN_STATE);
+        }
+        return sequence;
+    }
+
     static long nextVersion(long version) {
         if (version == Long.MAX_VALUE) {
             throw new RoomDomainException(

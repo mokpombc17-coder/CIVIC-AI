@@ -1,9 +1,10 @@
 package com.hamcheeze.chat.websocket.subscription;
 
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
-import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccess;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccessResolver;
 import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 import org.springframework.stereotype.Service;
 
@@ -15,22 +16,22 @@ import java.util.UUID;
 public final class RoomSubscriptionSyncService {
 
     private final ChatSubscriptionRegistry subscriptions;
-    private final RoomAuthorizationService authorizationService;
+    private final RoomMessageAccessResolver messageAccessResolver;
     private final ChatMessageHistoryReader historyReader;
     private final SubscriptionResultSender resultSender;
 
     public RoomSubscriptionSyncService(
             ChatSubscriptionRegistry subscriptions,
-            RoomAuthorizationService authorizationService,
+            RoomMessageAccessResolver messageAccessResolver,
             ChatMessageHistoryReader historyReader,
             SubscriptionResultSender resultSender
     ) {
         this.subscriptions = Objects.requireNonNull(
                 subscriptions,
                 "subscriptions");
-        this.authorizationService = Objects.requireNonNull(
-                authorizationService,
-                "authorizationService");
+        this.messageAccessResolver = Objects.requireNonNull(
+                messageAccessResolver,
+                "messageAccessResolver");
         this.historyReader = Objects.requireNonNull(
                 historyReader,
                 "historyReader");
@@ -76,11 +77,9 @@ public final class RoomSubscriptionSyncService {
             return;
         }
 
-        RoomAuthorizationDecision authorization =
-                authorizationService.authorizeSubscription(
-                        userId,
-                        roomId);
-        if (authorization
+        RoomMessageAccess messageAccess =
+                messageAccessResolver.resolve(userId, roomId);
+        if (messageAccess.decision()
                 == RoomAuthorizationDecision.FORBIDDEN) {
             reject(
                     userId,
@@ -92,7 +91,7 @@ public final class RoomSubscriptionSyncService {
                     false);
             return;
         }
-        if (authorization
+        if (messageAccess.decision()
                 == RoomAuthorizationDecision.UNAVAILABLE) {
             reject(
                     userId,
@@ -107,7 +106,7 @@ public final class RoomSubscriptionSyncService {
 
         try {
             List<ChatMessage> latest =
-                    historyReader.findLatest(roomId, 1);
+                    historyReader.findLatest(roomId, 0, 1);
             long watermarkSequence = latest.isEmpty()
                     ? 0
                     : latest.getFirst().roomSequence();
@@ -117,6 +116,8 @@ public final class RoomSubscriptionSyncService {
                     new RoomSubscriptionsReady(
                             requestId,
                             roomId,
+                            messageAccess
+                                    .messageVisibleAfterSequence(),
                             watermarkSequence));
         } catch (RuntimeException exception) {
             reject(

@@ -23,11 +23,12 @@ public record MongoMembershipDocument(
         Instant joinedAt,
         Instant leftAt,
         Instant bannedAt,
+        Long messageVisibleAfterSequence,
         long version
 ) {
 
     public static final String COLLECTION_NAME = "chat_memberships";
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     @PersistenceCreator
     public MongoMembershipDocument {
@@ -37,6 +38,13 @@ public record MongoMembershipDocument(
         Objects.requireNonNull(role, "role");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(joinedAt, "joinedAt");
+        Objects.requireNonNull(
+                messageVisibleAfterSequence,
+                "messageVisibleAfterSequence");
+        if (messageVisibleAfterSequence < 0) {
+            throw new IllegalArgumentException(
+                    "messageVisibleAfterSequence must not be negative");
+        }
     }
 
     public static MongoMembershipDocument fromDomain(
@@ -53,6 +61,7 @@ public record MongoMembershipDocument(
                 membership.joinedAt(),
                 membership.leftAt(),
                 membership.bannedAt(),
+                membership.messageVisibleAfterSequence(),
                 membership.version());
     }
 
@@ -67,6 +76,7 @@ public record MongoMembershipDocument(
                 joinedAt,
                 leftAt,
                 bannedAt,
+                messageVisibleAfterSequence,
                 version);
     }
 

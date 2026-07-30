@@ -48,6 +48,7 @@ class RoomCreationAndRestoreTest {
         assertThat(owner.joinedAt()).isEqualTo(CREATED_AT);
         assertThat(owner.leftAt()).isNull();
         assertThat(owner.bannedAt()).isNull();
+        assertThat(owner.messageVisibleAfterSequence()).isZero();
         assertThat(owner.version()).isZero();
     }
 
@@ -194,6 +195,7 @@ class RoomCreationAndRestoreTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 4);
         Membership leftOwner = Membership.restore(
                 "membership-owner-left",
@@ -204,6 +206,7 @@ class RoomCreationAndRestoreTest {
                 CREATED_AT,
                 CREATED_AT.plusSeconds(30),
                 null,
+                11,
                 5);
 
         assertThat(active.status())
@@ -234,6 +237,7 @@ class RoomCreationAndRestoreTest {
                         CREATED_AT,
                         null,
                         CREATED_AT.plusSeconds(20),
+                        0,
                         0),
                 RoomDomainErrorCode.INVALID_DOMAIN_STATE);
     }
@@ -313,29 +317,68 @@ class RoomCreationAndRestoreTest {
                         " ", "room-1", "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
-                        CREATED_AT, null, null, 0),
+                        CREATED_AT, null, null, 0, 0),
                 RoomDomainErrorCode.INVALID_MEMBERSHIP_ID);
         assertFailure(
                 () -> Membership.restore(
                         "member-1", "invalid room", "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
-                        CREATED_AT, null, null, 0),
+                        CREATED_AT, null, null, 0, 0),
                 RoomDomainErrorCode.INVALID_ROOM_ID);
         assertFailure(
                 () -> Membership.restore(
                         "member-1", "room-1", " ",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
-                        CREATED_AT, null, null, 0),
+                        CREATED_AT, null, null, 0, 0),
                 RoomDomainErrorCode.INVALID_USER_ID);
         assertFailure(
                 () -> Membership.restore(
                         "member-1", "room-1", "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
-                        CREATED_AT, null, null, -1),
+                        CREATED_AT, null, null, 0, -1),
                 RoomDomainErrorCode.INVALID_VERSION);
+    }
+
+    @Test
+    void rejectsNegativeMembershipVisibilityBoundaryOnCreateAndRestore() {
+        assertFailure(
+                () -> Membership.createMember(
+                        "membership-1",
+                        "room-1",
+                        "user-1",
+                        CREATED_AT,
+                        -1),
+                RoomDomainErrorCode.INVALID_DOMAIN_STATE);
+        assertFailure(
+                () -> Membership.restore(
+                        "membership-1",
+                        "room-1",
+                        "user-1",
+                        MembershipRole.MEMBER,
+                        MembershipStatus.ACTIVE,
+                        CREATED_AT,
+                        null,
+                        null,
+                        -1,
+                        0),
+                RoomDomainErrorCode.INVALID_DOMAIN_STATE);
+    }
+
+    @Test
+    void visibilityBoundaryParticipatesInMembershipEquality() {
+        Membership first = Membership.createMember(
+                "membership-1", "room-1", "user-1", CREATED_AT, 10);
+        Membership same = Membership.createMember(
+                "membership-1", "room-1", "user-1", CREATED_AT, 10);
+        Membership differentBoundary = Membership.createMember(
+                "membership-1", "room-1", "user-1", CREATED_AT, 11);
+
+        assertThat(first).isEqualTo(same);
+        assertThat(first.hashCode()).isEqualTo(same.hashCode());
+        assertThat(first).isNotEqualTo(differentBoundary);
     }
 
     private RoomCreationResult create(
@@ -388,6 +431,7 @@ class RoomCreationAndRestoreTest {
                 CREATED_AT,
                 leftAt,
                 bannedAt,
+                10,
                 version);
     }
 

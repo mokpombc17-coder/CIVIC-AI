@@ -1,5 +1,9 @@
 package com.hamcheeze.chat.room.application;
 
+import com.hamcheeze.chat.message.ChatMessageStore;
+import com.hamcheeze.chat.message.NewChatMessage;
+import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipRole;
@@ -60,6 +64,9 @@ class RoomCommandServiceIntegrationTest
 
     @Autowired
     private RoomStore roomStore;
+
+    @Autowired
+    private ChatMessageStore messageStore;
 
     @MockitoSpyBean
     private MembershipStore membershipStore;
@@ -167,6 +174,7 @@ class RoomCommandServiceIntegrationTest
     @Test
     void joinLeaveRejoinNoOpAndPastReplayStayConsistent() {
         String roomId = createOpenRoom("owner-1");
+        appendMessages(roomId, "owner-1", 3);
         String joinRequest = requestId();
         JoinRoomCommand join = new JoinRoomCommand(
                 "user-2",
@@ -174,20 +182,30 @@ class RoomCommandServiceIntegrationTest
                 roomId);
 
         RoomCommandExecution joined = service.joinRoom(join);
+        Membership afterJoin = membership(roomId, "user-2");
+        long revisionAfterJoin = boundaryRevision(roomId);
         RoomCommandExecution alreadyActive = service.joinRoom(
                 new JoinRoomCommand(
                         "user-2",
                         requestId(),
                         roomId));
+        Membership afterAlreadyActive = membership(roomId, "user-2");
+        long revisionAfterAlreadyActive = boundaryRevision(roomId);
         RoomCommandExecution left = service.leaveRoom(
                 new LeaveRoomCommand(
                         "user-2",
                         requestId(),
                         roomId));
+        Membership beforeReplay = membership(roomId, "user-2");
+        Room roomBeforeReplay = roomStore.findById(roomId).orElseThrow();
+        appendMessages(roomId, "owner-1", 3);
         RoomCommandExecution replay = service.joinRoom(join);
         Membership afterReplay = membership(
                 roomId,
                 "user-2");
+        long revisionAfterReplay = boundaryRevision(roomId);
+        Room roomAfterReplay =
+                roomStore.findById(roomId).orElseThrow();
         RoomCommandExecution rejoined = service.joinRoom(
                 new JoinRoomCommand(
                         "user-2",
@@ -198,14 +216,27 @@ class RoomCommandServiceIntegrationTest
                 .isEqualTo(RoomCommandResultCode.JOINED);
         assertThat(alreadyActive.result().code())
                 .isEqualTo(RoomCommandResultCode.ALREADY_ACTIVE);
+        assertThat(afterJoin.messageVisibleAfterSequence()).isEqualTo(3);
+        assertThat(afterAlreadyActive.messageVisibleAfterSequence())
+                .isEqualTo(3);
+        assertThat(revisionAfterJoin).isEqualTo(1);
+        assertThat(revisionAfterAlreadyActive)
+                .isEqualTo(revisionAfterJoin);
         assertThat(left.result().code())
                 .isEqualTo(RoomCommandResultCode.LEFT);
         assertThat(replay.result()).isEqualTo(joined.result());
         assertThat(replay.replayed()).isTrue();
         assertThat(afterReplay.status())
                 .isEqualTo(MembershipStatus.LEFT);
+        assertThat(afterReplay).isEqualTo(beforeReplay);
+        assertThat(roomAfterReplay).isEqualTo(roomBeforeReplay);
+        assertThat(revisionAfterReplay)
+                .isEqualTo(revisionAfterAlreadyActive);
         assertThat(rejoined.result().code())
                 .isEqualTo(RoomCommandResultCode.REJOINED);
+        assertThat(membership(roomId, "user-2")
+                .messageVisibleAfterSequence()).isEqualTo(6);
+        assertThat(boundaryRevision(roomId)).isEqualTo(2);
         assertRoomInvariants(roomId);
     }
 
@@ -234,7 +265,43 @@ class RoomCommandServiceIntegrationTest
         assertThat(count(
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME))
                 .isEqualTo(3);
+        assertThat(count(MongoRoomSequenceDocument.COLLECTION_NAME))
+                .isZero();
         assertRoomInvariants(inviteRoom);
+    }
+
+    @Test
+    void emptySequenceMessageAndJoinUpsertRaceRecoversAndSerializes()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+
+        List<Object> results = concurrently(
+                () -> messageStore.append(new NewChatMessage(
+                        roomId,
+                        "owner-1",
+                        requestId(),
+                        "first")),
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "user-2",
+                        requestId(),
+                        roomId)));
+
+        assertThat(results)
+                .anyMatch(StoredChatMessage.class::isInstance)
+                .anyMatch(result ->
+                        result instanceof RoomCommandExecution execution
+                                && execution.result().code()
+                                == RoomCommandResultCode.JOINED);
+        MongoRoomSequenceDocument sequence =
+                mongoOperations.findById(
+                        roomId,
+                        MongoRoomSequenceDocument.class);
+        assertThat(sequence).isNotNull();
+        assertThat(sequence.lastSequence()).isEqualTo(1);
+        assertThat(sequence.boundaryRevision()).isEqualTo(1);
+        assertThat(membership(roomId, "user-2")
+                .messageVisibleAfterSequence())
+                .isIn(0L, 1L);
     }
 
     @Test
@@ -830,6 +897,27 @@ class RoomCommandServiceIntegrationTest
                 .orElseThrow();
     }
 
+    private void appendMessages(
+            String roomId,
+            String senderUserId,
+            int count
+    ) {
+        for (int index = 0; index < count; index++) {
+            messageStore.append(new NewChatMessage(
+                    roomId,
+                    senderUserId,
+                    requestId(),
+                    "message " + index));
+        }
+    }
+
+    private long boundaryRevision(String roomId) {
+        return mongoOperations.findById(
+                        roomId,
+                        MongoRoomSequenceDocument.class)
+                .boundaryRevision();
+    }
+
     private void assertRejectionReplay(
             String roomId,
             RoomCommandResultCode expectedCode,
@@ -895,17 +983,17 @@ class RoomCommandServiceIntegrationTest
     }
 
     @SafeVarargs
-    private final List<RoomCommandExecution> concurrently(
-            Callable<RoomCommandExecution>... actions
+    private final <T> List<T> concurrently(
+            Callable<T>... actions
     ) throws Exception {
         ExecutorService pool =
                 Executors.newFixedThreadPool(actions.length);
         CountDownLatch ready = new CountDownLatch(actions.length);
         CountDownLatch start = new CountDownLatch(1);
         try {
-            List<Future<RoomCommandExecution>> futures =
+            List<Future<T>> futures =
                     new ArrayList<>();
-            for (Callable<RoomCommandExecution> action : actions) {
+            for (Callable<T> action : actions) {
                 futures.add(pool.submit(() -> {
                     ready.countDown();
                     assertThat(start.await(10, TimeUnit.SECONDS))
@@ -915,9 +1003,9 @@ class RoomCommandServiceIntegrationTest
             }
             assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             start.countDown();
-            List<RoomCommandExecution> executions =
+            List<T> executions =
                     new ArrayList<>();
-            for (Future<RoomCommandExecution> future : futures) {
+            for (Future<T> future : futures) {
                 executions.add(future.get(20, TimeUnit.SECONDS));
             }
             return executions;

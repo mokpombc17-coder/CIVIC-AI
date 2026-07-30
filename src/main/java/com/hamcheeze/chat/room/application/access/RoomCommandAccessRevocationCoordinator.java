@@ -36,6 +36,7 @@ public final class RoomCommandAccessRevocationCoordinator {
                         0,
                         MembershipStatus.ACTIVE,
                         0L,
+                        0L,
                         RoomAccessState.ACTIVE_MEMBER),
                 new RoomAccessRevocationPort() {
                     @Override

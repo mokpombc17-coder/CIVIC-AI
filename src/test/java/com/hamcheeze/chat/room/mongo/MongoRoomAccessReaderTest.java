@@ -30,8 +30,11 @@ class MongoRoomAccessReaderTest {
         whenRoom(room("ACTIVE", 3), room("ACTIVE", 3));
         whenMembership(membership("ACTIVE", 2));
 
-        assertThat(reader.readAccess("user-1", "room-1").state())
+        var snapshot = reader.readAccess("user-1", "room-1");
+        assertThat(snapshot.state())
                 .isEqualTo(RoomAccessState.ACTIVE_MEMBER);
+        assertThat(snapshot.messageVisibleAfterSequence())
+                .isEqualTo(100);
     }
 
     @Test
@@ -88,6 +91,42 @@ class MongoRoomAccessReaderTest {
                 .isInstanceOf(RoomAccessReadException.class);
     }
 
+    @Test
+    void membershipBoundaryIsFailClosedWhenMissingNegativeOrLegacy() {
+        whenRoom(
+                room("ACTIVE", 1),
+                room("ACTIVE", 1),
+                room("ACTIVE", 1));
+        Document missing = membership("ACTIVE", 1);
+        missing.remove("messageVisibleAfterSequence");
+        whenMembership(missing);
+        assertThatThrownBy(() ->
+                reader.readAccess("user-1", "room-1"))
+                .isInstanceOf(RoomAccessReadException.class);
+
+        whenRoom(
+                room("ACTIVE", 1),
+                room("ACTIVE", 1),
+                room("ACTIVE", 1));
+        Document negative = membership("ACTIVE", 1);
+        negative.put("messageVisibleAfterSequence", -1L);
+        whenMembership(negative);
+        assertThatThrownBy(() ->
+                reader.readAccess("user-1", "room-1"))
+                .isInstanceOf(RoomAccessReadException.class);
+
+        whenRoom(
+                room("ACTIVE", 1),
+                room("ACTIVE", 1),
+                room("ACTIVE", 1));
+        Document legacy = membership("ACTIVE", 1);
+        legacy.put("schemaVersion", 1);
+        whenMembership(legacy);
+        assertThatThrownBy(() ->
+                reader.readAccess("user-1", "room-1"))
+                .isInstanceOf(RoomAccessReadException.class);
+    }
+
     private void whenRoom(Document... documents) {
         when(mongo.findOne(
                 any(Query.class),
@@ -119,10 +158,11 @@ class MongoRoomAccessReaderTest {
     }
 
     private static Document membership(String status, long version) {
-        return new Document("schemaVersion", 1)
+        return new Document("schemaVersion", 2)
                 .append("roomId", "room-1")
                 .append("userId", "user-1")
                 .append("status", status)
+                .append("messageVisibleAfterSequence", 100L)
                 .append("version", version);
     }
 }

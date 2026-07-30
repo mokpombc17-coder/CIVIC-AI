@@ -139,6 +139,7 @@ class InMemoryChatSubscriptionRegistryTest {
                             "user-1",
                             "/user/queue/test-" + index,
                             DestinationKind.USER_SYSTEM_EVENTS,
+                            null,
                             null)).registered())
                     .isTrue();
         }
@@ -150,6 +151,7 @@ class InMemoryChatSubscriptionRegistryTest {
                         "user-1",
                         "/user/queue/test-5",
                         DestinationKind.USER_SYSTEM_EVENTS,
+                        null,
                         null)).rejectionCode())
                 .isEqualTo(
                         SubscriptionRejectedCode.SUBSCRIPTION_LIMIT_EXCEEDED);
@@ -176,6 +178,7 @@ class InMemoryChatSubscriptionRegistryTest {
                         "user-1",
                         "/user/queue/command-results",
                         DestinationKind.USER_COMMAND_RESULTS,
+                        null,
                         null));
 
         assertThat(registry.findConnectionIdsByUserAndRoom(
@@ -209,6 +212,17 @@ class InMemoryChatSubscriptionRegistryTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    @Test
+    void findsDescriptorByConnectionAndSubscriptionId() {
+        SubscriptionDescriptor descriptor =
+                descriptor("sub-1", "room-1", "messages");
+        registry.register("connection-1", descriptor);
+
+        assertThat(registry.find("connection-1", "sub-1"))
+                .contains(descriptor);
+        assertThat(registry.find("connection-1", "missing")).isEmpty();
+    }
+
     private static SubscriptionDescriptor descriptor(
             String subscriptionId,
             String roomId,
@@ -219,7 +233,8 @@ class InMemoryChatSubscriptionRegistryTest {
                 "user-1",
                 "/topic/rooms/" + roomId + "/" + suffix,
                 kind(suffix),
-                roomId);
+                roomId,
+                boundary(suffix));
     }
 
     private static SubscriptionDescriptor descriptor(
@@ -233,12 +248,17 @@ class InMemoryChatSubscriptionRegistryTest {
                 userId,
                 "/topic/rooms/" + roomId + "/" + suffix,
                 kind(suffix),
-                roomId);
+                roomId,
+                boundary(suffix));
     }
 
     private static DestinationKind kind(String suffix) {
         return "events".equals(suffix)
                 ? DestinationKind.TOPIC_ROOM_EVENTS
                 : DestinationKind.TOPIC_ROOM_MESSAGES;
+    }
+
+    private static Long boundary(String suffix) {
+        return "events".equals(suffix) ? null : 100L;
     }
 }

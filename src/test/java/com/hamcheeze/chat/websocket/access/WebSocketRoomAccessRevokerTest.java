@@ -165,7 +165,8 @@ class WebSocketRoomAccessRevokerTest {
                         "user-1",
                         "/topic/rooms/room-1/messages",
                         DestinationKind.TOPIC_ROOM_MESSAGES,
-                        "room-1"));
+                        "room-1",
+                        0L));
         actualSubscriptions.register(
                 "connection-2",
                 new SubscriptionDescriptor(
@@ -173,6 +174,7 @@ class WebSocketRoomAccessRevokerTest {
                         "user-2",
                         "/user/queue/command-results",
                         DestinationKind.USER_COMMAND_RESULTS,
+                        null,
                         null));
 
         WebSocketRoomAccessRevoker actualRevoker =
@@ -360,7 +362,8 @@ class WebSocketRoomAccessRevokerTest {
                             userId,
                             "/topic/rooms/" + roomId + "/messages",
                             DestinationKind.TOPIC_ROOM_MESSAGES,
-                            roomId));
+                            roomId,
+                            0L));
         }
     }
 }

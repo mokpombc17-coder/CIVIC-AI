@@ -3,6 +3,8 @@ package com.hamcheeze.chat.delivery;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.Objects;
@@ -31,11 +33,22 @@ public final class SimpleBrokerChatMessagePublisher
     public void publish(ChatMessageEventEnvelope event) {
         Objects.requireNonNull(event, "event");
         try {
+            SimpMessageHeaderAccessor headers =
+                    SimpMessageHeaderAccessor.create(
+                            SimpMessageType.MESSAGE);
+            headers.setHeader(
+                    ChatMessageBrokerHeaders.ROOM_SEQUENCE,
+                    event.payload().roomSequence());
+            headers.setHeader(
+                    ChatMessageBrokerHeaders.EVENT_TYPE,
+                    event.eventType());
+            headers.setLeaveMutable(true);
             messagingTemplate.convertAndSend(
                     "/topic/rooms/"
                             + event.payload().roomId()
                             + "/messages",
-                    event);
+                    event,
+                    headers.getMessageHeaders());
         } catch (RuntimeException exception) {
             BestEffortMetricRecorder.increment(
                     "chat.message.broadcast.failures",

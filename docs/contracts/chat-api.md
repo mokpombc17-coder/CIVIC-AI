@@ -231,6 +231,13 @@ Idempotency-Key: <uuid>
 
 최초 참여는 `201 Created`, 재참여 또는 이미 활성 상태이면 `200 OK`다.
 
+최초 참여가 확정될 때 서버는 참여 직전까지 확정된 방의 최신
+`roomSequence`를 Membership의 `messageVisibleAfterSequence`로 저장한다.
+재참여(`LEFT -> ACTIVE`) 시에는 새 참여 시점의 최신 sequence로 이 경계를
+교체하므로 이전 참여 구간과 퇴장 중 생성된 메시지는 다시 조회할 수 없다.
+이미 `ACTIVE`인 사용자의 중복 join(`ALREADY_ACTIVE`)은 기존 경계를 변경하지
+않는다. 방 생성 시 방장의 경계는 `0`이다.
+
 ```json
 {
   "clientRequestId": "91b985ff-9e8e-4fb8-bf02-a360498a3d31",
@@ -608,6 +615,20 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
 - `chat:rooms:read` scope와 해당 방의 활성 멤버십이 필요하다.
 - 응답에는 `Cache-Control: no-store`가 포함된다.
 
+메시지 이력의 접근 하한은 현재 Membership에 저장된
+`messageVisibleAfterSequence`다. 사용자는 현재 참여 구간이 시작된 뒤 생성된,
+즉 `roomSequence > messageVisibleAfterSequence`인 메시지만 조회할 수 있다.
+
+- 최신 조회에도 이 하한이 적용된다.
+- `beforeSequence` 조회는 경계보다 크고 cursor보다 작은 메시지만 반환한다.
+  cursor가 경계 이하이면 빈 페이지를 반환한다.
+- `afterSequence` 조회의 실제 하한은
+  `max(afterSequence, messageVisibleAfterSequence)`다.
+- `beforeSequence`나 `afterSequence`를 임의로 조작해도 현재 Membership의
+  경계 이전 메시지는 반환되지 않는다.
+- 재참여하면 새 접근 경계가 설정되며 이전 참여 구간과 퇴장 중 생성된
+  메시지는 조회할 수 없다.
+
 최신 메시지를 조회했고 더 오래된 메시지가 남아 있는 응답 예:
 
 ```json
@@ -658,7 +679,10 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
 메시지·방 이벤트 topic을 구독하고 아래의 구독 준비 sync 요청에 대한
 `ROOM_SUBSCRIPTIONS_READY`를 받은 뒤 cursor 없는 최신 이력 요청을 호출한다.
 REST 응답을 먼저 적용한 뒤 버퍼링한 이벤트를 적용하며, `messageId` 또는
-`roomSequence`로 중복을 제거한다.
+`roomSequence`로 중복을 제거한다. 버퍼에 있는 메시지 중
+`roomSequence <= messageVisibleAfterSequence`인 항목은 적용하지 않고
+폐기한다. 이 클라이언트 처리는 상태 복구를 위한 방어 로직이며, 서버도
+동일한 경계로 subscriber별 outbound 메시지를 차단한다.
 
 WebSocket 재연결 시에도 같은 구독 준비 절차를 거친 뒤 마지막으로 연속 적용한
 sequence를 `afterSequence`로 이 API에 전달한다. sequence 누락을 감지한 경우에도
@@ -821,13 +845,18 @@ sync destination:
   "eventType": "ROOM_SUBSCRIPTIONS_READY",
   "requestId": "550e8400-e29b-41d4-a716-446655440000",
   "roomId": "room-01",
+  "messageVisibleAfterSequence": 100,
   "watermarkSequence": 120
 }
 ```
 
+`messageVisibleAfterSequence`는 현재 참여 구간의 배타적 접근 하한이다.
+클라이언트는 이 값 이하의 실시간 buffer 메시지를 적용하지 않고 폐기해야 한다.
+
 `watermarkSequence`는 READY를 생성할 때 서버에 저장되어 있던 해당 방의
 최신 `roomSequence`이며 빈 방은 `0`이다. 이 값은 REST 응답의 상한을
-고정하는 cursor가 아니다. REST 결과와 버퍼 이벤트는 계속
+고정하는 cursor가 아니며 `messageVisibleAfterSequence`와 의미가 다르다.
+REST 결과와 버퍼 이벤트는 계속
 `messageId`와 `roomSequence`로 중복을 제거한다.
 
 sync 요청이 거절되면 다음 형태를 사용한다.
@@ -1131,6 +1160,17 @@ ROOM_AUTHORIZATION_UNAVAILABLE
 
 Docker Compose로 서버와 MongoDB를 실행한 뒤 프론트 연동 계약 전체를 한 번에 확인할 수 있다.
 
+Membership 영속 schema는 `schemaVersion=2`이며
+`messageVisibleAfterSequence`가 필수다. 기존 schema v1 문서나 경계 필드가
+누락된 문서는 경계를 `0`으로 추정하지 않고 메시지 접근을 fail-closed로
+거절한다. 운영 데이터 migration은 이번 계약에서 제공하지 않는다. 기존
+로컬 MongoDB volume에 v1 문서가 있다면 다음처럼 volume을 초기화한 뒤
+다시 기동한다.
+
+```bash
+docker compose -f compose.local.yaml down -v
+```
+
 ```bash
 docker compose -f compose.local.yaml up --build -d
 python3 scripts/frontend-local-smoke.py
@@ -1173,5 +1213,7 @@ python3 scripts/frontend-local-smoke.py
 14. `GET /api/v1/rooms/{roomId}/messages`로 최신 메시지를 조회하고,
     이전 이력은 `beforeSequence` cursor로 조회한다.
 15. REST 결과를 먼저 적용하고 버퍼 이벤트를 병합하며 중복을 제거한다.
+    이때 `roomSequence <= messageVisibleAfterSequence`인 버퍼 메시지는
+    폐기한다.
 16. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
 17. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.

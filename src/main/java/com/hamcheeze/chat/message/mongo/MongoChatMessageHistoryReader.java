@@ -26,21 +26,25 @@ public final class MongoChatMessageHistoryReader
     @Override
     public List<ChatMessage> findLatest(
             String roomId,
+            long messageVisibleAfterSequence,
             int limit
     ) {
-        requireRoomIdAndLimit(roomId, limit);
+        requireInputs(roomId, messageVisibleAfterSequence, limit);
         return findBackward(
-                Criteria.where("roomId").is(roomId),
+                Criteria.where("roomId").is(roomId)
+                        .and("roomSequence")
+                        .gt(messageVisibleAfterSequence),
                 limit);
     }
 
     @Override
     public List<ChatMessage> findBefore(
             String roomId,
+            long messageVisibleAfterSequence,
             long beforeSequence,
             int limit
     ) {
-        requireRoomIdAndLimit(roomId, limit);
+        requireInputs(roomId, messageVisibleAfterSequence, limit);
         if (beforeSequence < 1) {
             throw new IllegalArgumentException(
                     "beforeSequence must be at least 1");
@@ -49,6 +53,7 @@ public final class MongoChatMessageHistoryReader
                 Criteria.where("roomId")
                         .is(roomId)
                         .and("roomSequence")
+                        .gt(messageVisibleAfterSequence)
                         .lt(beforeSequence),
                 limit);
     }
@@ -56,19 +61,23 @@ public final class MongoChatMessageHistoryReader
     @Override
     public List<ChatMessage> findAfter(
             String roomId,
+            long messageVisibleAfterSequence,
             long afterSequence,
             int limit
     ) {
-        requireRoomIdAndLimit(roomId, limit);
+        requireInputs(roomId, messageVisibleAfterSequence, limit);
         if (afterSequence < 0) {
             throw new IllegalArgumentException(
                     "afterSequence must not be negative");
         }
+        long effectiveAfterSequence = Math.max(
+                messageVisibleAfterSequence,
+                afterSequence);
         Query query = Query.query(
                         Criteria.where("roomId")
                                 .is(roomId)
                                 .and("roomSequence")
-                                .gt(afterSequence))
+                                .gt(effectiveAfterSequence))
                 .with(Sort.by(
                         Sort.Direction.ASC,
                         "roomSequence"))
@@ -100,8 +109,9 @@ public final class MongoChatMessageHistoryReader
                 .toList();
     }
 
-    private static void requireRoomIdAndLimit(
+    private static void requireInputs(
             String roomId,
+            long messageVisibleAfterSequence,
             int limit
     ) {
         if (roomId == null || roomId.isBlank()) {
@@ -111,6 +121,10 @@ public final class MongoChatMessageHistoryReader
         if (limit < 1) {
             throw new IllegalArgumentException(
                     "limit must be positive");
+        }
+        if (messageVisibleAfterSequence < 0) {
+            throw new IllegalArgumentException(
+                    "messageVisibleAfterSequence must not be negative");
         }
     }
 }

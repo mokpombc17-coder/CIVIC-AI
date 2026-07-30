@@ -341,7 +341,8 @@ class RoomCommandRevocationIntegrationTest
                         userId,
                         "/topic/rooms/" + roomId + "/messages",
                         DestinationKind.TOPIC_ROOM_MESSAGES,
-                        roomId));
+                        roomId,
+                        0L));
     }
 
     private static WebSocketSession failingThenSucceedingSession(

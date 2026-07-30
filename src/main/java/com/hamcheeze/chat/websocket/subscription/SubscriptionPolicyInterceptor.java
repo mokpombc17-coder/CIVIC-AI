@@ -3,6 +3,8 @@ package com.hamcheeze.chat.websocket.subscription;
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccess;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccessResolver;
 import com.hamcheeze.chat.websocket.protocol.DestinationDescriptor;
 import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
@@ -30,6 +32,7 @@ public final class SubscriptionPolicyInterceptor
 
     private final DestinationPolicy destinationPolicy;
     private final RoomAuthorizationService roomAuthorizationService;
+    private final RoomMessageAccessResolver messageAccessResolver;
     private final ChatSubscriptionRegistry subscriptions;
     private final SubscriptionResultSender resultSender;
     private final Map<SubscriptionRejectedCode, Counter> rejectedCounters;
@@ -37,12 +40,14 @@ public final class SubscriptionPolicyInterceptor
     public SubscriptionPolicyInterceptor(
             DestinationPolicy destinationPolicy,
             RoomAuthorizationService roomAuthorizationService,
+            RoomMessageAccessResolver messageAccessResolver,
             ChatSubscriptionRegistry subscriptions,
             SubscriptionResultSender resultSender,
             MeterRegistry meterRegistry
     ) {
         this.destinationPolicy = destinationPolicy;
         this.roomAuthorizationService = roomAuthorizationService;
+        this.messageAccessResolver = messageAccessResolver;
         this.subscriptions = subscriptions;
         this.resultSender = resultSender;
         this.rejectedCounters = new EnumMap<>(SubscriptionRejectedCode.class);
@@ -87,7 +92,26 @@ public final class SubscriptionPolicyInterceptor
             return null;
         }
 
-        if (descriptor.roomScoped()) {
+        RoomMessageAccess messageAccess = null;
+        if (descriptor.kind() == DestinationKind.TOPIC_ROOM_MESSAGES) {
+            messageAccess = messageAccessResolver.resolve(
+                    userId,
+                    descriptor.roomId());
+            RoomAuthorizationDecision decision =
+                    messageAccess.decision();
+            if (decision == RoomAuthorizationDecision.FORBIDDEN) {
+                reject(
+                        userId, connectionId, destination,
+                        SubscriptionRejectedCode.ROOM_SUBSCRIPTION_FORBIDDEN);
+                return null;
+            }
+            if (decision == RoomAuthorizationDecision.UNAVAILABLE) {
+                reject(
+                        userId, connectionId, destination,
+                        SubscriptionRejectedCode.ROOM_AUTHORIZATION_UNAVAILABLE);
+                return null;
+            }
+        } else if (descriptor.roomScoped()) {
             RoomAuthorizationDecision decision =
                     roomAuthorizationService.authorizeSubscription(
                             userId, descriptor.roomId());
@@ -112,14 +136,42 @@ public final class SubscriptionPolicyInterceptor
                         userId,
                         destination,
                         descriptor.kind(),
-                        descriptor.roomId()));
+                        descriptor.roomId(),
+                        messageAccess == null
+                                ? null
+                                : messageAccess
+                                .messageVisibleAfterSequence()));
         if (!registration.registered()) {
             reject(
                     userId, connectionId, destination,
                     registration.rejectionCode());
             return null;
         }
-        if (descriptor.roomScoped()) {
+        if (descriptor.kind() == DestinationKind.TOPIC_ROOM_MESSAGES) {
+            RoomMessageAccess secondAccess =
+                    messageAccessResolver.resolve(
+                            userId,
+                            descriptor.roomId());
+            if (secondAccess.decision()
+                    != RoomAuthorizationDecision.ALLOWED
+                    || !secondAccess.messageVisibleAfterSequence().equals(
+                    messageAccess.messageVisibleAfterSequence())) {
+                subscriptions.remove(
+                        connectionId,
+                        accessor.getSubscriptionId());
+                reject(
+                        userId,
+                        connectionId,
+                        destination,
+                        secondAccess.decision()
+                                == RoomAuthorizationDecision.FORBIDDEN
+                                ? SubscriptionRejectedCode
+                                .ROOM_SUBSCRIPTION_FORBIDDEN
+                                : SubscriptionRejectedCode
+                                .ROOM_AUTHORIZATION_UNAVAILABLE);
+                return null;
+            }
+        } else if (descriptor.roomScoped()) {
             RoomAuthorizationDecision decision =
                     roomAuthorizationService.authorizeSubscription(
                             userId,

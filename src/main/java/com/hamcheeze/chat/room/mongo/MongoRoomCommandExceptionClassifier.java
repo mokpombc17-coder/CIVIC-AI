@@ -136,6 +136,10 @@ public final class MongoRoomCommandExceptionClassifier {
                     MongoMembershipDocument.COLLECTION_NAME)) {
                 return DuplicateKeyKind.MEMBERSHIP_ID;
             }
+            if (message != null
+                    && message.contains("chat_room_sequences")) {
+                return DuplicateKeyKind.ROOM_SEQUENCE;
+            }
         }
         return DuplicateKeyKind.UNKNOWN;
     }
@@ -184,6 +188,7 @@ public final class MongoRoomCommandExceptionClassifier {
         MEMBERSHIP_ID,
         MEMBERSHIP_RELATION,
         MEMBERSHIP_OWNER,
+        ROOM_SEQUENCE,
         UNKNOWN
     }
 }

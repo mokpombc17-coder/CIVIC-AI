@@ -47,6 +47,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                             first.version(),
                             null,
                             null,
+                            null,
                             RoomAccessState.ROOM_CLOSED);
                 }
 
@@ -65,6 +66,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                             second.version(),
                             null,
                             null,
+                            null,
                             RoomAccessState.ROOM_CLOSED);
                 }
                 if (membership == null) {
@@ -72,6 +74,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                             roomId,
                             second.status(),
                             second.version(),
+                            null,
                             null,
                             null,
                             RoomAccessState.MEMBERSHIP_NOT_FOUND);
@@ -82,6 +85,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                         second.version(),
                         membership.status(),
                         membership.version(),
+                        membership.messageVisibleAfterSequence(),
                         state(membership.status()));
             }
             throw new RoomAccessReadException(
@@ -131,6 +135,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                 .include("roomId")
                 .include("userId")
                 .include("status")
+                .include("messageVisibleAfterSequence")
                 .include("version");
         Document document = mongoOperations.findOne(
                 query,
@@ -153,6 +158,9 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                         document,
                         "status",
                         MembershipStatus.class),
+                nonNegativeLongValue(
+                        document,
+                        "messageVisibleAfterSequence"),
                 longValue(document, "version"));
     }
 
@@ -193,6 +201,18 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
         return value.longValue();
     }
 
+    private static long nonNegativeLongValue(
+            Document document,
+            String field
+    ) {
+        Number value = document.get(field, Number.class);
+        if (value == null || value.longValue() < 0) {
+            throw new RoomAccessReadException(
+                    "Invalid " + field + " in access snapshot");
+        }
+        return value.longValue();
+    }
+
     private static <T extends Enum<T>> T enumValue(
             Document document,
             String field,
@@ -220,6 +240,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
 
     private record MembershipProjection(
             MembershipStatus status,
+            long messageVisibleAfterSequence,
             long version
     ) {
     }

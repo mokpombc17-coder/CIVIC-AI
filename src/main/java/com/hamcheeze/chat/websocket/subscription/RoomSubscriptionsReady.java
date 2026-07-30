@@ -5,12 +5,14 @@ public record RoomSubscriptionsReady(
         String eventType,
         String requestId,
         String roomId,
+        long messageVisibleAfterSequence,
         long watermarkSequence
 ) implements SubscriptionSystemEvent {
 
     public RoomSubscriptionsReady(
             String requestId,
             String roomId,
+            long messageVisibleAfterSequence,
             long watermarkSequence
     ) {
         this(
@@ -18,6 +20,7 @@ public record RoomSubscriptionsReady(
                 "ROOM_SUBSCRIPTIONS_READY",
                 requestId,
                 roomId,
+                messageVisibleAfterSequence,
                 watermarkSequence);
     }
 }

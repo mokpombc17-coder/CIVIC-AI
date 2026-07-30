@@ -11,6 +11,7 @@ public record RoomAccessSnapshot(
         long roomVersion,
         MembershipStatus membershipStatus,
         Long membershipVersion,
+        Long messageVisibleAfterSequence,
         RoomAccessState state
 ) {
 
@@ -26,6 +27,7 @@ public record RoomAccessSnapshot(
                 -1,
                 null,
                 null,
+                null,
                 RoomAccessState.ROOM_NOT_FOUND);
     }
 
@@ -35,17 +37,20 @@ public record RoomAccessSnapshot(
                     roomStatus == null
                             && roomVersion == -1
                             && membershipStatus == null
-                            && membershipVersion == null;
+                            && membershipVersion == null
+                            && messageVisibleAfterSequence == null;
             case ROOM_CLOSED ->
                     roomStatus == RoomStatus.CLOSED
                             && roomVersion >= 0
                             && membershipStatus == null
-                            && membershipVersion == null;
+                            && membershipVersion == null
+                            && messageVisibleAfterSequence == null;
             case MEMBERSHIP_NOT_FOUND ->
                     roomStatus == RoomStatus.ACTIVE
                             && roomVersion >= 0
                             && membershipStatus == null
-                            && membershipVersion == null;
+                            && membershipVersion == null
+                            && messageVisibleAfterSequence == null;
             case ACTIVE_MEMBER ->
                     validMembership(RoomStatus.ACTIVE,
                             MembershipStatus.ACTIVE);
@@ -66,6 +71,8 @@ public record RoomAccessSnapshot(
                 && roomVersion >= 0
                 && membershipStatus == expectedMembershipStatus
                 && membershipVersion != null
-                && membershipVersion >= 0;
+                && membershipVersion >= 0
+                && messageVisibleAfterSequence != null
+                && messageVisibleAfterSequence >= 0;
     }
 }

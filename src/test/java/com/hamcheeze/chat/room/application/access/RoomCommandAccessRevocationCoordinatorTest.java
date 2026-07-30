@@ -113,6 +113,7 @@ class RoomCommandAccessRevocationCoordinatorTest {
                 3,
                 MembershipStatus.ACTIVE,
                 2L,
+                10L,
                 RoomAccessState.ACTIVE_MEMBER);
     }
 
@@ -123,6 +124,7 @@ class RoomCommandAccessRevocationCoordinatorTest {
                 4,
                 MembershipStatus.LEFT,
                 3L,
+                10L,
                 RoomAccessState.MEMBERSHIP_LEFT);
     }
 

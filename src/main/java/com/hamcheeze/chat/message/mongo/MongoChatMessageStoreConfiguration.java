@@ -2,6 +2,7 @@ package com.hamcheeze.chat.message.mongo;
 
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
+import com.hamcheeze.chat.room.application.RoomMessageBoundaryPort;
 import com.mongodb.client.MongoClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.mongodb.health.MongoHealthIndicator;
@@ -55,6 +56,14 @@ public class MongoChatMessageStoreConfiguration {
                 () -> UUID.randomUUID().toString(),
                 exceptionClassifier,
                 meterRegistry);
+    }
+
+    @Bean
+    RoomMessageBoundaryPort roomMessageBoundaryPort(
+            MongoOperations mongoOperations,
+            MongoChatMessageSchemaInitializer schemaInitializer
+    ) {
+        return new MongoRoomMessageBoundaryAdapter(mongoOperations);
     }
 
     @Bean

@@ -2,6 +2,7 @@ package com.hamcheeze.chat.websocket.subscription;
 
 import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 
+import java.util.Optional;
 import java.util.Set;
 
 public interface ChatSubscriptionRegistry {
@@ -14,6 +15,11 @@ public interface ChatSubscriptionRegistry {
     boolean remove(String connectionId, String subscriptionId);
 
     int removeAll(String connectionId);
+
+    Optional<SubscriptionDescriptor> find(
+            String connectionId,
+            String subscriptionId
+    );
 
     boolean hasRoomSubscription(
             String connectionId,

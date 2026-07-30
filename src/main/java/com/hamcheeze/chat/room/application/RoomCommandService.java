@@ -47,6 +47,7 @@ public final class RoomCommandService {
 
     private final RoomStore roomStore;
     private final MembershipStore membershipStore;
+    private final RoomMessageBoundaryPort messageBoundaryPort;
     private final IdempotentRoomCommandExecutor executor;
     private final RoomCommandFingerprintFactory fingerprintFactory;
     private final RoomCommandIdGenerator idGenerator;
@@ -58,6 +59,7 @@ public final class RoomCommandService {
     public RoomCommandService(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomMessageBoundaryPort messageBoundaryPort,
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
@@ -67,6 +69,7 @@ public final class RoomCommandService {
         this(
                 roomStore,
                 membershipStore,
+                messageBoundaryPort,
                 executor,
                 fingerprintFactory,
                 idGenerator,
@@ -78,6 +81,7 @@ public final class RoomCommandService {
     public RoomCommandService(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomMessageBoundaryPort messageBoundaryPort,
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
@@ -89,6 +93,7 @@ public final class RoomCommandService {
         this(
                 roomStore,
                 membershipStore,
+                messageBoundaryPort,
                 executor,
                 fingerprintFactory,
                 idGenerator,
@@ -102,6 +107,7 @@ public final class RoomCommandService {
     public RoomCommandService(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomMessageBoundaryPort messageBoundaryPort,
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
@@ -113,6 +119,9 @@ public final class RoomCommandService {
         this.membershipStore = Objects.requireNonNull(
                 membershipStore,
                 "membershipStore");
+        this.messageBoundaryPort = Objects.requireNonNull(
+                messageBoundaryPort,
+                "messageBoundaryPort");
         this.executor = Objects.requireNonNull(executor, "executor");
         this.fingerprintFactory = Objects.requireNonNull(
                 fingerprintFactory,
@@ -291,13 +300,26 @@ public final class RoomCommandService {
                         room.roomId(),
                         command.requesterUserId())
                 .orElse(null);
+        JoinRoomTransition.Outcome outcome =
+                RoomMembershipTransitions.determineJoinOutcome(
+                        room,
+                        existing,
+                        candidateMembershipId,
+                        command.requesterUserId(),
+                        transitionTime);
+        long messageVisibleAfterSequence =
+                outcome == JoinRoomTransition.Outcome.ALREADY_ACTIVE
+                        ? existing.messageVisibleAfterSequence()
+                        : messageBoundaryPort.captureCurrentSequence(
+                                room.roomId());
         JoinRoomTransition transition =
                 RoomMembershipTransitions.joinRoom(
                         room,
                         existing,
                         candidateMembershipId,
                         command.requesterUserId(),
-                        transitionTime);
+                        transitionTime,
+                        messageVisibleAfterSequence);
         if (transition.outcome()
                 == JoinRoomTransition.Outcome.JOINED) {
             replaceRoom(transition.room(), room.version());

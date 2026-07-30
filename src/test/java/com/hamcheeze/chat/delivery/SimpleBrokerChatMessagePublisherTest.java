@@ -5,16 +5,20 @@ import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 class SimpleBrokerChatMessagePublisherTest {
 
@@ -38,9 +42,19 @@ class SimpleBrokerChatMessagePublisherTest {
 
         publisher.publish(event);
 
+        ArgumentCaptor<Map<String, Object>> headers =
+                ArgumentCaptor.forClass(Map.class);
         verify(messagingTemplate).convertAndSend(
-                "/topic/rooms/room-1/messages",
-                event);
+                eq("/topic/rooms/room-1/messages"),
+                eq(event),
+                headers.capture());
+        assertThat(headers.getValue())
+                .containsEntry(
+                        ChatMessageBrokerHeaders.ROOM_SEQUENCE,
+                        1L)
+                .containsEntry(
+                        ChatMessageBrokerHeaders.EVENT_TYPE,
+                        "CHAT_MESSAGE_CREATED");
         assertThat(meterRegistry.counter(
                 "chat.message.broadcast.success").count())
                 .isEqualTo(1);
@@ -53,8 +67,9 @@ class SimpleBrokerChatMessagePublisherTest {
         doThrow(new IllegalStateException("broker unavailable"))
                 .when(messagingTemplate)
                 .convertAndSend(
-                        "/topic/rooms/room-1/messages",
-                        event);
+                        eq("/topic/rooms/room-1/messages"),
+                        eq(event),
+                        any(Map.class));
 
         assertThatThrownBy(() -> publisher.publish(event))
                 .isInstanceOf(IllegalStateException.class);
@@ -75,8 +90,9 @@ class SimpleBrokerChatMessagePublisherTest {
         publisher.publish(event);
 
         verify(messagingTemplate).convertAndSend(
-                "/topic/rooms/room-1/messages",
-                event);
+                eq("/topic/rooms/room-1/messages"),
+                eq(event),
+                any(Map.class));
     }
 
     @Test
@@ -88,8 +104,9 @@ class SimpleBrokerChatMessagePublisherTest {
         doThrow(publishFailure)
                 .when(messagingTemplate)
                 .convertAndSend(
-                        "/topic/rooms/room-1/messages",
-                        event);
+                        eq("/topic/rooms/room-1/messages"),
+                        eq(event),
+                        any(Map.class));
         publisher = new SimpleBrokerChatMessagePublisher(
                 messagingTemplate,
                 ThrowingMeterRegistry.counter(

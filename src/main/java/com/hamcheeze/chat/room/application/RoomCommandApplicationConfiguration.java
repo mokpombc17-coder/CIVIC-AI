@@ -76,6 +76,7 @@ public class RoomCommandApplicationConfiguration {
     RoomCommandService roomCommandService(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomMessageBoundaryPort messageBoundaryPort,
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
@@ -85,6 +86,7 @@ public class RoomCommandApplicationConfiguration {
         return new RoomCommandService(
                 roomStore,
                 membershipStore,
+                messageBoundaryPort,
                 executor,
                 fingerprintFactory,
                 idGenerator,

@@ -23,7 +23,9 @@ final class MongoRoomSequenceAllocator {
     long next(String roomId) {
         Query query = Query.query(
                 Criteria.where("_id").is(roomId));
-        Update update = new Update().inc("lastSequence", 1L);
+        Update update = new Update()
+                .setOnInsert("boundaryRevision", 0L)
+                .inc("lastSequence", 1L);
         FindAndModifyOptions options = FindAndModifyOptions.options()
                 .upsert(true)
                 .returnNew(true);

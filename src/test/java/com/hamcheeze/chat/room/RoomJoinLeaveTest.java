@@ -24,7 +24,8 @@ class RoomJoinLeaveTest {
                         null,
                         "membership-2",
                         "user-2",
-                        TRANSITION_AT);
+                        TRANSITION_AT,
+                        100);
 
         assertThat(result.outcome())
                 .isEqualTo(JoinRoomTransition.Outcome.JOINED);
@@ -39,6 +40,8 @@ class RoomJoinLeaveTest {
                 .isEqualTo(MembershipStatus.ACTIVE);
         assertThat(result.membership().joinedAt())
                 .isEqualTo(TRANSITION_AT);
+        assertThat(result.membership().messageVisibleAfterSequence())
+                .isEqualTo(100);
         assertThat(result.membership().version()).isZero();
     }
 
@@ -53,7 +56,8 @@ class RoomJoinLeaveTest {
                         membership,
                         null,
                         "user-2",
-                        TRANSITION_AT);
+                        TRANSITION_AT,
+                        999);
 
         assertThat(result.outcome())
                 .isEqualTo(
@@ -66,6 +70,8 @@ class RoomJoinLeaveTest {
         assertThat(result.membership().version()).isEqualTo(4);
         assertThat(result.membership().joinedAt())
                 .isEqualTo(CREATED_AT);
+        assertThat(result.membership().messageVisibleAfterSequence())
+                .isEqualTo(10);
     }
 
     @Test
@@ -79,7 +85,8 @@ class RoomJoinLeaveTest {
                         left,
                         null,
                         "user-2",
-                        TRANSITION_AT);
+                        TRANSITION_AT,
+                        200);
 
         assertThat(result.outcome())
                 .isEqualTo(JoinRoomTransition.Outcome.REJOINED);
@@ -92,6 +99,8 @@ class RoomJoinLeaveTest {
                 .isEqualTo(TRANSITION_AT);
         assertThat(result.membership().leftAt()).isNull();
         assertThat(result.membership().bannedAt()).isNull();
+        assertThat(result.membership().messageVisibleAfterSequence())
+                .isEqualTo(200);
         assertThat(result.membership().version()).isEqualTo(6);
     }
 
@@ -103,7 +112,8 @@ class RoomJoinLeaveTest {
                         bannedMember("user-2", 1),
                         null,
                         "user-2",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.MEMBERSHIP_BANNED);
     }
 
@@ -115,7 +125,8 @@ class RoomJoinLeaveTest {
                         null,
                         "membership-2",
                         "user-2",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.ROOM_CLOSED);
         assertFailure(
                 () -> RoomMembershipTransitions.joinRoom(
@@ -123,7 +134,8 @@ class RoomJoinLeaveTest {
                         null,
                         "membership-2",
                         "user-2",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.JOIN_POLICY_NOT_OPEN);
     }
 
@@ -138,6 +150,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 0);
         Membership otherUser = activeMember("user-3", 0);
 
@@ -147,7 +160,8 @@ class RoomJoinLeaveTest {
                         otherRoom,
                         null,
                         "user-2",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.MEMBERSHIP_ROOM_MISMATCH);
         assertFailure(
                 () -> RoomMembershipTransitions.joinRoom(
@@ -155,7 +169,8 @@ class RoomJoinLeaveTest {
                         otherUser,
                         null,
                         "user-2",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.MEMBERSHIP_USER_MISMATCH);
     }
 
@@ -171,6 +186,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 0);
 
         assertFailure(
@@ -179,7 +195,8 @@ class RoomJoinLeaveTest {
                         null,
                         "membership-owner-duplicate",
                         "owner-1",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
         assertFailure(
                 () -> RoomMembershipTransitions.joinRoom(
@@ -187,7 +204,8 @@ class RoomJoinLeaveTest {
                         foreignOwner,
                         null,
                         "user-2",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
         assertFailure(
                 () -> RoomMembershipTransitions.joinRoom(
@@ -195,7 +213,8 @@ class RoomJoinLeaveTest {
                         ownerMembership(MembershipStatus.LEFT),
                         null,
                         "owner-1",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        100),
                 RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
     }
 
@@ -220,6 +239,8 @@ class RoomJoinLeaveTest {
         assertThat(result.membership().leftAt())
                 .isEqualTo(TRANSITION_AT);
         assertThat(result.membership().bannedAt()).isNull();
+        assertThat(result.membership().messageVisibleAfterSequence())
+                .isEqualTo(10);
         assertThat(result.membership().version()).isEqualTo(6);
     }
 
@@ -277,6 +298,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 4);
         Room originalRoom = room;
         Membership originalMembership = mismatchedMembership;
@@ -313,6 +335,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 4);
         Room originalRoom = room;
         Membership originalMembership = mismatchedMembership;
@@ -359,6 +382,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 0);
 
         assertFailure(
@@ -437,6 +461,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 version);
     }
 
@@ -450,6 +475,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 CREATED_AT.plusSeconds(20),
                 null,
+                10,
                 version);
     }
 
@@ -463,6 +489,7 @@ class RoomJoinLeaveTest {
                 CREATED_AT,
                 null,
                 CREATED_AT.plusSeconds(20),
+                10,
                 version);
     }
 
@@ -477,6 +504,7 @@ class RoomJoinLeaveTest {
                 status == MembershipStatus.LEFT
                         ? CREATED_AT.plusSeconds(20) : null,
                 null,
+                10,
                 0);
     }
 

@@ -11,7 +11,8 @@ import java.util.Objects;
 public record MongoRoomSequenceDocument(
         @MongoId(FieldType.STRING)
         String roomId,
-        long lastSequence
+        long lastSequence,
+        long boundaryRevision
 ) {
 
     public static final String COLLECTION_NAME = "chat_room_sequences";
@@ -19,5 +20,9 @@ public record MongoRoomSequenceDocument(
     @PersistenceCreator
     public MongoRoomSequenceDocument {
         Objects.requireNonNull(roomId, "roomId");
+        if (lastSequence < 0 || boundaryRevision < 0) {
+            throw new IllegalArgumentException(
+                    "Room sequence state must not be negative");
+        }
     }
 }

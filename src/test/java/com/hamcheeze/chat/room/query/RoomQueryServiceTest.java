@@ -69,6 +69,7 @@ class RoomQueryServiceTest {
                 CREATED_AT,
                 CREATED_AT.plusSeconds(60),
                 null,
+                0,
                 1);
         when(reader.findMembership("room-2", "owner-1"))
                 .thenReturn(Optional.of(closedOwner));
@@ -176,6 +177,7 @@ class RoomQueryServiceTest {
                 status == MembershipStatus.BANNED
                         ? CREATED_AT.plusSeconds(10)
                         : null,
+                0,
                 0);
     }
 }

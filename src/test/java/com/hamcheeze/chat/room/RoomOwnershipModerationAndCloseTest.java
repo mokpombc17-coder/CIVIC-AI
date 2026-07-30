@@ -46,6 +46,10 @@ class RoomOwnershipModerationAndCloseTest {
                 .isEqualTo(5);
         assertThat(result.newOwnerMembership().version())
                 .isEqualTo(6);
+        assertThat(result.previousOwnerMembership()
+                .messageVisibleAfterSequence()).isEqualTo(10);
+        assertThat(result.newOwnerMembership()
+                .messageVisibleAfterSequence()).isEqualTo(10);
         assertTimesUnchanged(owner, result.previousOwnerMembership());
         assertTimesUnchanged(target, result.newOwnerMembership());
     }
@@ -84,6 +88,7 @@ class RoomOwnershipModerationAndCloseTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 0);
 
         assertFailure(
@@ -198,6 +203,8 @@ class RoomOwnershipModerationAndCloseTest {
         assertThat(result.membership().bannedAt())
                 .isEqualTo(TRANSITION_AT);
         assertThat(result.membership().leftAt()).isNull();
+        assertThat(result.membership().messageVisibleAfterSequence())
+                .isEqualTo(10);
         assertThat(result.membership().version()).isEqualTo(5);
     }
 
@@ -261,6 +268,7 @@ class RoomOwnershipModerationAndCloseTest {
                 CREATED_AT,
                 null,
                 null,
+                10,
                 0);
 
         assertFailure(
@@ -370,6 +378,8 @@ class RoomOwnershipModerationAndCloseTest {
         assertThat(result.membership().leftAt())
                 .isEqualTo(TRANSITION_AT);
         assertThat(result.membership().bannedAt()).isNull();
+        assertThat(result.membership().messageVisibleAfterSequence())
+                .isEqualTo(10);
         assertThat(result.membership().version()).isEqualTo(5);
     }
 
@@ -422,12 +432,15 @@ class RoomOwnershipModerationAndCloseTest {
                         unbanned.membership(),
                         null,
                         "user-2",
-                        TRANSITION_AT.plusSeconds(1));
+                        TRANSITION_AT.plusSeconds(1),
+                        30);
 
         assertThat(joined.outcome())
                 .isEqualTo(JoinRoomTransition.Outcome.REJOINED);
         assertThat(joined.membership().status())
                 .isEqualTo(MembershipStatus.ACTIVE);
+        assertThat(joined.membership().messageVisibleAfterSequence())
+                .isEqualTo(30);
         assertThat(joined.room().activeMemberCount()).isEqualTo(2);
     }
 
@@ -445,6 +458,7 @@ class RoomOwnershipModerationAndCloseTest {
                 CREATED_AT,
                 null,
                 CREATED_AT.plusSeconds(20),
+                10,
                 0);
 
         assertFailure(
@@ -600,7 +614,8 @@ class RoomOwnershipModerationAndCloseTest {
                         member("user-2", MembershipStatus.LEFT, 0),
                         null,
                         "user-2",
-                        TRANSITION_AT),
+                        TRANSITION_AT,
+                        10),
                 RoomDomainErrorCode.ROOM_CLOSED);
     }
 
@@ -671,6 +686,7 @@ class RoomOwnershipModerationAndCloseTest {
                 status == MembershipStatus.LEFT
                         ? CREATED_AT.plusSeconds(30) : null,
                 null,
+                10,
                 version);
     }
 
@@ -690,6 +706,7 @@ class RoomOwnershipModerationAndCloseTest {
                         ? CREATED_AT.plusSeconds(20) : null,
                 status == MembershipStatus.BANNED
                         ? CREATED_AT.plusSeconds(20) : null,
+                10,
                 version);
     }
 

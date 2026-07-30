@@ -1,8 +1,8 @@
 package com.hamcheeze.chat.message.query;
 
-import com.hamcheeze.chat.application.RoomAuthorizationDecision;
-import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.message.ChatMessage;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccess;
+import com.hamcheeze.chat.room.authorization.RoomMessageAccessResolver;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -19,15 +19,15 @@ class ChatMessageHistoryServiceTest {
 
     private final ChatMessageHistoryReader reader =
             mock(ChatMessageHistoryReader.class);
-    private final RoomAuthorizationService authorization =
-            mock(RoomAuthorizationService.class);
+    private final RoomMessageAccessResolver accessResolver =
+            mock(RoomMessageAccessResolver.class);
     private final ChatMessageHistoryService service =
-            new ChatMessageHistoryService(reader, authorization);
+            new ChatMessageHistoryService(reader, accessResolver);
 
     @Test
     void latestPageReturnsNewestMessagesInAscendingOrder() {
         allowHistory();
-        when(reader.findLatest("room-1", 3))
+        when(reader.findLatest("room-1", 2, 3))
                 .thenReturn(List.of(
                         message(7),
                         message(6),
@@ -49,7 +49,7 @@ class ChatMessageHistoryServiceTest {
     @Test
     void beforePageReturnsClosestOlderMessagesInAscendingOrder() {
         allowHistory();
-        when(reader.findBefore("room-1", 6, 3))
+        when(reader.findBefore("room-1", 2, 6, 3))
                 .thenReturn(List.of(
                         message(5),
                         message(4),
@@ -72,7 +72,7 @@ class ChatMessageHistoryServiceTest {
     @Test
     void afterPageReturnsFollowingMessagesAndForwardCursor() {
         allowHistory();
-        when(reader.findAfter("room-1", 4, 3))
+        when(reader.findAfter("room-1", 2, 4, 3))
                 .thenReturn(List.of(
                         message(5),
                         message(6),
@@ -95,7 +95,7 @@ class ChatMessageHistoryServiceTest {
     @Test
     void finalPageHasNoCursor() {
         allowHistory();
-        when(reader.findBefore("room-1", 6, 3))
+        when(reader.findBefore("room-1", 2, 6, 3))
                 .thenReturn(List.of(message(5)));
 
         ChatMessageHistoryPage page = service.findBefore(
@@ -114,10 +114,8 @@ class ChatMessageHistoryServiceTest {
 
     @Test
     void rejectsNonMemberWithoutReadingMessages() {
-        when(authorization.authorizeMessageHistory(
-                "user-1",
-                "room-1"))
-                .thenReturn(RoomAuthorizationDecision.FORBIDDEN);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.forbidden());
 
         assertThatThrownBy(() -> service.findLatest(
                 "user-1",
@@ -128,15 +126,13 @@ class ChatMessageHistoryServiceTest {
                         ((ChatMessageHistoryException) exception).code())
                 .isEqualTo(
                         ChatMessageHistoryErrorCode.ACCESS_DENIED);
-        verify(reader, never()).findLatest("room-1", 51);
+        verify(reader, never()).findLatest("room-1", 0, 51);
     }
 
     @Test
     void mapsAuthorizationAndReaderFailures() {
-        when(authorization.authorizeMessageHistory(
-                "user-1",
-                "room-1"))
-                .thenReturn(RoomAuthorizationDecision.UNAVAILABLE);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.unavailable());
         assertThatThrownBy(() -> service.findLatest(
                 "user-1",
                 "room-1",
@@ -148,7 +144,7 @@ class ChatMessageHistoryServiceTest {
                         .AUTHORIZATION_UNAVAILABLE);
 
         allowHistory();
-        when(reader.findLatest("room-1", 51))
+        when(reader.findLatest("room-1", 2, 51))
                 .thenThrow(new IllegalStateException("mongo down"));
         assertThatThrownBy(() -> service.findLatest(
                 "user-1",
@@ -177,11 +173,25 @@ class ChatMessageHistoryServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void forgedAfterCursorCannotMoveBelowMembershipBoundary() {
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(100));
+        when(reader.findAfter("room-1", 100, 100, 3))
+                .thenReturn(List.of(message(101), message(102)));
+
+        ChatMessageHistoryPage page = service.findAfter(
+                "user-1", "room-1", 0, 2);
+
+        assertThat(page.items())
+                .extracting(ChatMessage::roomSequence)
+                .containsExactly(101L, 102L);
+        verify(reader).findAfter("room-1", 100, 100, 3);
+    }
+
     private void allowHistory() {
-        when(authorization.authorizeMessageHistory(
-                "user-1",
-                "room-1"))
-                .thenReturn(RoomAuthorizationDecision.ALLOWED);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(2));
     }
 
     private ChatMessage message(long sequence) {
