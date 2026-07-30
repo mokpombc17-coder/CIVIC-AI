@@ -161,6 +161,10 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       error: null,
     });
 
+    if (this.attachmentCount === 0) {
+      return;
+    }
+
     this.postRoomCommand({
       type: "CLAIM_ROOM",
       requestId,
@@ -301,6 +305,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         type: "ATTACH",
         portId,
       });
+      this.flushPendingRoomClaim();
     } catch (cause) {
       this.closeConnection(false);
       this.setWorkerError(cause, "SharedWorker를 생성하지 못했습니다.");
@@ -594,6 +599,21 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       this.setWorkerError(cause, "SharedWorker에 방 세션 명령을 전달하지 못했습니다.");
       return false;
     }
+  }
+
+  private flushPendingRoomClaim(): void {
+    const requestId = this.pendingRoomRequestId;
+    const { roomId, status } = this.roomSnapshot;
+
+    if (!requestId || !roomId || status !== "claiming") {
+      return;
+    }
+
+    this.postRoomCommand({
+      type: "CLAIM_ROOM",
+      requestId,
+      roomId,
+    });
   }
 
   private setRoomWorkerError(roomId: string, message: string): void {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_API_PREFIX, CHAT_WEBSOCKET_PATH, createChatServerConfig } from "./chat-config";
+import {
+  CHAT_API_PREFIX,
+  CHAT_WEBSOCKET_PATH,
+  createChatServerConfig,
+  readChatRuntimeWebOrigin,
+} from "./chat-config";
 
 describe("createChatServerConfig", () => {
   it("로컬 기본 REST와 WebSocket 주소를 구성한다", () => {
@@ -56,5 +61,21 @@ describe("createChatServerConfig", () => {
     ).toMatchObject({
       serverOrigin: "https://chat.dev.example.com",
     });
+  });
+});
+
+describe("readChatRuntimeWebOrigin", () => {
+  it("Window과 Worker가 공유하는 global location에서 origin을 읽는다", () => {
+    expect(
+      readChatRuntimeWebOrigin({
+        location: {
+          origin: "http://localhost:3000",
+        },
+      }),
+    ).toBe("http://localhost:3000");
+  });
+
+  it("서버처럼 location이 없는 runtime에서는 origin을 생략한다", () => {
+    expect(readChatRuntimeWebOrigin({})).toBeUndefined();
   });
 });

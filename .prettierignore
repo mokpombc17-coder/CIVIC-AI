@@ -4,6 +4,7 @@ node_modules
 out
 dist
 coverage
+e2e/.artifacts
 .expo
 android
 ios

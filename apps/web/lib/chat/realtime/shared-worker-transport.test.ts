@@ -85,6 +85,37 @@ describe("SharedWorkerTransport", () => {
     expect(workers).toHaveLength(0);
   });
 
+  it("방 lifecycle claim이 provider attach보다 먼저 실행되어도 ATTACH 뒤에 전달한다", () => {
+    const worker = createFakeWorker();
+    const createId = vi.fn().mockReturnValueOnce("claim-1").mockReturnValueOnce("port-1");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+
+    transport.claimRoom("room-01");
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "claiming",
+      roomId: "room-01",
+      error: null,
+    });
+    expect(worker.port.postMessage).not.toHaveBeenCalled();
+
+    transport.attach();
+
+    expect(worker.port.postMessage).toHaveBeenNthCalledWith(1, {
+      type: "ATTACH",
+      portId: "port-1",
+    });
+    expect(worker.port.postMessage).toHaveBeenNthCalledWith(2, {
+      type: "CLAIM_ROOM",
+      portId: "port-1",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+  });
+
   it("Worker 생성 오류를 보고하고 reconnect에서 생성을 다시 시도한다", () => {
     const createWorker = vi
       .fn()
@@ -310,12 +341,15 @@ describe("SharedWorkerTransport", () => {
     });
   });
 
-  it("방 명령을 보낼 port가 없으면 room session 오류를 노출한다", () => {
+  it("attach 후 Worker port가 유실된 상태의 방 명령은 room session 오류를 노출한다", () => {
+    const worker = createFakeWorker();
     const transport = new SharedWorkerTransport({
       createId: () => "request-1",
-      createWorker: () => createFakeWorker(),
+      createWorker: () => worker,
     });
 
+    transport.attach();
+    worker.dispatchError();
     transport.claimRoom("room-01");
 
     expect(transport.getRoomSnapshot()).toEqual({

@@ -14,6 +14,12 @@ type CreateChatServerConfigOptions = {
   webOrigin?: string;
 };
 
+type ChatRuntime = {
+  location?: {
+    origin?: unknown;
+  };
+};
+
 export function createChatServerConfig({
   serverUrl = DEFAULT_CHAT_SERVER_URL,
   webOrigin,
@@ -35,14 +41,21 @@ export function createChatServerConfig({
   };
 }
 
+const runtimeWebOrigin = readChatRuntimeWebOrigin();
 const chatServerConfig = createChatServerConfig({
   serverUrl: process.env.NEXT_PUBLIC_CHAT_API_URL ?? DEFAULT_CHAT_SERVER_URL,
-  ...(typeof window === "undefined" ? {} : { webOrigin: window.location.origin }),
+  ...(runtimeWebOrigin ? { webOrigin: runtimeWebOrigin } : {}),
 });
 
 export const CHAT_SERVER_ORIGIN = chatServerConfig.serverOrigin;
 export const CHAT_API_BASE_URL = chatServerConfig.apiBaseUrl;
 export const CHAT_WEBSOCKET_URL = chatServerConfig.webSocketUrl;
+
+export function readChatRuntimeWebOrigin(runtime: ChatRuntime = globalThis): string | undefined {
+  const origin = runtime.location?.origin;
+
+  return typeof origin === "string" && origin.length > 0 ? origin : undefined;
+}
 
 function parseServerUrl(serverUrl: string): URL {
   const url = new URL(serverUrl);
