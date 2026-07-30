@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.application;
 
+import com.hamcheeze.chat.delivery.ChatMessageBrokerHeaders;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.room.JoinPolicy;
@@ -22,6 +23,7 @@ import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
+import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptor;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
@@ -97,6 +99,9 @@ class RoomCommandRevocationIntegrationTest
 
     @MockitoSpyBean
     private RoomAccessRevocationPort revocationPort;
+
+    @MockitoSpyBean
+    private RoomAccessReader accessReader;
 
     @MockitoSpyBean
     private RoomEventDeliveryPort eventDeliveryPort;
@@ -250,9 +255,13 @@ class RoomCommandRevocationIntegrationTest
         assertThat(subscriptions.findConnectionIdsByUserAndRoom(
                 "user-2",
                 roomId)).containsExactly(staleConnectionId);
+        clearInvocations(eventDeliveryPort);
         String requestId = uuid();
         LeaveRoomCommand command =
                 new LeaveRoomCommand("user-2", requestId, roomId);
+        doThrow(new IllegalStateException("access snapshot unavailable"))
+                .when(accessReader)
+                .readAccess("user-2", roomId);
 
         assertRevocationFailure(() -> commandService.leaveRoom(command));
         long roomVersion =
@@ -292,6 +301,9 @@ class RoomCommandRevocationIntegrationTest
                 .contains(currentConnectionId);
         verify(staleSession, org.mockito.Mockito.times(3))
                 .close(any());
+        verify(eventDeliveryPort, times(1)).publishToRoom(any());
+        verify(eventDeliveryPort, times(1))
+                .publishToUser(eq("user-2"), any());
     }
 
     @Test
@@ -312,12 +324,16 @@ class RoomCommandRevocationIntegrationTest
         connectionLifecycle.preSend(
                 connect("user-2", currentConnectionId),
                 null);
+        clearInvocations(eventDeliveryPort);
         String requestId = uuid();
         BanMemberCommand command = new BanMemberCommand(
                 "owner-1",
                 requestId,
                 roomId,
                 "user-2");
+        doThrow(new IllegalStateException("access snapshot unavailable"))
+                .when(accessReader)
+                .readAccess("user-2", roomId);
 
         assertRevocationFailure(() -> commandService.banMember(command));
         long roomVersion =
@@ -352,6 +368,9 @@ class RoomCommandRevocationIntegrationTest
                 .contains(currentConnectionId);
         verify(staleSession, org.mockito.Mockito.times(3))
                 .close(any());
+        verify(eventDeliveryPort, times(1)).publishToRoom(any());
+        verify(eventDeliveryPort, times(1))
+                .publishToUser(eq("user-2"), any());
     }
 
     @Test
@@ -434,6 +453,55 @@ class RoomCommandRevocationIntegrationTest
         verify(freshSession, org.mockito.Mockito.never()).close(any());
     }
 
+    @Test
+    void rejoinSnapshotFailureFallsBackToFullRevocationAndSucceeds()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        join(roomId, "user-2");
+        String staleConnectionId = "stale-" + uuid();
+        WebSocketSession staleSession = failingThenSucceedingSession(
+                staleConnectionId,
+                1);
+        String staleSubscriptionId = trackSubscribedConnection(
+                staleSession,
+                "user-2",
+                roomId);
+
+        assertRevocationFailure(() -> commandService.leaveRoom(
+                new LeaveRoomCommand("user-2", uuid(), roomId)));
+        assertThat(subscriptions.find(
+                staleConnectionId, staleSubscriptionId))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(true);
+        messageStore.append(new NewChatMessage(
+                roomId,
+                "owner-1",
+                uuid(),
+                "while left"));
+        doThrow(new IllegalStateException("access snapshot unavailable"))
+                .when(accessReader)
+                .readAccess("user-2", roomId);
+
+        RoomCommandExecution rejoined =
+                commandService.joinRoom(new JoinRoomCommand(
+                        "user-2",
+                        uuid(),
+                        roomId));
+
+        assertThat(rejoined.result().code().name())
+                .isEqualTo("REJOINED");
+        assertThat(memberships
+                .findByRoomIdAndUserId(roomId, "user-2")
+                .orElseThrow()
+                .messageVisibleAfterSequence())
+                .isEqualTo(1L);
+        assertThat(subscriptions.findConnectionIdsByUserAndRoom(
+                "user-2", roomId)).isEmpty();
+        verify(staleSession, org.mockito.Mockito.times(2))
+                .close(any());
+    }
+
     private String createRoom(String ownerUserId) {
         return commandService.createRoom(new CreateRoomCommand(
                         ownerUserId,
@@ -493,6 +561,9 @@ class RoomCommandRevocationIntegrationTest
         accessor.setSubscriptionId(subscriptionId);
         accessor.setDestination(
                 "/topic/rooms/" + roomId + "/messages");
+        accessor.setHeader(
+                ChatMessageBrokerHeaders.ROOM_SEQUENCE,
+                Long.MAX_VALUE);
         return MessageBuilder.createMessage(
                 new byte[0],
                 accessor.getMessageHeaders());

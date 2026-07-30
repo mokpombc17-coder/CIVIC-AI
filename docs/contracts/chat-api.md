@@ -773,6 +773,21 @@ registry에서 즉시 격리된다. 따라서 close 재시도 전에도 추가 r
 발행하지 않고 transport close만 재시도한다. 사용자 공통
 `command-results`, `system-events` queue는 이 방 단위 격리 대상이 아니다.
 
+Room/Membership 변경이 commit된 뒤 현재 access snapshot을 읽을 수 없거나
+snapshot이 누락·무효인 경우에도 기존 room subscription을 유지하지 않는다.
+서버는 현재 경계를 추측하지 않고 해당 사용자의 그 방 접근을 전체 회수하며,
+`messages`와 `room-events`를 먼저 격리한 뒤 transport close를 시도한다.
+상태가 불명확하므로 현재 Membership과 일치하는 새 subscription까지 종료될 수
+있다. 클라이언트는 `4002 ROOM_ACCESS_REVOKED`를 받은 연결을 재사용하지 않고
+새 WebSocket 연결을 생성한 뒤 room topic 구독과 subscription sync를 다시
+수행한다.
+
+Access snapshot 조회가 실패했더라도 quarantine과 transport close가
+성공했거나 matching connection이 없으면 원래 Room command는 정상 결과로
+반환될 수 있다. Transport close가 실패한 경우에만
+`ACCESS_REVOCATION_FAILED`, `retryable=true`를 반환하며, 같은
+`Idempotency-Key`로 재요청해 close를 재시도한다.
+
 `@stomp/stompjs` 예:
 
 ```typescript

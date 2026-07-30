@@ -10,10 +10,15 @@ import com.hamcheeze.chat.room.authorization.RoomAccessSnapshot;
 import com.hamcheeze.chat.room.authorization.RoomAccessState;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 
 public final class RoomCommandAccessRevocationCoordinator {
+
+    private static final Logger log = LoggerFactory.getLogger(
+            RoomCommandAccessRevocationCoordinator.class);
 
     private final RoomAccessReader accessReader;
     private final RoomAccessRevocationPort revocationPort;
@@ -118,10 +123,12 @@ public final class RoomCommandAccessRevocationCoordinator {
             RoomAccessRevocationReason reason
     ) {
         RoomAccessSnapshot snapshot =
-                accessReader.readAccess(userId, roomId);
-        if (!snapshot.semanticallyValid()) {
-            throw new RoomAccessRevocationException(
-                    "Invalid current Room access snapshot");
+                readAccessOrNull(userId, roomId, reason);
+        if (snapshot == null) {
+            return revocationPort.revokeUserRoomAccess(
+                    userId,
+                    roomId,
+                    reason);
         }
         if (snapshot.state() == RoomAccessState.ACTIVE_MEMBER) {
             return revocationPort.revokeStaleUserRoomAccess(
@@ -140,24 +147,87 @@ public final class RoomCommandAccessRevocationCoordinator {
             String userId,
             String roomId
     ) {
+        RoomAccessRevocationReason reason =
+                RoomAccessRevocationReason.MEMBERSHIP_REJOINED;
         RoomAccessSnapshot snapshot =
-                accessReader.readAccess(userId, roomId);
-        if (!snapshot.semanticallyValid()) {
-            throw new RoomAccessRevocationException(
-                    "Invalid current Room access snapshot");
+                readAccessOrNull(userId, roomId, reason);
+        if (snapshot == null) {
+            return revocationPort.revokeUserRoomAccess(
+                    userId,
+                    roomId,
+                    reason);
         }
         if (snapshot.state() != RoomAccessState.ACTIVE_MEMBER) {
             return revocationPort.revokeUserRoomAccess(
                     userId,
                     roomId,
-                    RoomAccessRevocationReason
-                            .MEMBERSHIP_REJOINED);
+                    reason);
         }
         return revocationPort.revokeStaleUserRoomAccess(
                 userId,
                 roomId,
                 snapshot.messageVisibleAfterSequence(),
-                RoomAccessRevocationReason
-                        .MEMBERSHIP_REJOINED);
+                reason);
+    }
+
+    private RoomAccessSnapshot readAccessOrNull(
+            String userId,
+            String roomId,
+            RoomAccessRevocationReason reason
+    ) {
+        try {
+            RoomAccessSnapshot snapshot =
+                    accessReader.readAccess(userId, roomId);
+            if (snapshot == null) {
+                logSnapshotFallback(
+                        userId,
+                        roomId,
+                        reason,
+                        "null_snapshot",
+                        null);
+                return null;
+            }
+            if (!snapshot.semanticallyValid()) {
+                logSnapshotFallback(
+                        userId,
+                        roomId,
+                        reason,
+                        "invalid_snapshot",
+                        null);
+                return null;
+            }
+            return snapshot;
+        } catch (RuntimeException exception) {
+            logSnapshotFallback(
+                    userId,
+                    roomId,
+                    reason,
+                    "read_failure",
+                    exception);
+            return null;
+        }
+    }
+
+    private static void logSnapshotFallback(
+            String userId,
+            String roomId,
+            RoomAccessRevocationReason reason,
+            String fallbackCause,
+            RuntimeException exception
+    ) {
+        try {
+            log.warn(
+                    "Room access snapshot unavailable; falling back to full user-room revocation: "
+                            + "userId={}, roomId={}, reason={}, fallbackCause={}, exceptionClass={}",
+                    userId,
+                    roomId,
+                    reason,
+                    fallbackCause,
+                    exception == null
+                            ? "none"
+                            : exception.getClass().getName());
+        } catch (RuntimeException ignored) {
+            // Observability must not prevent fail-closed access revocation.
+        }
     }
 }

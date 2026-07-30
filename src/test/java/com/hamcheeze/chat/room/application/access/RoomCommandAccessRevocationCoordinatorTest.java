@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -152,6 +153,194 @@ class RoomCommandAccessRevocationCoordinatorTest {
     }
 
     @Test
+    void bannedCurrentStateUsesFullRevocation() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(banned());
+        when(port.revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_BANNED))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
+
+        coordinator.afterCommand(new RoomCommandExecution(
+                REQUEST_ID,
+                targetResult(RoomCommandResultCode.BANNED),
+                false));
+
+        verify(port).revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_BANNED);
+    }
+
+    @Test
+    void leftReadFailureFallsBackToSuccessfulFullRevocation() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenThrow(new IllegalStateException("mongo unavailable"));
+        when(port.revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT))
+                .thenReturn(new RoomAccessRevocationSummary(1, 1, 0, 0));
+
+        coordinator.afterCommand(new RoomCommandExecution(
+                REQUEST_ID,
+                membershipResult(RoomCommandResultCode.LEFT),
+                false));
+
+        verify(port).revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT);
+        verify(port, never()).revokeStaleUserRoomAccess(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void bannedReadFailureFallsBackToFullRevocation() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenThrow(new IllegalStateException("mongo unavailable"));
+        when(port.revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_BANNED))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
+
+        coordinator.afterCommand(new RoomCommandExecution(
+                REQUEST_ID,
+                targetResult(RoomCommandResultCode.BANNED),
+                false));
+
+        verify(port).revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_BANNED);
+    }
+
+    @Test
+    void rejoinedReadFailureFallsBackToFullRevocation() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenThrow(new IllegalStateException("mongo unavailable"));
+        when(port.revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_REJOINED))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
+
+        coordinator.afterCommand(new RoomCommandExecution(
+                REQUEST_ID,
+                rejoinedResult(),
+                false));
+
+        verify(port).revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_REJOINED);
+    }
+
+    @Test
+    void nullSnapshotFallsBackToFullRevocationAndNoMatchSucceeds() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(null);
+        when(port.revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
+
+        coordinator.afterCommand(new RoomCommandExecution(
+                REQUEST_ID,
+                membershipResult(RoomCommandResultCode.LEFT),
+                false));
+
+        verify(port).revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT);
+    }
+
+    @Test
+    void semanticallyInvalidSnapshotFallsBackToFullRevocation() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(invalidActive());
+        when(port.revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
+
+        coordinator.afterCommand(new RoomCommandExecution(
+                REQUEST_ID,
+                membershipResult(RoomCommandResultCode.LEFT),
+                false));
+
+        verify(port).revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT);
+    }
+
+    @Test
+    void failedFallbackCloseIsRetryable() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenThrow(new IllegalStateException("mongo unavailable"));
+        when(port.revokeUserRoomAccess(
+                "user-1",
+                "room-1",
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT))
+                .thenReturn(new RoomAccessRevocationSummary(1, 0, 0, 1));
+
+        assertThatThrownBy(() -> coordinator.afterCommand(
+                new RoomCommandExecution(
+                        REQUEST_ID,
+                        membershipResult(RoomCommandResultCode.LEFT),
+                        false)))
+                .isInstanceOfSatisfying(
+                        RoomCommandExecutionException.class,
+                        exception -> {
+                            assertThat(exception.kind()).isEqualTo(
+                                    RoomCommandFailureKind
+                                            .ACCESS_REVOCATION_FAILED);
+                            assertThat(exception.retryable()).isTrue();
+                        });
+    }
+
+    @Test
+    void staleRevocationFailureIsNotRetriedAsSnapshotFallback() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(active());
+        when(port.revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT))
+                .thenThrow(new IllegalStateException("close failed"));
+
+        assertThatThrownBy(() -> coordinator.afterCommand(
+                new RoomCommandExecution(
+                        REQUEST_ID,
+                        membershipResult(RoomCommandResultCode.LEFT),
+                        false)))
+                .isInstanceOfSatisfying(
+                        RoomCommandExecutionException.class,
+                        exception -> {
+                            assertThat(exception.kind()).isEqualTo(
+                                    RoomCommandFailureKind
+                                            .ACCESS_REVOCATION_FAILED);
+                            assertThat(exception.getCause())
+                                    .isInstanceOf(
+                                            IllegalStateException.class);
+                        });
+        verify(port, never()).revokeUserRoomAccess(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void closeAlwaysUsesRoomWideRevocation() {
         when(port.revokeRoomAccess(
                 "room-1",
@@ -188,6 +377,28 @@ class RoomCommandAccessRevocationCoordinatorTest {
                 3L,
                 10L,
                 RoomAccessState.MEMBERSHIP_LEFT);
+    }
+
+    private static RoomAccessSnapshot banned() {
+        return new RoomAccessSnapshot(
+                "room-1",
+                RoomStatus.ACTIVE,
+                4,
+                MembershipStatus.BANNED,
+                3L,
+                10L,
+                RoomAccessState.MEMBERSHIP_BANNED);
+    }
+
+    private static RoomAccessSnapshot invalidActive() {
+        return new RoomAccessSnapshot(
+                "room-1",
+                RoomStatus.ACTIVE,
+                3,
+                MembershipStatus.ACTIVE,
+                2L,
+                null,
+                RoomAccessState.ACTIVE_MEMBER);
     }
 
     private static RoomCommandResult membershipResult(
