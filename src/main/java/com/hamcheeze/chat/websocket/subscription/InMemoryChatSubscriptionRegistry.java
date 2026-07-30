@@ -165,6 +165,122 @@ public final class InMemoryChatSubscriptionRegistry
     }
 
     @Override
+    public Optional<SubscriptionDescriptor> findRoomSubscription(
+            String connectionId,
+            String userId,
+            String roomId,
+            DestinationKind kind
+    ) {
+        lock.lock();
+        try {
+            Map<String, SubscriptionDescriptor> subscriptions =
+                    byConnection.get(connectionId);
+            if (subscriptions == null) {
+                return Optional.empty();
+            }
+            return subscriptions.values().stream()
+                    .filter(descriptor ->
+                            userId.equals(descriptor.userId())
+                                    && roomId.equals(
+                                    descriptor.roomId())
+                                    && kind == descriptor.kind())
+                    .findFirst();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public int markRoomAccessRevoked(
+            String connectionId,
+            String roomId
+    ) {
+        lock.lock();
+        try {
+            Map<String, SubscriptionDescriptor> subscriptions =
+                    byConnection.get(connectionId);
+            if (subscriptions == null) {
+                return 0;
+            }
+            int matched = 0;
+            for (Map.Entry<String, SubscriptionDescriptor> entry
+                    : subscriptions.entrySet()) {
+                SubscriptionDescriptor descriptor = entry.getValue();
+                if (roomId.equals(descriptor.roomId())
+                        && roomScoped(descriptor.kind())) {
+                    matched++;
+                    entry.setValue(descriptor.revokeRoomAccess());
+                }
+            }
+            return matched;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public boolean markStaleRoomAccessRevoked(
+            String connectionId,
+            String userId,
+            String roomId,
+            long currentMessageVisibleAfterSequence
+    ) {
+        if (currentMessageVisibleAfterSequence < 0) {
+            throw new IllegalArgumentException(
+                    "currentMessageVisibleAfterSequence must not be negative");
+        }
+        lock.lock();
+        try {
+            Map<String, SubscriptionDescriptor> subscriptions =
+                    byConnection.get(connectionId);
+            if (subscriptions == null) {
+                return false;
+            }
+            SubscriptionDescriptor messages = subscriptions.values()
+                    .stream()
+                    .filter(descriptor ->
+                            userId.equals(descriptor.userId())
+                                    && roomId.equals(
+                                    descriptor.roomId())
+                                    && descriptor.kind()
+                                    == DestinationKind
+                                    .TOPIC_ROOM_MESSAGES)
+                    .findFirst()
+                    .orElse(null);
+            SubscriptionDescriptor events = subscriptions.values()
+                    .stream()
+                    .filter(descriptor ->
+                            userId.equals(descriptor.userId())
+                                    && roomId.equals(
+                                    descriptor.roomId())
+                                    && descriptor.kind()
+                                    == DestinationKind
+                                    .TOPIC_ROOM_EVENTS)
+                    .findFirst()
+                    .orElse(null);
+            boolean stale = messages != null
+                    ? messages.roomAccessRevoked()
+                    || messages.messageVisibleAfterSequence()
+                    != currentMessageVisibleAfterSequence
+                    || events != null
+                    && events.roomAccessRevoked()
+                    : events != null && events.roomAccessRevoked();
+            if (!stale) {
+                return false;
+            }
+            subscriptions.replaceAll((subscriptionId, descriptor) ->
+                    userId.equals(descriptor.userId())
+                            && roomId.equals(descriptor.roomId())
+                            && roomScoped(descriptor.kind())
+                            ? descriptor.revokeRoomAccess()
+                            : descriptor);
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
     public boolean hasRoomSubscription(
             String connectionId,
             String roomId
@@ -267,6 +383,11 @@ public final class InMemoryChatSubscriptionRegistry
                 .filter(java.util.Objects::nonNull)
                 .forEach(rooms::add);
         return rooms;
+    }
+
+    private static boolean roomScoped(DestinationKind kind) {
+        return kind == DestinationKind.TOPIC_ROOM_MESSAGES
+                || kind == DestinationKind.TOPIC_ROOM_EVENTS;
     }
 
     private void removeRoomConnection(String roomId, String connectionId) {

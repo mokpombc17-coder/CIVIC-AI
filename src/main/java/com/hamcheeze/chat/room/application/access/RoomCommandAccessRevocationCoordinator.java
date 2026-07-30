@@ -56,6 +56,17 @@ public final class RoomCommandAccessRevocationCoordinator {
                     ) {
                         return RoomAccessRevocationSummary.noOp();
                     }
+
+                    @Override
+                    public RoomAccessRevocationSummary
+                    revokeStaleUserRoomAccess(
+                            String userId,
+                            String roomId,
+                            long currentMessageVisibleAfterSequence,
+                            RoomAccessRevocationReason reason
+                    ) {
+                        return RoomAccessRevocationSummary.noOp();
+                    }
                 });
     }
 
@@ -76,6 +87,10 @@ public final class RoomCommandAccessRevocationCoordinator {
                                         result.roomId(),
                                         RoomAccessRevocationReason
                                                 .MEMBERSHIP_BANNED);
+                        case REJOINED ->
+                                revokeStaleAfterRejoin(
+                                        result.membershipUserId(),
+                                        result.roomId());
                         case CLOSED, ALREADY_CLOSED ->
                                 revocationPort.revokeRoomAccess(
                                         result.roomId(),
@@ -109,11 +124,40 @@ public final class RoomCommandAccessRevocationCoordinator {
                     "Invalid current Room access snapshot");
         }
         if (snapshot.state() == RoomAccessState.ACTIVE_MEMBER) {
-            return RoomAccessRevocationSummary.noOp();
+            return revocationPort.revokeStaleUserRoomAccess(
+                    userId,
+                    roomId,
+                    snapshot.messageVisibleAfterSequence(),
+                    reason);
         }
         return revocationPort.revokeUserRoomAccess(
                 userId,
                 roomId,
                 reason);
+    }
+
+    private RoomAccessRevocationSummary revokeStaleAfterRejoin(
+            String userId,
+            String roomId
+    ) {
+        RoomAccessSnapshot snapshot =
+                accessReader.readAccess(userId, roomId);
+        if (!snapshot.semanticallyValid()) {
+            throw new RoomAccessRevocationException(
+                    "Invalid current Room access snapshot");
+        }
+        if (snapshot.state() != RoomAccessState.ACTIVE_MEMBER) {
+            return revocationPort.revokeUserRoomAccess(
+                    userId,
+                    roomId,
+                    RoomAccessRevocationReason
+                            .MEMBERSHIP_REJOINED);
+        }
+        return revocationPort.revokeStaleUserRoomAccess(
+                userId,
+                roomId,
+                snapshot.messageVisibleAfterSequence(),
+                RoomAccessRevocationReason
+                        .MEMBERSHIP_REJOINED);
     }
 }

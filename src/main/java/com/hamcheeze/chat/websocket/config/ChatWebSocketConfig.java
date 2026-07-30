@@ -8,6 +8,7 @@ import com.hamcheeze.chat.websocket.protocol.StompProtocolPolicyInterceptor;
 import com.hamcheeze.chat.websocket.protocol.ChatStompErrorHandler;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionPolicyInterceptor;
 import com.hamcheeze.chat.websocket.subscription.ChatMessageVisibilityOutboundInterceptor;
+import com.hamcheeze.chat.websocket.subscription.RoomAccessQuarantineOutboundInterceptor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -45,6 +46,8 @@ public class ChatWebSocketConfig
     private final StompProtocolPolicyInterceptor protocolInterceptor;
     private final ActiveConnectionLifecycleInterceptor connectionInterceptor;
     private final SubscriptionPolicyInterceptor subscriptionInterceptor;
+    private final RoomAccessQuarantineOutboundInterceptor
+            roomAccessQuarantineOutboundInterceptor;
     private final ChatMessageVisibilityOutboundInterceptor
             messageVisibilityOutboundInterceptor;
     private final OutboundMetricsInterceptor outboundMetricsInterceptor;
@@ -64,6 +67,8 @@ public class ChatWebSocketConfig
             StompProtocolPolicyInterceptor protocolInterceptor,
             ActiveConnectionLifecycleInterceptor connectionInterceptor,
             SubscriptionPolicyInterceptor subscriptionInterceptor,
+            RoomAccessQuarantineOutboundInterceptor
+                    roomAccessQuarantineOutboundInterceptor,
             ChatMessageVisibilityOutboundInterceptor
                     messageVisibilityOutboundInterceptor,
             OutboundMetricsInterceptor outboundMetricsInterceptor,
@@ -80,6 +85,8 @@ public class ChatWebSocketConfig
         this.protocolInterceptor = protocolInterceptor;
         this.connectionInterceptor = connectionInterceptor;
         this.subscriptionInterceptor = subscriptionInterceptor;
+        this.roomAccessQuarantineOutboundInterceptor =
+                roomAccessQuarantineOutboundInterceptor;
         this.messageVisibilityOutboundInterceptor =
                 messageVisibilityOutboundInterceptor;
         this.outboundMetricsInterceptor = outboundMetricsInterceptor;
@@ -121,6 +128,7 @@ public class ChatWebSocketConfig
     public void configureClientOutboundChannel(ChannelRegistration registration) {
         registration.taskExecutor(outboundExecutor);
         registration.interceptors(
+                roomAccessQuarantineOutboundInterceptor,
                 messageVisibilityOutboundInterceptor,
                 outboundMetricsInterceptor);
     }

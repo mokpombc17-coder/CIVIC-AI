@@ -10,6 +10,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -64,7 +65,7 @@ class RoomSubscriptionSyncServiceTest {
 
     @Test
     void emptyRoomUsesZeroWatermark() {
-        allowRequiredSubscriptions();
+        allowRequiredSubscriptions(0);
         when(accessResolver.resolve("user-1", "room-1"))
                 .thenReturn(RoomMessageAccess.allowed(0));
         when(historyReader.findLatest("room-1", 0, 1))
@@ -82,18 +83,18 @@ class RoomSubscriptionSyncServiceTest {
 
     @Test
     void rejectsWhenEitherRoomTopicIsMissing() {
-        when(subscriptions.hasRoomSubscription(
+        when(subscriptions.findRoomSubscription(
                 "connection-1",
                 "user-1",
                 "room-1",
                 DestinationKind.TOPIC_ROOM_MESSAGES))
-                .thenReturn(true);
-        when(subscriptions.hasRoomSubscription(
+                .thenReturn(Optional.of(messages(100, false)));
+        when(subscriptions.findRoomSubscription(
                 "connection-1",
                 "user-1",
                 "room-1",
                 DestinationKind.TOPIC_ROOM_EVENTS))
-                .thenReturn(false);
+                .thenReturn(Optional.empty());
 
         service.synchronize(
                 "user-1",
@@ -108,6 +109,75 @@ class RoomSubscriptionSyncServiceTest {
                         .ROOM_SUBSCRIPTIONS_NOT_READY);
         assertThat(rejected.retryable()).isFalse();
         verifyNoInteractions(accessResolver, historyReader);
+    }
+
+    @Test
+    void rejectsStaleBoundaryOrRevokedDescriptor() {
+        allowRequiredSubscriptions(100);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(150));
+
+        service.synchronize(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new RoomSubscriptionSyncRequest(REQUEST_ID));
+
+        RoomSubscriptionSyncRejected boundaryMismatch =
+                captureRejected();
+        assertThat(boundaryMismatch.code()).isEqualTo(
+                RoomSubscriptionSyncErrorCode.ROOM_SUBSCRIPTION_STALE);
+        assertThat(boundaryMismatch.retryable()).isFalse();
+        verifyNoInteractions(historyReader);
+    }
+
+    @Test
+    void rejectsRevokedMessagesOrRoomEventsAsStale() {
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(100));
+        allowRequiredSubscriptions(100, true, false);
+
+        service.synchronize(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new RoomSubscriptionSyncRequest(REQUEST_ID));
+
+        assertThat(captureRejected().code()).isEqualTo(
+                RoomSubscriptionSyncErrorCode.ROOM_SUBSCRIPTION_STALE);
+
+        org.mockito.Mockito.reset(subscriptions, resultSender);
+        allowRequiredSubscriptions(100, false, true);
+
+        service.synchronize(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new RoomSubscriptionSyncRequest(REQUEST_ID));
+
+        assertThat(captureRejected().code()).isEqualTo(
+                RoomSubscriptionSyncErrorCode.ROOM_SUBSCRIPTION_STALE);
+        verifyNoInteractions(historyReader);
+    }
+
+    @Test
+    void currentAccessDenialTakesPriorityOverStaleDescriptor() {
+        allowRequiredSubscriptions(100, true, true);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.forbidden());
+
+        service.synchronize(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new RoomSubscriptionSyncRequest(REQUEST_ID));
+
+        RoomSubscriptionSyncRejected rejected = captureRejected();
+        assertThat(rejected.code()).isEqualTo(
+                RoomSubscriptionSyncErrorCode
+                        .ROOM_SUBSCRIPTION_FORBIDDEN);
+        assertThat(rejected.retryable()).isFalse();
+        verifyNoInteractions(historyReader);
     }
 
     @Test
@@ -179,18 +249,56 @@ class RoomSubscriptionSyncServiceTest {
     }
 
     private void allowRequiredSubscriptions() {
-        when(subscriptions.hasRoomSubscription(
+        allowRequiredSubscriptions(100);
+    }
+
+    private void allowRequiredSubscriptions(long boundary) {
+        allowRequiredSubscriptions(boundary, false, false);
+    }
+
+    private void allowRequiredSubscriptions(
+            long boundary,
+            boolean messagesRevoked,
+            boolean eventsRevoked
+    ) {
+        when(subscriptions.findRoomSubscription(
                 "connection-1",
                 "user-1",
                 "room-1",
                 DestinationKind.TOPIC_ROOM_MESSAGES))
-                .thenReturn(true);
-        when(subscriptions.hasRoomSubscription(
+                .thenReturn(Optional.of(messages(
+                        boundary, messagesRevoked)));
+        when(subscriptions.findRoomSubscription(
                 "connection-1",
                 "user-1",
                 "room-1",
                 DestinationKind.TOPIC_ROOM_EVENTS))
-                .thenReturn(true);
+                .thenReturn(Optional.of(events(eventsRevoked)));
+    }
+
+    private static SubscriptionDescriptor messages(
+            long boundary,
+            boolean revoked
+    ) {
+        return new SubscriptionDescriptor(
+                "sub-messages",
+                "user-1",
+                "/topic/rooms/room-1/messages",
+                DestinationKind.TOPIC_ROOM_MESSAGES,
+                "room-1",
+                boundary,
+                revoked);
+    }
+
+    private static SubscriptionDescriptor events(boolean revoked) {
+        return new SubscriptionDescriptor(
+                "sub-events",
+                "user-1",
+                "/topic/rooms/room-1/room-events",
+                DestinationKind.TOPIC_ROOM_EVENTS,
+                "room-1",
+                null,
+                revoked);
     }
 
     private RoomSubscriptionsReady captureReady() {

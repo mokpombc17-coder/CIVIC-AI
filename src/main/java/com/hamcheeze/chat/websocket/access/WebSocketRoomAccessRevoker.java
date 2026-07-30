@@ -77,6 +77,7 @@ public final class WebSocketRoomAccessRevoker
                         subscriptions.findConnectionIdsByUserAndRoom(
                                 userId,
                                 roomId),
+                        roomId,
                         closeStatus(reason));
         record("user", reason, summary);
         log(reason, roomId, summary);
@@ -91,13 +92,60 @@ public final class WebSocketRoomAccessRevoker
         RoomAccessRevocationSummary summary =
                 closeConnections(
                         subscriptions.findConnectionIdsByRoom(roomId),
+                        roomId,
                         closeStatus(reason));
         record("room", reason, summary);
         log(reason, roomId, summary);
         return summary;
     }
 
+    @Override
+    public RoomAccessRevocationSummary revokeStaleUserRoomAccess(
+            String userId,
+            String roomId,
+            long currentMessageVisibleAfterSequence,
+            RoomAccessRevocationReason reason
+    ) {
+        Set<String> candidates =
+                subscriptions.findConnectionIdsByUserAndRoom(
+                        userId,
+                        roomId);
+        Set<String> staleConnections =
+                new java.util.HashSet<>();
+        for (String connectionId : candidates) {
+            if (subscriptions.markStaleRoomAccessRevoked(
+                    connectionId,
+                    userId,
+                    roomId,
+                    currentMessageVisibleAfterSequence)) {
+                staleConnections.add(connectionId);
+            }
+        }
+        RoomAccessRevocationSummary summary =
+                closeQuarantinedConnections(
+                        staleConnections,
+                        closeStatus(reason));
+        record("user", reason, summary);
+        log(reason, roomId, summary);
+        return summary;
+    }
+
     private RoomAccessRevocationSummary closeConnections(
+            Set<String> connectionIds,
+            String roomId,
+            CloseStatus closeStatus
+    ) {
+        for (String connectionId : connectionIds) {
+            subscriptions.markRoomAccessRevoked(
+                    connectionId,
+                    roomId);
+        }
+        return closeQuarantinedConnections(
+                connectionIds,
+                closeStatus);
+    }
+
+    private RoomAccessRevocationSummary closeQuarantinedConnections(
             Set<String> connectionIds,
             CloseStatus closeStatus
     ) {

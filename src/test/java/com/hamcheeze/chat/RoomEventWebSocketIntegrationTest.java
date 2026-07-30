@@ -98,6 +98,9 @@ class RoomEventWebSocketIntegrationTest
             BlockingQueue<byte[]> userEvents =
                     new LinkedBlockingQueue<>();
             ownerSession.subscribe(
+                    "/topic/rooms/" + roomId + "/messages",
+                    collectingHandler(new LinkedBlockingQueue<>()));
+            ownerSession.subscribe(
                     "/topic/rooms/" + roomId + "/room-events",
                     collectingHandler(roomEvents));
             waitUntil(() -> !subscriptions

@@ -4,6 +4,7 @@ import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
+import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipRole;
@@ -67,6 +68,9 @@ class RoomCommandServiceIntegrationTest
 
     @Autowired
     private ChatMessageStore messageStore;
+
+    @Autowired
+    private ChatMessageHistoryReader messageHistoryReader;
 
     @MockitoSpyBean
     private MembershipStore membershipStore;
@@ -299,9 +303,14 @@ class RoomCommandServiceIntegrationTest
         assertThat(sequence).isNotNull();
         assertThat(sequence.lastSequence()).isEqualTo(1);
         assertThat(sequence.boundaryRevision()).isEqualTo(1);
-        assertThat(membership(roomId, "user-2")
-                .messageVisibleAfterSequence())
-                .isIn(0L, 1L);
+        long boundary = membership(roomId, "user-2")
+                .messageVisibleAfterSequence();
+        assertThat(boundary).isIn(0L, 1L);
+        assertThat(messageHistoryReader.findLatest(
+                roomId, boundary, 10))
+                .extracting(message -> message.roomSequence())
+                .containsExactlyElementsOf(
+                        boundary == 0L ? List.of(1L) : List.of());
     }
 
     @Test

@@ -22,6 +22,7 @@ class SubscriptionDescriptorTest {
         assertThat(descriptor.userId()).isEqualTo("user-1");
         assertThat(descriptor.messageVisibleAfterSequence())
                 .isEqualTo(100);
+        assertThat(descriptor.roomAccessRevoked()).isFalse();
     }
 
     @Test
@@ -49,6 +50,27 @@ class SubscriptionDescriptorTest {
         assertThatThrownBy(() -> new SubscriptionDescriptor(
                 "sub-1", "user-1", "/topic/rooms/room-1/room-events",
                 DestinationKind.TOPIC_ROOM_EVENTS, "room-1", 0L))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void revokesOnlyRoomScopedSubscriptions() {
+        SubscriptionDescriptor messages = new SubscriptionDescriptor(
+                "sub-1", "user-1", "/topic/rooms/room-1/messages",
+                DestinationKind.TOPIC_ROOM_MESSAGES, "room-1", 100L);
+
+        SubscriptionDescriptor revoked = messages.revokeRoomAccess();
+
+        assertThat(revoked.roomAccessRevoked()).isTrue();
+        assertThat(revoked.revokeRoomAccess()).isSameAs(revoked);
+        assertThatThrownBy(() -> new SubscriptionDescriptor(
+                "sub-2",
+                "user-1",
+                "/user/queue/system-events",
+                DestinationKind.USER_SYSTEM_EVENTS,
+                null,
+                null,
+                true))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

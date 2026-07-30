@@ -21,6 +21,25 @@ public interface ChatSubscriptionRegistry {
             String subscriptionId
     );
 
+    Optional<SubscriptionDescriptor> findRoomSubscription(
+            String connectionId,
+            String userId,
+            String roomId,
+            DestinationKind kind
+    );
+
+    int markRoomAccessRevoked(
+            String connectionId,
+            String roomId
+    );
+
+    boolean markStaleRoomAccessRevoked(
+            String connectionId,
+            String userId,
+            String roomId,
+            long currentMessageVisibleAfterSequence
+    );
+
     boolean hasRoomSubscription(
             String connectionId,
             String roomId

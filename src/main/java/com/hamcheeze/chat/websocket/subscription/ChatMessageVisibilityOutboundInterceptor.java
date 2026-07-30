@@ -69,6 +69,7 @@ public final class ChatMessageVisibilityOutboundInterceptor
                 || !Objects.equals(
                 subscription.roomId(),
                 destinationDescriptor.roomId())
+                || subscription.roomAccessRevoked()
                 || subscription.messageVisibleAfterSequence() == null) {
             return null;
         }

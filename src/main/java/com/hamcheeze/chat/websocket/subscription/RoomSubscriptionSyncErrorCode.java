@@ -3,6 +3,7 @@ package com.hamcheeze.chat.websocket.subscription;
 public enum RoomSubscriptionSyncErrorCode {
     INVALID_SYNC_REQUEST,
     ROOM_SUBSCRIPTIONS_NOT_READY,
+    ROOM_SUBSCRIPTION_STALE,
     ROOM_SUBSCRIPTION_FORBIDDEN,
     ROOM_AUTHORIZATION_UNAVAILABLE,
     ROOM_SUBSCRIPTION_SYNC_UNAVAILABLE

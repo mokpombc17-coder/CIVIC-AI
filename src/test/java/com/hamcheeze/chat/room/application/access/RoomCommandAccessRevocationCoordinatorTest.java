@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,35 +32,98 @@ class RoomCommandAccessRevocationCoordinatorTest {
             new RoomCommandAccessRevocationCoordinator(reader, port);
 
     @Test
-    void replayedLeaveDoesNotCloseRejoinedActiveMember() {
+    void replayedLeaveRevokesOnlyStaleAccessAfterRejoin() {
         when(reader.readAccess("user-1", "room-1"))
                 .thenReturn(active());
+        when(port.revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
 
         coordinator.afterCommand(new RoomCommandExecution(
                 REQUEST_ID,
                 membershipResult(RoomCommandResultCode.LEFT),
                 true));
 
-        verify(port, never()).revokeUserRoomAccess(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any());
+        verify(port).revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_LEFT);
     }
 
     @Test
-    void replayedBanDoesNotCloseUnbannedAndRejoinedActiveMember() {
+    void replayedBanRevokesOnlyStaleAccessAfterRejoin() {
         when(reader.readAccess("user-1", "room-1"))
                 .thenReturn(active());
+        when(port.revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_BANNED))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
 
         coordinator.afterCommand(new RoomCommandExecution(
                 REQUEST_ID,
                 targetResult(RoomCommandResultCode.BANNED),
                 true));
 
-        verify(port, never()).revokeUserRoomAccess(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any());
+        verify(port).revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_BANNED);
+    }
+
+    @Test
+    void rejoinedResultRevokesStaleAccessAgainstCurrentBoundary() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(active());
+        when(port.revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_REJOINED))
+                .thenReturn(RoomAccessRevocationSummary.noOp());
+
+        coordinator.afterCommand(new RoomCommandExecution(
+                REQUEST_ID,
+                rejoinedResult(),
+                false));
+
+        verify(port).revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_REJOINED);
+    }
+
+    @Test
+    void failedStaleCloseAfterRejoinIsRetryable() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(active());
+        when(port.revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                10L,
+                RoomAccessRevocationReason.MEMBERSHIP_REJOINED))
+                .thenReturn(new RoomAccessRevocationSummary(1, 0, 0, 1));
+
+        assertThatThrownBy(() -> coordinator.afterCommand(
+                new RoomCommandExecution(
+                        REQUEST_ID,
+                        rejoinedResult(),
+                        false)))
+                .isInstanceOfSatisfying(
+                        RoomCommandExecutionException.class,
+                        exception -> {
+                            assertThat(exception.kind()).isEqualTo(
+                                    RoomCommandFailureKind
+                                            .ACCESS_REVOCATION_FAILED);
+                            assertThat(exception.retryable()).isTrue();
+                        });
     }
 
     @Test
@@ -170,6 +232,28 @@ class RoomCommandAccessRevocationCoordinatorTest {
                 5L,
                 null,
                 4L,
+                null,
+                null);
+    }
+
+    private static RoomCommandResult rejoinedResult() {
+        return new RoomCommandResult(
+                RoomCommandType.JOIN_ROOM,
+                RoomCommandResultCode.REJOINED,
+                "room-1",
+                "membership-1",
+                "user-1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                4L,
+                3L,
+                null,
                 null,
                 null);
     }

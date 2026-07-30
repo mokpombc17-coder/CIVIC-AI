@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -62,10 +63,19 @@ public final class RoomSubscriptionSyncService {
                     false);
             return;
         }
-        if (!requiredRoomSubscriptionsReady(
-                connectionId,
-                userId,
-                roomId)) {
+        Optional<SubscriptionDescriptor> messages =
+                subscriptions.findRoomSubscription(
+                        connectionId,
+                        userId,
+                        roomId,
+                        DestinationKind.TOPIC_ROOM_MESSAGES);
+        Optional<SubscriptionDescriptor> events =
+                subscriptions.findRoomSubscription(
+                        connectionId,
+                        userId,
+                        roomId,
+                        DestinationKind.TOPIC_ROOM_EVENTS);
+        if (messages.isEmpty() || events.isEmpty()) {
             reject(
                     userId,
                     connectionId,
@@ -104,6 +114,22 @@ public final class RoomSubscriptionSyncService {
             return;
         }
 
+        if (messages.get().roomAccessRevoked()
+                || events.get().roomAccessRevoked()
+                || !Objects.equals(
+                messages.get().messageVisibleAfterSequence(),
+                messageAccess.messageVisibleAfterSequence())) {
+            reject(
+                    userId,
+                    connectionId,
+                    requestId,
+                    roomId,
+                    RoomSubscriptionSyncErrorCode
+                            .ROOM_SUBSCRIPTION_STALE,
+                    false);
+            return;
+        }
+
         try {
             List<ChatMessage> latest =
                     historyReader.findLatest(roomId, 0, 1);
@@ -129,23 +155,6 @@ public final class RoomSubscriptionSyncService {
                             .ROOM_SUBSCRIPTION_SYNC_UNAVAILABLE,
                     true);
         }
-    }
-
-    private boolean requiredRoomSubscriptionsReady(
-            String connectionId,
-            String userId,
-            String roomId
-    ) {
-        return subscriptions.hasRoomSubscription(
-                connectionId,
-                userId,
-                roomId,
-                DestinationKind.TOPIC_ROOM_MESSAGES)
-                && subscriptions.hasRoomSubscription(
-                connectionId,
-                userId,
-                roomId,
-                DestinationKind.TOPIC_ROOM_EVENTS);
     }
 
     private void reject(

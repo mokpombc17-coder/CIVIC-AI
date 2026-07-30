@@ -22,6 +22,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,6 +76,12 @@ class WebSocketRoomAccessRevokerTest {
                         RoomAccessRevocationReason.MEMBERSHIP_BANNED);
 
         assertThat(summary.closedConnections()).isOne();
+        org.mockito.InOrder order = inOrder(subscriptions, transport);
+        order.verify(subscriptions).markRoomAccessRevoked(
+                "connection-1", "room-1");
+        order.verify(transport).close(
+                "connection-1",
+                WebSocketRoomAccessRevoker.ROOM_ACCESS_REVOKED);
         verify(subscriptions).removeAll("connection-1");
         verify(active).deactivate("user-1", "connection-1");
         verify(transport).remove("connection-1");
@@ -97,8 +104,38 @@ class WebSocketRoomAccessRevokerTest {
                         RoomAccessRevocationReason.MEMBERSHIP_LEFT);
 
         assertThat(summary.failedConnections()).isOne();
+        verify(subscriptions).markRoomAccessRevoked(
+                "connection-1", "room-1");
         verify(subscriptions, never()).removeAll("connection-1");
         verify(transport, never()).remove("connection-1");
+    }
+
+    @Test
+    void alreadyClosedOrMissingTransportStillCleansRegistries() {
+        when(subscriptions.findConnectionIdsByUserAndRoom(
+                "user-1",
+                "room-1")).thenReturn(Set.of("connection-1"));
+        when(active.findUserIdByConnection("connection-1"))
+                .thenReturn(Optional.of("user-1"));
+        when(transport.close(
+                "connection-1",
+                WebSocketRoomAccessRevoker.ROOM_ACCESS_REVOKED))
+                .thenReturn(
+                        TransportSessionCloseResult
+                                .ALREADY_CLOSED_OR_MISSING);
+
+        RoomAccessRevocationSummary summary =
+                revoker.revokeUserRoomAccess(
+                        "user-1",
+                        "room-1",
+                        RoomAccessRevocationReason.MEMBERSHIP_LEFT);
+
+        assertThat(summary.alreadyClosedOrMissingConnections()).isOne();
+        verify(subscriptions).markRoomAccessRevoked(
+                "connection-1", "room-1");
+        verify(subscriptions).removeAll("connection-1");
+        verify(active).deactivate("user-1", "connection-1");
+        verify(transport).remove("connection-1");
     }
 
     @Test
@@ -277,6 +314,7 @@ class WebSocketRoomAccessRevokerTest {
         try {
             org.mockito.Mockito.doThrow(
                             new java.io.IOException("close failed"))
+                    .doNothing()
                     .when(staleSession)
                     .close(WebSocketRoomAccessRevoker.ROOM_ACCESS_REVOKED);
         } catch (java.io.IOException exception) {
@@ -301,9 +339,110 @@ class WebSocketRoomAccessRevokerTest {
         assertThat(fixture.subscriptions.findConnectionIdsByUserAndRoom(
                 "user-1",
                 "room-1")).containsExactly("connection-1");
-        assertThat(fixture.transport.remove("connection-1")).isTrue();
+        assertThat(fixture.subscriptions.find(
+                "connection-1", "sub-1"))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(true);
         assertThat(fixture.active.findConnectionIdByUser("user-1"))
                 .contains("connection-2");
+
+        RoomAccessRevocationSummary retry =
+                fixture.revoker.revokeUserRoomAccess(
+                        "user-1",
+                        "room-1",
+                        RoomAccessRevocationReason.MEMBERSHIP_LEFT);
+
+        assertThat(retry.closedConnections()).isOne();
+        assertThat(fixture.subscriptions.findConnectionIdsByUserAndRoom(
+                "user-1", "room-1")).isEmpty();
+        assertThat(fixture.transport.remove("connection-1")).isFalse();
+    }
+
+    @Test
+    void staleRevocationClosesOldBoundaryAndPreservesCurrentBoundary()
+            throws Exception {
+        ActualFixture fixture = new ActualFixture();
+        WebSocketSession staleSession =
+                fixture.registerSession("connection-1");
+        fixture.active.activate("user-1", "connection-1");
+        fixture.subscribe(
+                "connection-1",
+                "user-1",
+                "sub-old",
+                "room-1",
+                100L);
+        WebSocketSession currentSession =
+                fixture.registerSession("connection-2");
+        fixture.active.activate("user-1", "connection-2");
+        fixture.subscribe(
+                "connection-2",
+                "user-1",
+                "sub-current",
+                "room-1",
+                150L);
+
+        RoomAccessRevocationSummary summary =
+                fixture.revoker.revokeStaleUserRoomAccess(
+                        "user-1",
+                        "room-1",
+                        150L,
+                        RoomAccessRevocationReason.MEMBERSHIP_REJOINED);
+
+        assertThat(summary.matchedConnections()).isOne();
+        assertThat(summary.closedConnections()).isOne();
+        verify(staleSession).close(
+                WebSocketRoomAccessRevoker.ROOM_ACCESS_REVOKED);
+        verify(currentSession, never()).close(
+                org.mockito.ArgumentMatchers.any());
+        assertThat(fixture.subscriptions.findConnectionIdsByUserAndRoom(
+                "user-1", "room-1")).containsExactly("connection-2");
+        assertThat(fixture.subscriptions.find(
+                "connection-2", "sub-current"))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(false);
+    }
+
+    @Test
+    void staleRevocationPreservesNewEventOnlySubscriptionAndClosesRevokedOne()
+            throws Exception {
+        ActualFixture fixture = new ActualFixture();
+        WebSocketSession session =
+                fixture.registerSession("connection-1");
+        fixture.active.activate("user-1", "connection-1");
+        fixture.subscriptions.register(
+                "connection-1",
+                new SubscriptionDescriptor(
+                        "sub-events",
+                        "user-1",
+                        "/topic/rooms/room-1/room-events",
+                        DestinationKind.TOPIC_ROOM_EVENTS,
+                        "room-1",
+                        null));
+
+        assertThat(fixture.revoker.revokeStaleUserRoomAccess(
+                "user-1",
+                "room-1",
+                150L,
+                RoomAccessRevocationReason.MEMBERSHIP_REJOINED))
+                .isEqualTo(RoomAccessRevocationSummary.noOp());
+        verify(session, never()).close(
+                org.mockito.ArgumentMatchers.any());
+
+        fixture.subscriptions.markRoomAccessRevoked(
+                "connection-1", "room-1");
+
+        RoomAccessRevocationSummary summary =
+                fixture.revoker.revokeStaleUserRoomAccess(
+                        "user-1",
+                        "room-1",
+                        150L,
+                        RoomAccessRevocationReason.MEMBERSHIP_REJOINED);
+
+        assertThat(summary.closedConnections()).isOne();
+        verify(session).close(
+                WebSocketRoomAccessRevoker.ROOM_ACCESS_REVOKED);
     }
 
     private static WebSocketSession session(
@@ -355,6 +494,21 @@ class WebSocketRoomAccessRevokerTest {
                 String subscriptionId,
                 String roomId
         ) {
+            subscribe(
+                    connectionId,
+                    userId,
+                    subscriptionId,
+                    roomId,
+                    0L);
+        }
+
+        private void subscribe(
+                String connectionId,
+                String userId,
+                String subscriptionId,
+                String roomId,
+                long boundary
+        ) {
             subscriptions.register(
                     connectionId,
                     new SubscriptionDescriptor(
@@ -363,7 +517,7 @@ class WebSocketRoomAccessRevokerTest {
                             "/topic/rooms/" + roomId + "/messages",
                             DestinationKind.TOPIC_ROOM_MESSAGES,
                             roomId,
-                            0L));
+                            boundary));
         }
     }
 }

@@ -223,6 +223,131 @@ class InMemoryChatSubscriptionRegistryTest {
         assertThat(registry.find("connection-1", "missing")).isEmpty();
     }
 
+    @Test
+    void revokesOnlyMatchingRoomSubscriptionsAndKeepsThemDiscoverable() {
+        SubscriptionLimitProperties properties =
+                new SubscriptionLimitProperties();
+        properties.setMaxActiveRoomsPerConnection(2);
+        properties.setMaxSubscriptionsPerConnection(6);
+        InMemoryChatSubscriptionRegistry multiRoomRegistry =
+                new InMemoryChatSubscriptionRegistry(
+                        properties, new SimpleMeterRegistry());
+        multiRoomRegistry.register(
+                "connection-1",
+                descriptor("sub-messages", "room-1", "messages"));
+        multiRoomRegistry.register(
+                "connection-1",
+                descriptor("sub-events", "room-1", "events"));
+        multiRoomRegistry.register(
+                "connection-1",
+                descriptor("sub-other-room", "room-2", "messages"));
+        multiRoomRegistry.register(
+                "connection-1",
+                new SubscriptionDescriptor(
+                        "sub-user",
+                        "user-1",
+                        "/user/queue/system-events",
+                        DestinationKind.USER_SYSTEM_EVENTS,
+                        null,
+                        null));
+
+        assertThat(multiRoomRegistry.markRoomAccessRevoked(
+                "connection-1", "room-1")).isEqualTo(2);
+        assertThat(multiRoomRegistry.markRoomAccessRevoked(
+                "connection-1", "room-1")).isEqualTo(2);
+
+        assertThat(multiRoomRegistry.find(
+                "connection-1", "sub-messages"))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(true);
+        assertThat(multiRoomRegistry.find(
+                "connection-1", "sub-events"))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(true);
+        assertThat(multiRoomRegistry.find(
+                "connection-1", "sub-other-room"))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(false);
+        assertThat(multiRoomRegistry.find("connection-1", "sub-user"))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(false);
+        assertThat(multiRoomRegistry.findConnectionIdsByRoom("room-1"))
+                .containsExactly("connection-1");
+        assertThat(multiRoomRegistry.findConnectionIdsByUserAndRoom(
+                "user-1", "room-1"))
+                .containsExactly("connection-1");
+
+        assertThat(multiRoomRegistry.remove(
+                "connection-1", "sub-messages")).isTrue();
+        assertThat(multiRoomRegistry.removeAll("connection-1"))
+                .isEqualTo(3);
+        assertThat(multiRoomRegistry.findConnectionIdsByRoom("room-1"))
+                .isEmpty();
+    }
+
+    @Test
+    void atomicallyRevokesOnlyStaleUserRoomAccess() {
+        registry.register(
+                "connection-1",
+                descriptor("sub-messages", "room-1", "messages"));
+        registry.register(
+                "connection-1",
+                descriptor("sub-events", "room-1", "events"));
+
+        assertThat(registry.markStaleRoomAccessRevoked(
+                "connection-1", "user-1", "room-1", 100L))
+                .isFalse();
+        assertThat(registry.findRoomSubscription(
+                "connection-1",
+                "user-1",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_MESSAGES))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(false);
+
+        assertThat(registry.markStaleRoomAccessRevoked(
+                "connection-1", "user-1", "room-1", 150L))
+                .isTrue();
+        assertThat(registry.findRoomSubscription(
+                "connection-1",
+                "user-1",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_MESSAGES))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(true);
+        assertThat(registry.findRoomSubscription(
+                "connection-1",
+                "user-1",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_EVENTS))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(true);
+    }
+
+    @Test
+    void preservesNewEventOnlySubscriptionButClosesRevokedEventOnlyAccess() {
+        registry.register(
+                "connection-1",
+                descriptor("sub-events", "room-1", "events"));
+
+        assertThat(registry.markStaleRoomAccessRevoked(
+                "connection-1", "user-1", "room-1", 150L))
+                .isFalse();
+
+        registry.markRoomAccessRevoked("connection-1", "room-1");
+
+        assertThat(registry.markStaleRoomAccessRevoked(
+                "connection-1", "user-1", "room-1", 150L))
+                .isTrue();
+    }
+
     private static SubscriptionDescriptor descriptor(
             String subscriptionId,
             String roomId,

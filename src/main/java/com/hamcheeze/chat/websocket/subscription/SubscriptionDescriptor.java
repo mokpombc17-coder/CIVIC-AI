@@ -8,8 +8,27 @@ public record SubscriptionDescriptor(
         String destination,
         DestinationKind kind,
         String roomId,
-        Long messageVisibleAfterSequence
+        Long messageVisibleAfterSequence,
+        boolean roomAccessRevoked
 ) {
+
+    public SubscriptionDescriptor(
+            String subscriptionId,
+            String userId,
+            String destination,
+            DestinationKind kind,
+            String roomId,
+            Long messageVisibleAfterSequence
+    ) {
+        this(
+                subscriptionId,
+                userId,
+                destination,
+                kind,
+                roomId,
+                messageVisibleAfterSequence,
+                false);
+    }
 
     public SubscriptionDescriptor {
         requireText(subscriptionId, "subscriptionId");
@@ -34,6 +53,27 @@ public record SubscriptionDescriptor(
             throw new IllegalArgumentException(
                     "Only message subscriptions may have a boundary");
         }
+        if (roomAccessRevoked && !roomScoped(kind)) {
+            throw new IllegalArgumentException(
+                    "Only room subscriptions may be access-revoked");
+        }
+    }
+
+    public SubscriptionDescriptor revokeRoomAccess() {
+        if (!roomScoped(kind)) {
+            throw new IllegalStateException(
+                    "Only room subscriptions may be access-revoked");
+        }
+        return roomAccessRevoked
+                ? this
+                : new SubscriptionDescriptor(
+                        subscriptionId,
+                        userId,
+                        destination,
+                        kind,
+                        roomId,
+                        messageVisibleAfterSequence,
+                        true);
     }
 
     private static boolean roomScoped(DestinationKind kind) {

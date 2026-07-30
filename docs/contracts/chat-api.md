@@ -759,6 +759,19 @@ ws://localhost:8082/ws
 - 새 연결로 교체된 기존 연결은 close code `4001`, reason
   `CONNECTION_REPLACED`로 종료한다. 기존 연결의 클라이언트는 이 조합을
   수신하면 자동 재연결을 중단한다.
+- 퇴장·차단으로 방 접근이 회수되면 close code `4002`, reason
+  `ROOM_ACCESS_REVOKED`, 방 종료 시에는 close code `4003`, reason
+  `ROOM_CLOSED`로 연결을 종료한다. 이 코드로 종료된 기존 연결은 재사용하지
+  않고 필요한 경우 새 WebSocket 연결을 생성한다.
+
+퇴장, 차단 또는 방 종료가 commit된 뒤 transport close가 실패하더라도
+해당 connection의 그 방 `messages`, `room-events` subscription은 서버
+registry에서 즉시 격리된다. 따라서 close 재시도 전에도 추가 room payload는
+전달되지 않는다. Command가 `ACCESS_REVOCATION_FAILED`,
+`retryable=true`를 반환하면 같은 `Idempotency-Key`로 다시 요청하며,
+서버는 Room/Membership을 다시 변경하거나 terminal Room event를 다시
+발행하지 않고 transport close만 재시도한다. 사용자 공통
+`command-results`, `system-events` queue는 이 방 단위 격리 대상이 아니다.
 
 `@stomp/stompjs` 예:
 
@@ -877,12 +890,30 @@ sync 요청이 거절되면 다음 형태를 사용한다.
 | `INVALID_SYNC_REQUEST` | `false` | `requestId`가 올바른 UUID가 아니다. |
 | `ROOM_SUBSCRIPTIONS_NOT_READY` | `false` | 같은 session에 필요한 방 topic 두 개가 모두 등록되지 않았다. 구독 거절 이벤트와 구독 순서를 확인한다. |
 | `ROOM_SUBSCRIPTION_FORBIDDEN` | `false` | 사용자가 해당 방의 활성 멤버가 아니다. |
+| `ROOM_SUBSCRIPTION_STALE` | `false` | 기존 room subscription이 접근 회수 과정에서 격리되었거나 현재 Membership과 다른 `messageVisibleAfterSequence`를 사용한다. 아래 절차로 새로 구독한다. |
 | `ROOM_AUTHORIZATION_UNAVAILABLE` | `true` | 멤버십 권한 확인이 일시적으로 불가능하다. |
 | `ROOM_SUBSCRIPTION_SYNC_UNAVAILABLE` | `true` | watermark 조회가 일시적으로 불가능하다. |
 
 `retryable=true`이면 연결과 topic 구독이 유지된 상태에서 새 `requestId`로
 sync 요청만 재시도할 수 있다. READY를 받기 전에는 REST snapshot을 시작하지
 않는다.
+
+재참여 후 기존 room subscription의 경계가 이전
+`messageVisibleAfterSequence`라면 서버는 이를 READY로 인정하지 않는다.
+`ROOM_SUBSCRIPTION_STALE`을 받으면 다음 순서로 복구한다.
+
+```text
+1. 기존 /topic/rooms/{roomId}/messages subscription 해제
+2. 기존 /topic/rooms/{roomId}/room-events subscription 해제
+3. 현재 방 topic 두 개를 새로 구독
+4. 새 requestId로 subscription sync
+5. ROOM_SUBSCRIPTIONS_READY 수신 후 REST 이력 동기화
+```
+
+현재 Membership이 `LEFT` 또는 `BANNED`이면 stale 여부보다 현재 접근 거절이
+우선하므로 `ROOM_SUBSCRIPTION_FORBIDDEN`을 반환한다. 실시간 buffer의
+`messageVisibleAfterSequence` 필터는 상태 복구를 위한 방어 수단이며 서버의
+outbound 격리를 대체하지 않는다.
 
 ### 활성 방 선점 전환
 

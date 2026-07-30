@@ -52,6 +52,23 @@ class ChatMessageVisibilityOutboundInterceptorTest {
     }
 
     @Test
+    void dropsRevokedMessageEvenAboveSubscriberBoundary() {
+        when(registry.find("connection-1", "sub-1"))
+                .thenReturn(Optional.of(new SubscriptionDescriptor(
+                        "sub-1",
+                        "user-1",
+                        "/topic/rooms/room-1/messages",
+                        DestinationKind.TOPIC_ROOM_MESSAGES,
+                        "room-1",
+                        100L,
+                        true)));
+
+        assertThat(interceptor.preSend(message(
+                "/topic/rooms/room-1/messages", 101L), null))
+                .isNull();
+    }
+
+    @Test
     void appliesEachSubscribersOwnBoundary() {
         when(registry.find("connection-1", "sub-1"))
                 .thenReturn(Optional.of(descriptor(100)));

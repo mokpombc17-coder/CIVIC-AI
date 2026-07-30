@@ -12,4 +12,11 @@ public interface RoomAccessRevocationPort {
             String roomId,
             RoomAccessRevocationReason reason
     );
+
+    RoomAccessRevocationSummary revokeStaleUserRoomAccess(
+            String userId,
+            String roomId,
+            long currentMessageVisibleAfterSequence,
+            RoomAccessRevocationReason reason
+    );
 }
