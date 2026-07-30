@@ -19,6 +19,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
       roomId: "room-01",
       generation: 1,
     });
+    coordinator.start();
 
     expect(() => coordinator.notifyRoomSnapshotApplied()).toThrowError(
       ChatRealtimeQueryCoordinatorError,
@@ -34,6 +35,122 @@ describe("ChatRealtimeQueryCoordinator", () => {
         generation: 1,
       },
     ]);
+  });
+
+  it("cache가 READY watermark보다 뒤처지면 afterSequence 복구 후 적용 완료를 알린다", async () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const getRoomMessages = vi
+      .fn()
+      .mockResolvedValue(createAfterResponse([createMessage(2), createMessage(3)]));
+    const onRecovered = vi.fn();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      api: { getRoomMessages },
+      roomId: "room-01",
+      generation: 1,
+      watermarkSequence: 3,
+      onRecovered,
+    });
+    seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+    coordinator.start();
+
+    coordinator.notifyRoomSnapshotApplied();
+
+    expect(transport.markedSnapshots).toEqual([]);
+    await vi.waitFor(() => {
+      expect(transport.markedSnapshots).toEqual([
+        {
+          roomId: "room-01",
+          generation: 1,
+        },
+      ]);
+    });
+    expect(getRoomMessages).toHaveBeenCalledWith("room-01", {
+      mode: "after",
+      afterSequence: 1,
+      limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
+    });
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([
+      createMessage(1),
+      createMessage(2),
+      createMessage(3),
+    ]);
+    expect(onRecovered).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromSequence: 1,
+        throughSequence: 3,
+      }),
+    );
+  });
+
+  it("복구 중 coordinator가 중지되면 완료된 요청이 이전 session을 활성화하지 않는다", async () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    let resolveResponse!: (response: MessageHistoryResponse) => void;
+    const getRoomMessages = vi.fn(
+      () =>
+        new Promise<MessageHistoryResponse>((resolve) => {
+          resolveResponse = resolve;
+        }),
+    );
+    const onRecovered = vi.fn();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      api: { getRoomMessages },
+      roomId: "room-01",
+      generation: 1,
+      watermarkSequence: 2,
+      onRecovered,
+    });
+    seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+    coordinator.start();
+
+    coordinator.notifyRoomSnapshotApplied();
+    coordinator.stop();
+    resolveResponse(createAfterResponse([createMessage(2)]));
+
+    await vi.waitFor(() => {
+      expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([
+        createMessage(1),
+        createMessage(2),
+      ]);
+    });
+    expect(transport.markedSnapshots).toEqual([]);
+    expect(onRecovered).not.toHaveBeenCalled();
+  });
+
+  it("delivery에서 sequence 누락을 발견하면 자동 복구 후 같은 delivery를 ACK한다", async () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const getRoomMessages = vi
+      .fn()
+      .mockResolvedValue(createAfterResponse([createMessage(2), createMessage(3)]));
+    const onError = vi.fn();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      api: { getRoomMessages },
+      roomId: "room-01",
+      generation: 1,
+      onError,
+    });
+    seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+    coordinator.start();
+
+    transport.emit(
+      createDelivery({
+        deliveryId: "delivery-gap",
+        events: [createBufferedMessage(3, 1)],
+      }),
+    );
+
+    expect(transport.acknowledgedDeliveries).toEqual([]);
+    await vi.waitFor(() => {
+      expect(transport.acknowledgedDeliveries).toEqual(["delivery-gap"]);
+    });
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([
+      createMessage(1),
+      createMessage(2),
+      createMessage(3),
+    ]);
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("메시지와 Room Event를 모두 cache에 반영한 뒤 delivery를 ACK한다", () => {
@@ -407,5 +524,14 @@ function createMessage(roomSequence: number): ChatMessage {
     clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
     content: `message ${roomSequence}`,
     createdAt: "2026-07-30T00:00:00Z",
+  };
+}
+
+function createAfterResponse(items: readonly ChatMessage[]): MessageHistoryResponse {
+  return {
+    items: [...items],
+    nextBeforeSequence: null,
+    nextAfterSequence: null,
+    hasMore: false,
   };
 }

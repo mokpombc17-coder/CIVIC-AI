@@ -1,7 +1,14 @@
-import { type InfiniteData, type QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
+import { chatRoomApi, type ChatRoomApi } from "../chat-room-api";
 import { DEFAULT_MESSAGE_HISTORY_LIMIT, chatRoomQueryKeys } from "../chat-room-queries";
-import type { ChatMessage, MessageHistoryResponse } from "../chat-room-contracts";
 import { mergeChatMessages, type ChatMessageMergeResult } from "../chat-message-merge";
+import {
+  getLastContiguousMessageSequence,
+  mergeMessagesIntoChatHistory,
+  recoverChatMessageHistory,
+  type ChatMessageHistoryData,
+  type ChatMessageRecoveryResult,
+} from "./chat-message-recovery";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import {
   applyChatRoomEventCacheProjection,
@@ -31,11 +38,14 @@ export type ChatRealtimeQueryCoordinatorTransport = Pick<
 >;
 
 export type ChatRealtimeQueryCoordinatorOptions = Readonly<{
+  api?: Pick<ChatRoomApi, "getRoomMessages">;
   roomId: string;
   generation: number;
   limit?: number;
   onApplied?: (result: ApplyChatRealtimeDeliveryResult) => void;
   onError?: (error: unknown) => void;
+  onRecovered?: (result: ChatMessageRecoveryResult) => void;
+  watermarkSequence?: number;
 }>;
 
 export class ChatRealtimeQueryCoordinatorError extends Error {
@@ -56,6 +66,9 @@ export class ChatRealtimeQueryCoordinatorError extends Error {
 }
 
 export class ChatRealtimeQueryCoordinator {
+  private recovery: Promise<ChatMessageRecoveryResult> | null = null;
+  private roomSnapshotApplied = false;
+  private stopped = true;
   private unsubscribe: (() => void) | null = null;
 
   constructor(
@@ -69,6 +82,7 @@ export class ChatRealtimeQueryCoordinator {
       return;
     }
 
+    this.stopped = false;
     this.unsubscribe = this.transport.observeRealtimeEventDelivery(
       this.handleRealtimeEventDelivery,
     );
@@ -76,22 +90,42 @@ export class ChatRealtimeQueryCoordinator {
   }
 
   stop(): void {
+    this.stopped = true;
+    this.roomSnapshotApplied = false;
     this.unsubscribe?.();
     this.unsubscribe = null;
   }
 
   notifyRoomSnapshotApplied(): void {
-    const { generation, roomId } = this.options;
+    if (this.roomSnapshotApplied || this.recovery) {
+      return;
+    }
 
-    requireMessageHistory(
+    const { generation, roomId } = this.options;
+    const history = requireMessageHistory(
       this.queryClient,
       roomId,
       this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
     );
-    this.transport.markRoomSnapshotApplied(roomId, generation);
+    const watermarkSequence = this.options.watermarkSequence ?? 0;
+    const lastContiguousSequence = getLastContiguousMessageSequence(roomId, history);
+
+    if (lastContiguousSequence >= watermarkSequence) {
+      this.completeRoomSnapshot(roomId, generation);
+      return;
+    }
+
+    this.startRecovery(watermarkSequence, () => {
+      this.completeRoomSnapshot(roomId, generation);
+    });
   }
 
   retryPendingDelivery(): void {
+    if (!this.roomSnapshotApplied) {
+      this.notifyRoomSnapshotApplied();
+      return;
+    }
+
     this.handleRealtimeEventDelivery();
   }
 
@@ -115,9 +149,72 @@ export class ChatRealtimeQueryCoordinator {
       this.transport.acknowledgeRealtimeEventDelivery(delivery.deliveryId);
       this.options.onApplied?.(result);
     } catch (error) {
+      if (
+        error instanceof ChatRealtimeQueryCoordinatorError &&
+        error.code === "MESSAGE_SEQUENCE_GAP"
+      ) {
+        const throughSequence = getDeliveryRecoveryTarget(
+          this.queryClient,
+          delivery,
+          this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
+        );
+
+        this.startRecovery(throughSequence, this.handleRealtimeEventDelivery);
+        return;
+      }
+
       this.options.onError?.(error);
     }
   };
+
+  private completeRoomSnapshot(roomId: string, generation: number): void {
+    if (this.stopped) {
+      return;
+    }
+
+    this.roomSnapshotApplied = true;
+    this.transport.markRoomSnapshotApplied(roomId, generation);
+  }
+
+  private startRecovery(throughSequence: number, onRecovered: () => void): void {
+    if (this.recovery || this.stopped) {
+      return;
+    }
+
+    const operation = recoverChatMessageHistory(this.queryClient, {
+      api: this.options.api ?? chatRoomApi,
+      limit: this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
+      roomId: this.options.roomId,
+      throughSequence,
+    });
+    this.recovery = operation;
+
+    void operation.then(
+      (result) => {
+        if (this.recovery !== operation) {
+          return;
+        }
+
+        this.recovery = null;
+
+        if (this.stopped) {
+          return;
+        }
+
+        this.options.onRecovered?.(result);
+        onRecovered();
+      },
+      (error: unknown) => {
+        if (this.recovery === operation) {
+          this.recovery = null;
+        }
+
+        if (!this.stopped) {
+          this.options.onError?.(error);
+        }
+      },
+    );
+  }
 }
 
 export function applyChatRealtimeEventDelivery(
@@ -143,7 +240,7 @@ export function applyChatRealtimeEventDelivery(
   const currentHistory = requireMessageHistory(queryClient, delivery.roomId, limit);
   const messageEvents = delivery.events.filter((event) => event.kind === "message");
   const roomEvents = delivery.events.filter((event) => event.kind === "room");
-  const { history: nextHistory, merge: messageMerge } = mergeDeliveryMessages(
+  const { history: nextHistory, merge: messageMerge } = mergeMessagesIntoChatHistory(
     delivery.roomId,
     currentHistory,
     messageEvents.map((event) => event.event.payload),
@@ -191,10 +288,9 @@ function requireMessageHistory(
   queryClient: QueryClient,
   roomId: string,
   limit: number,
-): InfiniteData<MessageHistoryResponse, number | null> {
+): ChatMessageHistoryData {
   const queryKey = chatRoomQueryKeys.messageHistory(roomId, limit);
-  const history =
-    queryClient.getQueryData<InfiniteData<MessageHistoryResponse, number | null>>(queryKey);
+  const history = queryClient.getQueryData<ChatMessageHistoryData>(queryKey);
 
   if (!history || history.pages.length === 0) {
     throw new ChatRealtimeQueryCoordinatorError(
@@ -204,47 +300,6 @@ function requireMessageHistory(
   }
 
   return history;
-}
-
-function mergeDeliveryMessages(
-  roomId: string,
-  history: InfiniteData<MessageHistoryResponse, number | null>,
-  incomingMessages: readonly ChatMessage[],
-): Readonly<{
-  history: InfiniteData<MessageHistoryResponse, number | null>;
-  merge: ChatMessageMergeResult;
-}> {
-  const merge = mergeChatMessages({
-    roomId,
-    sources: [...history.pages.map((page) => page.items), incomingMessages],
-  });
-
-  if (incomingMessages.length === 0) {
-    return { history, merge };
-  }
-
-  const latestPage = history.pages[0]!;
-  const olderMessages = history.pages.slice(1).flatMap((page) => page.items);
-  const olderMessageIds = new Set(olderMessages.map((message) => message.messageId));
-  const olderRoomSequences = new Set(olderMessages.map((message) => message.roomSequence));
-  const latestItems = merge.messages.filter(
-    (message) =>
-      !olderMessageIds.has(message.messageId) && !olderRoomSequences.has(message.roomSequence),
-  );
-
-  return {
-    history: {
-      ...history,
-      pages: [
-        {
-          ...latestPage,
-          items: latestItems,
-        },
-        ...history.pages.slice(1),
-      ],
-    },
-    merge,
-  };
 }
 
 function mergeRoomEventJournal(
@@ -309,4 +364,23 @@ function mergeRoomEventJournal(
 
 function isSameRoomEvent(left: ChatRoomEventEnvelope, right: ChatRoomEventEnvelope): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function getDeliveryRecoveryTarget(
+  queryClient: QueryClient,
+  delivery: ChatRealtimeEventDelivery,
+  limit: number,
+): number {
+  const history = requireMessageHistory(queryClient, delivery.roomId, limit);
+  const merge = mergeChatMessages({
+    roomId: delivery.roomId,
+    sources: [
+      ...history.pages.map((page) => page.items),
+      delivery.events
+        .filter((event) => event.kind === "message")
+        .map((event) => event.event.payload),
+    ],
+  });
+
+  return merge.messages.at(-1)?.roomSequence ?? 0;
 }

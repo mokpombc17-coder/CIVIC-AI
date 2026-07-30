@@ -6,8 +6,9 @@
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면
-  연결, 방 생성·공개 방 참여·나가기·방장 위임·차단·종료 관리 화면 연결
-- 후속 범위: `afterSequence` 자동 복구와 연결·오류 UX 보강
+  연결, 방 생성·공개 방 참여·나가기·방장 위임·차단·종료 관리 화면 연결,
+  `afterSequence` 기반 재연결·누락 자동 복구
+- 후속 범위: 버퍼 overflow·검증 실패 복구와 연결·오류 UX 보강
 
 ## 계층
 
@@ -95,7 +96,8 @@ message-history/{roomId}
 - 메시지 이력의 첫 page는 `latest`, 이후 page는 `nextBeforeSequence`를 사용한 `before` 조회다.
 - 메시지 이력 query는 `enabled`를 필수로 받아 구독 준비 barrier 이전에는 REST 요청을 시작하지
   않는다.
-- 브라우저 focus나 네트워크 복구만으로 메시지 이력을 임의 refetch하지 않는다.
+- 메시지 이력 cache는 실시간 병합과 명시적인 복구가 최신성을 관리하므로 stale 처리하지 않는다.
+  브라우저 focus, Query 활성화 재개나 네트워크 복구만으로 `latest`를 임의 refetch하지 않는다.
 - cache page는 `[최신, 과거, 더 과거]` 순서로 유지하고, 화면에는 page 순서를 뒤집어 전체
   `roomSequence` 오름차순으로 제공한다.
 - `afterSequence` 복구는 infinite query page와 섞지 않고 실시간 재동기화 계층에서 처리한다.
@@ -178,8 +180,8 @@ TanStack Query는 `latest + before` 과거 pagination과 화면용 page flatten�
 `ROOM_SUBSCRIPTIONS_READY`의 destination, payload와 watermark 계약은 확정되어 Worker와
 Direct fallback의 구독 준비 상태 머신에 반영했다. WebSocket 이벤트 버퍼도 READY 전부터
 메시지와 Room Event를 보관하도록 구현했다. REST snapshot 적용 후 버퍼를 한 delivery씩
-전달하고 탭의 적용 확인 범위까지만 제거하는 Worker–탭 handshake도 구현했다. 다음 단계에서는
-TanStack Query coordinator가 이 delivery와 `after` 복구 결과를 REST cache에 병합한다.
+전달하고 탭의 적용 확인 범위까지만 제거하는 Worker–탭 handshake도 구현했다. TanStack Query
+coordinator는 이 delivery와 `after` 복구 결과를 같은 REST cache에 병합한다.
 
 ## 실시간 Query coordinator
 
@@ -188,14 +190,22 @@ TanStack Query coordinator가 이 delivery와 `after` 복구 결과를 REST cach
 
 ```text
 REST message-history cache 확인
+  → 마지막 연속 sequence와 READY watermark 비교
+  → 부족하면 afterSequence를 nextAfterSequence로 반복 조회
   → ROOM_SNAPSHOT_APPLIED
   → ROOM_EVENTS_DELIVERED
   → 메시지 infinite query 병합
+  → gap이면 delivery의 최고 sequence까지 afterSequence 자동 복구 후 재병합
   → Room Event journal 병합
   → ROOM_EVENTS_APPLIED
 ```
 
 - REST message-history의 첫 page가 cache에 없으면 snapshot 적용 완료를 Worker에 알리지 않는다.
+- READY watermark보다 cache의 마지막 연속 sequence가 작으면 `afterSequence` 복구가 목표
+  sequence에 도달한 뒤에만 snapshot 적용 완료를 알린다. 서버가 `hasMore=true`로 반환하면
+  `nextAfterSequence`를 그대로 다음 요청에 사용한다.
+- 복구 응답이 진행되지 않거나 목표 sequence 전에 끝나면 기존 cache를 변경하지 않고 Worker
+  buffer와 delivery ACK를 유지한다.
 - 실시간 메시지는 기존 모든 page와 `messageId`, `roomSequence` 기준으로 병합한 뒤 최신
   page에 넣는다. 과거 page와 pagination cursor 및 `pageParams`는 유지한다.
 - 같은 메시지의 정상 재전달은 중복 저장하지 않는다. 같은 ID 또는 sequence의 불변 필드가
@@ -214,8 +224,10 @@ REST message-history cache 확인
 - 두 cache 갱신이 끝난 뒤에만 delivery ACK를 전송한다. ACK 전에 탭이 중단되면 같은 delivery가
   다시 와도 병합이 멱등적으로 동작한다.
 - 다른 room 또는 generation의 delivery는 coordinator가 소비하지 않는다.
-- `overflowed=true`, `invalidEventCount>0` 또는 메시지 sequence gap이 있으면 cache 갱신과
-  ACK를 보류한다. 이 delivery는 후속 `afterSequence` 복구 단계가 해결한 뒤 다시 적용한다.
+- 메시지 sequence gap이 있으면 cache 갱신과 ACK를 보류하고, 기존 마지막 연속 sequence부터
+  해당 delivery의 최고 sequence까지 자동 복구한 뒤 같은 delivery를 다시 적용한다.
+- `overflowed=true` 또는 `invalidEventCount>0`은 메시지 REST만으로 Room Event까지 완전히
+  복원할 수 없으므로 현재는 cache 갱신과 ACK를 보류한다.
 - 병합 실패 delivery는 Worker transport에 남아 있으며 `retryPendingDelivery`로 같은 payload를
   다시 처리할 수 있다.
 
@@ -234,5 +246,5 @@ REST message-history cache 확인
   `lastContiguousSequence`로 반환한다.
 
 메시지 이력 Query의 화면용 flatten과 실시간 Query coordinator가 모두 이 병합 함수를
-사용한다. coordinator는 gap을 발견하면 ACK를 보류한다. 후속 실시간 재동기화 계층은 마지막
-연속 sequence부터 `after` 복구를 반복하고, gap이 해소된 뒤 보류 중인 delivery를 재적용한다.
+사용한다. coordinator는 gap을 발견하면 ACK를 보류하고, 마지막 연속 sequence부터 `after`
+복구를 반복한 뒤 gap이 해소되면 보류 중인 delivery를 재적용한다.

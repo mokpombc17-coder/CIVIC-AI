@@ -13,6 +13,7 @@ type UseChatRealtimeQueryCoordinatorParams = Readonly<{
   roomId: string;
   generation: number;
   limit?: number;
+  watermarkSequence: number;
 }>;
 
 export type ChatRealtimeQueryCoordinatorState = Readonly<{
@@ -26,6 +27,7 @@ export function useChatRealtimeQueryCoordinator({
   roomId,
   generation,
   limit,
+  watermarkSequence,
 }: UseChatRealtimeQueryCoordinatorParams): ChatRealtimeQueryCoordinatorState {
   const queryClient = useQueryClient();
   const transport = useChatRealtimeTransport();
@@ -56,6 +58,7 @@ export function useChatRealtimeQueryCoordinator({
       roomId,
       generation,
       ...(limit === undefined ? {} : { limit }),
+      watermarkSequence,
       onApplied(result) {
         scheduleStateUpdate(() => {
           setError(null);
@@ -63,6 +66,11 @@ export function useChatRealtimeQueryCoordinator({
         });
       },
       onError: reportError,
+      onRecovered() {
+        scheduleStateUpdate(() => {
+          setError(null);
+        });
+      },
     });
     coordinatorRef.current = coordinator;
     scheduleStateUpdate(() => {
@@ -85,7 +93,7 @@ export function useChatRealtimeQueryCoordinator({
         coordinatorRef.current = null;
       }
     };
-  }, [enabled, generation, limit, queryClient, roomId, transport]);
+  }, [enabled, generation, limit, queryClient, roomId, transport, watermarkSequence]);
 
   const retry = useCallback(() => {
     const coordinator = coordinatorRef.current;

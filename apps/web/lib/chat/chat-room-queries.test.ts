@@ -132,6 +132,7 @@ describe("chat room query options", () => {
 
     expect(options.queryKey).toEqual(chatRoomQueryKeys.messageHistory("room-01", 50));
     expect(options.enabled).toBe(false);
+    expect(options.staleTime).toBe(Number.POSITIVE_INFINITY);
     expect(getRoomMessages).not.toHaveBeenCalled();
 
     unsubscribe();

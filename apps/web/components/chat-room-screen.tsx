@@ -30,17 +30,20 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     enabled: session.isActive,
     limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
   });
-  const coordinatorEnabled = isChatRoomSnapshotReadyForRealtimeMerge({
-    hasMessageHistory: messageHistory.data !== undefined,
-    isMessageHistoryRefetching: messageHistory.isRefetching,
-    isRoomActive: session.isActive,
-    messageHistoryStatus: messageHistory.status,
-  });
+  const coordinatorEnabled =
+    session.watermarkSequence !== null &&
+    isChatRoomSnapshotReadyForRealtimeMerge({
+      hasMessageHistory: messageHistory.data !== undefined,
+      isMessageHistoryRefetching: messageHistory.isRefetching,
+      isRoomActive: session.isActive,
+      messageHistoryStatus: messageHistory.status,
+    });
   const realtimeQuery = useChatRealtimeQueryCoordinator({
     enabled: coordinatorEnabled,
     roomId,
     generation: session.generation,
     limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
+    watermarkSequence: session.watermarkSequence ?? 0,
   });
   const room = roomQuery.data;
   const currentUserId = room?.myMembership?.userId ?? null;

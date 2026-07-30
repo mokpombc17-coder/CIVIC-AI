@@ -162,7 +162,7 @@ export function roomMessageHistoryInfiniteQueryOptions(
             },
       ),
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextBeforeSequence : null),
-    staleTime: 0,
+    staleTime: Number.POSITIVE_INFINITY,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   });
