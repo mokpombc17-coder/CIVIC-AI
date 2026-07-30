@@ -1015,6 +1015,12 @@ client.publish({
 }
 ```
 
+`ACCEPTED`는 채팅 메시지와 해당 `CHAT_MESSAGE_CREATED` 전파 항목이
+MongoDB transaction에 함께 영속화되었다는 뜻이다. 다른 WebSocket
+subscriber에게 이벤트가 이미 전달되었다는 뜻은 아니다. 따라서
+`ACCEPTED`와 `CHAT_MESSAGE_CREATED`는 어느 쪽이 먼저 도착해도 정상이며,
+프론트는 두 응답의 고정 순서를 가정하지 않는다.
+
 같은 `clientMessageId`와 같은 메시지를 재전송한 경우:
 
 ```json
@@ -1109,7 +1115,35 @@ payload:
 }
 ```
 
-`roomSequence`를 이용해 방 안에서 메시지 순서를 판단한다.
+메시지 이벤트는 at-least-once로 전파되므로 동일 이벤트가 다시 도착할 수
+있다. 프론트는 `messageId` 또는 `roomId + roomSequence`로 중복을
+제거한다.
+
+`roomSequence`를 이용해 방 안에서 메시지 순서를 판단한다. 정상 전파
+경로에서는 발생 순서에 가깝게 처리하지만, publish 재시도 중에는 앞선
+`roomSequence`가 뒤 이벤트보다 늦게 도착할 수 있다. gap을 발견하면 기존
+REST 메시지 이력 API로 복구한다. Outbox는 오프라인 클라이언트의 이벤트
+수신이나 exactly-once 전달을 보장하지 않는다.
+
+### 메시지 Outbox 배포와 rollback
+
+Outbox v1은 단일 서버 인스턴스와 Spring Simple Broker를 전제로 하며,
+기존 메시지를 backfill하지 않는다. 메시지를 직접 publish하는 pre-outbox
+버전과 outbox dispatcher 버전의 혼합 실행은 지원하지 않는다.
+
+Pre-outbox 버전으로 rollback하기 전에는 신규 메시지 ingress를 중단하고
+message pipeline과 outbox dispatcher를 순서대로 drain한다. `inFlight = 0`
+확인 뒤 metric snapshot이 아니라 MongoDB에서 다음 exact query를 실행한다.
+
+```javascript
+db.chat_outbox_events.countDocuments({})
+```
+
+결과가 `0`이고 unsupported 문서도 없을 때만 rollback한다. Pending 문서가
+있으면 forward fix 또는 outbox-compatible binary로 dispatcher를 복구해
+drain한다. 자동 purge는 금지하며, 긴급 purge는 운영자 승인, collection
+export 또는 backup, 실시간 이벤트 유실 수용 기록을 갖춘 별도 비상 절차로만
+수행한다.
 
 ### 방 이벤트
 

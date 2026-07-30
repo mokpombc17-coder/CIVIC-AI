@@ -1,7 +1,5 @@
 package com.hamcheeze.chat.application;
 
-import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
-import com.hamcheeze.chat.delivery.ChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
@@ -15,8 +13,6 @@ import com.hamcheeze.chat.pipeline.QueuedChatCommand;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 
 import java.time.Instant;
 
@@ -25,9 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,7 +29,6 @@ import static org.mockito.Mockito.when;
 class ChatMessageProcessorTest {
 
     private ChatMessageStore store;
-    private ChatMessagePublisher publisher;
     private ChatCommandResultSender resultSender;
     private SimpleMeterRegistry meterRegistry;
     private ChatMessageProcessor processor;
@@ -43,37 +36,23 @@ class ChatMessageProcessorTest {
     @BeforeEach
     void setUp() {
         store = mock(ChatMessageStore.class);
-        publisher = mock(ChatMessagePublisher.class);
         resultSender = mock(ChatCommandResultSender.class);
         meterRegistry = new SimpleMeterRegistry();
         processor = new ChatMessageProcessor(
                 store,
-                publisher,
                 resultSender,
                 meterRegistry);
     }
 
     @Test
-    void storedMessageIsPublishedBeforeAcceptedResult() {
+    void storedMessageReturnsAcceptedResultWithoutDirectPublish() {
         ChatMessage message = message();
         when(store.append(any()))
                 .thenReturn(new StoredChatMessage(message));
 
         processor.process(queued());
 
-        ArgumentCaptor<ChatMessageEventEnvelope> event =
-                ArgumentCaptor.forClass(
-                        ChatMessageEventEnvelope.class);
-        InOrder order = inOrder(publisher, resultSender);
-        order.verify(publisher).publish(event.capture());
-        assertThat(event.getValue().eventVersion()).isEqualTo(1);
-        assertThat(event.getValue().eventType())
-                .isEqualTo("CHAT_MESSAGE_CREATED");
-        assertThat(event.getValue().payload().messageId())
-                .isEqualTo("message-1");
-        assertThat(event.getValue().payload().senderUserId())
-                .isEqualTo("user-1");
-        order.verify(resultSender).send(
+        verify(resultSender).send(
                 "user-1",
                 "connection-1",
                 new ChatCommandOutcome(
@@ -90,7 +69,6 @@ class ChatMessageProcessorTest {
 
         processor.process(queued());
 
-        verifyNoPublish();
         verify(resultSender).send(
                 "user-1",
                 "connection-1",
@@ -108,7 +86,6 @@ class ChatMessageProcessorTest {
 
         processor.process(queued());
 
-        verifyNoPublish();
         verify(resultSender).send(
                 "user-1",
                 "connection-1",
@@ -128,7 +105,6 @@ class ChatMessageProcessorTest {
 
         processor.process(queued());
 
-        verifyNoPublish();
         verify(resultSender).send(
                 "user-1",
                 "connection-1",
@@ -151,7 +127,6 @@ class ChatMessageProcessorTest {
 
         processor.process(queued());
 
-        verifyNoPublish();
         verify(resultSender).send(
                 "user-1",
                 "connection-1",
@@ -171,7 +146,6 @@ class ChatMessageProcessorTest {
 
         processor.process(queued());
 
-        verifyNoPublish();
         verify(resultSender).send(
                 "user-1",
                 "connection-1",
@@ -183,15 +157,10 @@ class ChatMessageProcessorTest {
     }
 
     @Test
-    void broadcastFailureDoesNotPreventNextMessageProcessing() {
+    void storedMessagesContinueProcessingAfterAcceptedResult() {
         when(store.append(any())).thenReturn(
                 new StoredChatMessage(message("1")),
                 new StoredChatMessage(message("2")));
-        doThrow(new IllegalStateException("broker unavailable"))
-                .doNothing()
-                .when(publisher)
-                .publish(any());
-
         assertThatCode(() -> {
             processor.process(queued("1"));
             processor.process(queued("2"));
@@ -214,7 +183,6 @@ class ChatMessageProcessorTest {
                         ChatCommandOutcomeCode.ACCEPTED,
                         "message-2",
                         2L));
-        verify(publisher, times(2)).publish(any());
     }
 
     @Test
@@ -233,7 +201,6 @@ class ChatMessageProcessorTest {
         })
                 .doesNotThrowAnyException();
 
-        verify(publisher, times(2)).publish(any());
         verify(resultSender, times(2)).send(
                 eq("user-1"),
                 eq("connection-1"),
@@ -251,14 +218,12 @@ class ChatMessageProcessorTest {
                         "store unavailable"));
         processor = new ChatMessageProcessor(
                 store,
-                publisher,
                 resultSender,
                 ThrowingMeterRegistry.counter(
                         "chat.pipeline.processing.failures"));
 
         processor.process(queued());
 
-        verifyNoPublish();
         verify(resultSender).send(
                 "user-1",
                 "connection-1",
@@ -280,7 +245,6 @@ class ChatMessageProcessorTest {
                 .send(eq("user-1"), eq("connection-1"), any());
         processor = new ChatMessageProcessor(
                 store,
-                publisher,
                 resultSender,
                 ThrowingMeterRegistry.counter(
                         "chat.command.result.send.failures"));
@@ -290,15 +254,10 @@ class ChatMessageProcessorTest {
             processor.process(queued("2"));
         }).doesNotThrowAnyException();
 
-        verify(publisher, times(2)).publish(any());
         verify(resultSender, times(2)).send(
                 eq("user-1"),
                 eq("connection-1"),
                 any());
-    }
-
-    private void verifyNoPublish() {
-        verify(publisher, never()).publish(any());
     }
 
     private QueuedChatCommand queued() {

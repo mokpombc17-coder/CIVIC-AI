@@ -1,7 +1,5 @@
 package com.hamcheeze.chat.application;
 
-import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
-import com.hamcheeze.chat.delivery.ChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
@@ -28,7 +26,6 @@ public final class ChatMessageProcessor {
             LoggerFactory.getLogger(ChatMessageProcessor.class);
 
     private final ChatMessageStore messageStore;
-    private final ChatMessagePublisher messagePublisher;
     private final ChatCommandResultSender resultSender;
     private final AtomicInteger processing = new AtomicInteger();
     private final Counter processingFailureCounter;
@@ -36,14 +33,11 @@ public final class ChatMessageProcessor {
 
     public ChatMessageProcessor(
             ChatMessageStore messageStore,
-            ChatMessagePublisher messagePublisher,
             ChatCommandResultSender resultSender,
             MeterRegistry meterRegistry
     ) {
         this.messageStore = Objects.requireNonNull(
                 messageStore, "messageStore");
-        this.messagePublisher = Objects.requireNonNull(
-                messagePublisher, "messagePublisher");
         this.resultSender = Objects.requireNonNull(
                 resultSender, "resultSender");
         Objects.requireNonNull(meterRegistry, "meterRegistry");
@@ -138,19 +132,6 @@ public final class ChatMessageProcessor {
             AdmittedChatCommand command,
             ChatMessage message
     ) {
-        try {
-            messagePublisher.publish(
-                    ChatMessageEventEnvelope.messageCreated(message));
-        } catch (RuntimeException exception) {
-            log.error(
-                    "Chat message broadcast failed after persistence: roomId={}, messageId={}, roomSequence={}, clientMessageId={}",
-                    message.roomId(),
-                    message.messageId(),
-                    message.roomSequence(),
-                    message.clientMessageId(),
-                    exception);
-        }
-
         safeSend(
                 command,
                 new ChatCommandOutcome(

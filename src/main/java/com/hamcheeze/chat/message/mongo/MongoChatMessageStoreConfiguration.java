@@ -2,6 +2,7 @@ package com.hamcheeze.chat.message.mongo;
 
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.room.application.RoomMessageBoundaryPort;
 import com.mongodb.client.MongoClient;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -47,6 +48,7 @@ public class MongoChatMessageStoreConfiguration {
             TransactionTemplate transactionTemplate,
             MongoChatMessageSchemaInitializer schemaInitializer,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageOutboxWriter outboxWriter,
             MeterRegistry meterRegistry
     ) {
         return new MongoChatMessageStore(
@@ -55,6 +57,7 @@ public class MongoChatMessageStoreConfiguration {
                 Clock.systemUTC(),
                 () -> UUID.randomUUID().toString(),
                 exceptionClassifier,
+                outboxWriter,
                 meterRegistry);
     }
 

@@ -8,6 +8,7 @@ import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
+import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -99,6 +100,24 @@ class MongoChatMessageStoreTest {
         assertThat(document.getDate("createdAt").toInstant())
                 .isEqualTo(NOW);
         assertThat(messages().countDocuments()).isEqualTo(1L);
+        Document outbox = outboxEvents().find().first();
+        assertThat(outbox).isNotNull();
+        assertThat(outbox.get("_id"))
+                .isEqualTo("chat-message-created:message-1");
+        assertThat(outbox.getInteger("schemaVersion")).isEqualTo(1);
+        assertThat(outbox.getString("aggregateType"))
+                .isEqualTo("CHAT_MESSAGE");
+        assertThat(outbox.getString("eventType"))
+                .isEqualTo("CHAT_MESSAGE_CREATED");
+        assertThat(outbox.getLong("roomSequence")).isEqualTo(1L);
+        assertThat(outbox.getLong("attemptCount")).isZero();
+        Document payload = outbox.get("payload", Document.class);
+        assertThat(payload.getString("messageId"))
+                .isEqualTo("message-1");
+        assertThat(payload.getString("content"))
+                .isEqualTo("normalized content");
+        assertThat(payload.getDate("createdAt").toInstant())
+                .isEqualTo(NOW);
     }
 
     @Test
@@ -142,6 +161,7 @@ class MongoChatMessageStoreTest {
         assertThat(duplicate.message()).isEqualTo(first.message());
         assertThat(next.message().roomSequence()).isEqualTo(2L);
         assertThat(messages().countDocuments()).isEqualTo(2L);
+        assertThat(outboxEvents().countDocuments()).isEqualTo(2L);
     }
 
     @Test
@@ -177,6 +197,32 @@ class MongoChatMessageStoreTest {
         assertThat(conflict.existingMessage()).isEqualTo(first.message());
         assertThat(next.message().roomSequence()).isEqualTo(2L);
         assertThat(messages().countDocuments()).isEqualTo(2L);
+        assertThat(outboxEvents().countDocuments()).isEqualTo(2L);
+    }
+
+    @Test
+    void outboxInsertFailureRollsBackMessageAndSequence() {
+        outboxEvents().insertOne(new Document(
+                "_id",
+                "chat-message-created:message-1"));
+
+        assertThatThrownBy(() -> store.append(
+                message(
+                        "room-1",
+                        "user-1",
+                        "client-1",
+                        "hello")))
+                .isInstanceOf(ChatMessageStoreException.class);
+
+        assertThat(messages().countDocuments()).isZero();
+        assertThat(outboxEvents().countDocuments()).isEqualTo(1L);
+        Document sequence = CONFIGURATION
+                .mongoOperations()
+                .getCollection(
+                        MongoRoomSequenceDocument.COLLECTION_NAME)
+                .find(new Document("_id", "room-1"))
+                .first();
+        assertThat(sequence).isNull();
     }
 
     @Test
@@ -500,6 +546,11 @@ class MongoChatMessageStoreTest {
     private MongoCollection<Document> messages() {
         return CONFIGURATION.mongoOperations().getCollection(
                 MongoChatMessageDocument.COLLECTION_NAME);
+    }
+
+    private MongoCollection<Document> outboxEvents() {
+        return CONFIGURATION.mongoOperations().getCollection(
+                MongoChatMessageOutboxDocument.COLLECTION_NAME);
     }
 
     private long lastSequence(String roomId) {

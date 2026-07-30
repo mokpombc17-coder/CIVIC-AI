@@ -3,6 +3,9 @@ package com.hamcheeze.chat.message.mongo;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import io.micrometer.core.instrument.MeterRegistry;
+import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
+import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxSchemaInitializer;
+import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxStore;
 import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -57,6 +60,7 @@ final class MongoChatMessageStoreTestConfiguration
                 clock,
                 messageIdGenerator,
                 new MongoChatMessageExceptionClassifier(),
+                new MongoChatMessageOutboxStore(mongoTemplate),
                 meterRegistry);
     }
 
@@ -71,7 +75,14 @@ final class MongoChatMessageStoreTestConfiguration
             mongoTemplate.dropCollection(
                     MongoRoomSequenceDocument.COLLECTION_NAME);
         }
+        if (mongoTemplate.collectionExists(
+                MongoChatMessageOutboxDocument.COLLECTION_NAME)) {
+            mongoTemplate.dropCollection(
+                    MongoChatMessageOutboxDocument.COLLECTION_NAME);
+        }
         schemaInitializer().initialize();
+        new MongoChatMessageOutboxSchemaInitializer(
+                mongoTemplate).initialize();
     }
 
     @Override

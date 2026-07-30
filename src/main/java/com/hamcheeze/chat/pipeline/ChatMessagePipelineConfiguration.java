@@ -32,13 +32,11 @@ public class ChatMessagePipelineConfiguration {
     @Bean
     ChatMessageProcessor chatMessageProcessor(
             ChatMessageStore messageStore,
-            ChatMessagePublisher messagePublisher,
             ChatCommandResultSender resultSender,
             MeterRegistry meterRegistry
     ) {
         return new ChatMessageProcessor(
                 messageStore,
-                messagePublisher,
                 resultSender,
                 meterRegistry);
     }

@@ -7,7 +7,8 @@ import com.hamcheeze.chat.delivery.SimpleBrokerChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
-import com.hamcheeze.chat.message.inmemory.InMemoryChatMessageStore;
+import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxDispatcher;
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
 import com.hamcheeze.chat.pipeline.InMemoryChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.PipelineAcceptance;
@@ -28,7 +29,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -48,6 +48,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class ChatMessagePipelineContextShutdownIntegrationTest {
+
+    private final String roomId =
+            "shutdown-room-" + UUID.randomUUID();
 
     @Test
     void contextCloseDrainsBeforeMessagingInfrastructureStops()
@@ -73,6 +76,8 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                 context.getBean(ChatCommandResultSender.class);
         InMemoryChatMessagePipeline pipeline =
                 context.getBean(InMemoryChatMessagePipeline.class);
+        ChatMessageOutboxDispatcher outboxDispatcher =
+                context.getBean(ChatMessageOutboxDispatcher.class);
         SmartLifecycle simpleBroker = context.getBean(
                 "simpleBrokerMessageHandler",
                 SmartLifecycle.class);
@@ -81,6 +86,7 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
             assertPipelineStopsBeforeMessagingInfrastructure(
                     context,
                     pipeline,
+                    outboxDispatcher,
                     simpleBroker);
             List<Boolean> brokerAvailableDuringResultSend =
                     new CopyOnWriteArrayList<>();
@@ -134,12 +140,16 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
     private void assertPipelineStopsBeforeMessagingInfrastructure(
             ConfigurableApplicationContext context,
             InMemoryChatMessagePipeline pipeline,
+            ChatMessageOutboxDispatcher outboxDispatcher,
             SmartLifecycle simpleBroker
     ) {
         SubProtocolWebSocketHandler webSocketHandler =
                 context.getBean(SubProtocolWebSocketHandler.class);
+        assertThat(simpleBroker.getPhase())
+                .isLessThan(outboxDispatcher.getPhase());
+        assertThat(outboxDispatcher.getPhase())
+                .isLessThan(pipeline.getPhase());
         assertThat(pipeline.getPhase())
-                .isGreaterThan(simpleBroker.getPhase())
                 .isGreaterThan(webSocketHandler.getPhase());
         for (String beanName : List.of(
                 "userDestinationMessageHandler",
@@ -173,7 +183,7 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
         return new AdmittedChatCommand(
                 "user-1",
                 "connection-1",
-                "room-1",
+                roomId,
                 clientMessageId,
                 "hello");
     }
@@ -184,9 +194,10 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
         @Bean
         @Primary
         ControlledChatMessageStore controlledChatMessageStore(
-                MeterRegistry meterRegistry
+                @Qualifier("chatMessageStore")
+                ChatMessageStore messageStore
         ) {
-            return new ControlledChatMessageStore(meterRegistry);
+            return new ControlledChatMessageStore(messageStore);
         }
 
         @Bean
@@ -223,8 +234,9 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
     static final class ControlledChatMessageStore
             implements ChatMessageStore {
 
-        private final InMemoryChatMessageStore delegate;
+        private final ChatMessageStore delegate;
         private final AtomicInteger attempts = new AtomicInteger();
+        private final AtomicInteger stored = new AtomicInteger();
         private final CountDownLatch firstStarted =
                 new CountDownLatch(1);
         private final CountDownLatch releaseFirst =
@@ -232,11 +244,8 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
         private final AtomicBoolean inFlightInterrupted =
                 new AtomicBoolean();
 
-        ControlledChatMessageStore(MeterRegistry meterRegistry) {
-            this.delegate = new InMemoryChatMessageStore(
-                    Clock.systemUTC(),
-                    () -> UUID.randomUUID().toString(),
-                    meterRegistry);
+        ControlledChatMessageStore(ChatMessageStore delegate) {
+            this.delegate = delegate;
         }
 
         @Override
@@ -252,11 +261,15 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                     Thread.currentThread().interrupt();
                 }
             }
-            return delegate.append(message);
+            StoreChatMessageResult result = delegate.append(message);
+            if (result instanceof StoredChatMessage) {
+                stored.incrementAndGet();
+            }
+            return result;
         }
 
         int size() {
-            return delegate.size();
+            return stored.get();
         }
     }
 

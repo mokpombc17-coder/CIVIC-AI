@@ -9,6 +9,7 @@ import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -51,6 +52,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
     private final Supplier<String> messageIdGenerator;
     private final MongoChatMessageExceptionClassifier exceptionClassifier;
     private final MongoRoomSequenceAllocator sequenceAllocator;
+    private final ChatMessageOutboxWriter outboxWriter;
     private final Counter storedCounter;
     private final Counter duplicateCounter;
     private final Counter conflictCounter;
@@ -64,6 +66,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             Clock clock,
             Supplier<String> messageIdGenerator,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageOutboxWriter outboxWriter,
             MeterRegistry meterRegistry
     ) {
         this(
@@ -72,6 +75,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                 clock,
                 messageIdGenerator,
                 exceptionClassifier,
+                outboxWriter,
                 meterRegistry);
     }
 
@@ -81,6 +85,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             Clock clock,
             Supplier<String> messageIdGenerator,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageOutboxWriter outboxWriter,
             MeterRegistry meterRegistry
     ) {
         this.mongoOperations = Objects.requireNonNull(
@@ -96,6 +101,9 @@ public final class MongoChatMessageStore implements ChatMessageStore {
         this.exceptionClassifier = Objects.requireNonNull(
                 exceptionClassifier,
                 "exceptionClassifier");
+        this.outboxWriter = Objects.requireNonNull(
+                outboxWriter,
+                "outboxWriter");
         this.sequenceAllocator =
                 new MongoRoomSequenceAllocator(mongoOperations);
         Objects.requireNonNull(meterRegistry, "meterRegistry");
@@ -385,7 +393,9 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                         newMessage.content(),
                         candidateCreatedAt);
         mongoOperations.insert(document);
-        return new StoredChatMessage(document.toDomain());
+        ChatMessage storedMessage = document.toDomain();
+        outboxWriter.appendMessageCreated(storedMessage);
+        return new StoredChatMessage(storedMessage);
     }
 
     private StoreChatMessageResult resolveDuplicateKey(

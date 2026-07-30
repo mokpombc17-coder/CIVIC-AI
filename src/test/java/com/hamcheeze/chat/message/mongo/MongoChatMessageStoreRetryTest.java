@@ -615,6 +615,8 @@ class MongoChatMessageStoreRetryTest {
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 messageIdGenerator,
                 new MongoChatMessageExceptionClassifier(),
+                message -> {
+                },
                 registry);
     }
 
