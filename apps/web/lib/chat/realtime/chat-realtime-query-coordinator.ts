@@ -3,6 +3,10 @@ import { DEFAULT_MESSAGE_HISTORY_LIMIT, chatRoomQueryKeys } from "../chat-room-q
 import type { ChatMessage, MessageHistoryResponse } from "../chat-room-contracts";
 import { mergeChatMessages, type ChatMessageMergeResult } from "../chat-message-merge";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+import {
+  applyChatRoomEventCacheProjection,
+  createChatRoomEventCacheProjection,
+} from "./chat-room-event-cache-projector";
 import type { ChatRoomEventEnvelope } from "./chat-stomp-contracts";
 import type { ChatRealtimeTransport } from "./chat-realtime-transport";
 
@@ -147,10 +151,15 @@ export function applyChatRealtimeEventDelivery(
   const roomEventJournalKey = chatRoomQueryKeys.roomEventJournal(delivery.roomId);
   const currentRoomEventJournal =
     queryClient.getQueryData<ChatRoomEventJournal>(roomEventJournalKey);
-  const nextRoomEventJournal = mergeRoomEventJournal(
+  const roomEventJournalMerge = mergeRoomEventJournal(
     delivery.roomId,
     currentRoomEventJournal,
     roomEvents.map((event) => event.event),
+  );
+  const roomEventProjection = createChatRoomEventCacheProjection(
+    queryClient,
+    delivery.roomId,
+    roomEventJournalMerge.addedEvents,
   );
 
   if (messageMerge.gaps.length > 0) {
@@ -164,9 +173,11 @@ export function applyChatRealtimeEventDelivery(
     queryClient.setQueryData(messageHistoryKey, nextHistory);
   }
 
-  if (nextRoomEventJournal !== currentRoomEventJournal) {
-    queryClient.setQueryData(roomEventJournalKey, nextRoomEventJournal);
+  if (roomEventJournalMerge.journal !== currentRoomEventJournal) {
+    queryClient.setQueryData(roomEventJournalKey, roomEventJournalMerge.journal);
   }
+
+  applyChatRoomEventCacheProjection(queryClient, roomEventProjection);
 
   return {
     deliveryId: delivery.deliveryId,
@@ -240,7 +251,10 @@ function mergeRoomEventJournal(
   roomId: string,
   journal: ChatRoomEventJournal | undefined,
   incomingEvents: readonly ChatRoomEventEnvelope[],
-): ChatRoomEventJournal | undefined {
+): Readonly<{
+  addedEvents: readonly ChatRoomEventEnvelope[];
+  journal: ChatRoomEventJournal | undefined;
+}> {
   if (journal && journal.roomId !== roomId) {
     throw new ChatRealtimeQueryCoordinatorError(
       "ROOM_EVENT_JOURNAL_MISMATCH",
@@ -249,11 +263,15 @@ function mergeRoomEventJournal(
   }
 
   if (incomingEvents.length === 0) {
-    return journal;
+    return {
+      addedEvents: [],
+      journal,
+    };
   }
 
   const events = [...(journal?.events ?? [])];
   const eventsById = new Map(events.map((event) => [event.eventId, event] as const));
+  const addedEvents: ChatRoomEventEnvelope[] = [];
 
   for (const event of incomingEvents) {
     if (event.payload.roomId !== roomId) {
@@ -277,11 +295,15 @@ function mergeRoomEventJournal(
 
     eventsById.set(event.eventId, event);
     events.push(event);
+    addedEvents.push(event);
   }
 
   return {
-    roomId,
-    events,
+    addedEvents,
+    journal: {
+      roomId,
+      events,
+    },
   };
 }
 

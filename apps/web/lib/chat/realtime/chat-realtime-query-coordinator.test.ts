@@ -1,7 +1,7 @@
 import { QueryClient, type InfiniteData } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { chatRoomQueryKeys, DEFAULT_MESSAGE_HISTORY_LIMIT } from "../chat-room-queries";
-import type { ChatMessage, MessageHistoryResponse } from "../chat-room-contracts";
+import type { ChatMessage, MessageHistoryResponse, RoomDetails } from "../chat-room-contracts";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import {
   applyChatRealtimeEventDelivery,
@@ -89,6 +89,20 @@ describe("ChatRealtimeQueryCoordinator", () => {
       events: [createBufferedMessage(2, 1), createBufferedRoomEvent("event-1", 2)],
     });
     seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+    queryClient.setQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01"), {
+      roomId: "room-01",
+      name: "테스트 방",
+      ownerUserId: "local-owner",
+      status: "ACTIVE",
+      visibility: "LISTED",
+      joinPolicy: "OPEN",
+      activeMemberCount: 1,
+      createdAt: "2026-07-30T00:00:00Z",
+      closedAt: null,
+      version: 1,
+      participationStatus: "NOT_JOINED",
+      myMembership: null,
+    });
     coordinator.start();
 
     transport.emit(firstDelivery);
@@ -106,6 +120,12 @@ describe("ChatRealtimeQueryCoordinator", () => {
       queryClient.getQueryData<ChatRoomEventJournal>(chatRoomQueryKeys.roomEventJournal("room-01"))
         ?.events,
     ).toHaveLength(1);
+    expect(
+      queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01")),
+    ).toMatchObject({
+      activeMemberCount: 2,
+      version: 2,
+    });
     expect(transport.acknowledgedDeliveries).toEqual(["delivery-1", "delivery-2"]);
   });
 

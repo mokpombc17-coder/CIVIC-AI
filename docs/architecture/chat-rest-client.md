@@ -7,7 +7,7 @@
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면
   연결, 방 생성·공개 방 참여·나가기·방장 위임·차단·종료 관리 화면 연결
-- 후속 범위: Room Event의 상세 cache 반영과 `afterSequence` 자동 복구
+- 후속 범위: `afterSequence` 자동 복구와 연결·오류 UX 보강
 
 ## 계층
 
@@ -201,7 +201,14 @@ REST message-history cache 확인
 - 같은 메시지의 정상 재전달은 중복 저장하지 않는다. 같은 ID 또는 sequence의 불변 필드가
   다르면 cache를 변경하지 않는다.
 - Room Event는 `["chat", "rooms", "room-event-journal", roomId]` query에 `eventId` 기준으로
-  보관한다. 다음 Room Event 처리 단계에서 이 journal을 방 상세·멤버십 cache에 반영한다.
+  보관한다. journal에 처음 추가된 이벤트만 방 상세와 내 멤버십 cache에 투영하므로 같은
+  delivery가 다시 와도 참여 인원 등을 중복 계산하지 않는다.
+- Room Event가 제공하는 방 version, 상태, 방장, 멤버십 역할·상태·version은 즉시 cache에
+  반영한다. 연속된 room version일 때만 참여 인원 증감을 계산하고, version이 건너뛰면 인원을
+  추정하지 않는다.
+- Room Event에는 멤버십 타임스탬프 등 REST 표현의 모든 필드가 없으므로 이벤트 적용 후 방
+  상세·내 멤버십·멤버 목록·방 목록 Query를 무효화한다. 즉시 투영한 상태는 화면 지연을 줄이고,
+  후속 REST refetch가 완전한 서버 표현으로 보정한다.
 - 메시지 cache와 Room Event journal의 다음 값을 먼저 계산한 뒤 둘 다 정상일 때만 실제
   cache를 갱신한다. 따라서 Room Event 충돌 때문에 메시지만 먼저 반영되는 부분 성공을 막는다.
 - 두 cache 갱신이 끝난 뒤에만 delivery ACK를 전송한다. ACK 전에 탭이 중단되면 같은 delivery가
