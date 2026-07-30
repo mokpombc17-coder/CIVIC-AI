@@ -6,8 +6,8 @@
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면
-  연결, 방 생성·공개 방 참여 Command 화면 연결
-- 후속 범위: 나가기·방장 위임·차단·종료 관리 화면과 `afterSequence` 자동 복구
+  연결, 방 생성·공개 방 참여·나가기·방장 위임·차단·종료 관리 화면 연결
+- 후속 범위: Room Event의 상세 cache 반영과 `afterSequence` 자동 복구
 
 ## 계층
 
@@ -131,6 +131,10 @@ Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를
 
 방 생성과 참여가 성공하면 관련 cache 무효화가 끝난 뒤 응답의 `roomId`에 해당하는 채팅방
 화면으로 이동한다.
+
+방 상세 화면은 내 멤버십을 별도 endpoint로 동기화한다. 방장 역할이 확인된 경우에만 상태별
+멤버 목록 Query를 활성화하며, 일반 멤버에게는 방장 전용 요청 자체를 보내지 않는다. 방장 위임,
+멤버 차단·해제, 방 나가기와 방 종료도 동일한 `IdempotentCommand` 재시도 정책을 따른다.
 
 ## 구현된 endpoint
 

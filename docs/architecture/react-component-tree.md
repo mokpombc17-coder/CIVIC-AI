@@ -63,7 +63,8 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
                                     ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
-                                    └── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
+                                    ├── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
+                                    └── ChatRoomMembershipPanel [Client] (apps/web/components/chat-room-membership-panel.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
@@ -131,6 +132,7 @@ flowchart TD
     ChatRoomListScreen["ChatRoomListScreen [Client]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
     ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
+    ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client]<br/>apps/web/components/chat-room-session-controls.tsx"]
 
@@ -164,6 +166,7 @@ flowchart TD
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatConnectionStatus
     ChatRoomScreen --> ChatRoomSessionControls
+    ChatRoomScreen --> ChatRoomMembershipPanel
 
     ChildrenSlot -. "route /architecture" .-> ArchitecturePage
 

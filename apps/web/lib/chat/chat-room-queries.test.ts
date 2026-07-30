@@ -95,6 +95,26 @@ describe("chat room query options", () => {
     });
   });
 
+  it("방장이 아니면 멤버 목록 요청을 시작하지 않을 수 있다", async () => {
+    const listRoomMemberships = vi.fn(async () => EMPTY_PAGE);
+    const options = roomMembershipsInfiniteQueryOptions(
+      "room-01",
+      {
+        enabled: false,
+      },
+      { listRoomMemberships },
+    );
+    const observer = new InfiniteQueryObserver(createQueryClient(), options);
+    const unsubscribe = observer.subscribe(() => {});
+
+    await Promise.resolve();
+
+    expect(options.enabled).toBe(false);
+    expect(listRoomMemberships).not.toHaveBeenCalled();
+
+    unsubscribe();
+  });
+
   it("메시지 이력은 READY 전 enabled=false에서 요청하지 않는다", async () => {
     const getRoomMessages = vi.fn(async () => LATEST_MESSAGE_PAGE);
     const options = roomMessageHistoryInfiniteQueryOptions(

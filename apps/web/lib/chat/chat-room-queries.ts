@@ -15,6 +15,7 @@ import type {
   MessageHistoryResponse,
   MyRoomListItem,
   PublicRoomListItem,
+  RoomMembershipListItem,
 } from "./chat-room-contracts";
 
 const DEFAULT_LIST_LIMIT = 20;
@@ -27,8 +28,13 @@ export type ChatRoomListQueryParams = Readonly<{
 }>;
 
 export type ChatRoomMembershipListQueryParams = Readonly<{
+  enabled?: boolean;
   status?: MembershipStatus;
   limit?: number;
+}>;
+
+export type ChatRoomQueryParams = Readonly<{
+  enabled?: boolean;
 }>;
 
 export type ChatMessageHistoryQueryParams = Readonly<{
@@ -111,11 +117,16 @@ export function myRoomMembershipQueryOptions(
 
 export function roomMembershipsInfiniteQueryOptions(
   roomId: string,
-  { status = "ACTIVE", limit = DEFAULT_LIST_LIMIT }: ChatRoomMembershipListQueryParams = {},
+  {
+    enabled = true,
+    status = "ACTIVE",
+    limit = DEFAULT_LIST_LIMIT,
+  }: ChatRoomMembershipListQueryParams = {},
   api: Pick<ChatRoomApi, "listRoomMemberships"> = chatRoomApi,
 ) {
   return infiniteQueryOptions({
     queryKey: chatRoomQueryKeys.membershipList(roomId, status, limit),
+    enabled,
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
       api.listRoomMemberships(roomId, {
@@ -201,15 +212,30 @@ export function useRoomDetailsQuery(roomId: string) {
   return useQuery(roomDetailsQueryOptions(roomId));
 }
 
-export function useMyRoomMembershipQuery(roomId: string) {
-  return useQuery(myRoomMembershipQueryOptions(roomId));
+export function useMyRoomMembershipQuery(
+  roomId: string,
+  { enabled = true }: ChatRoomQueryParams = {},
+) {
+  return useQuery({
+    ...myRoomMembershipQueryOptions(roomId),
+    enabled,
+  });
 }
 
 export function useRoomMembershipsQuery(
   roomId: string,
   params: ChatRoomMembershipListQueryParams = {},
 ) {
-  return useInfiniteQuery(roomMembershipsInfiniteQueryOptions(roomId, params));
+  const query = useInfiniteQuery(roomMembershipsInfiniteQueryOptions(roomId, params));
+  const memberships = useMemo(
+    () => flattenRoomListPages<RoomMembershipListItem>(query.data?.pages),
+    [query.data?.pages],
+  );
+
+  return {
+    ...query,
+    memberships,
+  };
 }
 
 export function useRoomMessageHistoryQuery(roomId: string, params: ChatMessageHistoryQueryParams) {

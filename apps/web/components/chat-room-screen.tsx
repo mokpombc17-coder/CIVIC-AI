@@ -6,6 +6,7 @@ import {
   useChatRealtimeRoom,
   type ChatRealtimeRoomState,
 } from "@/components/chat-realtime-provider";
+import { ChatRoomMembershipPanel } from "@/components/chat-room-membership-panel";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import {
@@ -89,6 +90,8 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
 
         <ChatRoomSessionControls roomId={roomId} session={session} />
       </section>
+
+      {room ? <ChatRoomMembershipPanel room={room} roomId={roomId} /> : null}
     </div>
   );
 }
