@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-const AUTH_COOKIE_NAME = "civic_ai_access_token";
+import { authenticateDevUser, createRoomAndEnter } from "./chat-e2e-helpers";
 
 test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 흐름을 검증한다", async ({
   context,
@@ -11,33 +10,11 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
   const message = `Playwright 메시지 ${uniqueId}`;
 
   await test.step("임시 로그인으로 HttpOnly 인증 쿠키를 발급한다", async () => {
-    await page.goto("/");
-    await page.getByRole("button", { name: "임시 로그인", exact: true }).click();
-
-    await expect(page.getByRole("button", { name: "임시 로그인 완료" })).toBeDisabled();
-    await expect(
-      page.getByText("브라우저가 HttpOnly 쿠키를 보관하고 이후 채팅 요청에 자동으로 전달합니다."),
-    ).toBeVisible();
-
-    const authCookie = (await context.cookies()).find((cookie) => cookie.name === AUTH_COOKIE_NAME);
-
-    expect(authCookie, `${AUTH_COOKIE_NAME} 쿠키가 발급되어야 합니다.`).toBeDefined();
-    expect(authCookie?.httpOnly).toBe(true);
+    await authenticateDevUser(page, context);
   });
 
-  await test.step("실제 REST command로 공개 채팅방을 만들고 방으로 진입한다", async () => {
-    await page.goto("/chat");
-    await expect(page.getByRole("heading", { name: "채팅방", exact: true })).toBeVisible();
-
-    await page.getByRole("button", { name: "새 채팅방" }).click();
-    await page.getByRole("textbox", { name: "방 이름" }).fill(roomName);
-    await page.getByRole("button", { name: "채팅방 만들기" }).click();
-
-    await expect(page).toHaveURL(/\/chat\/[A-Za-z0-9_-]+$/);
-    await expect(page.getByRole("heading", { name: roomName })).toBeVisible();
-  });
-
-  const roomId = readRoomId(page.url());
+  const roomId = await test.step("실제 REST command로 공개 채팅방을 만들고 방으로 진입한다", () =>
+    createRoomAndEnter(page, roomName));
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
   const messageInput = page.getByRole("textbox", { name: "메시지" });
 
@@ -71,13 +48,3 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
     await expect(messageLog.getByText(message, { exact: true })).toBeVisible();
   });
 });
-
-function readRoomId(url: string): string {
-  const roomId = new URL(url).pathname.split("/").filter(Boolean).at(-1);
-
-  if (!roomId) {
-    throw new Error(`채팅방 URL에서 roomId를 찾지 못했습니다: ${url}`);
-  }
-
-  return roomId;
-}

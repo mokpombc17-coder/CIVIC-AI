@@ -13,6 +13,28 @@
 → REST 메시지 이력 복구
 ```
 
+서로 격리된 Chromium 브라우저 컨텍스트 두 개로 서버의 연결 교체 정책도 검증한다.
+
+```text
+첫 번째 브라우저 WebSocket 연결
+→ 같은 사용자의 두 번째 브라우저 WebSocket 연결
+→ 첫 번째 연결의 4001 CONNECTION_REPLACED 상태 확인
+→ 수동 재연결 버튼 미노출 확인
+→ STOMP 기본 재연결 지연 이후에도 자동 재연결이 중단된 상태 확인
+```
+
+동일한 Chromium 브라우저 컨텍스트 안에서는 두 탭이 하나의 SharedWorker 연결을 공유하며 방
+사용권을 전환하는 흐름을 검증한다.
+
+```text
+탭 A에서 방 활성화 및 초안 작성
+→ 탭 B에서 같은 방 활성화
+→ 탭 A의 ROOM_REPLACED 상태와 입력 중지 확인
+→ 탭 A에서 "이 탭에서 다시 활성화" 실행
+→ 탭 A의 입력 권한 및 초안 복구
+→ 탭 B의 ROOM_REPLACED 상태 확인
+```
+
 ## 사전 조건
 
 Chat Resource Server와 MongoDB가 로컬 `http://localhost:8082`에서 실행 중이어야 한다.
