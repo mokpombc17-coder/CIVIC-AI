@@ -118,6 +118,13 @@ describe("chat subscription sync contracts", () => {
         }),
       ),
     ).toBeNull();
+
+    const staleEvent = {
+      ...retryableEvent,
+      code: "ROOM_SUBSCRIPTION_STALE",
+      retryable: false,
+    };
+    expect(parseChatRoomSubscriptionSyncRejected(JSON.stringify(staleEvent))).toEqual(staleEvent);
   });
 
   it("기존 topic 구독 거절을 sync 거절과 구분한다", () => {

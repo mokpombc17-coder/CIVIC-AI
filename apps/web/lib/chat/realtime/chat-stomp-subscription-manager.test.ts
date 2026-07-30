@@ -72,6 +72,24 @@ describe("ChatStompSubscriptionManager", () => {
     expect(client.publish).not.toHaveBeenCalled();
   });
 
+  it("활성 방 topic만 정해진 순서로 다시 구독한다", () => {
+    const client = createFakeClient();
+    const manager = new ChatStompSubscriptionManager(client);
+
+    manager.connect();
+    manager.activateRoom("room-01");
+    client.frames.length = 0;
+
+    manager.resubscribeRoom("room-01");
+
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+    ]);
+  });
+
   it("활성 방 메시지를 command destination으로 publish한다", () => {
     const client = createFakeClient();
     const manager = new ChatStompSubscriptionManager(client);

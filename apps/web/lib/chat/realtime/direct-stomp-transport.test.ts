@@ -299,6 +299,97 @@ describe("DirectStompTransport", () => {
     expect(createId).toHaveBeenCalledTimes(2);
   });
 
+  it("Direct fallback은 stale 방 topic을 재구독하고 새 requestId로 sync한다", () => {
+    const client = createFakeClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002");
+    const transport = new DirectStompTransport(client, createId);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(20)));
+    client.frames.length = 0;
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "REJECTED",
+        eventType: "ROOM_SUBSCRIPTION_SYNC_REJECTED",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        code: "ROOM_SUBSCRIPTION_STALE",
+        retryable: false,
+      }),
+    );
+
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SEND /app/rooms/room-01/subscriptions/sync",
+    ]);
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "claiming",
+      roomId: "room-01",
+      generation: 2,
+      messageVisibleAfterSequence: null,
+      watermarkSequence: null,
+      error: null,
+    });
+    expect(transport.getRealtimeBufferSnapshot()).toMatchObject({
+      roomId: "room-01",
+      generation: 2,
+      events: [],
+    });
+
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(101)));
+    expect(transport.getRealtimeBufferSnapshot()).toMatchObject({
+      generation: 2,
+      events: [
+        {
+          bufferSequence: 1,
+          kind: "message",
+        },
+      ],
+    });
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        messageVisibleAfterSequence: 10,
+        watermarkSequence: 11,
+      }),
+    );
+    expect(transport.getRoomSnapshot().status).toBe("claiming");
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440002",
+        roomId: "room-01",
+        messageVisibleAfterSequence: 100,
+        watermarkSequence: 121,
+      }),
+    );
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "active",
+      generation: 2,
+      messageVisibleAfterSequence: 100,
+      watermarkSequence: 121,
+    });
+    expect(createId).toHaveBeenCalledTimes(2);
+  });
+
   it("Direct fallback도 다른 방 전환 시 동일한 4-frame 순서를 사용한다", () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);

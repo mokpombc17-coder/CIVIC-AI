@@ -575,6 +575,135 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.frames.filter((frame) => frame.includes("/subscriptions/sync"))).toHaveLength(2);
   });
 
+  it("stale 방 topic을 재구독하고 새 requestId의 READY만 활성화한다", () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002");
+    const runtime = new ChatSharedWorkerRuntime(client, "worker-1", createId);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.frames.length = 0;
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "REJECTED",
+        eventType: "ROOM_SUBSCRIPTION_SYNC_REJECTED",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        code: "ROOM_SUBSCRIPTION_STALE",
+        retryable: false,
+      }),
+    );
+
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SEND /app/rooms/room-01/subscriptions/sync",
+    ]);
+    expect(port.eventsOfType("ROOM_SYNC_FAILED")).toHaveLength(0);
+    expect(port.eventsOfType("ROOM_SYNCING").at(-1)).toMatchObject({
+      roomId: "room-01",
+      generation: 2,
+    });
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        messageVisibleAfterSequence: 10,
+        watermarkSequence: 11,
+      }),
+    );
+    expect(port.eventsOfType("ROOM_ACTIVATED")).toHaveLength(0);
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440002",
+        roomId: "room-01",
+        messageVisibleAfterSequence: 100,
+        watermarkSequence: 121,
+      }),
+    );
+
+    expect(port.eventsOfType("ROOM_ACTIVATED").at(-1)).toMatchObject({
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 2,
+      messageVisibleAfterSequence: 100,
+      watermarkSequence: 121,
+    });
+    expect(createId).toHaveBeenCalledTimes(2);
+  });
+
+  it("stale 방 topic 재구독 실패는 lease와 버퍼를 폐기하고 owner에게 알린다", () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const runtime = new ChatSharedWorkerRuntime(
+      client,
+      "worker-1",
+      () => "550e8400-e29b-41d4-a716-446655440001",
+    );
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    vi.mocked(client.subscribe).mockImplementationOnce(() => {
+      throw new Error("room message subscribe failed");
+    });
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "REJECTED",
+        eventType: "ROOM_SUBSCRIPTION_SYNC_REJECTED",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        code: "ROOM_SUBSCRIPTION_STALE",
+        retryable: false,
+      }),
+    );
+
+    expect(port.eventsOfType("ROOM_ACTIVATION_FAILED").at(-1)).toMatchObject({
+      requestId: "claim-1",
+      roomId: "room-01",
+      code: "SUBSCRIPTION_SETUP_FAILED",
+      message: "room message subscribe failed",
+    });
+    expect(port.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toMatchObject({
+      status: "error",
+      error: {
+        source: "stomp",
+        message: "room message subscribe failed",
+      },
+    });
+    expect(runtime.getRealtimeBufferSnapshot()).toBeNull();
+  });
+
   it("같은 방을 다른 port가 claim하면 구독 세대를 바꾸고 이전 owner를 교체한다", () => {
     const client = createFakeStompClient();
     const runtime = new ChatSharedWorkerRuntime(client);

@@ -90,6 +90,20 @@ export class ChatStompSubscriptionManager {
     }
   }
 
+  resubscribeRoom(roomId: string): void {
+    if (!this.isConnected || this.roomId !== roomId || this.roomSubscriptions?.roomId !== roomId) {
+      throw new Error("활성 방의 STOMP topic 구독이 준비되지 않았습니다.");
+    }
+
+    try {
+      this.unsubscribeRoom();
+      this.subscribeRoom(roomId);
+    } catch (cause) {
+      this.roomId = null;
+      throw cause;
+    }
+  }
+
   syncRoomSubscriptions(roomId: string, requestId: string): void {
     if (!this.isConnected || this.roomId !== roomId || this.roomSubscriptions?.roomId !== roomId) {
       throw new Error("활성 방의 STOMP topic 구독이 준비되지 않았습니다.");

@@ -46,6 +46,7 @@ export const chatRoomSubscriptionSyncRejectedSchema = z.union([
       "INVALID_SYNC_REQUEST",
       "ROOM_SUBSCRIPTIONS_NOT_READY",
       "ROOM_SUBSCRIPTION_FORBIDDEN",
+      "ROOM_SUBSCRIPTION_STALE",
     ]),
     retryable: z.literal(false),
   }),

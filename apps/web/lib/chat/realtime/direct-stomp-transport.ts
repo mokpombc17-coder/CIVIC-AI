@@ -704,6 +704,12 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.pendingRoomSync = null;
+
+    if (rejection.code === "ROOM_SUBSCRIPTION_STALE") {
+      this.recoverStaleRoomSubscriptions(rejection.roomId, pendingSync.generation);
+      return;
+    }
+
     this.setRoomSyncError(
       rejection.roomId,
       pendingSync.generation,
@@ -713,6 +719,38 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         ? "채팅방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
         : "채팅방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
     );
+  }
+
+  private recoverStaleRoomSubscriptions(roomId: string, previousGeneration: number): void {
+    if (
+      this.roomSnapshot.roomId !== roomId ||
+      this.roomSnapshot.generation !== previousGeneration
+    ) {
+      return;
+    }
+
+    const generation = previousGeneration + 1;
+    this.pauseRealtimeDelivery();
+    this.realtimeBuffer.clear(roomId, previousGeneration);
+    this.realtimeBuffer.begin(roomId, generation);
+    this.setRoomSnapshot({
+      status: "claiming",
+      roomId,
+      generation,
+      replacedByRoomId: null,
+      messageVisibleAfterSequence: null,
+      watermarkSequence: null,
+      error: null,
+    });
+
+    try {
+      this.subscriptions.resubscribeRoom(roomId);
+    } catch (cause) {
+      this.handleSubscriptionSetupFailure(cause);
+      return;
+    }
+
+    this.startRoomSync(roomId, generation);
   }
 
   private setRoomSyncError(

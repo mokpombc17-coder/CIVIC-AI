@@ -1061,6 +1061,12 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.pendingRoomSync = null;
+
+    if (rejection.code === "ROOM_SUBSCRIPTION_STALE") {
+      this.recoverStaleRoomSubscriptions(lease);
+      return;
+    }
+
     this.handleRoomSyncFailure(
       lease,
       rejection.code,
@@ -1069,6 +1075,33 @@ export class ChatSharedWorkerRuntime {
         ? "채팅방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
         : "채팅방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
     );
+  }
+
+  private recoverStaleRoomSubscriptions(lease: ActiveRoomLease): void {
+    if (this.activeRoomLease !== lease) {
+      return;
+    }
+
+    const refreshedLease: ActiveRoomLease = {
+      ...lease,
+      generation: lease.generation + 1,
+    };
+    this.generation = refreshedLease.generation;
+    this.activeRoomLease = refreshedLease;
+    this.pendingRoomActivation = refreshedLease;
+    this.readyRoomSession = null;
+    this.pauseRealtimeDelivery();
+    this.realtimeBuffer.clear(lease.roomId, lease.generation);
+    this.realtimeBuffer.begin(refreshedLease.roomId, refreshedLease.generation);
+
+    try {
+      this.subscriptions.resubscribeRoom(refreshedLease.roomId);
+    } catch (cause) {
+      this.handleSubscriptionSetupFailure(cause);
+      return;
+    }
+
+    this.startRoomSync(refreshedLease);
   }
 
   private sendToPort(portId: string, event: ChatSharedWorkerEvent): void {
