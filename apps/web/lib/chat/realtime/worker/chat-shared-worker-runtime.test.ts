@@ -276,6 +276,135 @@ describe("ChatSharedWorkerRuntime", () => {
     });
   });
 
+  it("방 topic 구독 직후부터 READY 이후까지 메시지와 Room Event를 도착 순서로 버퍼링한다", () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const runtime = new ChatSharedWorkerRuntime(
+      client,
+      "worker-1",
+      () => "550e8400-e29b-41d4-a716-446655440001",
+    );
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(11)));
+    client.deliver(
+      "/topic/rooms/room-01/room-events",
+      JSON.stringify(createRoomEvent("event-topic")),
+    );
+    client.deliver("/user/queue/system-events", JSON.stringify(createRoomEvent("event-user")));
+    client.deliver("/topic/rooms/room-01/messages", "{invalid-json");
+
+    expect(runtime.getRealtimeBufferSnapshot()).toMatchObject({
+      roomId: "room-01",
+      generation: 1,
+      overflowed: false,
+      invalidEventCount: 1,
+      events: [
+        {
+          bufferSequence: 1,
+          kind: "message",
+          event: { payload: { roomSequence: 11 } },
+        },
+        {
+          bufferSequence: 2,
+          kind: "room",
+          event: { eventId: "event-topic" },
+        },
+        {
+          bufferSequence: 3,
+          kind: "room",
+          event: { eventId: "event-user" },
+        },
+      ],
+    });
+
+    client.deliver(
+      "/user/queue/system-events",
+      JSON.stringify({
+        status: "READY",
+        eventType: "ROOM_SUBSCRIPTIONS_READY",
+        requestId: "550e8400-e29b-41d4-a716-446655440001",
+        roomId: "room-01",
+        watermarkSequence: 11,
+      }),
+    );
+
+    expect(runtime.getRealtimeBufferSnapshot()?.events).toHaveLength(3);
+  });
+
+  it("방 전환·재연결·release에서 현재 동기화 주기에 맞게 버퍼를 교체하거나 폐기한다", () => {
+    const client = createFakeStompClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440003");
+    const runtime = new ChatSharedWorkerRuntime(client, "worker-1", createId);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(1)));
+
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-2",
+      roomId: "room-02",
+    });
+    expect(runtime.getRealtimeBufferSnapshot()).toMatchObject({
+      roomId: "room-02",
+      generation: 2,
+      events: [],
+    });
+
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(2)));
+    expect(runtime.getRealtimeBufferSnapshot()?.events).toEqual([]);
+
+    client.deliver(
+      "/topic/rooms/room-02/messages",
+      JSON.stringify(createMessageEvent(1, "room-02")),
+    );
+    expect(runtime.getRealtimeBufferSnapshot()?.events).toHaveLength(1);
+
+    client.onWebSocketClose({ reason: "network lost" } as CloseEvent);
+    client.onConnect({} as IFrame);
+    expect(runtime.getRealtimeBufferSnapshot()).toMatchObject({
+      roomId: "room-02",
+      generation: 2,
+      events: [
+        {
+          bufferSequence: 1,
+          kind: "message",
+        },
+      ],
+    });
+
+    port.send({
+      type: "RELEASE_ROOM",
+      portId: "port-a",
+      requestId: "release-2",
+      roomId: "room-02",
+    });
+    expect(runtime.getRealtimeBufferSnapshot()).toBeNull();
+  });
+
   it("sync 거절은 lease를 유지하고 새 requestId를 사용한 수동 재활성화를 허용한다", () => {
     const client = createFakeStompClient({ autoReady: false });
     const createId = vi
@@ -676,6 +805,43 @@ function createFakeStompClient({ autoReady = true } = {}): FakeStompClient {
   };
 
   return client;
+}
+
+function createMessageEvent(roomSequence: number, roomId = "room-01") {
+  return {
+    eventVersion: 1,
+    eventType: "CHAT_MESSAGE_CREATED",
+    payload: {
+      messageId: `${roomId}-message-${roomSequence}`,
+      roomId,
+      roomSequence,
+      senderUserId: "local-user-1",
+      clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+      content: `message ${roomSequence}`,
+      createdAt: "2026-07-30T00:00:00Z",
+    },
+  };
+}
+
+function createRoomEvent(eventId: string, roomId = "room-01") {
+  return {
+    eventVersion: 1,
+    eventId,
+    eventType: "ROOM_MEMBER_JOINED",
+    emittedAt: "2026-07-30T00:00:00Z",
+    payload: {
+      roomId,
+      roomVersion: 2,
+      roomStatus: "ACTIVE",
+      member: {
+        membershipId: "membership-01",
+        userId: "local-user-1",
+        role: "MEMBER",
+        status: "ACTIVE",
+        membershipVersion: 1,
+      },
+    },
+  };
 }
 
 type FakePort = ChatSharedWorkerPort & {

@@ -163,8 +163,9 @@ after  → ?afterSequence={sequence}&limit=50
 
 TanStack Query는 `latest + before` 과거 pagination과 화면용 page flatten을 구현한다.
 `ROOM_SUBSCRIPTIONS_READY`의 destination, payload와 watermark 계약은 확정되어 Worker와
-Direct fallback의 구독 준비 상태 머신에 반영했다. WebSocket 이벤트 버퍼, `after` 복구 결과 및
-REST cache 병합은 이 READY 상태를 시작점으로 후속 실시간 재동기화 계층에서 구현한다.
+Direct fallback의 구독 준비 상태 머신에 반영했다. WebSocket 이벤트 버퍼도 READY 전부터
+메시지와 Room Event를 보관하도록 구현했다. 버퍼 전달, `after` 복구 결과 및 REST cache 병합은
+이 READY 상태를 시작점으로 후속 실시간 재동기화 계층에서 구현한다.
 
 ## 메시지 병합 정책
 

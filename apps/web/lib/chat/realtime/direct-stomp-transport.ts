@@ -5,12 +5,19 @@ import {
   getChatRoomMessagesDestination,
 } from "./chat-stomp-destinations";
 import {
+  parseChatMessageCreatedEvent,
+  parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
   parseChatSubscriptionRejection,
+  type ChatRoomEventEnvelope,
   type ChatRoomSubscriptionSyncRejected,
   type ChatRoomSubscriptionsReady,
 } from "./chat-stomp-contracts";
+import {
+  ChatRealtimeEventBuffer,
+  type ChatRealtimeEventBufferSnapshot,
+} from "./chat-realtime-event-buffer";
 import { ChatStompSubscriptionManager } from "./chat-stomp-subscription-manager";
 import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
@@ -70,13 +77,22 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   constructor(
     private readonly client: DirectStompClient = createChatStompClient(),
     private readonly createId = () => crypto.randomUUID(),
+    private readonly realtimeBuffer = new ChatRealtimeEventBuffer(),
   ) {
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
+      onRoomEvent: this.handleRoomEvent,
+      onRoomMessage: this.handleRoomMessage,
       onSystemEvent: this.handleSystemEvent,
     });
     this.client.onConnect = () => {
       if (this.attachmentCount === 0) {
         return;
+      }
+
+      const { generation, roomId, status } = this.roomSnapshot;
+
+      if (roomId && status !== "idle") {
+        this.realtimeBuffer.begin(roomId, generation);
       }
 
       try {
@@ -164,6 +180,9 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
   readonly getRoomSnapshot = (): ChatRoomSessionSnapshot => this.roomSnapshot;
 
+  readonly getRealtimeBufferSnapshot = (): ChatRealtimeEventBufferSnapshot | null =>
+    this.realtimeBuffer.getSnapshot();
+
   readonly observe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
 
@@ -203,12 +222,16 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     const claimingSnapshot: ChatRoomSessionSnapshot = {
       status: "claiming",
       roomId,
-      generation: this.roomSnapshot.generation + 1,
+      generation:
+        this.roomSnapshot.roomId === roomId
+          ? this.roomSnapshot.generation
+          : this.roomSnapshot.generation + 1,
       replacedByRoomId: null,
       watermarkSequence: null,
       error: null,
     };
     this.setRoomSnapshot(claimingSnapshot);
+    this.realtimeBuffer.begin(roomId, claimingSnapshot.generation);
 
     try {
       this.subscriptions.activateRoom(roomId);
@@ -239,6 +262,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       });
     } finally {
       this.pendingRoomSync = null;
+      this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
       this.setRoomSnapshot({
         ...INITIAL_ROOM_SNAPSHOT,
         generation: this.roomSnapshot.generation + 1,
@@ -279,6 +303,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     this.subscriptions.disconnect();
     this.pendingRoomSync = null;
+    this.realtimeBuffer.clear();
     this.setSnapshot("disconnecting", null);
 
     void this.client.deactivate().then(() => {
@@ -302,6 +327,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
   private stopConnectionReplacedReconnect(): void {
     this.pendingRoomSync = null;
+    this.realtimeBuffer.clear();
 
     try {
       void this.client.deactivate().catch(() => {
@@ -333,6 +359,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       } catch {
         // Preserve the original subscription setup error.
       }
+      this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
       this.setRoomSnapshot({
         status: "error",
         roomId,
@@ -367,6 +394,13 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
+    const roomEvent = parseChatRoomEventEnvelope(message.body);
+
+    if (roomEvent) {
+      this.bufferRoomEvent(roomEvent.payload.roomId, roomEvent);
+      return;
+    }
+
     const rejection = parseChatSubscriptionRejection(message.body);
     const roomId = this.roomSnapshot.roomId;
 
@@ -385,6 +419,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       // The server already rejected the room subscription; keep the rejection as the UI error.
     }
     this.pendingRoomSync = null;
+    this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
     this.setRoomSnapshot({
       status: "error",
       roomId,
@@ -398,6 +433,52 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       },
     });
   };
+
+  private readonly handleRoomMessage = (roomId: string, message: IMessage): void => {
+    const generation = this.getCurrentBufferGeneration(roomId);
+
+    if (generation === null) {
+      return;
+    }
+
+    const event = parseChatMessageCreatedEvent(message.body);
+
+    if (!event) {
+      this.realtimeBuffer.recordInvalidEvent(roomId, generation);
+      return;
+    }
+
+    this.realtimeBuffer.appendMessage(roomId, generation, event);
+  };
+
+  private readonly handleRoomEvent = (roomId: string, message: IMessage): void => {
+    const event = parseChatRoomEventEnvelope(message.body);
+
+    if (!event) {
+      const generation = this.getCurrentBufferGeneration(roomId);
+
+      if (generation !== null) {
+        this.realtimeBuffer.recordInvalidEvent(roomId, generation);
+      }
+      return;
+    }
+
+    this.bufferRoomEvent(roomId, event);
+  };
+
+  private bufferRoomEvent(roomId: string, event: ChatRoomEventEnvelope): void {
+    const generation = this.getCurrentBufferGeneration(roomId);
+
+    if (generation === null) {
+      return;
+    }
+
+    this.realtimeBuffer.appendRoomEvent(roomId, generation, event);
+  }
+
+  private getCurrentBufferGeneration(roomId: string): number | null {
+    return this.roomSnapshot.roomId === roomId ? this.roomSnapshot.generation : null;
+  }
 
   private startRoomSync(roomId: string, generation: number): void {
     if (

@@ -214,12 +214,45 @@ describe("DirectStompTransport", () => {
     });
   });
 
-  it("Direct fallback은 sync 거절의 재시도 가능 여부를 방 오류에 보존한다", () => {
+  it("Direct fallback도 READY 전 실시간 이벤트와 user queue Room Event를 버퍼링한다", () => {
     const client = createFakeClient({ autoReady: false });
     const transport = new DirectStompTransport(
       client,
       () => "550e8400-e29b-41d4-a716-446655440001",
     );
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(11)));
+    client.deliver("/user/queue/system-events", JSON.stringify(createRoomEvent("event-user")));
+
+    expect(transport.getRealtimeBufferSnapshot()).toMatchObject({
+      roomId: "room-01",
+      generation: 1,
+      events: [
+        {
+          bufferSequence: 1,
+          kind: "message",
+        },
+        {
+          bufferSequence: 2,
+          kind: "room",
+        },
+      ],
+    });
+
+    transport.releaseRoom("room-01");
+    expect(transport.getRealtimeBufferSnapshot()).toBeNull();
+  });
+
+  it("Direct fallback은 sync 거절을 보존하고 같은 generation에서 새 sync를 시작한다", () => {
+    const client = createFakeClient({ autoReady: false });
+    const createId = vi
+      .fn()
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440001")
+      .mockReturnValueOnce("550e8400-e29b-41d4-a716-446655440002");
+    const transport = new DirectStompTransport(client, createId);
 
     transport.attach();
     client.onConnect({} as IFrame);
@@ -245,6 +278,17 @@ describe("DirectStompTransport", () => {
         retryable: true,
       },
     });
+
+    transport.claimRoom("room-01");
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "claiming",
+      roomId: "room-01",
+      generation: 1,
+      watermarkSequence: null,
+      error: null,
+    });
+    expect(createId).toHaveBeenCalledTimes(2);
   });
 
   it("Direct fallback도 다른 방 전환 시 동일한 4-frame 순서를 사용한다", () => {
@@ -384,4 +428,41 @@ function createFakeClient({ autoReady = true } = {}): FakeDirectStompClient {
   };
 
   return client;
+}
+
+function createMessageEvent(roomSequence: number, roomId = "room-01") {
+  return {
+    eventVersion: 1,
+    eventType: "CHAT_MESSAGE_CREATED",
+    payload: {
+      messageId: `${roomId}-message-${roomSequence}`,
+      roomId,
+      roomSequence,
+      senderUserId: "local-user-1",
+      clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+      content: `message ${roomSequence}`,
+      createdAt: "2026-07-30T00:00:00Z",
+    },
+  };
+}
+
+function createRoomEvent(eventId: string, roomId = "room-01") {
+  return {
+    eventVersion: 1,
+    eventId,
+    eventType: "ROOM_MEMBER_JOINED",
+    emittedAt: "2026-07-30T00:00:00Z",
+    payload: {
+      roomId,
+      roomVersion: 2,
+      roomStatus: "ACTIVE",
+      member: {
+        membershipId: "membership-01",
+        userId: "local-user-1",
+        role: "MEMBER",
+        status: "ACTIVE",
+        membershipVersion: 1,
+      },
+    },
+  };
 }

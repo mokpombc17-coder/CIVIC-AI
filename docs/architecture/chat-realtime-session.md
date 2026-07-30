@@ -856,6 +856,40 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 - WebSocket 재연결 후에도 공통 queue와 방 topic을 다시 구독한 다음 같은 barrier를 반복한다.
 - SharedWorker를 사용할 수 없는 Direct fallback도 동일한 상태 전이와 correlation을 사용한다.
 
+### 실시간 이벤트 버퍼
+
+Worker는 방 topic의 `SUBSCRIBE` frame을 보내기 전에 현재 `roomId`와 lease `generation` 전용
+버퍼를 시작한다. `ROOM_SUBSCRIPTIONS_READY`를 받더라도 REST snapshot 적용이 아직 끝나지
+않았으므로 버퍼를 유지한다.
+
+```text
+buffer begin
+  → /messages SUBSCRIBE
+  → /room-events SUBSCRIBE
+  → sync SEND
+  → READY
+  → REST snapshot 적용 완료 전까지 계속 buffer
+```
+
+- `/topic/rooms/{roomId}/messages`의 `CHAT_MESSAGE_CREATED`와 방 topic의 Room Event를 런타임
+  스키마로 검증한 뒤 하나의 도착 순서로 보관한다.
+- 사용자 대상 Room Event가 `/user/queue/system-events`로 전달되는 경우에도 같은 버퍼에
+  합친다.
+- 각 항목에는 Worker 내부 `bufferSequence`를 부여해 서로 다른 destination에서 도착한 순서를
+  잃지 않는다.
+- 현재 방 또는 generation과 다른 callback은 stale event로 보고 버퍼에 넣지 않는다.
+- 방 전환과 owner 교체에서는 새 generation 버퍼를 만들고 이전 버퍼를 폐기한다.
+- WebSocket 재연결에서는 room topic 재구독 전에 버퍼링 상태를 다시 확인한다. 같은 방과
+  generation이면 연결이 끊기기 전에 받아둔 이벤트를 유지하고, REST `afterSequence` 결과와
+  함께 중복 제거할 수 있게 한다.
+- release, owner port detach, 구독 설정 실패, 구독 거절 및 `CONNECTION_REPLACED`에서는 버퍼를
+  폐기한다. sync 거절에서는 topic과 lease를 유지하므로 버퍼도 유지한다.
+- 기본 최대 500개를 보관한다. 용량을 넘으면 가장 오래된 항목을 제거하고 `overflowed=true`를
+  남겨 다음 REST 병합 단계가 누락 복구를 수행할 수 있게 한다.
+- 스키마가 잘못된 방 topic payload는 정상 이벤트로 보관하지 않고 `invalidEventCount`에
+  기록한다.
+- SharedWorker 미지원 환경의 Direct fallback도 같은 버퍼 구현을 사용한다.
+
 다음 계약은 여전히 백엔드 또는 후속 프론트 단계의 확인이 필요하다.
 
 - `4001 / CONNECTION_REPLACED` 외 WebSocket handshake 인증 실패의 close code와 reason
@@ -865,13 +899,14 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 - 구독 거절 event와 `CLAIM_ROOM requestId` correlation 가능 여부
 - message 및 room event 최종 payload
 
-현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환과 구독 준비
-barrier까지 구현되어 있다. 실시간 이벤트 버퍼와 REST snapshot 적용 handshake는 후속 단계에서
-이 상태 머신 위에 연결한다.
+현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환, 구독 준비
+barrier와 실시간 이벤트 버퍼까지 구현되어 있다. Worker–탭 REST snapshot 적용 handshake는
+후속 단계에서 이 상태 머신 위에 연결한다.
 
 ## 관련 코드와 문서
 
 - `apps/web/lib/chat/chat-stomp-client.ts`
+- `apps/web/lib/chat/realtime/chat-realtime-event-buffer.ts`
 - `apps/web/lib/chat/realtime/chat-realtime-transport.ts`
 - `apps/web/lib/chat/realtime/direct-stomp-transport.ts`
 - `apps/web/lib/chat/realtime/create-chat-realtime-transport.ts`
