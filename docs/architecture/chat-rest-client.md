@@ -5,8 +5,9 @@
 - 작성일: 2026-07-29
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
-- 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면 연결
-- 후속 범위: 방 Command 화면 연결과 `afterSequence` 자동 복구
+- 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면
+  연결, 방 생성·공개 방 참여 Command 화면 연결
+- 후속 범위: 나가기·방장 위임·차단·종료 관리 화면과 `afterSequence` 자동 복구
 
 ## 계층
 
@@ -104,6 +105,11 @@ message-history/{roomId}
 모든 mutation은 자동 retry를 사용하지 않는다. 사용자가 재시도하거나 이후 재시도 정책을
 적용할 때 mutation variables에 보관된 기존 `IdempotentCommand`를 다시 사용한다.
 
+방 생성과 공개 방 참여 화면은 사용자 동작마다 Command를 한 번 만들고, 서버가
+`retryable=true`로 응답하거나 fetch가 응답 전에 실패한 경우에만 “같은 요청으로 다시 시도”를
+노출한다. 이 버튼은 새 UUID를 만들지 않고 실패한 Command 객체를 그대로 다시 전달한다. 입력값을
+바꿔 새로 제출하거나 참여 버튼을 새로 누르면 새로운 사용자 동작으로 보고 새 UUID를 발급한다.
+
 Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를 기존 cache에 임의로 병합하지
 않는다.
 
@@ -122,6 +128,9 @@ Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를
 
 서버의 최신 전체 표현을 다시 조회하는 방식을 사용하면 Command별 부분 응답을 조합하면서
 발생하는 cache 불일치를 피할 수 있다.
+
+방 생성과 참여가 성공하면 관련 cache 무효화가 끝난 뒤 응답의 `roomId`에 해당하는 채팅방
+화면으로 이동한다.
 
 ## 구현된 endpoint
 

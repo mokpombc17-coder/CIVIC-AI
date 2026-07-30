@@ -1,10 +1,19 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
+import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
+import {
+  createRoomRequestSchema,
+  type CreateRoomRequest,
+  type MyRoomListItem,
+  type PublicRoomListItem,
+} from "@/lib/chat/chat-room-contracts";
+import { useCreateRoomMutation, useJoinRoomMutation } from "@/lib/chat/chat-room-mutations";
 import { useMyRoomsQuery, usePublicRoomsQuery } from "@/lib/chat/chat-room-queries";
-import type { MyRoomListItem, PublicRoomListItem } from "@/lib/chat/chat-room-contracts";
+import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
 const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
@@ -12,6 +21,7 @@ const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
 });
 
 export function ChatRoomListScreen() {
+  const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const myRooms = useMyRoomsQuery();
   const publicRooms = usePublicRoomsQuery();
   const participatingRoomIds = useMemo(
@@ -29,8 +39,8 @@ export function ChatRoomListScreen() {
         <p className="eyebrow">Chat rooms</p>
         <h1>채팅방</h1>
         <p>
-          Chat Resource Server의 실제 참여 방과 공개 방을 조회합니다. 방 생성과 공개 방 참여는 다음
-          Command 연동 단계에서 활성화됩니다.
+          Chat Resource Server의 실제 참여 방과 공개 방을 조회하고, 새 방을 만들거나 공개 방에
+          참여할 수 있습니다.
         </p>
         <ChatConnectionStatus />
       </section>
@@ -38,17 +48,22 @@ export function ChatRoomListScreen() {
       <RoomListSection
         action={
           <button
-            className="primary-button cursor-not-allowed opacity-50"
-            disabled
-            title="방 생성 Command 연동 후 활성화됩니다."
+            aria-expanded={isCreateRoomOpen}
+            className={
+              isCreateRoomOpen ? "primary-button cursor-not-allowed opacity-50" : "primary-button"
+            }
+            disabled={isCreateRoomOpen}
+            onClick={() => setIsCreateRoomOpen(true)}
             type="button"
           >
-            새 채팅방
+            {isCreateRoomOpen ? "작성 중" : "새 채팅방"}
           </button>
         }
         eyebrow="My rooms"
         title="참여 중인 방"
       >
+        {isCreateRoomOpen ? <CreateRoomForm onCancel={() => setIsCreateRoomOpen(false)} /> : null}
+
         <QueryFailure
           error={myRooms.error}
           onRetry={() => void myRooms.refetch()}
@@ -80,7 +95,8 @@ export function ChatRoomListScreen() {
 
       <RoomListSection eyebrow="Discover" title="공개 방 탐색">
         <p className="-mt-3 mb-5 text-sm text-slate-500">
-          이미 불러온 참여 방은 이 목록에서 제외합니다. 공개 방 참여는 아직 비활성화되어 있습니다.
+          이미 불러온 참여 방은 이 목록에서 제외합니다. OPEN 방은 바로 참여할 수 있고 초대 전용 방은
+          목록만 확인할 수 있습니다.
         </p>
 
         <QueryFailure
@@ -153,24 +169,209 @@ function MyRoomCard({ room }: { room: MyRoomListItem }) {
   );
 }
 
-function PublicRoomCard({ room }: { room: PublicRoomListItem }) {
-  const isOpen = room.joinPolicy === "OPEN";
+function CreateRoomForm({ onCancel }: { onCancel: () => void }) {
+  const router = useRouter();
+  const createRoom = useCreateRoomMutation();
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [retryCommand, setRetryCommand] = useState<IdempotentCommand<CreateRoomRequest> | null>(
+    null,
+  );
 
+  function clearFailedAttempt() {
+    setValidationError(null);
+
+    if (retryCommand || createRoom.error) {
+      setRetryCommand(null);
+      createRoom.reset();
+    }
+  }
+
+  function execute(command: IdempotentCommand<CreateRoomRequest>) {
+    void createRoom
+      .mutateAsync(command)
+      .then((response) => router.push(`/chat/${response.roomId}`))
+      .catch(() => undefined);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const request = createRoomRequestSchema.safeParse({
+      name: formData.get("name"),
+      visibility: formData.get("visibility"),
+      joinPolicy: formData.get("joinPolicy"),
+    });
+
+    if (!request.success) {
+      setValidationError(request.error.issues[0]?.message ?? "방 생성 정보를 확인해 주세요.");
+      return;
+    }
+
+    createRoom.reset();
+    setValidationError(null);
+
+    const command = createIdempotentCommand(request.data);
+    setRetryCommand(command);
+    execute(command);
+  }
+
+  const canRetry =
+    retryCommand !== null && createRoom.isError && isRetryableChatCommandError(createRoom.error);
+
+  return (
+    <form
+      className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4"
+      onChange={clearFailedAttempt}
+      onSubmit={handleSubmit}
+    >
+      <fieldset className="grid gap-4" disabled={createRoom.isPending}>
+        <legend className="text-sm font-semibold text-slate-950">새 채팅방 만들기</legend>
+
+        <label className="grid gap-1 text-sm font-medium text-slate-700">
+          방 이름
+          <input
+            autoFocus
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-950"
+            maxLength={100}
+            name="name"
+            placeholder="예: 시민 AI 토론방"
+            required
+          />
+        </label>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            공개 범위
+            <select
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-950"
+              defaultValue="LISTED"
+              name="visibility"
+            >
+              <option value="LISTED">공개 목록에 표시</option>
+              <option value="UNLISTED">목록에 표시하지 않음</option>
+            </select>
+          </label>
+
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            참여 정책
+            <select
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-950"
+              defaultValue="OPEN"
+              name="joinPolicy"
+            >
+              <option value="OPEN">누구나 참여</option>
+              <option value="INVITE_ONLY">초대 전용</option>
+            </select>
+          </label>
+        </div>
+
+        {validationError ? (
+          <p className="text-sm text-red-700" role="alert">
+            {validationError}
+          </p>
+        ) : null}
+
+        {createRoom.isError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-950" role="alert">
+            <p className="text-sm font-semibold">채팅방을 만들지 못했습니다.</p>
+            <p className="mt-1 text-xs opacity-80">{toErrorMessage(createRoom.error)}</p>
+            {canRetry ? (
+              <button
+                className="secondary-button mt-3"
+                onClick={() => execute(retryCommand)}
+                type="button"
+              >
+                같은 요청으로 다시 시도
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            className="secondary-button"
+            disabled={createRoom.isPending}
+            onClick={onCancel}
+            type="button"
+          >
+            취소
+          </button>
+          <button className="primary-button" disabled={createRoom.isPending} type="submit">
+            {createRoom.isPending ? "생성 중…" : "채팅방 만들기"}
+          </button>
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+
+function PublicRoomCard({ room }: { room: PublicRoomListItem }) {
   return (
     <article className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4">
       <RoomAvatar name={room.name} />
       <RoomSummary room={room}>
         <span className="status">{room.joinPolicy}</span>
       </RoomSummary>
+      <JoinRoomControl room={room} />
+    </article>
+  );
+}
+
+function JoinRoomControl({ room }: { room: PublicRoomListItem }) {
+  const router = useRouter();
+  const joinRoom = useJoinRoomMutation();
+  const [retryCommand, setRetryCommand] = useState<IdempotentCommand<undefined> | null>(null);
+  const isOpen = room.joinPolicy === "OPEN";
+
+  function execute(command: IdempotentCommand<undefined>) {
+    void joinRoom
+      .mutateAsync({
+        roomId: room.roomId,
+        command,
+      })
+      .then(() => router.push(`/chat/${room.roomId}`))
+      .catch(() => undefined);
+  }
+
+  function handleJoin() {
+    joinRoom.reset();
+
+    const command = createIdempotentCommand(undefined);
+    setRetryCommand(command);
+    execute(command);
+  }
+
+  const canRetry =
+    retryCommand !== null && joinRoom.isError && isRetryableChatCommandError(joinRoom.error);
+
+  return (
+    <div className="flex max-w-64 shrink-0 flex-col items-end gap-2">
       <button
-        className="secondary-button shrink-0 cursor-not-allowed opacity-50"
-        disabled
-        title={isOpen ? "방 참여 Command 연동 후 활성화됩니다." : "초대 전용 방입니다."}
+        className={isOpen ? "secondary-button" : "secondary-button cursor-not-allowed opacity-50"}
+        disabled={!isOpen || joinRoom.isPending}
+        onClick={handleJoin}
+        title={isOpen ? "이 공개 방에 참여합니다." : "초대 전용 방입니다."}
         type="button"
       >
-        {isOpen ? "참여 예정" : "초대 전용"}
+        {joinRoom.isPending ? "참여 중…" : isOpen ? "참여하기" : "초대 전용"}
       </button>
-    </article>
+
+      {joinRoom.isError ? (
+        <div className="text-right text-xs text-red-700" role="alert">
+          <p>{toErrorMessage(joinRoom.error)}</p>
+          {canRetry ? (
+            <button
+              className="mt-1 underline underline-offset-2"
+              onClick={() => execute(retryCommand)}
+              type="button"
+            >
+              같은 요청으로 다시 시도
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
