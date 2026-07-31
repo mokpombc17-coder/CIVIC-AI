@@ -7,7 +7,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
-import type { CreateRoomRequest, TargetUserRequest } from "./chat-room-contracts";
+import type {
+  CreateRoomRequest,
+  TargetUserRequest,
+  UpdateRoomSettingsRequest,
+} from "./chat-room-contracts";
 import { chatRoomQueryKeys } from "./chat-room-queries";
 import type { IdempotentCommand } from "./idempotent-command";
 
@@ -25,6 +29,19 @@ export function createRoomMutationOptions(
     mutationFn: (command: IdempotentCommand<CreateRoomRequest>) => api.createRoom(command),
     retry: false,
     onSuccess: () => invalidateRoomLists(queryClient),
+  });
+}
+
+export function updateRoomSettingsMutationOptions(
+  queryClient: QueryClient,
+  api: Pick<ChatRoomApi, "updateRoomSettings"> = chatRoomApi,
+) {
+  return mutationOptions({
+    mutationKey: [...chatRoomQueryKeys.all, "command", "update-settings"] as const,
+    mutationFn: ({ roomId, command }: RoomCommandVariables<UpdateRoomSettingsRequest>) =>
+      api.updateRoomSettings(roomId, command),
+    retry: false,
+    onSuccess: (_response, { roomId }) => invalidateRoomSettingsState(queryClient, roomId),
   });
 }
 
@@ -119,6 +136,11 @@ export function useCreateRoomMutation() {
   return useMutation(createRoomMutationOptions(queryClient));
 }
 
+export function useUpdateRoomSettingsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation(updateRoomSettingsMutationOptions(queryClient));
+}
+
 export function useJoinRoomMutation() {
   const queryClient = useQueryClient();
   return useMutation(joinRoomMutationOptions(queryClient));
@@ -156,6 +178,18 @@ async function invalidateRoomLists(queryClient: QueryClient): Promise<void> {
     }),
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myLists(),
+    }),
+  ]);
+}
+
+async function invalidateRoomSettingsState(
+  queryClient: QueryClient,
+  roomId: string,
+): Promise<void> {
+  await Promise.all([
+    invalidateRoomLists(queryClient),
+    queryClient.invalidateQueries({
+      queryKey: chatRoomQueryKeys.detail(roomId),
     }),
   ]);
 }

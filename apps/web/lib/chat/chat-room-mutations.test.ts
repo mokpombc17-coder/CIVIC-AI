@@ -4,6 +4,7 @@ import {
   createRoomMutationOptions,
   joinRoomMutationOptions,
   transferRoomOwnershipMutationOptions,
+  updateRoomSettingsMutationOptions,
 } from "./chat-room-mutations";
 import { chatRoomQueryKeys } from "./chat-room-queries";
 
@@ -34,6 +35,72 @@ describe("chat room mutation options", () => {
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(false);
   });
+
+  it.each([
+    {
+      label: "설정이 변경된 경우",
+      response: {
+        ...UPDATE_ROOM_SETTINGS_RESPONSE,
+        code: "ROOM_SETTINGS_UPDATED" as const,
+        replayed: false,
+      },
+    },
+    {
+      label: "설정이 이미 같은 경우",
+      response: {
+        ...UPDATE_ROOM_SETTINGS_RESPONSE,
+        code: "ROOM_SETTINGS_UNCHANGED" as const,
+        replayed: false,
+      },
+    },
+    {
+      label: "과거 command receipt가 replay된 경우",
+      response: {
+        ...UPDATE_ROOM_SETTINGS_RESPONSE,
+        code: "ROOM_SETTINGS_UPDATED" as const,
+        replayed: true,
+        roomVersion: 7,
+      },
+    },
+  ])(
+    "$label Room 상세와 목록만 무효화하고 응답 snapshot을 직접 적용하지 않는다",
+    async ({ response }) => {
+      const queryClient = createQueryClient();
+      seedRoomQueries(queryClient);
+      seedMessageHistories(queryClient);
+      const updateRoomSettings = vi.fn(async () => response);
+      const options = updateRoomSettingsMutationOptions(queryClient, {
+        updateRoomSettings,
+      });
+      const observer = new MutationObserver(queryClient, options);
+      const variables = {
+        roomId: "room-01",
+        command: {
+          idempotencyKey: IDEMPOTENCY_KEY,
+          body: {
+            description: "새로운 설명",
+            visibility: "UNLISTED" as const,
+          },
+        },
+      };
+
+      await observer.mutate(variables);
+
+      expect(options.retry).toBe(false);
+      expect(updateRoomSettings).toHaveBeenCalledWith("room-01", variables.command);
+      expect(queryClient.getQueryData(chatRoomQueryKeys.detail("room-01"))).toBe("detail");
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(true);
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(true);
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(true);
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.myMembership("room-01"))).toBe(false);
+      expect(
+        isInvalidated(queryClient, chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20)),
+      ).toBe(false);
+      expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50))).toBe(
+        "room-01-50",
+      );
+    },
+  );
 
   it("방 상태 Command 성공 시 해당 방과 모든 목록 캐시를 무효화한다", async () => {
     const queryClient = createQueryClient();
@@ -204,6 +271,17 @@ const CREATE_ROOM_RESPONSE = {
   ownerUserId: "local-user-1",
   roomVersion: 1,
   ownerMembershipVersion: 1,
+};
+
+const UPDATE_ROOM_SETTINGS_RESPONSE = {
+  clientRequestId: IDEMPOTENCY_KEY,
+  replayed: false,
+  roomId: "room-01",
+  name: "새로운 방 이름",
+  description: "새로운 설명",
+  visibility: "UNLISTED" as const,
+  joinPolicy: "OPEN" as const,
+  roomVersion: 8,
 };
 
 const JOIN_ROOM_RESPONSE = {
