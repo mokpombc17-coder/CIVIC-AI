@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
 import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
 import type {
   MembershipStatus,
@@ -182,7 +183,10 @@ export function ChatRoomMembershipPanel({ room, roomId }: { room: RoomDetails; r
           <p className="eyebrow">Room membership</p>
           <h2>방 정보와 멤버십</h2>
         </div>
-        <span className="status">version {room.version}</span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="status">version {room.version}</span>
+          {isOwner ? <ChatRoomSettingsControl room={room} /> : null}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -279,6 +283,8 @@ function RoomDetailsCard({ room }: { room: RoomDetails }) {
     <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
       <h3 className="text-sm font-semibold text-slate-950">방 상세</h3>
       <dl className="mt-3 grid gap-2 text-sm">
+        <DetailRow label="방 이름" value={room.name} />
+        <DetailRow label="방 설명" value={room.description || "설명 없음"} />
         <DetailRow label="방 ID" value={room.roomId} />
         <DetailRow label="공개 범위" value={room.visibility} />
         <DetailRow label="참여 정책" value={room.joinPolicy} />
@@ -473,7 +479,9 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="min-w-0 break-words font-medium text-slate-800">{value}</dd>
+      <dd className="min-w-0 whitespace-pre-line break-words font-medium text-slate-800">
+        {value}
+      </dd>
     </div>
   );
 }

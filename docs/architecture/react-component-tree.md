@@ -73,6 +73,7 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                         │   ├── ChatRoomSessionBanner [Client] (apps/web/components/chat-room-session-banner.tsx)
                                         │   └── ChatMessageComposer [Client] (apps/web/components/chat-message-composer.tsx)
                                         └── ChatRoomMembershipPanel [Client] [slot, conditional] (apps/web/components/chat-room-membership-panel.tsx)
+                                            └── ChatRoomSettingsControl [Client] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
@@ -86,6 +87,9 @@ slot만 받아 화면을 렌더링한다. `ChatRoomSessionControls`도 session �
 남고, 실제 배너와 입력 폼은 각각 `ChatRoomSessionBanner`, `ChatMessageComposer`가 담당한다.
 메시지 수정·삭제 lifecycle과 transport command는 `ChatRoomScreen`의 container hook이 조립하고,
 `ChatMessageActionsPopover`는 작성자 메시지의 입력·확인·진행 상태만 표시한다.
+`ChatRoomMembershipPanel`은 활성 OWNER에게만 `ChatRoomSettingsControl`을 렌더링한다. 이
+control은 설정 Dialog, 부분 patch 계산, update-settings mutation과 같은 멱등성 key 재시도를
+소유하며, 멤버십 패널은 owner 여부와 배치만 담당한다.
 
 ## Route `/architecture`
 
@@ -155,6 +159,7 @@ flowchart TD
     ChatMessageItem["ChatMessageItem [Client] [virtualized] [repeated]<br/>apps/web/components/chat-message-item.tsx"]
     ChatMessageActionsPopover["ChatMessageActionsPopover [Client] [conditional]<br/>apps/web/components/chat-message-actions-popover.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
+    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [conditional]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client]<br/>apps/web/components/chat-room-session-controls.tsx"]
@@ -200,6 +205,7 @@ flowchart TD
     ChatRoomSessionControls --> ChatRoomSessionBanner
     ChatRoomSessionControls --> ChatMessageComposer
     ChatRoomView -->|"slot"| ChatRoomMembershipPanel
+    ChatRoomMembershipPanel -->|"active OWNER only"| ChatRoomSettingsControl
 
     ChildrenSlot -. "route /architecture" .-> ArchitecturePage
 
@@ -212,6 +218,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```
