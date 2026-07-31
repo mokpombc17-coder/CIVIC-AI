@@ -52,6 +52,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const olderRequestInFlightRef = useRef(false);
   const currentViewportKeyRef = useRef(history.viewportKey);
   const viewportPositionRef = useRef<ChatMessageViewportPosition>("initializing");
+  const latestScrollFramesRef = useRef<ChatMessageViewportScrollFrames>({
+    scroll: null,
+    settle: null,
+  });
   const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
   const [viewportState, dispatch] = useReducer(
     reduceChatMessageViewportState,
@@ -73,6 +77,55 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   virtualizerRef.current = virtualizer;
   const virtualItems = virtualizer.getVirtualItems();
   currentViewportKeyRef.current = viewportKey;
+
+  const cancelLatestScroll = useCallback(() => {
+    const frames = latestScrollFramesRef.current;
+
+    if (frames.scroll !== null) {
+      cancelAnimationFrame(frames.scroll);
+    }
+
+    if (frames.settle !== null) {
+      cancelAnimationFrame(frames.settle);
+    }
+
+    latestScrollFramesRef.current = {
+      scroll: null,
+      settle: null,
+    };
+  }, []);
+
+  const scrollToLatest = useCallback(() => {
+    const latestIndex = history.items.length - 1;
+
+    if (latestIndex < 0) {
+      return;
+    }
+
+    cancelLatestScroll();
+    latestScrollFramesRef.current.scroll = requestAnimationFrame(() => {
+      latestScrollFramesRef.current.scroll = null;
+      virtualizerRef.current.scrollToIndex(latestIndex, {
+        align: "end",
+      });
+
+      latestScrollFramesRef.current.settle = requestAnimationFrame(() => {
+        latestScrollFramesRef.current.settle = null;
+        const scrollElement = scrollElementRef.current;
+
+        if (!scrollElement) {
+          return;
+        }
+
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+        viewportPositionRef.current = "pinned";
+        dispatch({
+          type: "viewport-ready",
+          isAtEnd: true,
+        });
+      });
+    });
+  }, [cancelLatestScroll, history.items.length]);
 
   const loadOlderMessages = useCallback(async () => {
     if (
@@ -135,7 +188,8 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     olderRequestInFlightRef.current = false;
     pendingAnchorRef.current = null;
     setOlderLoadError(null);
-  }, [viewportKey]);
+    cancelLatestScroll();
+  }, [cancelLatestScroll, viewportKey]);
 
   useEffect(() => {
     const previous = previousItemsRef.current;
@@ -191,36 +245,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       return;
     }
 
-    let settleAnimationFrame: number | null = null;
-    const scrollAnimationFrame = requestAnimationFrame(() => {
-      virtualizerRef.current.scrollToIndex(history.items.length - 1, {
-        align: "end",
-      });
+    scrollToLatest();
 
-      settleAnimationFrame = requestAnimationFrame(() => {
-        const scrollElement = scrollElementRef.current;
-
-        if (!scrollElement) {
-          return;
-        }
-
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-        viewportPositionRef.current = "pinned";
-        dispatch({
-          type: "viewport-ready",
-          isAtEnd: true,
-        });
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(scrollAnimationFrame);
-
-      if (settleAnimationFrame !== null) {
-        cancelAnimationFrame(settleAnimationFrame);
-      }
-    };
-  }, [canLoadOlder, history.items, viewportKey]);
+    return cancelLatestScroll;
+  }, [canLoadOlder, cancelLatestScroll, history.items, scrollToLatest, viewportKey]);
 
   useEffect(() => {
     const anchor = pendingAnchorRef.current;
@@ -292,6 +320,12 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     }
   }
 
+  function handleJumpToLatest() {
+    viewportPositionRef.current = "pinned";
+    dispatch({ type: "jump-to-latest" });
+    scrollToLatest();
+  }
+
   const isLoadingOlder = isHistoryLoadingOlder || viewportState.olderHistory === "loading";
 
   return (
@@ -332,6 +366,19 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
           <p className="mt-1 text-xs opacity-80">{history.feedback.message}</p>
           <button className="secondary-button mt-3" onClick={history.onRetry} type="button">
             다시 불러오기
+          </button>
+        </div>
+      ) : null}
+
+      {viewportState.unseenMessageCount > 0 ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-5">
+          <button
+            aria-label={`새 메시지 ${viewportState.unseenMessageCount}개, 최신 메시지로 이동`}
+            className="pointer-events-auto rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950"
+            onClick={handleJumpToLatest}
+            type="button"
+          >
+            새 메시지 {viewportState.unseenMessageCount}개 <span aria-hidden="true">↓</span>
           </button>
         </div>
       ) : null}
@@ -392,6 +439,11 @@ type ChatMessageViewportItemsSnapshot = Readonly<{
   lastRenderKey: string | null;
   viewportKey: string;
 }>;
+
+type ChatMessageViewportScrollFrames = {
+  scroll: number | null;
+  settle: number | null;
+};
 
 type ChatMessageViewportAnchor = Readonly<{
   offsetFromViewportTop: number;

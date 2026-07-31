@@ -88,6 +88,24 @@ describe("chat message viewport state", () => {
     });
   });
 
+  it("새 메시지 안내에서 최신 위치로 이동하면 미확인 수를 초기화한다", () => {
+    const state = reduceChatMessageViewportState(
+      {
+        olderHistory: "idle",
+        position: "detached",
+        unseenMessageCount: 3,
+      },
+      {
+        type: "jump-to-latest",
+      },
+    );
+
+    expect(state).toMatchObject({
+      position: "pinned",
+      unseenMessageCount: 0,
+    });
+  });
+
   it("같은 스크롤 구간의 반복 이벤트에는 기존 상태 참조를 유지한다", () => {
     const state = {
       olderHistory: "idle",
