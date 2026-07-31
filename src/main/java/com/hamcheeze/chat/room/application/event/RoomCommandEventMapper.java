@@ -14,6 +14,7 @@ import com.hamcheeze.chat.room.event.RoomEventType;
 import com.hamcheeze.chat.room.event.RoomMemberChangedEventPayload;
 import com.hamcheeze.chat.room.event.RoomMemberState;
 import com.hamcheeze.chat.room.event.RoomOwnershipTransferredEventPayload;
+import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -36,7 +37,8 @@ public final class RoomCommandEventMapper {
                  OWNERSHIP_TRANSFERRED,
                  BANNED,
                  UNBANNED,
-                 CLOSED -> true;
+                 CLOSED,
+                 ROOM_SETTINGS_UPDATED -> true;
             default -> false;
         };
     }
@@ -78,6 +80,8 @@ public final class RoomCommandEventMapper {
             case BANNED -> RoomEventType.ROOM_MEMBER_BANNED;
             case UNBANNED -> RoomEventType.ROOM_MEMBER_UNBANNED;
             case CLOSED -> RoomEventType.ROOM_CLOSED;
+            case ROOM_SETTINGS_UPDATED ->
+                    RoomEventType.ROOM_SETTINGS_UPDATED;
             default -> throw new IllegalArgumentException(
                     "Result does not produce a Room event: "
                             + result.code());
@@ -149,6 +153,15 @@ public final class RoomCommandEventMapper {
                             MembershipRole.OWNER,
                             MembershipStatus.LEFT,
                             result.ownerMembershipVersion()));
+            case ROOM_SETTINGS_UPDATED ->
+                    new RoomSettingsUpdatedEventPayload(
+                            result.roomId(),
+                            result.roomVersion(),
+                            RoomStatus.ACTIVE,
+                            result.roomSettings().name(),
+                            result.roomSettings().description(),
+                            result.roomSettings().visibility(),
+                            result.roomSettings().joinPolicy());
             default -> throw new IllegalArgumentException(
                     "Result does not produce a Room event: "
                             + result.code());
@@ -187,6 +200,8 @@ public final class RoomCommandEventMapper {
             case BANNED, UNBANNED ->
                     Set.of(result.targetUserId());
             case CLOSED -> Set.of(result.ownerUserId());
+            case ROOM_SETTINGS_UPDATED ->
+                    Set.of(result.ownerUserId());
             default -> Set.of();
         };
     }

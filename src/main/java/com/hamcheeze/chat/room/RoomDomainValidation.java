@@ -33,6 +33,31 @@ final class RoomDomainValidation {
         return canonical;
     }
 
+    static String requireRoomDescription(String description) {
+        if (description == null) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode.INVALID_ROOM_DESCRIPTION);
+        }
+        String canonical = description.strip();
+        if (canonical.codePointCount(0, canonical.length())
+                > Room.MAX_DESCRIPTION_CODE_POINTS) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode.INVALID_ROOM_DESCRIPTION);
+        }
+        for (int offset = 0; offset < canonical.length();) {
+            int codePoint = canonical.codePointAt(offset);
+            if (codePoint < 0x20
+                    && codePoint != '\t'
+                    && codePoint != '\n'
+                    && codePoint != '\r') {
+                throw new RoomDomainException(
+                        RoomDomainErrorCode.INVALID_ROOM_DESCRIPTION);
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return canonical;
+    }
+
     static String requireMembershipId(String membershipId) {
         if (membershipId == null || membershipId.isBlank()) {
             throw new RoomDomainException(

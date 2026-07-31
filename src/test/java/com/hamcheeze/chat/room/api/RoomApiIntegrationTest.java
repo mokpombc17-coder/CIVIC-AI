@@ -172,6 +172,180 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
+    void createDescriptionAndUpdateSettingsExposeStableHttpContract()
+            throws Exception {
+        MvcResult created = mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings")))
+                        .header("Idempotency-Key", requestId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"Settings room",
+                                  "description":" Initial description ",
+                                  "visibility":"LISTED",
+                                  "joinPolicy":"OPEN"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String roomId = roomId(created);
+
+        mockMvc.perform(get("/api/v1/rooms/{roomId}", roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description")
+                        .value("Initial description"));
+        mockMvc.perform(get("/api/v1/me/rooms")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].description")
+                        .value("Initial description"));
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].description")
+                        .value("Initial description"));
+
+        String updateKey = requestId();
+        String updateBody = """
+                {
+                  "name":"  Updated room  ",
+                  "description":"Updated description",
+                  "visibility":"UNLISTED",
+                  "joinPolicy":"INVITE_ONLY"
+                }
+                """;
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/update-settings",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings")))
+                        .header("Idempotency-Key", updateKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code")
+                        .value("ROOM_SETTINGS_UPDATED"))
+                .andExpect(jsonPath("$.replayed").value(false))
+                .andExpect(jsonPath("$.name").value("Updated room"))
+                .andExpect(jsonPath("$.description")
+                        .value("Updated description"))
+                .andExpect(jsonPath("$.visibility")
+                        .value("UNLISTED"))
+                .andExpect(jsonPath("$.joinPolicy")
+                        .value("INVITE_ONLY"))
+                .andExpect(jsonPath("$.roomVersion").value(1));
+
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/update-settings",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings")))
+                        .header("Idempotency-Key", updateKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code")
+                        .value("ROOM_SETTINGS_UPDATED"))
+                .andExpect(jsonPath("$.replayed").value(true))
+                .andExpect(jsonPath("$.roomVersion").value(1));
+
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/update-settings",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings")))
+                        .header("Idempotency-Key", requestId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code")
+                        .value("ROOM_SETTINGS_UNCHANGED"))
+                .andExpect(jsonPath("$.roomVersion").value(1));
+
+        mockMvc.perform(get("/api/v1/rooms/{roomId}", roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Updated room"))
+                .andExpect(jsonPath("$.description")
+                        .value("Updated description"))
+                .andExpect(jsonPath("$.visibility")
+                        .value("UNLISTED"))
+                .andExpect(jsonPath("$.joinPolicy")
+                        .value("INVITE_ONLY"))
+                .andExpect(jsonPath("$.version").value(1));
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-settings"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0));
+
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/join",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("another-user")))
+                        .header("Idempotency-Key", requestId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code")
+                        .value("JOIN_POLICY_NOT_OPEN"));
+
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/update-settings",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("another-user")))
+                        .header("Idempotency-Key", requestId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("NOT_ROOM_OWNER"));
+    }
+
+    @Test
+    void updateSettingsRejectsEmptyPatchAndExplicitNull()
+            throws Exception {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+
+        for (String body : new String[]{
+                "{}",
+                "{\"name\":null}",
+                "{\"description\":null}",
+                "{\"visibility\":null}",
+                "{\"joinPolicy\":null}"}) {
+            mockMvc.perform(post(
+                                    "/api/v1/rooms/{roomId}/commands/update-settings",
+                                    roomId)
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject("owner-1")))
+                            .header("Idempotency-Key", requestId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code")
+                            .value("INVALID_REQUEST"));
+        }
+
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/update-settings",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-1")))
+                        .header("Idempotency-Key", requestId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code")
+                        .value("ROOM_SETTINGS_UNCHANGED"));
+    }
+
+    @Test
     void invalidIdempotencyKeyAndBodyNeverMutate()
             throws Exception {
         for (String key : new String[]{"", "not-a-uuid"}) {

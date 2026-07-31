@@ -13,23 +13,42 @@ public final class RoomCommandResultCodec {
 
     public static final String RESULT_TYPE = "ROOM_COMMAND_RESULT";
     public static final int RESULT_SCHEMA_VERSION = 1;
+    public static final int SETTINGS_RESULT_SCHEMA_VERSION = 2;
 
-    private final ObjectWriter writer;
-    private final ObjectReader reader;
+    private final ObjectWriter legacyWriter;
+    private final ObjectReader legacyReader;
+    private final ObjectWriter settingsWriter;
+    private final ObjectReader settingsReader;
 
     public RoomCommandResultCodec(ObjectMapper objectMapper) {
-        this.writer = objectMapper.writerFor(ResultPayload.class);
-        this.reader = objectMapper.readerFor(ResultPayload.class)
+        this.legacyWriter =
+                objectMapper.writerFor(LegacyResultPayload.class);
+        this.legacyReader =
+                objectMapper.readerFor(LegacyResultPayload.class)
+                        .with(DeserializationFeature
+                                .FAIL_ON_UNKNOWN_PROPERTIES);
+        this.settingsWriter =
+                objectMapper.writerFor(SettingsResultPayload.class);
+        this.settingsReader =
+                objectMapper.readerFor(SettingsResultPayload.class)
                 .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
 
     public StoredRoomCommandResult encode(RoomCommandResult result) {
         try {
+            if (result.commandType()
+                    == RoomCommandType.UPDATE_ROOM_SETTINGS) {
+                return new StoredRoomCommandResult(
+                        RESULT_TYPE,
+                        SETTINGS_RESULT_SCHEMA_VERSION,
+                        settingsWriter.writeValueAsString(
+                                SettingsResultPayload.from(result)));
+            }
             return new StoredRoomCommandResult(
                     RESULT_TYPE,
                     RESULT_SCHEMA_VERSION,
-                    writer.writeValueAsString(
-                            ResultPayload.from(result)));
+                    legacyWriter.writeValueAsString(
+                            LegacyResultPayload.from(result)));
         } catch (RuntimeException exception) {
             throw codecFailure(
                     "Failed to encode room command result",
@@ -47,16 +66,24 @@ public final class RoomCommandResultCodec {
                             + stored.resultType(),
                     null);
         }
-        if (stored.resultSchemaVersion() != RESULT_SCHEMA_VERSION) {
-            throw codecFailure(
-                    "Unsupported room command result schema version: "
-                            + stored.resultSchemaVersion(),
-                    null);
-        }
         try {
-            ResultPayload payload =
-                    reader.readValue(stored.payload());
-            RoomCommandResult result = payload.toResult();
+            RoomCommandResult result = switch (
+                    stored.resultSchemaVersion()) {
+                case RESULT_SCHEMA_VERSION ->
+                        legacyReader
+                                .<LegacyResultPayload>readValue(
+                                        stored.payload())
+                                .toResult();
+                case SETTINGS_RESULT_SCHEMA_VERSION ->
+                        settingsReader
+                                .<SettingsResultPayload>readValue(
+                                        stored.payload())
+                                .toResult();
+                default -> throw codecFailure(
+                        "Unsupported room command result schema version: "
+                                + stored.resultSchemaVersion(),
+                        null);
+            };
             if (result.commandType() != expectedCommandType) {
                 throw codecFailure(
                         "Receipt command type does not match result: "
@@ -85,7 +112,7 @@ public final class RoomCommandResultCodec {
                 cause);
     }
 
-    private record ResultPayload(
+    private record LegacyResultPayload(
             RoomCommandType commandType,
             RoomCommandResultCode code,
             String roomId,
@@ -106,8 +133,10 @@ public final class RoomCommandResultCodec {
             Long newOwnerMembershipVersion
     ) {
 
-        private static ResultPayload from(RoomCommandResult result) {
-            return new ResultPayload(
+        private static LegacyResultPayload from(
+                RoomCommandResult result
+        ) {
+            return new LegacyResultPayload(
                     result.commandType(),
                     result.code(),
                     result.roomId(),
@@ -148,6 +177,51 @@ public final class RoomCommandResultCodec {
                     ownerMembershipVersion,
                     previousOwnerMembershipVersion,
                     newOwnerMembershipVersion);
+        }
+    }
+
+    private record SettingsResultPayload(
+            RoomCommandType commandType,
+            RoomCommandResultCode code,
+            String roomId,
+            String ownerUserId,
+            Long roomVersion,
+            RoomSettingsSnapshot roomSettings
+    ) {
+
+        private static SettingsResultPayload from(
+                RoomCommandResult result
+        ) {
+            return new SettingsResultPayload(
+                    result.commandType(),
+                    result.code(),
+                    result.roomId(),
+                    result.ownerUserId(),
+                    result.roomVersion(),
+                    result.roomSettings());
+        }
+
+        private RoomCommandResult toResult() {
+            return new RoomCommandResult(
+                    commandType,
+                    code,
+                    roomId,
+                    null,
+                    null,
+                    null,
+                    ownerUserId,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    roomVersion,
+                    null,
+                    null,
+                    null,
+                    null,
+                    roomSettings);
         }
     }
 }

@@ -4,6 +4,7 @@ import com.hamcheeze.chat.room.api.dto.BanMemberRequest;
 import com.hamcheeze.chat.room.api.dto.CreateRoomRequest;
 import com.hamcheeze.chat.room.api.dto.TransferOwnershipRequest;
 import com.hamcheeze.chat.room.api.dto.UnbanMemberRequest;
+import com.hamcheeze.chat.room.api.dto.UpdateRoomSettingsRequest;
 import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.command.BanMemberCommand;
 import com.hamcheeze.chat.room.application.command.CloseRoomCommand;
@@ -12,8 +13,10 @@ import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
+import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/v1/rooms")
@@ -63,6 +67,7 @@ public class RoomCommandController {
                 requester,
                 requestId,
                 request.name(),
+                request.description(),
                 request.visibility(),
                 request.joinPolicy())));
     }
@@ -165,6 +170,42 @@ public class RoomCommandController {
                 userIdResolver.resolve(authentication),
                 idempotencyKeyResolver.resolve(idempotencyKey),
                 RoomApiValidation.roomId(roomId))));
+    }
+
+    @PostMapping("/{roomId}/commands/update-settings")
+    public ResponseEntity<Object> updateRoomSettings(
+            Authentication authentication,
+            @RequestHeader(
+                    value = RoomIdempotencyKeyResolver.HEADER_NAME,
+                    required = false)
+            String idempotencyKey,
+            @PathVariable String roomId,
+            @RequestBody JsonNode body
+    ) {
+        String validatedRoomId = RoomApiValidation.roomId(roomId);
+        try {
+            UpdateRoomSettingsRequest request =
+                    UpdateRoomSettingsRequest.from(body);
+            return map(commandService.updateRoomSettings(
+                    new UpdateRoomSettingsCommand(
+                            userIdResolver.resolve(authentication),
+                            idempotencyKeyResolver.resolve(
+                                    idempotencyKey),
+                            validatedRoomId,
+                            request.namePresent(),
+                            request.name(),
+                            request.descriptionPresent(),
+                            request.description(),
+                            request.visibilityPresent(),
+                            request.visibility(),
+                            request.joinPolicyPresent(),
+                            request.joinPolicy())));
+        } catch (IllegalArgumentException exception) {
+            throw new RoomApiInputException(
+                    RoomApiErrorCode.INVALID_REQUEST,
+                    HttpStatus.BAD_REQUEST,
+                    "The settings patch is invalid.");
+        }
     }
 
     private ResponseEntity<Object> map(

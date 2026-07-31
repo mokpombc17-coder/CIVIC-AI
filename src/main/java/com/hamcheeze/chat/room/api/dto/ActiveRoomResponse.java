@@ -12,6 +12,7 @@ import java.time.Instant;
 public record ActiveRoomResponse(
         String roomId,
         String name,
+        String description,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -30,6 +31,7 @@ public record ActiveRoomResponse(
         return new ActiveRoomResponse(
                 view.roomId(),
                 view.name(),
+                view.description(),
                 view.ownerUserId(),
                 view.status(),
                 view.visibility(),

@@ -4,6 +4,7 @@ import com.hamcheeze.chat.room.api.dto.CloseRoomResponse;
 import com.hamcheeze.chat.room.api.dto.CreateRoomResponse;
 import com.hamcheeze.chat.room.api.dto.MembershipCommandResponse;
 import com.hamcheeze.chat.room.api.dto.OwnershipTransferResponse;
+import com.hamcheeze.chat.room.api.dto.RoomSettingsCommandResponse;
 import com.hamcheeze.chat.room.api.dto.TargetMembershipCommandResponse;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
@@ -77,6 +78,17 @@ public final class RoomCommandHttpMapper {
                     result.ownerUserId(),
                     result.roomVersion(),
                     result.ownerMembershipVersion());
+            case UPDATE_ROOM_SETTINGS ->
+                    new RoomSettingsCommandResponse(
+                            execution.clientRequestId(),
+                            result.code(),
+                            execution.replayed(),
+                            result.roomId(),
+                            result.roomSettings().name(),
+                            result.roomSettings().description(),
+                            result.roomSettings().visibility(),
+                            result.roomSettings().joinPolicy(),
+                            result.roomVersion());
         };
         ResponseEntity.BodyBuilder builder =
                 ResponseEntity.status(status);
@@ -123,7 +135,8 @@ public final class RoomCommandHttpMapper {
                     OWNERSHIP_TRANSFERRED, BANNED,
                     ALREADY_BANNED, UNBANNED,
                     ALREADY_UNBANNED, CLOSED,
-                    ALREADY_CLOSED -> HttpStatus.OK;
+                    ALREADY_CLOSED, ROOM_SETTINGS_UPDATED,
+                    ROOM_SETTINGS_UNCHANGED -> HttpStatus.OK;
             default -> throw new IllegalArgumentException(
                     "Not a success result code: " + code);
         };

@@ -6,7 +6,8 @@ public sealed interface RoomEventPayload
         permits RoomCreatedEventPayload,
         RoomMemberChangedEventPayload,
         RoomOwnershipTransferredEventPayload,
-        RoomClosedEventPayload {
+        RoomClosedEventPayload,
+        RoomSettingsUpdatedEventPayload {
 
     String roomId();
 

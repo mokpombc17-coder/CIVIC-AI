@@ -81,6 +81,8 @@ class ListedRoomApiIntegrationTest
                         .value("room-a"))
                 .andExpect(jsonPath("$.items[0].name")
                         .value("Alpha"))
+                .andExpect(jsonPath("$.items[0].description")
+                        .value("Description room-a"))
                 .andExpect(jsonPath("$.items[0].status")
                         .value("ACTIVE"))
                 .andExpect(jsonPath("$.items[0].visibility")
@@ -136,6 +138,7 @@ class ListedRoomApiIntegrationTest
         roomStore.insert(Room.restore(
                 roomId,
                 name,
+                "Description " + roomId,
                 "owner-" + roomId,
                 status,
                 visibility,

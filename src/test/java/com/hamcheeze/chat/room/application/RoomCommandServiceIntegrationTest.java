@@ -19,6 +19,7 @@ import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
+import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
@@ -842,6 +843,306 @@ class RoomCommandServiceIntegrationTest
         assertRoomInvariants(roomId);
     }
 
+    @Test
+    void updateSettingsCommitsNoOpReplaysAndEnforcesOwnerState() {
+        RoomCommandExecution created = service.createRoom(
+                new CreateRoomCommand(
+                        "owner-1",
+                        requestId(),
+                        "Initial room",
+                        "Initial description",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN));
+        String roomId = created.result().roomId();
+        String updateRequestId = requestId();
+        UpdateRoomSettingsCommand update =
+                updateSettings(
+                        "owner-1",
+                        updateRequestId,
+                        roomId,
+                        true,
+                        "  Changed room  ",
+                        true,
+                        "  Changed description  ",
+                        true,
+                        RoomVisibility.UNLISTED,
+                        true,
+                        JoinPolicy.INVITE_ONLY);
+
+        RoomCommandExecution updated =
+                service.updateRoomSettings(update);
+        RoomCommandExecution replay =
+                service.updateRoomSettings(update);
+        RoomCommandExecution unchanged =
+                service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        true,
+                        "Changed room",
+                        true,
+                        "Changed description",
+                        true,
+                        RoomVisibility.UNLISTED,
+                        true,
+                        JoinPolicy.INVITE_ONLY));
+        RoomCommandExecution forbidden =
+                service.updateRoomSettings(updateSettings(
+                        "member-2",
+                        requestId(),
+                        roomId,
+                        true,
+                        "Forbidden",
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null));
+
+        assertThat(updated.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_SETTINGS_UPDATED);
+        assertThat(updated.result().roomVersion()).isEqualTo(1);
+        assertThat(updated.result().roomSettings().name())
+                .isEqualTo("Changed room");
+        assertThat(updated.result().roomSettings().description())
+                .isEqualTo("Changed description");
+        assertThat(replay.replayed()).isTrue();
+        assertThat(replay.result()).isEqualTo(updated.result());
+        assertThat(unchanged.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_SETTINGS_UNCHANGED);
+        assertThat(unchanged.result().roomVersion()).isEqualTo(1);
+        assertThat(forbidden.result().code()).isEqualTo(
+                RoomCommandResultCode.NOT_ROOM_OWNER);
+
+        Room persisted = roomStore.findById(roomId).orElseThrow();
+        assertThat(persisted.name()).isEqualTo("Changed room");
+        assertThat(persisted.description())
+                .isEqualTo("Changed description");
+        assertThat(persisted.visibility())
+                .isEqualTo(RoomVisibility.UNLISTED);
+        assertThat(persisted.joinPolicy())
+                .isEqualTo(JoinPolicy.INVITE_ONLY);
+        assertThat(persisted.version()).isEqualTo(1);
+        assertThat(mongoOperations.findById(
+                roomId,
+                MongoRoomDocument.class).schemaVersion())
+                .isEqualTo(
+                        MongoRoomDocument.CURRENT_SCHEMA_VERSION);
+
+        service.closeRoom(new CloseRoomCommand(
+                "owner-1",
+                requestId(),
+                roomId));
+        RoomCommandExecution closed =
+                service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        true,
+                        "Closed change",
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null));
+        assertThat(closed.result().code())
+                .isEqualTo(RoomCommandResultCode.ROOM_CLOSED);
+    }
+
+    @Test
+    void legacyRoomSettingsUpdatePromotesSchemaAndKeepsFallbackDescription() {
+        String roomId = "legacy-settings-room";
+        mongoOperations.insert(new MongoRoomDocument(
+                roomId,
+                1,
+                null,
+                "owner-legacy",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                java.time.Instant.parse("2026-07-30T00:00:00Z"),
+                null,
+                4));
+        membershipStore.insert(Membership.restore(
+                "legacy-owner-membership",
+                roomId,
+                "owner-legacy",
+                MembershipRole.OWNER,
+                MembershipStatus.ACTIVE,
+                java.time.Instant.parse("2026-07-30T00:00:00Z"),
+                null,
+                null,
+                0,
+                0));
+
+        RoomCommandExecution execution =
+                service.updateRoomSettings(updateSettings(
+                        "owner-legacy",
+                        requestId(),
+                        roomId,
+                        false,
+                        null,
+                        false,
+                        null,
+                        true,
+                        RoomVisibility.UNLISTED,
+                        false,
+                        null));
+
+        assertThat(execution.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_SETTINGS_UPDATED);
+        MongoRoomDocument stored = mongoOperations.findById(
+                roomId,
+                MongoRoomDocument.class);
+        assertThat(stored.schemaVersion()).isEqualTo(3);
+        assertThat(stored.name()).isEqualTo(roomId);
+        assertThat(stored.description()).isEmpty();
+        assertThat(stored.version()).isEqualTo(5);
+    }
+
+    @Test
+    void settingsIdempotencyUsesCanonicalPatchAndSnapshot()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+        String sameKey = requestId();
+        UpdateRoomSettingsCommand padded = updateSettings(
+                "owner-1",
+                sameKey,
+                roomId,
+                true,
+                "  Canonical room  ",
+                false,
+                null,
+                false,
+                null,
+                false,
+                null);
+
+        RoomCommandExecution first =
+                service.updateRoomSettings(padded);
+        RoomCommandExecution canonicalReplay =
+                service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        sameKey,
+                        roomId,
+                        true,
+                        "Canonical room",
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null));
+        RoomCommandExecution conflict =
+                service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        sameKey,
+                        roomId,
+                        false,
+                        null,
+                        true,
+                        "",
+                        false,
+                        null,
+                        false,
+                        null));
+
+        assertThat(first.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_SETTINGS_UPDATED);
+        assertThat(canonicalReplay.replayed()).isTrue();
+        assertThat(canonicalReplay.result()).isEqualTo(first.result());
+        assertThat(conflict.result().code()).isEqualTo(
+                RoomCommandResultCode.IDEMPOTENCY_CONFLICT);
+        assertThat(roomStore.findById(roomId).orElseThrow().version())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void concurrentPartialSettingsPatchesMergeOnLatestRoom()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        true,
+                        "Concurrent name",
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null)),
+                () -> service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        false,
+                        null,
+                        false,
+                        null,
+                        true,
+                        RoomVisibility.UNLISTED,
+                        false,
+                        null)));
+
+        assertThat(executions)
+                .allSatisfy(execution -> assertThat(
+                        execution.result().code()).isEqualTo(
+                        RoomCommandResultCode.ROOM_SETTINGS_UPDATED));
+        Room room = roomStore.findById(roomId).orElseThrow();
+        assertThat(room.name()).isEqualTo("Concurrent name");
+        assertThat(room.visibility())
+                .isEqualTo(RoomVisibility.UNLISTED);
+        assertThat(room.version()).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentSameSettingsPatchChangesVersionOnlyOnce()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        true,
+                        "Shared final name",
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null)),
+                () -> service.updateRoomSettings(updateSettings(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        true,
+                        "Shared final name",
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null)));
+
+        assertThat(executions)
+                .extracting(execution -> execution.result().code())
+                .containsExactlyInAnyOrder(
+                        RoomCommandResultCode.ROOM_SETTINGS_UPDATED,
+                        RoomCommandResultCode.ROOM_SETTINGS_UNCHANGED);
+        Room room = roomStore.findById(roomId).orElseThrow();
+        assertThat(room.name()).isEqualTo("Shared final name");
+        assertThat(room.version()).isEqualTo(1);
+    }
+
     private String createOpenRoom(String ownerUserId) {
         return createRoom(ownerUserId, JoinPolicy.OPEN);
     }
@@ -894,6 +1195,33 @@ class RoomCommandServiceIntegrationTest
                 requestId,
                 "Test room",
                 RoomVisibility.LISTED,
+                joinPolicy);
+    }
+
+    private UpdateRoomSettingsCommand updateSettings(
+            String requester,
+            String requestId,
+            String roomId,
+            boolean namePresent,
+            String name,
+            boolean descriptionPresent,
+            String description,
+            boolean visibilityPresent,
+            RoomVisibility visibility,
+            boolean joinPolicyPresent,
+            JoinPolicy joinPolicy
+    ) {
+        return new UpdateRoomSettingsCommand(
+                requester,
+                requestId,
+                roomId,
+                namePresent,
+                name,
+                descriptionPresent,
+                description,
+                visibilityPresent,
+                visibility,
+                joinPolicyPresent,
                 joinPolicy);
     }
 

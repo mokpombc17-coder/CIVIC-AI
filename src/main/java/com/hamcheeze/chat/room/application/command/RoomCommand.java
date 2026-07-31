@@ -9,7 +9,8 @@ public sealed interface RoomCommand permits
         TransferOwnershipCommand,
         BanMemberCommand,
         UnbanMemberCommand,
-        CloseRoomCommand {
+        CloseRoomCommand,
+        UpdateRoomSettingsCommand {
 
     String requesterUserId();
 

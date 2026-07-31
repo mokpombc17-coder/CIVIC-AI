@@ -74,6 +74,9 @@ public record RoomEventEnvelope(
             case ROOM_CLOSED -> requirePayload(
                     payload,
                     RoomClosedEventPayload.class);
+            case ROOM_SETTINGS_UPDATED -> requirePayload(
+                    payload,
+                    RoomSettingsUpdatedEventPayload.class);
         }
     }
 

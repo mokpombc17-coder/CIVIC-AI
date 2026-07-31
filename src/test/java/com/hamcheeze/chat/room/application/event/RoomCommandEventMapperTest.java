@@ -1,8 +1,11 @@
 package com.hamcheeze.chat.room.application.event;
 
+import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
+import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
@@ -12,6 +15,7 @@ import com.hamcheeze.chat.room.event.RoomEventDeliveryPlan;
 import com.hamcheeze.chat.room.event.RoomEventType;
 import com.hamcheeze.chat.room.event.RoomMemberChangedEventPayload;
 import com.hamcheeze.chat.room.event.RoomOwnershipTransferredEventPayload;
+import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import org.junit.jupiter.api.Test;
 
@@ -64,6 +68,8 @@ class RoomCommandEventMapperTest {
                 MembershipStatus.LEFT,
                 Set.of("target-1"));
         assertClosed(map(result(RoomCommandResultCode.CLOSED)));
+        assertSettings(map(settings(
+                RoomCommandResultCode.ROOM_SETTINGS_UPDATED)));
     }
 
     @Test
@@ -73,9 +79,15 @@ class RoomCommandEventMapperTest {
                         RoomCommandResultCode.ALREADY_LEFT,
                         RoomCommandResultCode.ALREADY_BANNED,
                         RoomCommandResultCode.ALREADY_UNBANNED,
-                        RoomCommandResultCode.ALREADY_CLOSED)
+                        RoomCommandResultCode.ALREADY_CLOSED,
+                        RoomCommandResultCode.ROOM_SETTINGS_UNCHANGED)
                 .forEach(code -> assertThat(mapper.map(
-                        execution(result(code), false),
+                        execution(
+                                code == RoomCommandResultCode
+                                        .ROOM_SETTINGS_UNCHANGED
+                                        ? settings(code)
+                                        : result(code),
+                                false),
                         EVENT_ID,
                         EMITTED_AT)).isEmpty());
 
@@ -166,6 +178,45 @@ class RoomCommandEventMapperTest {
         assertThat(payload.owner().status())
                 .isEqualTo(MembershipStatus.LEFT);
         assertThat(plan.userRecipients()).containsExactly("owner-1");
+    }
+
+    private static void assertSettings(
+            RoomEventDeliveryPlan plan
+    ) {
+        assertThat(plan.event().eventType())
+                .isEqualTo(RoomEventType.ROOM_SETTINGS_UPDATED);
+        RoomSettingsUpdatedEventPayload payload =
+                (RoomSettingsUpdatedEventPayload)
+                        plan.event().payload();
+        assertThat(payload.roomVersion()).isEqualTo(8);
+        assertThat(payload.roomStatus()).isEqualTo(RoomStatus.ACTIVE);
+        assertThat(payload.name()).isEqualTo("Updated room");
+        assertThat(payload.description())
+                .isEqualTo("Updated description");
+        assertThat(payload.visibility())
+                .isEqualTo(RoomVisibility.UNLISTED);
+        assertThat(payload.joinPolicy())
+                .isEqualTo(JoinPolicy.INVITE_ONLY);
+        assertThat(plan.userRecipients()).containsExactly("owner-1");
+    }
+
+    private static RoomCommandResult settings(
+            RoomCommandResultCode code
+    ) {
+        return RoomCommandResult.settings(
+                code,
+                Room.restore(
+                        "room-1",
+                        "Updated room",
+                        "Updated description",
+                        "owner-1",
+                        RoomStatus.ACTIVE,
+                        RoomVisibility.UNLISTED,
+                        JoinPolicy.INVITE_ONLY,
+                        1,
+                        EMITTED_AT.minusSeconds(60),
+                        null,
+                        8));
     }
 
     private static RoomCommandExecution execution(

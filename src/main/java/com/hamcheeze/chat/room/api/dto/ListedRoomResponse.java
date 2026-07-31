@@ -10,6 +10,7 @@ import java.time.Instant;
 public record ListedRoomResponse(
         String roomId,
         String name,
+        String description,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -23,6 +24,7 @@ public record ListedRoomResponse(
         return new ListedRoomResponse(
                 view.roomId(),
                 view.name(),
+                view.description(),
                 view.ownerUserId(),
                 view.status(),
                 view.visibility(),

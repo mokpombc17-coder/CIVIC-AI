@@ -57,6 +57,7 @@ public final class ListedRoomQueryService {
         return new ListedRoomView(
                 room.roomId(),
                 room.name(),
+                room.description(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),

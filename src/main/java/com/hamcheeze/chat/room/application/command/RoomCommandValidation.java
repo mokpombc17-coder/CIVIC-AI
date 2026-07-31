@@ -33,4 +33,36 @@ final class RoomCommandValidation {
         }
         return canonical;
     }
+
+    static String roomDescription(String value) {
+        if (value == null) {
+            throw new IllegalArgumentException(
+                    "description must not be null");
+        }
+        String canonical = value.strip();
+        if (canonical.codePointCount(0, canonical.length())
+                > Room.MAX_DESCRIPTION_CODE_POINTS) {
+            throw new IllegalArgumentException(
+                    "description must not exceed "
+                            + Room.MAX_DESCRIPTION_CODE_POINTS
+                            + " code points");
+        }
+        for (int offset = 0; offset < canonical.length();) {
+            int codePoint = canonical.codePointAt(offset);
+            if (codePoint < 0x20
+                    && codePoint != '\t'
+                    && codePoint != '\n'
+                    && codePoint != '\r') {
+                throw new IllegalArgumentException(
+                        "description contains an invalid "
+                                + "control character");
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return canonical;
+    }
+
+    static String optionalRoomDescription(String value) {
+        return value == null ? "" : roomDescription(value);
+    }
 }

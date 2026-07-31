@@ -8,12 +8,14 @@ import com.hamcheeze.chat.room.application.access.RoomAccessRevocationReason;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
+import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.event.RoomEventDeliveryOutcome;
 import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 import com.hamcheeze.chat.room.event.RoomEventEnvelope;
 import com.hamcheeze.chat.room.event.RoomEventType;
+import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
@@ -183,6 +185,68 @@ class RoomCommandEventIntegrationTest
         verify(eventDeliveryPort).publishToRoom(any());
         verify(eventDeliveryPort)
                 .publishToUser(eq("user-2"), any());
+        verify(revocationPort, never())
+                .revokeUserRoomAccess(any(), any(), any());
+    }
+
+    @Test
+    void settingsUpdatePublishesSnapshotButReplayAndNoOpDoNot() {
+        String roomId = createRoom("owner-1");
+        String requestId = uuid();
+        UpdateRoomSettingsCommand update =
+                new UpdateRoomSettingsCommand(
+                        "owner-1",
+                        requestId,
+                        roomId,
+                        true,
+                        "Updated room",
+                        true,
+                        "Updated description",
+                        true,
+                        RoomVisibility.UNLISTED,
+                        true,
+                        JoinPolicy.INVITE_ONLY);
+        clearInvocations(eventDeliveryPort, revocationPort);
+
+        RoomCommandExecution first =
+                commandService.updateRoomSettings(update);
+        RoomCommandExecution replay =
+                commandService.updateRoomSettings(update);
+        RoomCommandExecution noOp =
+                commandService.updateRoomSettings(
+                        new UpdateRoomSettingsCommand(
+                                "owner-1",
+                                uuid(),
+                                roomId,
+                                true,
+                                "Updated room",
+                                true,
+                                "Updated description",
+                                true,
+                                RoomVisibility.UNLISTED,
+                                true,
+                                JoinPolicy.INVITE_ONLY));
+
+        assertThat(first.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_SETTINGS_UPDATED);
+        assertThat(replay.replayed()).isTrue();
+        assertThat(noOp.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_SETTINGS_UNCHANGED);
+        ArgumentCaptor<RoomEventEnvelope> roomEvent =
+                ArgumentCaptor.forClass(RoomEventEnvelope.class);
+        verify(eventDeliveryPort, times(1))
+                .publishToRoom(roomEvent.capture());
+        verify(eventDeliveryPort, times(1))
+                .publishToUser(eq("owner-1"), any());
+        assertThat(roomEvent.getValue().eventType())
+                .isEqualTo(RoomEventType.ROOM_SETTINGS_UPDATED);
+        RoomSettingsUpdatedEventPayload payload =
+                (RoomSettingsUpdatedEventPayload)
+                        roomEvent.getValue().payload();
+        assertThat(payload.roomVersion()).isEqualTo(1);
+        assertThat(payload.name()).isEqualTo("Updated room");
+        assertThat(payload.description())
+                .isEqualTo("Updated description");
         verify(revocationPort, never())
                 .revokeUserRoomAccess(any(), any(), any());
     }

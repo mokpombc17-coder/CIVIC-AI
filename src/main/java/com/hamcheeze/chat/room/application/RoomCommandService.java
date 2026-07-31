@@ -14,6 +14,8 @@ import com.hamcheeze.chat.room.RoomDomainErrorCode;
 import com.hamcheeze.chat.room.RoomDomainException;
 import com.hamcheeze.chat.room.RoomMembershipTransitions;
 import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomSettingsUpdateOutcome;
+import com.hamcheeze.chat.room.RoomSettingsUpdateTransition;
 import com.hamcheeze.chat.room.UnbanMemberTransition;
 import com.hamcheeze.chat.room.application.command.BanMemberCommand;
 import com.hamcheeze.chat.room.application.command.CloseRoomCommand;
@@ -23,6 +25,7 @@ import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.RoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
+import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
 import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
@@ -153,6 +156,7 @@ public final class RoomCommandService {
                     RoomMembershipTransitions.createRoom(
                             candidateRoomId,
                             command.name(),
+                            command.description(),
                             candidateOwnerMembershipId,
                             command.requesterUserId(),
                             command.visibility(),
@@ -271,6 +275,22 @@ public final class RoomCommandService {
                         command,
                         transitionTime)));
         return complete(execution);
+    }
+
+    public RoomCommandExecution updateRoomSettings(
+            UpdateRoomSettingsCommand command
+    ) {
+        Instant transitionTime = clock.instant();
+        PreparedRoomCommand prepared = prepare(
+                command,
+                transitionTime,
+                command.roomId(),
+                null);
+        return complete(executor.execute(prepared, () -> executeDomain(
+                command.commandType(),
+                command.roomId(),
+                null,
+                () -> updateRoomSettingsInTransaction(command))));
     }
 
     private RoomCommandExecution complete(
@@ -587,6 +607,55 @@ public final class RoomCommandService {
                         transition.outcome().name()),
                 transition.room(),
                 transition.ownerMembership());
+    }
+
+    private RoomCommandResult updateRoomSettingsInTransaction(
+            UpdateRoomSettingsCommand command
+    ) {
+        Room room = roomStore.findById(command.roomId())
+                .orElse(null);
+        if (room == null) {
+            return rejection(
+                    command.commandType(),
+                    RoomCommandResultCode.ROOM_NOT_FOUND,
+                    command.roomId(),
+                    null);
+        }
+        requireOwnerInvariant(room);
+        RoomCommandResult precondition = ownerCommandRejection(
+                command.commandType(),
+                room,
+                command.requesterUserId(),
+                null);
+        if (precondition != null) {
+            return precondition;
+        }
+        RoomSettingsUpdateTransition transition =
+                room.updateSettings(
+                        command.namePresent()
+                                ? command.name()
+                                : room.name(),
+                        command.descriptionPresent()
+                                ? command.description()
+                                : room.description(),
+                        command.visibilityPresent()
+                                ? command.visibility()
+                                : room.visibility(),
+                        command.joinPolicyPresent()
+                                ? command.joinPolicy()
+                                : room.joinPolicy());
+        if (transition.outcome()
+                == RoomSettingsUpdateOutcome.UPDATED) {
+            replaceRoom(transition.room(), room.version());
+        }
+        RoomCommandResultCode code =
+                transition.outcome()
+                        == RoomSettingsUpdateOutcome.UPDATED
+                        ? RoomCommandResultCode.ROOM_SETTINGS_UPDATED
+                        : RoomCommandResultCode.ROOM_SETTINGS_UNCHANGED;
+        return RoomCommandResult.settings(
+                code,
+                transition.room());
     }
 
     private PreparedRoomCommand prepare(

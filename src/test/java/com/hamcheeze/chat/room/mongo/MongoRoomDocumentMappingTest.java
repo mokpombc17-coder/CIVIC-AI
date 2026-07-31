@@ -41,8 +41,9 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(2);
+        assertThat(document.schemaVersion()).isEqualTo(3);
         assertThat(document.name()).isEqualTo("Active room");
+        assertThat(document.description()).isEmpty();
         assertThat(document.toDomain()).isEqualTo(room);
     }
 
@@ -63,8 +64,9 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(2);
+        assertThat(document.schemaVersion()).isEqualTo(3);
         assertThat(document.name()).isEqualTo("Closed room");
+        assertThat(document.description()).isEmpty();
         assertThat(document.toDomain()).isEqualTo(room);
     }
 
@@ -85,6 +87,38 @@ class MongoRoomDocumentMappingTest {
 
         assertThat(legacy.toDomain().name())
                 .isEqualTo("legacy-room");
+        assertThat(legacy.toDomain().description()).isEmpty();
+    }
+
+    @Test
+    void previousSchemaUsesEmptyDescriptionAndCurrentRequiresIt() {
+        MongoRoomDocument previous = new MongoRoomDocument(
+                "room-2",
+                2,
+                "Previous room",
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                CREATED_AT,
+                null,
+                2);
+
+        assertThat(previous.toDomain().description()).isEmpty();
+        assertThatThrownBy(() -> new MongoRoomDocument(
+                "room-3",
+                MongoRoomDocument.CURRENT_SCHEMA_VERSION,
+                "Current room",
+                null,
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                CREATED_AT,
+                null,
+                3)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -206,7 +240,7 @@ class MongoRoomDocumentMappingTest {
     void unsupportedSchemaVersionsFailExplicitly() {
         MongoRoomDocument roomDocument = new MongoRoomDocument(
                 "room-1",
-                3,
+                4,
                 "Test room",
                 "owner-1",
                 RoomStatus.ACTIVE,
@@ -247,7 +281,7 @@ class MongoRoomDocumentMappingTest {
         assertUnsupportedSchema(
                 roomDocument::toDomain,
                 MongoRoomDocument.COLLECTION_NAME,
-                3);
+                4);
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,

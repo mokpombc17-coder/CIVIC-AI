@@ -14,6 +14,8 @@ public enum RoomCommandResultCode {
     ALREADY_UNBANNED(false),
     CLOSED(false),
     ALREADY_CLOSED(false),
+    ROOM_SETTINGS_UPDATED(false),
+    ROOM_SETTINGS_UNCHANGED(false),
     ROOM_NOT_FOUND(true),
     MEMBERSHIP_NOT_FOUND(true),
     TARGET_MEMBERSHIP_NOT_FOUND(true),

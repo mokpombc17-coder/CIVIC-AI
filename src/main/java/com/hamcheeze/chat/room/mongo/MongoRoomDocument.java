@@ -18,6 +18,7 @@ public record MongoRoomDocument(
         String roomId,
         int schemaVersion,
         String name,
+        String description,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -29,8 +30,9 @@ public record MongoRoomDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_rooms";
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCHEMA_VERSION = 3;
     static final int LEGACY_SCHEMA_VERSION = 1;
+    static final int PREVIOUS_SCHEMA_VERSION = 2;
 
     @PersistenceCreator
     public MongoRoomDocument {
@@ -38,12 +40,52 @@ public record MongoRoomDocument(
         if (schemaVersion == LEGACY_SCHEMA_VERSION && name == null) {
             name = roomId;
         }
+        if ((schemaVersion == LEGACY_SCHEMA_VERSION
+                || schemaVersion == PREVIOUS_SCHEMA_VERSION)
+                && description == null) {
+            description = "";
+        }
+        if (schemaVersion != LEGACY_SCHEMA_VERSION
+                && schemaVersion != PREVIOUS_SCHEMA_VERSION
+                && schemaVersion != CURRENT_SCHEMA_VERSION
+                && description == null) {
+            description = "";
+        }
         Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(description, "description");
         Objects.requireNonNull(ownerUserId, "ownerUserId");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(visibility, "visibility");
         Objects.requireNonNull(joinPolicy, "joinPolicy");
         Objects.requireNonNull(createdAt, "createdAt");
+    }
+
+    public MongoRoomDocument(
+            String roomId,
+            int schemaVersion,
+            String name,
+            String ownerUserId,
+            RoomStatus status,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            int activeMemberCount,
+            Instant createdAt,
+            Instant closedAt,
+            long version
+    ) {
+        this(
+                roomId,
+                schemaVersion,
+                name,
+                null,
+                ownerUserId,
+                status,
+                visibility,
+                joinPolicy,
+                activeMemberCount,
+                createdAt,
+                closedAt,
+                version);
     }
 
     public static MongoRoomDocument fromDomain(Room room) {
@@ -52,6 +94,7 @@ public record MongoRoomDocument(
                 room.roomId(),
                 CURRENT_SCHEMA_VERSION,
                 room.name(),
+                room.description(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),
@@ -67,6 +110,7 @@ public record MongoRoomDocument(
         return Room.restore(
                 roomId,
                 name,
+                description,
                 ownerUserId,
                 status,
                 visibility,
@@ -79,6 +123,7 @@ public record MongoRoomDocument(
 
     private void requireCurrentSchema() {
         if (schemaVersion != LEGACY_SCHEMA_VERSION
+                && schemaVersion != PREVIOUS_SCHEMA_VERSION
                 && schemaVersion != CURRENT_SCHEMA_VERSION) {
             throw new IllegalStateException(
                     "Unsupported schemaVersion "

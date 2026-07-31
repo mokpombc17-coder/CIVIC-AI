@@ -323,6 +323,7 @@ def run_websocket_flow(
     ws_url: str,
     origin: str,
     cookie: str,
+    http_client: HttpClient,
     room_id: str,
     subject: str,
 ) -> tuple[str, str, int, str, int]:
@@ -417,6 +418,101 @@ def run_websocket_flow(
                 "새 방의 구독 준비 watermarkSequence는 0이어야 합니다."
             )
         print("       ROOM SUBSCRIPTIONS READY")
+
+        settings_key = str(uuid.uuid4())
+        updated_room_name = f"frontend-smoke-updated-{uuid.uuid4().hex[:8]}"
+        updated_description = "frontend local smoke updated description"
+        _, _, settings_result = http_client.request(
+            "POST",
+            f"/api/v1/rooms/{room_id}/commands/update-settings",
+            body={
+                "name": updated_room_name,
+                "description": updated_description,
+                "visibility": "UNLISTED",
+                "joinPolicy": "INVITE_ONLY",
+            },
+            headers={"Idempotency-Key": settings_key},
+        )
+        if (
+            not isinstance(settings_result, dict)
+            or settings_result.get("code") != "ROOM_SETTINGS_UPDATED"
+            or settings_result.get("replayed") is not False
+            or settings_result.get("name") != updated_room_name
+            or settings_result.get("description") != updated_description
+            or settings_result.get("visibility") != "UNLISTED"
+            or settings_result.get("joinPolicy") != "INVITE_ONLY"
+        ):
+            raise AssertionError(
+                f"Room settings update 응답이 올바르지 않습니다: {settings_result}"
+            )
+
+        settings_event = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and settings_event is None:
+            _, _, body = receive_stomp(
+                client,
+                expected_commands=("MESSAGE",),
+                deadline=deadline,
+            )
+            document = json.loads(body)
+            if (
+                document.get("eventType") == "ROOM_SETTINGS_UPDATED"
+                and document.get("payload", {}).get("roomId") == room_id
+            ):
+                settings_event = document
+        if settings_event is None:
+            raise AssertionError("ROOM_SETTINGS_UPDATED 이벤트를 받지 못했습니다.")
+        settings_payload = settings_event["payload"]
+        if (
+            settings_payload.get("name") != updated_room_name
+            or settings_payload.get("description") != updated_description
+            or settings_payload.get("visibility") != "UNLISTED"
+            or settings_payload.get("joinPolicy") != "INVITE_ONLY"
+            or settings_payload.get("roomVersion")
+            != settings_result.get("roomVersion")
+        ):
+            raise AssertionError(
+                f"Room settings event snapshot이 올바르지 않습니다: {settings_payload}"
+            )
+
+        _, _, settings_replay = http_client.request(
+            "POST",
+            f"/api/v1/rooms/{room_id}/commands/update-settings",
+            body={
+                "name": updated_room_name,
+                "description": updated_description,
+                "visibility": "UNLISTED",
+                "joinPolicy": "INVITE_ONLY",
+            },
+            headers={"Idempotency-Key": settings_key},
+        )
+        if (
+            not isinstance(settings_replay, dict)
+            or settings_replay.get("code") != "ROOM_SETTINGS_UPDATED"
+            or settings_replay.get("replayed") is not True
+            or settings_replay.get("roomVersion")
+            != settings_result.get("roomVersion")
+        ):
+            raise AssertionError(
+                f"Room settings replay가 올바르지 않습니다: {settings_replay}"
+            )
+
+        _, _, settings_noop = http_client.request(
+            "POST",
+            f"/api/v1/rooms/{room_id}/commands/update-settings",
+            body={"description": updated_description},
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+        )
+        if (
+            not isinstance(settings_noop, dict)
+            or settings_noop.get("code") != "ROOM_SETTINGS_UNCHANGED"
+            or settings_noop.get("roomVersion")
+            != settings_result.get("roomVersion")
+        ):
+            raise AssertionError(
+                f"Room settings no-op이 올바르지 않습니다: {settings_noop}"
+            )
+        print("       ROOM SETTINGS UPDATED / REPLAYED / UNCHANGED")
 
         client_message_id = str(uuid.uuid4())
         message_body = json.dumps(
@@ -660,7 +756,7 @@ def main() -> int:
     token = generate_token(args.subject)
     client = HttpClient(args.base_url, args.origin, token)
 
-    print("[1/10] 서버 health 확인")
+    print("[1/12] 서버 health 확인")
     _, _, health = client.request(
         "GET",
         "/actuator/health",
@@ -669,20 +765,22 @@ def main() -> int:
     if not isinstance(health, dict) or health.get("status") != "UP":
         raise AssertionError(f"서버 health가 UP이 아닙니다: {health}")
 
-    print("[2/10] credential CORS preflight 확인")
+    print("[2/12] credential CORS preflight 확인")
     assert_cors(client)
 
-    print("[3/10] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
+    print("[3/12] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
     client.request("GET", "/api/v1/me/rooms")
     client.request("GET", "/api/v1/rooms")
 
-    print("[4/10] LISTED/OPEN 방 생성")
+    print("[4/12] description 포함 LISTED/OPEN 방 생성")
     room_name = f"frontend-smoke-{uuid.uuid4().hex[:8]}"
+    room_description = "frontend local smoke description"
     _, _, create_result = client.request(
         "POST",
         "/api/v1/rooms",
         body={
             "name": room_name,
+            "description": room_description,
             "visibility": "LISTED",
             "joinPolicy": "OPEN",
         },
@@ -693,19 +791,31 @@ def main() -> int:
         raise AssertionError("방 생성 응답이 JSON 객체가 아닙니다.")
     room_id = create_result["roomId"]
 
-    print("[5/10] 방 상세·공개 방 목록 반영 확인")
+    print("[5/12] 방 상세·공개 방 목록 description 반영 확인")
     _, _, room_detail = client.request("GET", f"/api/v1/rooms/{room_id}")
-    if not isinstance(room_detail, dict) or room_detail.get("name") != room_name:
-        raise AssertionError("방 상세 응답의 name이 생성 요청과 다릅니다.")
+    if (
+        not isinstance(room_detail, dict)
+        or room_detail.get("name") != room_name
+        or room_detail.get("description") != room_description
+    ):
+        raise AssertionError("방 상세 응답의 settings가 생성 요청과 다릅니다.")
     _, _, listed_rooms = client.request("GET", "/api/v1/rooms?limit=100")
-    if not isinstance(listed_rooms, dict) or not any(
-        item.get("roomId") == room_id for item in listed_rooms.get("items", [])
+    listed_room = next(
+        (
+            item
+            for item in listed_rooms.get("items", [])
+            if item.get("roomId") == room_id
+        ),
+        None,
+    ) if isinstance(listed_rooms, dict) else None
+    if (
+        listed_room is None
+        or listed_room.get("description") != room_description
     ):
         raise AssertionError("생성한 LISTED 방이 공개 방 목록에 없습니다.")
 
     print(
-        "[6/10] 쿠키 WebSocket handshake, 무헤더 STOMP CONNECT, "
-        "구독 준비 barrier 확인"
+        "[6/12] 구독 유지 상태에서 Room settings update/event/replay/no-op 확인"
     )
     (
         client_message_id,
@@ -717,15 +827,53 @@ def main() -> int:
         ws_url,
         args.origin,
         client.cookie,
+        client,
         room_id,
         args.subject,
     )
 
-    print("[7/10] CREATE/UPDATE/DELETE event와 result 확인")
+    print("[7/12] settings detail, 공개 목록 제외, INVITE_ONLY 확인")
+    _, _, updated_detail = client.request(
+        "GET",
+        f"/api/v1/rooms/{room_id}",
+    )
+    if (
+        updated_detail.get("visibility") != "UNLISTED"
+        or updated_detail.get("joinPolicy") != "INVITE_ONLY"
+        or updated_detail.get("description")
+        != "frontend local smoke updated description"
+    ):
+        raise AssertionError(f"최신 Room settings snapshot이 다릅니다: {updated_detail}")
+    _, _, unlisted_rooms = client.request("GET", "/api/v1/rooms?limit=100")
+    if any(
+        item.get("roomId") == room_id
+        for item in unlisted_rooms.get("items", [])
+    ):
+        raise AssertionError("UNLISTED 방이 공개 방 목록에 남아 있습니다.")
+    join_client = HttpClient(
+        args.base_url,
+        args.origin,
+        generate_token(f"{args.subject}-joiner"),
+    )
+    _, _, join_rejection = join_client.request(
+        "POST",
+        f"/api/v1/rooms/{room_id}/commands/join",
+        headers={"Idempotency-Key": str(uuid.uuid4())},
+        expected_statuses=(409,),
+    )
+    if (
+        not isinstance(join_rejection, dict)
+        or join_rejection.get("code") != "JOIN_POLICY_NOT_OPEN"
+    ):
+        raise AssertionError(
+            f"INVITE_ONLY join 거절이 올바르지 않습니다: {join_rejection}"
+        )
+
+    print("[8/12] CREATE/UPDATE/DELETE event와 result 확인")
     if room_sequence < 1:
         raise AssertionError("roomSequence는 1 이상이어야 합니다.")
 
-    print("[8/10] REST 메시지 tombstone 재동기화 확인")
+    print("[9/12] REST 메시지 tombstone 재동기화 확인")
     _, _, history = client.request(
         "GET",
         f"/api/v1/rooms/{room_id}/messages?afterSequence=0&limit=100",
@@ -749,11 +897,11 @@ def main() -> int:
     ):
         raise AssertionError(f"REST tombstone이 올바르지 않습니다: {tombstone}")
 
-    print("[9/10] 수정·삭제 roomSequence 불변 확인")
+    print("[10/12] 수정·삭제 roomSequence 불변 확인")
     if next_sequence != room_sequence + 1:
         raise AssertionError("후속 메시지 sequence가 정확히 1 증가하지 않았습니다.")
 
-    print("[10/10] 후속 CREATE REST snapshot 확인")
+    print("[11/12] 후속 CREATE REST snapshot 확인")
     next_messages = [
         item
         for item in history.get("items", [])
@@ -762,8 +910,25 @@ def main() -> int:
     if len(next_messages) != 1 or next_messages[0].get("roomSequence") != next_sequence:
         raise AssertionError("후속 메시지를 REST 이력에서 찾지 못했습니다.")
 
+    print("[12/12] LISTED/OPEN 복원과 공개 목록 재반영 확인")
+    client.request(
+        "POST",
+        f"/api/v1/rooms/{room_id}/commands/update-settings",
+        body={
+            "visibility": "LISTED",
+            "joinPolicy": "OPEN",
+        },
+        headers={"Idempotency-Key": str(uuid.uuid4())},
+    )
+    _, _, restored_rooms = client.request("GET", "/api/v1/rooms?limit=100")
+    if not any(
+        item.get("roomId") == room_id
+        for item in restored_rooms.get("items", [])
+    ):
+        raise AssertionError("LISTED로 복원한 방이 공개 목록에 없습니다.")
+
     print(
-        "PASS: 쿠키 인증 → CORS → 방 목록/생성/상세 → "
+        "PASS: 쿠키 인증 → CORS → 방 생성/설정 변경/목록·join 정책 → "
         "WebSocket/STOMP 구독 준비 → 생성/수정/삭제 → REST tombstone 흐름이 정상입니다."
     )
     return 0

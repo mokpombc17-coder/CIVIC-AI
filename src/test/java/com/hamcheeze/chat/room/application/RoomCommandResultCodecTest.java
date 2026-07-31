@@ -3,8 +3,11 @@ package com.hamcheeze.chat.room.application;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
+import com.hamcheeze.chat.room.application.result.RoomSettingsSnapshot;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
+import com.hamcheeze.chat.room.JoinPolicy;
+import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.StoredRoomCommandResult;
 import org.junit.jupiter.api.Test;
@@ -32,9 +35,13 @@ class RoomCommandResultCodecTest {
 
             assertThat(stored.resultType())
                     .isEqualTo(RoomCommandResultCodec.RESULT_TYPE);
-            assertThat(stored.resultSchemaVersion())
-                    .isEqualTo(
-                            RoomCommandResultCodec.RESULT_SCHEMA_VERSION);
+            assertThat(stored.resultSchemaVersion()).isEqualTo(
+                    original.commandType()
+                            == RoomCommandType.UPDATE_ROOM_SETTINGS
+                            ? RoomCommandResultCodec
+                                    .SETTINGS_RESULT_SCHEMA_VERSION
+                            : RoomCommandResultCodec
+                                    .RESULT_SCHEMA_VERSION);
             assertThat(restored).isEqualTo(original);
         }
     }
@@ -140,6 +147,12 @@ class RoomCommandResultCodecTest {
                 codec.encode(result(RoomCommandResultCode.CLOSED)),
                 "\"ownerMembershipVersion\":5",
                 "\"ownerMembershipVersion\":null"));
+        assertPermanentDecodeFailure(changed(
+                codec.encode(result(
+                        RoomCommandResultCode
+                                .ROOM_SETTINGS_UPDATED)),
+                "\"description\":\"Room description\"",
+                "\"description\":null"));
     }
 
     private void assertPermanentDecodeFailure(
@@ -192,8 +205,37 @@ class RoomCommandResultCodecTest {
                     RoomCommandType.UNBAN_MEMBER;
             case CLOSED, ALREADY_CLOSED ->
                     RoomCommandType.CLOSE_ROOM;
+            case ROOM_SETTINGS_UPDATED,
+                    ROOM_SETTINGS_UNCHANGED ->
+                    RoomCommandType.UPDATE_ROOM_SETTINGS;
             default -> RoomCommandType.JOIN_ROOM;
         };
+        if (commandType == RoomCommandType.UPDATE_ROOM_SETTINGS) {
+            return new RoomCommandResult(
+                    commandType,
+                    code,
+                    "room-1",
+                    null,
+                    null,
+                    null,
+                    "owner-1",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    7L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new RoomSettingsSnapshot(
+                            "Room name",
+                            "Room description",
+                            RoomVisibility.UNLISTED,
+                            JoinPolicy.INVITE_ONLY));
+        }
         return new RoomCommandResult(
                 commandType,
                 code,

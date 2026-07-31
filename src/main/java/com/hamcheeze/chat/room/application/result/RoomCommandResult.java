@@ -24,8 +24,51 @@ public record RoomCommandResult(
         Long membershipVersion,
         Long ownerMembershipVersion,
         Long previousOwnerMembershipVersion,
-        Long newOwnerMembershipVersion
+        Long newOwnerMembershipVersion,
+        RoomSettingsSnapshot roomSettings
 ) {
+
+    public RoomCommandResult(
+            RoomCommandType commandType,
+            RoomCommandResultCode code,
+            String roomId,
+            String membershipId,
+            String membershipUserId,
+            String ownerMembershipId,
+            String ownerUserId,
+            String previousOwnerUserId,
+            String newOwnerUserId,
+            String previousOwnerMembershipId,
+            String newOwnerMembershipId,
+            String targetUserId,
+            String targetMembershipId,
+            Long roomVersion,
+            Long membershipVersion,
+            Long ownerMembershipVersion,
+            Long previousOwnerMembershipVersion,
+            Long newOwnerMembershipVersion
+    ) {
+        this(
+                commandType,
+                code,
+                roomId,
+                membershipId,
+                membershipUserId,
+                ownerMembershipId,
+                ownerUserId,
+                previousOwnerUserId,
+                newOwnerUserId,
+                previousOwnerMembershipId,
+                newOwnerMembershipId,
+                targetUserId,
+                targetMembershipId,
+                roomVersion,
+                membershipVersion,
+                ownerMembershipVersion,
+                previousOwnerMembershipVersion,
+                newOwnerMembershipVersion,
+                null);
+    }
 
     public RoomCommandResult {
         Objects.requireNonNull(commandType, "commandType");
@@ -59,7 +102,8 @@ public record RoomCommandResult(
                 membershipVersion,
                 ownerMembershipVersion,
                 previousOwnerMembershipVersion,
-                newOwnerMembershipVersion);
+                newOwnerMembershipVersion,
+                roomSettings);
     }
 
     public static RoomCommandResult created(
@@ -193,6 +237,42 @@ public record RoomCommandResult(
                 null);
     }
 
+    public static RoomCommandResult settings(
+            RoomCommandResultCode code,
+            Room room
+    ) {
+        if (code != RoomCommandResultCode.ROOM_SETTINGS_UPDATED
+                && code
+                != RoomCommandResultCode.ROOM_SETTINGS_UNCHANGED) {
+            throw new IllegalArgumentException(
+                    "Invalid settings result code: " + code);
+        }
+        return new RoomCommandResult(
+                RoomCommandType.UPDATE_ROOM_SETTINGS,
+                code,
+                room.roomId(),
+                null,
+                null,
+                null,
+                room.ownerUserId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                room.version(),
+                null,
+                null,
+                null,
+                null,
+                new RoomSettingsSnapshot(
+                        room.name(),
+                        room.description(),
+                        room.visibility(),
+                        room.joinPolicy()));
+    }
+
     public static RoomCommandResult rejection(
             RoomCommandType commandType,
             RoomCommandResultCode code,
@@ -216,6 +296,7 @@ public record RoomCommandResult(
                 null,
                 null,
                 targetUserId,
+                null,
                 null,
                 null,
                 null,
@@ -252,7 +333,8 @@ public record RoomCommandResult(
             Long membershipVersion,
             Long ownerMembershipVersion,
             Long previousOwnerMembershipVersion,
-            Long newOwnerMembershipVersion
+            Long newOwnerMembershipVersion,
+            RoomSettingsSnapshot roomSettings
     ) {
         requireNonBlank(roomId, "roomId");
         if (code.rejection()) {
@@ -337,6 +419,16 @@ public record RoomCommandResult(
                         ownerMembershipVersion,
                         "ownerMembershipVersion");
             }
+            case ROOM_SETTINGS_UPDATED,
+                    ROOM_SETTINGS_UNCHANGED -> {
+                requireNonBlank(ownerUserId, "ownerUserId");
+                requireRequiredVersion(
+                        roomVersion,
+                        "roomVersion");
+                Objects.requireNonNull(
+                        roomSettings,
+                        "roomSettings");
+            }
             default -> throw new IllegalArgumentException(
                     "Unsupported success result code: " + code);
         }
@@ -374,6 +466,13 @@ public record RoomCommandResult(
                     code == RoomCommandResultCode.CLOSED
                             || code
                             == RoomCommandResultCode.ALREADY_CLOSED;
+            case UPDATE_ROOM_SETTINGS ->
+                    code
+                            == RoomCommandResultCode
+                            .ROOM_SETTINGS_UPDATED
+                            || code
+                            == RoomCommandResultCode
+                            .ROOM_SETTINGS_UNCHANGED;
         };
     }
 

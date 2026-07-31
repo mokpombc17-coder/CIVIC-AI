@@ -161,6 +161,7 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | Method | Path | 설명 | 성공 상태 |
 | --- | --- | --- | --- |
 | `POST` | `/api/v1/rooms` | 방 생성 | `201` |
+| `POST` | `/api/v1/rooms/{roomId}/commands/update-settings` | 방 설정 부분 변경 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/join` | 방 참여 | `201` 또는 `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/leave` | 방 나가기 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/transfer-ownership` | 방장 위임 | `200` |
@@ -191,13 +192,21 @@ Idempotency-Key: <uuid>
 ```json
 {
   "name": "시민 AI 토론방",
+  "description": "AI 정책과 시민 참여 방식을 논의합니다.",
   "visibility": "LISTED",
   "joinPolicy": "OPEN"
 }
 ```
 
-세 필드는 모두 필수다. `name`은 앞뒤 공백을 제거한 뒤 빈 문자열일 수 없으며 최대
-100자까지 허용한다.
+`name`, `visibility`, `joinPolicy`는 필수다. `description`은 선택
+사항이며 누락하거나 `null` 또는 빈 문자열로 보내면 `""`로 저장된다.
+`name`은 앞뒤 공백을 제거한 뒤 빈 문자열일 수 없으며 최대 100자까지
+허용한다.
+
+`description`은 plain text다. 앞뒤 Unicode 공백은 제거하고 내부 공백과
+줄바꿈은 보존한다. 최대 500 Unicode code point이며 TAB, LF, CR을 제외한
+C0 제어문자는 허용하지 않는다. Markdown 또는 HTML 렌더링 의미는 제공하지
+않는다.
 
 응답 `201 Created`:
 
@@ -219,6 +228,64 @@ Idempotency-Key: <uuid>
 ```http
 Location: /api/v1/rooms/{roomId}
 ```
+
+### 방 설정 변경
+
+```http
+POST /api/v1/rooms/{roomId}/commands/update-settings
+Content-Type: application/json
+Idempotency-Key: <uuid>
+```
+
+방장만 ACTIVE 방의 설정을 변경할 수 있다. 요청은 부분 갱신이며
+`expectedVersion`을 받지 않는다.
+
+```json
+{
+  "name": "지역 교통 정책 토론방",
+  "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
+  "visibility": "UNLISTED",
+  "joinPolicy": "OPEN"
+}
+```
+
+- 누락한 필드는 현재 값을 유지한다.
+- 명시적인 `null`은 `400 INVALID_REQUEST`다.
+- 빈 object `{}`도 `400 INVALID_REQUEST`다.
+- 설명을 제거하려면 `"description": ""`을 보낸다.
+- 정규화된 요청값 전체가 현재 설정과 같으면 version을 올리지 않는다.
+- 한 요청에서 여러 필드가 바뀌어도 `roomVersion`은 정확히 1 증가한다.
+
+실제 변경 응답:
+
+```json
+{
+  "clientRequestId": "07af9111-3e20-43e5-ae80-78d1bf547647",
+  "code": "ROOM_SETTINGS_UPDATED",
+  "replayed": false,
+  "roomId": "room-01",
+  "name": "지역 교통 정책 토론방",
+  "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
+  "visibility": "UNLISTED",
+  "joinPolicy": "OPEN",
+  "roomVersion": 8
+}
+```
+
+실제 변경이 없으면 같은 snapshot과
+`ROOM_SETTINGS_UNCHANGED`를 `200 OK`로 반환한다. 같은
+`Idempotency-Key`와 같은 canonical patch를 재전송하면 최초 snapshot을
+`replayed=true`로 반환하며 version이나 event를 추가하지 않는다. 같은
+key의 다른 patch는 `409 IDEMPOTENCY_CONFLICT`다.
+
+Room 없음은 `404 ROOM_NOT_FOUND`, 방장이 아니면
+`403 NOT_ROOM_OWNER`, 종료된 방은 `409 ROOM_CLOSED`다.
+
+`LISTED`는 공개 목록 노출, `UNLISTED`는 공개 목록 비노출만 뜻한다.
+직접 roomId로 조회하는 기존 계약과 기존 ACTIVE 멤버·구독·메시지 접근은
+유지된다. `OPEN`은 신규 join과 LEFT 상태의 rejoin을 허용한다.
+`INVITE_ONLY`는 현재 공개 join과 rejoin을 차단하며 기존 ACTIVE 멤버는
+유지한다. 초대 생성·수락 API는 현재 제공하지 않는다.
 
 ### 방 참여
 
@@ -429,6 +496,7 @@ GET /api/v1/rooms?cursor={cursor}&limit=20
     {
       "roomId": "room-01",
       "name": "시민 AI 토론방",
+      "description": "AI 정책과 시민 참여 방식을 논의합니다.",
       "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -457,6 +525,7 @@ GET /api/v1/rooms/{roomId}
 {
   "roomId": "room-01",
   "name": "시민 AI 토론방",
+  "description": "AI 정책과 시민 참여 방식을 논의합니다.",
   "ownerUserId": "local-user-1",
   "status": "ACTIVE",
   "visibility": "LISTED",
@@ -523,6 +592,7 @@ GET /api/v1/me/rooms?cursor={cursor}&limit=20
     {
       "roomId": "room-01",
       "name": "시민 AI 토론방",
+      "description": "AI 정책과 시민 참여 방식을 논의합니다.",
       "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -1310,6 +1380,7 @@ ROOM_OWNERSHIP_TRANSFERRED
 ROOM_MEMBER_BANNED
 ROOM_MEMBER_UNBANNED
 ROOM_CLOSED
+ROOM_SETTINGS_UPDATED
 ```
 
 payload 형태:
@@ -1320,9 +1391,42 @@ payload 형태:
 | `ROOM_MEMBER_JOINED`, `ROOM_MEMBER_REJOINED`, `ROOM_MEMBER_LEFT`, `ROOM_MEMBER_BANNED`, `ROOM_MEMBER_UNBANNED` | `member` |
 | `ROOM_OWNERSHIP_TRANSFERRED` | `previousOwner`, `newOwner` |
 | `ROOM_CLOSED` | `owner` |
+| `ROOM_SETTINGS_UPDATED` | `name`, `description`, `visibility`, `joinPolicy` 전체 settings snapshot |
 
 모든 `member`, `owner`, `previousOwner`, `newOwner` 상태 객체에는 플랫폼 사용자 식별자인
 `userId`와 방 멤버십 식별자인 `membershipId`가 함께 포함됩니다.
+
+`ROOM_SETTINGS_UPDATED` 예:
+
+```json
+{
+  "eventVersion": 1,
+  "eventId": "event-01",
+  "eventType": "ROOM_SETTINGS_UPDATED",
+  "emittedAt": "2026-07-31T06:00:00Z",
+  "payload": {
+    "roomId": "room-01",
+    "roomVersion": 8,
+    "roomStatus": "ACTIVE",
+    "name": "지역 교통 정책 토론방",
+    "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
+    "visibility": "UNLISTED",
+    "joinPolicy": "OPEN"
+  }
+}
+```
+
+모든 Room event는 같은 `Room.version` 공간을 공유한다.
+
+- `incoming.roomVersion == current.roomVersion + 1`: event 적용
+- `incoming.roomVersion <= current.roomVersion`: 중복 또는 이미 반영된
+  event이므로 무시
+- `incoming.roomVersion > current.roomVersion + 1`: event gap이므로
+  `GET /api/v1/rooms/{roomId}` 재조회
+
+설정 변경 후 공개 목록 노출 여부가 바뀔 수 있으므로
+`visibility` 변경을 반영해야 하는 화면은 `GET /api/v1/rooms`를 다시
+조회한다. 공개 목록 전용 WebSocket event는 제공하지 않는다.
 
 ### 사용자 System 이벤트
 
@@ -1366,13 +1470,9 @@ Docker Compose로 서버와 MongoDB를 실행한 뒤 프론트 연동 계약 전
 Membership 영속 schema는 `schemaVersion=2`이며
 `messageVisibleAfterSequence`가 필수다. 기존 schema v1 문서나 경계 필드가
 누락된 문서는 경계를 `0`으로 추정하지 않고 메시지 접근을 fail-closed로
-거절한다. 운영 데이터 migration은 이번 계약에서 제공하지 않는다. 기존
-로컬 MongoDB volume에 v1 문서가 있다면 다음처럼 volume을 초기화한 뒤
-다시 기동한다.
-
-```bash
-docker compose -f compose.local.yaml down -v
-```
+거절한다. 운영 데이터 migration은 이번 계약에서 제공하지 않는다. Room
+문서는 schema v1/v2의 `description`을 `""`로 해석하고 다음 실제 변경 때
+schema v3로 저장하므로 기존 MongoDB volume을 삭제하지 않는다.
 
 ```bash
 docker compose -f compose.local.yaml up --build -d
@@ -1385,14 +1485,16 @@ python3 scripts/frontend-local-smoke.py
 2. credential CORS preflight
 3. `civic_ai_access_token` 쿠키 JWT REST 인증
 4. 내 방 목록과 공개 방 목록
-5. `LISTED`, `OPEN` 방 생성과 상세 조회
-6. 쿠키 WebSocket handshake
-7. `Authorization` 헤더 없는 STOMP `CONNECT`
-8. 방 topic 두 개의 구독 준비 sync와 `ROOM_SUBSCRIPTIONS_READY`
-9. 메시지 전송, command 결과, `CHAT_MESSAGE_CREATED`
-10. 메시지 수정과 `CHAT_MESSAGE_UPDATED`, REST 최신 snapshot
-11. 메시지 soft delete와 `CHAT_MESSAGE_DELETED`, REST tombstone
-12. 수정·삭제 중 `roomSequence` 불변 및 다음 CREATE sequence 확인
+5. description을 포함한 `LISTED`, `OPEN` 방 생성과 상세·공개 목록 조회
+6. 설정 변경, `ROOM_SETTINGS_UPDATED`, detail snapshot 확인
+7. `UNLISTED` 공개 목록 제외와 `INVITE_ONLY` join 차단 확인
+8. 쿠키 WebSocket handshake
+9. `Authorization` 헤더 없는 STOMP `CONNECT`
+10. 방 topic 두 개의 구독 준비 sync와 `ROOM_SUBSCRIPTIONS_READY`
+11. 메시지 전송, command 결과, `CHAT_MESSAGE_CREATED`
+12. 메시지 수정과 `CHAT_MESSAGE_UPDATED`, REST 최신 snapshot
+13. 메시지 soft delete와 `CHAT_MESSAGE_DELETED`, REST tombstone
+14. 수정·삭제 중 `roomSequence` 불변 및 다음 CREATE sequence 확인
 
 각 실행은 이름이 `frontend-smoke-`로 시작하는 테스트 방 하나와 메시지 하나를 로컬 MongoDB에
 추가한다. 다른 주소를 사용할 때는 `--base-url`, `--ws-url`, `--origin`, `--subject` 옵션으로

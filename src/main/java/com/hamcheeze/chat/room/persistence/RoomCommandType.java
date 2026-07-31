@@ -7,5 +7,6 @@ public enum RoomCommandType {
     TRANSFER_OWNERSHIP,
     BAN_MEMBER,
     UNBAN_MEMBER,
-    CLOSE_ROOM
+    CLOSE_ROOM,
+    UPDATE_ROOM_SETTINGS
 }

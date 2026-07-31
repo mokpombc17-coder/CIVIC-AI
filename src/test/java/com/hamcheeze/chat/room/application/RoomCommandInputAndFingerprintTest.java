@@ -10,6 +10,7 @@ import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.RoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
+import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import org.junit.jupiter.api.Test;
 
@@ -183,6 +184,87 @@ class RoomCommandInputAndFingerprintTest {
                 anotherName)).doesNotHaveDuplicates();
     }
 
+    @Test
+    void createFingerprintKeepsLegacyEmptyDescriptionContract() {
+        CreateRoomCommand legacy = new CreateRoomCommand(
+                "user-1",
+                REQUEST_ID,
+                "Test room",
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        CreateRoomCommand explicitEmpty = new CreateRoomCommand(
+                "user-1",
+                REQUEST_ID,
+                "Test room",
+                "",
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        CreateRoomCommand described = new CreateRoomCommand(
+                "user-1",
+                REQUEST_ID,
+                "Test room",
+                "Description",
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+
+        assertThat(fingerprints.create(legacy))
+                .isEqualTo(
+                        "sha256:8b8d986678f7687893c3125d6e378fd1"
+                                + "10c4892927277796471f8936cb1be961")
+                .isEqualTo(fingerprints.create(explicitEmpty))
+                .isNotEqualTo(fingerprints.create(described));
+    }
+
+    @Test
+    void settingsFingerprintUsesCanonicalValuesAndFieldPresence() {
+        UpdateRoomSettingsCommand padded =
+                update(true, "  New room  ", false, null);
+        UpdateRoomSettingsCommand canonical =
+                update(true, "New room", false, null);
+        UpdateRoomSettingsCommand removeDescription =
+                update(false, null, true, "");
+        UpdateRoomSettingsCommand nameAndDescription =
+                new UpdateRoomSettingsCommand(
+                        "user-1",
+                        REQUEST_ID,
+                        "room-1",
+                        true,
+                        "New room",
+                        true,
+                        "",
+                        false,
+                        null,
+                        false,
+                        null);
+
+        assertThat(fingerprints.create(padded))
+                .isEqualTo(fingerprints.create(canonical));
+        assertThat(List.of(
+                fingerprints.create(canonical),
+                fingerprints.create(removeDescription),
+                fingerprints.create(nameAndDescription)))
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void settingsCommandRejectsEmptyPatchAndInvalidPresence() {
+        assertThatThrownBy(() -> update(
+                false,
+                null,
+                false,
+                null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> update(
+                true,
+                null,
+                false,
+                null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> update(
+                false,
+                "unexpected",
+                true,
+                "")).isInstanceOf(IllegalArgumentException.class);
+    }
+
     private List<RoomCommand> commands(String requestId) {
         return List.of(
                 new CreateRoomCommand(
@@ -217,6 +299,38 @@ class RoomCommandInputAndFingerprintTest {
                 new CloseRoomCommand(
                         "user-1",
                         requestId,
-                        "room-1"));
+                        "room-1"),
+                new UpdateRoomSettingsCommand(
+                        "user-1",
+                        requestId,
+                        "room-1",
+                        true,
+                        "New room",
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null));
+    }
+
+    private UpdateRoomSettingsCommand update(
+            boolean namePresent,
+            String name,
+            boolean descriptionPresent,
+            String description
+    ) {
+        return new UpdateRoomSettingsCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                namePresent,
+                name,
+                descriptionPresent,
+                description,
+                false,
+                null,
+                false,
+                null);
     }
 }

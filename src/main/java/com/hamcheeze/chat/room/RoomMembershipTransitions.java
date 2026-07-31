@@ -10,6 +10,7 @@ public final class RoomMembershipTransitions {
     public static RoomCreationResult createRoom(
             String roomId,
             String name,
+            String description,
             String ownerMembershipId,
             String ownerUserId,
             RoomVisibility visibility,
@@ -21,6 +22,7 @@ public final class RoomMembershipTransitions {
         Room room = Room.create(
                 roomId,
                 name,
+                description,
                 ownerUserId,
                 visibility,
                 joinPolicy,
@@ -38,6 +40,26 @@ public final class RoomMembershipTransitions {
 
     public static RoomCreationResult createRoom(
             String roomId,
+            String name,
+            String ownerMembershipId,
+            String ownerUserId,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            Instant createdAt
+    ) {
+        return createRoom(
+                roomId,
+                name,
+                "",
+                ownerMembershipId,
+                ownerUserId,
+                visibility,
+                joinPolicy,
+                createdAt);
+    }
+
+    public static RoomCreationResult createRoom(
+            String roomId,
             String ownerMembershipId,
             String ownerUserId,
             RoomVisibility visibility,
@@ -47,6 +69,7 @@ public final class RoomMembershipTransitions {
         return createRoom(
                 roomId,
                 roomId,
+                "",
                 ownerMembershipId,
                 ownerUserId,
                 visibility,
