@@ -3,13 +3,17 @@ import {
   chatMessageContentSchema,
   chatMessageSchema,
   chatMessageSendContentSchema,
-  createRoomRequestSchema,
   createMessageHistoryResponseSchema,
+  createRoomRequestSchema,
   messageHistoryRequestSchema,
   normalizeChatMessageContent,
+  normalizeRoomDescription,
   publicRoomListResponseSchema,
+  roomDescriptionSchema,
   roomDetailsSchema,
   roomIdSchema,
+  updateRoomSettingsRequestSchema,
+  updateRoomSettingsResponseSchema,
 } from "./chat-room-contracts";
 
 describe("chat room REST contracts", () => {
@@ -22,9 +26,114 @@ describe("chat room REST contracts", () => {
       }),
     ).toEqual({
       name: "시민 AI 토론방",
+      description: "",
       visibility: "LISTED",
       joinPolicy: "OPEN",
     });
+  });
+
+  it("방 생성 설명의 누락과 null을 빈 canonical 문자열로 정규화한다", () => {
+    const request = {
+      name: "시민 AI 토론방",
+      visibility: "LISTED" as const,
+      joinPolicy: "OPEN" as const,
+    };
+
+    expect(createRoomRequestSchema.parse(request).description).toBe("");
+    expect(createRoomRequestSchema.parse({ ...request, description: null }).description).toBe("");
+    expect(
+      createRoomRequestSchema.parse({
+        ...request,
+        description: " \t\u3000AI 정책을\n논의합니다.\u3000\r ",
+      }).description,
+    ).toBe("AI 정책을\n논의합니다.");
+  });
+
+  it("방 설명은 raw 제어문자를 먼저 검사하고 strip 이후 code point를 제한한다", () => {
+    expect(normalizeRoomDescription(" \t\u3000방 설명\u3000\r ")).toBe("방 설명");
+    expect(
+      createRoomRequestSchema.safeParse(createRoomRequest("\u000B방 설명\u000B")).success,
+    ).toBe(false);
+    expect(
+      createRoomRequestSchema.safeParse(createRoomRequest("내부\tTAB\n줄바꿈\r유지")).success,
+    ).toBe(true);
+    expect(
+      createRoomRequestSchema.safeParse(createRoomRequest(` ${"😀".repeat(500)} `)).success,
+    ).toBe(true);
+    expect(
+      createRoomRequestSchema.safeParse(createRoomRequest(` ${"😀".repeat(501)} `)).success,
+    ).toBe(false);
+  });
+
+  it("조회용 방 설명은 canonical 문자열만 허용한다", () => {
+    expect(roomDescriptionSchema.safeParse("").success).toBe(true);
+    expect(roomDescriptionSchema.safeParse("내부\n줄바꿈").success).toBe(true);
+    expect(roomDescriptionSchema.safeParse(" 앞뒤 공백 ").success).toBe(false);
+    expect(roomDescriptionSchema.safeParse("금지\u0000문자").success).toBe(false);
+  });
+
+  it("방 설정 patch는 변경 필드만 정규화하고 null, 빈 객체, 알 수 없는 필드를 거절한다", () => {
+    expect(
+      updateRoomSettingsRequestSchema.parse({
+        description: " \t새 설명\n두 번째 줄\r ",
+        visibility: "UNLISTED",
+      }),
+    ).toEqual({
+      description: "새 설명\n두 번째 줄",
+      visibility: "UNLISTED",
+    });
+    expect(updateRoomSettingsRequestSchema.parse({ description: "   " })).toEqual({
+      description: "",
+    });
+    expect(updateRoomSettingsRequestSchema.safeParse({}).success).toBe(false);
+    expect(updateRoomSettingsRequestSchema.safeParse({ description: null }).success).toBe(false);
+    expect(
+      updateRoomSettingsRequestSchema.safeParse({
+        description: "설명",
+        expectedVersion: 1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("방 설정 UPDATED와 UNCHANGED 응답은 동일한 전체 snapshot을 요구한다", () => {
+    const response = {
+      clientRequestId: "07af9111-3e20-43e5-ae80-78d1bf547647",
+      replayed: false,
+      roomId: "room-01",
+      name: "시민 AI 토론방",
+      description: "AI 정책을 논의합니다.",
+      visibility: "LISTED" as const,
+      joinPolicy: "OPEN" as const,
+      roomVersion: 8,
+    };
+
+    expect(
+      updateRoomSettingsResponseSchema.parse({
+        ...response,
+        code: "ROOM_SETTINGS_UPDATED",
+      }),
+    ).toEqual({
+      ...response,
+      code: "ROOM_SETTINGS_UPDATED",
+    });
+    expect(
+      updateRoomSettingsResponseSchema.parse({
+        ...response,
+        code: "ROOM_SETTINGS_UNCHANGED",
+        replayed: true,
+      }),
+    ).toEqual({
+      ...response,
+      code: "ROOM_SETTINGS_UNCHANGED",
+      replayed: true,
+    });
+    expect(
+      updateRoomSettingsResponseSchema.safeParse({
+        ...response,
+        code: "ROOM_SETTINGS_UNCHANGED",
+        description: undefined,
+      }).success,
+    ).toBe(false);
   });
 
   it("roomId와 방 생성 요청의 enum 계약을 검증한다", () => {
@@ -43,6 +152,7 @@ describe("chat room REST contracts", () => {
     const result = roomDetailsSchema.parse({
       roomId: "room-01",
       name: "시민 AI 토론방",
+      description: "",
       ownerUserId: "local-user-1",
       status: "ACTIVE",
       visibility: "LISTED",
@@ -173,5 +283,14 @@ function createMessage(roomSequence: number) {
     messageVersion: 1,
     state: "ACTIVE" as const,
     updatedAt: "2026-07-29T04:40:00Z",
+  };
+}
+
+function createRoomRequest(description: string) {
+  return {
+    name: "시민 AI 토론방",
+    description,
+    visibility: "LISTED",
+    joinPolicy: "OPEN",
   };
 }

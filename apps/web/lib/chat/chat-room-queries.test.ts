@@ -211,6 +211,7 @@ const MEMBERSHIP = {
 const ROOM_DETAILS = {
   roomId: "room-01",
   name: "시민 AI 토론방",
+  description: "",
   ownerUserId: "local-user-1",
   status: "ACTIVE" as const,
   visibility: "LISTED" as const,

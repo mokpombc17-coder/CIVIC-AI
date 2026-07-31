@@ -9,6 +9,7 @@ const positiveSequenceSchema = z.number().int().min(1);
 const nonnegativeSequenceSchema = z.number().int().nonnegative();
 const positiveMessageVersionSchema = z.number().int().positive();
 const messageHistoryLimitSchema = z.number().int().min(1).max(100);
+const forbiddenC0ControlCharacterPattern = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 const javaStringStripWhitespacePattern =
   /^[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+|[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+$/gu;
 
@@ -30,7 +31,7 @@ const validatedChatMessageContentSchema = z
     "메시지는 UTF-8 8,192 bytes를 초과할 수 없습니다.",
   )
   .refine(
-    (content) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(content),
+    (content) => !forbiddenC0ControlCharacterPattern.test(content),
     "메시지에 허용되지 않은 제어 문자가 포함되어 있습니다.",
   );
 
@@ -46,6 +47,35 @@ export const chatMessageSendContentSchema = z
 
 export function normalizeChatMessageContent(content: string): string {
   return content.replace(javaStringStripWhitespacePattern, "");
+}
+
+const validatedRoomDescriptionSchema = z
+  .string()
+  .refine(
+    (description) => !forbiddenC0ControlCharacterPattern.test(description),
+    "방 설명에 허용되지 않은 제어 문자가 포함되어 있습니다.",
+  )
+  .refine(
+    (description) => Array.from(description).length <= 500,
+    "방 설명은 Unicode code point 500자를 초과할 수 없습니다.",
+  );
+
+export const roomDescriptionSchema = validatedRoomDescriptionSchema.refine(
+  (description) => description === normalizeRoomDescription(description),
+  "방 설명은 앞뒤 공백이 제거된 값이어야 합니다.",
+);
+
+export const roomDescriptionInputSchema = z
+  .string()
+  .refine(
+    (description) => !forbiddenC0ControlCharacterPattern.test(description),
+    "방 설명에 허용되지 않은 제어 문자가 포함되어 있습니다.",
+  )
+  .transform(normalizeRoomDescription)
+  .pipe(validatedRoomDescriptionSchema);
+
+export function normalizeRoomDescription(description: string): string {
+  return description.replace(javaStringStripWhitespacePattern, "");
 }
 
 export const roomVisibilitySchema = z.enum(["LISTED", "UNLISTED"]);
@@ -74,13 +104,17 @@ export const roomMembershipSchema = z.object({
   version: versionSchema,
 });
 
-export const publicRoomListItemSchema = z.object({
-  roomId: roomIdSchema,
+export const roomSettingsSchema = z.object({
   name: roomNameSchema,
-  ownerUserId: opaqueIdSchema,
-  status: roomStatusSchema,
+  description: roomDescriptionSchema,
   visibility: roomVisibilitySchema,
   joinPolicy: joinPolicySchema,
+});
+
+export const publicRoomListItemSchema = roomSettingsSchema.extend({
+  roomId: roomIdSchema,
+  ownerUserId: opaqueIdSchema,
+  status: roomStatusSchema,
   activeMemberCount: z.number().int().nonnegative(),
   createdAt: instantSchema,
   version: versionSchema,
@@ -119,9 +153,27 @@ export const roomMembershipListResponseSchema = createCursorPageSchema(
 
 export const createRoomRequestSchema = z.object({
   name: roomNameSchema,
+  description: roomDescriptionInputSchema.nullish().transform((description) => description ?? ""),
   visibility: roomVisibilitySchema,
   joinPolicy: joinPolicySchema,
 });
+
+export const updateRoomSettingsRequestSchema = z
+  .object({
+    name: roomNameSchema.optional(),
+    description: roomDescriptionInputSchema.optional(),
+    visibility: roomVisibilitySchema.optional(),
+    joinPolicy: joinPolicySchema.optional(),
+  })
+  .strict()
+  .refine(
+    (settings) =>
+      settings.name !== undefined ||
+      settings.description !== undefined ||
+      settings.visibility !== undefined ||
+      settings.joinPolicy !== undefined,
+    "변경할 방 설정을 하나 이상 입력해야 합니다.",
+  );
 
 export const targetUserRequestSchema = z.object({
   targetUserId: z.string().trim().min(1),
@@ -139,6 +191,12 @@ export const createRoomResponseSchema = commandResponseBaseSchema.extend({
   ownerUserId: opaqueIdSchema,
   roomVersion: versionSchema,
   ownerMembershipVersion: versionSchema,
+});
+
+export const updateRoomSettingsResponseSchema = commandResponseBaseSchema.extend({
+  code: z.enum(["ROOM_SETTINGS_UPDATED", "ROOM_SETTINGS_UNCHANGED"]),
+  ...roomSettingsSchema.shape,
+  roomVersion: versionSchema,
 });
 
 const membershipCommandResponseFields = {
@@ -272,6 +330,7 @@ export type MembershipRole = z.infer<typeof membershipRoleSchema>;
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
 export type MessageState = z.infer<typeof messageStateSchema>;
 export type RoomParticipationStatus = z.infer<typeof roomParticipationStatusSchema>;
+export type RoomSettings = z.infer<typeof roomSettingsSchema>;
 export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type PublicRoomListItem = z.infer<typeof publicRoomListItemSchema>;
 export type RoomDetails = z.infer<typeof roomDetailsSchema>;
@@ -280,9 +339,11 @@ export type RoomMembershipListItem = z.infer<typeof roomMembershipListItemSchema
 export type PublicRoomListResponse = z.infer<typeof publicRoomListResponseSchema>;
 export type MyRoomListResponse = z.infer<typeof myRoomListResponseSchema>;
 export type RoomMembershipListResponse = z.infer<typeof roomMembershipListResponseSchema>;
-export type CreateRoomRequest = z.infer<typeof createRoomRequestSchema>;
+export type CreateRoomRequest = z.input<typeof createRoomRequestSchema>;
+export type UpdateRoomSettingsRequest = z.input<typeof updateRoomSettingsRequestSchema>;
 export type TargetUserRequest = z.infer<typeof targetUserRequestSchema>;
 export type CreateRoomResponse = z.infer<typeof createRoomResponseSchema>;
+export type UpdateRoomSettingsResponse = z.infer<typeof updateRoomSettingsResponseSchema>;
 export type JoinRoomResponse = z.infer<typeof joinRoomResponseSchema>;
 export type LeaveRoomResponse = z.infer<typeof leaveRoomResponseSchema>;
 export type TransferRoomOwnershipResponse = z.infer<typeof transferRoomOwnershipResponseSchema>;

@@ -251,6 +251,7 @@ describe("chatRoomApi commands", () => {
 
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       name: "시민 AI 토론방",
+      description: "",
       visibility: "LISTED",
       joinPolicy: "OPEN",
     });
@@ -310,6 +311,7 @@ function createQueuedChatFetch(...responses: unknown[]): {
 const PUBLIC_ROOM = {
   roomId: "room-01",
   name: "시민 AI 토론방",
+  description: "",
   ownerUserId: "local-user-1",
   status: "ACTIVE",
   visibility: "LISTED",

@@ -474,6 +474,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
     queryClient.setQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01"), {
       roomId: "room-01",
       name: "테스트 방",
+      description: "",
       ownerUserId: "local-owner",
       status: "ACTIVE",
       visibility: "LISTED",
