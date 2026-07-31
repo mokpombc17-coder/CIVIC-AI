@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useChatRealtimeTransport } from "@/components/chat-realtime-provider";
-import { chatMessageContentSchema } from "@/lib/chat/chat-room-contracts";
+import {
+  chatMessageSendContentSchema,
+  normalizeChatMessageContent,
+} from "@/lib/chat/chat-room-contracts";
 import { getChatMessageCommandFailurePresentation } from "@/lib/chat/realtime/chat-message-command-presentation";
 import { ChatMessageSendError } from "@/lib/chat/realtime/chat-realtime-transport";
 
@@ -247,7 +250,7 @@ export function useChatMessageComposer({
       return;
     }
 
-    const result = chatMessageContentSchema.safeParse(draft);
+    const result = chatMessageSendContentSchema.safeParse(draft);
 
     if (!result.success) {
       const clientMessageId = createId();
@@ -300,7 +303,7 @@ export function useChatMessageComposer({
   return {
     canRetry:
       enabled && submission?.status === "failed" && submission.retryable && submission.retryReady,
-    canSend: enabled && submission === null && draft.trim().length > 0,
+    canSend: enabled && submission === null && normalizeChatMessageContent(draft).length > 0,
     draft,
     errorMessage: submission?.status === "failed" ? submission.message : null,
     isSending: submission?.status === "sending",

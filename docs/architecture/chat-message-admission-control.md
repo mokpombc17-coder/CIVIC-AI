@@ -6,8 +6,9 @@
 - 상태: 설계 결정
 - 적용 대상: `apps/web`의 STOMP 채팅 메시지 전송
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
-- 현재 구현: 실패 안내와 `retryAfterMs` 경과 후 수동 재전송
-- 다음 구현: content 정규화, 자동 재전송 scheduler, jitter와 생명주기 취소
+- 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, 실패 안내와
+  `retryAfterMs` 경과 후 수동 재전송
+- 다음 구현: admission 결과 분류, 자동 재전송 scheduler, jitter와 생명주기 취소
 
 ## 목표
 

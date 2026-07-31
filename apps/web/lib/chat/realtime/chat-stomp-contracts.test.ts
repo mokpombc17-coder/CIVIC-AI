@@ -24,15 +24,15 @@ describe("chat STOMP outbound contracts", () => {
     ).toBe(false);
   });
 
-  it("메시지 전송 요청의 UUID와 content 제약을 검증한다", () => {
+  it("메시지 전송 요청의 UUID를 검증하고 strip된 content를 반환한다", () => {
     expect(
       chatMessageSendRequestSchema.parse({
         clientMessageId: CLIENT_MESSAGE_ID,
-        content: "안녕하세요.",
+        content: " \t안녕하세요.\n반갑습니다. \r",
       }),
     ).toEqual({
       clientMessageId: CLIENT_MESSAGE_ID,
-      content: "안녕하세요.",
+      content: "안녕하세요.\n반갑습니다.",
     });
     expect(
       chatMessageSendRequestSchema.safeParse({

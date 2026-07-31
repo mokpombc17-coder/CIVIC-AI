@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   chatMessageContentSchema,
+  chatMessageSendContentSchema,
   createRoomRequestSchema,
   createMessageHistoryResponseSchema,
   messageHistoryRequestSchema,
+  normalizeChatMessageContent,
   publicRoomListResponseSchema,
   roomDetailsSchema,
   roomIdSchema,
@@ -83,11 +85,24 @@ describe("chat room REST contracts", () => {
     ).toBe(true);
   });
 
-  it("메시지 content의 서버 제약을 검증하되 줄바꿈은 보존한다", () => {
-    expect(chatMessageContentSchema.safeParse("안녕하세요.\n반갑습니다.").success).toBe(true);
+  it("Java String.strip 기준으로 메시지 앞뒤 공백을 제거하고 내부 줄바꿈은 보존한다", () => {
+    expect(normalizeChatMessageContent(" \t\u3000안녕하세요.\n반갑습니다.\u3000\r ")).toBe(
+      "안녕하세요.\n반갑습니다.",
+    );
+    expect(normalizeChatMessageContent("\u00A0안녕하세요.\u00A0")).toBe("\u00A0안녕하세요.\u00A0");
+    expect(chatMessageSendContentSchema.parse(" \t안녕하세요.\n반갑습니다.\r ")).toBe(
+      "안녕하세요.\n반갑습니다.",
+    );
+  });
+
+  it("strip된 메시지 content에 서버 길이와 제어문자 제약을 적용한다", () => {
     expect(chatMessageContentSchema.safeParse("   ").success).toBe(false);
+    expect(chatMessageContentSchema.safeParse(" 앞뒤 공백 ").success).toBe(false);
     expect(chatMessageContentSchema.safeParse("허용되지 않음\u0000").success).toBe(false);
-    expect(chatMessageContentSchema.safeParse("😀".repeat(2_001)).success).toBe(false);
+    expect(chatMessageSendContentSchema.safeParse(` ${"😀".repeat(2_000)} `).success).toBe(true);
+    expect(chatMessageSendContentSchema.safeParse(` ${"😀".repeat(2_001)} `).success).toBe(false);
+    expect(chatMessageSendContentSchema.parse("\u000B안녕하세요.\u000B")).toBe("안녕하세요.");
+    expect(chatMessageSendContentSchema.safeParse("안녕\u000B하세요.").success).toBe(false);
   });
 
   it("조회 방향 cursor와 roomSequence 오름차순을 검증한다", () => {

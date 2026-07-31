@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
-  chatMessageContentSchema,
   chatMessageSchema,
+  chatMessageSendContentSchema,
   membershipRoleSchema,
   membershipStatusSchema,
   roomIdSchema,
@@ -21,7 +21,7 @@ export const chatRoomSubscriptionSyncRequestSchema = z.object({
 
 export const chatMessageSendRequestSchema = z.object({
   clientMessageId: requestIdSchema,
-  content: chatMessageContentSchema,
+  content: chatMessageSendContentSchema,
 });
 
 export const chatRoomSubscriptionsReadySchema = z.object({

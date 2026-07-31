@@ -8,15 +8,18 @@ const cursorSchema = z.string().min(1);
 const positiveSequenceSchema = z.number().int().min(1);
 const nonnegativeSequenceSchema = z.number().int().nonnegative();
 const messageHistoryLimitSchema = z.number().int().min(1).max(100);
+const javaStringStripWhitespacePattern =
+  /^[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+|[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+$/gu;
 
 export const roomIdSchema = z
   .string()
   .regex(/^[A-Za-z0-9_-]{1,64}$/, "roomId 형식이 올바르지 않습니다.");
 export const roomNameSchema = z.string().trim().min(1).max(100);
 export const idempotencyKeySchema = z.string().uuid();
-export const chatMessageContentSchema = z
+
+const validatedChatMessageContentSchema = z
   .string()
-  .refine((content) => content.trim().length > 0, "메시지는 공백으로만 구성될 수 없습니다.")
+  .min(1, "메시지는 공백으로만 구성될 수 없습니다.")
   .refine(
     (content) => Array.from(content).length <= 2_000,
     "메시지는 Unicode code point 2,000자를 초과할 수 없습니다.",
@@ -29,6 +32,20 @@ export const chatMessageContentSchema = z
     (content) => !/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(content),
     "메시지에 허용되지 않은 제어 문자가 포함되어 있습니다.",
   );
+
+export const chatMessageContentSchema = validatedChatMessageContentSchema.refine(
+  (content) => content === normalizeChatMessageContent(content),
+  "메시지 content는 앞뒤 공백이 제거된 값이어야 합니다.",
+);
+
+export const chatMessageSendContentSchema = z
+  .string()
+  .transform(normalizeChatMessageContent)
+  .pipe(validatedChatMessageContentSchema);
+
+export function normalizeChatMessageContent(content: string): string {
+  return content.replace(javaStringStripWhitespacePattern, "");
+}
 
 export const roomVisibilitySchema = z.enum(["LISTED", "UNLISTED"]);
 export const joinPolicySchema = z.enum(["OPEN", "INVITE_ONLY"]);
