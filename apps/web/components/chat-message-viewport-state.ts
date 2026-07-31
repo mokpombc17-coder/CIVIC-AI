@@ -2,6 +2,8 @@ export type ChatMessageViewportPosition = "initializing" | "pinned" | "detached"
 
 export type ChatMessageOlderHistoryState = "idle" | "loading" | "exhausted" | "error";
 
+export type ChatMessageAppendSource = "current-user" | "realtime";
+
 export type ChatMessageViewportState = Readonly<{
   olderHistory: ChatMessageOlderHistoryState;
   position: ChatMessageViewportPosition;
@@ -20,7 +22,7 @@ export type ChatMessageViewportEvent =
   | Readonly<{
       type: "messages-appended";
       count: number;
-      source: "current-user" | "realtime";
+      source: ChatMessageAppendSource;
     }>
   | Readonly<{
       type: "load-older-started";
@@ -137,6 +139,13 @@ export function reduceChatMessageViewportState(
     case "reset":
       return createChatMessageViewportState(event.hasOlderMessages);
   }
+}
+
+export function shouldFollowLatestMessages(
+  position: ChatMessageViewportPosition,
+  source: ChatMessageAppendSource,
+): boolean {
+  return position !== "detached" || source === "current-user";
 }
 
 function assertPositiveMessageCount(count: number): void {

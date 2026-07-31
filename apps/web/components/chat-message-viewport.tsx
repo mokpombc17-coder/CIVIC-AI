@@ -4,8 +4,11 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChatMessageItem } from "@/components/chat-message-item";
 import {
+  type ChatMessageAppendSource,
+  type ChatMessageViewportPosition,
   createChatMessageViewportState,
   reduceChatMessageViewportState,
+  shouldFollowLatestMessages,
 } from "@/components/chat-message-viewport-state";
 import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model";
 
@@ -48,7 +51,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const pendingAnchorRef = useRef<ChatMessageViewportAnchor | null>(null);
   const olderRequestInFlightRef = useRef(false);
   const currentViewportKeyRef = useRef(history.viewportKey);
-  const viewportPositionRef = useRef<"initializing" | "pinned" | "detached">("initializing");
+  const viewportPositionRef = useRef<ChatMessageViewportPosition>("initializing");
   const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
   const [viewportState, dispatch] = useReducer(
     reduceChatMessageViewportState,
@@ -153,14 +156,16 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       !isNewViewport && previousLatestIndex >= 0 && previousLatestIndex < history.items.length - 1
         ? history.items.slice(previousLatestIndex + 1)
         : [];
-    const appendSource = appendedItems.some((item) => item.isMine && item.deliveryTone !== null)
+    const appendSource: ChatMessageAppendSource = appendedItems.some(
+      (item) => item.isMine && item.deliveryTone !== null,
+    )
       ? "current-user"
       : "realtime";
     const shouldFollowLatest =
       isNewViewport ||
       isFirstPopulatedSnapshot ||
       (appendedItems.length > 0 &&
-        (viewportPositionRef.current !== "detached" || appendSource === "current-user"));
+        shouldFollowLatestMessages(viewportPositionRef.current, appendSource));
 
     if (isNewViewport) {
       viewportPositionRef.current = "initializing";

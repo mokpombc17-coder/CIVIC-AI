@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createChatMessageViewportState,
   reduceChatMessageViewportState,
+  shouldFollowLatestMessages,
 } from "./chat-message-viewport-state";
 
 describe("chat message viewport state", () => {
@@ -29,6 +30,16 @@ describe("chat message viewport state", () => {
       position: "detached",
       unseenMessageCount: 2,
     });
+  });
+
+  it("과거 메시지를 읽는 동안 도착한 실시간 메시지는 현재 위치를 유지한다", () => {
+    expect(shouldFollowLatestMessages("detached", "realtime")).toBe(false);
+  });
+
+  it("하단에 있거나 현재 탭에서 직접 보낸 메시지는 최신 위치를 따라간다", () => {
+    expect(shouldFollowLatestMessages("pinned", "realtime")).toBe(true);
+    expect(shouldFollowLatestMessages("initializing", "realtime")).toBe(true);
+    expect(shouldFollowLatestMessages("detached", "current-user")).toBe(true);
   });
 
   it("하단을 보고 있거나 직접 보낸 메시지는 별도 미확인 수로 쌓지 않는다", () => {
