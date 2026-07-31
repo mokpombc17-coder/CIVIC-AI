@@ -183,29 +183,33 @@ public class RoomCommandController {
             @RequestBody JsonNode body
     ) {
         String validatedRoomId = RoomApiValidation.roomId(roomId);
+        String requesterUserId =
+                userIdResolver.resolve(authentication);
+        String clientRequestId =
+                idempotencyKeyResolver.resolve(idempotencyKey);
+        UpdateRoomSettingsCommand command;
         try {
             UpdateRoomSettingsRequest request =
                     UpdateRoomSettingsRequest.from(body);
-            return map(commandService.updateRoomSettings(
-                    new UpdateRoomSettingsCommand(
-                            userIdResolver.resolve(authentication),
-                            idempotencyKeyResolver.resolve(
-                                    idempotencyKey),
-                            validatedRoomId,
-                            request.namePresent(),
-                            request.name(),
-                            request.descriptionPresent(),
-                            request.description(),
-                            request.visibilityPresent(),
-                            request.visibility(),
-                            request.joinPolicyPresent(),
-                            request.joinPolicy())));
+            command = new UpdateRoomSettingsCommand(
+                    requesterUserId,
+                    clientRequestId,
+                    validatedRoomId,
+                    request.namePresent(),
+                    request.name(),
+                    request.descriptionPresent(),
+                    request.description(),
+                    request.visibilityPresent(),
+                    request.visibility(),
+                    request.joinPolicyPresent(),
+                    request.joinPolicy());
         } catch (IllegalArgumentException exception) {
             throw new RoomApiInputException(
                     RoomApiErrorCode.INVALID_REQUEST,
                     HttpStatus.BAD_REQUEST,
                     "The settings patch is invalid.");
         }
+        return map(commandService.updateRoomSettings(command));
     }
 
     private ResponseEntity<Object> map(

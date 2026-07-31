@@ -1,5 +1,7 @@
 package com.hamcheeze.chat.room;
 
+import com.hamcheeze.chat.room.application.result.RoomSettingsSnapshot;
+import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -116,6 +118,81 @@ class RoomSettingsUpdateTest {
     }
 
     @Test
+    void rejectsEveryForbiddenC0BeforeStrippingAtEveryPosition() {
+        Room existing = room("", RoomStatus.ACTIVE, 0);
+        for (int codePoint = 0; codePoint <= 0x1f; codePoint++) {
+            if (allowedDescriptionControl(codePoint)) {
+                continue;
+            }
+            String control = Character.toString(codePoint);
+            for (String description : new String[]{
+                    control + "description",
+                    "description" + control,
+                    "description" + control + "text"}) {
+                assertInvalidDescription(
+                        () -> room(
+                                description,
+                                RoomStatus.ACTIVE,
+                                0),
+                        codePoint,
+                        description);
+                assertInvalidDescription(
+                        () -> existing.updateSettings(
+                                existing.name(),
+                                description,
+                                existing.visibility(),
+                                existing.joinPolicy()),
+                        codePoint,
+                        description);
+            }
+        }
+    }
+
+    @Test
+    void keepsAllowedInternalControlsAndStripsBoundaryWhitespace() {
+        assertThat(room(
+                "line1\tline2",
+                RoomStatus.ACTIVE,
+                0).description()).isEqualTo("line1\tline2");
+        assertThat(room(
+                "line1\nline2",
+                RoomStatus.ACTIVE,
+                0).description()).isEqualTo("line1\nline2");
+        assertThat(room(
+                "line1\rline2",
+                RoomStatus.ACTIVE,
+                0).description()).isEqualTo("line1\rline2");
+        assertThat(room(
+                "  description  ",
+                RoomStatus.ACTIVE,
+                0).description()).isEqualTo("description");
+        assertThat(room(
+                "\tdescription\n",
+                RoomStatus.ACTIVE,
+                0).description()).isEqualTo("description");
+    }
+
+    @Test
+    void canonicalSnapshotValidatorsRejectBoundaryControls() {
+        assertThatThrownBy(() -> new RoomSettingsSnapshot(
+                "Room",
+                "\u000bdescription",
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() ->
+                new RoomSettingsUpdatedEventPayload(
+                        "room-1",
+                        1,
+                        RoomStatus.ACTIVE,
+                        "Room",
+                        "description\u000c",
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void closedRoomCannotUpdateSettings() {
         Room closed = room(
                 "",
@@ -174,5 +251,40 @@ class RoomSettingsUpdateTest {
                         ? CREATED_AT.plusSeconds(30)
                         : null,
                 version);
+    }
+
+    private void assertInvalidDescription(
+            Runnable operation,
+            int codePoint,
+            String description
+    ) {
+        assertThatThrownBy(operation::run)
+                .as(
+                        "U+%04X in %s",
+                        codePoint,
+                        printable(description))
+                .isInstanceOf(RoomDomainException.class)
+                .extracting(exception ->
+                        ((RoomDomainException) exception).code())
+                .isEqualTo(
+                        RoomDomainErrorCode.INVALID_ROOM_DESCRIPTION);
+    }
+
+    private boolean allowedDescriptionControl(int codePoint) {
+        return codePoint == '\t'
+                || codePoint == '\n'
+                || codePoint == '\r';
+    }
+
+    private String printable(String value) {
+        StringBuilder result = new StringBuilder();
+        value.codePoints().forEach(codePoint -> {
+            if (codePoint < 0x20) {
+                result.append(String.format("\\u%04X", codePoint));
+            } else {
+                result.appendCodePoint(codePoint);
+            }
+        });
+        return result.toString();
     }
 }

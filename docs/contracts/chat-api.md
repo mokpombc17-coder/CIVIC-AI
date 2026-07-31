@@ -1351,7 +1351,7 @@ export 또는 backup, 실시간 이벤트 유실 수용 기록을 갖춘 별도 
 ```json
 {
   "eventVersion": 1,
-  "eventId": "event-01",
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "eventType": "ROOM_MEMBER_JOINED",
   "emittedAt": "2026-07-29T04:41:00Z",
   "payload": {
@@ -1401,7 +1401,7 @@ payload 형태:
 ```json
 {
   "eventVersion": 1,
-  "eventId": "event-01",
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "eventType": "ROOM_SETTINGS_UPDATED",
   "emittedAt": "2026-07-31T06:00:00Z",
   "payload": {
@@ -1467,12 +1467,16 @@ ROOM_AUTHORIZATION_UNAVAILABLE
 
 Docker Compose로 서버와 MongoDB를 실행한 뒤 프론트 연동 계약 전체를 한 번에 확인할 수 있다.
 
-Membership 영속 schema는 `schemaVersion=2`이며
-`messageVisibleAfterSequence`가 필수다. 기존 schema v1 문서나 경계 필드가
-누락된 문서는 경계를 `0`으로 추정하지 않고 메시지 접근을 fail-closed로
-거절한다. 운영 데이터 migration은 이번 계약에서 제공하지 않는다. Room
-문서는 schema v1/v2의 `description`을 `""`로 해석하고 다음 실제 변경 때
-schema v3로 저장하므로 기존 MongoDB volume을 삭제하지 않는다.
+Room schema v1/v2 문서는 `description`을 `""`로 해석하고 다음 실제
+저장 때 schema v3로 전환한다. Room schema v1/v2만 남아 있는 경우에는
+description 추가 때문에 기존 MongoDB volume을 삭제할 필요가 없다.
+
+Membership는 `schemaVersion=2`와 `messageVisibleAfterSequence`를
+요구한다. Membership schema v1 또는 경계 필드가 누락된 문서는 경계를
+`0`으로 추정하지 않고 메시지 접근을 fail-closed로 거절한다. 이런 문서가
+존재하면 운영 환경에서는 별도 데이터 migration이 필요하고, 로컬
+fixture라면 해당 fixture의 초기화 또는 재생성이 필요하다. Room description
+호환성이 legacy Membership까지 지원한다는 의미는 아니다.
 
 ```bash
 docker compose -f compose.local.yaml up --build -d

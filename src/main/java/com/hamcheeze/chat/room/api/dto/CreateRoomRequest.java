@@ -29,14 +29,22 @@ public record CreateRoomRequest(
     }
 
     private static String canonicalDescription(String value) {
-        String canonical = value == null ? "" : value.strip();
+        String raw = value == null ? "" : value;
+        requireAllowedDescriptionControlCharacters(raw);
+        String canonical = raw.strip();
         if (canonical.codePointCount(0, canonical.length())
                 > Room.MAX_DESCRIPTION_CODE_POINTS) {
             throw new IllegalArgumentException(
                     "description is too long");
         }
-        for (int offset = 0; offset < canonical.length();) {
-            int codePoint = canonical.codePointAt(offset);
+        return canonical;
+    }
+
+    private static void requireAllowedDescriptionControlCharacters(
+            String description
+    ) {
+        for (int offset = 0; offset < description.length();) {
+            int codePoint = description.codePointAt(offset);
             if (codePoint < 0x20
                     && codePoint != '\t'
                     && codePoint != '\n'
@@ -46,6 +54,5 @@ public record CreateRoomRequest(
             }
             offset += Character.charCount(codePoint);
         }
-        return canonical;
     }
 }

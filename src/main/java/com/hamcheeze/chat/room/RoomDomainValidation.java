@@ -38,14 +38,21 @@ final class RoomDomainValidation {
             throw new RoomDomainException(
                     RoomDomainErrorCode.INVALID_ROOM_DESCRIPTION);
         }
+        requireAllowedDescriptionControlCharacters(description);
         String canonical = description.strip();
         if (canonical.codePointCount(0, canonical.length())
                 > Room.MAX_DESCRIPTION_CODE_POINTS) {
             throw new RoomDomainException(
                     RoomDomainErrorCode.INVALID_ROOM_DESCRIPTION);
         }
-        for (int offset = 0; offset < canonical.length();) {
-            int codePoint = canonical.codePointAt(offset);
+        return canonical;
+    }
+
+    private static void requireAllowedDescriptionControlCharacters(
+            String description
+    ) {
+        for (int offset = 0; offset < description.length();) {
+            int codePoint = description.codePointAt(offset);
             if (codePoint < 0x20
                     && codePoint != '\t'
                     && codePoint != '\n'
@@ -55,7 +62,6 @@ final class RoomDomainValidation {
             }
             offset += Character.charCount(codePoint);
         }
-        return canonical;
     }
 
     static String requireMembershipId(String membershipId) {

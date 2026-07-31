@@ -265,6 +265,74 @@ class RoomCommandInputAndFingerprintTest {
                 "")).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void commandsRejectEveryForbiddenC0BeforeStripping() {
+        for (int codePoint = 0; codePoint <= 0x1f; codePoint++) {
+            if (allowedDescriptionControl(codePoint)) {
+                continue;
+            }
+            String control = Character.toString(codePoint);
+            for (String description : new String[]{
+                    control + "description",
+                    "description" + control,
+                    "description" + control + "text"}) {
+                assertThatThrownBy(() ->
+                        new CreateRoomCommand(
+                                "user-1",
+                                REQUEST_ID,
+                                "Room",
+                                description,
+                                RoomVisibility.LISTED,
+                                JoinPolicy.OPEN))
+                        .as(
+                                "CreateRoomCommand U+%04X",
+                                codePoint)
+                        .isInstanceOf(IllegalArgumentException.class);
+                assertThatThrownBy(() ->
+                        update(
+                                false,
+                                null,
+                                true,
+                                description))
+                        .as(
+                                "UpdateRoomSettingsCommand U+%04X",
+                                codePoint)
+                        .isInstanceOf(IllegalArgumentException.class);
+            }
+        }
+    }
+
+    @Test
+    void commandsKeepAllowedControlsAndCanonicalizeBoundaries() {
+        for (String description : new String[]{
+                "line1\tline2",
+                "line1\nline2",
+                "line1\rline2"}) {
+            assertThat(new CreateRoomCommand(
+                    "user-1",
+                    REQUEST_ID,
+                    "Room",
+                    description,
+                    RoomVisibility.LISTED,
+                    JoinPolicy.OPEN).description())
+                    .isEqualTo(description);
+            assertThat(update(
+                    false,
+                    null,
+                    true,
+                    description).description())
+                    .isEqualTo(description);
+        }
+        assertThat(new CreateRoomCommand(
+                "user-1",
+                REQUEST_ID,
+                "Room",
+                "\tdescription\n",
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN).description())
+                .isEqualTo("description");
+    }
+
     private List<RoomCommand> commands(String requestId) {
         return List.of(
                 new CreateRoomCommand(
@@ -332,5 +400,11 @@ class RoomCommandInputAndFingerprintTest {
                 null,
                 false,
                 null);
+    }
+
+    private boolean allowedDescriptionControl(int codePoint) {
+        return codePoint == '\t'
+                || codePoint == '\n'
+                || codePoint == '\r';
     }
 }

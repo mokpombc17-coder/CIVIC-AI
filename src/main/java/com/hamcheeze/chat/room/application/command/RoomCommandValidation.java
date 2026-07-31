@@ -39,6 +39,7 @@ final class RoomCommandValidation {
             throw new IllegalArgumentException(
                     "description must not be null");
         }
+        requireAllowedDescriptionControlCharacters(value);
         String canonical = value.strip();
         if (canonical.codePointCount(0, canonical.length())
                 > Room.MAX_DESCRIPTION_CODE_POINTS) {
@@ -47,8 +48,14 @@ final class RoomCommandValidation {
                             + Room.MAX_DESCRIPTION_CODE_POINTS
                             + " code points");
         }
-        for (int offset = 0; offset < canonical.length();) {
-            int codePoint = canonical.codePointAt(offset);
+        return canonical;
+    }
+
+    private static void requireAllowedDescriptionControlCharacters(
+            String description
+    ) {
+        for (int offset = 0; offset < description.length();) {
+            int codePoint = description.codePointAt(offset);
             if (codePoint < 0x20
                     && codePoint != '\t'
                     && codePoint != '\n'
@@ -59,7 +66,6 @@ final class RoomCommandValidation {
             }
             offset += Character.charCount(codePoint);
         }
-        return canonical;
     }
 
     static String optionalRoomDescription(String value) {

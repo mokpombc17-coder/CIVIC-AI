@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.api;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
+import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
@@ -76,6 +77,39 @@ class RoomApiFailureIntegrationTest
                 RoomCommandFailureKind.PERMANENT,
                 500,
                 false);
+    }
+
+    @Test
+    void unexpectedSettingsServiceFailureIsNotInputError()
+            throws Exception {
+        reset(commandService);
+        doThrow(new IllegalArgumentException(
+                "internal settings invariant detail"))
+                .when(commandService)
+                .updateRoomSettings(
+                        any(UpdateRoomSettingsCommand.class));
+
+        var result = mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/update-settings",
+                                "room-1")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-1")))
+                        .header(
+                                RoomIdempotencyKeyResolver.HEADER_NAME,
+                                UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Updated room\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentType(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code")
+                        .value("INTERNAL_ERROR"))
+                .andReturn();
+
+        org.assertj.core.api.Assertions.assertThat(
+                        result.getResponse().getContentAsString())
+                .doesNotContain(
+                        "internal settings invariant detail");
     }
 
     private void assertFailure(

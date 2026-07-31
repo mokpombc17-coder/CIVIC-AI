@@ -10,6 +10,7 @@ import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
+import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
@@ -23,15 +24,21 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -46,6 +53,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
 
     private static final Pattern ROOM_ID = Pattern.compile(
             "\"roomId\":\"([^\"]+)\"");
+    private static final JsonMapper JSON =
+            JsonMapper.builder().build();
 
     private static JwtRequestPostProcessor jwt() {
         return SecurityMockMvcRequestPostProcessors.jwt()
@@ -61,6 +70,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
 
     @Autowired
     private RoomCommandService commandService;
+
+    @MockitoSpyBean
+    private RoomEventDeliveryPort eventDeliveryPort;
 
     @Test
     void apiRequiresJwtWhileHealthAndWebSocketRemainPublic()
@@ -309,16 +321,22 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
-    void updateSettingsRejectsEmptyPatchAndExplicitNull()
+    void updateSettingsRejectsInvalidPatchValues()
             throws Exception {
         String roomId = createRoom("owner-1", JoinPolicy.OPEN);
 
         for (String body : new String[]{
                 "{}",
+                "{\"unknown\":\"value\"}",
                 "{\"name\":null}",
                 "{\"description\":null}",
                 "{\"visibility\":null}",
-                "{\"joinPolicy\":null}"}) {
+                "{\"joinPolicy\":null}",
+                "{\"visibility\":\"INVALID\"}",
+                "{\"joinPolicy\":\"INVALID\"}",
+                JSON.writeValueAsString(Map.of(
+                        "description",
+                        "\u000bdescription"))}) {
             mockMvc.perform(post(
                                     "/api/v1/rooms/{roomId}/commands/update-settings",
                                     roomId)
@@ -343,6 +361,88 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code")
                         .value("ROOM_SETTINGS_UNCHANGED"));
+    }
+
+    @Test
+    void forbiddenBoundaryControlsNeverMutateCreateOrUpdate()
+            throws Exception {
+        String[] invalidDescriptions = {
+                "\u000bdescription",
+                "description\u000c",
+                "description\u001ctext"
+        };
+        for (String description : invalidDescriptions) {
+            mockMvc.perform(post("/api/v1/rooms")
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject("owner-c0")))
+                            .header(
+                                    "Idempotency-Key",
+                                    requestId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(JSON.writeValueAsString(Map.of(
+                                    "name",
+                                    "Control room",
+                                    "description",
+                                    description,
+                                    "visibility",
+                                    "LISTED",
+                                    "joinPolicy",
+                                    "OPEN"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code")
+                            .value("INVALID_REQUEST"));
+        }
+        assertThat(count(MongoRoomDocument.COLLECTION_NAME)).isZero();
+        assertThat(count(MongoMembershipDocument.COLLECTION_NAME))
+                .isZero();
+        assertThat(count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isZero();
+
+        String roomId = createRoom("owner-c0", JoinPolicy.OPEN);
+        long receiptCount = count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME);
+        long version = mongoOperations.findById(
+                roomId,
+                MongoRoomDocument.class).version();
+        clearInvocations(eventDeliveryPort);
+
+        for (String description : invalidDescriptions) {
+            mockMvc.perform(post(
+                                    "/api/v1/rooms/{roomId}/commands/update-settings",
+                                    roomId)
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject("owner-c0")))
+                            .header(
+                                    "Idempotency-Key",
+                                    requestId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(JSON.writeValueAsString(Map.of(
+                                    "description",
+                                    description))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code")
+                            .value("INVALID_REQUEST"));
+        }
+
+        assertThat(mongoOperations.findById(
+                roomId,
+                MongoRoomDocument.class).version())
+                .isEqualTo(version);
+        assertThat(count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isEqualTo(receiptCount);
+        verifyNoInteractions(eventDeliveryPort);
+    }
+
+    @Test
+    void updateSettingsKeepsInvalidIdempotencyKeyContract()
+            throws Exception {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+
+        assertInvalidUpdateIdempotencyKey(roomId, null);
+        assertInvalidUpdateIdempotencyKey(roomId, "");
+        assertInvalidUpdateIdempotencyKey(roomId, "not-a-uuid");
     }
 
     @Test
@@ -882,6 +982,28 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     private long count(String collection) {
         return mongoOperations.getCollection(collection)
                 .countDocuments();
+    }
+
+    private void assertInvalidUpdateIdempotencyKey(
+            String roomId,
+            String idempotencyKey
+    ) throws Exception {
+        MockHttpServletRequestBuilder request = post(
+                        "/api/v1/rooms/{roomId}/commands/update-settings",
+                        roomId)
+                .with(jwt().jwt(jwt ->
+                        jwt.subject("owner-1")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Updated\"}");
+        if (idempotencyKey != null) {
+            request.header(
+                    RoomIdempotencyKeyResolver.HEADER_NAME,
+                    idempotencyKey);
+        }
+        mockMvc.perform(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_IDEMPOTENCY_KEY"));
     }
 
     private String roomId(MvcResult result) throws Exception {
