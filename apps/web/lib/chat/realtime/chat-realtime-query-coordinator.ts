@@ -9,6 +9,10 @@ import {
   type ChatMessageHistoryData,
   type ChatMessageRecoveryResult,
 } from "./chat-message-recovery";
+import {
+  refreshLoadedChatMessageSnapshots,
+  type ChatMessageSnapshotRefreshResult,
+} from "./chat-message-snapshot-refresh";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import {
   applyChatRoomEventCacheProjection,
@@ -47,7 +51,10 @@ export type ChatRealtimeQueryCoordinatorOptions = Readonly<{
   onError?: (error: unknown) => void;
   onRecoveryStarted?: (throughSequence: number) => void;
   onRecovered?: (result: ChatMessageRecoveryResult) => void;
+  onSnapshotRefreshStarted?: () => void;
+  onSnapshotRefreshed?: (result: ChatMessageSnapshotRefreshResult) => void;
   onSynchronized?: () => void;
+  refreshLoadedPagesBeforeSnapshot?: boolean;
   watermarkSequence?: number;
 }>;
 
@@ -69,8 +76,10 @@ export class ChatRealtimeQueryCoordinatorError extends Error {
 }
 
 export class ChatRealtimeQueryCoordinator {
+  private loadedPagesRefreshed: boolean;
   private recovery: Promise<ChatMessageRecoveryResult> | null = null;
   private roomSnapshotApplied = false;
+  private snapshotRefresh: Promise<ChatMessageSnapshotRefreshResult> | null = null;
   private stopped = true;
   private unsubscribe: (() => void) | null = null;
 
@@ -78,7 +87,9 @@ export class ChatRealtimeQueryCoordinator {
     private readonly queryClient: QueryClient,
     private readonly transport: ChatRealtimeQueryCoordinatorTransport,
     private readonly options: ChatRealtimeQueryCoordinatorOptions,
-  ) {}
+  ) {
+    this.loadedPagesRefreshed = !options.refreshLoadedPagesBeforeSnapshot;
+  }
 
   start(): void {
     if (this.unsubscribe) {
@@ -100,7 +111,7 @@ export class ChatRealtimeQueryCoordinator {
   }
 
   notifyRoomSnapshotApplied(): void {
-    if (this.roomSnapshotApplied || this.recovery) {
+    if (this.roomSnapshotApplied || this.recovery || this.snapshotRefresh) {
       return;
     }
 
@@ -110,6 +121,12 @@ export class ChatRealtimeQueryCoordinator {
       roomId,
       this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
     );
+
+    if (!this.loadedPagesRefreshed) {
+      this.startSnapshotRefresh();
+      return;
+    }
+
     const watermarkSequence = this.options.watermarkSequence ?? 0;
     const lastContiguousSequence = getLastContiguousMessageSequence(
       roomId,
@@ -219,6 +236,47 @@ export class ChatRealtimeQueryCoordinator {
       (error: unknown) => {
         if (this.recovery === operation) {
           this.recovery = null;
+        }
+
+        if (!this.stopped) {
+          this.options.onError?.(error);
+        }
+      },
+    );
+  }
+
+  private startSnapshotRefresh(): void {
+    if (this.snapshotRefresh || this.stopped) {
+      return;
+    }
+
+    const operation = refreshLoadedChatMessageSnapshots(this.queryClient, {
+      api: this.options.api ?? chatRoomApi,
+      limit: this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
+      roomId: this.options.roomId,
+    });
+    this.snapshotRefresh = operation;
+    this.options.onSnapshotRefreshStarted?.();
+
+    void operation.then(
+      (result) => {
+        if (this.snapshotRefresh !== operation) {
+          return;
+        }
+
+        this.snapshotRefresh = null;
+        this.loadedPagesRefreshed = true;
+
+        if (this.stopped) {
+          return;
+        }
+
+        this.options.onSnapshotRefreshed?.(result);
+        this.notifyRoomSnapshotApplied();
+      },
+      (error: unknown) => {
+        if (this.snapshotRefresh === operation) {
+          this.snapshotRefresh = null;
         }
 
         if (!this.stopped) {

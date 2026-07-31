@@ -6,6 +6,7 @@ import {
   ChatRealtimeQueryCoordinator,
   type ApplyChatRealtimeDeliveryResult,
 } from "@/lib/chat/realtime/chat-realtime-query-coordinator";
+import { ChatRealtimeSnapshotRefreshPolicy } from "@/lib/chat/realtime/chat-realtime-snapshot-refresh-policy";
 import { useChatRealtimeTransport } from "./chat-realtime-provider";
 
 type UseChatRealtimeQueryCoordinatorParams = Readonly<{
@@ -35,6 +36,7 @@ export function useChatRealtimeQueryCoordinator({
 }: UseChatRealtimeQueryCoordinatorParams): ChatRealtimeQueryCoordinatorState {
   const queryClient = useQueryClient();
   const transport = useChatRealtimeTransport();
+  const snapshotRefreshPolicyRef = useRef(new ChatRealtimeSnapshotRefreshPolicy());
   const coordinatorRef = useRef<ChatRealtimeQueryCoordinator | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
@@ -44,10 +46,15 @@ export function useChatRealtimeQueryCoordinator({
   useEffect(() => {
     if (!enabled) {
       coordinatorRef.current = null;
+      snapshotRefreshPolicyRef.current.deactivate(roomId, generation);
       return;
     }
 
     let active = true;
+    const refreshLoadedPagesBeforeSnapshot = snapshotRefreshPolicyRef.current.activate(
+      roomId,
+      generation,
+    );
     const scheduleStateUpdate = (update: () => void) => {
       queueMicrotask(() => {
         if (active) {
@@ -67,6 +74,7 @@ export function useChatRealtimeQueryCoordinator({
       generation,
       ...(limit === undefined ? {} : { limit }),
       messageVisibleAfterSequence,
+      refreshLoadedPagesBeforeSnapshot,
       watermarkSequence,
       onApplied(result) {
         scheduleStateUpdate(() => {
@@ -78,6 +86,13 @@ export function useChatRealtimeQueryCoordinator({
       },
       onError: reportError,
       onRecoveryStarted() {
+        scheduleStateUpdate(() => {
+          setError(null);
+          setIsRecovering(true);
+          setIsSynchronized(false);
+        });
+      },
+      onSnapshotRefreshStarted() {
         scheduleStateUpdate(() => {
           setError(null);
           setIsRecovering(true);

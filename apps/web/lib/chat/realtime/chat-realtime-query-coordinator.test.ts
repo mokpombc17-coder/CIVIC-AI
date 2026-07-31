@@ -119,6 +119,83 @@ describe("ChatRealtimeQueryCoordinator", () => {
     expect(onSynchronized).toHaveBeenCalledOnce();
   });
 
+  it("재연결에서는 로드된 모든 REST page snapshot을 갱신한 뒤 적용 완료를 알린다", async () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const updatedMessage4 = {
+      ...createMessage(4),
+      content: "재연결 중 수정된 메시지",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T04:41:00Z",
+    } satisfies ChatMessage;
+    const deletedAt = "2026-07-29T04:42:00Z";
+    const deletedMessage2 = {
+      ...createMessage(2),
+      content: null,
+      deletedAt,
+      messageVersion: 2,
+      state: "DELETED_BY_AUTHOR",
+      updatedAt: deletedAt,
+    } satisfies ChatMessage;
+    const getRoomMessages = vi
+      .fn()
+      .mockResolvedValueOnce(createAfterResponse([updatedMessage4]))
+      .mockResolvedValueOnce(createAfterResponse([deletedMessage2]));
+    const onSnapshotRefreshStarted = vi.fn();
+    const onSnapshotRefreshed = vi.fn();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      api: { getRoomMessages },
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+      watermarkSequence: 4,
+      refreshLoadedPagesBeforeSnapshot: true,
+      onSnapshotRefreshStarted,
+      onSnapshotRefreshed,
+    });
+    seedMessageHistory(queryClient, "room-01", [
+      [createMessage(3), createMessage(4)],
+      [createMessage(1), createMessage(2)],
+    ]);
+    coordinator.start();
+
+    coordinator.notifyRoomSnapshotApplied();
+
+    expect(transport.markedSnapshots).toEqual([]);
+    expect(onSnapshotRefreshStarted).toHaveBeenCalledOnce();
+    await vi.waitFor(() => {
+      expect(transport.markedSnapshots).toEqual([
+        {
+          roomId: "room-01",
+          generation: 1,
+        },
+      ]);
+    });
+    expect(getRoomMessages.mock.calls).toEqual([
+      [
+        "room-01",
+        {
+          mode: "latest",
+          limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
+        },
+      ],
+      [
+        "room-01",
+        {
+          mode: "before",
+          beforeSequence: 3,
+          limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
+        },
+      ],
+    ]);
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items[1]).toEqual(updatedMessage4);
+    expect(getMessageHistory(queryClient, "room-01").pages[1]?.items[1]).toEqual(deletedMessage2);
+    expect(onSnapshotRefreshed).toHaveBeenCalledWith({
+      pageCount: 2,
+      refreshedMessageCount: 2,
+    });
+  });
+
   it("복구 중 coordinator가 중지되면 완료된 요청이 이전 session을 활성화하지 않는다", async () => {
     const queryClient = new QueryClient();
     const transport = createFakeTransport();
