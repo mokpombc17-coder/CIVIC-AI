@@ -632,6 +632,165 @@ describe("DirectStompTransport", () => {
     });
   });
 
+  it("Direct fallback도 USER_RATE_LIMITED를 숨기고 같은 메시지를 대기 후 재전송한다", () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    try {
+      const client = createFakeClient();
+      const transport = new DirectStompTransport(client);
+      const listener = vi.fn();
+      const request = {
+        clientMessageId: "550e8400-e29b-41d4-a716-446655440010",
+        content: "Direct 자동 재전송 메시지",
+      };
+
+      prepareMessageTransport(transport, client);
+      transport.observeMessageCommandEvent(listener);
+      transport.sendRoomMessage({ roomId: "room-01", request });
+      client.deliver(
+        "/user/queue/command-results",
+        JSON.stringify({
+          clientMessageId: request.clientMessageId,
+          status: "REJECTED",
+          code: "USER_RATE_LIMITED",
+          retryable: true,
+          retryAfterMs: 1_000,
+          messageId: null,
+          roomSequence: null,
+        }),
+      );
+
+      expect(listener).not.toHaveBeenCalled();
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+
+      vi.advanceTimersByTime(999);
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+
+      vi.advanceTimersByTime(1);
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(2);
+      expect(client.publish).toHaveBeenLastCalledWith({
+        destination: "/app/rooms/room-01/messages",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+
+      client.deliver(
+        "/user/queue/command-results",
+        JSON.stringify({
+          clientMessageId: request.clientMessageId,
+          status: "DUPLICATE",
+          code: null,
+          retryable: false,
+          retryAfterMs: null,
+          messageId: "message-01",
+          roomSequence: 1,
+        }),
+      );
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenLastCalledWith({
+        kind: "result",
+        roomId: "room-01",
+        result: expect.objectContaining({
+          clientMessageId: request.clientMessageId,
+          status: "DUPLICATE",
+        }),
+      });
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("Direct fallback의 방 전환은 이전 방에서 대기 중인 retry를 취소한다", () => {
+    vi.useFakeTimers();
+
+    try {
+      const client = createFakeClient();
+      const transport = new DirectStompTransport(client);
+      const request = {
+        clientMessageId: "550e8400-e29b-41d4-a716-446655440011",
+        content: "방 전환 전에 보낸 메시지",
+      };
+
+      prepareMessageTransport(transport, client);
+      transport.sendRoomMessage({ roomId: "room-01", request });
+      rejectMessageForRetry(client, request.clientMessageId);
+
+      transport.claimRoom("room-02");
+      vi.advanceTimersByTime(60_000);
+
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["release", "detach"] as const)(
+    "Direct fallback의 %s는 대기 중인 retry를 취소한다",
+    (lifecycle) => {
+      vi.useFakeTimers();
+
+      try {
+        const client = createFakeClient();
+        const transport = new DirectStompTransport(client);
+        const request = {
+          clientMessageId:
+            lifecycle === "release"
+              ? "550e8400-e29b-41d4-a716-446655440012"
+              : "550e8400-e29b-41d4-a716-446655440013",
+          content: "생명주기 종료 전에 보낸 메시지",
+        };
+        const detach = prepareMessageTransport(transport, client);
+
+        transport.sendRoomMessage({ roomId: "room-01", request });
+        rejectMessageForRetry(client, request.clientMessageId);
+
+        if (lifecycle === "release") {
+          transport.releaseRoom("room-01");
+        } else {
+          detach();
+        }
+        vi.advanceTimersByTime(60_000);
+
+        expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each([
+    [4001, "CONNECTION_REPLACED"],
+    [4002, "ROOM_ACCESS_REVOKED"],
+    [4003, "ROOM_CLOSED"],
+  ] as const)("Direct fallback의 WebSocket %i %s 종료는 retry를 취소한다", (code, reason) => {
+    vi.useFakeTimers();
+
+    try {
+      const client = createFakeClient();
+      const transport = new DirectStompTransport(client);
+      const request = {
+        clientMessageId: `550e8400-e29b-41d4-a716-44665544${code}`,
+        content: "연결 종료 전에 보낸 메시지",
+      };
+
+      prepareMessageTransport(transport, client);
+      transport.sendRoomMessage({ roomId: "room-01", request });
+      rejectMessageForRetry(client, request.clientMessageId);
+
+      client.onWebSocketClose({ code, reason } as CloseEvent);
+      vi.advanceTimersByTime(60_000);
+
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("REST snapshot 적용 전에는 Direct fallback 메시지 전송을 거절한다", () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);
@@ -739,6 +898,36 @@ function createFakeClient({ autoReady = true } = {}): FakeDirectStompClient {
   };
 
   return client;
+}
+
+function prepareMessageTransport(
+  transport: DirectStompTransport,
+  client: FakeDirectStompClient,
+): () => void {
+  const detach = transport.attach();
+  client.onConnect({} as IFrame);
+  transport.claimRoom("room-01");
+  transport.markRoomSnapshotApplied("room-01", 1);
+  return detach;
+}
+
+function rejectMessageForRetry(client: FakeDirectStompClient, clientMessageId: string): void {
+  client.deliver(
+    "/user/queue/command-results",
+    JSON.stringify({
+      clientMessageId,
+      status: "REJECTED",
+      code: "SERVER_BUSY",
+      retryable: true,
+      retryAfterMs: 1_000,
+      messageId: null,
+      roomSequence: null,
+    }),
+  );
+}
+
+function countRoomMessagePublishes(client: FakeDirectStompClient, roomId: string): number {
+  return client.frames.filter((frame) => frame === `SEND /app/rooms/${roomId}/messages`).length;
 }
 
 function createMessageEvent(roomSequence: number, roomId = "room-01") {

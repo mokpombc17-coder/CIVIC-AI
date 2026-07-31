@@ -1,6 +1,12 @@
 import type { Client, IMessage } from "@stomp/stompjs";
 import { createChatStompClient } from "../chat-stomp-client";
 import {
+  ChatMessageDeliveryScheduler,
+  getChatMessageDeliveryFailureMessage,
+  type ChatMessageDeliverySnapshot,
+  type ChatMessageDeliveryTerminalEvent,
+} from "./chat-message-delivery-scheduler";
+import {
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
 } from "./chat-stomp-destinations";
@@ -68,6 +74,7 @@ const INITIAL_ROOM_SNAPSHOT: ChatRoomSessionSnapshot = {
 };
 
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const DIRECT_MESSAGE_DELIVERY_OWNER_ID = "direct-stomp-transport";
 
 type PendingRoomSync = Readonly<{
   requestId: string;
@@ -84,8 +91,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private connectionRestart: Promise<void> | null = null;
   private readonly listeners = new Set<() => void>();
+  private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
-  private readonly pendingMessageRooms = new Map<string, string>();
   private pendingRoomSync: PendingRoomSync | null = null;
   private realtimeDeliverySession: RealtimeDeliverySession | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
@@ -105,6 +112,13 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
       onSystemEvent: this.handleSystemEvent,
+    });
+    this.messageDeliveries = new ChatMessageDeliveryScheduler({
+      isContextCurrent: (snapshot) => this.isMessageDeliveryContextCurrent(snapshot),
+      onTerminal: (event) => this.handleMessageDeliveryTerminal(event),
+      publish: ({ request, roomId }) => {
+        this.subscriptions.sendRoomMessage(roomId, request);
+      },
     });
     this.client.onConnect = () => {
       if (this.attachmentCount === 0) {
@@ -151,6 +165,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
       this.pauseRealtimeDelivery();
+      this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
@@ -281,6 +296,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
+    this.messageDeliveries.cancelAll("ROOM_REPLACED");
     const claimingSnapshot: ChatRoomSessionSnapshot = {
       status: "claiming",
       roomId,
@@ -317,6 +333,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
+    this.cancelMessageDeliveriesForRoom(roomId, "ROOM_RELEASED");
     try {
       this.subscriptions.releaseRoom(roomId);
     } catch (cause) {
@@ -395,12 +412,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       );
     }
 
-    this.pendingMessageRooms.set(request.clientMessageId, roomId);
-
     try {
-      this.subscriptions.sendRoomMessage(roomId, request);
+      this.messageDeliveries.start({
+        generation: this.roomSnapshot.generation,
+        ownerId: DIRECT_MESSAGE_DELIVERY_OWNER_ID,
+        request,
+        roomId,
+      });
     } catch (cause) {
-      this.pendingMessageRooms.delete(request.clientMessageId);
       throw new ChatMessageSendError(
         "MESSAGE_PUBLISH_FAILED",
         cause instanceof Error ? cause.message : "STOMP 메시지 전송에 실패했습니다.",
@@ -418,6 +437,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
+    this.messageDeliveries.cancelAll("TRANSPORT_RECONNECTING");
     if (this.client.active) {
       this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
@@ -446,7 +466,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     this.subscriptions.disconnect();
     this.pendingRoomSync = null;
-    this.pendingMessageRooms.clear();
+    this.messageDeliveries.cancelAll("TRANSPORT_DETACHED");
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
     this.setSnapshot("disconnecting", null);
@@ -473,6 +493,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private stopConnectionReplacedReconnect(): void {
     this.connectionRestart = null;
     this.pendingRoomSync = null;
+    this.messageDeliveries.cancelAll("CONNECTION_REPLACED");
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
 
@@ -509,7 +530,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       });
     }
 
-    this.pendingMessageRooms.clear();
+    this.messageDeliveries.cancelAll("ROOM_ACCESS_REVOKED");
     this.restartConnectionAfterServerClose({
       source: "websocket",
       code: "ROOM_ACCESS_REVOKED",
@@ -542,7 +563,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       });
     }
 
-    this.pendingMessageRooms.clear();
+    this.messageDeliveries.cancelAll("ROOM_CLOSED");
     this.restartConnectionAfterServerClose({
       source: "websocket",
       code: "ROOM_CLOSED",
@@ -609,6 +630,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     const roomId = this.roomSnapshot.roomId;
 
     if (roomId) {
+      this.cancelMessageDeliveriesForRoom(roomId, "SUBSCRIPTION_SETUP_FAILED");
       try {
         this.subscriptions.releaseRoom(roomId);
       } catch {
@@ -643,20 +665,65 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
-    const roomId = this.pendingMessageRooms.get(result.clientMessageId);
+    this.messageDeliveries.handleCommandResult(result);
+  };
 
-    if (!roomId) {
+  private cancelMessageDeliveriesForRoom(roomId: string, reason: string): void {
+    this.messageDeliveries.cancelMatching((snapshot) => snapshot.roomId === roomId, reason);
+  }
+
+  private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {
+    const deliverySession = this.realtimeDeliverySession;
+
+    return (
+      snapshot.ownerId === DIRECT_MESSAGE_DELIVERY_OWNER_ID &&
+      this.snapshot.status === "connected" &&
+      this.subscriptions.connected &&
+      this.subscriptions.activeRoomId === snapshot.roomId &&
+      this.roomSnapshot.status === "active" &&
+      this.roomSnapshot.roomId === snapshot.roomId &&
+      this.roomSnapshot.generation === snapshot.generation &&
+      deliverySession?.roomId === snapshot.roomId &&
+      deliverySession.generation === snapshot.generation
+    );
+  }
+
+  private handleMessageDeliveryTerminal(event: ChatMessageDeliveryTerminalEvent): void {
+    if (event.kind === "cancelled") {
       return;
     }
 
-    this.pendingMessageRooms.delete(result.clientMessageId);
-    const event: ChatMessageCommandEvent = {
-      kind: "result",
-      roomId,
-      result,
-    };
+    if (event.kind === "sent") {
+      this.emitMessageCommandEvent({
+        kind: "result",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    if (event.result) {
+      this.emitMessageCommandEvent({
+        kind: "result",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    this.emitMessageCommandEvent({
+      kind: "failure",
+      roomId: event.snapshot.roomId,
+      clientMessageId: event.snapshot.request.clientMessageId,
+      code: "MESSAGE_PUBLISH_FAILED",
+      retryable: event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
+      message: getChatMessageDeliveryFailureMessage(event),
+    });
+  }
+
+  private emitMessageCommandEvent(event: ChatMessageCommandEvent): void {
     this.messageCommandListeners.forEach((listener) => listener(event));
-  };
+  }
 
   private readonly handleSystemEvent = (message: IMessage): void => {
     const ready = parseChatRoomSubscriptionsReady(message.body);
@@ -697,6 +764,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     } catch {
       // The server already rejected the room subscription; keep the rejection as the UI error.
     }
+    this.cancelMessageDeliveriesForRoom(roomId, "SUBSCRIPTION_REJECTED");
     this.pendingRoomSync = null;
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
@@ -863,6 +931,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
+    this.cancelMessageDeliveriesForRoom(roomId, "ROOM_SUBSCRIPTION_STALE");
     const generation = previousGeneration + 1;
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear(roomId, previousGeneration);

@@ -7,8 +7,8 @@
 - 적용 대상: `apps/web`의 STOMP 채팅 메시지 전송
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
 - 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
-  retry delay 계산, transport 공용 delivery scheduler와 SharedWorker runtime 통합
-- 다음 구현: Direct transport 동작 통일, 화면 상태와 scheduler lifecycle 연결
+  retry delay 계산, transport 공용 delivery scheduler와 SharedWorker·Direct runtime 통합
+- 다음 구현: 화면 상태와 scheduler lifecycle 연결
 
 ## 목표
 
@@ -171,7 +171,11 @@ SharedWorker를 지원하는 브라우저에서는 `ChatSharedWorkerRuntime`이 
 - retry callback은 현재 STOMP 연결, active room subscription, owner와 generation이 모두
   일치할 때만 publish한다.
 
-SharedWorker를 지원하지 않는 Direct transport도 다음 구현 단계에서 같은 scheduler를 소유한다.
+SharedWorker와 Leader Tab transport를 모두 사용할 수 없는 환경에서는 `DirectStompTransport`가
+동일한 scheduler를 소유한다. Direct transport는 탭 간 owner 식별자가 필요하지 않지만 현재
+roomId, generation, STOMP 연결과 REST snapshot 적용 상태가 모두 유지될 때만 retry를
+publish한다. 방 전환·release, transport detach, stale 재구독과 WebSocket 재연결·종료에서는
+대기 중인 delivery를 취소한다.
 
 ## 대기시간과 Jitter
 

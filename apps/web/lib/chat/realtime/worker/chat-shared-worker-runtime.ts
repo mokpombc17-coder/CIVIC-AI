@@ -1,6 +1,7 @@
 import type { Client, IFrame, IMessage } from "@stomp/stompjs";
 import {
   ChatMessageDeliveryScheduler,
+  getChatMessageDeliveryFailureMessage,
   type ChatMessageDeliverySnapshot,
   type ChatMessageDeliveryTerminalEvent,
 } from "../chat-message-delivery-scheduler";
@@ -1272,7 +1273,7 @@ export class ChatSharedWorkerRuntime {
       event.snapshot.request.clientMessageId,
       "MESSAGE_PUBLISH_FAILED",
       event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
-      getMessageDeliveryFailureMessage(event),
+      getChatMessageDeliveryFailureMessage(event),
     );
   }
 
@@ -1308,28 +1309,6 @@ export class ChatSharedWorkerRuntime {
       attachedPortCount: this.getAttachedPortCount(),
       snapshot: this.snapshot,
     });
-  }
-}
-
-function getMessageDeliveryFailureMessage(
-  event: Extract<ChatMessageDeliveryTerminalEvent, { kind: "failed" }>,
-): string {
-  switch (event.reason) {
-    case "COMMAND_RESULT_TIMEOUT":
-      return "채팅 서버의 메시지 처리 결과를 시간 안에 받지 못했습니다.";
-    case "CONTEXT_VALIDATION_FAILED":
-      return "현재 채팅방 전송 상태를 확인하지 못해 메시지 전송을 중단했습니다.";
-    case "MAX_ATTEMPTS_REACHED":
-      return "메시지 자동 재전송 횟수를 초과했습니다.";
-    case "MAX_ELAPSED_TIME_REACHED":
-      return "메시지 자동 재전송 제한 시간을 초과했습니다.";
-    case "PUBLISH_FAILED":
-      return event.cause instanceof Error && event.cause.message.trim()
-        ? event.cause.message
-        : "STOMP 메시지 전송에 실패했습니다.";
-    case "COMMAND_FAILED":
-    case "COMMAND_REJECTED":
-      return "채팅 서버가 메시지 전송을 거절했습니다.";
   }
 }
 
