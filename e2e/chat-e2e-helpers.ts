@@ -44,12 +44,21 @@ export async function authenticateDevUserAs(
   expect(authCookie?.httpOnly).toBe(true);
 }
 
-export async function createRoomAndEnter(page: Page, roomName: string): Promise<string> {
+export async function createRoomAndEnter(
+  page: Page,
+  roomName: string,
+  { description }: { description?: string } = {},
+): Promise<string> {
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "채팅방", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "새 채팅방" }).click();
   await page.getByRole("textbox", { name: "방 이름" }).fill(roomName);
+
+  if (description !== undefined) {
+    await page.getByRole("textbox", { name: "방 설명" }).fill(description);
+  }
+
   await page.getByRole("button", { name: "채팅방 만들기" }).click();
 
   await expect(page).toHaveURL(/\/chat\/[A-Za-z0-9_-]+$/);
