@@ -24,6 +24,8 @@ import {
   targetUserRequestSchema,
   transferRoomOwnershipResponseSchema,
   unbanRoomMemberResponseSchema,
+  updateRoomSettingsRequestSchema,
+  updateRoomSettingsResponseSchema,
   type BanRoomMemberResponse,
   type CloseRoomResponse,
   type CreateRoomRequest,
@@ -42,6 +44,8 @@ import {
   type TargetUserRequest,
   type TransferRoomOwnershipResponse,
   type UnbanRoomMemberResponse,
+  type UpdateRoomSettingsRequest,
+  type UpdateRoomSettingsResponse,
 } from "./chat-room-contracts";
 import type { IdempotentCommand } from "./idempotent-command";
 
@@ -60,6 +64,10 @@ export class ChatRestContractError extends Error {
 
 export type ChatRoomApi = Readonly<{
   createRoom(command: IdempotentCommand<CreateRoomRequest>): Promise<CreateRoomResponse>;
+  updateRoomSettings(
+    roomId: string,
+    command: IdempotentCommand<UpdateRoomSettingsRequest>,
+  ): Promise<UpdateRoomSettingsResponse>;
   joinRoom(roomId: string, command: IdempotentCommand<undefined>): Promise<JoinRoomResponse>;
   leaveRoom(roomId: string, command: IdempotentCommand<undefined>): Promise<LeaveRoomResponse>;
   transferRoomOwnership(
@@ -96,6 +104,22 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
         headers: createCommandHeaders(command.idempotencyKey, true),
         body: JSON.stringify(body),
       });
+    },
+
+    async updateRoomSettings(roomId, command) {
+      const body = updateRoomSettingsRequestSchema.parse(command.body);
+
+      return requestAndParse(
+        request,
+        "방 설정 변경 응답",
+        updateRoomSettingsResponseSchema,
+        `${createRoomPath(roomId)}/commands/update-settings`,
+        {
+          method: "POST",
+          headers: createCommandHeaders(command.idempotencyKey, true),
+          body: JSON.stringify(body),
+        },
+      );
     },
 
     async joinRoom(roomId, command) {

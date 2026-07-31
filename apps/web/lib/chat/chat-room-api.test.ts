@@ -189,6 +189,90 @@ describe("chatRoomApi message history", () => {
 });
 
 describe("chatRoomApi commands", () => {
+  it("변경된 Room 설정만 정규화해 update-settings command로 전송한다", async () => {
+    const unchangedResponse = {
+      ...UPDATE_ROOM_SETTINGS_RESPONSE,
+      code: "ROOM_SETTINGS_UNCHANGED",
+      replayed: true,
+    };
+    const { calls, request } = createQueuedChatFetch(
+      UPDATE_ROOM_SETTINGS_RESPONSE,
+      unchangedResponse,
+    );
+    const api = createChatRoomApi(request);
+
+    await expect(
+      api.updateRoomSettings("room-01", {
+        idempotencyKey: IDEMPOTENCY_KEY,
+        body: {
+          name: "  새로운 방 이름  ",
+          description: " \t새로운 설명\n두 번째 줄\r ",
+          visibility: "UNLISTED",
+        },
+      }),
+    ).resolves.toEqual(UPDATE_ROOM_SETTINGS_RESPONSE);
+    await expect(
+      api.updateRoomSettings("room-01", {
+        idempotencyKey: IDEMPOTENCY_KEY,
+        body: {
+          joinPolicy: "INVITE_ONLY",
+        },
+      }),
+    ).resolves.toEqual(unchangedResponse);
+
+    expect(calls.map(({ path }) => path)).toEqual([
+      "/rooms/room-01/commands/update-settings",
+      "/rooms/room-01/commands/update-settings",
+    ]);
+    expect(calls.map(({ init }) => init?.method)).toEqual(["POST", "POST"]);
+    expect(calls.map(({ init }) => new Headers(init?.headers).get("Idempotency-Key"))).toEqual([
+      IDEMPOTENCY_KEY,
+      IDEMPOTENCY_KEY,
+    ]);
+    expect(calls.map(({ init }) => new Headers(init?.headers).get("Content-Type"))).toEqual([
+      "application/json",
+      "application/json",
+    ]);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      name: "새로운 방 이름",
+      description: "새로운 설명\n두 번째 줄",
+      visibility: "UNLISTED",
+    });
+    expect(JSON.parse(String(calls[1]?.init?.body))).toEqual({
+      joinPolicy: "INVITE_ONLY",
+    });
+  });
+
+  it("유효하지 않은 Room 설정 patch와 roomId는 HTTP 요청 전에 거절한다", async () => {
+    const { calls, request } = createQueuedChatFetch();
+    const api = createChatRoomApi(request);
+
+    await expect(
+      api.updateRoomSettings("room-01", {
+        idempotencyKey: IDEMPOTENCY_KEY,
+        body: {},
+      }),
+    ).rejects.toThrow("변경할 방 설정을 하나 이상 입력해야 합니다.");
+    await expect(
+      api.updateRoomSettings("room-01", {
+        idempotencyKey: IDEMPOTENCY_KEY,
+        body: {
+          description: null,
+        } as never,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      api.updateRoomSettings("invalid room", {
+        idempotencyKey: IDEMPOTENCY_KEY,
+        body: {
+          description: "",
+        },
+      }),
+    ).rejects.toThrow("roomId 형식이 올바르지 않습니다.");
+
+    expect(calls).toHaveLength(0);
+  });
+
   it("모든 방 command에 method와 Idempotency-Key를 적용한다", async () => {
     const { calls, request } = createQueuedChatFetch(
       CREATE_ROOM_RESPONSE,
@@ -369,6 +453,18 @@ const CREATE_ROOM_RESPONSE = {
   ownerUserId: "local-user-1",
   roomVersion: 1,
   ownerMembershipVersion: 1,
+};
+
+const UPDATE_ROOM_SETTINGS_RESPONSE = {
+  clientRequestId: IDEMPOTENCY_KEY,
+  code: "ROOM_SETTINGS_UPDATED",
+  replayed: false,
+  roomId: "room-01",
+  name: "새로운 방 이름",
+  description: "새로운 설명\n두 번째 줄",
+  visibility: "UNLISTED",
+  joinPolicy: "OPEN",
+  roomVersion: 8,
 };
 
 const JOIN_ROOM_RESPONSE = {
