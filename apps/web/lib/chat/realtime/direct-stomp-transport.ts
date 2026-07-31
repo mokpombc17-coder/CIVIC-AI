@@ -16,6 +16,7 @@ import {
 import {
   parseChatMessageCreatedEvent,
   parseChatMessageCommandResult,
+  parseChatMessageMutationCommandResult,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
@@ -34,15 +35,19 @@ import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
   CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
   CHAT_ROOM_CLOSED_MESSAGE,
+  ChatMessageMutationError,
   isChatConnectionReplacedCloseEvent,
   isChatRoomAccessRevokedCloseEvent,
   isChatRoomClosedCloseEvent,
   type ChatConnectionSnapshot,
   type ChatConnectionStatus,
   type ChatMessageCommandEvent,
+  type ChatMessageMutationEvent,
   type ChatRealtimeError,
   type ChatRealtimeTransport,
   ChatMessageSendError,
+  type ChatRoomMessageDeleteCommand,
+  type ChatRoomMessageEditCommand,
   type ChatRoomMessageSendCommand,
   type ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
@@ -90,16 +95,23 @@ type RealtimeDeliverySession = Readonly<{
   generation: number;
 }>;
 
+type PendingMessageMutation = Readonly<{
+  commandType: "EDIT_MESSAGE" | "DELETE_MESSAGE";
+  roomId: string;
+}>;
+
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private connectionRestart: Promise<void> | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
   private readonly messageDeliveryLifecycleListeners = new Set<
     (event: ChatMessageDeliveryLifecycleEvent) => void
   >();
   private pendingRoomSync: PendingRoomSync | null = null;
+  private readonly pendingMessageMutations = new Map<string, PendingMessageMutation>();
   private realtimeDeliverySession: RealtimeDeliverySession | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
@@ -173,6 +185,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
+      this.pendingMessageMutations.clear();
       this.pauseRealtimeDelivery();
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
@@ -286,6 +299,16 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     };
   };
 
+  readonly observeMessageMutationEvent = (
+    listener: (event: ChatMessageMutationEvent) => void,
+  ): (() => void) => {
+    this.messageMutationListeners.add(listener);
+
+    return () => {
+      this.messageMutationListeners.delete(listener);
+    };
+  };
+
   readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
     this.realtimeEventDeliveryListeners.add(listener);
 
@@ -316,6 +339,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.messageDeliveries.cancelAll("ROOM_REPLACED");
+    this.pendingMessageMutations.clear();
     const claimingSnapshot: ChatRoomSessionSnapshot = {
       status: "claiming",
       roomId,
@@ -353,6 +377,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.cancelMessageDeliveriesForRoom(roomId, "ROOM_RELEASED");
+    this.clearPendingMessageMutationsForRoom(roomId);
     try {
       this.subscriptions.releaseRoom(roomId);
     } catch (cause) {
@@ -447,6 +472,62 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
   };
 
+  readonly editRoomMessage = ({ request, roomId }: ChatRoomMessageEditCommand): void => {
+    this.sendRoomMessageMutation("EDIT_MESSAGE", request.clientMutationId, roomId, () =>
+      this.subscriptions.editRoomMessage(roomId, request),
+    );
+  };
+
+  readonly deleteRoomMessage = ({ request, roomId }: ChatRoomMessageDeleteCommand): void => {
+    this.sendRoomMessageMutation("DELETE_MESSAGE", request.clientMutationId, roomId, () =>
+      this.subscriptions.deleteRoomMessage(roomId, request),
+    );
+  };
+
+  private sendRoomMessageMutation(
+    commandType: PendingMessageMutation["commandType"],
+    clientMutationId: string,
+    roomId: string,
+    publish: () => void,
+  ): void {
+    if (this.snapshot.status !== "connected") {
+      throw new ChatMessageMutationError(
+        "CONNECTION_NOT_READY",
+        "WebSocket 연결이 준비되지 않아 메시지를 변경할 수 없습니다.",
+        true,
+      );
+    }
+
+    if (
+      this.roomSnapshot.status !== "active" ||
+      this.roomSnapshot.roomId !== roomId ||
+      this.realtimeDeliverySession?.roomId !== roomId ||
+      this.realtimeDeliverySession.generation !== this.roomSnapshot.generation
+    ) {
+      throw new ChatMessageMutationError(
+        "ROOM_NOT_ACTIVE",
+        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 변경할 수 없습니다.",
+        true,
+      );
+    }
+
+    this.pendingMessageMutations.set(clientMutationId, {
+      commandType,
+      roomId,
+    });
+
+    try {
+      publish();
+    } catch (cause) {
+      this.pendingMessageMutations.delete(clientMutationId);
+      throw new ChatMessageMutationError(
+        "MUTATION_PUBLISH_FAILED",
+        cause instanceof Error ? cause.message : "STOMP 메시지 변경 요청 전송에 실패했습니다.",
+        true,
+      );
+    }
+  }
+
   readonly reconnect = (): void => {
     if (
       this.attachmentCount === 0 ||
@@ -457,6 +538,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.messageDeliveries.cancelAll("TRANSPORT_RECONNECTING");
+    this.pendingMessageMutations.clear();
     if (this.client.active) {
       this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
@@ -485,6 +567,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     this.subscriptions.disconnect();
     this.pendingRoomSync = null;
+    this.pendingMessageMutations.clear();
     this.messageDeliveries.cancelAll("TRANSPORT_DETACHED");
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
@@ -680,15 +763,46 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private readonly handleMessageCommandResult = (message: IMessage): void => {
     const result = parseChatMessageCommandResult(message.body);
 
-    if (!result) {
+    if (result) {
+      this.messageDeliveries.handleCommandResult(result);
       return;
     }
 
-    this.messageDeliveries.handleCommandResult(result);
+    const mutationResult = parseChatMessageMutationCommandResult(message.body);
+
+    if (!mutationResult) {
+      return;
+    }
+
+    const pending = this.pendingMessageMutations.get(mutationResult.clientMutationId);
+
+    if (!pending) {
+      return;
+    }
+
+    this.pendingMessageMutations.delete(mutationResult.clientMutationId);
+
+    if (pending.commandType !== mutationResult.commandType) {
+      return;
+    }
+
+    this.emitMessageMutationEvent({
+      kind: "result",
+      roomId: pending.roomId,
+      result: mutationResult,
+    });
   };
 
   private cancelMessageDeliveriesForRoom(roomId: string, reason: string): void {
     this.messageDeliveries.cancelMatching((snapshot) => snapshot.roomId === roomId, reason);
+  }
+
+  private clearPendingMessageMutationsForRoom(roomId: string): void {
+    for (const [clientMutationId, pending] of this.pendingMessageMutations) {
+      if (pending.roomId === roomId) {
+        this.pendingMessageMutations.delete(clientMutationId);
+      }
+    }
   }
 
   private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {
@@ -744,6 +858,10 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
   private emitMessageCommandEvent(event: ChatMessageCommandEvent): void {
     this.messageCommandListeners.forEach((listener) => listener(event));
+  }
+
+  private emitMessageMutationEvent(event: ChatMessageMutationEvent): void {
+    this.messageMutationListeners.forEach((listener) => listener(event));
   }
 
   private emitMessageDeliveryLifecycle(event: ChatMessageDeliveryLifecycleEvent): void {

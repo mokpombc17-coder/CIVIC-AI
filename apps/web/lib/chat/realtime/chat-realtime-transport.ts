@@ -1,6 +1,12 @@
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
-import type { ChatMessageCommandResult, ChatMessageSendRequest } from "./chat-stomp-contracts";
+import type {
+  ChatMessageCommandResult,
+  ChatMessageDeleteRequest,
+  ChatMessageEditRequest,
+  ChatMessageMutationCommandResult,
+  ChatMessageSendRequest,
+} from "./chat-stomp-contracts";
 
 export type ChatConnectionStatus =
   | "idle"
@@ -78,6 +84,16 @@ export type ChatRoomMessageSendCommand = Readonly<{
   roomId: string;
 }>;
 
+export type ChatRoomMessageEditCommand = Readonly<{
+  request: ChatMessageEditRequest;
+  roomId: string;
+}>;
+
+export type ChatRoomMessageDeleteCommand = Readonly<{
+  request: ChatMessageDeleteRequest;
+  roomId: string;
+}>;
+
 export type ChatMessageSendFailureCode =
   "CONNECTION_NOT_READY" | "ROOM_NOT_ACTIVE" | "MESSAGE_PUBLISH_FAILED";
 
@@ -96,6 +112,24 @@ export type ChatMessageCommandEvent =
       roomId: string;
     }>;
 
+export type ChatMessageMutationFailureCode =
+  "CONNECTION_NOT_READY" | "ROOM_NOT_ACTIVE" | "MUTATION_PUBLISH_FAILED";
+
+export type ChatMessageMutationEvent =
+  | Readonly<{
+      kind: "result";
+      result: ChatMessageMutationCommandResult;
+      roomId: string;
+    }>
+  | Readonly<{
+      kind: "failure";
+      clientMutationId: string;
+      code: ChatMessageMutationFailureCode;
+      message: string;
+      retryable: boolean;
+      roomId: string;
+    }>;
+
 export class ChatMessageSendError extends Error {
   override readonly name = "ChatMessageSendError";
 
@@ -108,10 +142,24 @@ export class ChatMessageSendError extends Error {
   }
 }
 
+export class ChatMessageMutationError extends Error {
+  override readonly name = "ChatMessageMutationError";
+
+  constructor(
+    readonly code: ChatMessageMutationFailureCode,
+    message: string,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+  }
+}
+
 export type ChatRealtimeTransport = {
   acknowledgeRealtimeEventDelivery(deliveryId: string): void;
   attach(): () => void;
   claimRoom(roomId: string): void;
+  deleteRoomMessage(command: ChatRoomMessageDeleteCommand): void;
+  editRoomMessage(command: ChatRoomMessageEditCommand): void;
   getRealtimeEventDelivery(): ChatRealtimeEventDelivery | null;
   getRoomSnapshot(): ChatRoomSessionSnapshot;
   getSnapshot(): ChatConnectionSnapshot;
@@ -120,6 +168,7 @@ export type ChatRealtimeTransport = {
   observeMessageDeliveryLifecycle(
     listener: (event: ChatMessageDeliveryLifecycleEvent) => void,
   ): () => void;
+  observeMessageMutationEvent(listener: (event: ChatMessageMutationEvent) => void): () => void;
   observeRealtimeEventDelivery(listener: () => void): () => void;
   observeRoom(listener: () => void): () => void;
   observe(listener: () => void): () => void;

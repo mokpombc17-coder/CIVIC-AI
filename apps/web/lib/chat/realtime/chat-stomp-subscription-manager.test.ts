@@ -111,6 +111,43 @@ describe("ChatStompSubscriptionManager", () => {
     });
   });
 
+  it("활성 방 메시지 수정·삭제를 전용 command destination으로 publish한다", () => {
+    const client = createFakeClient();
+    const manager = new ChatStompSubscriptionManager(client);
+    const editRequest = {
+      clientMutationId: REQUEST_ID,
+      messageId: "message-01",
+      content: "  수정된 메시지  ",
+    };
+    const deleteRequest = {
+      clientMutationId: "550e8400-e29b-41d4-a716-446655440001",
+      messageId: "message-01",
+    };
+
+    manager.connect();
+    manager.activateRoom("room-01");
+    manager.editRoomMessage("room-01", editRequest);
+    manager.deleteRoomMessage("room-01", deleteRequest);
+
+    expect(client.publish).toHaveBeenNthCalledWith(1, {
+      destination: "/app/rooms/room-01/messages/edit",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        ...editRequest,
+        content: "수정된 메시지",
+      }),
+    });
+    expect(client.publish).toHaveBeenNthCalledWith(2, {
+      destination: "/app/rooms/room-01/messages/delete",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(deleteRequest),
+    });
+  });
+
   it("활성 방이 아니거나 payload가 유효하지 않으면 메시지를 publish하지 않는다", () => {
     const client = createFakeClient();
     const manager = new ChatStompSubscriptionManager(client);
@@ -128,6 +165,19 @@ describe("ChatStompSubscriptionManager", () => {
       manager.sendRoomMessage("room-01", {
         clientMessageId: "not-a-uuid",
         content: "잘못된 요청",
+      }),
+    ).toThrow();
+    expect(() =>
+      manager.editRoomMessage("room-02", {
+        clientMutationId: REQUEST_ID,
+        messageId: "message-01",
+        content: "수정",
+      }),
+    ).toThrow("활성 방의 STOMP topic 구독이 준비되지 않았습니다.");
+    expect(() =>
+      manager.deleteRoomMessage("room-01", {
+        clientMutationId: "not-a-uuid",
+        messageId: "message-01",
       }),
     ).toThrow();
     expect(client.publish).not.toHaveBeenCalled();

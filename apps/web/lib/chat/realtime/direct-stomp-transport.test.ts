@@ -632,6 +632,73 @@ describe("DirectStompTransport", () => {
     });
   });
 
+  it("Direct fallback에서 수정·삭제를 publish하고 mutation 결과를 호출자에게 전달한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+    const listener = vi.fn();
+    const editRequest = {
+      clientMutationId: "550e8400-e29b-41d4-a716-446655440010",
+      messageId: "message-01",
+      content: "수정된 메시지",
+    };
+    const deleteRequest = {
+      clientMutationId: "550e8400-e29b-41d4-a716-446655440011",
+      messageId: "message-01",
+    };
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+    transport.markRoomSnapshotApplied("room-01", 1);
+    transport.observeMessageMutationEvent(listener);
+
+    transport.editRoomMessage({ roomId: "room-01", request: editRequest });
+    expect(client.publish).toHaveBeenLastCalledWith({
+      destination: "/app/rooms/room-01/messages/edit",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(editRequest),
+    });
+
+    transport.deleteRoomMessage({ roomId: "room-01", request: deleteRequest });
+    expect(client.publish).toHaveBeenLastCalledWith({
+      destination: "/app/rooms/room-01/messages/delete",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(deleteRequest),
+    });
+
+    client.deliver(
+      "/user/queue/command-results",
+      JSON.stringify({
+        clientMessageId: null,
+        status: "UPDATED",
+        code: null,
+        retryable: false,
+        retryAfterMs: null,
+        messageId: "message-01",
+        roomSequence: 1,
+        commandType: "EDIT_MESSAGE",
+        clientMutationId: editRequest.clientMutationId,
+        messageVersion: 2,
+        messageState: "ACTIVE",
+        replayed: false,
+      }),
+    );
+
+    expect(listener).toHaveBeenCalledWith({
+      kind: "result",
+      roomId: "room-01",
+      result: expect.objectContaining({
+        clientMutationId: editRequest.clientMutationId,
+        commandType: "EDIT_MESSAGE",
+        status: "UPDATED",
+      }),
+    });
+  });
+
   it("Direct fallback도 USER_RATE_LIMITED를 숨기고 같은 메시지를 대기 후 재전송한다", () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, "random").mockReturnValue(0);

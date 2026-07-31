@@ -207,7 +207,9 @@ function createFakeTransport(): ChatRealtimeTransport & {
     acknowledgeRealtimeEventDelivery: () => {},
     attach,
     claimRoom,
+    deleteRoomMessage: () => {},
     detach,
+    editRoomMessage: () => {},
     emitMessageDeliveryLifecycle(event) {
       messageDeliveryLifecycleListeners.forEach((listener) => listener(event));
     },
@@ -220,6 +222,7 @@ function createFakeTransport(): ChatRealtimeTransport & {
       messageDeliveryLifecycleListeners.add(listener);
       return () => messageDeliveryLifecycleListeners.delete(listener);
     },
+    observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
     observe: () => () => {},

@@ -635,6 +635,106 @@ describe("SharedWorkerTransport", () => {
     });
   });
 
+  it("메시지 수정·삭제 명령과 Worker mutation 결과를 탭 transport로 중계한다", () => {
+    const worker = createFakeWorker();
+    const createId = vi.fn().mockReturnValueOnce("port-1").mockReturnValueOnce("claim-1");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+    const listener = vi.fn();
+    const editRequest = {
+      clientMutationId: "550e8400-e29b-41d4-a716-446655440010",
+      messageId: "message-01",
+      content: "수정된 메시지",
+    };
+    const deleteRequest = {
+      clientMutationId: "550e8400-e29b-41d4-a716-446655440011",
+      messageId: "message-01",
+    };
+
+    transport.attach();
+    worker.port.dispatchMessage({
+      type: "CONNECTION_SNAPSHOT",
+      workerInstanceId: "worker-1",
+      attachedPortCount: 1,
+      snapshot: {
+        status: "connected",
+        error: null,
+      },
+    });
+    transport.claimRoom("room-01");
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+      watermarkSequence: 1,
+    });
+    transport.observeMessageMutationEvent(listener);
+
+    transport.editRoomMessage({ roomId: "room-01", request: editRequest });
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "EDIT_ROOM_MESSAGE",
+      portId: "port-1",
+      roomId: "room-01",
+      request: editRequest,
+    });
+
+    transport.deleteRoomMessage({ roomId: "room-01", request: deleteRequest });
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "DELETE_ROOM_MESSAGE",
+      portId: "port-1",
+      roomId: "room-01",
+      request: deleteRequest,
+    });
+
+    worker.port.dispatchMessage({
+      type: "ROOM_MESSAGE_MUTATION_RESULT",
+      roomId: "room-01",
+      result: {
+        clientMessageId: null,
+        status: "UPDATED",
+        code: null,
+        retryable: false,
+        retryAfterMs: null,
+        messageId: "message-01",
+        roomSequence: 1,
+        commandType: "EDIT_MESSAGE",
+        clientMutationId: editRequest.clientMutationId,
+        messageVersion: 2,
+        messageState: "ACTIVE",
+        replayed: false,
+      },
+    });
+    worker.port.dispatchMessage({
+      type: "ROOM_MESSAGE_MUTATION_FAILED",
+      roomId: "room-01",
+      clientMutationId: deleteRequest.clientMutationId,
+      code: "MUTATION_PUBLISH_FAILED",
+      retryable: true,
+      message: "수정·삭제 요청을 전송하지 못했습니다.",
+    });
+
+    expect(listener).toHaveBeenNthCalledWith(1, {
+      kind: "result",
+      roomId: "room-01",
+      result: expect.objectContaining({
+        clientMutationId: editRequest.clientMutationId,
+        status: "UPDATED",
+      }),
+    });
+    expect(listener).toHaveBeenNthCalledWith(2, {
+      kind: "failure",
+      roomId: "room-01",
+      clientMutationId: deleteRequest.clientMutationId,
+      code: "MUTATION_PUBLISH_FAILED",
+      retryable: true,
+      message: "수정·삭제 요청을 전송하지 못했습니다.",
+    });
+  });
+
   it("현재 방 generation의 delivery lifecycle만 탭으로 중계한다", () => {
     const worker = createFakeWorker();
     const createId = vi.fn().mockReturnValueOnce("port-1").mockReturnValueOnce("claim-1");

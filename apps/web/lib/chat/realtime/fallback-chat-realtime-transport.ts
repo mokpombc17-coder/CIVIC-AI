@@ -1,7 +1,10 @@
 import type {
   ChatConnectionSnapshot,
   ChatMessageCommandEvent,
+  ChatMessageMutationEvent,
   ChatRealtimeTransport,
+  ChatRoomMessageDeleteCommand,
+  ChatRoomMessageEditCommand,
   ChatRoomMessageSendCommand,
   ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
@@ -28,6 +31,7 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   private desiredRoomId: string | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
   private readonly messageDeliveryLifecycleListeners = new Set<
     (event: ChatMessageDeliveryLifecycleEvent) => void
   >();
@@ -100,6 +104,13 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
     return () => this.messageDeliveryLifecycleListeners.delete(listener);
   };
 
+  readonly observeMessageMutationEvent = (
+    listener: (event: ChatMessageMutationEvent) => void,
+  ): (() => void) => {
+    this.messageMutationListeners.add(listener);
+    return () => this.messageMutationListeners.delete(listener);
+  };
+
   readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
     this.realtimeEventDeliveryListeners.add(listener);
     return () => this.realtimeEventDeliveryListeners.delete(listener);
@@ -132,6 +143,14 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
 
   readonly sendRoomMessage = (command: ChatRoomMessageSendCommand): void => {
     this.delegate.sendRoomMessage(command);
+  };
+
+  readonly editRoomMessage = (command: ChatRoomMessageEditCommand): void => {
+    this.delegate.editRoomMessage(command);
+  };
+
+  readonly deleteRoomMessage = (command: ChatRoomMessageDeleteCommand): void => {
+    this.delegate.deleteRoomMessage(command);
   };
 
   private createNextDelegate(): ChatRealtimeTransport {
@@ -171,6 +190,9 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
       }),
       this.delegate.observeMessageCommandEvent((event) => {
         this.messageCommandListeners.forEach((listener) => listener(event));
+      }),
+      this.delegate.observeMessageMutationEvent((event) => {
+        this.messageMutationListeners.forEach((listener) => listener(event));
       }),
       this.delegate.observeMessageDeliveryLifecycle((event) => {
         this.messageDeliveryLifecycleListeners.forEach((listener) => listener(event));

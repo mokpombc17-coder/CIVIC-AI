@@ -235,6 +235,64 @@ describe("chat shared worker protocol", () => {
     ).toBe(true);
   });
 
+  it("메시지 수정·삭제 command와 mutation 결과 event를 검증한다", () => {
+    const clientMutationId = "550e8400-e29b-41d4-a716-446655440010";
+
+    expect(
+      isChatSharedWorkerCommand({
+        type: "EDIT_ROOM_MESSAGE",
+        portId: "port-1",
+        roomId: "room-01",
+        request: {
+          clientMutationId,
+          messageId: "message-01",
+          content: "수정된 메시지",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerCommand({
+        type: "DELETE_ROOM_MESSAGE",
+        portId: "port-1",
+        roomId: "room-01",
+        request: {
+          clientMutationId,
+          messageId: "",
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_MESSAGE_MUTATION_RESULT",
+        roomId: "room-01",
+        result: {
+          clientMessageId: null,
+          status: "UPDATED",
+          code: null,
+          retryable: false,
+          retryAfterMs: null,
+          messageId: "message-01",
+          roomSequence: 10,
+          commandType: "EDIT_MESSAGE",
+          clientMutationId,
+          messageVersion: 2,
+          messageState: "ACTIVE",
+          replayed: false,
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_MESSAGE_MUTATION_FAILED",
+        roomId: "room-01",
+        clientMutationId,
+        code: "ROOM_NOT_ACTIVE",
+        retryable: true,
+        message: "방이 활성화되지 않았습니다.",
+      }),
+    ).toBe(true);
+  });
+
   it("메시지 delivery lifecycle event의 상태별 필드를 검증한다", () => {
     const lifecycle = {
       type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE",

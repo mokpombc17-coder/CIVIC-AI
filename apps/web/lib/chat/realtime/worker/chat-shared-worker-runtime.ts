@@ -25,6 +25,7 @@ import {
 import {
   parseChatMessageCreatedEvent,
   parseChatMessageCommandResult,
+  parseChatMessageMutationCommandResult,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
@@ -108,6 +109,12 @@ type PendingRealtimeDelivery = ChatRealtimeEventDelivery &
     ownerPortId: string;
   }>;
 
+type PendingMessageMutation = Readonly<{
+  commandType: "EDIT_MESSAGE" | "DELETE_MESSAGE";
+  ownerPortId: string;
+  roomId: string;
+}>;
+
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   status: "idle",
   error: null,
@@ -120,6 +127,7 @@ export class ChatSharedWorkerRuntime {
   private deactivation: Promise<void> | null = null;
   private generation = 0;
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
+  private readonly pendingMessageMutations = new Map<string, PendingMessageMutation>();
   private pendingRoomActivation: PendingRoomActivation | null = null;
   private pendingRoomSync: PendingRoomSync | null = null;
   private pendingRealtimeDelivery: PendingRealtimeDelivery | null = null;
@@ -178,6 +186,7 @@ export class ChatSharedWorkerRuntime {
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
+      this.pendingMessageMutations.clear();
       this.pauseRealtimeDelivery();
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
@@ -276,6 +285,12 @@ export class ChatSharedWorkerRuntime {
           this.sendRoomMessage(connectedPort, command);
         }
         return;
+      case "EDIT_ROOM_MESSAGE":
+      case "DELETE_ROOM_MESSAGE":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.mutateRoomMessage(connectedPort, command);
+        }
+        return;
       case "ROOM_SNAPSHOT_APPLIED":
         if (connectedPort.attached && connectedPort.portId === command.portId) {
           this.markRoomSnapshotApplied(connectedPort, command);
@@ -311,6 +326,7 @@ export class ChatSharedWorkerRuntime {
     const portId = connectedPort.portId;
 
     this.cancelMessageDeliveriesForPort(portId, "OWNER_PORT_DETACHED");
+    this.clearPendingMessageMutationsForPort(portId);
 
     if (lease && portId === lease.ownerPortId) {
       this.tryReleaseRoom(lease.roomId);
@@ -356,6 +372,7 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.messageDeliveries.cancelAll("TRANSPORT_STOPPED");
+    this.pendingMessageMutations.clear();
     this.snapshot = {
       status: "disconnecting",
       error: null,
@@ -549,6 +566,7 @@ export class ChatSharedWorkerRuntime {
 
     if (previousLease) {
       this.cancelMessageDeliveriesForLease(previousLease, "ROOM_LEASE_REPLACED");
+      this.clearPendingMessageMutationsForLease(previousLease);
     }
 
     this.generation += 1;
@@ -589,6 +607,7 @@ export class ChatSharedWorkerRuntime {
 
     if (ownsLease && lease) {
       this.cancelMessageDeliveriesForLease(lease, "ROOM_RELEASED");
+      this.clearPendingMessageMutationsForLease(lease);
       this.tryReleaseRoom(command.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
       this.pauseRealtimeDelivery();
@@ -664,6 +683,78 @@ export class ChatSharedWorkerRuntime {
         cause instanceof Error && cause.message.trim()
           ? cause.message
           : "STOMP 메시지 전송에 실패했습니다.",
+      );
+    }
+  }
+
+  private mutateRoomMessage(
+    connectedPort: ConnectedPort,
+    command: Extract<
+      ChatSharedWorkerCommand,
+      { type: "EDIT_ROOM_MESSAGE" | "DELETE_ROOM_MESSAGE" }
+    >,
+  ): void {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+    const portId = connectedPort.portId;
+    const clientMutationId = command.request.clientMutationId;
+
+    if (this.snapshot.status !== "connected") {
+      this.sendMessageMutationFailure(
+        portId,
+        command.roomId,
+        clientMutationId,
+        "CONNECTION_NOT_READY",
+        true,
+        "WebSocket 연결이 준비되지 않아 메시지를 변경할 수 없습니다.",
+      );
+      return;
+    }
+
+    if (
+      !portId ||
+      !lease ||
+      !deliverySession ||
+      lease.ownerPortId !== portId ||
+      lease.roomId !== command.roomId ||
+      deliverySession.ownerPortId !== portId ||
+      deliverySession.roomId !== command.roomId ||
+      deliverySession.generation !== lease.generation
+    ) {
+      this.sendMessageMutationFailure(
+        portId,
+        command.roomId,
+        clientMutationId,
+        "ROOM_NOT_ACTIVE",
+        true,
+        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 변경할 수 없습니다.",
+      );
+      return;
+    }
+
+    this.pendingMessageMutations.set(clientMutationId, {
+      commandType: command.type === "EDIT_ROOM_MESSAGE" ? "EDIT_MESSAGE" : "DELETE_MESSAGE",
+      ownerPortId: portId,
+      roomId: command.roomId,
+    });
+
+    try {
+      if (command.type === "EDIT_ROOM_MESSAGE") {
+        this.subscriptions.editRoomMessage(command.roomId, command.request);
+      } else {
+        this.subscriptions.deleteRoomMessage(command.roomId, command.request);
+      }
+    } catch (cause) {
+      this.pendingMessageMutations.delete(clientMutationId);
+      this.sendMessageMutationFailure(
+        portId,
+        command.roomId,
+        clientMutationId,
+        "MUTATION_PUBLISH_FAILED",
+        true,
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : "STOMP 메시지 변경 요청 전송에 실패했습니다.",
       );
     }
   }
@@ -1064,11 +1155,34 @@ export class ChatSharedWorkerRuntime {
   private readonly handleMessageCommandResult = (message: IMessage): void => {
     const result = parseChatMessageCommandResult(message.body);
 
-    if (!result) {
+    if (result) {
+      this.messageDeliveries.handleCommandResult(result);
       return;
     }
 
-    this.messageDeliveries.handleCommandResult(result);
+    const mutationResult = parseChatMessageMutationCommandResult(message.body);
+
+    if (!mutationResult) {
+      return;
+    }
+
+    const pending = this.pendingMessageMutations.get(mutationResult.clientMutationId);
+
+    if (!pending) {
+      return;
+    }
+
+    this.pendingMessageMutations.delete(mutationResult.clientMutationId);
+
+    if (pending.commandType !== mutationResult.commandType) {
+      return;
+    }
+
+    this.sendToPort(pending.ownerPortId, {
+      type: "ROOM_MESSAGE_MUTATION_RESULT",
+      roomId: pending.roomId,
+      result: mutationResult,
+    });
   };
 
   private readonly handleRoomMessage = (roomId: string, message: IMessage): void => {
@@ -1219,6 +1333,28 @@ export class ChatSharedWorkerRuntime {
     });
   }
 
+  private sendMessageMutationFailure(
+    portId: string | null,
+    roomId: string,
+    clientMutationId: string,
+    code: "CONNECTION_NOT_READY" | "ROOM_NOT_ACTIVE" | "MUTATION_PUBLISH_FAILED",
+    retryable: boolean,
+    message: string,
+  ): void {
+    if (!portId) {
+      return;
+    }
+
+    this.sendToPort(portId, {
+      type: "ROOM_MESSAGE_MUTATION_FAILED",
+      roomId,
+      clientMutationId,
+      code,
+      retryable,
+      message,
+    });
+  }
+
   private cancelMessageDeliveriesForPort(portId: string | null, reason: string): void {
     if (!portId) {
       return;
@@ -1233,6 +1369,26 @@ export class ChatSharedWorkerRuntime {
         generation === lease.generation && ownerId === lease.ownerPortId && roomId === lease.roomId,
       reason,
     );
+  }
+
+  private clearPendingMessageMutationsForPort(portId: string | null): void {
+    if (!portId) {
+      return;
+    }
+
+    for (const [clientMutationId, pending] of this.pendingMessageMutations) {
+      if (pending.ownerPortId === portId) {
+        this.pendingMessageMutations.delete(clientMutationId);
+      }
+    }
+  }
+
+  private clearPendingMessageMutationsForLease(lease: ActiveRoomLease): void {
+    for (const [clientMutationId, pending] of this.pendingMessageMutations) {
+      if (pending.ownerPortId === lease.ownerPortId && pending.roomId === lease.roomId) {
+        this.pendingMessageMutations.delete(clientMutationId);
+      }
+    }
   }
 
   private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {

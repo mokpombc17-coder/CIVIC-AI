@@ -1183,6 +1183,91 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(otherPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
   });
 
+  it("owner tab의 수정 command 결과만 clientMutationId로 원래 탭에 돌려준다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const ownerPort = createFakePort();
+    const otherPort = createFakePort();
+    const request = {
+      clientMutationId: "550e8400-e29b-41d4-a716-446655440010",
+      messageId: "message-01",
+      content: "수정된 메시지",
+    };
+
+    runtime.connectPort(ownerPort);
+    runtime.connectPort(otherPort);
+    ownerPort.send({ type: "ATTACH", portId: "port-owner" });
+    otherPort.send({ type: "ATTACH", portId: "port-other" });
+    client.onConnect({} as IFrame);
+    ownerPort.send({
+      type: "CLAIM_ROOM",
+      portId: "port-owner",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    ownerPort.send({
+      type: "ROOM_SNAPSHOT_APPLIED",
+      portId: "port-owner",
+      roomId: "room-01",
+      generation: 1,
+    });
+
+    otherPort.send({
+      type: "EDIT_ROOM_MESSAGE",
+      portId: "port-other",
+      roomId: "room-01",
+      request,
+    });
+    expect(otherPort.eventsOfType("ROOM_MESSAGE_MUTATION_FAILED").at(-1)).toMatchObject({
+      clientMutationId: request.clientMutationId,
+      code: "ROOM_NOT_ACTIVE",
+      roomId: "room-01",
+    });
+
+    ownerPort.send({
+      type: "EDIT_ROOM_MESSAGE",
+      portId: "port-owner",
+      roomId: "room-01",
+      request,
+    });
+    expect(client.publish).toHaveBeenLastCalledWith({
+      destination: "/app/rooms/room-01/messages/edit",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    client.deliver(
+      "/user/queue/command-results",
+      JSON.stringify({
+        clientMessageId: null,
+        status: "UPDATED",
+        code: null,
+        retryable: false,
+        retryAfterMs: null,
+        messageId: "message-01",
+        roomSequence: 1,
+        commandType: "EDIT_MESSAGE",
+        clientMutationId: request.clientMutationId,
+        messageVersion: 2,
+        messageState: "ACTIVE",
+        replayed: false,
+      }),
+    );
+
+    expect(ownerPort.eventsOfType("ROOM_MESSAGE_MUTATION_RESULT").at(-1)).toMatchObject({
+      roomId: "room-01",
+      result: {
+        clientMutationId: request.clientMutationId,
+        commandType: "EDIT_MESSAGE",
+        status: "UPDATED",
+        messageVersion: 2,
+      },
+    });
+    expect(otherPort.eventsOfType("ROOM_MESSAGE_MUTATION_RESULT")).toEqual([]);
+  });
+
   it("USER_RATE_LIMITED는 owner 탭에 노출하지 않고 같은 메시지를 대기 후 재전송한다", () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, "random").mockReturnValue(0);

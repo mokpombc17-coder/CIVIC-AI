@@ -1,13 +1,19 @@
 import type { Client, IMessage, StompSubscription } from "@stomp/stompjs";
 import {
+  chatMessageDeleteRequestSchema,
+  chatMessageEditRequestSchema,
   chatMessageSendRequestSchema,
   chatRoomSubscriptionSyncRequestSchema,
+  type ChatMessageDeleteRequest,
+  type ChatMessageEditRequest,
   type ChatMessageSendRequest,
 } from "./chat-stomp-contracts";
 import {
   CHAT_COMMAND_RESULTS_DESTINATION,
   CHAT_SYSTEM_EVENTS_DESTINATION,
   getChatRoomEventsDestination,
+  getChatRoomMessageDeleteDestination,
+  getChatRoomMessageEditDestination,
   getChatRoomMessageSendDestination,
   getChatRoomMessagesDestination,
   getChatRoomSubscriptionSyncDestination,
@@ -121,14 +127,37 @@ export class ChatStompSubscriptionManager {
   }
 
   sendRoomMessage(roomId: string, input: ChatMessageSendRequest): void {
-    if (!this.isConnected || this.roomId !== roomId || this.roomSubscriptions?.roomId !== roomId) {
-      throw new Error("활성 방의 STOMP topic 구독이 준비되지 않았습니다.");
-    }
-
+    this.assertRoomReady(roomId);
     const request = chatMessageSendRequestSchema.parse(input);
 
     this.client.publish({
       destination: getChatRoomMessageSendDestination(roomId),
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+  }
+
+  editRoomMessage(roomId: string, input: ChatMessageEditRequest): void {
+    this.assertRoomReady(roomId);
+    const request = chatMessageEditRequestSchema.parse(input);
+
+    this.client.publish({
+      destination: getChatRoomMessageEditDestination(roomId),
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+  }
+
+  deleteRoomMessage(roomId: string, input: ChatMessageDeleteRequest): void {
+    this.assertRoomReady(roomId);
+    const request = chatMessageDeleteRequestSchema.parse(input);
+
+    this.client.publish({
+      destination: getChatRoomMessageDeleteDestination(roomId),
       headers: {
         "content-type": "application/json",
       },
@@ -179,6 +208,12 @@ export class ChatStompSubscriptionManager {
         }
       });
       throw cause;
+    }
+  }
+
+  private assertRoomReady(roomId: string): void {
+    if (!this.isConnected || this.roomId !== roomId || this.roomSubscriptions?.roomId !== roomId) {
+      throw new Error("활성 방의 STOMP topic 구독이 준비되지 않았습니다.");
     }
   }
 

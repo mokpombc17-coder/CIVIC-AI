@@ -49,6 +49,8 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     acknowledgeRealtimeEventDelivery: () => {},
     attach: vi.fn(() => detachments.shift() ?? (() => {})),
     claimRoom: () => {},
+    deleteRoomMessage: () => {},
+    editRoomMessage: () => {},
     getRealtimeEventDelivery: () => null,
     getRoomSnapshot: () => ({
       status: "idle",
@@ -63,6 +65,7 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     markRoomSnapshotApplied: () => {},
     observeMessageCommandEvent: () => () => {},
     observeMessageDeliveryLifecycle: () => () => {},
+    observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
     observe: () => () => {},

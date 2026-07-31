@@ -6,11 +6,15 @@ import {
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import {
+  ChatMessageMutationError,
   ChatMessageSendError,
   type ChatConnectionSnapshot,
   type ChatMessageCommandEvent,
+  type ChatMessageMutationEvent,
   type ChatRealtimeError,
   type ChatRealtimeTransport,
+  type ChatRoomMessageDeleteCommand,
+  type ChatRoomMessageEditCommand,
   type ChatRoomMessageSendCommand,
   type ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
@@ -75,6 +79,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly handshakeTimeoutMs: number;
   private readonly listeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
   private readonly messageDeliveryLifecycleListeners = new Set<
     (event: ChatMessageDeliveryLifecycleEvent) => void
   >();
@@ -162,6 +167,16 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
     return () => {
       this.messageDeliveryLifecycleListeners.delete(listener);
+    };
+  };
+
+  readonly observeMessageMutationEvent = (
+    listener: (event: ChatMessageMutationEvent) => void,
+  ): (() => void) => {
+    this.messageMutationListeners.add(listener);
+
+    return () => {
+      this.messageMutationListeners.delete(listener);
     };
   };
 
@@ -293,6 +308,52 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       );
     }
   };
+
+  readonly editRoomMessage = ({ request, roomId }: ChatRoomMessageEditCommand): void => {
+    this.sendRoomMessageMutation({
+      type: "EDIT_ROOM_MESSAGE",
+      request,
+      roomId,
+    });
+  };
+
+  readonly deleteRoomMessage = ({ request, roomId }: ChatRoomMessageDeleteCommand): void => {
+    this.sendRoomMessageMutation({
+      type: "DELETE_ROOM_MESSAGE",
+      request,
+      roomId,
+    });
+  };
+
+  private sendRoomMessageMutation(
+    command:
+      | ({ type: "EDIT_ROOM_MESSAGE" } & ChatRoomMessageEditCommand)
+      | ({ type: "DELETE_ROOM_MESSAGE" } & ChatRoomMessageDeleteCommand),
+  ): void {
+    if (this.snapshot.status !== "connected") {
+      throw new ChatMessageMutationError(
+        "CONNECTION_NOT_READY",
+        "WebSocket 연결이 준비되지 않아 메시지를 변경할 수 없습니다.",
+        true,
+      );
+    }
+
+    if (this.roomSnapshot.status !== "active" || this.roomSnapshot.roomId !== command.roomId) {
+      throw new ChatMessageMutationError(
+        "ROOM_NOT_ACTIVE",
+        "현재 탭에서 활성화된 채팅방이 아니어서 메시지를 변경할 수 없습니다.",
+        true,
+      );
+    }
+
+    if (!this.postRoomCommand(command)) {
+      throw new ChatMessageMutationError(
+        "MUTATION_PUBLISH_FAILED",
+        "SharedWorker에 메시지 변경 명령을 전달하지 못했습니다.",
+        true,
+      );
+    }
+  }
 
   readonly reconnect = (): void => {
     if (this.attachmentCount === 0) {
@@ -523,6 +584,23 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           message: workerEvent.message,
         });
         return;
+      case "ROOM_MESSAGE_MUTATION_RESULT":
+        this.emitMessageMutationEvent({
+          kind: "result",
+          roomId: workerEvent.roomId,
+          result: workerEvent.result,
+        });
+        return;
+      case "ROOM_MESSAGE_MUTATION_FAILED":
+        this.emitMessageMutationEvent({
+          kind: "failure",
+          roomId: workerEvent.roomId,
+          clientMutationId: workerEvent.clientMutationId,
+          code: workerEvent.code,
+          retryable: workerEvent.retryable,
+          message: workerEvent.message,
+        });
+        return;
       case "ROOM_MESSAGE_DELIVERY_LIFECYCLE":
         if (
           workerEvent.event.roomId === this.roomSnapshot.roomId &&
@@ -552,6 +630,10 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
   private emitMessageCommandEvent(event: ChatMessageCommandEvent): void {
     this.messageCommandListeners.forEach((listener) => listener(event));
+  }
+
+  private emitMessageMutationEvent(event: ChatMessageMutationEvent): void {
+    this.messageMutationListeners.forEach((listener) => listener(event));
   }
 
   private emitMessageDeliveryLifecycle(event: ChatMessageDeliveryLifecycleEvent): void {
@@ -638,6 +720,8 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       | Omit<Extract<ChatSharedWorkerCommand, { type: "CLAIM_ROOM" }>, "portId">
       | Omit<Extract<ChatSharedWorkerCommand, { type: "RELEASE_ROOM" }>, "portId">
       | Omit<Extract<ChatSharedWorkerCommand, { type: "SEND_ROOM_MESSAGE" }>, "portId">
+      | Omit<Extract<ChatSharedWorkerCommand, { type: "EDIT_ROOM_MESSAGE" }>, "portId">
+      | Omit<Extract<ChatSharedWorkerCommand, { type: "DELETE_ROOM_MESSAGE" }>, "portId">
       | Omit<Extract<ChatSharedWorkerCommand, { type: "ROOM_SNAPSHOT_APPLIED" }>, "portId">
       | Omit<Extract<ChatSharedWorkerCommand, { type: "ROOM_EVENTS_APPLIED" }>, "portId">,
   ): boolean {

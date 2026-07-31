@@ -3,13 +3,23 @@ import {
   isChatMessageDeliveryLifecycleEvent,
   type ChatMessageDeliveryLifecycleEvent,
 } from "./chat-message-delivery-scheduler";
-import type { ChatConnectionSnapshot, ChatMessageSendFailureCode } from "./chat-realtime-transport";
+import type {
+  ChatConnectionSnapshot,
+  ChatMessageMutationFailureCode,
+  ChatMessageSendFailureCode,
+} from "./chat-realtime-transport";
 import {
   chatMessageCommandResultSchema,
   chatMessageCreatedEventSchema,
+  chatMessageDeleteRequestSchema,
+  chatMessageEditRequestSchema,
+  chatMessageMutationCommandResultSchema,
   chatMessageSendRequestSchema,
   chatRoomEventEnvelopeSchema,
   type ChatMessageCommandResult,
+  type ChatMessageDeleteRequest,
+  type ChatMessageEditRequest,
+  type ChatMessageMutationCommandResult,
   type ChatMessageSendRequest,
 } from "./chat-stomp-contracts";
 
@@ -45,6 +55,18 @@ export type ChatSharedWorkerCommand =
       portId: string;
       roomId: string;
       request: ChatMessageSendRequest;
+    }>
+  | Readonly<{
+      type: "EDIT_ROOM_MESSAGE";
+      portId: string;
+      roomId: string;
+      request: ChatMessageEditRequest;
+    }>
+  | Readonly<{
+      type: "DELETE_ROOM_MESSAGE";
+      portId: string;
+      roomId: string;
+      request: ChatMessageDeleteRequest;
     }>
   | Readonly<{
       type: "ROOM_SNAPSHOT_APPLIED";
@@ -129,6 +151,19 @@ export type ChatSharedWorkerEvent =
       message: string;
     }>
   | Readonly<{
+      type: "ROOM_MESSAGE_MUTATION_RESULT";
+      roomId: string;
+      result: ChatMessageMutationCommandResult;
+    }>
+  | Readonly<{
+      type: "ROOM_MESSAGE_MUTATION_FAILED";
+      roomId: string;
+      clientMutationId: string;
+      code: ChatMessageMutationFailureCode;
+      retryable: boolean;
+      message: string;
+    }>
+  | Readonly<{
       type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE";
       event: ChatMessageDeliveryLifecycleEvent;
     }>
@@ -186,6 +221,20 @@ export function isChatSharedWorkerCommand(value: unknown): value is ChatSharedWo
     return (
       typeof command.roomId === "string" &&
       chatMessageSendRequestSchema.safeParse(command.request).success
+    );
+  }
+
+  if (command.type === "EDIT_ROOM_MESSAGE") {
+    return (
+      typeof command.roomId === "string" &&
+      chatMessageEditRequestSchema.safeParse(command.request).success
+    );
+  }
+
+  if (command.type === "DELETE_ROOM_MESSAGE") {
+    return (
+      typeof command.roomId === "string" &&
+      chatMessageDeleteRequestSchema.safeParse(command.request).success
     );
   }
 
@@ -277,6 +326,26 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
       (event.code === "CONNECTION_NOT_READY" ||
         event.code === "ROOM_NOT_ACTIVE" ||
         event.code === "MESSAGE_PUBLISH_FAILED") &&
+      typeof event.retryable === "boolean" &&
+      typeof event.message === "string"
+    );
+  }
+
+  if (event.type === "ROOM_MESSAGE_MUTATION_RESULT") {
+    return (
+      typeof event.roomId === "string" &&
+      chatMessageMutationCommandResultSchema.safeParse(event.result).success
+    );
+  }
+
+  if (event.type === "ROOM_MESSAGE_MUTATION_FAILED") {
+    return (
+      typeof event.roomId === "string" &&
+      typeof event.clientMutationId === "string" &&
+      event.clientMutationId.length > 0 &&
+      (event.code === "CONNECTION_NOT_READY" ||
+        event.code === "ROOM_NOT_ACTIVE" ||
+        event.code === "MUTATION_PUBLISH_FAILED") &&
       typeof event.retryable === "boolean" &&
       typeof event.message === "string"
     );
