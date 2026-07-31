@@ -1,5 +1,6 @@
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
+import type { ChatMessageMutationLifecycleEvent } from "./chat-message-mutation-scheduler";
 import type {
   ChatMessageCommandResult,
   ChatMessageDeleteRequest,
@@ -167,6 +168,9 @@ export type ChatRealtimeTransport = {
   observeMessageCommandEvent(listener: (event: ChatMessageCommandEvent) => void): () => void;
   observeMessageDeliveryLifecycle(
     listener: (event: ChatMessageDeliveryLifecycleEvent) => void,
+  ): () => void;
+  observeMessageMutationLifecycle(
+    listener: (event: ChatMessageMutationLifecycleEvent) => void,
   ): () => void;
   observeMessageMutationEvent(listener: (event: ChatMessageMutationEvent) => void): () => void;
   observeRealtimeEventDelivery(listener: () => void): () => void;

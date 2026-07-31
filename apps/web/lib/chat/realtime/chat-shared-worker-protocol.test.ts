@@ -291,6 +291,22 @@ describe("chat shared worker protocol", () => {
         message: "방이 활성화되지 않았습니다.",
       }),
     ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "ROOM_MESSAGE_MUTATION_LIFECYCLE",
+        event: {
+          attempt: 1,
+          clientMutationId,
+          commandType: "EDIT_MESSAGE",
+          generation: 1,
+          messageId: "message-01",
+          reason: null,
+          retryAt: 1_500,
+          roomId: "room-01",
+          status: "retry-waiting",
+        },
+      }),
+    ).toBe(true);
   });
 
   it("메시지 delivery lifecycle event의 상태별 필드를 검증한다", () => {

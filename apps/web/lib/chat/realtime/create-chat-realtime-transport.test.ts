@@ -222,6 +222,7 @@ function createFakeTransport(): ChatRealtimeTransport & {
       messageDeliveryLifecycleListeners.add(listener);
       return () => messageDeliveryLifecycleListeners.delete(listener);
     },
+    observeMessageMutationLifecycle: () => () => {},
     observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},

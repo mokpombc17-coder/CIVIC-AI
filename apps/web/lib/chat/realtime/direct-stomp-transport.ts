@@ -10,6 +10,15 @@ import {
   type ChatMessageDeliveryTerminalEvent,
 } from "./chat-message-delivery-scheduler";
 import {
+  ChatMessageMutationScheduler,
+  createChatMessageMutationStateLifecycleEvent,
+  createChatMessageMutationTerminalLifecycleEvent,
+  getChatMessageMutationFailureMessage,
+  type ChatMessageMutationLifecycleEvent,
+  type ChatMessageMutationSnapshot,
+  type ChatMessageMutationTerminalEvent,
+} from "./chat-message-mutation-scheduler";
+import {
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
 } from "./chat-stomp-destinations";
@@ -95,11 +104,6 @@ type RealtimeDeliverySession = Readonly<{
   generation: number;
 }>;
 
-type PendingMessageMutation = Readonly<{
-  commandType: "EDIT_MESSAGE" | "DELETE_MESSAGE";
-  roomId: string;
-}>;
-
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private connectionRestart: Promise<void> | null = null;
@@ -107,11 +111,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
+  private readonly messageMutations: ChatMessageMutationScheduler;
   private readonly messageDeliveryLifecycleListeners = new Set<
     (event: ChatMessageDeliveryLifecycleEvent) => void
   >();
+  private readonly messageMutationLifecycleListeners = new Set<
+    (event: ChatMessageMutationLifecycleEvent) => void
+  >();
   private pendingRoomSync: PendingRoomSync | null = null;
-  private readonly pendingMessageMutations = new Map<string, PendingMessageMutation>();
   private realtimeDeliverySession: RealtimeDeliverySession | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
@@ -139,6 +146,20 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       onTerminal: (event) => this.handleMessageDeliveryTerminal(event),
       publish: ({ request, roomId }) => {
         this.subscriptions.sendRoomMessage(roomId, request);
+      },
+    });
+    this.messageMutations = new ChatMessageMutationScheduler({
+      isContextCurrent: (snapshot) => this.isMessageMutationContextCurrent(snapshot),
+      onStateChange: (snapshot) => {
+        this.emitMessageMutationLifecycle(createChatMessageMutationStateLifecycleEvent(snapshot));
+      },
+      onTerminal: (event) => this.handleMessageMutationTerminal(event),
+      publish: ({ commandType, request, roomId }) => {
+        if (commandType === "EDIT_MESSAGE") {
+          this.subscriptions.editRoomMessage(roomId, request);
+          return;
+        }
+        this.subscriptions.deleteRoomMessage(roomId, request);
       },
     });
     this.client.onConnect = () => {
@@ -185,7 +206,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
-      this.pendingMessageMutations.clear();
+      this.messageMutations.cancelAll("WEBSOCKET_CLOSED");
       this.pauseRealtimeDelivery();
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
@@ -309,6 +330,16 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     };
   };
 
+  readonly observeMessageMutationLifecycle = (
+    listener: (event: ChatMessageMutationLifecycleEvent) => void,
+  ): (() => void) => {
+    this.messageMutationLifecycleListeners.add(listener);
+
+    return () => {
+      this.messageMutationLifecycleListeners.delete(listener);
+    };
+  };
+
   readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
     this.realtimeEventDeliveryListeners.add(listener);
 
@@ -339,7 +370,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.messageDeliveries.cancelAll("ROOM_REPLACED");
-    this.pendingMessageMutations.clear();
+    this.messageMutations.cancelAll("ROOM_REPLACED");
     const claimingSnapshot: ChatRoomSessionSnapshot = {
       status: "claiming",
       roomId,
@@ -377,7 +408,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.cancelMessageDeliveriesForRoom(roomId, "ROOM_RELEASED");
-    this.clearPendingMessageMutationsForRoom(roomId);
+    this.messageMutations.cancelMatching((snapshot) => snapshot.roomId === roomId, "ROOM_RELEASED");
     try {
       this.subscriptions.releaseRoom(roomId);
     } catch (cause) {
@@ -473,23 +504,36 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   };
 
   readonly editRoomMessage = ({ request, roomId }: ChatRoomMessageEditCommand): void => {
-    this.sendRoomMessageMutation("EDIT_MESSAGE", request.clientMutationId, roomId, () =>
-      this.subscriptions.editRoomMessage(roomId, request),
-    );
+    this.startRoomMessageMutation({
+      commandType: "EDIT_MESSAGE",
+      request,
+      roomId,
+    });
   };
 
   readonly deleteRoomMessage = ({ request, roomId }: ChatRoomMessageDeleteCommand): void => {
-    this.sendRoomMessageMutation("DELETE_MESSAGE", request.clientMutationId, roomId, () =>
-      this.subscriptions.deleteRoomMessage(roomId, request),
-    );
+    this.startRoomMessageMutation({
+      commandType: "DELETE_MESSAGE",
+      request,
+      roomId,
+    });
   };
 
-  private sendRoomMessageMutation(
-    commandType: PendingMessageMutation["commandType"],
-    clientMutationId: string,
-    roomId: string,
-    publish: () => void,
+  private startRoomMessageMutation(
+    input:
+      | {
+          commandType: "EDIT_MESSAGE";
+          request: ChatRoomMessageEditCommand["request"];
+          roomId: string;
+        }
+      | {
+          commandType: "DELETE_MESSAGE";
+          request: ChatRoomMessageDeleteCommand["request"];
+          roomId: string;
+        },
   ): void {
+    const { roomId } = input;
+
     if (this.snapshot.status !== "connected") {
       throw new ChatMessageMutationError(
         "CONNECTION_NOT_READY",
@@ -511,15 +555,13 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       );
     }
 
-    this.pendingMessageMutations.set(clientMutationId, {
-      commandType,
-      roomId,
-    });
-
     try {
-      publish();
+      this.messageMutations.start({
+        ...input,
+        generation: this.roomSnapshot.generation,
+        ownerId: DIRECT_MESSAGE_DELIVERY_OWNER_ID,
+      });
     } catch (cause) {
-      this.pendingMessageMutations.delete(clientMutationId);
       throw new ChatMessageMutationError(
         "MUTATION_PUBLISH_FAILED",
         cause instanceof Error ? cause.message : "STOMP 메시지 변경 요청 전송에 실패했습니다.",
@@ -538,7 +580,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.messageDeliveries.cancelAll("TRANSPORT_RECONNECTING");
-    this.pendingMessageMutations.clear();
+    this.messageMutations.cancelAll("TRANSPORT_RECONNECTING");
     if (this.client.active) {
       this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
@@ -567,7 +609,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     this.subscriptions.disconnect();
     this.pendingRoomSync = null;
-    this.pendingMessageMutations.clear();
+    this.messageMutations.cancelAll("TRANSPORT_DETACHED");
     this.messageDeliveries.cancelAll("TRANSPORT_DETACHED");
     this.pauseRealtimeDelivery();
     this.realtimeBuffer.clear();
@@ -774,38 +816,30 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
-    const pending = this.pendingMessageMutations.get(mutationResult.clientMutationId);
-
-    if (!pending) {
-      return;
-    }
-
-    this.pendingMessageMutations.delete(mutationResult.clientMutationId);
-
-    if (pending.commandType !== mutationResult.commandType) {
-      return;
-    }
-
-    this.emitMessageMutationEvent({
-      kind: "result",
-      roomId: pending.roomId,
-      result: mutationResult,
-    });
+    this.messageMutations.handleCommandResult(mutationResult);
   };
 
   private cancelMessageDeliveriesForRoom(roomId: string, reason: string): void {
     this.messageDeliveries.cancelMatching((snapshot) => snapshot.roomId === roomId, reason);
   }
 
-  private clearPendingMessageMutationsForRoom(roomId: string): void {
-    for (const [clientMutationId, pending] of this.pendingMessageMutations) {
-      if (pending.roomId === roomId) {
-        this.pendingMessageMutations.delete(clientMutationId);
-      }
-    }
+  private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {
+    const deliverySession = this.realtimeDeliverySession;
+
+    return (
+      snapshot.ownerId === DIRECT_MESSAGE_DELIVERY_OWNER_ID &&
+      this.snapshot.status === "connected" &&
+      this.subscriptions.connected &&
+      this.subscriptions.activeRoomId === snapshot.roomId &&
+      this.roomSnapshot.status === "active" &&
+      this.roomSnapshot.roomId === snapshot.roomId &&
+      this.roomSnapshot.generation === snapshot.generation &&
+      deliverySession?.roomId === snapshot.roomId &&
+      deliverySession.generation === snapshot.generation
+    );
   }
 
-  private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {
+  private isMessageMutationContextCurrent(snapshot: ChatMessageMutationSnapshot): boolean {
     const deliverySession = this.realtimeDeliverySession;
 
     return (
@@ -856,12 +890,51 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     });
   }
 
+  private handleMessageMutationTerminal(event: ChatMessageMutationTerminalEvent): void {
+    this.emitMessageMutationLifecycle(createChatMessageMutationTerminalLifecycleEvent(event));
+
+    if (event.kind === "cancelled") {
+      return;
+    }
+
+    if (event.kind === "completed") {
+      this.emitMessageMutationEvent({
+        kind: "result",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    if (event.result) {
+      this.emitMessageMutationEvent({
+        kind: "result",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    this.emitMessageMutationEvent({
+      kind: "failure",
+      roomId: event.snapshot.roomId,
+      clientMutationId: event.snapshot.request.clientMutationId,
+      code: "MUTATION_PUBLISH_FAILED",
+      retryable: event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
+      message: getChatMessageMutationFailureMessage(event),
+    });
+  }
+
   private emitMessageCommandEvent(event: ChatMessageCommandEvent): void {
     this.messageCommandListeners.forEach((listener) => listener(event));
   }
 
   private emitMessageMutationEvent(event: ChatMessageMutationEvent): void {
     this.messageMutationListeners.forEach((listener) => listener(event));
+  }
+
+  private emitMessageMutationLifecycle(event: ChatMessageMutationLifecycleEvent): void {
+    this.messageMutationLifecycleListeners.forEach((listener) => listener(event));
   }
 
   private emitMessageDeliveryLifecycle(event: ChatMessageDeliveryLifecycleEvent): void {

@@ -8,6 +8,14 @@ import {
   type ChatMessageDeliveryTerminalEvent,
 } from "../chat-message-delivery-scheduler";
 import {
+  ChatMessageMutationScheduler,
+  createChatMessageMutationStateLifecycleEvent,
+  createChatMessageMutationTerminalLifecycleEvent,
+  getChatMessageMutationFailureMessage,
+  type ChatMessageMutationSnapshot,
+  type ChatMessageMutationTerminalEvent,
+} from "../chat-message-mutation-scheduler";
+import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
   CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
   CHAT_ROOM_CLOSED_MESSAGE,
@@ -109,12 +117,6 @@ type PendingRealtimeDelivery = ChatRealtimeEventDelivery &
     ownerPortId: string;
   }>;
 
-type PendingMessageMutation = Readonly<{
-  commandType: "EDIT_MESSAGE" | "DELETE_MESSAGE";
-  ownerPortId: string;
-  roomId: string;
-}>;
-
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   status: "idle",
   error: null,
@@ -127,7 +129,7 @@ export class ChatSharedWorkerRuntime {
   private deactivation: Promise<void> | null = null;
   private generation = 0;
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
-  private readonly pendingMessageMutations = new Map<string, PendingMessageMutation>();
+  private readonly messageMutations: ChatMessageMutationScheduler;
   private pendingRoomActivation: PendingRoomActivation | null = null;
   private pendingRoomSync: PendingRoomSync | null = null;
   private pendingRealtimeDelivery: PendingRealtimeDelivery | null = null;
@@ -162,6 +164,23 @@ export class ChatSharedWorkerRuntime {
         this.subscriptions.sendRoomMessage(roomId, request);
       },
     });
+    this.messageMutations = new ChatMessageMutationScheduler({
+      isContextCurrent: (snapshot) => this.isMessageMutationContextCurrent(snapshot),
+      onStateChange: (snapshot) => {
+        this.sendToPort(snapshot.ownerId, {
+          type: "ROOM_MESSAGE_MUTATION_LIFECYCLE",
+          event: createChatMessageMutationStateLifecycleEvent(snapshot),
+        });
+      },
+      onTerminal: (event) => this.handleMessageMutationTerminal(event),
+      publish: ({ commandType, request, roomId }) => {
+        if (commandType === "EDIT_MESSAGE") {
+          this.subscriptions.editRoomMessage(roomId, request);
+          return;
+        }
+        this.subscriptions.deleteRoomMessage(roomId, request);
+      },
+    });
     this.client.onConnect = () => {
       this.handleConnected();
     };
@@ -186,7 +205,7 @@ export class ChatSharedWorkerRuntime {
     this.client.onWebSocketClose = (event) => {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
-      this.pendingMessageMutations.clear();
+      this.messageMutations.cancelAll("WEBSOCKET_CLOSED");
       this.pauseRealtimeDelivery();
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
@@ -326,7 +345,10 @@ export class ChatSharedWorkerRuntime {
     const portId = connectedPort.portId;
 
     this.cancelMessageDeliveriesForPort(portId, "OWNER_PORT_DETACHED");
-    this.clearPendingMessageMutationsForPort(portId);
+    this.messageMutations.cancelMatching(
+      (snapshot) => snapshot.ownerId === portId,
+      "OWNER_PORT_DETACHED",
+    );
 
     if (lease && portId === lease.ownerPortId) {
       this.tryReleaseRoom(lease.roomId);
@@ -372,7 +394,7 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.messageDeliveries.cancelAll("TRANSPORT_STOPPED");
-    this.pendingMessageMutations.clear();
+    this.messageMutations.cancelAll("CONNECTION_STOPPED");
     this.snapshot = {
       status: "disconnecting",
       error: null,
@@ -566,7 +588,12 @@ export class ChatSharedWorkerRuntime {
 
     if (previousLease) {
       this.cancelMessageDeliveriesForLease(previousLease, "ROOM_LEASE_REPLACED");
-      this.clearPendingMessageMutationsForLease(previousLease);
+      this.messageMutations.cancelMatching(
+        (snapshot) =>
+          snapshot.ownerId === previousLease.ownerPortId &&
+          snapshot.roomId === previousLease.roomId,
+        "ROOM_REPLACED",
+      );
     }
 
     this.generation += 1;
@@ -607,7 +634,10 @@ export class ChatSharedWorkerRuntime {
 
     if (ownsLease && lease) {
       this.cancelMessageDeliveriesForLease(lease, "ROOM_RELEASED");
-      this.clearPendingMessageMutationsForLease(lease);
+      this.messageMutations.cancelMatching(
+        (snapshot) => snapshot.ownerId === lease.ownerPortId && snapshot.roomId === lease.roomId,
+        "ROOM_RELEASED",
+      );
       this.tryReleaseRoom(command.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
       this.pauseRealtimeDelivery();
@@ -732,20 +762,25 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
-    this.pendingMessageMutations.set(clientMutationId, {
-      commandType: command.type === "EDIT_ROOM_MESSAGE" ? "EDIT_MESSAGE" : "DELETE_MESSAGE",
-      ownerPortId: portId,
-      roomId: command.roomId,
-    });
-
     try {
       if (command.type === "EDIT_ROOM_MESSAGE") {
-        this.subscriptions.editRoomMessage(command.roomId, command.request);
+        this.messageMutations.start({
+          commandType: "EDIT_MESSAGE",
+          generation: lease.generation,
+          ownerId: portId,
+          request: command.request,
+          roomId: command.roomId,
+        });
       } else {
-        this.subscriptions.deleteRoomMessage(command.roomId, command.request);
+        this.messageMutations.start({
+          commandType: "DELETE_MESSAGE",
+          generation: lease.generation,
+          ownerId: portId,
+          request: command.request,
+          roomId: command.roomId,
+        });
       }
     } catch (cause) {
-      this.pendingMessageMutations.delete(clientMutationId);
       this.sendMessageMutationFailure(
         portId,
         command.roomId,
@@ -1166,23 +1201,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
-    const pending = this.pendingMessageMutations.get(mutationResult.clientMutationId);
-
-    if (!pending) {
-      return;
-    }
-
-    this.pendingMessageMutations.delete(mutationResult.clientMutationId);
-
-    if (pending.commandType !== mutationResult.commandType) {
-      return;
-    }
-
-    this.sendToPort(pending.ownerPortId, {
-      type: "ROOM_MESSAGE_MUTATION_RESULT",
-      roomId: pending.roomId,
-      result: mutationResult,
-    });
+    this.messageMutations.handleCommandResult(mutationResult);
   };
 
   private readonly handleRoomMessage = (roomId: string, message: IMessage): void => {
@@ -1371,27 +1390,24 @@ export class ChatSharedWorkerRuntime {
     );
   }
 
-  private clearPendingMessageMutationsForPort(portId: string | null): void {
-    if (!portId) {
-      return;
-    }
-
-    for (const [clientMutationId, pending] of this.pendingMessageMutations) {
-      if (pending.ownerPortId === portId) {
-        this.pendingMessageMutations.delete(clientMutationId);
-      }
-    }
-  }
-
-  private clearPendingMessageMutationsForLease(lease: ActiveRoomLease): void {
-    for (const [clientMutationId, pending] of this.pendingMessageMutations) {
-      if (pending.ownerPortId === lease.ownerPortId && pending.roomId === lease.roomId) {
-        this.pendingMessageMutations.delete(clientMutationId);
-      }
-    }
-  }
-
   private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+
+    return (
+      this.snapshot.status === "connected" &&
+      this.subscriptions.connected &&
+      this.subscriptions.activeRoomId === snapshot.roomId &&
+      lease?.ownerPortId === snapshot.ownerId &&
+      lease.roomId === snapshot.roomId &&
+      lease.generation === snapshot.generation &&
+      deliverySession?.ownerPortId === snapshot.ownerId &&
+      deliverySession.roomId === snapshot.roomId &&
+      deliverySession.generation === snapshot.generation
+    );
+  }
+
+  private isMessageMutationContextCurrent(snapshot: ChatMessageMutationSnapshot): boolean {
     const lease = this.activeRoomLease;
     const deliverySession = this.realtimeDeliverySession;
 
@@ -1443,6 +1459,44 @@ export class ChatSharedWorkerRuntime {
       "MESSAGE_PUBLISH_FAILED",
       event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
       getChatMessageDeliveryFailureMessage(event),
+    );
+  }
+
+  private handleMessageMutationTerminal(event: ChatMessageMutationTerminalEvent): void {
+    this.sendToPort(event.snapshot.ownerId, {
+      type: "ROOM_MESSAGE_MUTATION_LIFECYCLE",
+      event: createChatMessageMutationTerminalLifecycleEvent(event),
+    });
+
+    if (event.kind === "cancelled") {
+      return;
+    }
+
+    if (event.kind === "completed") {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_MUTATION_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    if (event.result) {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_MUTATION_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    this.sendMessageMutationFailure(
+      event.snapshot.ownerId,
+      event.snapshot.roomId,
+      event.snapshot.request.clientMutationId,
+      "MUTATION_PUBLISH_FAILED",
+      event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
+      getChatMessageMutationFailureMessage(event),
     );
   }
 

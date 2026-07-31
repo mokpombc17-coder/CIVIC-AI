@@ -1268,6 +1268,81 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(otherPort.eventsOfType("ROOM_MESSAGE_MUTATION_RESULT")).toEqual([]);
   });
 
+  it("수정 rate limit은 owner 탭에 노출하지 않고 동일 mutation을 재전송한다", async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    try {
+      const client = createFakeStompClient();
+      const runtime = new ChatSharedWorkerRuntime(client);
+      const ownerPort = createFakePort();
+      const request = {
+        clientMutationId: "550e8400-e29b-41d4-a716-446655440012",
+        messageId: "message-01",
+        content: "재시도할 수정 메시지",
+      };
+
+      runtime.connectPort(ownerPort);
+      ownerPort.send({ type: "ATTACH", portId: "port-owner" });
+      client.onConnect({} as IFrame);
+      ownerPort.send({
+        type: "CLAIM_ROOM",
+        portId: "port-owner",
+        requestId: "claim-1",
+        roomId: "room-01",
+      });
+      ownerPort.send({
+        type: "ROOM_SNAPSHOT_APPLIED",
+        portId: "port-owner",
+        roomId: "room-01",
+        generation: 1,
+      });
+      ownerPort.send({
+        type: "EDIT_ROOM_MESSAGE",
+        portId: "port-owner",
+        roomId: "room-01",
+        request,
+      });
+
+      client.deliver(
+        "/user/queue/command-results",
+        JSON.stringify({
+          clientMessageId: null,
+          clientMutationId: request.clientMutationId,
+          replayed: false,
+          commandType: "EDIT_MESSAGE",
+          status: "REJECTED",
+          code: "USER_RATE_LIMITED",
+          retryable: true,
+          retryAfterMs: 1_000,
+          messageId: "message-01",
+          roomSequence: null,
+          messageVersion: null,
+          messageState: null,
+        }),
+      );
+
+      expect(ownerPort.eventsOfType("ROOM_MESSAGE_MUTATION_RESULT")).toEqual([]);
+      expect(ownerPort.eventsOfType("ROOM_MESSAGE_MUTATION_LIFECYCLE").at(-1)?.event).toMatchObject(
+        {
+          clientMutationId: request.clientMutationId,
+          retryAt: expect.any(Number),
+          status: "retry-waiting",
+        },
+      );
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      const editPublishes = vi
+        .mocked(client.publish)
+        .mock.calls.filter(([frame]) => frame.destination === "/app/rooms/room-01/messages/edit");
+      expect(editPublishes).toHaveLength(2);
+      expect(editPublishes[1]?.[0].body).toBe(editPublishes[0]?.[0].body);
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("USER_RATE_LIMITED는 owner 탭에 노출하지 않고 같은 메시지를 대기 후 재전송한다", () => {
     vi.useFakeTimers();
     const random = vi.spyOn(Math, "random").mockReturnValue(0);

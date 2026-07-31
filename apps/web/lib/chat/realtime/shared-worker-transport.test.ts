@@ -643,6 +643,7 @@ describe("SharedWorkerTransport", () => {
       createWorker: () => worker,
     });
     const listener = vi.fn();
+    const lifecycleListener = vi.fn();
     const editRequest = {
       clientMutationId: "550e8400-e29b-41d4-a716-446655440010",
       messageId: "message-01",
@@ -673,6 +674,7 @@ describe("SharedWorkerTransport", () => {
       watermarkSequence: 1,
     });
     transport.observeMessageMutationEvent(listener);
+    transport.observeMessageMutationLifecycle(lifecycleListener);
 
     transport.editRoomMessage({ roomId: "room-01", request: editRequest });
     expect(worker.port.postMessage).toHaveBeenLastCalledWith({
@@ -716,6 +718,20 @@ describe("SharedWorkerTransport", () => {
       retryable: true,
       message: "수정·삭제 요청을 전송하지 못했습니다.",
     });
+    worker.port.dispatchMessage({
+      type: "ROOM_MESSAGE_MUTATION_LIFECYCLE",
+      event: {
+        attempt: 2,
+        clientMutationId: editRequest.clientMutationId,
+        commandType: "EDIT_MESSAGE",
+        generation: 1,
+        messageId: "message-01",
+        reason: null,
+        retryAt: null,
+        roomId: "room-01",
+        status: "completed",
+      },
+    });
 
     expect(listener).toHaveBeenNthCalledWith(1, {
       kind: "result",
@@ -733,6 +749,12 @@ describe("SharedWorkerTransport", () => {
       retryable: true,
       message: "수정·삭제 요청을 전송하지 못했습니다.",
     });
+    expect(lifecycleListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientMutationId: editRequest.clientMutationId,
+        status: "completed",
+      }),
+    );
   });
 
   it("현재 방 generation의 delivery lifecycle만 탭으로 중계한다", () => {

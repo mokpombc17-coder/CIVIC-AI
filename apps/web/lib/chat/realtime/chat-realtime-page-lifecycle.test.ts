@@ -65,6 +65,7 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     markRoomSnapshotApplied: () => {},
     observeMessageCommandEvent: () => () => {},
     observeMessageDeliveryLifecycle: () => () => {},
+    observeMessageMutationLifecycle: () => () => {},
     observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},

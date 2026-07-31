@@ -5,6 +5,7 @@ import {
 } from "./chat-shared-worker-protocol";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
+import type { ChatMessageMutationLifecycleEvent } from "./chat-message-mutation-scheduler";
 import {
   ChatMessageMutationError,
   ChatMessageSendError,
@@ -82,6 +83,9 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
   private readonly messageDeliveryLifecycleListeners = new Set<
     (event: ChatMessageDeliveryLifecycleEvent) => void
+  >();
+  private readonly messageMutationLifecycleListeners = new Set<
+    (event: ChatMessageMutationLifecycleEvent) => void
   >();
   private pendingRoomRequestId: string | null = null;
   private portId: string | null = null;
@@ -177,6 +181,16 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
     return () => {
       this.messageMutationListeners.delete(listener);
+    };
+  };
+
+  readonly observeMessageMutationLifecycle = (
+    listener: (event: ChatMessageMutationLifecycleEvent) => void,
+  ): (() => void) => {
+    this.messageMutationLifecycleListeners.add(listener);
+
+    return () => {
+      this.messageMutationLifecycleListeners.delete(listener);
     };
   };
 
@@ -609,6 +623,14 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           this.emitMessageDeliveryLifecycle(workerEvent.event);
         }
         return;
+      case "ROOM_MESSAGE_MUTATION_LIFECYCLE":
+        if (
+          workerEvent.event.roomId === this.roomSnapshot.roomId &&
+          workerEvent.event.generation === this.roomSnapshot.generation
+        ) {
+          this.emitMessageMutationLifecycle(workerEvent.event);
+        }
+        return;
       case "ROOM_EVENTS_DELIVERED":
         if (
           this.roomSnapshot.status === "active" &&
@@ -634,6 +656,10 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
   private emitMessageMutationEvent(event: ChatMessageMutationEvent): void {
     this.messageMutationListeners.forEach((listener) => listener(event));
+  }
+
+  private emitMessageMutationLifecycle(event: ChatMessageMutationLifecycleEvent): void {
+    this.messageMutationLifecycleListeners.forEach((listener) => listener(event));
   }
 
   private emitMessageDeliveryLifecycle(event: ChatMessageDeliveryLifecycleEvent): void {

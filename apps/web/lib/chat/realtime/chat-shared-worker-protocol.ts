@@ -3,6 +3,10 @@ import {
   isChatMessageDeliveryLifecycleEvent,
   type ChatMessageDeliveryLifecycleEvent,
 } from "./chat-message-delivery-scheduler";
+import {
+  isChatMessageMutationLifecycleEvent,
+  type ChatMessageMutationLifecycleEvent,
+} from "./chat-message-mutation-scheduler";
 import type {
   ChatConnectionSnapshot,
   ChatMessageMutationFailureCode,
@@ -166,6 +170,10 @@ export type ChatSharedWorkerEvent =
   | Readonly<{
       type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE";
       event: ChatMessageDeliveryLifecycleEvent;
+    }>
+  | Readonly<{
+      type: "ROOM_MESSAGE_MUTATION_LIFECYCLE";
+      event: ChatMessageMutationLifecycleEvent;
     }>
   | Readonly<{
       type: "ROOM_EVENTS_DELIVERED";
@@ -353,6 +361,10 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
 
   if (event.type === "ROOM_MESSAGE_DELIVERY_LIFECYCLE") {
     return isChatMessageDeliveryLifecycleEvent(event.event);
+  }
+
+  if (event.type === "ROOM_MESSAGE_MUTATION_LIFECYCLE") {
+    return isChatMessageMutationLifecycleEvent(event.event);
   }
 
   if (event.type === "ROOM_EVENTS_DELIVERED") {

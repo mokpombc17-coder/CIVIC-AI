@@ -10,6 +10,7 @@ import type {
 } from "./chat-realtime-transport";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
+import type { ChatMessageMutationLifecycleEvent } from "./chat-message-mutation-scheduler";
 
 export type ChatRealtimeTransportCandidateLifecycle = {
   onReady: () => void;
@@ -34,6 +35,9 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
   private readonly messageDeliveryLifecycleListeners = new Set<
     (event: ChatMessageDeliveryLifecycleEvent) => void
+  >();
+  private readonly messageMutationLifecycleListeners = new Set<
+    (event: ChatMessageMutationLifecycleEvent) => void
   >();
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
@@ -109,6 +113,13 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   ): (() => void) => {
     this.messageMutationListeners.add(listener);
     return () => this.messageMutationListeners.delete(listener);
+  };
+
+  readonly observeMessageMutationLifecycle = (
+    listener: (event: ChatMessageMutationLifecycleEvent) => void,
+  ): (() => void) => {
+    this.messageMutationLifecycleListeners.add(listener);
+    return () => this.messageMutationLifecycleListeners.delete(listener);
   };
 
   readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
@@ -193,6 +204,9 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
       }),
       this.delegate.observeMessageMutationEvent((event) => {
         this.messageMutationListeners.forEach((listener) => listener(event));
+      }),
+      this.delegate.observeMessageMutationLifecycle((event) => {
+        this.messageMutationLifecycleListeners.forEach((listener) => listener(event));
       }),
       this.delegate.observeMessageDeliveryLifecycle((event) => {
         this.messageDeliveryLifecycleListeners.forEach((listener) => listener(event));

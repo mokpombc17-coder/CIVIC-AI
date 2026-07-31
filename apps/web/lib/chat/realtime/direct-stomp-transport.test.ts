@@ -636,6 +636,7 @@ describe("DirectStompTransport", () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);
     const listener = vi.fn();
+    const lifecycleListener = vi.fn();
     const editRequest = {
       clientMutationId: "550e8400-e29b-41d4-a716-446655440010",
       messageId: "message-01",
@@ -651,6 +652,7 @@ describe("DirectStompTransport", () => {
     transport.claimRoom("room-01");
     transport.markRoomSnapshotApplied("room-01", 1);
     transport.observeMessageMutationEvent(listener);
+    transport.observeMessageMutationLifecycle(lifecycleListener);
 
     transport.editRoomMessage({ roomId: "room-01", request: editRequest });
     expect(client.publish).toHaveBeenLastCalledWith({
@@ -662,13 +664,7 @@ describe("DirectStompTransport", () => {
     });
 
     transport.deleteRoomMessage({ roomId: "room-01", request: deleteRequest });
-    expect(client.publish).toHaveBeenLastCalledWith({
-      destination: "/app/rooms/room-01/messages/delete",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(deleteRequest),
-    });
+    expect(client.publish).toHaveBeenCalledTimes(2);
 
     client.deliver(
       "/user/queue/command-results",
@@ -688,6 +684,13 @@ describe("DirectStompTransport", () => {
       }),
     );
 
+    expect(client.publish).toHaveBeenLastCalledWith({
+      destination: "/app/rooms/room-01/messages/delete",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(deleteRequest),
+    });
     expect(listener).toHaveBeenCalledWith({
       kind: "result",
       roomId: "room-01",
@@ -697,6 +700,12 @@ describe("DirectStompTransport", () => {
         status: "UPDATED",
       }),
     });
+    expect(lifecycleListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientMutationId: editRequest.clientMutationId,
+        status: "completed",
+      }),
+    );
   });
 
   it("Direct fallback도 USER_RATE_LIMITED를 숨기고 같은 메시지를 대기 후 재전송한다", () => {
