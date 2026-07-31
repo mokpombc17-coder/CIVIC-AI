@@ -53,20 +53,34 @@ export function mergeChatMessages({
       const existingById = messagesById.get(message.messageId);
       const existingBySequence = messagesBySequence.get(message.roomSequence);
 
-      if (existingById && !isSameChatMessage(existingById, message)) {
-        throw new ChatMessageMergeConflictError("MESSAGE_ID_CONFLICT", existingById, message);
+      if (existingById) {
+        if (!hasSameChatMessageIdentity(existingById, message)) {
+          throw new ChatMessageMergeConflictError("MESSAGE_ID_CONFLICT", existingById, message);
+        }
+
+        if (message.messageVersion < existingById.messageVersion) {
+          continue;
+        }
+
+        if (message.messageVersion === existingById.messageVersion) {
+          if (!isSameChatMessageSnapshot(existingById, message)) {
+            throw new ChatMessageMergeConflictError("MESSAGE_ID_CONFLICT", existingById, message);
+          }
+
+          continue;
+        }
+
+        messagesById.set(message.messageId, message);
+        messagesBySequence.set(message.roomSequence, message);
+        continue;
       }
 
-      if (existingBySequence && !isSameChatMessage(existingBySequence, message)) {
+      if (existingBySequence) {
         throw new ChatMessageMergeConflictError(
           "ROOM_SEQUENCE_CONFLICT",
           existingBySequence,
           message,
         );
-      }
-
-      if (existingById || existingBySequence) {
-        continue;
       }
 
       messagesById.set(message.messageId, message);
@@ -142,15 +156,25 @@ function findLastContiguousSequence(
   return lastSequence;
 }
 
-function isSameChatMessage(left: ChatMessage, right: ChatMessage): boolean {
+function hasSameChatMessageIdentity(left: ChatMessage, right: ChatMessage): boolean {
   return (
     left.messageId === right.messageId &&
     left.roomId === right.roomId &&
     left.roomSequence === right.roomSequence &&
     left.senderUserId === right.senderUserId &&
     left.clientMessageId === right.clientMessageId &&
-    left.content === right.content &&
     left.createdAt === right.createdAt
+  );
+}
+
+function isSameChatMessageSnapshot(left: ChatMessage, right: ChatMessage): boolean {
+  return (
+    hasSameChatMessageIdentity(left, right) &&
+    left.content === right.content &&
+    left.state === right.state &&
+    left.messageVersion === right.messageVersion &&
+    left.updatedAt === right.updatedAt &&
+    left.deletedAt === right.deletedAt
   );
 }
 

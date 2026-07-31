@@ -5,7 +5,7 @@ import {
   chatMessageSendRequestSchema,
   chatRoomSubscriptionSyncRequestSchema,
   parseChatMessageCommandResult,
-  parseChatMessageCreatedEvent,
+  parseChatMessageEvent,
   parseChatMessageMutationCommandResult,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
@@ -193,7 +193,7 @@ describe("chat subscription sync contracts", () => {
 });
 
 describe("chat realtime payload contracts", () => {
-  it("CHAT_MESSAGE_CREATED payload를 REST ChatMessage 계약으로 검증한다", () => {
+  it("CREATE/UPDATE/DELETE 이벤트의 전체 snapshot을 REST ChatMessage 계약으로 검증한다", () => {
     const event = {
       eventVersion: 1,
       eventType: "CHAT_MESSAGE_CREATED",
@@ -211,8 +211,67 @@ describe("chat realtime payload contracts", () => {
         updatedAt: "2026-07-29T04:40:00Z",
       },
     };
+    const updatedEvent = {
+      ...event,
+      eventType: "CHAT_MESSAGE_UPDATED",
+      payload: {
+        ...event.payload,
+        content: "수정된 메시지",
+        messageVersion: 2,
+        updatedAt: "2026-07-29T04:41:00Z",
+      },
+    };
+    const deletedEvent = {
+      ...event,
+      eventType: "CHAT_MESSAGE_DELETED",
+      payload: {
+        ...updatedEvent.payload,
+        content: null,
+        deletedAt: "2026-07-29T04:42:00Z",
+        messageVersion: 3,
+        state: "DELETED_BY_AUTHOR",
+        updatedAt: "2026-07-29T04:42:00Z",
+      },
+    };
 
-    expect(parseChatMessageCreatedEvent(JSON.stringify(event))).toEqual(event);
+    expect(parseChatMessageEvent(JSON.stringify(event))).toEqual(event);
+    expect(parseChatMessageEvent(JSON.stringify(updatedEvent))).toEqual(updatedEvent);
+    expect(parseChatMessageEvent(JSON.stringify(deletedEvent))).toEqual(deletedEvent);
+  });
+
+  it("메시지 이벤트 종류와 맞지 않는 snapshot 상태를 거절한다", () => {
+    const activePayload = {
+      messageId: "message-01",
+      roomId: "room-01",
+      roomSequence: 1,
+      senderUserId: "local-user-1",
+      clientMessageId: CLIENT_MESSAGE_ID,
+      content: "안녕하세요.",
+      createdAt: "2026-07-29T04:40:00Z",
+      deletedAt: null,
+      messageVersion: 2,
+      state: "ACTIVE",
+      updatedAt: "2026-07-29T04:41:00Z",
+    };
+
+    expect(
+      parseChatMessageEvent(
+        JSON.stringify({
+          eventVersion: 1,
+          eventType: "CHAT_MESSAGE_CREATED",
+          payload: activePayload,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatMessageEvent(
+        JSON.stringify({
+          eventVersion: 1,
+          eventType: "CHAT_MESSAGE_DELETED",
+          payload: activePayload,
+        }),
+      ),
+    ).toBeNull();
   });
 
   it("메시지 command 성공과 실패 결과를 구분해 검증한다", () => {

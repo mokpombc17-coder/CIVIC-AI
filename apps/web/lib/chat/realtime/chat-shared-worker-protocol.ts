@@ -14,7 +14,7 @@ import type {
 } from "./chat-realtime-transport";
 import {
   chatMessageCommandResultSchema,
-  chatMessageCreatedEventSchema,
+  chatMessageEventSchema,
   chatMessageDeleteRequestSchema,
   chatMessageEditRequestSchema,
   chatMessageMutationCommandResultSchema,
@@ -434,7 +434,7 @@ function isChatRealtimeBufferedEvent(value: unknown): value is ChatRealtimeBuffe
   }
 
   return event.kind === "message"
-    ? chatMessageCreatedEventSchema.safeParse(event.event).success
+    ? chatMessageEventSchema.safeParse(event.event).success
     : event.kind === "room" && chatRoomEventEnvelopeSchema.safeParse(event.event).success;
 }
 

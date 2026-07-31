@@ -1,4 +1,4 @@
-import type { ChatMessageCreatedEvent, ChatRoomEventEnvelope } from "./chat-stomp-contracts";
+import type { ChatMessageEvent, ChatRoomEventEnvelope } from "./chat-stomp-contracts";
 
 export const DEFAULT_CHAT_REALTIME_EVENT_BUFFER_CAPACITY = 500;
 
@@ -6,7 +6,7 @@ export type ChatRealtimeBufferedEvent =
   | Readonly<{
       bufferSequence: number;
       kind: "message";
-      event: ChatMessageCreatedEvent;
+      event: ChatMessageEvent;
     }>
   | Readonly<{
       bufferSequence: number;
@@ -17,7 +17,7 @@ export type ChatRealtimeBufferedEvent =
 type UnsequencedChatRealtimeEvent =
   | Readonly<{
       kind: "message";
-      event: ChatMessageCreatedEvent;
+      event: ChatMessageEvent;
     }>
   | Readonly<{
       kind: "room";
@@ -85,7 +85,7 @@ export class ChatRealtimeEventBuffer {
     this.activeBuffer = null;
   }
 
-  appendMessage(roomId: string, generation: number, event: ChatMessageCreatedEvent): boolean {
+  appendMessage(roomId: string, generation: number, event: ChatMessageEvent): boolean {
     if (event.payload.roomId !== roomId) {
       return false;
     }

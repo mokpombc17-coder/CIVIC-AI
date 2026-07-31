@@ -205,23 +205,24 @@ const chatMessageSnapshotBaseSchema = z.object({
   updatedAt: instantSchema,
 });
 
-export const chatMessageSchema = z.discriminatedUnion("state", [
-  chatMessageSnapshotBaseSchema.extend({
-    content: chatMessageContentSchema,
-    state: z.literal("ACTIVE"),
-    deletedAt: z.null(),
-  }),
-  chatMessageSnapshotBaseSchema
-    .extend({
-      content: z.null(),
-      state: z.literal("DELETED_BY_AUTHOR"),
-      deletedAt: instantSchema,
-    })
-    .refine((message) => message.deletedAt === message.updatedAt, {
-      message: "삭제 메시지의 deletedAt과 updatedAt은 같아야 합니다.",
-      path: ["deletedAt"],
-    }),
-]);
+export const activeChatMessageSchema = chatMessageSnapshotBaseSchema.extend({
+  content: chatMessageContentSchema,
+  state: z.literal("ACTIVE"),
+  deletedAt: z.null(),
+});
+
+export const deletedChatMessageSchema = chatMessageSnapshotBaseSchema
+  .extend({
+    content: z.null(),
+    state: z.literal("DELETED_BY_AUTHOR"),
+    deletedAt: instantSchema,
+  })
+  .refine((message) => message.deletedAt === message.updatedAt, {
+    message: "삭제 메시지의 deletedAt과 updatedAt은 같아야 합니다.",
+    path: ["deletedAt"],
+  });
+
+export const chatMessageSchema = z.union([activeChatMessageSchema, deletedChatMessageSchema]);
 
 export const messageHistoryModeSchema = z.enum(["latest", "before", "after"]);
 

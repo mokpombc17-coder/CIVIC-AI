@@ -233,6 +233,110 @@ describe("ChatRealtimeQueryCoordinator", () => {
     );
   });
 
+  it("로드된 메시지의 UPDATE/DELETE snapshot을 기존 page 위치에서 version 순으로 병합한다", () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+    });
+    seedMessageHistory(queryClient, "room-01", [
+      [createMessage(3), createMessage(4)],
+      [createMessage(1), createMessage(2)],
+    ]);
+    coordinator.start();
+
+    transport.emit(
+      createDelivery({
+        deliveryId: "delivery-mutations",
+        events: [
+          createBufferedUpdatedMessage(2, 2, 1, "수정된 과거 메시지"),
+          createBufferedDeletedMessage(4, 3, 2),
+          createBufferedUpdatedMessage(2, 1, 3, "뒤늦게 도착한 이전 snapshot"),
+        ],
+      }),
+    );
+
+    const history = getMessageHistory(queryClient, "room-01");
+
+    expect(history.pages[0]?.items.map((message) => message.roomSequence)).toEqual([3, 4]);
+    expect(history.pages[0]?.items[1]).toMatchObject({
+      content: null,
+      messageId: "message-4",
+      messageVersion: 3,
+      state: "DELETED_BY_AUTHOR",
+    });
+    expect(history.pages[1]?.items.map((message) => message.roomSequence)).toEqual([1, 2]);
+    expect(history.pages[1]?.items[1]).toMatchObject({
+      content: "수정된 과거 메시지",
+      messageId: "message-2",
+      messageVersion: 2,
+      state: "ACTIVE",
+    });
+    expect(transport.acknowledgedDeliveries).toEqual(["delivery-mutations"]);
+  });
+
+  it("현재 로드되지 않은 메시지의 UPDATE/DELETE event는 목록에 삽입하지 않는다", () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+    });
+    seedMessageHistory(queryClient, "room-01", [[createMessage(10), createMessage(11)]]);
+    coordinator.start();
+
+    transport.emit(
+      createDelivery({
+        deliveryId: "delivery-unloaded-mutations",
+        events: [
+          createBufferedUpdatedMessage(2, 2, 1, "로드되지 않은 수정"),
+          createBufferedDeletedMessage(3, 2, 2),
+        ],
+      }),
+    );
+
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([
+      createMessage(10),
+      createMessage(11),
+    ]);
+    expect(transport.acknowledgedDeliveries).toEqual(["delivery-unloaded-mutations"]);
+  });
+
+  it("같은 delivery에 CREATE가 있으면 뒤따른 최신 UPDATE snapshot까지 새 메시지로 적용한다", () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+    });
+    seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+    coordinator.start();
+
+    transport.emit(
+      createDelivery({
+        deliveryId: "delivery-create-update",
+        events: [
+          createBufferedMessage(2, 1),
+          createBufferedUpdatedMessage(2, 2, 2, "생성 직후 수정"),
+        ],
+      }),
+    );
+
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([
+      createMessage(1),
+      expect.objectContaining({
+        content: "생성 직후 수정",
+        messageId: "message-2",
+        messageVersion: 2,
+      }),
+    ]);
+    expect(transport.acknowledgedDeliveries).toEqual(["delivery-create-update"]);
+  });
+
   it("참여 경계 이하의 buffered message는 폐기하고 Room Event는 계속 적용한다", () => {
     const queryClient = new QueryClient();
     const transport = createFakeTransport();
@@ -348,14 +452,14 @@ describe("ChatRealtimeQueryCoordinator", () => {
         deliveryId: "delivery-conflict",
         events: [
           {
-            ...createBufferedMessage(1, 1),
+            bufferSequence: 1,
+            kind: "message",
             event: {
-              ...createBufferedMessage(1, 1).event,
+              eventVersion: 1,
+              eventType: "CHAT_MESSAGE_CREATED",
               payload: {
                 ...createMessage(1),
                 content: "충돌하는 내용",
-                deletedAt: null,
-                state: "ACTIVE",
               },
             },
           },
@@ -596,6 +700,53 @@ function createBufferedMessage(
   };
 }
 
+function createBufferedUpdatedMessage(
+  roomSequence: number,
+  messageVersion: number,
+  bufferSequence: number,
+  content: string,
+): Extract<ChatRealtimeEventDelivery["events"][number], { kind: "message" }> {
+  return {
+    bufferSequence,
+    kind: "message",
+    event: {
+      eventVersion: 1,
+      eventType: "CHAT_MESSAGE_UPDATED",
+      payload: {
+        ...createMessage(roomSequence),
+        content,
+        messageVersion,
+        updatedAt: `2026-07-29T04:${String(40 + messageVersion).padStart(2, "0")}:00Z`,
+      },
+    },
+  };
+}
+
+function createBufferedDeletedMessage(
+  roomSequence: number,
+  messageVersion: number,
+  bufferSequence: number,
+): Extract<ChatRealtimeEventDelivery["events"][number], { kind: "message" }> {
+  const deletedAt = `2026-07-29T04:${String(40 + messageVersion).padStart(2, "0")}:00Z`;
+
+  return {
+    bufferSequence,
+    kind: "message",
+    event: {
+      eventVersion: 1,
+      eventType: "CHAT_MESSAGE_DELETED",
+      payload: {
+        ...createMessage(roomSequence),
+        content: null,
+        deletedAt,
+        messageVersion,
+        state: "DELETED_BY_AUTHOR",
+        updatedAt: deletedAt,
+      },
+    },
+  };
+}
+
 function createBufferedRoomEvent(
   eventId: string,
   bufferSequence: number,
@@ -625,7 +776,7 @@ function createBufferedRoomEvent(
   };
 }
 
-function createMessage(roomSequence: number): ChatMessage {
+function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACTIVE" }> {
   return {
     messageId: `message-${roomSequence}`,
     roomId: "room-01",

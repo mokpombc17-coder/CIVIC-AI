@@ -31,7 +31,7 @@ import {
   getChatRoomMessagesDestination,
 } from "../chat-stomp-destinations";
 import {
-  parseChatMessageCreatedEvent,
+  parseChatMessageEvent,
   parseChatMessageCommandResult,
   parseChatMessageMutationCommandResult,
   parseChatRoomEventEnvelope,
@@ -1211,7 +1211,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
-    const event = parseChatMessageCreatedEvent(message.body);
+    const event = parseChatMessageEvent(message.body);
 
     if (!event) {
       if (this.realtimeBuffer.recordInvalidEvent(roomId, lease.generation)) {

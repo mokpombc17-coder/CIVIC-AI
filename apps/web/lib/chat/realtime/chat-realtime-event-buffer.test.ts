@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessageCreatedEvent, ChatRoomEventEnvelope } from "./chat-stomp-contracts";
+import type { ChatMessageEvent, ChatRoomEventEnvelope } from "./chat-stomp-contracts";
 import { ChatRealtimeEventBuffer } from "./chat-realtime-event-buffer";
 
 describe("ChatRealtimeEventBuffer", () => {
@@ -161,7 +161,7 @@ describe("ChatRealtimeEventBuffer", () => {
   });
 });
 
-function createMessageEvent(roomSequence: number, roomId = "room-01"): ChatMessageCreatedEvent {
+function createMessageEvent(roomSequence: number, roomId = "room-01"): ChatMessageEvent {
   return {
     eventVersion: 1,
     eventType: "CHAT_MESSAGE_CREATED",

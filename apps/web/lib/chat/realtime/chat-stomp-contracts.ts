@@ -1,7 +1,8 @@
 import { z } from "zod";
 import {
-  chatMessageSchema,
+  activeChatMessageSchema,
   chatMessageSendContentSchema,
+  deletedChatMessageSchema,
   membershipRoleSchema,
   membershipStatusSchema,
   roomIdSchema,
@@ -188,11 +189,26 @@ export const chatMessageMutationCommandResultSchema = z.union([
   chatMessageMutationFailedResultSchema,
 ]);
 
-export const chatMessageCreatedEventSchema = z.object({
-  eventVersion: z.literal(1),
-  eventType: z.literal("CHAT_MESSAGE_CREATED"),
-  payload: chatMessageSchema,
-});
+export const chatMessageEventSchema = z.discriminatedUnion("eventType", [
+  z.object({
+    eventVersion: z.literal(1),
+    eventType: z.literal("CHAT_MESSAGE_CREATED"),
+    payload: activeChatMessageSchema.refine((message) => message.messageVersion === 1, {
+      message: "생성 메시지의 messageVersion은 1이어야 합니다.",
+      path: ["messageVersion"],
+    }),
+  }),
+  z.object({
+    eventVersion: z.literal(1),
+    eventType: z.literal("CHAT_MESSAGE_UPDATED"),
+    payload: activeChatMessageSchema,
+  }),
+  z.object({
+    eventVersion: z.literal(1),
+    eventType: z.literal("CHAT_MESSAGE_DELETED"),
+    payload: deletedChatMessageSchema,
+  }),
+]);
 
 export const chatRoomEventMemberStateSchema = z.object({
   membershipId: opaqueIdSchema,
@@ -269,7 +285,7 @@ export type ChatMessageMutationCommandType = z.infer<typeof chatMessageMutationC
 export type ChatMessageMutationCommandResult = z.infer<
   typeof chatMessageMutationCommandResultSchema
 >;
-export type ChatMessageCreatedEvent = z.infer<typeof chatMessageCreatedEventSchema>;
+export type ChatMessageEvent = z.infer<typeof chatMessageEventSchema>;
 export type ChatRoomEventMemberState = z.infer<typeof chatRoomEventMemberStateSchema>;
 export type ChatRoomEventEnvelope = z.infer<typeof chatRoomEventEnvelopeSchema>;
 export type ChatSystemEvent = z.infer<typeof chatSystemEventSchema>;
@@ -298,8 +314,8 @@ export function parseChatMessageMutationCommandResult(
   return parseChatStompBody(body, chatMessageMutationCommandResultSchema);
 }
 
-export function parseChatMessageCreatedEvent(body: string): ChatMessageCreatedEvent | null {
-  return parseChatStompBody(body, chatMessageCreatedEventSchema);
+export function parseChatMessageEvent(body: string): ChatMessageEvent | null {
+  return parseChatStompBody(body, chatMessageEventSchema);
 }
 
 export function parseChatRoomEventEnvelope(body: string): ChatRoomEventEnvelope | null {

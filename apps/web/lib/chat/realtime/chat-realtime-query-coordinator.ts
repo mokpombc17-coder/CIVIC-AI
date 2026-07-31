@@ -257,11 +257,15 @@ export function applyChatRealtimeEventDelivery(
   const messageEvents = delivery.events
     .filter((event) => event.kind === "message")
     .filter((event) => event.event.payload.roomSequence > messageVisibleAfterSequence);
+  const applicableMessageSnapshots = selectApplicableMessageSnapshots(
+    currentHistory,
+    messageEvents,
+  );
   const roomEvents = delivery.events.filter((event) => event.kind === "room");
   const { history: nextHistory } = mergeMessagesIntoChatHistory(
     delivery.roomId,
     currentHistory,
-    messageEvents.map((event) => event.event.payload),
+    applicableMessageSnapshots,
   );
   const messageMerge = mergeChatMessages({
     roomId: delivery.roomId,
@@ -398,18 +402,41 @@ function getDeliveryRecoveryTarget(
   messageVisibleAfterSequence: number,
 ): number {
   const history = requireMessageHistory(queryClient, delivery.roomId, limit);
+  const messageEvents = delivery.events
+    .filter((event) => event.kind === "message")
+    .filter((event) => event.event.payload.roomSequence > messageVisibleAfterSequence);
   const merge = mergeChatMessages({
     roomId: delivery.roomId,
     sources: [
       ...history.pages.map((page) =>
         page.items.filter((message) => message.roomSequence > messageVisibleAfterSequence),
       ),
-      delivery.events
-        .filter((event) => event.kind === "message")
-        .filter((event) => event.event.payload.roomSequence > messageVisibleAfterSequence)
-        .map((event) => event.event.payload),
+      selectApplicableMessageSnapshots(history, messageEvents),
     ],
   });
 
   return merge.messages.at(-1)?.roomSequence ?? messageVisibleAfterSequence;
+}
+
+function selectApplicableMessageSnapshots(
+  history: ChatMessageHistoryData,
+  events: readonly Extract<ChatRealtimeEventDelivery["events"][number], { kind: "message" }>[],
+) {
+  const loadedMessageIds = new Set(
+    history.pages.flatMap((page) => page.items.map((message) => message.messageId)),
+  );
+  const createdMessageIds = new Set(
+    events
+      .filter((event) => event.event.eventType === "CHAT_MESSAGE_CREATED")
+      .map((event) => event.event.payload.messageId),
+  );
+
+  return events
+    .filter(
+      (event) =>
+        event.event.eventType === "CHAT_MESSAGE_CREATED" ||
+        loadedMessageIds.has(event.event.payload.messageId) ||
+        createdMessageIds.has(event.event.payload.messageId),
+    )
+    .map((event) => event.event.payload);
 }

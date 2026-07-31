@@ -21,7 +21,57 @@ describe("mergeChatMessages", () => {
     expect(result.lastContiguousSequence).toBe(3);
   });
 
-  it("같은 messageId의 불변 필드가 다르면 계약 충돌로 처리한다", () => {
+  it("같은 messageId에서 더 높은 messageVersion snapshot을 적용한다", () => {
+    const message = createMessage(1);
+    const updatedMessage: ChatMessage = {
+      ...message,
+      content: "변경된 내용",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T04:41:00Z",
+    };
+
+    const result = mergeChatMessages({
+      roomId: "room-01",
+      sources: [[message], [updatedMessage]],
+    });
+
+    expect(result.messages).toEqual([updatedMessage]);
+  });
+
+  it("같은 messageId의 오래되거나 중복된 snapshot은 현재 상태를 되돌리지 않는다", () => {
+    const message = createMessage(1);
+    const updatedMessage: ChatMessage = {
+      ...message,
+      content: "변경된 내용",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T04:41:00Z",
+    };
+
+    const result = mergeChatMessages({
+      roomId: "room-01",
+      sources: [[updatedMessage], [message], [{ ...updatedMessage }]],
+    });
+
+    expect(result.messages).toEqual([updatedMessage]);
+  });
+
+  it("같은 messageVersion의 서로 다른 snapshot은 계약 충돌로 처리한다", () => {
+    const message = createMessage(1);
+
+    expect(() =>
+      mergeChatMessages({
+        roomId: "room-01",
+        sources: [[message], [{ ...message, content: "충돌하는 내용" }]],
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<ChatMessageMergeConflictError>>({
+        name: "ChatMessageMergeConflictError",
+        code: "MESSAGE_ID_CONFLICT",
+      }),
+    );
+  });
+
+  it("같은 messageId의 불변 식별자가 바뀌면 version이 높아도 계약 충돌로 처리한다", () => {
     const message = createMessage(1);
 
     expect(() =>
@@ -29,12 +79,18 @@ describe("mergeChatMessages", () => {
         roomId: "room-01",
         sources: [
           [message],
-          [{ ...message, content: "변경된 내용", state: "ACTIVE", deletedAt: null }],
+          [
+            {
+              ...message,
+              senderUserId: "another-user",
+              messageVersion: 2,
+              updatedAt: "2026-07-29T04:41:00Z",
+            },
+          ],
         ],
       }),
     ).toThrowError(
       expect.objectContaining<Partial<ChatMessageMergeConflictError>>({
-        name: "ChatMessageMergeConflictError",
         code: "MESSAGE_ID_CONFLICT",
       }),
     );
@@ -144,7 +200,7 @@ describe("mergeChatMessages", () => {
   });
 });
 
-function createMessage(roomSequence: number): ChatMessage {
+function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACTIVE" }> {
   return {
     messageId: `message-${roomSequence}`,
     roomId: "room-01",

@@ -192,25 +192,51 @@ export function mergeMessagesIntoChatHistory(
     return { history, merge };
   }
 
-  const latestPage = history.pages[0]!;
-  const olderMessages = history.pages.slice(1).flatMap((page) => page.items);
-  const olderMessageIds = new Set(olderMessages.map((message) => message.messageId));
-  const olderRoomSequences = new Set(olderMessages.map((message) => message.roomSequence));
-  const latestItems = merge.messages.filter(
-    (message) =>
-      !olderMessageIds.has(message.messageId) && !olderRoomSequences.has(message.roomSequence),
+  const mergedMessagesById = new Map(
+    merge.messages.map((message) => [message.messageId, message] as const),
   );
+  const existingMessageIds = new Set(
+    history.pages.flatMap((page) => page.items.map((message) => message.messageId)),
+  );
+  let changed = false;
+  const pages = history.pages.map((page) => {
+    const items = page.items.map((message) => {
+      const mergedMessage = mergedMessagesById.get(message.messageId) ?? message;
+
+      if (mergedMessage !== message) {
+        changed = true;
+      }
+
+      return mergedMessage;
+    });
+
+    return items.some((message, index) => message !== page.items[index])
+      ? { ...page, items }
+      : page;
+  });
+  const newMessages = merge.messages.filter(
+    (message) => !existingMessageIds.has(message.messageId),
+  );
+
+  if (newMessages.length > 0) {
+    changed = true;
+    const latestPage = pages[0]!;
+    pages[0] = {
+      ...latestPage,
+      items: [...latestPage.items, ...newMessages].sort(
+        (left, right) => left.roomSequence - right.roomSequence,
+      ),
+    };
+  }
+
+  if (!changed) {
+    return { history, merge };
+  }
 
   return {
     history: {
       ...history,
-      pages: [
-        {
-          ...latestPage,
-          items: latestItems,
-        },
-        ...history.pages.slice(1),
-      ],
+      pages,
     },
     merge,
   };
