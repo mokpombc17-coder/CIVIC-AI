@@ -14,10 +14,10 @@ import {
   type ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
 
-type SharedWorkerTransportMessageListener = (event: MessageEvent<unknown>) => void;
-type SharedWorkerTransportErrorListener = (event: Event) => void;
+export type SharedWorkerTransportMessageListener = (event: MessageEvent<unknown>) => void;
+export type SharedWorkerTransportErrorListener = (event: Event) => void;
 
-type SharedWorkerTransportPort = {
+export type SharedWorkerTransportPort = {
   addEventListener(
     type: "message" | "messageerror",
     listener: SharedWorkerTransportMessageListener,
@@ -31,7 +31,7 @@ type SharedWorkerTransportPort = {
   start(): void;
 };
 
-type SharedWorkerTransportWorker = {
+export type SharedWorkerTransportWorker = {
   addEventListener(type: "error", listener: SharedWorkerTransportErrorListener): void;
   readonly port: SharedWorkerTransportPort;
   removeEventListener(type: "error", listener: SharedWorkerTransportErrorListener): void;
@@ -42,9 +42,12 @@ type SharedWorkerConnection = {
   worker: SharedWorkerTransportWorker;
 };
 
-type SharedWorkerTransportOptions = {
+export type SharedWorkerTransportOptions = {
   createId?: () => string;
   createWorker?: () => SharedWorkerTransportWorker;
+  handshakeTimeoutMs?: number;
+  onWorkerReady?: () => void;
+  onWorkerUnavailable?: (error: ChatRealtimeError) => void;
 };
 
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
@@ -67,6 +70,8 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private connection: SharedWorkerConnection | null = null;
   private readonly createId: () => string;
   private readonly createWorker: () => SharedWorkerTransportWorker;
+  private handshakeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly handshakeTimeoutMs: number;
   private readonly listeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private pendingRoomRequestId: string | null = null;
@@ -76,13 +81,22 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly roomListeners = new Set<() => void>();
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
+  private readonly onWorkerReady: () => void;
+  private readonly onWorkerUnavailable: (error: ChatRealtimeError) => void;
+  private workerReady = false;
 
   constructor({
     createId = () => crypto.randomUUID(),
     createWorker = createBrowserChatSharedWorker,
+    handshakeTimeoutMs = 5_000,
+    onWorkerReady = () => {},
+    onWorkerUnavailable = () => {},
   }: SharedWorkerTransportOptions = {}) {
     this.createId = createId;
     this.createWorker = createWorker;
+    this.handshakeTimeoutMs = handshakeTimeoutMs;
+    this.onWorkerReady = onWorkerReady;
+    this.onWorkerUnavailable = onWorkerUnavailable;
   }
 
   attach(): () => void {
@@ -308,6 +322,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         type: "ATTACH",
         portId,
       });
+      this.startHandshakeTimer();
       this.flushPendingRoomClaim();
     } catch (cause) {
       this.closeConnection(false);
@@ -341,6 +356,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       return;
     }
 
+    this.markWorkerReady();
     const workerEvent = event.data;
 
     switch (workerEvent.type) {
@@ -543,6 +559,8 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   };
 
   private closeConnection(notifyWorker: boolean): void {
+    this.clearHandshakeTimer();
+
     if (!this.connection) {
       return;
     }
@@ -573,6 +591,10 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       source: "worker",
       message: cause instanceof Error && cause.message.trim() ? cause.message : fallbackMessage,
     };
+
+    if (!this.workerReady) {
+      this.onWorkerUnavailable(error);
+    }
 
     this.setSnapshot({
       status: "error",
@@ -660,6 +682,39 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private setSnapshot(snapshot: ChatConnectionSnapshot): void {
     this.snapshot = snapshot;
     this.listeners.forEach((listener) => listener());
+  }
+
+  private startHandshakeTimer(): void {
+    this.clearHandshakeTimer();
+    this.handshakeTimer = setTimeout(() => {
+      this.handshakeTimer = null;
+
+      if (this.workerReady || !this.connection) {
+        return;
+      }
+
+      this.closeConnection(true);
+      this.setWorkerError(null, "SharedWorker가 초기 연결 응답을 보내지 않았습니다.");
+    }, this.handshakeTimeoutMs);
+  }
+
+  private clearHandshakeTimer(): void {
+    if (this.handshakeTimer === null) {
+      return;
+    }
+
+    clearTimeout(this.handshakeTimer);
+    this.handshakeTimer = null;
+  }
+
+  private markWorkerReady(): void {
+    if (this.workerReady) {
+      return;
+    }
+
+    this.workerReady = true;
+    this.clearHandshakeTimer();
+    this.onWorkerReady();
   }
 }
 

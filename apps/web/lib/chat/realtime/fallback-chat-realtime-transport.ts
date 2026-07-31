@@ -1,0 +1,214 @@
+import type {
+  ChatConnectionSnapshot,
+  ChatMessageCommandEvent,
+  ChatRealtimeTransport,
+  ChatRoomMessageSendCommand,
+  ChatRoomSessionSnapshot,
+} from "./chat-realtime-transport";
+import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+
+export type ChatRealtimeTransportCandidateLifecycle = {
+  onReady: () => void;
+  onUnavailable: () => void;
+};
+
+export type ChatRealtimeTransportCandidate = Readonly<{
+  create: (lifecycle: ChatRealtimeTransportCandidateLifecycle) => ChatRealtimeTransport;
+  name: "shared-worker" | "leader-tab" | "direct";
+}>;
+
+export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
+  private attachmentCount = 0;
+  private candidateIndex = -1;
+  private readonly candidates: readonly ChatRealtimeTransportCandidate[];
+  private delegate: ChatRealtimeTransport;
+  private delegateAttachedCleanup: (() => void) | null = null;
+  private delegateSubscriptions: (() => void)[] = [];
+  private desiredRoomId: string | null = null;
+  private readonly listeners = new Set<() => void>();
+  private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly realtimeEventDeliveryListeners = new Set<() => void>();
+  private readonly roomListeners = new Set<() => void>();
+  private switchScheduled = false;
+
+  constructor(candidates: readonly ChatRealtimeTransportCandidate[]) {
+    if (candidates.length === 0) {
+      throw new Error("최소 하나의 채팅 실시간 transport 후보가 필요합니다.");
+    }
+
+    this.candidates = candidates;
+    this.delegate = this.createNextDelegate();
+    this.bindDelegate();
+  }
+
+  attach(): () => void {
+    this.attachmentCount += 1;
+
+    if (this.attachmentCount === 1) {
+      this.attachDelegate();
+    }
+
+    let attached = true;
+
+    return () => {
+      if (!attached) {
+        return;
+      }
+
+      attached = false;
+      this.attachmentCount -= 1;
+
+      if (this.attachmentCount === 0) {
+        this.delegateAttachedCleanup?.();
+        this.delegateAttachedCleanup = null;
+      }
+    };
+  }
+
+  readonly getSnapshot = (): ChatConnectionSnapshot => this.delegate.getSnapshot();
+
+  readonly getRoomSnapshot = (): ChatRoomSessionSnapshot => this.delegate.getRoomSnapshot();
+
+  readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
+    this.delegate.getRealtimeEventDelivery();
+
+  readonly observe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  readonly observeRoom = (listener: () => void): (() => void) => {
+    this.roomListeners.add(listener);
+    return () => this.roomListeners.delete(listener);
+  };
+
+  readonly observeMessageCommandEvent = (
+    listener: (event: ChatMessageCommandEvent) => void,
+  ): (() => void) => {
+    this.messageCommandListeners.add(listener);
+    return () => this.messageCommandListeners.delete(listener);
+  };
+
+  readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
+    this.realtimeEventDeliveryListeners.add(listener);
+    return () => this.realtimeEventDeliveryListeners.delete(listener);
+  };
+
+  readonly claimRoom = (roomId: string): void => {
+    this.desiredRoomId = roomId;
+    this.delegate.claimRoom(roomId);
+  };
+
+  readonly releaseRoom = (roomId: string): void => {
+    if (this.desiredRoomId === roomId) {
+      this.desiredRoomId = null;
+    }
+
+    this.delegate.releaseRoom(roomId);
+  };
+
+  readonly reconnect = (): void => {
+    this.delegate.reconnect();
+  };
+
+  readonly markRoomSnapshotApplied = (roomId: string, generation: number): void => {
+    this.delegate.markRoomSnapshotApplied(roomId, generation);
+  };
+
+  readonly acknowledgeRealtimeEventDelivery = (deliveryId: string): void => {
+    this.delegate.acknowledgeRealtimeEventDelivery(deliveryId);
+  };
+
+  readonly sendRoomMessage = (command: ChatRoomMessageSendCommand): void => {
+    this.delegate.sendRoomMessage(command);
+  };
+
+  private createNextDelegate(): ChatRealtimeTransport {
+    let lastError: unknown = null;
+
+    while (this.candidateIndex + 1 < this.candidates.length) {
+      this.candidateIndex += 1;
+      const candidateIndex = this.candidateIndex;
+      const candidate = this.candidates[candidateIndex]!;
+
+      try {
+        return candidate.create({
+          onReady: () => {},
+          onUnavailable: () => {
+            if (this.candidateIndex === candidateIndex) {
+              this.scheduleFallback();
+            }
+          },
+        });
+      } catch (cause) {
+        lastError = cause;
+      }
+    }
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("사용 가능한 채팅 실시간 transport를 생성하지 못했습니다.");
+  }
+
+  private bindDelegate(): void {
+    this.delegateSubscriptions = [
+      this.delegate.observe(() => {
+        this.listeners.forEach((listener) => listener());
+      }),
+      this.delegate.observeRoom(() => {
+        this.roomListeners.forEach((listener) => listener());
+      }),
+      this.delegate.observeMessageCommandEvent((event) => {
+        this.messageCommandListeners.forEach((listener) => listener(event));
+      }),
+      this.delegate.observeRealtimeEventDelivery(() => {
+        this.realtimeEventDeliveryListeners.forEach((listener) => listener());
+      }),
+    ];
+  }
+
+  private attachDelegate(): void {
+    try {
+      this.delegateAttachedCleanup = this.delegate.attach();
+    } catch {
+      this.scheduleFallback();
+    }
+  }
+
+  private scheduleFallback(): void {
+    if (this.switchScheduled || this.candidateIndex + 1 >= this.candidates.length) {
+      return;
+    }
+
+    this.switchScheduled = true;
+    queueMicrotask(() => {
+      this.switchScheduled = false;
+      this.fallback();
+    });
+  }
+
+  private fallback(): void {
+    if (this.candidateIndex + 1 >= this.candidates.length) {
+      return;
+    }
+
+    this.delegateAttachedCleanup?.();
+    this.delegateAttachedCleanup = null;
+    this.delegateSubscriptions.forEach((unsubscribe) => unsubscribe());
+    this.delegateSubscriptions = [];
+    this.delegate = this.createNextDelegate();
+    this.bindDelegate();
+
+    if (this.attachmentCount > 0) {
+      this.attachDelegate();
+    }
+
+    if (this.desiredRoomId) {
+      this.delegate.claimRoom(this.desiredRoomId);
+    }
+
+    this.listeners.forEach((listener) => listener());
+    this.roomListeners.forEach((listener) => listener());
+    this.realtimeEventDeliveryListeners.forEach((listener) => listener());
+  }
+}

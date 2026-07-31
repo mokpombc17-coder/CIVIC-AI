@@ -8,8 +8,8 @@
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: SharedWorker 소유 단일 연결·활성 방 lease·구독 준비 barrier·실시간 buffer·Query
-  cache 병합·`afterSequence` 누락 복구·메시지 전송 Command
+- 현재 구현: SharedWorker 또는 leader tab 소유 단일 연결·활성 방 lease·구독 준비
+  barrier·실시간 buffer·Query cache 병합·`afterSequence` 누락 복구·메시지 전송 Command
 - 다음 구현: 로컬 통합 및 E2E 스모크 테스트
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
@@ -77,24 +77,35 @@ SharedWorker가 연결 소유권을 가진다.
 ### 현재
 
 ```text
-SharedWorker 지원 브라우저
+SharedWorker 초기화 성공
   ChatRealtimeProvider
-    → SharedWorkerTransport
+    → FallbackChatRealtimeTransport
+      → SharedWorkerTransport
       → MessagePort
         → Chat SharedWorker
           → @stomp/stompjs Client 1개
             → WebSocket 1개
 
-SharedWorker 미지원 단일 WebView
+SharedWorker 미지원 또는 초기화 실패 + BroadcastChannel/Web Locks 지원
   ChatRealtimeProvider
-    → DirectStompTransport
-      → @stomp/stompjs Client
-        → WebSocket
+    → FallbackChatRealtimeTransport
+      → LeaderTabTransport
+        → leader 탭의 ChatSharedWorkerRuntime
+          → @stomp/stompjs Client 1개
+            → WebSocket 1개
+
+탭 조정 기능까지 미지원인 단일 WebView
+  ChatRealtimeProvider
+    → FallbackChatRealtimeTransport
+      → DirectStompTransport
+        → @stomp/stompjs Client
+          → WebSocket
 ```
 
-SharedWorker 지원 여부는 transport factory가 판단한다. 지원 브라우저에서는 탭마다
-`SharedWorkerTransport`와 MessagePort를 만들지만 STOMP Client는 Worker 안에서 하나만 생성한다.
-SharedWorker 미지원 환경에서만 `DirectStompTransport`를 사용한다.
+transport factory는 API 존재 여부뿐 아니라 실제 초기 handshake 성공 여부까지 확인한다.
+SharedWorker가 5초 안에 유효한 Worker event를 보내지 않거나 생성·실행 오류가 발생하면
+`LeaderTabTransport`로 전환한다. `BroadcastChannel`과 Web Locks도 사용할 수 없거나 leader
+runtime 초기화가 실패한 경우에만 `DirectStompTransport`를 사용한다.
 
 ### 목표
 
@@ -131,15 +142,31 @@ SharedWorker로 바뀌어도 다음 컴포넌트와 Hook의 사용 계약은 유
 - 탭과 transport의 attach/detach 생명주기를 React route 생명주기에 연결한다.
 - 외부 transport snapshot을 `useSyncExternalStore`로 React에 제공한다.
 - STOMP Client를 React 컴포넌트에 노출하지 않는다.
-- SharedWorker와 Direct fallback의 차이를 하위 UI에 노출하지 않는다.
+- SharedWorker, leader tab 및 Direct fallback의 차이를 하위 UI에 노출하지 않는다.
+
+### FallbackChatRealtimeTransport
+
+- `SharedWorkerTransport → LeaderTabTransport → DirectStompTransport` 후보를 순서대로 관리한다.
+- transport 생성 예외와 초기화 전 unavailable 신호에서만 다음 후보로 전환한다.
+- 전환 전후에도 React observer와 현재 탭이 요청한 `roomId`를 유지한다.
+- 정상 연결된 SharedWorker의 일반 WebSocket/STOMP 오류는 transport 강등 사유로 사용하지 않는다.
 
 ### SharedWorkerTransport
 
 - SharedWorker를 생성하거나 기존 Worker에 연결한다.
 - `MessagePort`를 열고 탭의 command를 Worker로 전달한다.
 - Worker event를 connection 및 room snapshot으로 변환한다.
-- Worker 생성 실패와 런타임 오류를 구분한다.
+- 첫 유효 event를 초기 handshake 완료로 간주하며 생성 실패와 무응답을 unavailable로 구분한다.
 - Worker가 살아 있을 가능성이 있는 상태에서 Direct WebSocket을 추가로 만들지 않는다.
+
+### LeaderTabTransport
+
+- `BroadcastChannel`로 탭별 Worker command/event를 전달한다.
+- Web Locks의 exclusive lock으로 한 탭만 leader가 되게 하여 split-brain을 막는다.
+- leader 탭 안에서 기존 `ChatSharedWorkerRuntime`을 그대로 실행한다.
+- leader heartbeat가 끊기면 follower가 새 leader를 선출하고 `ATTACH`와 현재 방 `CLAIM_ROOM`을
+  재전송한다.
+- follower heartbeat가 끊긴 remote port는 정리하여 닫힌 탭의 room lease를 회수한다.
 
 ### Chat SharedWorker
 
@@ -610,8 +637,9 @@ handleIncomingMessage((message) => {
 
 ### Worker 생성 실패
 
-SharedWorker를 생성하지 못했으며 Worker가 실행되지 않았음이 확실할 때만
-`DirectStompTransport` fallback을 사용할 수 있다.
+SharedWorker 생성 예외, 실행 오류 또는 초기 handshake timeout으로 Worker가 준비되지 않았음이
+확정되면 `LeaderTabTransport`를 먼저 시도한다. leader tab 환경도 준비되지 않을 때만
+`DirectStompTransport`를 사용한다.
 
 ### 실행 중 Worker 오류
 
@@ -674,9 +702,10 @@ SharedWorker를 사용할 수 없으면 `DirectStompTransport`를 사용할 수 
 
 ### SharedWorker 미지원 데스크톱 브라우저
 
-탭별 Direct fallback만 사용하면 여러 WebSocket이 만들어지므로 엄격한 단일 연결을 보장할 수
-없다. 지원 범위를 넓혀야 한다면 `BroadcastChannel`과 leader election을 사용하는 별도 transport
-정책이 필요하다.
+`BroadcastChannel`과 Web Locks가 있으면 `LeaderTabTransport`를 사용한다. exclusive lock을 가진
+탭 하나만 STOMP/WebSocket을 생성하며 다른 탭은 같은 channel을 통해 command와 event를
+주고받는다. 두 API도 없을 때는 Direct fallback으로 채팅 기능을 유지하지만 멀티탭 단일 연결은
+보장하지 않는다.
 
 SharedWorker 실행 중 오류를 단순 feature 미지원과 동일하게 취급하지 않는다.
 
@@ -791,6 +820,18 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 - 메시지 이력과 `roomSequence` 기반 재동기화를 구현한다.
 - TanStack Query cache 반영 정책을 구현한다.
 
+### 6. SharedWorker 미지원 fallback
+
+진행 상태: 완료 (2026-07-31)
+
+- SharedWorker API 존재 여부와 실제 초기 handshake 성공 여부를 분리했다.
+- SharedWorker 생성·실행·무응답 실패에서 leader tab을 거쳐 Direct transport로 강등한다.
+- `BroadcastChannel`과 Web Locks 기반으로 단일 leader를 선출한다.
+- leader 탭에서 기존 `ChatSharedWorkerRuntime`을 재사용하여 방 lease, subscription sync,
+  실시간 buffer 및 메시지 admission scheduler 계약을 공유한다.
+- leader 종료 시 follower가 새 leader가 되어 탭 attach와 현재 방 claim을 복구한다.
+- 닫힌 follower 탭은 heartbeat timeout으로 remote port와 room lease를 정리한다.
+
 ## 테스트 전략
 
 ### 단위 테스트
@@ -832,6 +873,9 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 - 탭 하나를 닫아도 다른 탭의 WebSocket 유지
 - 마지막 탭을 닫으면 연결 종료
 - Worker 재시작 후 snapshot 복구
+- SharedWorker 생성 오류 및 handshake timeout 후 leader tab 전환
+- leader 탭 종료 후 follower 선출과 현재 방 claim 복구
+- leader tab 기능 미지원 또는 초기화 실패 후 Direct fallback
 - 서버 재시작 후 자동 재연결
 - 인증 쿠키 만료 및 갱신
 - Expo WebView Direct fallback
@@ -962,6 +1006,9 @@ journal을 모두 갱신한 뒤에만 delivery를 ACK한다. 다음 단계에서
 - `apps/web/lib/chat/realtime/chat-realtime-event-buffer.ts`
 - `apps/web/lib/chat/realtime/chat-realtime-transport.ts`
 - `apps/web/lib/chat/realtime/direct-stomp-transport.ts`
+- `apps/web/lib/chat/realtime/fallback-chat-realtime-transport.ts`
+- `apps/web/lib/chat/realtime/leader-tab-transport.ts`
+- `apps/web/lib/chat/realtime/leader-tab-worker.ts`
 - `apps/web/lib/chat/realtime/create-chat-realtime-transport.ts`
 - `apps/web/components/chat-realtime-provider.tsx`
 - `apps/web/components/chat-connection-status.tsx`
