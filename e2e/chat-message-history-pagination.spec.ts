@@ -86,7 +86,9 @@ test("메시지 상단 접근이 beforeSequence 이력을 자동 조회하고 �
 
     await messageLog.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
+  });
 
+  await test.step("가상화는 전체 이력을 DOM에 동시에 렌더링하지 않는다", async () => {
     const renderedMessages = messageLog.locator("li");
     expect(await renderedMessages.count()).toBeLessThan(MESSAGE_COUNT);
   });
