@@ -75,6 +75,7 @@ export function ChatRoomSessionControls({
 
       <form
         className="flex gap-3 border-t border-slate-200 bg-white p-4"
+        data-delivery-status={composer.deliveryStatus ?? "idle"}
         onSubmit={(event) => {
           event.preventDefault();
           composer.send();

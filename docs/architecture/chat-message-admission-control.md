@@ -8,8 +8,9 @@
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
 - 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
   retry delay 계산, transport 공용 delivery scheduler와 SharedWorker·Direct runtime 및
-  transport lifecycle protocol, React composer 상태 통합
-- 다음 구현: 브라우저 통합 환경에서 admission 재전송 UX 검증
+  transport lifecycle protocol, React composer 상태 통합, 실제 `USER_RATE_LIMITED` Playwright
+  E2E 검증
+- 다음 구현: 메시지 queue와 optimistic message UI 결정 시 delivery 상태 모델 확장
 
 ## 목표
 
@@ -168,6 +169,8 @@ React composer는 자체 command timeout을 두지 않고 transport lifecycle을
 사용한다. `sending`, `retry-waiting`과 terminal 상세 결과를 기다리는 짧은
 `failure-pending` 상태는 모두 기존 `isSending` UI로 투영한다. 따라서 admission 재전송을
 기다리는 동안 입력과 중복 전송은 막되 오류 배너나 수동 재전송 버튼은 표시하지 않는다.
+시각적 표현을 바꾸지 않고 브라우저 E2E에서 실제 상태 전이를 확인할 수 있도록 composer form은
+`data-delivery-status`에 `idle`, `sending`, `retry-waiting` 중 하나를 노출한다.
 
 `failed` lifecycle 뒤에는 같은 transport가 전달하는 command result 또는 failure event를
 사용해 서버 code에 맞는 terminal 오류 문구를 결정한다. `cancelled`는 오류로 표시하지 않고

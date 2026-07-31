@@ -34,6 +34,7 @@ type UseChatMessageComposerOptions = Readonly<{
 export type ChatMessageComposerState = Readonly<{
   canRetry: boolean;
   canSend: boolean;
+  deliveryStatus: "retry-waiting" | "sending" | null;
   draft: string;
   errorMessage: string | null;
   isSending: boolean;
@@ -265,6 +266,10 @@ export function useChatMessageComposer({
     canRetry:
       enabled && submission?.status === "failed" && submission.retryable && submission.retryReady,
     canSend: enabled && submission === null && normalizeChatMessageContent(draft).length > 0,
+    deliveryStatus:
+      submission?.status === "sending" || submission?.status === "retry-waiting"
+        ? submission.status
+        : null,
     draft,
     errorMessage: submission?.status === "failed" ? submission.message : null,
     isSending: isPendingChatMessageSubmission(submission),
