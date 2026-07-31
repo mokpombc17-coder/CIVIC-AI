@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ChatMessageDeliveryScheduler,
+  createChatMessageDeliveryStateLifecycleEvent,
+  isChatMessageDeliveryLifecycleEvent,
   type ChatMessageDeliverySnapshot,
   type ChatMessageDeliveryTerminalEvent,
 } from "./chat-message-delivery-scheduler";
@@ -31,6 +33,105 @@ describe("ChatMessageDeliveryScheduler", () => {
       status: "sending",
     });
     expect(harness.nextTimerDelay()).toBe(15_000);
+  });
+
+  it("여러 메시지를 FIFO로 보관하고 앞 메시지가 확정된 뒤 다음 메시지만 publish한다", () => {
+    const harness = createHarness();
+    harness.scheduler.start(createDeliveryInput());
+
+    const queued = harness.scheduler.start(
+      createDeliveryInput({
+        clientMessageId: SECOND_CLIENT_MESSAGE_ID,
+        content: "두 번째 메시지",
+      }),
+    );
+
+    expect(harness.published.map(({ request }) => request.clientMessageId)).toEqual([
+      CLIENT_MESSAGE_ID,
+    ]);
+    expect(queued).toMatchObject({
+      attempt: 0,
+      firstSentAt: null,
+      status: "queued",
+    });
+
+    harness.scheduler.handleCommandResult(createSuccessfulResult("ACCEPTED"));
+
+    expect(harness.published.map(({ request }) => request.clientMessageId)).toEqual([
+      CLIENT_MESSAGE_ID,
+      SECOND_CLIENT_MESSAGE_ID,
+    ]);
+    expect(harness.scheduler.getSnapshot(SECOND_CLIENT_MESSAGE_ID)).toMatchObject({
+      attempt: 1,
+      firstSentAt: 1_000,
+      status: "sending",
+    });
+  });
+
+  it("앞 메시지가 admission retry를 기다리는 동안 뒤 메시지를 publish하지 않는다", () => {
+    const harness = createHarness();
+    harness.scheduler.start(createDeliveryInput());
+    harness.scheduler.start(
+      createDeliveryInput({
+        clientMessageId: SECOND_CLIENT_MESSAGE_ID,
+        content: "두 번째 메시지",
+      }),
+    );
+
+    harness.scheduler.handleCommandResult(createRejectedResult("USER_RATE_LIMITED", 1_000));
+
+    expect(harness.published).toHaveLength(1);
+    expect(harness.scheduler.getSnapshot(SECOND_CLIENT_MESSAGE_ID)).toMatchObject({
+      attempt: 0,
+      status: "queued",
+    });
+
+    harness.runNextTimer();
+    harness.scheduler.handleCommandResult(createSuccessfulResult("ACCEPTED"));
+
+    expect(harness.published.map(({ request }) => request.clientMessageId)).toEqual([
+      CLIENT_MESSAGE_ID,
+      CLIENT_MESSAGE_ID,
+      SECOND_CLIENT_MESSAGE_ID,
+    ]);
+  });
+
+  it("queued lifecycle은 attempt 0으로 직렬화하고 protocol guard가 허용한다", () => {
+    const harness = createHarness();
+    harness.scheduler.start(createDeliveryInput());
+    const queued = harness.scheduler.start(
+      createDeliveryInput({
+        clientMessageId: SECOND_CLIENT_MESSAGE_ID,
+      }),
+    );
+
+    const event = createChatMessageDeliveryStateLifecycleEvent(queued);
+
+    expect(event).toMatchObject({
+      attempt: 0,
+      status: "queued",
+    });
+    expect(isChatMessageDeliveryLifecycleEvent(event)).toBe(true);
+  });
+
+  it("과도한 optimistic 입력을 막기 위해 pending delivery를 20개로 제한한다", () => {
+    const harness = createHarness();
+
+    for (let index = 1; index <= 20; index += 1) {
+      harness.scheduler.start(
+        createDeliveryInput({
+          clientMessageId: createIndexedUuid(index),
+        }),
+      );
+    }
+
+    expect(() =>
+      harness.scheduler.start(
+        createDeliveryInput({
+          clientMessageId: createIndexedUuid(21),
+        }),
+      ),
+    ).toThrow("메시지 전송 대기열은 최대 20개까지 보관할 수 있습니다.");
   });
 
   it("USER_RATE_LIMITED 결과를 서버 대기시간 이후 jitter를 더해 같은 메시지로 재전송한다", () => {
@@ -165,10 +266,12 @@ describe("ChatMessageDeliveryScheduler", () => {
   });
 
   it("재전송 직전 owner와 generation 문맥이 바뀌었으면 publish하지 않고 취소한다", () => {
-    const harness = createHarness({ isContextCurrent: () => false });
+    let contextCurrent = true;
+    const harness = createHarness({ isContextCurrent: () => contextCurrent });
     harness.scheduler.start(createDeliveryInput());
     harness.scheduler.handleCommandResult(createRejectedResult("SERVER_BUSY", 1));
 
+    contextCurrent = false;
     harness.runNextTimer();
 
     expect(harness.published).toHaveLength(1);
@@ -371,9 +474,12 @@ function createRejectedResult(
   };
 }
 
-function createSuccessfulResult(status: "ACCEPTED" | "DUPLICATE"): ChatMessageCommandResult {
+function createSuccessfulResult(
+  status: "ACCEPTED" | "DUPLICATE",
+  clientMessageId = CLIENT_MESSAGE_ID,
+): ChatMessageCommandResult {
   return {
-    clientMessageId: CLIENT_MESSAGE_ID,
+    clientMessageId,
     status,
     code: null,
     retryable: false,
@@ -381,4 +487,8 @@ function createSuccessfulResult(status: "ACCEPTED" | "DUPLICATE"): ChatMessageCo
     messageId: "message-01",
     roomSequence: 1,
   };
+}
+
+function createIndexedUuid(index: number): string {
+  return `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 }

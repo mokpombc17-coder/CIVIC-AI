@@ -2,15 +2,15 @@
 
 ## 문서 상태
 
-- 작성일: 2026-07-30
+- 작성일: 2026-07-31
 - 상태: 설계 결정
 - 적용 대상: `apps/web`의 STOMP 채팅 메시지 전송
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
 - 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
-  retry delay 계산, transport 공용 delivery scheduler와 SharedWorker·Direct runtime 및
-  transport lifecycle protocol, React composer 상태 통합, 실제 `USER_RATE_LIMITED` Playwright
-  E2E 검증
-- 다음 구현: 메시지 queue와 optimistic message UI 결정 시 delivery 상태 모델 확장
+  retry delay 계산, transport 공용 FIFO delivery scheduler와 SharedWorker·Direct runtime,
+  provider-scoped optimistic outbox와 메시지 단위 상태 UI, 실제 `USER_RATE_LIMITED` FIFO
+  Playwright E2E 검증
+- 다음 구현: 새로고침을 넘어 미확정 queue를 보존해야 할 때 영속 outbox 정책 검토
 
 ## 목표
 
@@ -101,21 +101,25 @@ rawContent
 
 ```text
 IDLE
+  → QUEUED
   → SENDING
   → RETRY_WAITING
   → SENDING
-  → SENT
+  → ACCEPTED
+  → CONFIRMED
   → FAILED
   → CANCELLED
 ```
 
 | 상태            | 의미                                                 | 사용자 표현                          |
 | --------------- | ---------------------------------------------------- | ------------------------------------ |
+| `QUEUED`        | 앞선 메시지의 확정 또는 재전송을 기다리는 중         | 말풍선 아래 작은 전송 대기 표시      |
 | `SENDING`       | command 결과를 기다리는 중                           | 기존 전송 중 상태                    |
 | `RETRY_WAITING` | admission control에 따라 예약된 재전송을 기다리는 중 | 오류 안내와 버튼을 표시하지 않음     |
-| `SENT`          | `ACCEPTED` 또는 `DUPLICATE` 수신                     | 정상 완료                            |
-| `FAILED`        | 자동 복구 한도 초과 또는 terminal 실패               | 이때만 실패 안내                     |
-| `CANCELLED`     | owner·generation 변경이나 transport 종료로 취소됨    | 오래된 화면에는 실패를 표시하지 않음 |
+| `ACCEPTED`      | `ACCEPTED` 또는 `DUPLICATE` command 결과 수신        | 서버 이벤트 확인 중                  |
+| `CONFIRMED`     | `CHAT_MESSAGE_CREATED` 또는 REST 이력에 반영됨       | optimistic 항목을 실제 메시지로 교체 |
+| `FAILED`        | 자동 복구 한도 초과 또는 terminal 실패               | 해당 말풍선에만 실패 안내            |
+| `CANCELLED`     | owner·generation 변경이나 transport 종료로 취소됨    | 해당 말풍선에 취소 안내              |
 
 `RETRY_WAITING`은 실패 상태가 아니라 전송 lifecycle의 중간 상태다. 기존의
 `같은 메시지 다시 전송` 버튼은 admission control 흐름에서 제거한다.
@@ -131,6 +135,7 @@ normalizedContent
 ownerId
 generation
 attempt
+enqueuedAt
 firstSentAt
 previousDelayMs
 scheduledAt
@@ -152,7 +157,7 @@ WebSocket이나 실제 시간을 사용하지 않는다.
 
 Scheduler가 외부에 알리는 경계는 두 종류다.
 
-- `onStateChange`: `SENDING`, `RETRY_WAITING` 중간 상태
+- `onStateChange`: `QUEUED`, `SENDING`, `RETRY_WAITING` 중간 상태
 - `onTerminal`: `sent`, `failed`, `cancelled` 최종 결과
 
 terminal 전환 전에 활성 timer와 delivery map을 먼저 정리한다. callback에서 다시 lifecycle
@@ -165,17 +170,15 @@ owner 탭에 전달하고, `SharedWorkerTransport`는 현재 roomId와 generatio
 외부 listener로 전달한다. Leader Tab은 같은 SharedWorker transport protocol을 재사용하며,
 Direct transport와 fallback transport도 동일한 lifecycle observer 계약을 구현한다.
 
-React composer는 자체 command timeout을 두지 않고 transport lifecycle을 전송 상태의 기준으로
-사용한다. `sending`, `retry-waiting`과 terminal 상세 결과를 기다리는 짧은
-`failure-pending` 상태는 모두 기존 `isSending` UI로 투영한다. 따라서 admission 재전송을
-기다리는 동안 입력과 중복 전송은 막되 오류 배너나 수동 재전송 버튼은 표시하지 않는다.
-시각적 표현을 바꾸지 않고 브라우저 E2E에서 실제 상태 전이를 확인할 수 있도록 composer form은
-`data-delivery-status`에 `idle`, `sending`, `retry-waiting` 중 하나를 노출한다.
+React composer는 draft 정규화와 검증 후 outbox enqueue만 담당하고 즉시 입력창을 비운다.
+`ChatMessageOutbox`는 transport lifecycle과 command result를 `clientMessageId`별 상태로
+투영한다. `queued`, `sending`, `retry-waiting`, `accepted` 상태에서도 composer를 잠그지
+않으므로 사용자는 다음 메시지를 계속 입력할 수 있다.
 
-`failed` lifecycle 뒤에는 같은 transport가 전달하는 command result 또는 failure event를
-사용해 서버 code에 맞는 terminal 오류 문구를 결정한다. `cancelled`는 오류로 표시하지 않고
-전송 content를 현재 방 draft로 복구한다. lifecycle은 `clientMessageId`, roomId와 generation이
-모두 현재 submission과 일치할 때만 반영한다.
+Optimistic 항목은 TanStack Query의 서버 메시지 cache에 넣지 않는다. 서버 cache의
+`messageId`·`roomSequence` 기반 누락 복구 계약을 유지하기 위해 화면 timeline에서만 합치고,
+같은 `clientMessageId`가 `CHAT_MESSAGE_CREATED` 또는 REST 이력에 나타나면 outbox 항목을
+제거한다. `failed`와 `cancelled`는 draft 전체를 되돌리는 대신 해당 말풍선에만 표시한다.
 
 ### SharedWorker 소유권
 
@@ -252,12 +255,13 @@ delay 계산 값은 `DEFAULT_CHAT_MESSAGE_ADMISSION_RETRY_POLICY`, delivery 수�
 ### 여러 메시지가 대기하는 경우
 
 한 room에서 여러 메시지를 동시에 retry하면 한 클라이언트 내부에서도 작은 burst가 다시 생길 수
-있다. 메시지 queue를 도입할 경우 다음 원칙을 적용한다.
+있다. 현재 scheduler는 다음 원칙으로 하나의 FIFO queue를 운영한다.
 
 - 같은 room의 사용자 전송 순서를 보존한다.
 - retry 중인 선행 메시지를 건너뛰어 후행 메시지를 무제한 publish하지 않는다.
 - 각 메시지의 jitter를 독립적으로 계산하더라도 실제 publish는 scheduler가 직렬화한다.
-- 현재 단일 submission UI에서는 하나의 delivery만 활성 상태로 유지한다.
+- 최대 20개의 pending delivery만 메모리에 보관한다.
+- 선행 메시지가 `ACCEPTED`, `DUPLICATE` 또는 terminal 상태가 된 뒤에만 다음 메시지를 시작한다.
 
 ## 종료와 취소
 
@@ -303,10 +307,9 @@ subscription sync가 다시 준비된 뒤 message delivery를 재개할지는 �
 - 권한, 방 상태 또는 content 검증처럼 사용자 행동이 필요함
 - 연결 복구가 불가능한 terminal 상태가 됨
 
-terminal 실패가 된 content는 composer draft로 복구한다. admission 자동 재전송 한도를 초과한
-경우 실패 문구는 표시하되 `같은 메시지 다시 전송` 버튼은 표시하지 않는다. admission과 무관한
-retryable terminal 장애에는 기존 수동 복구 동작을 유지한다. 메시지 queue와 optimistic message
-UI를 도입할 때는 이 terminal 상태를 메시지 단위 상태로 확장한다.
+terminal 실패가 된 content는 composer 전체로 되돌리지 않고 해당 optimistic 말풍선에
+보존한다. admission 자동 재전송 한도를 초과한 경우에만 메시지 단위 실패 문구를 표시하고,
+`같은 메시지 다시 전송` 전역 버튼은 표시하지 않는다.
 
 ## 다른 Retry 정책과의 경계
 

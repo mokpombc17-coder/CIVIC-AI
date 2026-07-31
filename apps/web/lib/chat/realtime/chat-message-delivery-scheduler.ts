@@ -11,13 +11,14 @@ import {
   type ChatMessageSendRequest,
 } from "./chat-stomp-contracts";
 
-export type ChatMessageDeliveryStatus = "sending" | "retry-waiting";
+export type ChatMessageDeliveryStatus = "queued" | "sending" | "retry-waiting";
 export type ChatMessageDeliveryLifecycleStatus =
   ChatMessageDeliveryStatus | "sent" | "failed" | "cancelled";
 
 export type ChatMessageDeliverySnapshot = Readonly<{
   attempt: number;
-  firstSentAt: number;
+  enqueuedAt: number;
+  firstSentAt: number | null;
   generation: number;
   ownerId: string;
   previousDelayMs: number | null;
@@ -96,6 +97,7 @@ export type ChatMessageDeliverySchedulerOptions = Readonly<{
   cancelTimer?: (handle: ChatMessageDeliveryTimerHandle) => void;
   isContextCurrent?: (snapshot: ChatMessageDeliverySnapshot) => boolean;
   limits?: ChatMessageDeliveryLimits;
+  maxPendingMessages?: number;
   now?: () => number;
   onStateChange?: (snapshot: ChatMessageDeliverySnapshot) => void;
   onTerminal?: (event: ChatMessageDeliveryTerminalEvent) => void;
@@ -106,7 +108,8 @@ export type ChatMessageDeliverySchedulerOptions = Readonly<{
 
 type ActiveChatMessageDelivery = {
   attempt: number;
-  firstSentAt: number;
+  enqueuedAt: number;
+  firstSentAt: number | null;
   generation: number;
   ownerId: string;
   previousDelayMs: number | null;
@@ -118,27 +121,32 @@ type ActiveChatMessageDelivery = {
 };
 
 export class ChatMessageDeliveryScheduler {
+  private activeClientMessageId: string | null = null;
   private readonly admissionRetryPolicy: ChatMessageAdmissionRetryPolicy;
   private readonly cancelTimer: (handle: ChatMessageDeliveryTimerHandle) => void;
   private readonly deliveries = new Map<string, ActiveChatMessageDelivery>();
   private readonly isContextCurrent: (snapshot: ChatMessageDeliverySnapshot) => boolean;
   private readonly limits: ChatMessageDeliveryLimits;
+  private readonly maxPendingMessages: number;
   private readonly now: () => number;
   private readonly onStateChange: (snapshot: ChatMessageDeliverySnapshot) => void;
   private readonly onTerminal: (event: ChatMessageDeliveryTerminalEvent) => void;
   private readonly publish: (command: ChatMessageDeliveryPublishCommand) => void;
   private readonly random: () => number;
+  private readonly queue: string[] = [];
   private readonly scheduleTimer: (
     callback: () => void,
     delayMs: number,
   ) => ChatMessageDeliveryTimerHandle;
   private disposed = false;
+  private pumpSuspended = false;
 
   constructor({
     admissionRetryPolicy = DEFAULT_CHAT_MESSAGE_ADMISSION_RETRY_POLICY,
     cancelTimer = (handle) => globalThis.clearTimeout(handle),
     isContextCurrent = () => true,
     limits = DEFAULT_CHAT_MESSAGE_DELIVERY_LIMITS,
+    maxPendingMessages = 20,
     now = Date.now,
     onStateChange = () => undefined,
     onTerminal = () => undefined,
@@ -147,11 +155,13 @@ export class ChatMessageDeliveryScheduler {
     scheduleTimer = (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
   }: ChatMessageDeliverySchedulerOptions) {
     assertDeliveryLimits(limits);
+    assertPositiveInteger(maxPendingMessages, "maxPendingMessages");
 
     this.admissionRetryPolicy = admissionRetryPolicy;
     this.cancelTimer = cancelTimer;
     this.isContextCurrent = isContextCurrent;
     this.limits = limits;
+    this.maxPendingMessages = maxPendingMessages;
     this.now = now;
     this.onStateChange = onStateChange;
     this.onTerminal = onTerminal;
@@ -173,28 +183,36 @@ export class ChatMessageDeliveryScheduler {
     const request = Object.freeze(chatMessageSendRequestSchema.parse(input.request));
     const ownerId = assertOwnerId(input.ownerId);
     const generation = assertGeneration(input.generation);
-    const firstSentAt = this.readNow();
+    const enqueuedAt = this.readNow();
 
     if (this.deliveries.has(request.clientMessageId)) {
       throw new Error(`clientMessageId ${request.clientMessageId}는 이미 전송 중입니다.`);
     }
 
+    if (this.deliveries.size >= this.maxPendingMessages) {
+      throw new Error(
+        `메시지 전송 대기열은 최대 ${this.maxPendingMessages}개까지 보관할 수 있습니다.`,
+      );
+    }
+
     const delivery: ActiveChatMessageDelivery = {
-      attempt: 1,
-      firstSentAt,
+      attempt: 0,
+      enqueuedAt,
+      firstSentAt: null,
       generation,
       ownerId,
       previousDelayMs: null,
       request,
       roomId,
       scheduledAt: null,
-      status: "sending",
+      status: "queued",
       timerHandle: null,
     };
 
     this.deliveries.set(request.clientMessageId, delivery);
+    this.queue.push(request.clientMessageId);
     this.emitStateChange(delivery);
-    this.publishAttempt(delivery);
+    this.pump();
 
     return createSnapshot(delivery);
   }
@@ -262,13 +280,20 @@ export class ChatMessageDeliveryScheduler {
       predicate(createSnapshot(delivery)),
     );
 
-    deliveries.forEach((delivery) => {
-      this.finish(delivery, {
-        kind: "cancelled",
-        reason: cancellationReason,
-        snapshot: createSnapshot(delivery),
+    this.pumpSuspended = true;
+
+    try {
+      deliveries.forEach((delivery) => {
+        this.finish(delivery, {
+          kind: "cancelled",
+          reason: cancellationReason,
+          snapshot: createSnapshot(delivery),
+        });
       });
-    });
+    } finally {
+      this.pumpSuspended = false;
+      this.pump();
+    }
 
     return deliveries.length;
   }
@@ -305,6 +330,53 @@ export class ChatMessageDeliveryScheduler {
     this.armCommandResultTimeout(delivery);
   }
 
+  private pump(): void {
+    if (this.disposed || this.pumpSuspended || this.activeClientMessageId !== null) {
+      return;
+    }
+
+    while (this.queue.length > 0) {
+      const clientMessageId = this.queue.shift()!;
+      const delivery = this.deliveries.get(clientMessageId);
+
+      if (!delivery || delivery.status !== "queued") {
+        continue;
+      }
+
+      this.activeClientMessageId = clientMessageId;
+      const snapshot = createSnapshot(delivery);
+      let contextIsCurrent: boolean;
+
+      try {
+        contextIsCurrent = this.isContextCurrent(snapshot);
+      } catch (cause) {
+        this.finish(delivery, {
+          cause,
+          kind: "failed",
+          reason: "CONTEXT_VALIDATION_FAILED",
+          snapshot,
+        });
+        return;
+      }
+
+      if (!contextIsCurrent) {
+        this.finish(delivery, {
+          kind: "cancelled",
+          reason: "DELIVERY_CONTEXT_STALE",
+          snapshot,
+        });
+        return;
+      }
+
+      delivery.attempt = 1;
+      delivery.firstSentAt = this.readNow();
+      delivery.status = "sending";
+      this.emitStateChange(delivery);
+      this.publishAttempt(delivery);
+      return;
+    }
+  }
+
   private scheduleRetry(
     delivery: ActiveChatMessageDelivery,
     signal: NonNullable<ReturnType<typeof selectChatMessageAdmissionRetrySignal>>,
@@ -329,7 +401,9 @@ export class ChatMessageDeliveryScheduler {
     });
     const scheduledAt = safeAdd(now, delayMs, "메시지 재전송 예정 시각");
 
-    if (scheduledAt - delivery.firstSentAt >= this.limits.maxElapsedMs) {
+    const firstSentAt = requireFirstSentAt(delivery);
+
+    if (scheduledAt - firstSentAt >= this.limits.maxElapsedMs) {
       this.finish(delivery, {
         kind: "failed",
         reason: "MAX_ELAPSED_TIME_REACHED",
@@ -382,7 +456,7 @@ export class ChatMessageDeliveryScheduler {
       return;
     }
 
-    if (this.readNow() - delivery.firstSentAt >= this.limits.maxElapsedMs) {
+    if (this.readNow() - requireFirstSentAt(delivery) >= this.limits.maxElapsedMs) {
       this.finish(delivery, {
         kind: "failed",
         reason: "MAX_ELAPSED_TIME_REACHED",
@@ -399,7 +473,7 @@ export class ChatMessageDeliveryScheduler {
   }
 
   private armCommandResultTimeout(delivery: ActiveChatMessageDelivery): void {
-    const remainingMs = this.limits.maxElapsedMs - (this.readNow() - delivery.firstSentAt);
+    const remainingMs = this.limits.maxElapsedMs - (this.readNow() - requireFirstSentAt(delivery));
     const timeoutMs = Math.min(this.limits.commandResultTimeoutMs, remainingMs);
 
     if (timeoutMs <= 0) {
@@ -419,7 +493,7 @@ export class ChatMessageDeliveryScheduler {
       }
 
       activeDelivery.timerHandle = null;
-      const elapsedMs = this.readNow() - activeDelivery.firstSentAt;
+      const elapsedMs = this.readNow() - requireFirstSentAt(activeDelivery);
       this.finish(activeDelivery, {
         kind: "failed",
         reason:
@@ -454,7 +528,18 @@ export class ChatMessageDeliveryScheduler {
 
     this.clearActiveTimer(delivery);
     this.deliveries.delete(delivery.request.clientMessageId);
+    const queueIndex = this.queue.indexOf(delivery.request.clientMessageId);
+
+    if (queueIndex >= 0) {
+      this.queue.splice(queueIndex, 1);
+    }
+
+    if (this.activeClientMessageId === delivery.request.clientMessageId) {
+      this.activeClientMessageId = null;
+    }
+
     this.onTerminal(event);
+    this.pump();
   }
 
   private readNow(): number {
@@ -533,6 +618,7 @@ export function isChatMessageDeliveryLifecycleEvent(
 
   const event = value as Partial<ChatMessageDeliveryLifecycleEvent>;
   const statusIsValid =
+    event.status === "queued" ||
     event.status === "sending" ||
     event.status === "retry-waiting" ||
     event.status === "sent" ||
@@ -551,7 +637,7 @@ export function isChatMessageDeliveryLifecycleEvent(
 
   return (
     Number.isSafeInteger(event.attempt) &&
-    (event.attempt ?? 0) >= 1 &&
+    (event.status === "queued" ? event.attempt === 0 : (event.attempt ?? 0) >= 1) &&
     idempotencyKeySchema.safeParse(event.clientMessageId).success &&
     Number.isSafeInteger(event.generation) &&
     (event.generation ?? -1) >= 0 &&
@@ -565,6 +651,7 @@ export function isChatMessageDeliveryLifecycleEvent(
 function createSnapshot(delivery: ActiveChatMessageDelivery): ChatMessageDeliverySnapshot {
   return Object.freeze({
     attempt: delivery.attempt,
+    enqueuedAt: delivery.enqueuedAt,
     firstSentAt: delivery.firstSentAt,
     generation: delivery.generation,
     ownerId: delivery.ownerId,
@@ -574,6 +661,14 @@ function createSnapshot(delivery: ActiveChatMessageDelivery): ChatMessageDeliver
     scheduledAt: delivery.scheduledAt,
     status: delivery.status,
   });
+}
+
+function requireFirstSentAt(delivery: ActiveChatMessageDelivery): number {
+  if (delivery.firstSentAt === null) {
+    throw new Error("메시지를 publish하기 전에는 전송 제한 시간을 계산할 수 없습니다.");
+  }
+
+  return delivery.firstSentAt;
 }
 
 function assertDeliveryLimits(limits: ChatMessageDeliveryLimits): void {

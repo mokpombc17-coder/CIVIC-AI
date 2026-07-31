@@ -1219,7 +1219,7 @@ describe("ChatSharedWorkerRuntime", () => {
       expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
       expect(
         ownerPort.eventsOfType("ROOM_MESSAGE_DELIVERY_LIFECYCLE").map(({ event }) => event.status),
-      ).toEqual(["sending", "retry-waiting"]);
+      ).toEqual(["queued", "sending", "retry-waiting"]);
       expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
 
       vi.advanceTimersByTime(999);
@@ -1254,7 +1254,7 @@ describe("ChatSharedWorkerRuntime", () => {
       );
       expect(
         ownerPort.eventsOfType("ROOM_MESSAGE_DELIVERY_LIFECYCLE").map(({ event }) => event.status),
-      ).toEqual(["sending", "retry-waiting", "sending", "sent"]);
+      ).toEqual(["queued", "sending", "retry-waiting", "sending", "sent"]);
     } finally {
       random.mockRestore();
       vi.useRealTimers();

@@ -29,8 +29,10 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
     await messageInput.fill(message);
     await page.getByRole("button", { name: "전송", exact: true }).click();
 
-    await expect(page.getByText("서버가 메시지를 접수했습니다.", { exact: true })).toBeVisible();
     await expect(messageLog.getByText(message, { exact: true })).toBeVisible();
+    await expect(
+      messageLog.locator("li[data-delivery-status]").filter({ hasText: message }),
+    ).toHaveCount(0);
   });
 
   await test.step("새로고침 후 REST 메시지 이력으로 같은 메시지가 복구되는지 확인한다", async () => {

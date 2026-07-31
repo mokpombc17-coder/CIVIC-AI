@@ -665,6 +665,7 @@ describe("DirectStompTransport", () => {
 
       expect(listener).not.toHaveBeenCalled();
       expect(lifecycleListener.mock.calls.map(([event]) => event.status)).toEqual([
+        "queued",
         "sending",
         "retry-waiting",
       ]);
@@ -706,6 +707,7 @@ describe("DirectStompTransport", () => {
         }),
       });
       expect(lifecycleListener.mock.calls.map(([event]) => event.status)).toEqual([
+        "queued",
         "sending",
         "retry-waiting",
         "sending",

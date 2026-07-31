@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -12,6 +13,10 @@ import {
 import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
 import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realtime-room-lifecycle";
 import { createChatRealtimeTransport } from "@/lib/chat/realtime/create-chat-realtime-transport";
+import {
+  ChatMessageOutbox,
+  type ChatOutgoingMessage,
+} from "@/lib/chat/realtime/chat-message-outbox";
 import type {
   ChatConnectionSnapshot,
   ChatConnectionStatus,
@@ -20,7 +25,12 @@ import type {
   ChatRoomSessionSnapshot,
 } from "@/lib/chat/realtime/chat-realtime-transport";
 
-const ChatRealtimeContext = createContext<ChatRealtimeTransport | null>(null);
+type ChatRealtimeContextValue = Readonly<{
+  outbox: ChatMessageOutbox;
+  transport: ChatRealtimeTransport;
+}>;
+
+const ChatRealtimeContext = createContext<ChatRealtimeContextValue | null>(null);
 
 export type ChatRealtimeRoomState = ChatRoomSessionSnapshot & {
   connectionError: ChatRealtimeError | null;
@@ -30,11 +40,26 @@ export type ChatRealtimeRoomState = ChatRoomSessionSnapshot & {
 };
 
 export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
-  const [transport] = useState(createChatRealtimeTransport);
+  const [realtime] = useState(() => {
+    const transport = createChatRealtimeTransport();
+    return {
+      outbox: new ChatMessageOutbox(transport),
+      transport,
+    };
+  });
+  const { outbox, transport } = realtime;
 
-  useEffect(() => attachChatRealtimePageLifecycle(transport, window), [transport]);
+  useEffect(() => {
+    const detachOutbox = outbox.attach();
+    const detachRealtime = attachChatRealtimePageLifecycle(transport, window);
 
-  return <ChatRealtimeContext value={transport}>{children}</ChatRealtimeContext>;
+    return () => {
+      detachRealtime();
+      detachOutbox();
+    };
+  }, [outbox, transport]);
+
+  return <ChatRealtimeContext value={realtime}>{children}</ChatRealtimeContext>;
 }
 
 export function useChatRealtimeConnection(): ChatConnectionSnapshot & {
@@ -84,11 +109,28 @@ export function useChatRealtimeRoom(roomId: string): ChatRealtimeRoomState {
 }
 
 export function useChatRealtimeTransport(): ChatRealtimeTransport {
-  const transport = useContext(ChatRealtimeContext);
+  const realtime = useContext(ChatRealtimeContext);
 
-  if (!transport) {
+  if (!realtime) {
     throw new Error("채팅 실시간 훅은 ChatRealtimeProvider 안에서 사용해야 합니다.");
   }
 
-  return transport;
+  return realtime.transport;
+}
+
+export function useChatMessageOutbox(): ChatMessageOutbox {
+  const realtime = useContext(ChatRealtimeContext);
+
+  if (!realtime) {
+    throw new Error("채팅 메시지 outbox 훅은 ChatRealtimeProvider 안에서 사용해야 합니다.");
+  }
+
+  return realtime.outbox;
+}
+
+export function useChatOutgoingMessages(roomId: string): readonly ChatOutgoingMessage[] {
+  const outbox = useChatMessageOutbox();
+  const messages = useSyncExternalStore(outbox.observe, outbox.getSnapshot, outbox.getSnapshot);
+
+  return useMemo(() => messages.filter((message) => message.roomId === roomId), [messages, roomId]);
 }

@@ -111,19 +111,19 @@ ROOM_CLOSED`는 동일 사용자의 두 탭 중 하나가 활성 방 구독을 �
 ```
 
 사용자별 메시지 사용량 제한은 매 실행마다 고유한 플랫폼 사용자를 발급하고 token cost가 5인
-메시지 두 개를 연속으로 보내 실제 `USER_RATE_LIMITED`를 발생시켜 검증한다. 화면 문구는
-`sending`과 `retry-waiting`을 동일하게 표현하므로 form의 `data-delivery-status`를 E2E 관찰
-지점으로 사용한다.
+메시지 세 개를 연속으로 보내 실제 `USER_RATE_LIMITED`와 FIFO queue를 함께 검증한다.
+Optimistic 메시지 행의 `data-delivery-status`를 E2E 관찰 지점으로 사용한다.
 
 ```text
 고유 사용자로 임시 로그인
 → cost 5 메시지로 사용자 token bucket 소진
 → 두 번째 cost 5 메시지 전송
 → retry-waiting 진입 확인
-→ 오류 배너와 수동 재전송 버튼이 표시되지 않는지 확인
-→ jitter 대기 뒤 동일 command 자동 재전송
-→ 화면에 메시지가 한 번만 표시되는지 확인
-→ 새로고침 후 REST 이력에도 두 메시지가 각각 한 번만 복구되는지 확인
+→ composer가 잠기지 않은 상태에서 세 번째 메시지 전송
+→ 세 번째 메시지가 queued로 표시되는지 확인
+→ 오류 배너 없이 jitter 대기 뒤 두 메시지를 FIFO로 자동 재전송
+→ optimistic 항목이 실제 서버 메시지로 교체되는지 확인
+→ 새로고침 후 REST 이력에도 세 메시지가 각각 한 번만 복구되는지 확인
 ```
 
 ## 사전 조건

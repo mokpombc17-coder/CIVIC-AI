@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import {
+  useChatMessageOutbox,
+  useChatOutgoingMessages,
   useChatRealtimeRoom,
   type ChatRealtimeRoomState,
 } from "@/components/chat-realtime-provider";
@@ -15,7 +18,11 @@ import {
   useRoomDetailsQuery,
   useRoomMessageHistoryQuery,
 } from "@/lib/chat/chat-room-queries";
-import type { ChatMessage } from "@/lib/chat/chat-room-contracts";
+import {
+  createChatMessageTimeline,
+  type ChatMessageTimelineItem,
+} from "@/lib/chat/chat-message-timeline";
+import type { ChatOutgoingMessage } from "@/lib/chat/realtime/chat-message-outbox";
 import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
 
 const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
@@ -25,6 +32,8 @@ const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
 });
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
+  const outbox = useChatMessageOutbox();
+  const outgoingMessages = useChatOutgoingMessages(roomId);
   const session = useChatRealtimeRoom(roomId);
   const roomQuery = useRoomDetailsQuery(roomId);
   const messageHistory = useRoomMessageHistoryQuery(roomId, {
@@ -50,6 +59,13 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   });
   const room = roomQuery.data;
   const currentUserId = room?.myMembership?.userId ?? null;
+
+  useEffect(() => {
+    outbox.acknowledgeConfirmed(
+      roomId,
+      new Set(messageHistory.messages.map((message) => message.clientMessageId)),
+    );
+  }, [messageHistory.messages, outbox, roomId]);
 
   return (
     <div className="page-stack">
@@ -80,6 +96,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         <ChatMessageHistory
           currentUserId={currentUserId}
           messageHistory={messageHistory}
+          outgoingMessages={outgoingMessages}
           roomId={roomId}
           session={session}
         />
@@ -159,6 +176,7 @@ function ChatRoomHeader({
 type ChatMessageHistoryProps = Readonly<{
   currentUserId: string | null;
   messageHistory: ReturnType<typeof useRoomMessageHistoryQuery>;
+  outgoingMessages: readonly ChatOutgoingMessage[];
   roomId: string;
   session: ChatRealtimeRoomState;
 }>;
@@ -166,10 +184,15 @@ type ChatMessageHistoryProps = Readonly<{
 function ChatMessageHistory({
   currentUserId,
   messageHistory,
+  outgoingMessages,
   roomId,
   session,
 }: ChatMessageHistoryProps) {
-  const showMessages = messageHistory.messages.length > 0;
+  const timeline = useMemo(
+    () => createChatMessageTimeline(messageHistory.messages, outgoingMessages),
+    [messageHistory.messages, outgoingMessages],
+  );
+  const showMessages = timeline.length > 0;
 
   return (
     <div
@@ -210,17 +233,21 @@ function ChatMessageHistory({
             다시 불러오기
           </button>
         </div>
-      ) : messageHistory.messages.length === 0 ? (
+      ) : timeline.length === 0 ? (
         <MessageHistoryNotice message="아직 작성된 메시지가 없습니다." />
       ) : null}
 
       {showMessages ? (
         <ol className="space-y-5">
-          {messageHistory.messages.map((message) => (
+          {timeline.map((item) => (
             <ChatMessageItem
-              isMine={message.senderUserId === currentUserId}
-              key={message.messageId}
-              message={message}
+              currentUserId={currentUserId}
+              item={item}
+              key={
+                item.kind === "confirmed"
+                  ? item.message.messageId
+                  : `outgoing-${item.message.clientMessageId}`
+              }
             />
           ))}
         </ol>
@@ -237,7 +264,20 @@ function MessageHistoryNotice({ message }: { message: string }) {
   );
 }
 
-function ChatMessageItem({ isMine, message }: { isMine: boolean; message: ChatMessage }) {
+function ChatMessageItem({
+  currentUserId,
+  item,
+}: {
+  currentUserId: string | null;
+  item: ChatMessageTimelineItem;
+}) {
+  if (item.kind === "outgoing") {
+    return <OutgoingChatMessageItem message={item.message} />;
+  }
+
+  const { message } = item;
+  const isMine = message.senderUserId === currentUserId;
+
   return (
     <li className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[78%] ${isMine ? "items-end" : "items-start"} flex flex-col`}>
@@ -272,9 +312,59 @@ function ChatMessageItem({ isMine, message }: { isMine: boolean; message: ChatMe
   );
 }
 
-function formatMessageTime(createdAt: string): string {
-  const timestamp = Date.parse(createdAt);
-  return Number.isNaN(timestamp) ? createdAt : MESSAGE_TIME_FORMATTER.format(timestamp);
+function OutgoingChatMessageItem({ message }: { message: ChatOutgoingMessage }) {
+  const failed = message.status === "failed" || message.status === "cancelled";
+
+  return (
+    <li
+      className="flex justify-end"
+      data-client-message-id={message.clientMessageId}
+      data-delivery-status={message.status}
+    >
+      <div className="flex max-w-[78%] flex-col items-end">
+        <div className="flex items-end gap-2">
+          <span className="text-[0.7rem] text-slate-400">
+            {formatMessageTime(message.enqueuedAt)}
+          </span>
+          <p
+            className={`whitespace-pre-wrap break-words rounded-2xl rounded-br-md border px-4 py-3 text-sm leading-6 ${
+              failed
+                ? "border-red-300 bg-red-50 text-red-950"
+                : "border-blue-500 bg-blue-600 text-white opacity-80"
+            }`}
+          >
+            {message.content}
+          </p>
+        </div>
+        <p
+          className={`mt-1 px-1 text-[0.7rem] ${failed ? "text-red-700" : "text-slate-500"}`}
+          role={failed ? "alert" : "status"}
+        >
+          {getOutgoingMessageStatusLabel(message)}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+function getOutgoingMessageStatusLabel(message: ChatOutgoingMessage): string {
+  switch (message.status) {
+    case "queued":
+      return "전송 대기 중";
+    case "sending":
+    case "retry-waiting":
+      return "전송 중";
+    case "accepted":
+      return "전송 확인 중";
+    case "failed":
+    case "cancelled":
+      return message.message ?? "메시지를 전송하지 못했습니다.";
+  }
+}
+
+function formatMessageTime(createdAt: string | number): string {
+  const timestamp = typeof createdAt === "number" ? createdAt : Date.parse(createdAt);
+  return Number.isNaN(timestamp) ? String(createdAt) : MESSAGE_TIME_FORMATTER.format(timestamp);
 }
 
 function toErrorMessage(error: unknown): string {

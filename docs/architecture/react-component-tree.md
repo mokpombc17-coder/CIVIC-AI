@@ -63,6 +63,9 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
                                     ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
+                                    ├── ChatMessageHistory [Client, internal]
+                                    │   ├── ChatMessageItem [internal] [conditional]
+                                    │   └── OutgoingChatMessageItem [internal] [conditional]
                                     ├── ChatRealtimeSyncStatus [Client] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                     ├── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
                                     └── ChatRoomMembershipPanel [Client] (apps/web/components/chat-room-membership-panel.tsx)
@@ -135,6 +138,9 @@ flowchart TD
     ChatRoomListScreen["ChatRoomListScreen [Client]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
     ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
+    ChatMessageHistory["ChatMessageHistory [Client, internal]<br/>apps/web/components/chat-room-screen.tsx"]
+    ChatMessageItem["ChatMessageItem [internal] [conditional]<br/>apps/web/components/chat-room-screen.tsx"]
+    OutgoingChatMessageItem["OutgoingChatMessageItem [internal] [conditional]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
@@ -169,6 +175,9 @@ flowchart TD
     ChatRoomListScreen --> ChatConnectionStatus
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatConnectionStatus
+    ChatRoomScreen --> ChatMessageHistory
+    ChatMessageHistory -->|confirmed| ChatMessageItem
+    ChatMessageHistory -->|optimistic| OutgoingChatMessageItem
     ChatRoomScreen -->|"sync pending/error only"| ChatRealtimeSyncStatus
     ChatRoomScreen --> ChatRoomSessionControls
     ChatRoomScreen --> ChatRoomMembershipPanel
