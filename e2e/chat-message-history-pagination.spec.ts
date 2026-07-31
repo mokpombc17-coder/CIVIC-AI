@@ -4,7 +4,7 @@ import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 const ACTIVE_ROOM_LABEL = "이 탭에서 실시간 채팅을 사용 중입니다.";
 const MESSAGE_COUNT = 52;
 
-test("이전 메시지 UI가 beforeSequence로 과거 이력을 조회하고 시간순으로 병합한다", async ({
+test("메시지 상단 접근이 beforeSequence 이력을 자동 조회하고 읽던 위치를 보존한다", async ({
   context,
   page,
 }) => {
@@ -57,10 +57,10 @@ test("이전 메시지 UI가 beforeSequence로 과거 이력을 조회하고 시
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "이전 메시지 불러오기", exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 
-  await test.step("이전 메시지 버튼은 beforeSequence cursor로 과거 페이지를 조회한다", async () => {
+  await test.step("상단 접근은 과거 페이지를 조회하고 기존 첫 메시지 위치를 복구한다", async () => {
     const previousHistoryResponse = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return (
@@ -70,7 +70,7 @@ test("이전 메시지 UI가 beforeSequence로 과거 이력을 조회하고 시
       );
     });
 
-    await page.getByRole("button", { name: "이전 메시지 불러오기", exact: true }).click();
+    await messageLog.evaluate((element) => element.scrollTo({ top: 0 }));
 
     const response = await previousHistoryResponse;
     const requestUrl = new URL(response.url());
@@ -78,14 +78,14 @@ test("이전 메시지 UI가 beforeSequence로 과거 이력을 조회하고 시
       true,
     );
     expect(requestUrl.searchParams.get("beforeSequence")).toBe("3");
+    await expect(messageLog.getByText(messages[2]!, { exact: true })).toBeVisible();
+    await expect.poll(() => messageLog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
     await messageLog.evaluate((element) => element.scrollTo({ top: 0 }));
     await expect(messageLog.getByText(messages[0]!, { exact: true })).toBeVisible();
 
     await messageLog.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "이전 메시지 불러오기", exact: true }),
-    ).toHaveCount(0);
 
     const renderedMessages = messageLog.locator("li");
     expect(await renderedMessages.count()).toBeLessThan(MESSAGE_COUNT);

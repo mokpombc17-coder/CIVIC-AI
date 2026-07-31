@@ -70,7 +70,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const feedback = createMessageHistoryFeedback({
     error: messageHistory.error,
     isActive: session.isActive,
-    isError: messageHistory.isError,
+    isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
     isPending: messageHistory.isPending,
     messageCount: messageItems.length,
   });
@@ -92,7 +92,17 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         feedback,
         isLoadingOlder: messageHistory.isFetchingNextPage,
         items: messageItems,
-        onLoadOlder: () => void messageHistory.fetchNextPage(),
+        onLoadOlder: async () => {
+          const result = await messageHistory.fetchNextPage();
+
+          if (result.isError) {
+            throw result.error;
+          }
+
+          return {
+            hasOlderMessages: result.hasNextPage,
+          };
+        },
         onRetry: () => void messageHistory.refetch(),
         roomLabel: `${roomId} 메시지`,
         viewportKey: `${roomId}:${session.generation}`,

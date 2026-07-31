@@ -17,6 +17,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         data-client-message-id={item.clientMessageId}
         data-delivery-status={item.deliveryStatus ?? undefined}
         data-index={virtualIndex}
+        data-render-key={item.renderKey}
         ref={ref}
         style={style}
       >

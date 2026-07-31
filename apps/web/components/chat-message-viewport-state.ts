@@ -33,6 +33,10 @@ export type ChatMessageViewportEvent =
       type: "load-older-failed";
     }>
   | Readonly<{
+      type: "older-availability-changed";
+      hasOlderMessages: boolean;
+    }>
+  | Readonly<{
       type: "jump-to-latest";
     }>
   | Readonly<{
@@ -109,6 +113,19 @@ export function reduceChatMessageViewportState(
         ...state,
         olderHistory: "error",
       };
+
+    case "older-availability-changed": {
+      const olderHistory = event.hasOlderMessages ? "idle" : "exhausted";
+
+      if (state.olderHistory === olderHistory) {
+        return state;
+      }
+
+      return {
+        ...state,
+        olderHistory,
+      };
+    }
 
     case "jump-to-latest":
       return {

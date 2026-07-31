@@ -114,6 +114,16 @@ describe("chat message viewport state", () => {
     expect(exhausted.olderHistory).toBe("exhausted");
   });
 
+  it("최신 이력 응답 후 과거 페이지 가용성이 바뀌면 idle 상태로 전환한다", () => {
+    const initial = createChatMessageViewportState(false);
+    const available = reduceChatMessageViewportState(initial, {
+      type: "older-availability-changed",
+      hasOlderMessages: true,
+    });
+
+    expect(available.olderHistory).toBe("idle");
+  });
+
   it("방 세션이 바뀌면 스크롤과 과거 이력 상태를 함께 초기화한다", () => {
     const reset = reduceChatMessageViewportState(
       {
