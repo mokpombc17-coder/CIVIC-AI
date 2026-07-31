@@ -56,12 +56,20 @@ export function reduceChatMessageViewportState(
 ): ChatMessageViewportState {
   switch (event.type) {
     case "viewport-ready":
-    case "scroll-position-changed":
+    case "scroll-position-changed": {
+      const position = event.isAtEnd ? "pinned" : "detached";
+      const unseenMessageCount = event.isAtEnd ? 0 : state.unseenMessageCount;
+
+      if (state.position === position && state.unseenMessageCount === unseenMessageCount) {
+        return state;
+      }
+
       return {
         ...state,
-        position: event.isAtEnd ? "pinned" : "detached",
-        unseenMessageCount: event.isAtEnd ? 0 : state.unseenMessageCount,
+        position,
+        unseenMessageCount,
       };
+    }
 
     case "messages-appended": {
       assertPositiveMessageCount(event.count);

@@ -77,6 +77,21 @@ describe("chat message viewport state", () => {
     });
   });
 
+  it("같은 스크롤 구간의 반복 이벤트에는 기존 상태 참조를 유지한다", () => {
+    const state = {
+      olderHistory: "idle",
+      position: "pinned",
+      unseenMessageCount: 0,
+    } as const;
+
+    expect(
+      reduceChatMessageViewportState(state, {
+        type: "scroll-position-changed",
+        isAtEnd: true,
+      }),
+    ).toBe(state);
+  });
+
   it("과거 이력 요청의 loading, error, exhausted 상태를 독립적으로 관리한다", () => {
     const initial = createChatMessageViewportState(true);
     const loading = reduceChatMessageViewportState(initial, {

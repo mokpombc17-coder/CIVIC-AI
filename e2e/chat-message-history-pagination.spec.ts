@@ -78,15 +78,16 @@ test("이전 메시지 UI가 beforeSequence로 과거 이력을 조회하고 시
       true,
     );
     expect(requestUrl.searchParams.get("beforeSequence")).toBe("3");
+    await messageLog.evaluate((element) => element.scrollTo({ top: 0 }));
     await expect(messageLog.getByText(messages[0]!, { exact: true })).toBeVisible();
+
+    await messageLog.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "이전 메시지 불러오기", exact: true }),
     ).toHaveCount(0);
 
     const renderedMessages = messageLog.locator("li");
-    await expect(renderedMessages).toHaveCount(MESSAGE_COUNT);
-    await expect(renderedMessages.first()).toContainText(messages[0]!);
-    await expect(renderedMessages.last()).toContainText(messages.at(-1)!);
+    expect(await renderedMessages.count()).toBeLessThan(MESSAGE_COUNT);
   });
 });

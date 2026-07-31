@@ -95,6 +95,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         onLoadOlder: () => void messageHistory.fetchNextPage(),
         onRetry: () => void messageHistory.refetch(),
         roomLabel: `${roomId} 메시지`,
+        viewportKey: `${roomId}:${session.generation}`,
       }}
       roomError={
         roomQuery.isError

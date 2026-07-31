@@ -65,9 +65,8 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                     └── ChatRoomView [Client] (apps/web/components/chat-room-view.tsx)
                                         ├── ChatRoomHeader [internal]
                                         │   └── ChatConnectionStatus [Client] [slot] (apps/web/components/chat-connection-status.tsx)
-                                        ├── ChatMessageHistory [internal]
-                                        │   └── ChatMessageList [Client] (apps/web/components/chat-message-list.tsx)
-                                        │       └── ChatMessageItem [internal] [repeated]
+                                        ├── ChatMessageViewport [Client] (apps/web/components/chat-message-viewport.tsx)
+                                        │   └── ChatMessageItem [Client] [virtualized, repeated] (apps/web/components/chat-message-item.tsx)
                                         ├── ChatRealtimeSyncStatus [Client] [slot, conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                         ├── ChatRoomSessionControls [Client] [slot] (apps/web/components/chat-room-session-controls.tsx)
                                         │   ├── ChatRoomSessionBanner [Client] (apps/web/components/chat-room-session-banner.tsx)
@@ -149,9 +148,8 @@ flowchart TD
     ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatRoomView["ChatRoomView [Client]<br/>apps/web/components/chat-room-view.tsx"]
     ChatRoomHeader["ChatRoomHeader [internal]<br/>apps/web/components/chat-room-view.tsx"]
-    ChatMessageHistory["ChatMessageHistory [internal]<br/>apps/web/components/chat-room-view.tsx"]
-    ChatMessageList["ChatMessageList [Client]<br/>apps/web/components/chat-message-list.tsx"]
-    ChatMessageItem["ChatMessageItem [internal] [repeated]<br/>apps/web/components/chat-message-list.tsx"]
+    ChatMessageViewport["ChatMessageViewport [Client]<br/>apps/web/components/chat-message-viewport.tsx"]
+    ChatMessageItem["ChatMessageItem [Client] [virtualized] [repeated]<br/>apps/web/components/chat-message-item.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
@@ -190,9 +188,8 @@ flowchart TD
     ChatRoomScreen --> ChatRoomView
     ChatRoomView --> ChatRoomHeader
     ChatRoomHeader -->|"slot"| ChatConnectionStatus
-    ChatRoomView --> ChatMessageHistory
-    ChatMessageHistory --> ChatMessageList
-    ChatMessageList -->|"confirmed / optimistic"| ChatMessageItem
+    ChatRoomView --> ChatMessageViewport
+    ChatMessageViewport -->|"confirmed / optimistic; visible range only"| ChatMessageItem
     ChatRoomView -->|"slot; sync pending/error only"| ChatRealtimeSyncStatus
     ChatRoomView -->|"slot"| ChatRoomSessionControls
     ChatRoomSessionControls --> ChatRoomSessionBanner

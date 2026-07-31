@@ -1,31 +1,14 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ChatMessageList } from "@/components/chat-message-list";
-import type {
-  ChatMessageItemViewModel,
-  ChatRoomHeaderViewModel,
-} from "@/components/chat-room-view-model";
+import {
+  ChatMessageViewport,
+  type ChatMessageViewportFeedback,
+  type ChatMessageViewportViewModel,
+} from "@/components/chat-message-viewport";
+import type { ChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
 
-export type ChatMessageHistoryFeedback =
-  | Readonly<{
-      kind: "notice";
-      message: string;
-    }>
-  | Readonly<{
-      kind: "error";
-      message: string;
-      title: string;
-    }>;
-
-export type ChatMessageHistoryViewModel = Readonly<{
-  canLoadOlder: boolean;
-  feedback: ChatMessageHistoryFeedback | null;
-  isLoadingOlder: boolean;
-  items: readonly ChatMessageItemViewModel[];
-  onLoadOlder: () => void;
-  onRetry: () => void;
-  roomLabel: string;
-}>;
+export type ChatMessageHistoryFeedback = ChatMessageViewportFeedback;
+export type ChatMessageHistoryViewModel = ChatMessageViewportViewModel;
 
 export type ChatRoomViewProps = Readonly<{
   connectionStatus: ReactNode;
@@ -56,7 +39,7 @@ export function ChatRoomView({
 
         {roomError ? <ChatRoomError error={roomError} /> : null}
 
-        <ChatMessageHistory history={messageHistory} />
+        <ChatMessageViewport history={messageHistory} />
 
         {syncStatus}
         {sessionControls}
@@ -104,53 +87,6 @@ function ChatRoomError({ error }: { error: NonNullable<ChatRoomViewProps["roomEr
       <button className="secondary-button mt-3" onClick={error.onRetry} type="button">
         방 정보 다시 불러오기
       </button>
-    </div>
-  );
-}
-
-function ChatMessageHistory({ history }: { history: ChatRoomViewProps["messageHistory"] }) {
-  return (
-    <div
-      aria-label={history.roomLabel}
-      aria-live="polite"
-      aria-relevant="additions text"
-      className="min-h-[28rem] space-y-5 bg-slate-50 px-5 py-6"
-      role="log"
-    >
-      {history.canLoadOlder ? (
-        <div className="text-center">
-          <button
-            className="secondary-button"
-            disabled={history.isLoadingOlder}
-            onClick={history.onLoadOlder}
-            type="button"
-          >
-            {history.isLoadingOlder ? "이전 메시지 불러오는 중…" : "이전 메시지 불러오기"}
-          </button>
-        </div>
-      ) : null}
-
-      {history.feedback?.kind === "notice" ? (
-        <MessageHistoryNotice message={history.feedback.message} />
-      ) : history.feedback?.kind === "error" ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-950" role="alert">
-          <p className="text-sm font-semibold">{history.feedback.title}</p>
-          <p className="mt-1 text-xs opacity-80">{history.feedback.message}</p>
-          <button className="secondary-button mt-3" onClick={history.onRetry} type="button">
-            다시 불러오기
-          </button>
-        </div>
-      ) : null}
-
-      {history.items.length > 0 ? <ChatMessageList items={history.items} /> : null}
-    </div>
-  );
-}
-
-function MessageHistoryNotice({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-[20rem] items-center justify-center">
-      <p className="text-center text-sm text-slate-500">{message}</p>
     </div>
   );
 }
