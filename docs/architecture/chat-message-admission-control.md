@@ -6,9 +6,9 @@
 - 상태: 설계 결정
 - 적용 대상: `apps/web`의 STOMP 채팅 메시지 전송
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
-- 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, 실패 안내와
-  `retryAfterMs` 경과 후 수동 재전송
-- 다음 구현: admission 결과 분류, 자동 재전송 scheduler, jitter와 생명주기 취소
+- 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
+  retry delay 계산
+- 다음 구현: 자동 재전송 scheduler, transport 통합, jitter timer와 생명주기 취소
 
 ## 목표
 
@@ -49,6 +49,11 @@ code가 USER_RATE_LIMITED 또는 SERVER_BUSY
 `retryable=true`만으로 조용한 자동 재전송을 결정하지 않는다. 예를 들어
 `PERSISTENCE_FAILED`, `CHAT_PIPELINE_UNAVAILABLE` 또는 transport publish 실패는 장애의 성격과
 복구 조건이 다르므로 이 정책에 자동으로 포함하지 않는다.
+
+`USER_RATE_LIMITED`는 서버 계약상 `retryAfterMs`가 반드시 필요하다. 이 값이 `null`이면
+프론트가 임의의 token 회복시간을 추측하지 않고 admission 자동 재전송 대상에서 제외한다.
+`SERVER_BUSY`는 queue 포화 계약 때문에 `retryAfterMs=null`을 허용하고 client fallback
+backoff를 사용한다.
 
 ### 적용하지 않는 대상
 
@@ -167,6 +172,18 @@ nextDelay = random(minimumDelay, maximumDelay)
 `baseDelayMs`, `maxDelayMs`, `growthFactor`, jitter window, 최대 시도 횟수와 최대 총 경과시간은
 구현 상수로 한곳에서 관리한다. 실제 값은 fake timer 기반 단위 테스트와 로컬 부하 시나리오를
 통해 확정한다.
+
+현재 프론트 초기 정책값은 다음과 같다.
+
+| 항목                                    |     초기값 |
+| --------------------------------------- | ---------: |
+| 서버 `retryAfterMs` 뒤 jitter window    |  `1,000ms` |
+| `retryAfterMs=null` fallback base delay |    `500ms` |
+| fallback growth factor                  |        `3` |
+| fallback 최대 delay                     | `30,000ms` |
+
+이 값은 `DEFAULT_CHAT_MESSAGE_ADMISSION_RETRY_POLICY` 한곳에서 관리한다. 서버가
+`retryAfterMs`를 제공하면 fallback 최대 delay로 서버 대기시간을 줄이지 않는다.
 
 ### 여러 메시지가 대기하는 경우
 
@@ -299,11 +316,12 @@ delivery와 사용자가 편집 중인 draft를 같은 상태로 취급하지 �
 
 ## 구현 전 확인할 값
 
-다음 값은 구현과 부하 시나리오 검증 과정에서 확정한다.
+다음 값은 scheduler 구현과 부하 시나리오 검증 과정에서 확정한다.
 
-- `retryAfterMs` 뒤에 더할 jitter window
-- `retryAfterMs=null`용 base delay와 최대 delay
 - 최대 자동 재시도 횟수
 - 최대 총 retry 경과시간
 - terminal 실패 시 content 복구 방식
 - 향후 여러 메시지 queue에서의 순서 및 동시성 정책
+
+이미 코드에 반영한 jitter와 fallback delay 초기값도 로컬 부하 시나리오 결과에 따라 조정할 수
+있다.
