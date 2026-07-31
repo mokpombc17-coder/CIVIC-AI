@@ -4,7 +4,7 @@ export function ChatMessageList({ items }: { items: readonly ChatMessageItemView
   return (
     <ol className="space-y-5">
       {items.map((item) => (
-        <ChatMessageItem item={item} key={item.id} />
+        <ChatMessageItem item={item} key={item.renderKey} />
       ))}
     </ol>
   );
@@ -16,12 +16,8 @@ function ChatMessageItem({ item }: { item: ChatMessageItemViewModel }) {
   return (
     <li
       className={`flex ${item.isMine ? "justify-end" : "justify-start"}`}
-      {...(item.clientMessageId
-        ? {
-            "data-client-message-id": item.clientMessageId,
-            "data-delivery-status": item.deliveryStatus ?? undefined,
-          }
-        : {})}
+      data-client-message-id={item.clientMessageId}
+      data-delivery-status={item.deliveryStatus ?? undefined}
     >
       <div className={`max-w-[78%] ${item.isMine ? "items-end" : "items-start"} flex flex-col`}>
         {item.senderLabel ? (

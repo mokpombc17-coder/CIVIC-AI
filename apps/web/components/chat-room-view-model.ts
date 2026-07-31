@@ -16,13 +16,13 @@ export type ChatMessageDeliveryViewStatus =
   "queued" | "sending" | "retry-waiting" | "accepted" | "failed" | "cancelled";
 
 export type ChatMessageItemViewModel = Readonly<{
-  clientMessageId: string | null;
+  clientMessageId: string;
   content: string;
   deliveryLabel: string | null;
   deliveryStatus: ChatMessageDeliveryViewStatus | null;
   deliveryTone: "pending" | "error" | null;
-  id: string;
   isMine: boolean;
+  renderKey: string;
   senderLabel: string | null;
   timeLabel: string;
 }>;
@@ -69,8 +69,8 @@ export function createChatMessageItemViewModels(
         deliveryLabel: getOutgoingMessageStatusLabel(item.message),
         deliveryStatus: item.message.status,
         deliveryTone: failed ? "error" : "pending",
-        id: `outgoing-${item.message.clientMessageId}`,
         isMine: true,
+        renderKey: createChatMessageRenderKey(item.message.clientMessageId),
         senderLabel: null,
         timeLabel: formatMessageTime(item.message.enqueuedAt),
       };
@@ -79,17 +79,21 @@ export function createChatMessageItemViewModels(
     const isMine = item.message.senderUserId === currentUserId;
 
     return {
-      clientMessageId: null,
+      clientMessageId: item.message.clientMessageId,
       content: item.message.content,
       deliveryLabel: null,
       deliveryStatus: null,
       deliveryTone: null,
-      id: item.message.messageId,
       isMine,
+      renderKey: createChatMessageRenderKey(item.message.clientMessageId),
       senderLabel: isMine ? null : item.message.senderUserId,
       timeLabel: formatMessageTime(item.message.createdAt),
     };
   });
+}
+
+function createChatMessageRenderKey(clientMessageId: string): string {
+  return `client-message-${clientMessageId}`;
 }
 
 function getOutgoingMessageStatusLabel(
