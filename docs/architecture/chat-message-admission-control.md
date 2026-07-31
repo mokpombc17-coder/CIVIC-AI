@@ -7,8 +7,8 @@
 - 적용 대상: `apps/web`의 STOMP 채팅 메시지 전송
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
 - 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
-  retry delay 계산
-- 다음 구현: 자동 재전송 scheduler, transport 통합, jitter timer와 생명주기 취소
+  retry delay 계산, transport 공용 delivery scheduler
+- 다음 구현: SharedWorker와 Direct transport 통합, 화면 상태와 scheduler lifecycle 연결
 
 ## 목표
 
@@ -104,14 +104,16 @@ IDLE
   → SENDING
   → SENT
   → FAILED
+  → CANCELLED
 ```
 
-| 상태            | 의미                                                 | 사용자 표현                      |
-| --------------- | ---------------------------------------------------- | -------------------------------- |
-| `SENDING`       | command 결과를 기다리는 중                           | 기존 전송 중 상태                |
-| `RETRY_WAITING` | admission control에 따라 예약된 재전송을 기다리는 중 | 오류 안내와 버튼을 표시하지 않음 |
-| `SENT`          | `ACCEPTED` 또는 `DUPLICATE` 수신                     | 정상 완료                        |
-| `FAILED`        | 자동 복구 한도 초과 또는 terminal 실패               | 이때만 실패 안내                 |
+| 상태            | 의미                                                 | 사용자 표현                          |
+| --------------- | ---------------------------------------------------- | ------------------------------------ |
+| `SENDING`       | command 결과를 기다리는 중                           | 기존 전송 중 상태                    |
+| `RETRY_WAITING` | admission control에 따라 예약된 재전송을 기다리는 중 | 오류 안내와 버튼을 표시하지 않음     |
+| `SENT`          | `ACCEPTED` 또는 `DUPLICATE` 수신                     | 정상 완료                            |
+| `FAILED`        | 자동 복구 한도 초과 또는 terminal 실패               | 이때만 실패 안내                     |
+| `CANCELLED`     | owner·generation 변경이나 transport 종료로 취소됨    | 오래된 화면에는 실패를 표시하지 않음 |
 
 `RETRY_WAITING`은 실패 상태가 아니라 전송 lifecycle의 중간 상태다. 기존의
 `같은 메시지 다시 전송` 버튼은 admission control 흐름에서 제거한다.
@@ -124,6 +126,8 @@ IDLE
 clientMessageId
 roomId
 normalizedContent
+ownerId
+generation
 attempt
 firstSentAt
 previousDelayMs
@@ -138,6 +142,19 @@ scheduledAt
 
 서버가 같은 메시지를 이미 처리했다면 `DUPLICATE`가 성공 종결 상태가 된다. retry마다 새 UUID를
 발급하면 멱등성이 깨지고 중복 메시지가 만들어질 수 있으므로 금지한다.
+
+`ChatMessageDeliveryScheduler`는 이 record와 timer를 React 컴포넌트 바깥에서 소유한다. 실제
+STOMP publish, 현재 owner·generation 검사, clock, 난수와 timer는 dependency로 주입한다. 따라서
+SharedWorker와 Direct transport가 같은 상태 머신을 사용할 수 있고, 단위 테스트에서는 실제
+WebSocket이나 실제 시간을 사용하지 않는다.
+
+Scheduler가 외부에 알리는 경계는 두 종류다.
+
+- `onStateChange`: `SENDING`, `RETRY_WAITING` 중간 상태
+- `onTerminal`: `sent`, `failed`, `cancelled` 최종 결과
+
+terminal 전환 전에 활성 timer와 delivery map을 먼저 정리한다. callback에서 다시 lifecycle
+명령이 발생하더라도 이미 종료된 메시지가 중복 처리되지 않는다.
 
 ## 대기시간과 Jitter
 
@@ -181,9 +198,14 @@ nextDelay = random(minimumDelay, maximumDelay)
 | `retryAfterMs=null` fallback base delay |    `500ms` |
 | fallback growth factor                  |        `3` |
 | fallback 최대 delay                     | `30,000ms` |
+| command 결과 timeout                    | `15,000ms` |
+| 최대 publish 횟수                       |      `5회` |
+| 최대 총 delivery 경과시간               | `60,000ms` |
 
-이 값은 `DEFAULT_CHAT_MESSAGE_ADMISSION_RETRY_POLICY` 한곳에서 관리한다. 서버가
-`retryAfterMs`를 제공하면 fallback 최대 delay로 서버 대기시간을 줄이지 않는다.
+delay 계산 값은 `DEFAULT_CHAT_MESSAGE_ADMISSION_RETRY_POLICY`, delivery 수명 값은
+`DEFAULT_CHAT_MESSAGE_DELIVERY_LIMITS`에서 각각 관리한다. 최대 publish 5회는 최초 1회와 자동
+재전송 최대 4회를 합한 값이다. 서버가 `retryAfterMs`를 제공하면 fallback 최대 delay로 서버
+대기시간을 줄이지 않는다.
 
 ### 여러 메시지가 대기하는 경우
 
@@ -316,12 +338,10 @@ delivery와 사용자가 편집 중인 draft를 같은 상태로 취급하지 �
 
 ## 구현 전 확인할 값
 
-다음 값은 scheduler 구현과 부하 시나리오 검증 과정에서 확정한다.
+다음 값은 transport 통합과 부하 시나리오 검증 과정에서 확정한다.
 
-- 최대 자동 재시도 횟수
-- 최대 총 retry 경과시간
 - terminal 실패 시 content 복구 방식
 - 향후 여러 메시지 queue에서의 순서 및 동시성 정책
 
-이미 코드에 반영한 jitter와 fallback delay 초기값도 로컬 부하 시나리오 결과에 따라 조정할 수
-있다.
+이미 코드에 반영한 jitter, fallback delay, 최대 publish 횟수와 최대 총 경과시간도 로컬 부하
+시나리오 결과에 따라 조정할 수 있다.
