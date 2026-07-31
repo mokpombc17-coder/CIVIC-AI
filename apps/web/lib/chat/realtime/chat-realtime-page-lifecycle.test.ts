@@ -62,6 +62,7 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     getSnapshot: () => ({ status: "idle", error: null }),
     markRoomSnapshotApplied: () => {},
     observeMessageCommandEvent: () => () => {},
+    observeMessageDeliveryLifecycle: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
     observe: () => () => {},

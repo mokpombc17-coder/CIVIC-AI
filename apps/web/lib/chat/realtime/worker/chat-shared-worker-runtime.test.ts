@@ -1217,6 +1217,9 @@ describe("ChatSharedWorkerRuntime", () => {
       );
 
       expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
+      expect(
+        ownerPort.eventsOfType("ROOM_MESSAGE_DELIVERY_LIFECYCLE").map(({ event }) => event.status),
+      ).toEqual(["sending", "retry-waiting"]);
       expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
 
       vi.advanceTimersByTime(999);
@@ -1249,6 +1252,9 @@ describe("ChatSharedWorkerRuntime", () => {
       expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT").at(-1)?.result.status).toBe(
         "DUPLICATE",
       );
+      expect(
+        ownerPort.eventsOfType("ROOM_MESSAGE_DELIVERY_LIFECYCLE").map(({ event }) => event.status),
+      ).toEqual(["sending", "retry-waiting", "sending", "sent"]);
     } finally {
       random.mockRestore();
       vi.useRealTimers();
@@ -1299,6 +1305,13 @@ describe("ChatSharedWorkerRuntime", () => {
 
       expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
       expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
+      expect(ownerPort.eventsOfType("ROOM_MESSAGE_DELIVERY_LIFECYCLE").at(-1)?.event).toMatchObject(
+        {
+          clientMessageId: request.clientMessageId,
+          reason: "ROOM_LEASE_REPLACED",
+          status: "cancelled",
+        },
+      );
       expect(ownerPort.eventsOfType("ROOM_REPLACED").at(-1)).toMatchObject({
         roomId: "room-01",
         activatedRoomId: "room-02",

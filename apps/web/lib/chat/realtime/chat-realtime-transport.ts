@@ -1,4 +1,5 @@
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import type { ChatMessageCommandResult, ChatMessageSendRequest } from "./chat-stomp-contracts";
 
 export type ChatConnectionStatus =
@@ -116,6 +117,9 @@ export type ChatRealtimeTransport = {
   getSnapshot(): ChatConnectionSnapshot;
   markRoomSnapshotApplied(roomId: string, generation: number): void;
   observeMessageCommandEvent(listener: (event: ChatMessageCommandEvent) => void): () => void;
+  observeMessageDeliveryLifecycle(
+    listener: (event: ChatMessageDeliveryLifecycleEvent) => void,
+  ): () => void;
   observeRealtimeEventDelivery(listener: () => void): () => void;
   observeRoom(listener: () => void): () => void;
   observe(listener: () => void): () => void;

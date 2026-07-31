@@ -6,6 +6,7 @@ import type {
   ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 
 export type ChatRealtimeTransportCandidateLifecycle = {
   onReady: () => void;
@@ -27,6 +28,9 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   private desiredRoomId: string | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly messageDeliveryLifecycleListeners = new Set<
+    (event: ChatMessageDeliveryLifecycleEvent) => void
+  >();
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
   private switchScheduled = false;
@@ -87,6 +91,13 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   ): (() => void) => {
     this.messageCommandListeners.add(listener);
     return () => this.messageCommandListeners.delete(listener);
+  };
+
+  readonly observeMessageDeliveryLifecycle = (
+    listener: (event: ChatMessageDeliveryLifecycleEvent) => void,
+  ): (() => void) => {
+    this.messageDeliveryLifecycleListeners.add(listener);
+    return () => this.messageDeliveryLifecycleListeners.delete(listener);
   };
 
   readonly observeRealtimeEventDelivery = (listener: () => void): (() => void) => {
@@ -160,6 +171,9 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
       }),
       this.delegate.observeMessageCommandEvent((event) => {
         this.messageCommandListeners.forEach((listener) => listener(event));
+      }),
+      this.delegate.observeMessageDeliveryLifecycle((event) => {
+        this.messageDeliveryLifecycleListeners.forEach((listener) => listener(event));
       }),
       this.delegate.observeRealtimeEventDelivery(() => {
         this.realtimeEventDeliveryListeners.forEach((listener) => listener());

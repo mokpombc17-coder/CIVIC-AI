@@ -76,6 +76,7 @@ function createFakeTransport(): ChatRealtimeTransport {
     })),
     markRoomSnapshotApplied: vi.fn(),
     observeMessageCommandEvent: vi.fn(() => vi.fn()),
+    observeMessageDeliveryLifecycle: vi.fn(() => vi.fn()),
     observeRealtimeEventDelivery: vi.fn(() => vi.fn()),
     observeRoom: vi.fn(() => vi.fn()),
     observe: vi.fn(() => vi.fn()),

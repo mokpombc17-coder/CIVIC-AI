@@ -630,6 +630,68 @@ describe("SharedWorkerTransport", () => {
       }),
     });
   });
+
+  it("현재 방 generation의 delivery lifecycle만 탭으로 중계한다", () => {
+    const worker = createFakeWorker();
+    const createId = vi.fn().mockReturnValueOnce("port-1").mockReturnValueOnce("claim-1");
+    const transport = new SharedWorkerTransport({
+      createId,
+      createWorker: () => worker,
+    });
+    const listener = vi.fn();
+
+    transport.attach();
+    worker.port.dispatchMessage({
+      type: "CONNECTION_SNAPSHOT",
+      workerInstanceId: "worker-1",
+      attachedPortCount: 1,
+      snapshot: {
+        status: "connected",
+        error: null,
+      },
+    });
+    transport.claimRoom("room-01");
+    worker.port.dispatchMessage({
+      type: "ROOM_ACTIVATED",
+      requestId: "claim-1",
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+      watermarkSequence: 0,
+    });
+    transport.observeMessageDeliveryLifecycle(listener);
+
+    const lifecycle = {
+      type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE" as const,
+      event: {
+        attempt: 1,
+        clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+        generation: 1,
+        reason: null,
+        retryAt: null,
+        roomId: "room-01",
+        status: "sending" as const,
+      },
+    };
+    worker.port.dispatchMessage(lifecycle);
+    worker.port.dispatchMessage({
+      ...lifecycle,
+      event: {
+        ...lifecycle.event,
+        generation: 0,
+      },
+    });
+    worker.port.dispatchMessage({
+      ...lifecycle,
+      event: {
+        ...lifecycle.event,
+        roomId: "room-02",
+      },
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(lifecycle.event);
+  });
 });
 
 type FakePort = {

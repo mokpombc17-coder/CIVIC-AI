@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import type { ChatRealtimeTransport, ChatRoomSessionSnapshot } from "./chat-realtime-transport";
 import type { ChatRealtimeTransportCandidateLifecycle } from "./fallback-chat-realtime-transport";
 import { createChatRealtimeTransport } from "./create-chat-realtime-transport";
@@ -139,16 +140,59 @@ describe("createChatRealtimeTransport", () => {
 
     expect(leader.attach).toHaveBeenCalledTimes(1);
   });
+
+  it("현재 후보 transport의 메시지 delivery lifecycle만 중계한다", async () => {
+    const shared = createFakeTransport();
+    const leader = createFakeTransport();
+    let sharedLifecycle: ChatRealtimeTransportCandidateLifecycle | null = null;
+    const transport = createChatRealtimeTransport({
+      supportsSharedWorker: true,
+      supportsLeaderTab: true,
+      createSharedWorkerTransport: (lifecycle) => {
+        sharedLifecycle = lifecycle;
+        return shared;
+      },
+      createLeaderTabTransport: () => leader,
+    });
+    const listener = vi.fn();
+    const event: ChatMessageDeliveryLifecycleEvent = {
+      attempt: 1,
+      clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+      generation: 1,
+      reason: null,
+      retryAt: null,
+      roomId: "room-01",
+      status: "sending",
+    };
+
+    transport.observeMessageDeliveryLifecycle(listener);
+    transport.attach();
+    shared.emitMessageDeliveryLifecycle(event);
+    sharedLifecycle!.onUnavailable();
+    await flushMicrotasks();
+    shared.emitMessageDeliveryLifecycle({ ...event, status: "sent" });
+    leader.emitMessageDeliveryLifecycle({ ...event, status: "retry-waiting", retryAt: 1_000 });
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener.mock.calls.map(([value]) => value.status)).toEqual([
+      "sending",
+      "retry-waiting",
+    ]);
+  });
 });
 
 function createFakeTransport(): ChatRealtimeTransport & {
   attach: ReturnType<typeof vi.fn>;
   claimRoom: ReturnType<typeof vi.fn>;
   detach: ReturnType<typeof vi.fn>;
+  emitMessageDeliveryLifecycle(event: ChatMessageDeliveryLifecycleEvent): void;
 } {
   const detach = vi.fn();
   const attach = vi.fn(() => detach);
   const claimRoom = vi.fn();
+  const messageDeliveryLifecycleListeners = new Set<
+    (event: ChatMessageDeliveryLifecycleEvent) => void
+  >();
   const roomSnapshot: ChatRoomSessionSnapshot = {
     status: "idle",
     roomId: null,
@@ -164,11 +208,18 @@ function createFakeTransport(): ChatRealtimeTransport & {
     attach,
     claimRoom,
     detach,
+    emitMessageDeliveryLifecycle(event) {
+      messageDeliveryLifecycleListeners.forEach((listener) => listener(event));
+    },
     getRealtimeEventDelivery: () => null,
     getRoomSnapshot: () => roomSnapshot,
     getSnapshot: () => ({ status: "idle", error: null }),
     markRoomSnapshotApplied: () => {},
     observeMessageCommandEvent: () => () => {},
+    observeMessageDeliveryLifecycle: (listener) => {
+      messageDeliveryLifecycleListeners.add(listener);
+      return () => messageDeliveryLifecycleListeners.delete(listener);
+    },
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
     observe: () => () => {},

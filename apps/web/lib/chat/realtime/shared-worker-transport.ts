@@ -4,6 +4,7 @@ import {
   type ChatSharedWorkerCommand,
 } from "./chat-shared-worker-protocol";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import {
   ChatMessageSendError,
   type ChatConnectionSnapshot,
@@ -74,6 +75,9 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly handshakeTimeoutMs: number;
   private readonly listeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly messageDeliveryLifecycleListeners = new Set<
+    (event: ChatMessageDeliveryLifecycleEvent) => void
+  >();
   private pendingRoomRequestId: string | null = null;
   private portId: string | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
@@ -148,6 +152,16 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
     return () => {
       this.messageCommandListeners.delete(listener);
+    };
+  };
+
+  readonly observeMessageDeliveryLifecycle = (
+    listener: (event: ChatMessageDeliveryLifecycleEvent) => void,
+  ): (() => void) => {
+    this.messageDeliveryLifecycleListeners.add(listener);
+
+    return () => {
+      this.messageDeliveryLifecycleListeners.delete(listener);
     };
   };
 
@@ -509,6 +523,14 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           message: workerEvent.message,
         });
         return;
+      case "ROOM_MESSAGE_DELIVERY_LIFECYCLE":
+        if (
+          workerEvent.event.roomId === this.roomSnapshot.roomId &&
+          workerEvent.event.generation === this.roomSnapshot.generation
+        ) {
+          this.emitMessageDeliveryLifecycle(workerEvent.event);
+        }
+        return;
       case "ROOM_EVENTS_DELIVERED":
         if (
           this.roomSnapshot.status === "active" &&
@@ -530,6 +552,10 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
   private emitMessageCommandEvent(event: ChatMessageCommandEvent): void {
     this.messageCommandListeners.forEach((listener) => listener(event));
+  }
+
+  private emitMessageDeliveryLifecycle(event: ChatMessageDeliveryLifecycleEvent): void {
+    this.messageDeliveryLifecycleListeners.forEach((listener) => listener(event));
   }
 
   private matchesRoomActivationEvent(event: {

@@ -1,4 +1,8 @@
 import type { ChatRealtimeBufferedEvent } from "./chat-realtime-event-buffer";
+import {
+  isChatMessageDeliveryLifecycleEvent,
+  type ChatMessageDeliveryLifecycleEvent,
+} from "./chat-message-delivery-scheduler";
 import type { ChatConnectionSnapshot, ChatMessageSendFailureCode } from "./chat-realtime-transport";
 import {
   chatMessageCommandResultSchema,
@@ -123,6 +127,10 @@ export type ChatSharedWorkerEvent =
       code: ChatMessageSendFailureCode;
       retryable: boolean;
       message: string;
+    }>
+  | Readonly<{
+      type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE";
+      event: ChatMessageDeliveryLifecycleEvent;
     }>
   | Readonly<{
       type: "ROOM_EVENTS_DELIVERED";
@@ -272,6 +280,10 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
       typeof event.retryable === "boolean" &&
       typeof event.message === "string"
     );
+  }
+
+  if (event.type === "ROOM_MESSAGE_DELIVERY_LIFECYCLE") {
+    return isChatMessageDeliveryLifecycleEvent(event.event);
   }
 
   if (event.type === "ROOM_EVENTS_DELIVERED") {

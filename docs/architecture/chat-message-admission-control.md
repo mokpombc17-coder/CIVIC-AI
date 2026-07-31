@@ -7,8 +7,9 @@
 - 적용 대상: `apps/web`의 STOMP 채팅 메시지 전송
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
 - 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
-  retry delay 계산, transport 공용 delivery scheduler와 SharedWorker·Direct runtime 통합
-- 다음 구현: 화면 상태와 scheduler lifecycle 연결
+  retry delay 계산, transport 공용 delivery scheduler와 SharedWorker·Direct runtime 및
+  transport lifecycle protocol 통합
+- 다음 구현: React composer 상태와 transport lifecycle 연결
 
 ## 목표
 
@@ -155,6 +156,13 @@ Scheduler가 외부에 알리는 경계는 두 종류다.
 
 terminal 전환 전에 활성 timer와 delivery map을 먼저 정리한다. callback에서 다시 lifecycle
 명령이 발생하더라도 이미 종료된 메시지가 중복 처리되지 않는다.
+
+Transport가 React에 공개하는 `ChatMessageDeliveryLifecycleEvent`는 content와 Worker owner를
+노출하지 않고 `clientMessageId`, roomId, generation, attempt, status, retryAt과 terminal
+reason만 전달한다. SharedWorker는 `ROOM_MESSAGE_DELIVERY_LIFECYCLE` protocol event로 원래
+owner 탭에 전달하고, `SharedWorkerTransport`는 현재 roomId와 generation에 일치하는 event만
+외부 listener로 전달한다. Leader Tab은 같은 SharedWorker transport protocol을 재사용하며,
+Direct transport와 fallback transport도 동일한 lifecycle observer 계약을 구현한다.
 
 ### SharedWorker 소유권
 

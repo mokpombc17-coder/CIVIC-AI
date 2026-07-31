@@ -640,6 +640,7 @@ describe("DirectStompTransport", () => {
       const client = createFakeClient();
       const transport = new DirectStompTransport(client);
       const listener = vi.fn();
+      const lifecycleListener = vi.fn();
       const request = {
         clientMessageId: "550e8400-e29b-41d4-a716-446655440010",
         content: "Direct 자동 재전송 메시지",
@@ -647,6 +648,7 @@ describe("DirectStompTransport", () => {
 
       prepareMessageTransport(transport, client);
       transport.observeMessageCommandEvent(listener);
+      transport.observeMessageDeliveryLifecycle(lifecycleListener);
       transport.sendRoomMessage({ roomId: "room-01", request });
       client.deliver(
         "/user/queue/command-results",
@@ -662,6 +664,10 @@ describe("DirectStompTransport", () => {
       );
 
       expect(listener).not.toHaveBeenCalled();
+      expect(lifecycleListener.mock.calls.map(([event]) => event.status)).toEqual([
+        "sending",
+        "retry-waiting",
+      ]);
       expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
 
       vi.advanceTimersByTime(999);
@@ -699,6 +705,12 @@ describe("DirectStompTransport", () => {
           status: "DUPLICATE",
         }),
       });
+      expect(lifecycleListener.mock.calls.map(([event]) => event.status)).toEqual([
+        "sending",
+        "retry-waiting",
+        "sending",
+        "sent",
+      ]);
     } finally {
       random.mockRestore();
       vi.useRealTimers();

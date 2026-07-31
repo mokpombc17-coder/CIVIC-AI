@@ -1,4 +1,4 @@
-import { roomIdSchema } from "../chat-room-contracts";
+import { idempotencyKeySchema, roomIdSchema } from "../chat-room-contracts";
 import {
   calculateChatMessageAdmissionRetryDelay,
   DEFAULT_CHAT_MESSAGE_ADMISSION_RETRY_POLICY,
@@ -12,6 +12,8 @@ import {
 } from "./chat-stomp-contracts";
 
 export type ChatMessageDeliveryStatus = "sending" | "retry-waiting";
+export type ChatMessageDeliveryLifecycleStatus =
+  ChatMessageDeliveryStatus | "sent" | "failed" | "cancelled";
 
 export type ChatMessageDeliverySnapshot = Readonly<{
   attempt: number;
@@ -57,6 +59,16 @@ export type ChatMessageDeliveryTerminalEvent =
       reason: string;
       snapshot: ChatMessageDeliverySnapshot;
     }>;
+
+export type ChatMessageDeliveryLifecycleEvent = Readonly<{
+  attempt: number;
+  clientMessageId: string;
+  generation: number;
+  reason: string | null;
+  retryAt: number | null;
+  roomId: string;
+  status: ChatMessageDeliveryLifecycleStatus;
+}>;
 
 export type ChatMessageDeliveryLimits = Readonly<{
   commandResultTimeoutMs: number;
@@ -476,6 +488,78 @@ export function getChatMessageDeliveryFailureMessage(
     case "COMMAND_REJECTED":
       return "채팅 서버가 메시지 전송을 거절했습니다.";
   }
+}
+
+export function createChatMessageDeliveryStateLifecycleEvent(
+  snapshot: ChatMessageDeliverySnapshot,
+): ChatMessageDeliveryLifecycleEvent {
+  const retryAt = snapshot.status === "retry-waiting" ? snapshot.scheduledAt : null;
+
+  if (snapshot.status === "retry-waiting" && retryAt === null) {
+    throw new Error("재전송 대기 상태에는 scheduledAt이 필요합니다.");
+  }
+
+  return {
+    attempt: snapshot.attempt,
+    clientMessageId: snapshot.request.clientMessageId,
+    generation: snapshot.generation,
+    reason: null,
+    retryAt,
+    roomId: snapshot.roomId,
+    status: snapshot.status,
+  };
+}
+
+export function createChatMessageDeliveryTerminalLifecycleEvent(
+  event: ChatMessageDeliveryTerminalEvent,
+): ChatMessageDeliveryLifecycleEvent {
+  return {
+    attempt: event.snapshot.attempt,
+    clientMessageId: event.snapshot.request.clientMessageId,
+    generation: event.snapshot.generation,
+    reason: event.kind === "sent" ? null : event.reason,
+    retryAt: null,
+    roomId: event.snapshot.roomId,
+    status: event.kind,
+  };
+}
+
+export function isChatMessageDeliveryLifecycleEvent(
+  value: unknown,
+): value is ChatMessageDeliveryLifecycleEvent {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const event = value as Partial<ChatMessageDeliveryLifecycleEvent>;
+  const statusIsValid =
+    event.status === "sending" ||
+    event.status === "retry-waiting" ||
+    event.status === "sent" ||
+    event.status === "failed" ||
+    event.status === "cancelled";
+  const hasRetryAt =
+    event.status === "retry-waiting"
+      ? typeof event.retryAt === "number" &&
+        Number.isSafeInteger(event.retryAt) &&
+        event.retryAt >= 0
+      : event.retryAt === null;
+  const hasReason =
+    event.status === "failed" || event.status === "cancelled"
+      ? typeof event.reason === "string" && event.reason.length > 0
+      : event.reason === null;
+
+  return (
+    Number.isSafeInteger(event.attempt) &&
+    (event.attempt ?? 0) >= 1 &&
+    idempotencyKeySchema.safeParse(event.clientMessageId).success &&
+    Number.isSafeInteger(event.generation) &&
+    (event.generation ?? -1) >= 0 &&
+    roomIdSchema.safeParse(event.roomId).success &&
+    statusIsValid &&
+    hasRetryAt &&
+    hasReason
+  );
 }
 
 function createSnapshot(delivery: ActiveChatMessageDelivery): ChatMessageDeliverySnapshot {

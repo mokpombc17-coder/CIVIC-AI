@@ -235,6 +235,54 @@ describe("chat shared worker protocol", () => {
     ).toBe(true);
   });
 
+  it("메시지 delivery lifecycle event의 상태별 필드를 검증한다", () => {
+    const lifecycle = {
+      type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE",
+      event: {
+        attempt: 1,
+        clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
+        generation: 1,
+        reason: null,
+        retryAt: 1_000,
+        roomId: "room-01",
+        status: "retry-waiting",
+      },
+    };
+
+    expect(isChatSharedWorkerEvent(lifecycle)).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...lifecycle,
+        event: {
+          ...lifecycle.event,
+          retryAt: null,
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        ...lifecycle,
+        event: {
+          ...lifecycle.event,
+          reason: null,
+          retryAt: null,
+          status: "failed",
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        ...lifecycle,
+        event: {
+          ...lifecycle.event,
+          reason: "MAX_ATTEMPTS_REACHED",
+          retryAt: null,
+          status: "failed",
+        },
+      }),
+    ).toBe(true);
+  });
+
   it("실시간 event delivery의 순서와 payload room을 검증한다", () => {
     const delivery = {
       type: "ROOM_EVENTS_DELIVERED",

@@ -1,6 +1,8 @@
 import type { Client, IFrame, IMessage } from "@stomp/stompjs";
 import {
   ChatMessageDeliveryScheduler,
+  createChatMessageDeliveryStateLifecycleEvent,
+  createChatMessageDeliveryTerminalLifecycleEvent,
   getChatMessageDeliveryFailureMessage,
   type ChatMessageDeliverySnapshot,
   type ChatMessageDeliveryTerminalEvent,
@@ -141,6 +143,12 @@ export class ChatSharedWorkerRuntime {
     });
     this.messageDeliveries = new ChatMessageDeliveryScheduler({
       isContextCurrent: (snapshot) => this.isMessageDeliveryContextCurrent(snapshot),
+      onStateChange: (snapshot) => {
+        this.sendToPort(snapshot.ownerId, {
+          type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE",
+          event: createChatMessageDeliveryStateLifecycleEvent(snapshot),
+        });
+      },
       onTerminal: (event) => this.handleMessageDeliveryTerminal(event),
       publish: ({ request, roomId }) => {
         this.subscriptions.sendRoomMessage(roomId, request);
@@ -1245,6 +1253,11 @@ export class ChatSharedWorkerRuntime {
   }
 
   private handleMessageDeliveryTerminal(event: ChatMessageDeliveryTerminalEvent): void {
+    this.sendToPort(event.snapshot.ownerId, {
+      type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE",
+      event: createChatMessageDeliveryTerminalLifecycleEvent(event),
+    });
+
     if (event.kind === "cancelled") {
       return;
     }

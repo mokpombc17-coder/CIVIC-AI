@@ -2,7 +2,10 @@ import type { Client, IMessage } from "@stomp/stompjs";
 import { createChatStompClient } from "../chat-stomp-client";
 import {
   ChatMessageDeliveryScheduler,
+  createChatMessageDeliveryStateLifecycleEvent,
+  createChatMessageDeliveryTerminalLifecycleEvent,
   getChatMessageDeliveryFailureMessage,
+  type ChatMessageDeliveryLifecycleEvent,
   type ChatMessageDeliverySnapshot,
   type ChatMessageDeliveryTerminalEvent,
 } from "./chat-message-delivery-scheduler";
@@ -93,6 +96,9 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private readonly listeners = new Set<() => void>();
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
+  private readonly messageDeliveryLifecycleListeners = new Set<
+    (event: ChatMessageDeliveryLifecycleEvent) => void
+  >();
   private pendingRoomSync: PendingRoomSync | null = null;
   private realtimeDeliverySession: RealtimeDeliverySession | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
@@ -115,6 +121,9 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     });
     this.messageDeliveries = new ChatMessageDeliveryScheduler({
       isContextCurrent: (snapshot) => this.isMessageDeliveryContextCurrent(snapshot),
+      onStateChange: (snapshot) => {
+        this.emitMessageDeliveryLifecycle(createChatMessageDeliveryStateLifecycleEvent(snapshot));
+      },
       onTerminal: (event) => this.handleMessageDeliveryTerminal(event),
       publish: ({ request, roomId }) => {
         this.subscriptions.sendRoomMessage(roomId, request);
@@ -264,6 +273,16 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     return () => {
       this.messageCommandListeners.delete(listener);
+    };
+  };
+
+  readonly observeMessageDeliveryLifecycle = (
+    listener: (event: ChatMessageDeliveryLifecycleEvent) => void,
+  ): (() => void) => {
+    this.messageDeliveryLifecycleListeners.add(listener);
+
+    return () => {
+      this.messageDeliveryLifecycleListeners.delete(listener);
     };
   };
 
@@ -689,6 +708,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   }
 
   private handleMessageDeliveryTerminal(event: ChatMessageDeliveryTerminalEvent): void {
+    this.emitMessageDeliveryLifecycle(createChatMessageDeliveryTerminalLifecycleEvent(event));
+
     if (event.kind === "cancelled") {
       return;
     }
@@ -723,6 +744,10 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
   private emitMessageCommandEvent(event: ChatMessageCommandEvent): void {
     this.messageCommandListeners.forEach((listener) => listener(event));
+  }
+
+  private emitMessageDeliveryLifecycle(event: ChatMessageDeliveryLifecycleEvent): void {
+    this.messageDeliveryLifecycleListeners.forEach((listener) => listener(event));
   }
 
   private readonly handleSystemEvent = (message: IMessage): void => {
