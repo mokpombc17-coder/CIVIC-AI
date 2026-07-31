@@ -8,8 +8,8 @@
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
 - 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
   retry delay 계산, transport 공용 delivery scheduler와 SharedWorker·Direct runtime 및
-  transport lifecycle protocol 통합
-- 다음 구현: React composer 상태와 transport lifecycle 연결
+  transport lifecycle protocol, React composer 상태 통합
+- 다음 구현: 브라우저 통합 환경에서 admission 재전송 UX 검증
 
 ## 목표
 
@@ -164,6 +164,16 @@ owner 탭에 전달하고, `SharedWorkerTransport`는 현재 roomId와 generatio
 외부 listener로 전달한다. Leader Tab은 같은 SharedWorker transport protocol을 재사용하며,
 Direct transport와 fallback transport도 동일한 lifecycle observer 계약을 구현한다.
 
+React composer는 자체 command timeout을 두지 않고 transport lifecycle을 전송 상태의 기준으로
+사용한다. `sending`, `retry-waiting`과 terminal 상세 결과를 기다리는 짧은
+`failure-pending` 상태는 모두 기존 `isSending` UI로 투영한다. 따라서 admission 재전송을
+기다리는 동안 입력과 중복 전송은 막되 오류 배너나 수동 재전송 버튼은 표시하지 않는다.
+
+`failed` lifecycle 뒤에는 같은 transport가 전달하는 command result 또는 failure event를
+사용해 서버 code에 맞는 terminal 오류 문구를 결정한다. `cancelled`는 오류로 표시하지 않고
+전송 content를 현재 방 draft로 복구한다. lifecycle은 `clientMessageId`, roomId와 generation이
+모두 현재 submission과 일치할 때만 반영한다.
+
 ### SharedWorker 소유권
 
 SharedWorker를 지원하는 브라우저에서는 `ChatSharedWorkerRuntime`이 scheduler 하나를 소유한다.
@@ -290,9 +300,10 @@ subscription sync가 다시 준비된 뒤 message delivery를 재개할지는 �
 - 권한, 방 상태 또는 content 검증처럼 사용자 행동이 필요함
 - 연결 복구가 불가능한 terminal 상태가 됨
 
-terminal 실패가 된 content를 composer에 복구할 수는 있지만, admission control 대기 중인
-delivery와 사용자가 편집 중인 draft를 같은 상태로 취급하지 않는다. 최종 실패 UI의 정확한
-형태는 메시지 queue와 optimistic message UI를 결정할 때 확정한다.
+terminal 실패가 된 content는 composer draft로 복구한다. admission 자동 재전송 한도를 초과한
+경우 실패 문구는 표시하되 `같은 메시지 다시 전송` 버튼은 표시하지 않는다. admission과 무관한
+retryable terminal 장애에는 기존 수동 복구 동작을 유지한다. 메시지 queue와 optimistic message
+UI를 도입할 때는 이 terminal 상태를 메시지 단위 상태로 확장한다.
 
 ## 다른 Retry 정책과의 경계
 

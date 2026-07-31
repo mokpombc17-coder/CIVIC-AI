@@ -6,32 +6,18 @@ import {
   chatMessageSendContentSchema,
   normalizeChatMessageContent,
 } from "@/lib/chat/chat-room-contracts";
-import { getChatMessageCommandFailurePresentation } from "@/lib/chat/realtime/chat-message-command-presentation";
+import {
+  applyChatMessageCommandEvent,
+  applyChatMessageDeliveryLifecycle,
+  createFailedChatMessageSubmission,
+  createSendingChatMessageSubmission,
+  isPendingChatMessageSubmission,
+  type ChatMessageSubmission,
+  type ChatMessageSubmissionTransition,
+} from "@/lib/chat/realtime/chat-message-composer-state";
 import { ChatMessageSendError } from "@/lib/chat/realtime/chat-realtime-transport";
 
-const MESSAGE_COMMAND_TIMEOUT_MS = 15_000;
 const createClientMessageId = () => crypto.randomUUID();
-
-type ChatMessageSubmission =
-  | Readonly<{
-      clientMessageId: string;
-      content: string;
-      status: "sending";
-    }>
-  | Readonly<{
-      clientMessageId: string;
-      content: string;
-      message: string;
-      retryAt: number;
-      retryReady: boolean;
-      retryable: boolean;
-      status: "failed";
-    }>
-  | Readonly<{
-      clientMessageId: string;
-      content: string;
-      status: "sent";
-    }>;
 
 type ChatMessageComposerRoomState = Readonly<{
   draft: string;
@@ -43,7 +29,6 @@ type UseChatMessageComposerOptions = Readonly<{
   createId?: () => string;
   enabled: boolean;
   roomId: string;
-  timeoutMs?: number;
 }>;
 
 export type ChatMessageComposerState = Readonly<{
@@ -62,7 +47,6 @@ export function useChatMessageComposer({
   createId = createClientMessageId,
   enabled,
   roomId,
-  timeoutMs = MESSAGE_COMMAND_TIMEOUT_MS,
 }: UseChatMessageComposerOptions): ChatMessageComposerState {
   const transport = useChatRealtimeTransport();
   const [roomState, setRoomState] = useState<ChatMessageComposerRoomState>({
@@ -110,22 +94,13 @@ export function useChatMessageComposer({
     [roomId],
   );
 
-  const failSubmission = useCallback(
-    (
-      current: Extract<ChatMessageSubmission, { status: "sending" }>,
-      message: string,
-      retryable: boolean,
-      retryAfterMs = 0,
-    ) => {
-      setDraftState((value) => value || current.content);
-      setSubmission({
-        ...current,
-        status: "failed",
-        message,
-        retryReady: retryAfterMs <= 0,
-        retryable,
-        retryAt: Date.now() + retryAfterMs,
-      });
+  const applyTransition = useCallback(
+    ({ restoreDraft, submission: nextSubmission }: ChatMessageSubmissionTransition) => {
+      if (restoreDraft !== null) {
+        setDraftState((value) => value || restoreDraft);
+      }
+
+      setSubmission(nextSubmission);
     },
     [setDraftState, setSubmission],
   );
@@ -135,54 +110,28 @@ export function useChatMessageComposer({
       transport.observeMessageCommandEvent((event) => {
         const current =
           submissionRef.current.roomId === roomId ? submissionRef.current.submission : null;
-        const clientMessageId =
-          event.kind === "result" ? event.result.clientMessageId : event.clientMessageId;
+        const transition = applyChatMessageCommandEvent(current, event);
 
-        if (
-          !current ||
-          current.status !== "sending" ||
-          event.roomId !== roomId ||
-          clientMessageId !== current.clientMessageId
-        ) {
-          return;
+        if (transition) {
+          applyTransition(transition);
         }
-
-        const failure = getChatMessageCommandFailurePresentation(event);
-
-        if (failure) {
-          failSubmission(current, failure.message, failure.retryable, failure.retryAfterMs);
-          return;
-        }
-
-        setSubmission({
-          clientMessageId: current.clientMessageId,
-          content: current.content,
-          status: "sent",
-        });
       }),
-    [failSubmission, roomId, setSubmission, transport],
+    [applyTransition, roomId, transport],
   );
 
-  useEffect(() => {
-    if (!submission || submission.status !== "sending") {
-      return;
-    }
+  useEffect(
+    () =>
+      transport.observeMessageDeliveryLifecycle((event) => {
+        const current =
+          submissionRef.current.roomId === roomId ? submissionRef.current.submission : null;
+        const transition = applyChatMessageDeliveryLifecycle(current, event);
 
-    const timeoutId = window.setTimeout(() => {
-      const current =
-        submissionRef.current.roomId === roomId ? submissionRef.current.submission : null;
-
-      if (current?.status === "sending" && current.clientMessageId === submission.clientMessageId) {
-        failSubmission(
-          current,
-          "메시지 전송 결과를 받지 못했습니다. 같은 메시지를 다시 시도할 수 있습니다.",
-          true,
-        );
-      }
-    }, timeoutMs);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [failSubmission, roomId, submission, timeoutMs]);
+        if (transition) {
+          applyTransition(transition);
+        }
+      }),
+    [applyTransition, roomId, transport],
+  );
 
   useEffect(() => {
     if (
@@ -216,12 +165,14 @@ export function useChatMessageComposer({
 
   const publish = useCallback(
     (clientMessageId: string, content: string) => {
-      const sending: ChatMessageSubmission = {
+      const sending = createSendingChatMessageSubmission({
         clientMessageId,
         content,
-        status: "sending",
-      };
+        generation: transport.getRoomSnapshot().generation,
+        roomId,
+      });
       setSubmission(sending);
+      setDraftState("");
 
       try {
         transport.sendRoomMessage({
@@ -231,15 +182,24 @@ export function useChatMessageComposer({
             content,
           },
         });
-        setDraftState("");
       } catch (cause) {
         const retryable = cause instanceof ChatMessageSendError ? cause.retryable : true;
         const message =
           cause instanceof Error ? cause.message : "메시지 전송 명령을 시작하지 못했습니다.";
-        failSubmission(sending, message, retryable);
+        applyTransition({
+          restoreDraft: sending.content,
+          submission: createFailedChatMessageSubmission({
+            clientMessageId: sending.clientMessageId,
+            content: sending.content,
+            generation: sending.generation,
+            message,
+            retryable,
+            roomId: sending.roomId,
+          }),
+        });
       }
     },
-    [failSubmission, roomId, setDraftState, setSubmission, transport],
+    [applyTransition, roomId, setDraftState, setSubmission, transport],
   );
 
   const send = useCallback(() => {
@@ -254,20 +214,21 @@ export function useChatMessageComposer({
 
     if (!result.success) {
       const clientMessageId = createId();
-      setSubmission({
-        clientMessageId,
-        content: draft,
-        status: "failed",
-        message: result.error.issues[0]?.message ?? "메시지 내용을 확인해 주세요.",
-        retryReady: false,
-        retryable: false,
-        retryAt: 0,
-      });
+      setSubmission(
+        createFailedChatMessageSubmission({
+          clientMessageId,
+          content: draft,
+          generation: transport.getRoomSnapshot().generation,
+          message: result.error.issues[0]?.message ?? "메시지 내용을 확인해 주세요.",
+          retryable: false,
+          roomId,
+        }),
+      );
       return;
     }
 
     publish(createId(), result.data);
-  }, [createId, draft, enabled, publish, roomId, setSubmission]);
+  }, [createId, draft, enabled, publish, roomId, setSubmission, transport]);
 
   const retry = useCallback(() => {
     const current =
@@ -293,7 +254,7 @@ export function useChatMessageComposer({
       const current =
         submissionRef.current.roomId === roomId ? submissionRef.current.submission : null;
 
-      if (current?.status !== "sending") {
+      if (!isPendingChatMessageSubmission(current)) {
         setSubmission(null);
       }
     },
@@ -306,7 +267,7 @@ export function useChatMessageComposer({
     canSend: enabled && submission === null && normalizeChatMessageContent(draft).length > 0,
     draft,
     errorMessage: submission?.status === "failed" ? submission.message : null,
-    isSending: submission?.status === "sending",
+    isSending: isPendingChatMessageSubmission(submission),
     retry,
     send,
     sent: submission?.status === "sent",
