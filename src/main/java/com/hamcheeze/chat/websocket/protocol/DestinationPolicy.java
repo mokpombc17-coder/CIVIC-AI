@@ -31,6 +31,18 @@ public final class DestinationPolicy {
                     DestinationKind.USER_SYSTEM_EVENTS, destination, null);
         }
         if (destination.startsWith(APP_PREFIX)) {
+            DestinationDescriptor edit = roomDestination(
+                    destination, APP_PREFIX, "/messages/edit",
+                    DestinationKind.APP_ROOM_MESSAGE_EDIT);
+            if (edit.kind() != DestinationKind.INVALID) {
+                return edit;
+            }
+            DestinationDescriptor delete = roomDestination(
+                    destination, APP_PREFIX, "/messages/delete",
+                    DestinationKind.APP_ROOM_MESSAGE_DELETE);
+            if (delete.kind() != DestinationKind.INVALID) {
+                return delete;
+            }
             DestinationDescriptor messages = roomDestination(
                     destination, APP_PREFIX, "/messages",
                     DestinationKind.APP_ROOM_MESSAGES);

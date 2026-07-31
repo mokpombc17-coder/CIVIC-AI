@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.message.outbox.mongo;
 
 import com.hamcheeze.chat.delivery.ChatMessagePayload;
+import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxEvent;
 import com.hamcheeze.chat.message.outbox.ClaimedChatMessageOutboxEvent;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -37,7 +38,11 @@ public record MongoChatMessageOutboxDocument(
             String senderUserId,
             String clientMessageId,
             String content,
-            Instant createdAt
+            MessageState state,
+            Long messageVersion,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant deletedAt
     ) {
 
         static Payload from(ChatMessagePayload payload) {
@@ -48,7 +53,11 @@ public record MongoChatMessageOutboxDocument(
                     payload.senderUserId(),
                     payload.clientMessageId(),
                     payload.content(),
-                    payload.createdAt());
+                    payload.state(),
+                    payload.messageVersion(),
+                    payload.createdAt(),
+                    payload.updatedAt(),
+                    payload.deletedAt());
         }
 
         ClaimedChatMessageOutboxEvent.Payload toClaimedPayload() {
@@ -59,7 +68,34 @@ public record MongoChatMessageOutboxDocument(
                     senderUserId,
                     clientMessageId,
                     content,
-                    createdAt);
+                    state,
+                    messageVersion,
+                    createdAt,
+                    updatedAt,
+                    deletedAt);
+        }
+
+        public Payload(
+                String messageId,
+                String roomId,
+                Long roomSequence,
+                String senderUserId,
+                String clientMessageId,
+                String content,
+                Instant createdAt
+        ) {
+            this(
+                    messageId,
+                    roomId,
+                    roomSequence,
+                    senderUserId,
+                    clientMessageId,
+                    content,
+                    null,
+                    null,
+                    createdAt,
+                    null,
+                    null);
         }
     }
 

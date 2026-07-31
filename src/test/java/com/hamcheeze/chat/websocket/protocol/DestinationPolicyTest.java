@@ -14,6 +14,8 @@ class DestinationPolicyTest {
     @ParameterizedTest
     @CsvSource(value = {
             "/app/rooms/room-1/messages,APP_ROOM_MESSAGES,room-1",
+            "/app/rooms/room-1/messages/edit,APP_ROOM_MESSAGE_EDIT,room-1",
+            "/app/rooms/room-1/messages/delete,APP_ROOM_MESSAGE_DELETE,room-1",
             "/app/rooms/room-1/subscriptions/sync,APP_ROOM_SUBSCRIPTION_SYNC,room-1",
             "/topic/rooms/room-1/messages,TOPIC_ROOM_MESSAGES,room-1",
             "/topic/rooms/room-1/room-events,TOPIC_ROOM_EVENTS,room-1",

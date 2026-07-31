@@ -2,6 +2,8 @@ package com.hamcheeze.chat.websocket.protocol;
 
 public enum DestinationKind {
     APP_ROOM_MESSAGES,
+    APP_ROOM_MESSAGE_EDIT,
+    APP_ROOM_MESSAGE_DELETE,
     APP_ROOM_SUBSCRIPTION_SYNC,
     TOPIC_ROOM_MESSAGES,
     TOPIC_ROOM_EVENTS,

@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.delivery;
 
 import com.hamcheeze.chat.message.ChatMessage;
+import com.hamcheeze.chat.message.MessageState;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -12,16 +13,49 @@ public record ChatMessagePayload(
         String senderUserId,
         String clientMessageId,
         String content,
-        Instant createdAt
+        MessageState state,
+        long messageVersion,
+        Instant createdAt,
+        Instant updatedAt,
+        Instant deletedAt
 ) {
 
     public ChatMessagePayload {
-        Objects.requireNonNull(messageId, "messageId");
-        Objects.requireNonNull(roomId, "roomId");
-        Objects.requireNonNull(senderUserId, "senderUserId");
-        Objects.requireNonNull(clientMessageId, "clientMessageId");
-        Objects.requireNonNull(content, "content");
-        Objects.requireNonNull(createdAt, "createdAt");
+        new ChatMessage(
+                messageId,
+                roomId,
+                roomSequence,
+                senderUserId,
+                clientMessageId,
+                content,
+                state,
+                messageVersion,
+                createdAt,
+                updatedAt,
+                deletedAt);
+    }
+
+    public ChatMessagePayload(
+            String messageId,
+            String roomId,
+            long roomSequence,
+            String senderUserId,
+            String clientMessageId,
+            String content,
+            Instant createdAt
+    ) {
+        this(
+                messageId,
+                roomId,
+                roomSequence,
+                senderUserId,
+                clientMessageId,
+                content,
+                MessageState.ACTIVE,
+                1,
+                createdAt,
+                createdAt,
+                null);
     }
 
     public static ChatMessagePayload from(ChatMessage message) {
@@ -33,6 +67,10 @@ public record ChatMessagePayload(
                 message.senderUserId(),
                 message.clientMessageId(),
                 message.content(),
-                message.createdAt());
+                message.state(),
+                message.messageVersion(),
+                message.createdAt(),
+                message.updatedAt(),
+                message.deletedAt());
     }
 }

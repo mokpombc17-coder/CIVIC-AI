@@ -29,4 +29,32 @@ public final class ChatCommandController {
                 roomId,
                 command);
     }
+
+    @MessageMapping("/rooms/{roomId}/messages/edit")
+    public void edit(
+            @DestinationVariable String roomId,
+            ChatEditCommand command,
+            Principal principal,
+            SimpMessageHeaderAccessor headers
+    ) {
+        chatCommandService.handleEdit(
+                principal.getName(),
+                headers.getSessionId(),
+                roomId,
+                command);
+    }
+
+    @MessageMapping("/rooms/{roomId}/messages/delete")
+    public void delete(
+            @DestinationVariable String roomId,
+            ChatDeleteCommand command,
+            Principal principal,
+            SimpMessageHeaderAccessor headers
+    ) {
+        chatCommandService.handleDelete(
+                principal.getName(),
+                headers.getSessionId(),
+                roomId,
+                command);
+    }
 }

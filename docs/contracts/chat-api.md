@@ -641,7 +641,11 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
       "senderUserId": "local-user-1",
       "clientMessageId": "ed7d2fe8-996d-4660-822f-e84af1218743",
       "content": "안녕하세요.",
-      "createdAt": "2026-07-29T04:40:00Z"
+      "state": "ACTIVE",
+      "messageVersion": 1,
+      "createdAt": "2026-07-29T04:40:00Z",
+      "updatedAt": "2026-07-29T04:40:00Z",
+      "deletedAt": null
     },
     {
       "messageId": "message-120",
@@ -650,7 +654,11 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
       "senderUserId": "local-user-2",
       "clientMessageId": "a42cc7c9-354c-4a67-b6b7-2f660942b21d",
       "content": "반갑습니다.",
-      "createdAt": "2026-07-29T04:40:01Z"
+      "state": "ACTIVE",
+      "messageVersion": 1,
+      "createdAt": "2026-07-29T04:40:01Z",
+      "updatedAt": "2026-07-29T04:40:01Z",
+      "deletedAt": null
     }
   ],
   "nextBeforeSequence": 119,
@@ -684,9 +692,17 @@ REST 응답을 먼저 적용한 뒤 버퍼링한 이벤트를 적용하며, `mes
 폐기한다. 이 클라이언트 처리는 상태 복구를 위한 방어 로직이며, 서버도
 동일한 경계로 subscriber별 outbound 메시지를 차단한다.
 
-WebSocket 재연결 시에도 같은 구독 준비 절차를 거친 뒤 마지막으로 연속 적용한
-sequence를 `afterSequence`로 이 API에 전달한다. sequence 누락을 감지한 경우에도
-같은 방식으로 마지막 연속 sequence 이후를 다시 조회한다.
+수정·삭제된 메시지도 기존 `roomSequence` 위치에 현재 snapshot 또는 tombstone으로
+남는다. 수정·삭제는 새 sequence를 소비하지 않으며 `messageVersion`만 증가한다.
+WebSocket 재연결 시 현재 화면에 로드한 최신 범위를 REST snapshot으로 다시
+조회하고, REST를 먼저 적용한 뒤 버퍼 event를 같은 `messageId`의
+`messageVersion`으로 병합한다. `incoming.messageVersion <= current.messageVersion`
+이면 중복 또는 역순 event로 보고 무시한다. 과거 페이지는 사용자가 다시 열 때
+REST에서 현재 snapshot을 조회한다.
+
+`afterSequence`는 마지막 연속 sequence 뒤에 새로 생성된 메시지의 누락을
+복구하는 cursor다. 과거 메시지의 UPDATE/DELETE change feed가 아니며,
+이 cursor만으로 mutation을 증분 복구할 수 있다고 가정하면 안 된다.
 
 ## REST 오류 응답
 
@@ -807,6 +823,8 @@ const client = new Client({
 | 동작 | Destination | 설명 |
 | --- | --- | --- |
 | `SEND` | `/app/rooms/{roomId}/messages` | 채팅 메시지 전송 |
+| `SEND` | `/app/rooms/{roomId}/messages/edit` | 작성자 메시지 수정 |
+| `SEND` | `/app/rooms/{roomId}/messages/delete` | 작성자 메시지 soft delete |
 | `SEND` | `/app/rooms/{roomId}/subscriptions/sync` | 방 topic 구독 준비 확인 |
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/messages` | 방 채팅 메시지 수신 |
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/room-events` | 방 상태 변경 이벤트 수신 |
@@ -993,6 +1011,53 @@ client.publish({
 });
 ```
 
+### 메시지 수정·삭제
+
+수정 destination:
+
+```text
+/app/rooms/{roomId}/messages/edit
+```
+
+```json
+{
+  "clientMutationId": "550e8400-e29b-41d4-a716-446655440010",
+  "messageId": "message-01",
+  "content": "수정된 메시지"
+}
+```
+
+삭제 destination:
+
+```text
+/app/rooms/{roomId}/messages/delete
+```
+
+```json
+{
+  "clientMutationId": "550e8400-e29b-41d4-a716-446655440011",
+  "messageId": "message-01"
+}
+```
+
+- 두 command 모두 `chat:messages:write` scope와 활성 Membership이 필요하며
+  메시지 작성자 본인만 실행할 수 있다.
+- `clientMutationId`는 command별 UUID다. 네트워크 재시도에는 같은 ID와
+  같은 payload를 사용한다. 같은 ID의 다른 payload는
+  `IDEMPOTENCY_CONFLICT`다.
+- 클라이언트 `expectedVersion`은 보내지 않는다. 서버의 단일 message
+  pipeline이 수락한 순서대로 CREATE/EDIT/DELETE를 처리한다.
+- 수정 content는 신규 전송과 같은 trim, 길이, UTF-8 byte, C0 제어문자
+  검증을 적용한다.
+- 동일한 정규화 content로 수정하면 `UNCHANGED`이며 version과 `updatedAt`은
+  바뀌지 않고 room event도 발생하지 않는다.
+- 삭제는 물리 삭제가 아니라 `DELETED_BY_AUTHOR` tombstone이다. content는
+  `null`이 되고 `deletedAt == updatedAt`이다. 새 mutation ID로 다시
+  삭제하면 `ALREADY_DELETED`이며 version과 event는 늘지 않는다.
+- 수정·삭제는 대상 메시지의 최초 `roomSequence`를 유지한다. 방 sequence나
+  REST cursor를 새로 소비하지 않는다. 관리자 moderation, 복원, 수정 이력은
+  현재 지원하지 않는다.
+
 ### 메시지 Command 결과
 
 구독:
@@ -1089,6 +1154,37 @@ PERSISTENCE_FAILED
 `retryable`이 `true`이면 `retryAfterMs` 이후 동일한
 `clientMessageId`와 동일한 content로 재시도한다.
 
+수정·삭제 result는 기존 queue에서 다음 additive 필드를 사용한다.
+`clientMessageId`에 mutation ID를 넣지 않는다.
+
+```json
+{
+  "clientMessageId": null,
+  "status": "UPDATED",
+  "code": null,
+  "retryable": false,
+  "retryAfterMs": null,
+  "messageId": "message-01",
+  "roomSequence": 10,
+  "commandType": "EDIT_MESSAGE",
+  "clientMutationId": "550e8400-e29b-41d4-a716-446655440010",
+  "messageVersion": 2,
+  "messageState": "ACTIVE",
+  "replayed": false
+}
+```
+
+성공 및 no-op status는 `UPDATED`, `UNCHANGED`, `DELETED`,
+`ALREADY_DELETED`다. 거절은 `status=REJECTED`와
+`MESSAGE_NOT_FOUND`, `MESSAGE_MUTATION_FORBIDDEN`, `MESSAGE_DELETED`,
+`IDEMPOTENCY_CONFLICT` 등의 code를 사용한다. 저장 장애는 기존처럼
+`status=FAILED`, `code=PERSISTENCE_FAILED`다. 같은 receipt를 재생하면
+최초 status와 snapshot을 반환하고 `replayed=true`다.
+
+command result와 UPDATE/DELETE room event의 도착 순서는 고정되지 않는다.
+result의 `messageVersion`은 이후 mutation이 먼저 처리되면 이미 오래된 값일
+수 있으므로 최종 snapshot은 room event 또는 REST 응답을 기준으로 병합한다.
+
 ### 채팅 메시지 이벤트
 
 구독:
@@ -1110,20 +1206,36 @@ payload:
     "senderUserId": "local-user-1",
     "clientMessageId": "ed7d2fe8-996d-4660-822f-e84af1218743",
     "content": "안녕하세요.",
-    "createdAt": "2026-07-29T04:40:00Z"
+    "state": "ACTIVE",
+    "messageVersion": 1,
+    "createdAt": "2026-07-29T04:40:00Z",
+    "updatedAt": "2026-07-29T04:40:00Z",
+    "deletedAt": null
   }
 }
 ```
 
+`eventType`은 `CHAT_MESSAGE_CREATED`, `CHAT_MESSAGE_UPDATED`,
+`CHAT_MESSAGE_DELETED` 중 하나다. 세 event 모두 같은 topic과 전체 message
+snapshot을 사용한다. DELETE payload는 `content=null`,
+`state=DELETED_BY_AUTHOR`이며 `deletedAt`이 설정된다.
+
 메시지 이벤트는 at-least-once로 전파되므로 동일 이벤트가 다시 도착할 수
-있다. 프론트는 `messageId` 또는 `roomId + roomSequence`로 중복을
-제거한다.
+있다. 프론트는 같은 `messageId`에 대해
+`incoming.messageVersion <= current.messageVersion`이면 무시한다.
+`messageVersion`은 해당 메시지 안에서만 비교하며 방 전체 순서가 아니다.
 
 `roomSequence`를 이용해 방 안에서 메시지 순서를 판단한다. 정상 전파
 경로에서는 발생 순서에 가깝게 처리하지만, publish 재시도 중에는 앞선
 `roomSequence`가 뒤 이벤트보다 늦게 도착할 수 있다. gap을 발견하면 기존
 REST 메시지 이력 API로 복구한다. Outbox는 오프라인 클라이언트의 이벤트
 수신이나 exactly-once 전달을 보장하지 않는다.
+
+CREATE/UPDATE/DELETE 모두 최초 생성의 불변 `roomSequence`를 broker
+header로 사용한다. 서버 outbound interceptor는 구독자의
+`messageVisibleAfterSequence` 이하 event를 browser로 보내기 전에
+subscriber별로 차단한다. 따라서 현재 참여 이전 메시지의 수정·삭제 payload도
+클라이언트에 노출되지 않는다.
 
 Backlog metric sampling은 메시지 dispatcher와 분리된 전용 worker에서
 fixed-delay로 실행된다. MongoDB metric 조회가 지연되거나 실패해도
@@ -1132,7 +1244,8 @@ claim, publish, delete, retry와 `chatOutbox` readiness에는 영향을 주지
 
 현재 binary가 지원하지 않는 outbox schema/event 문서는 claim하지 않고
 보존한다. 지원 metadata를 가졌지만 deterministic event ID, 양수
-`roomSequence`, 필수 식별자 또는 payload invariant가 손상된 문서는
+`roomSequence`, message version, event timestamp, 필수 식별자 또는 payload
+invariant가 손상된 문서는
 `PAYLOAD_DECODE_ERROR`로 최대 backoff에 재시도하며 자동 삭제하지 않는다.
 
 ### 메시지 Outbox 배포와 rollback
@@ -1277,7 +1390,9 @@ python3 scripts/frontend-local-smoke.py
 7. `Authorization` 헤더 없는 STOMP `CONNECT`
 8. 방 topic 두 개의 구독 준비 sync와 `ROOM_SUBSCRIPTIONS_READY`
 9. 메시지 전송, command 결과, `CHAT_MESSAGE_CREATED`
-10. REST 메시지 이력 재동기화
+10. 메시지 수정과 `CHAT_MESSAGE_UPDATED`, REST 최신 snapshot
+11. 메시지 soft delete와 `CHAT_MESSAGE_DELETED`, REST tombstone
+12. 수정·삭제 중 `roomSequence` 불변 및 다음 CREATE sequence 확인
 
 각 실행은 이름이 `frontend-smoke-`로 시작하는 테스트 방 하나와 메시지 하나를 로컬 MongoDB에
 추가한다. 다른 주소를 사용할 때는 `--base-url`, `--ws-url`, `--origin`, `--subject` 옵션으로
@@ -1307,3 +1422,7 @@ python3 scripts/frontend-local-smoke.py
     폐기한다.
 16. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
 17. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.
+18. 작성자 수정·삭제 command를 보내고 result와 UPDATE/DELETE event를
+    각각 `clientMutationId`, `messageId`, `messageVersion`으로 연결한다.
+19. 재연결 후 현재 로드 범위를 REST로 새로 조회한 뒤 buffered event를
+    `messageVersion`으로 병합한다.

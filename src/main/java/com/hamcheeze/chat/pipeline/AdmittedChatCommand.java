@@ -6,5 +6,10 @@ public record AdmittedChatCommand(
         String roomId,
         String clientMessageId,
         String content
-) {
+) implements AdmittedMessageCommand {
+
+    @Override
+    public String requestId() {
+        return clientMessageId;
+    }
 }

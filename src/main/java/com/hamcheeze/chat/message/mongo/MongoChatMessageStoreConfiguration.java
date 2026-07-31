@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.message.mongo;
 
 import com.hamcheeze.chat.message.ChatMessageStore;
+import com.hamcheeze.chat.message.ChatMessageMutationStore;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.room.application.RoomMessageBoundaryPort;
@@ -56,6 +57,34 @@ public class MongoChatMessageStoreConfiguration {
                 transactionTemplate,
                 Clock.systemUTC(),
                 () -> UUID.randomUUID().toString(),
+                exceptionClassifier,
+                outboxWriter,
+                meterRegistry);
+    }
+
+    @Bean(initMethod = "initialize")
+    MongoChatMessageMutationSchemaInitializer
+    mongoChatMessageMutationSchemaInitializer(
+            MongoOperations mongoOperations
+    ) {
+        return new MongoChatMessageMutationSchemaInitializer(
+                mongoOperations);
+    }
+
+    @Bean
+    ChatMessageMutationStore chatMessageMutationStore(
+            MongoOperations mongoOperations,
+            @Qualifier("mongoTransactionTemplate")
+            TransactionTemplate transactionTemplate,
+            MongoChatMessageMutationSchemaInitializer schemaInitializer,
+            MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageOutboxWriter outboxWriter,
+            MeterRegistry meterRegistry
+    ) {
+        return new MongoChatMessageMutationStore(
+                mongoOperations,
+                transactionTemplate,
+                Clock.systemUTC(),
                 exceptionClassifier,
                 outboxWriter,
                 meterRegistry);

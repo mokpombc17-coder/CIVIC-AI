@@ -3,6 +3,8 @@ package com.hamcheeze.chat.application;
 public enum ChatCommandRejectedCode {
     EMPTY_MESSAGE,
     INVALID_CLIENT_MESSAGE_ID,
+    INVALID_CLIENT_MUTATION_ID,
+    INVALID_MESSAGE_ID,
     INVALID_CONTROL_CHARACTER,
     MESSAGE_TOO_LONG,
     MESSAGE_TOO_LARGE,

@@ -13,6 +13,10 @@ public record ChatMessageEventEnvelope(
     public static final int CURRENT_VERSION = 1;
     public static final String MESSAGE_CREATED =
             "CHAT_MESSAGE_CREATED";
+    public static final String MESSAGE_UPDATED =
+            "CHAT_MESSAGE_UPDATED";
+    public static final String MESSAGE_DELETED =
+            "CHAT_MESSAGE_DELETED";
 
     public ChatMessageEventEnvelope {
         if (eventVersion < 1) {
@@ -29,6 +33,24 @@ public record ChatMessageEventEnvelope(
         return new ChatMessageEventEnvelope(
                 CURRENT_VERSION,
                 MESSAGE_CREATED,
+                ChatMessagePayload.from(message));
+    }
+
+    public static ChatMessageEventEnvelope messageUpdated(
+            ChatMessage message
+    ) {
+        return new ChatMessageEventEnvelope(
+                CURRENT_VERSION,
+                MESSAGE_UPDATED,
+                ChatMessagePayload.from(message));
+    }
+
+    public static ChatMessageEventEnvelope messageDeleted(
+            ChatMessage message
+    ) {
+        return new ChatMessageEventEnvelope(
+                CURRENT_VERSION,
+                MESSAGE_DELETED,
                 ChatMessagePayload.from(message));
     }
 }

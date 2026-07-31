@@ -5,6 +5,7 @@ import com.hamcheeze.chat.application.ChatMessageProcessor;
 import com.hamcheeze.chat.delivery.ChatMessagePublisher;
 import com.hamcheeze.chat.delivery.SimpleBrokerChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessageStore;
+import com.hamcheeze.chat.message.ChatMessageMutationStore;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.context.LifecycleProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -32,11 +33,13 @@ public class ChatMessagePipelineConfiguration {
     @Bean
     ChatMessageProcessor chatMessageProcessor(
             ChatMessageStore messageStore,
+            ChatMessageMutationStore mutationStore,
             ChatCommandResultSender resultSender,
             MeterRegistry meterRegistry
     ) {
         return new ChatMessageProcessor(
                 messageStore,
+                mutationStore,
                 resultSender,
                 meterRegistry);
     }

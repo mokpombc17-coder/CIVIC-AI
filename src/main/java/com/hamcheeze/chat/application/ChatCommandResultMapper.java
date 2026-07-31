@@ -31,6 +31,22 @@ public final class ChatCommandResultMapper {
                     null,
                     outcome.messageId(),
                     outcome.roomSequence());
+            case ChatMessageMutationCommandResult mutation ->
+                    new ChatCommandResultEnvelope(
+                            null,
+                            mutation.status(),
+                            mutation.code(),
+                            mutation.retryable(),
+                            mutation.retryAfterMs(),
+                            mutation.messageId(),
+                            mutation.roomSequence(),
+                            mutation.commandType().name(),
+                            mutation.clientMutationId(),
+                            mutation.messageVersion(),
+                            mutation.messageState() == null
+                                    ? null
+                                    : mutation.messageState().name(),
+                            mutation.replayed());
         };
     }
 }

@@ -1,10 +1,13 @@
 package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.application.ChatCommandResultEnvelope;
+import com.hamcheeze.chat.application.ChatDeleteCommand;
+import com.hamcheeze.chat.application.ChatEditCommand;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
 import com.hamcheeze.chat.delivery.ChatMessagePublisher;
 import com.hamcheeze.chat.message.ChatMessage;
+import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
 import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
@@ -63,7 +66,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+                "chat.websocket.rate-limit.user.capacity=100",
+                "chat.websocket.rate-limit.user.refill-tokens=100"
+        })
 @ActiveProfiles("local")
 class ChatMessagePipelineWebSocketIntegrationTest
         extends MongoRuntimeIntegrationTest {
@@ -76,6 +83,10 @@ class ChatMessagePipelineWebSocketIntegrationTest
             "550e8400-e29b-41d4-a716-446655440002";
     private static final String PERMANENT_FAILED_CLIENT_MESSAGE_ID =
             "550e8400-e29b-41d4-a716-446655440003";
+    private static final String EDIT_MUTATION_ID =
+            "550e8400-e29b-41d4-a716-446655440010";
+    private static final String DELETE_MUTATION_ID =
+            "550e8400-e29b-41d4-a716-446655440011";
 
     @LocalServerPort
     private int port;
@@ -266,7 +277,10 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(CLIENT_MESSAGE_ID);
             assertThat(storedDocument.content()).isEqualTo("hello");
             assertThat(storedDocument.roomSequence()).isEqualTo(1);
-            assertThat(storedDocument.schemaVersion()).isEqualTo(1);
+            assertThat(storedDocument.schemaVersion()).isEqualTo(2);
+            assertThat(storedDocument.messageVersion()).isEqualTo(1);
+            assertThat(storedDocument.state().name())
+                    .isEqualTo("ACTIVE");
             assertThat(storedMessageCount()).isEqualTo(1);
             assertThat(lastRoomSequence()).isEqualTo(1);
 
@@ -335,6 +349,105 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(
                             secondAccepted.clientMessageId());
             assertThat(storedMessageCount()).isEqualTo(2);
+            assertThat(lastRoomSequence()).isEqualTo(2);
+
+            session.send(
+                    "/app/rooms/test-room/messages/edit",
+                    new ChatEditCommand(
+                            EDIT_MUTATION_ID,
+                            secondAccepted.messageId(),
+                            "edited second"));
+            ChatMessageEventEnvelope updatedEvent =
+                    objectMapper.readValue(
+                            rawRoomMessages.poll(
+                                    5, TimeUnit.SECONDS),
+                            ChatMessageEventEnvelope.class);
+            ChatCommandResultEnvelope updatedResult =
+                    commandResults.poll(5, TimeUnit.SECONDS);
+
+            assertThat(updatedEvent.eventType())
+                    .isEqualTo("CHAT_MESSAGE_UPDATED");
+            assertThat(updatedEvent.payload().content())
+                    .isEqualTo("edited second");
+            assertThat(updatedEvent.payload().roomSequence())
+                    .isEqualTo(2);
+            assertThat(updatedEvent.payload().messageVersion())
+                    .isEqualTo(2);
+            assertThat(updatedResult).isNotNull();
+            assertThat(updatedResult.commandType())
+                    .isEqualTo("EDIT_MESSAGE");
+            assertThat(updatedResult.clientMutationId())
+                    .isEqualTo(EDIT_MUTATION_ID);
+            assertThat(updatedResult.status()).isEqualTo("UPDATED");
+            assertThat(updatedResult.messageVersion()).isEqualTo(2);
+            assertThat(updatedResult.replayed()).isFalse();
+            assertThat(lastRoomSequence()).isEqualTo(2);
+
+            session.send(
+                    "/app/rooms/test-room/messages/edit",
+                    new ChatEditCommand(
+                            EDIT_MUTATION_ID,
+                            secondAccepted.messageId(),
+                            "edited second"));
+            ChatCommandResultEnvelope editReplay =
+                    commandResults.poll(5, TimeUnit.SECONDS);
+            assertThat(editReplay).isNotNull();
+            assertThat(editReplay.status()).isEqualTo("UPDATED");
+            assertThat(editReplay.replayed()).isTrue();
+            assertThat(editReplay.messageVersion()).isEqualTo(2);
+            assertThat(rawRoomMessages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+
+            session.send(
+                    "/app/rooms/test-room/messages/delete",
+                    new ChatDeleteCommand(
+                            DELETE_MUTATION_ID,
+                            secondAccepted.messageId()));
+            ChatCommandResultEnvelope deletedResult =
+                    commandResults.poll(5, TimeUnit.SECONDS);
+            if (deletedResult != null
+                    && "USER_RATE_LIMITED".equals(
+                    deletedResult.code())) {
+                Thread.sleep(deletedResult.retryAfterMs() + 50);
+                session.send(
+                        "/app/rooms/test-room/messages/delete",
+                        new ChatDeleteCommand(
+                                DELETE_MUTATION_ID,
+                                secondAccepted.messageId()));
+                deletedResult =
+                        commandResults.poll(5, TimeUnit.SECONDS);
+            }
+            byte[] rawDeletedEvent =
+                    rawRoomMessages.poll(5, TimeUnit.SECONDS);
+
+            assertThat(rawDeletedEvent)
+                    .withFailMessage(
+                            "DELETE event missing; command result=%s",
+                            deletedResult)
+                    .isNotNull();
+            ChatMessageEventEnvelope deletedEvent =
+                    objectMapper.readValue(
+                            rawDeletedEvent,
+                            ChatMessageEventEnvelope.class);
+            assertThat(deletedEvent.eventType())
+                    .isEqualTo("CHAT_MESSAGE_DELETED");
+            assertThat(deletedEvent.payload().content()).isNull();
+            assertThat(deletedEvent.payload().roomSequence())
+                    .isEqualTo(2);
+            assertThat(deletedEvent.payload().messageVersion())
+                    .isEqualTo(3);
+            assertThat(deletedResult).isNotNull();
+            assertThat(deletedResult.status()).isEqualTo("DELETED");
+            assertThat(deletedResult.messageVersion()).isEqualTo(3);
+            MongoChatMessageDocument tombstone =
+                    mongoOperations.findById(
+                            secondAccepted.messageId(),
+                            MongoChatMessageDocument.class);
+            assertThat(tombstone).isNotNull();
+            assertThat(tombstone.content()).isNull();
+            assertThat(tombstone.state().name())
+                    .isEqualTo("DELETED_BY_AUTHOR");
+            assertThat(tombstone.roomSequence()).isEqualTo(2);
             assertThat(lastRoomSequence()).isEqualTo(2);
 
             doThrow(new ChatMessageStoreException(
@@ -491,9 +604,17 @@ class ChatMessagePipelineWebSocketIntegrationTest
             assertThat(messages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
 
-            messagePublisher.publish(event(101));
+            messagePublisher.publish(updatedEvent(100));
+            assertThat(messages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+
+            messagePublisher.publish(deletedEvent(100));
+            assertThat(messages.poll(
+                    300, TimeUnit.MILLISECONDS)).isNull();
+
+            messagePublisher.publish(updatedEvent(101));
             assertThat(messages.poll(5, TimeUnit.SECONDS))
-                    .isEqualTo(event(101));
+                    .isEqualTo(updatedEvent(101));
         } finally {
             if (session != null && session.isConnected()) {
                 session.disconnect();
@@ -530,6 +651,49 @@ class ChatMessagePipelineWebSocketIntegrationTest
                         "message " + sequence,
                         Instant.parse("2026-07-24T00:00:00Z")
                                 .plusSeconds(sequence)));
+    }
+
+    private static ChatMessageEventEnvelope updatedEvent(
+            long sequence
+    ) {
+        Instant createdAt = Instant.parse(
+                "2026-07-24T00:00:00Z").plusSeconds(sequence);
+        return ChatMessageEventEnvelope.messageUpdated(
+                new ChatMessage(
+                        "message-" + sequence,
+                        "test-room",
+                        sequence,
+                        "local-user-1",
+                        "550e8400-e29b-41d4-a716-44665544%04d"
+                                .formatted(sequence),
+                        "updated " + sequence,
+                        MessageState.ACTIVE,
+                        2,
+                        createdAt,
+                        createdAt.plusSeconds(1),
+                        null));
+    }
+
+    private static ChatMessageEventEnvelope deletedEvent(
+            long sequence
+    ) {
+        Instant createdAt = Instant.parse(
+                "2026-07-24T00:00:00Z").plusSeconds(sequence);
+        Instant deletedAt = createdAt.plusSeconds(2);
+        return ChatMessageEventEnvelope.messageDeleted(
+                new ChatMessage(
+                        "message-" + sequence,
+                        "test-room",
+                        sequence,
+                        "local-user-1",
+                        "550e8400-e29b-41d4-a716-44665544%04d"
+                                .formatted(sequence),
+                        null,
+                        MessageState.DELETED_BY_AUTHOR,
+                        3,
+                        createdAt,
+                        deletedAt,
+                        deletedAt));
     }
 
     private <T> StompFrameHandler collectingHandler(

@@ -2,6 +2,11 @@ package com.hamcheeze.chat.application;
 
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.ChatMessageStore;
+import com.hamcheeze.chat.message.ChatMessageMutationStore;
+import com.hamcheeze.chat.message.ChatMessageMutationResult;
+import com.hamcheeze.chat.message.MessageMutationCommandType;
+import com.hamcheeze.chat.message.MessageMutationOutcome;
+import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.ChatMessageStoreException;
 import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
 import com.hamcheeze.chat.message.ConflictingChatMessage;
@@ -9,6 +14,7 @@ import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
+import com.hamcheeze.chat.pipeline.AdmittedEditMessageCommand;
 import com.hamcheeze.chat.pipeline.QueuedChatCommand;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +35,7 @@ import static org.mockito.Mockito.when;
 class ChatMessageProcessorTest {
 
     private ChatMessageStore store;
+    private ChatMessageMutationStore mutationStore;
     private ChatCommandResultSender resultSender;
     private SimpleMeterRegistry meterRegistry;
     private ChatMessageProcessor processor;
@@ -36,12 +43,88 @@ class ChatMessageProcessorTest {
     @BeforeEach
     void setUp() {
         store = mock(ChatMessageStore.class);
+        mutationStore = mock(ChatMessageMutationStore.class);
         resultSender = mock(ChatCommandResultSender.class);
         meterRegistry = new SimpleMeterRegistry();
         processor = new ChatMessageProcessor(
                 store,
+                mutationStore,
                 resultSender,
                 meterRegistry);
+    }
+
+    @Test
+    void mutationResultContainsVersionStateAndReplayFlag() {
+        when(mutationStore.edit(any())).thenReturn(
+                new ChatMessageMutationResult(
+                        MessageMutationCommandType.EDIT_MESSAGE,
+                        "550e8400-e29b-41d4-a716-446655440010",
+                        MessageMutationOutcome.UPDATED,
+                        "message-1",
+                        1L,
+                        2L,
+                        MessageState.ACTIVE,
+                        true));
+
+        processor.process(new QueuedChatCommand(
+                new AdmittedEditMessageCommand(
+                        "user-1",
+                        "connection-1",
+                        "room-1",
+                        "550e8400-e29b-41d4-a716-446655440010",
+                        "message-1",
+                        "edited"),
+                Instant.parse("2026-07-24T00:00:00Z")));
+
+        verify(resultSender).send(
+                "user-1",
+                "connection-1",
+                new ChatMessageMutationCommandResult(
+                        MessageMutationCommandType.EDIT_MESSAGE,
+                        "550e8400-e29b-41d4-a716-446655440010",
+                        "UPDATED",
+                        null,
+                        false,
+                        null,
+                        "message-1",
+                        1L,
+                        2L,
+                        MessageState.ACTIVE,
+                        true));
+    }
+
+    @Test
+    void mutationPersistenceFailureUsesMutationResultContract() {
+        when(mutationStore.edit(any())).thenThrow(
+                new ChatMessageStoreException(
+                        ChatMessageStoreFailureKind.TRANSIENT,
+                        "unavailable"));
+
+        processor.process(new QueuedChatCommand(
+                new AdmittedEditMessageCommand(
+                        "user-1",
+                        "connection-1",
+                        "room-1",
+                        "550e8400-e29b-41d4-a716-446655440010",
+                        "message-1",
+                        "edited"),
+                Instant.parse("2026-07-24T00:00:00Z")));
+
+        verify(resultSender).send(
+                "user-1",
+                "connection-1",
+                new ChatMessageMutationCommandResult(
+                        MessageMutationCommandType.EDIT_MESSAGE,
+                        "550e8400-e29b-41d4-a716-446655440010",
+                        "FAILED",
+                        "PERSISTENCE_FAILED",
+                        true,
+                        null,
+                        "message-1",
+                        null,
+                        null,
+                        null,
+                        false));
     }
 
     @Test

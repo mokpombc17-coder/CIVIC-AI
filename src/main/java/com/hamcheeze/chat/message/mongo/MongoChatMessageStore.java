@@ -494,7 +494,8 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             ExistingMessageResolutionContext resolutionContext
     ) {
         ChatMessage message = existing.toDomain();
-        if (!existing.content().equals(newMessage.content())) {
+        if (!existing.hasSameCreationContent(
+                newMessage.content())) {
             return new ConflictingChatMessage(message);
         }
         if (resolutionContext

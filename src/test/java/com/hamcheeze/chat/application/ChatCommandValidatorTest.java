@@ -36,9 +36,39 @@ class ChatCommandValidatorTest {
     void acceptsCanonicalUuidAndCanonicalizesUppercaseUuid() {
         assertThat(validator.validateClientMessageId(CLIENT_MESSAGE_ID))
                 .isEqualTo(CLIENT_MESSAGE_ID);
+        assertThat(validator.validateClientMutationId(
+                "550E8400-E29B-41D4-A716-446655440000"))
+                .isEqualTo(CLIENT_MESSAGE_ID);
         assertThat(validator.validateClientMessageId(
                 "550E8400-E29B-41D4-A716-446655440000"))
                 .isEqualTo(CLIENT_MESSAGE_ID);
+    }
+
+    @Test
+    void validatesOpaqueMessageIdWithoutAddingUuidConstraint() {
+        assertThat(validator.validateMessageId(
+                "server-message_01",
+                CLIENT_MESSAGE_ID))
+                .isEqualTo("server-message_01");
+        assertThatThrownBy(() -> validator.validateMessageId(
+                " server-message_01 ",
+                CLIENT_MESSAGE_ID))
+                .isInstanceOf(ChatValidationException.class)
+                .extracting(exception ->
+                        ((ChatValidationException) exception).code())
+                .isEqualTo(ChatCommandRejectedCode.INVALID_MESSAGE_ID);
+    }
+
+    @Test
+    void rejectsInvalidMutationUuidSeparately() {
+        assertThatThrownBy(() ->
+                validator.validateClientMutationId("mutation-1"))
+                .isInstanceOf(ChatValidationException.class)
+                .extracting(exception ->
+                        ((ChatValidationException) exception).code())
+                .isEqualTo(
+                        ChatCommandRejectedCode
+                                .INVALID_CLIENT_MUTATION_ID);
     }
 
     @ParameterizedTest

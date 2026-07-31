@@ -155,10 +155,10 @@ public final class ChatMessageWorker implements Runnable {
                         "chat.pipeline.worker.command.failures",
                         commandFailureCounter);
                 log.error(
-                        "Chat message worker isolated command failure: roomId={}, userId={}, clientMessageId={}",
+                        "Chat message worker isolated command failure: roomId={}, userId={}, requestId={}",
                         command.command().roomId(),
                         command.command().userId(),
-                        command.command().clientMessageId(),
+                        command.command().requestId(),
                         exception);
             }
         } finally {

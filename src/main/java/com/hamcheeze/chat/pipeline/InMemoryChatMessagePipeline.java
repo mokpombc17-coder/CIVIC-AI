@@ -104,7 +104,7 @@ public final class InMemoryChatMessagePipeline
 
     @Override
     public PipelineAcceptance tryAccept(
-            AdmittedChatCommand command
+            AdmittedMessageCommand command
     ) {
         Objects.requireNonNull(command, "command");
         lifecycleLock.lock();
@@ -127,10 +127,10 @@ public final class InMemoryChatMessagePipeline
                     "chat.pipeline.busy",
                     busyCounter);
             log.warn(
-                    "Chat pipeline queue full: connectionId={}, roomId={}, clientMessageId={}, queueSize={}, queueCapacity={}",
+                    "Chat pipeline queue full: connectionId={}, roomId={}, requestId={}, queueSize={}, queueCapacity={}",
                     command.connectionId(),
                     command.roomId(),
-                    command.clientMessageId(),
+                    command.requestId(),
                     queue.size(),
                     properties.getQueueCapacity());
             return PipelineAcceptance.BUSY;

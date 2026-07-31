@@ -4,5 +4,5 @@ public interface ChatMessagePipeline {
 
     PipelineAvailability availability();
 
-    PipelineAcceptance tryAccept(AdmittedChatCommand command);
+    PipelineAcceptance tryAccept(AdmittedMessageCommand command);
 }

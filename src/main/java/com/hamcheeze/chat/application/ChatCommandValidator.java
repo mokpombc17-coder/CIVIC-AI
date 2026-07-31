@@ -39,6 +39,36 @@ public final class ChatCommandValidator {
         }
     }
 
+    public String validateClientMutationId(String clientMutationId) {
+        if (clientMutationId == null) {
+            throw invalidClientMutationId();
+        }
+        try {
+            String canonical = UUID.fromString(
+                    clientMutationId).toString();
+            if (!canonical.equalsIgnoreCase(clientMutationId)) {
+                throw invalidClientMutationId();
+            }
+            return canonical;
+        } catch (IllegalArgumentException exception) {
+            throw invalidClientMutationId();
+        }
+    }
+
+    public String validateMessageId(
+            String messageId,
+            String clientMutationId
+    ) {
+        if (messageId == null
+                || messageId.isBlank()
+                || !messageId.equals(messageId.strip())) {
+            throw new ChatValidationException(
+                    ChatCommandRejectedCode.INVALID_MESSAGE_ID,
+                    clientMutationId);
+        }
+        return messageId;
+    }
+
     public ValidatedChatContent validateContent(
             String rawContent,
             String clientMessageId
@@ -96,5 +126,11 @@ public final class ChatCommandValidator {
     private static ChatValidationException invalidClientMessageId() {
         return new ChatValidationException(
                 ChatCommandRejectedCode.INVALID_CLIENT_MESSAGE_ID, null);
+    }
+
+    private static ChatValidationException invalidClientMutationId() {
+        return new ChatValidationException(
+                ChatCommandRejectedCode.INVALID_CLIENT_MUTATION_ID,
+                null);
     }
 }

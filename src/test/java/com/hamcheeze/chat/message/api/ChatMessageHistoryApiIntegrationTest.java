@@ -1,7 +1,10 @@
 package com.hamcheeze.chat.message.api;
 
 import com.hamcheeze.chat.message.ChatMessageStore;
+import com.hamcheeze.chat.message.ChatMessageMutationStore;
+import com.hamcheeze.chat.message.DeleteChatMessageMutation;
 import com.hamcheeze.chat.message.NewChatMessage;
+import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.RoomCommandService;
@@ -43,6 +46,47 @@ class ChatMessageHistoryApiIntegrationTest
 
     @Autowired
     private ChatMessageStore messageStore;
+
+    @Autowired
+    private ChatMessageMutationStore mutationStore;
+
+    @Test
+    void returnsDeletedMessageAsTombstoneAtOriginalCursorPosition()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        StoredChatMessage stored = (StoredChatMessage)
+                messageStore.append(new NewChatMessage(
+                        roomId,
+                        "owner-1",
+                        UUID.randomUUID().toString(),
+                        "delete me"));
+        mutationStore.delete(new DeleteChatMessageMutation(
+                "owner-1",
+                UUID.randomUUID().toString(),
+                roomId,
+                stored.message().messageId()));
+
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}/messages",
+                                roomId)
+                        .with(jwt("owner-1", ChatScopes.ROOMS_READ)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].messageId")
+                        .value(stored.message().messageId()))
+                .andExpect(jsonPath("$.items[0].roomSequence")
+                        .value(stored.message().roomSequence()))
+                .andExpect(jsonPath("$.items[0].content")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.items[0].state")
+                        .value("DELETED_BY_AUTHOR"))
+                .andExpect(jsonPath("$.items[0].messageVersion")
+                        .value(2))
+                .andExpect(jsonPath("$.items[0].updatedAt")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.items[0].deletedAt")
+                        .isNotEmpty());
+    }
 
     @Test
     void initialEntryReturnsLatestMessagesAndPaginatesBackward()

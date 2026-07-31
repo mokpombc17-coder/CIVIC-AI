@@ -6,6 +6,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxSchemaInitializer;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxStore;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
+import com.hamcheeze.chat.message.ChatMessageMutationStore;
 import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -64,6 +66,20 @@ final class MongoChatMessageStoreTestConfiguration
                 meterRegistry);
     }
 
+    ChatMessageMutationStore mutationStore(
+            Clock clock,
+            ChatMessageOutboxWriter outboxWriter,
+            MeterRegistry meterRegistry
+    ) {
+        return new MongoChatMessageMutationStore(
+                mongoTemplate,
+                transactionTemplate,
+                clock,
+                new MongoChatMessageExceptionClassifier(),
+                outboxWriter,
+                meterRegistry);
+    }
+
     void resetSchema() {
         if (mongoTemplate.collectionExists(
                 MongoChatMessageDocument.COLLECTION_NAME)) {
@@ -80,7 +96,16 @@ final class MongoChatMessageStoreTestConfiguration
             mongoTemplate.dropCollection(
                     MongoChatMessageOutboxDocument.COLLECTION_NAME);
         }
+        if (mongoTemplate.collectionExists(
+                MongoChatMessageMutationReceiptDocument
+                        .COLLECTION_NAME)) {
+            mongoTemplate.dropCollection(
+                    MongoChatMessageMutationReceiptDocument
+                            .COLLECTION_NAME);
+        }
         schemaInitializer().initialize();
+        new MongoChatMessageMutationSchemaInitializer(
+                mongoTemplate).initialize();
         new MongoChatMessageOutboxSchemaInitializer(
                 mongoTemplate).initialize();
     }

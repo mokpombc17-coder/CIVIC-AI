@@ -78,6 +78,8 @@ public final class StompProtocolPolicyInterceptor implements ChannelInterceptor 
                 .classify(destination)
                 .kind();
         if (kind != DestinationKind.APP_ROOM_MESSAGES
+                && kind != DestinationKind.APP_ROOM_MESSAGE_EDIT
+                && kind != DestinationKind.APP_ROOM_MESSAGE_DELETE
                 && kind
                 != DestinationKind.APP_ROOM_SUBSCRIPTION_SYNC) {
             throw new StompPolicyException("INVALID_SEND_DESTINATION");

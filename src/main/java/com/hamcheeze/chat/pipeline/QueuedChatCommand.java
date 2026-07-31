@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 public record QueuedChatCommand(
-        AdmittedChatCommand command,
+        AdmittedMessageCommand command,
         Instant acceptedAt
 ) {
 

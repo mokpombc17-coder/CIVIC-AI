@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.application;
 
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
+import com.hamcheeze.chat.pipeline.AdmittedEditMessageCommand;
 import com.hamcheeze.chat.pipeline.ChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.PipelineAcceptance;
 import com.hamcheeze.chat.pipeline.PipelineAvailability;
@@ -254,6 +255,78 @@ class ChatCommandServiceTest {
         verify(pipeline).tryAccept(command.capture());
         assertThat(command.getValue().clientMessageId())
                 .isEqualTo(CLIENT_MESSAGE_ID);
+    }
+
+    @Test
+    void editUsesSameAuthorizationRateLimitAndPipeline() {
+        AdmissionReservation reservation = grantedReservation();
+        when(authorization.authorizeMessageSend("user-1", "room-1"))
+                .thenReturn(RoomAuthorizationDecision.ALLOWED);
+        when(pipeline.availability())
+                .thenReturn(PipelineAvailability.AVAILABLE);
+        when(limiter.tryReserve("user-1", 1)).thenReturn(reservation);
+        when(pipeline.tryAccept(any()))
+                .thenReturn(PipelineAcceptance.ACCEPTED_FOR_PROCESSING);
+
+        service.handleEdit(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new ChatEditCommand(
+                        CLIENT_MESSAGE_ID,
+                        "message-1",
+                        "  edited  "));
+
+        ArgumentCaptor<AdmittedEditMessageCommand> command =
+                ArgumentCaptor.forClass(
+                        AdmittedEditMessageCommand.class);
+        verify(pipeline).tryAccept(command.capture());
+        assertThat(command.getValue().clientMutationId())
+                .isEqualTo(CLIENT_MESSAGE_ID);
+        assertThat(command.getValue().messageId())
+                .isEqualTo("message-1");
+        assertThat(command.getValue().content())
+                .isEqualTo("edited");
+        verify(reservation).commit();
+        verify(reservation).close();
+        verifyNoInteractions(resultSender);
+    }
+
+    @Test
+    void deleteAuthorizationUnavailableFailsClosed() {
+        AdmissionReservation reservation = grantedReservation();
+        when(authorization.authorizeMessageSend("user-1", "room-1"))
+                .thenReturn(RoomAuthorizationDecision.UNAVAILABLE);
+        when(pipeline.availability())
+                .thenReturn(PipelineAvailability.AVAILABLE);
+        when(limiter.tryReserve("user-1", 1)).thenReturn(reservation);
+
+        service.handleDelete(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new ChatDeleteCommand(
+                        CLIENT_MESSAGE_ID,
+                        "message-1"));
+
+        assertThat(capturedResult()).isEqualTo(
+                new ChatMessageMutationCommandResult(
+                        com.hamcheeze.chat.message
+                                .MessageMutationCommandType
+                                .DELETE_MESSAGE,
+                        CLIENT_MESSAGE_ID,
+                        "FAILED",
+                        "ROOM_AUTHORIZATION_UNAVAILABLE",
+                        true,
+                        null,
+                        "message-1",
+                        null,
+                        null,
+                        null,
+                        false));
+        verify(pipeline, never()).tryAccept(any());
+        verify(reservation, never()).commit();
+        verify(reservation).close();
     }
 
     private AdmissionReservation grantedReservation() {

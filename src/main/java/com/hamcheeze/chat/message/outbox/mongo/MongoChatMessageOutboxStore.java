@@ -36,9 +36,23 @@ public final class MongoChatMessageOutboxStore
 
     @Override
     public void appendMessageCreated(ChatMessage message) {
+        append(ChatMessageOutboxEvent.messageCreated(message));
+    }
+
+    @Override
+    public void appendMessageUpdated(ChatMessage message) {
+        append(ChatMessageOutboxEvent.messageUpdated(message));
+    }
+
+    @Override
+    public void appendMessageDeleted(ChatMessage message) {
+        append(ChatMessageOutboxEvent.messageDeleted(message));
+    }
+
+    private void append(ChatMessageOutboxEvent event) {
         mongoOperations.insert(
                 MongoChatMessageOutboxDocument.pending(
-                        ChatMessageOutboxEvent.messageCreated(message)),
+                        event),
                 MongoChatMessageOutboxDocument.COLLECTION_NAME);
     }
 
@@ -142,7 +156,7 @@ public final class MongoChatMessageOutboxStore
                 .and("aggregateType")
                 .is(ChatMessageOutboxEvent.AGGREGATE_TYPE)
                 .and("eventType")
-                .is(ChatMessageOutboxEvent.MESSAGE_CREATED)
+                .in(ChatMessageOutboxEvent.SUPPORTED_EVENT_TYPES)
                 .and("eventVersion")
                 .is(ChatMessageOutboxEvent.CURRENT_EVENT_VERSION);
     }

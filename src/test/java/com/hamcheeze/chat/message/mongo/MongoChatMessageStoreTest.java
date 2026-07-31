@@ -91,14 +91,22 @@ class MongoChatMessageStoreTest {
         Document document = messages().find().first();
         assertThat(document).isNotNull();
         assertThat(document.get("_id")).isEqualTo("message-1");
-        assertThat(document.getInteger("schemaVersion")).isEqualTo(1);
+        assertThat(document.getInteger("schemaVersion")).isEqualTo(2);
         assertThat(document.getLong("roomSequence")).isEqualTo(1L);
         assertThat(document.getString("senderUserId"))
                 .isEqualTo("user-1");
         assertThat(document.getString("content"))
                 .isEqualTo("normalized content");
+        assertThat(document.getString(
+                "creationContentFingerprint"))
+                .hasSize(64);
         assertThat(document.getDate("createdAt").toInstant())
                 .isEqualTo(NOW);
+        assertThat(document.getString("state")).isEqualTo("ACTIVE");
+        assertThat(document.getLong("messageVersion")).isEqualTo(1L);
+        assertThat(document.getDate("updatedAt").toInstant())
+                .isEqualTo(NOW);
+        assertThat(document.get("deletedAt")).isNull();
         assertThat(messages().countDocuments()).isEqualTo(1L);
         Document outbox = outboxEvents().find().first();
         assertThat(outbox).isNotNull();

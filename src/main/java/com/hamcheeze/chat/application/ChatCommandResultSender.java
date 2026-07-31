@@ -57,6 +57,17 @@ public final class ChatCommandResultSender {
             BestEffortMetricRecorder.increment(
                     "chat.command.failed",
                     failedCounter);
+        } else if (result
+                instanceof ChatMessageMutationCommandResult mutation) {
+            if ("REJECTED".equals(mutation.status())) {
+                BestEffortMetricRecorder.increment(
+                        "chat.command.rejected",
+                        rejectedCounter);
+            } else if ("FAILED".equals(mutation.status())) {
+                BestEffortMetricRecorder.increment(
+                        "chat.command.failed",
+                        failedCounter);
+            }
         }
     }
 }

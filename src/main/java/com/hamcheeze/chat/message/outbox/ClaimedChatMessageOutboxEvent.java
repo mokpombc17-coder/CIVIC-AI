@@ -2,6 +2,7 @@ package com.hamcheeze.chat.message.outbox;
 
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
 import com.hamcheeze.chat.delivery.ChatMessagePayload;
+import com.hamcheeze.chat.message.MessageState;
 
 import java.time.Instant;
 
@@ -26,8 +27,34 @@ public record ClaimedChatMessageOutboxEvent(
             String senderUserId,
             String clientMessageId,
             String content,
-            Instant createdAt
+            MessageState state,
+            Long messageVersion,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant deletedAt
     ) {
+        public Payload(
+                String messageId,
+                String roomId,
+                Long roomSequence,
+                String senderUserId,
+                String clientMessageId,
+                String content,
+                Instant createdAt
+        ) {
+            this(
+                    messageId,
+                    roomId,
+                    roomSequence,
+                    senderUserId,
+                    clientMessageId,
+                    content,
+                    null,
+                    null,
+                    createdAt,
+                    null,
+                    null);
+        }
     }
 
     public ChatMessageEventEnvelope decodeEnvelope() {
@@ -39,7 +66,8 @@ public record ClaimedChatMessageOutboxEvent(
                 aggregateType)
                 || eventVersion
                 != ChatMessageOutboxEvent.CURRENT_EVENT_VERSION
-                || !ChatMessageOutboxEvent.MESSAGE_CREATED.equals(eventType)
+                || !ChatMessageOutboxEvent.SUPPORTED_EVENT_TYPES
+                .contains(eventType)
                 || isBlank(aggregateId)
                 || isBlank(roomId)
                 || roomSequence == null
@@ -52,17 +80,27 @@ public record ClaimedChatMessageOutboxEvent(
                 || payload.roomSequence() < 1
                 || isBlank(payload.senderUserId())
                 || isBlank(payload.clientMessageId())
-                || isBlank(payload.content())
                 || payload.createdAt() == null
-                || !eventId.equals(
-                ChatMessageOutboxEvent.messageCreatedEventId(
-                        aggregateId))
                 || !aggregateId.equals(payload.messageId())
                 || !roomId.equals(payload.roomId())
-                || !roomSequence.equals(payload.roomSequence())
-                || !occurredAt.equals(payload.createdAt())) {
+                || !roomSequence.equals(payload.roomSequence())) {
             throw new IllegalArgumentException(
                     "Malformed chat message outbox event");
+        }
+        MessageState state = payload.state();
+        Long messageVersion = payload.messageVersion();
+        Instant updatedAt = payload.updatedAt();
+        Instant deletedAt = payload.deletedAt();
+        boolean legacyCreated = ChatMessageOutboxEvent.MESSAGE_CREATED
+                .equals(eventType)
+                && state == null
+                && messageVersion == null
+                && updatedAt == null
+                && deletedAt == null;
+        if (legacyCreated) {
+            state = MessageState.ACTIVE;
+            messageVersion = 1L;
+            updatedAt = payload.createdAt();
         }
         ChatMessagePayload decodedPayload = new ChatMessagePayload(
                 payload.messageId(),
@@ -71,11 +109,22 @@ public record ClaimedChatMessageOutboxEvent(
                 payload.senderUserId(),
                 payload.clientMessageId(),
                 payload.content(),
-                payload.createdAt());
-        return new ChatMessageEventEnvelope(
+                state,
+                messageVersion == null ? 0 : messageVersion,
+                payload.createdAt(),
+                updatedAt,
+                deletedAt);
+        return new ChatMessageOutboxEvent(
+                eventId,
+                schemaVersion,
+                aggregateType,
+                aggregateId,
                 eventVersion,
                 eventType,
-                decodedPayload);
+                roomId,
+                roomSequence,
+                decodedPayload,
+                occurredAt).toEnvelope();
     }
 
     private static boolean isBlank(String value) {

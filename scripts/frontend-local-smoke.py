@@ -325,7 +325,7 @@ def run_websocket_flow(
     cookie: str,
     room_id: str,
     subject: str,
-) -> tuple[str, int]:
+) -> tuple[str, str, int, str, int]:
     client = WebSocketClient(ws_url, origin, cookie)
     client.connect()
     try:
@@ -469,7 +469,168 @@ def run_websocket_flow(
         payload = message_event["payload"]
         if payload.get("senderUserId") != subject:
             raise AssertionError("메시지 이벤트 senderUserId가 JWT subject와 다릅니다.")
-        return client_message_id, int(payload["roomSequence"])
+        message_id = payload["messageId"]
+        room_sequence = int(payload["roomSequence"])
+        if payload.get("state") != "ACTIVE" or payload.get("messageVersion") != 1:
+            raise AssertionError(f"신규 메시지 state/version이 올바르지 않습니다: {payload}")
+
+        edit_mutation_id = str(uuid.uuid4())
+        edit_body = json.dumps(
+            {
+                "clientMutationId": edit_mutation_id,
+                "messageId": message_id,
+                "content": "frontend-local-smoke-edited",
+            }
+        )
+        client.send_text(
+            stomp_frame(
+                "SEND",
+                {
+                    "destination": f"/app/rooms/{room_id}/messages/edit",
+                    "content-type": "application/json",
+                    "content-length": str(len(edit_body.encode("utf-8"))),
+                },
+                edit_body,
+            )
+        )
+        edit_result = None
+        update_event = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and (
+            edit_result is None or update_event is None
+        ):
+            _, _, body = receive_stomp(
+                client,
+                expected_commands=("MESSAGE",),
+                deadline=deadline,
+            )
+            document = json.loads(body)
+            if document.get("clientMutationId") == edit_mutation_id:
+                edit_result = document
+            elif (
+                document.get("eventType") == "CHAT_MESSAGE_UPDATED"
+                and document.get("payload", {}).get("messageId")
+                == message_id
+            ):
+                update_event = document
+        if edit_result is None or edit_result.get("status") != "UPDATED":
+            raise AssertionError(f"수정 command 결과가 올바르지 않습니다: {edit_result}")
+        if update_event is None:
+            raise AssertionError("CHAT_MESSAGE_UPDATED 이벤트를 받지 못했습니다.")
+        updated = update_event["payload"]
+        if (
+            updated.get("messageVersion") != 2
+            or updated.get("roomSequence") != room_sequence
+            or updated.get("content") != "frontend-local-smoke-edited"
+        ):
+            raise AssertionError(f"수정 event snapshot이 올바르지 않습니다: {updated}")
+
+        delete_mutation_id = str(uuid.uuid4())
+        delete_body = json.dumps(
+            {
+                "clientMutationId": delete_mutation_id,
+                "messageId": message_id,
+            }
+        )
+        client.send_text(
+            stomp_frame(
+                "SEND",
+                {
+                    "destination": f"/app/rooms/{room_id}/messages/delete",
+                    "content-type": "application/json",
+                    "content-length": str(len(delete_body.encode("utf-8"))),
+                },
+                delete_body,
+            )
+        )
+        delete_result = None
+        delete_event = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and (
+            delete_result is None or delete_event is None
+        ):
+            _, _, body = receive_stomp(
+                client,
+                expected_commands=("MESSAGE",),
+                deadline=deadline,
+            )
+            document = json.loads(body)
+            if document.get("clientMutationId") == delete_mutation_id:
+                delete_result = document
+            elif (
+                document.get("eventType") == "CHAT_MESSAGE_DELETED"
+                and document.get("payload", {}).get("messageId")
+                == message_id
+            ):
+                delete_event = document
+        if delete_result is None or delete_result.get("status") != "DELETED":
+            raise AssertionError(f"삭제 command 결과가 올바르지 않습니다: {delete_result}")
+        if delete_event is None:
+            raise AssertionError("CHAT_MESSAGE_DELETED 이벤트를 받지 못했습니다.")
+        deleted = delete_event["payload"]
+        if (
+            deleted.get("messageVersion") != 3
+            or deleted.get("roomSequence") != room_sequence
+            or deleted.get("state") != "DELETED_BY_AUTHOR"
+            or deleted.get("content") is not None
+        ):
+            raise AssertionError(f"삭제 tombstone event가 올바르지 않습니다: {deleted}")
+
+        next_client_message_id = str(uuid.uuid4())
+        next_body = json.dumps(
+            {
+                "clientMessageId": next_client_message_id,
+                "content": "frontend-local-smoke-next",
+            }
+        )
+        client.send_text(
+            stomp_frame(
+                "SEND",
+                {
+                    "destination": f"/app/rooms/{room_id}/messages",
+                    "content-type": "application/json",
+                    "content-length": str(len(next_body.encode("utf-8"))),
+                },
+                next_body,
+            )
+        )
+        next_result = None
+        next_event = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and (
+            next_result is None or next_event is None
+        ):
+            _, _, body = receive_stomp(
+                client,
+                expected_commands=("MESSAGE",),
+                deadline=deadline,
+            )
+            document = json.loads(body)
+            if document.get("clientMessageId") == next_client_message_id:
+                next_result = document
+            elif (
+                document.get("eventType") == "CHAT_MESSAGE_CREATED"
+                and document.get("payload", {}).get("clientMessageId")
+                == next_client_message_id
+            ):
+                next_event = document
+        if next_result is None or next_result.get("status") != "ACCEPTED":
+            raise AssertionError(f"후속 메시지 command 결과가 올바르지 않습니다: {next_result}")
+        if next_event is None:
+            raise AssertionError("후속 CHAT_MESSAGE_CREATED 이벤트를 받지 못했습니다.")
+        next_sequence = int(next_event["payload"]["roomSequence"])
+        if next_sequence != room_sequence + 1:
+            raise AssertionError(
+                "수정·삭제가 roomSequence를 소비했습니다: "
+                f"original={room_sequence}, next={next_sequence}"
+            )
+        return (
+            client_message_id,
+            message_id,
+            room_sequence,
+            next_client_message_id,
+            next_sequence,
+        )
     finally:
         client.close()
 
@@ -499,7 +660,7 @@ def main() -> int:
     token = generate_token(args.subject)
     client = HttpClient(args.base_url, args.origin, token)
 
-    print("[1/8] 서버 health 확인")
+    print("[1/10] 서버 health 확인")
     _, _, health = client.request(
         "GET",
         "/actuator/health",
@@ -508,14 +669,14 @@ def main() -> int:
     if not isinstance(health, dict) or health.get("status") != "UP":
         raise AssertionError(f"서버 health가 UP이 아닙니다: {health}")
 
-    print("[2/8] credential CORS preflight 확인")
+    print("[2/10] credential CORS preflight 확인")
     assert_cors(client)
 
-    print("[3/8] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
+    print("[3/10] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
     client.request("GET", "/api/v1/me/rooms")
     client.request("GET", "/api/v1/rooms")
 
-    print("[4/8] LISTED/OPEN 방 생성")
+    print("[4/10] LISTED/OPEN 방 생성")
     room_name = f"frontend-smoke-{uuid.uuid4().hex[:8]}"
     _, _, create_result = client.request(
         "POST",
@@ -532,7 +693,7 @@ def main() -> int:
         raise AssertionError("방 생성 응답이 JSON 객체가 아닙니다.")
     room_id = create_result["roomId"]
 
-    print("[5/8] 방 상세·공개 방 목록 반영 확인")
+    print("[5/10] 방 상세·공개 방 목록 반영 확인")
     _, _, room_detail = client.request("GET", f"/api/v1/rooms/{room_id}")
     if not isinstance(room_detail, dict) or room_detail.get("name") != room_name:
         raise AssertionError("방 상세 응답의 name이 생성 요청과 다릅니다.")
@@ -543,10 +704,16 @@ def main() -> int:
         raise AssertionError("생성한 LISTED 방이 공개 방 목록에 없습니다.")
 
     print(
-        "[6/8] 쿠키 WebSocket handshake, 무헤더 STOMP CONNECT, "
+        "[6/10] 쿠키 WebSocket handshake, 무헤더 STOMP CONNECT, "
         "구독 준비 barrier 확인"
     )
-    client_message_id, room_sequence = run_websocket_flow(
+    (
+        client_message_id,
+        message_id,
+        room_sequence,
+        next_client_message_id,
+        next_sequence,
+    ) = run_websocket_flow(
         ws_url,
         args.origin,
         client.cookie,
@@ -554,11 +721,11 @@ def main() -> int:
         args.subject,
     )
 
-    print("[7/8] CHAT_MESSAGE_CREATED 발신자·sequence 확인")
+    print("[7/10] CREATE/UPDATE/DELETE event와 result 확인")
     if room_sequence < 1:
         raise AssertionError("roomSequence는 1 이상이어야 합니다.")
 
-    print("[8/8] REST 메시지 이력 재동기화 확인")
+    print("[8/10] REST 메시지 tombstone 재동기화 확인")
     _, _, history = client.request(
         "GET",
         f"/api/v1/rooms/{room_id}/messages?afterSequence=0&limit=100",
@@ -570,12 +737,34 @@ def main() -> int:
     ]
     if len(matching_messages) != 1:
         raise AssertionError("WebSocket으로 보낸 메시지를 REST 이력에서 찾지 못했습니다.")
-    if matching_messages[0].get("senderUserId") != args.subject:
+    tombstone = matching_messages[0]
+    if tombstone.get("senderUserId") != args.subject:
         raise AssertionError("메시지 이력 senderUserId가 JWT subject와 다릅니다.")
+    if (
+        tombstone.get("messageId") != message_id
+        or tombstone.get("roomSequence") != room_sequence
+        or tombstone.get("messageVersion") != 3
+        or tombstone.get("state") != "DELETED_BY_AUTHOR"
+        or tombstone.get("content") is not None
+    ):
+        raise AssertionError(f"REST tombstone이 올바르지 않습니다: {tombstone}")
+
+    print("[9/10] 수정·삭제 roomSequence 불변 확인")
+    if next_sequence != room_sequence + 1:
+        raise AssertionError("후속 메시지 sequence가 정확히 1 증가하지 않았습니다.")
+
+    print("[10/10] 후속 CREATE REST snapshot 확인")
+    next_messages = [
+        item
+        for item in history.get("items", [])
+        if item.get("clientMessageId") == next_client_message_id
+    ]
+    if len(next_messages) != 1 or next_messages[0].get("roomSequence") != next_sequence:
+        raise AssertionError("후속 메시지를 REST 이력에서 찾지 못했습니다.")
 
     print(
         "PASS: 쿠키 인증 → CORS → 방 목록/생성/상세 → "
-        "WebSocket/STOMP 구독 준비 → 메시지 이력 흐름이 정상입니다."
+        "WebSocket/STOMP 구독 준비 → 생성/수정/삭제 → REST tombstone 흐름이 정상입니다."
     )
     return 0
 
