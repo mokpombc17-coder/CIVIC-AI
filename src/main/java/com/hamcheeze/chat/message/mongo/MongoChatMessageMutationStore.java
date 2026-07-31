@@ -124,6 +124,8 @@ public final class MongoChatMessageMutationStore
             String editedContent
     ) {
         Instant processedAt = clock.instant();
+        boolean unresolvedUnknownCommitSeen = false;
+        Throwable unknownCommitCause = null;
         try {
             for (int attempt = 1;
                     attempt <= MAX_TRANSACTION_ATTEMPTS;
@@ -144,43 +146,203 @@ public final class MongoChatMessageMutationStore
                             result, "transaction returned null"));
                 } catch (RuntimeException exception) {
                     if (exceptionClassifier.isDuplicateKey(exception)) {
-                        ChatMessageMutationResult resolved =
-                                resolveReceipt(
+                        preserveUnknownFollowUp(
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause,
+                                exception);
+                        ChatMessageMutationResult resolved;
+                        try {
+                            resolved = resolveReceipt(
                                         commandType,
                                         actorUserId,
                                         clientMutationId,
                                         messageId,
                                         fingerprint);
+                        } catch (RuntimeException resolutionFailure) {
+                            Optional<ChatMessageStoreFailureKind>
+                                    resolutionKind =
+                                    exceptionClassifier.classify(
+                                            resolutionFailure);
+                            if (resolutionKind.isEmpty()) {
+                                if (!unresolvedUnknownCommitSeen) {
+                                    throw resolutionFailure;
+                                }
+                                throw classifiedFailure(
+                                        ChatMessageStoreFailureKind
+                                                .OUTCOME_UNKNOWN,
+                                        true,
+                                        unknownCommitCause,
+                                        "MongoDB duplicate receipt lookup "
+                                                + "failed",
+                                        resolutionFailure);
+                            }
+                            if (resolutionKind.get()
+                                    == ChatMessageStoreFailureKind
+                                    .OUTCOME_UNKNOWN
+                                    && !unresolvedUnknownCommitSeen) {
+                                unresolvedUnknownCommitSeen = true;
+                                unknownCommitCause = resolutionFailure;
+                                preserveUnknownFollowUp(
+                                        true,
+                                        unknownCommitCause,
+                                        exception);
+                            }
+                            if (resolutionKind.get()
+                                    != ChatMessageStoreFailureKind.PERMANENT
+                                    && attempt
+                                    < MAX_TRANSACTION_ATTEMPTS) {
+                                preserveUnknownFollowUp(
+                                        unresolvedUnknownCommitSeen,
+                                        unknownCommitCause,
+                                        resolutionFailure);
+                                backoffBeforeRetry(
+                                        attempt,
+                                        unresolvedUnknownCommitSeen,
+                                        unknownCommitCause);
+                                continue;
+                            }
+                            throw classifiedFailure(
+                                    resolutionKind.get(),
+                                    unresolvedUnknownCommitSeen,
+                                    unknownCommitCause,
+                                    "MongoDB duplicate receipt lookup "
+                                            + "failed",
+                                    resolutionFailure);
+                        }
                         if (resolved != null) {
                             return record(resolved);
                         }
+                        if (attempt < MAX_TRANSACTION_ATTEMPTS) {
+                            backoffBeforeRetry(
+                                    attempt,
+                                    unresolvedUnknownCommitSeen,
+                                    unknownCommitCause);
+                            continue;
+                        }
+                        throw classifiedFailure(
+                                ChatMessageStoreFailureKind.TRANSIENT,
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause,
+                                "MongoDB duplicate receipt race retry "
+                                        + "limit exceeded",
+                                exception);
                     }
                     Optional<ChatMessageStoreFailureKind> classified =
                             exceptionClassifier.classify(exception);
-                    if (classified.orElse(null)
+                    if (classified.isEmpty()) {
+                        throw classifiedFailure(
+                                ChatMessageStoreFailureKind.PERMANENT,
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause,
+                                "MongoDB message mutation failed",
+                                exception);
+                    }
+
+                    ChatMessageStoreFailureKind kind =
+                            classified.get();
+                    if (kind
                             == ChatMessageStoreFailureKind.OUTCOME_UNKNOWN) {
-                        ChatMessageMutationResult resolved =
-                                resolveReceipt(
+                        if (!unresolvedUnknownCommitSeen) {
+                            unresolvedUnknownCommitSeen = true;
+                            unknownCommitCause = exception;
+                        } else {
+                            preserveUnknownFollowUp(
+                                    true,
+                                    unknownCommitCause,
+                                    exception);
+                        }
+                        ChatMessageMutationResult resolved;
+                        try {
+                            resolved = resolveReceipt(
                                         commandType,
                                         actorUserId,
                                         clientMutationId,
                                         messageId,
                                         fingerprint);
+                        } catch (RuntimeException resolutionFailure) {
+                            Optional<ChatMessageStoreFailureKind>
+                                    resolutionKind =
+                                    exceptionClassifier.classify(
+                                            resolutionFailure);
+                            if (resolutionKind.isEmpty()
+                                    || resolutionKind.get()
+                                    == ChatMessageStoreFailureKind
+                                    .PERMANENT) {
+                                throw classifiedFailure(
+                                        ChatMessageStoreFailureKind
+                                                .OUTCOME_UNKNOWN,
+                                        true,
+                                        unknownCommitCause,
+                                        "MongoDB unknown commit receipt "
+                                                + "lookup failed",
+                                        resolutionFailure);
+                            }
+                            if (attempt < MAX_TRANSACTION_ATTEMPTS) {
+                                preserveUnknownFollowUp(
+                                        true,
+                                        unknownCommitCause,
+                                        resolutionFailure);
+                                backoffBeforeRetry(
+                                        attempt,
+                                        true,
+                                        unknownCommitCause);
+                                continue;
+                            }
+                            throw classifiedFailure(
+                                    ChatMessageStoreFailureKind
+                                            .OUTCOME_UNKNOWN,
+                                    true,
+                                    unknownCommitCause,
+                                    "MongoDB unknown commit receipt lookup "
+                                            + "retry limit exceeded",
+                                    resolutionFailure);
+                        }
                         if (resolved != null) {
                             return record(resolved);
                         }
+                        if (attempt < MAX_TRANSACTION_ATTEMPTS) {
+                            backoffBeforeRetry(
+                                    attempt,
+                                    true,
+                                    unknownCommitCause);
+                            continue;
+                        }
+                        throw classifiedFailure(
+                                ChatMessageStoreFailureKind
+                                        .OUTCOME_UNKNOWN,
+                                true,
+                                unknownCommitCause,
+                                "MongoDB message mutation outcome could "
+                                        + "not be determined",
+                                exception);
                     }
-                    if (classified.isPresent()
-                            && classified.get()
-                            != ChatMessageStoreFailureKind.PERMANENT
-                            && attempt < MAX_TRANSACTION_ATTEMPTS) {
-                        backoff(attempt);
-                        continue;
+
+                    if (kind == ChatMessageStoreFailureKind.TRANSIENT) {
+                        if (attempt < MAX_TRANSACTION_ATTEMPTS) {
+                            preserveUnknownFollowUp(
+                                    unresolvedUnknownCommitSeen,
+                                    unknownCommitCause,
+                                    exception);
+                            backoffBeforeRetry(
+                                    attempt,
+                                    unresolvedUnknownCommitSeen,
+                                    unknownCommitCause);
+                            continue;
+                        }
+                        throw classifiedFailure(
+                                ChatMessageStoreFailureKind.TRANSIENT,
+                                unresolvedUnknownCommitSeen,
+                                unknownCommitCause,
+                                "MongoDB message mutation retry limit "
+                                        + "exceeded",
+                                exception);
                     }
-                    throw new ChatMessageStoreException(
-                            classified.orElse(
-                                    ChatMessageStoreFailureKind.PERMANENT),
-                            "MongoDB message mutation failed",
+
+                    throw classifiedFailure(
+                            ChatMessageStoreFailureKind.PERMANENT,
+                            unresolvedUnknownCommitSeen,
+                            unknownCommitCause,
+                            "Permanent MongoDB message mutation failure",
                             exception);
                 }
             }
@@ -524,13 +686,58 @@ public final class MongoChatMessageMutationStore
         digest.update(bytes);
     }
 
-    private static void backoff(int attempt) {
+    private static ChatMessageStoreException classifiedFailure(
+            ChatMessageStoreFailureKind classifiedKind,
+            boolean unresolvedUnknownCommitSeen,
+            Throwable unknownCommitCause,
+            String message,
+            Throwable currentCause
+    ) {
+        if (!unresolvedUnknownCommitSeen) {
+            return new ChatMessageStoreException(
+                    classifiedKind,
+                    message,
+                    currentCause);
+        }
+
+        ChatMessageStoreException outcomeUnknown =
+                new ChatMessageStoreException(
+                        ChatMessageStoreFailureKind.OUTCOME_UNKNOWN,
+                        message,
+                        unknownCommitCause);
+        if (currentCause != null
+                && currentCause != unknownCommitCause) {
+            outcomeUnknown.addSuppressed(currentCause);
+        }
+        return outcomeUnknown;
+    }
+
+    private static void preserveUnknownFollowUp(
+            boolean unresolvedUnknownCommitSeen,
+            Throwable unknownCommitCause,
+            Throwable followUpCause
+    ) {
+        if (unresolvedUnknownCommitSeen
+                && unknownCommitCause != null
+                && followUpCause != null
+                && followUpCause != unknownCommitCause) {
+            unknownCommitCause.addSuppressed(followUpCause);
+        }
+    }
+
+    private static void backoffBeforeRetry(
+            int attempt,
+            boolean unresolvedUnknownCommitSeen,
+            Throwable unknownCommitCause
+    ) {
         try {
             Thread.sleep(10L * attempt);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new ChatMessageStoreException(
+            throw classifiedFailure(
                     ChatMessageStoreFailureKind.TRANSIENT,
+                    unresolvedUnknownCommitSeen,
+                    unknownCommitCause,
                     "Interrupted while retrying message mutation",
                     exception);
         }

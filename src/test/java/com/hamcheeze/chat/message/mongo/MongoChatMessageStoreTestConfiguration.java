@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.mongodb.MongoDBContainer;
 
@@ -45,6 +46,10 @@ final class MongoChatMessageStoreTestConfiguration
 
     MongoOperations mongoOperations() {
         return mongoTemplate;
+    }
+
+    TransactionOperations transactionOperations() {
+        return transactionTemplate;
     }
 
     MongoChatMessageSchemaInitializer schemaInitializer() {

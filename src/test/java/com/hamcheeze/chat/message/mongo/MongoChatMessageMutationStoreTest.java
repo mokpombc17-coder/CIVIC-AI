@@ -15,17 +15,22 @@ import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxStore;
+import com.mongodb.MongoException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.bson.Document;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -367,6 +372,70 @@ class MongoChatMessageMutationStoreTest {
         assertThat(message().messageVersion()).isEqualTo(1);
         assertThat(receiptCount()).isEqualTo(1);
         assertThat(outboxCount()).isZero();
+    }
+
+    @Test
+    void committedMutationWithUnknownResponseRecoversReceiptOnce() {
+        ChatMessage created = create("message-client-1");
+        clearOutbox();
+        AtomicBoolean firstExecution = new AtomicBoolean(true);
+        TransactionOperations delegate =
+                CONFIGURATION.transactionOperations();
+        TransactionOperations unknownAfterCommit =
+                new TransactionOperations() {
+                    @Override
+                    public <T> T execute(
+                            TransactionCallback<T> action
+                    ) {
+                        T result = delegate.execute(action);
+                        if (firstExecution.compareAndSet(true, false)) {
+                            MongoException unknown =
+                                    new MongoException(
+                                            "commit response lost");
+                            unknown.addLabel(
+                                    MongoException
+                                            .UNKNOWN_TRANSACTION_COMMIT_RESULT_LABEL);
+                            throw unknown;
+                        }
+                        return result;
+                    }
+
+                    @Override
+                    public void executeWithoutResult(
+                            java.util.function.Consumer
+                                    <TransactionStatus> action
+                    ) {
+                        delegate.executeWithoutResult(action);
+                    }
+                };
+        ChatMessageMutationStore recoveringStore =
+                new MongoChatMessageMutationStore(
+                        CONFIGURATION.mongoOperations(),
+                        unknownAfterCommit,
+                        Clock.fixed(MUTATED_AT, ZoneOffset.UTC),
+                        new MongoChatMessageExceptionClassifier(),
+                        new MongoChatMessageOutboxStore(
+                                CONFIGURATION.mongoOperations()),
+                        new SimpleMeterRegistry());
+
+        ChatMessageMutationResult result = recoveringStore.edit(
+                new EditChatMessageMutation(
+                        "user-1",
+                        UUID.randomUUID().toString(),
+                        "room-1",
+                        created.messageId(),
+                        "edited once"));
+
+        assertThat(result.outcome())
+                .isEqualTo(MessageMutationOutcome.UPDATED);
+        assertThat(result.replayed()).isTrue();
+        assertThat(result.messageVersion()).isEqualTo(2);
+        assertThat(message().content()).isEqualTo("edited once");
+        assertThat(message().messageVersion()).isEqualTo(2);
+        assertThat(receiptCount()).isEqualTo(1);
+        assertThat(outboxCount()).isEqualTo(1);
+        assertThat(outboxId())
+                .isEqualTo("chat-message-updated:message-1:v2");
     }
 
     private ChatMessage create(String clientMessageId) {
