@@ -1,6 +1,8 @@
 "use client";
 
+import { ChatMessageComposer } from "@/components/chat-message-composer";
 import type { ChatRealtimeRoomState } from "@/components/chat-realtime-provider";
+import { ChatRoomSessionBanner } from "@/components/chat-room-session-banner";
 import { useChatMessageComposer } from "@/components/use-chat-message-composer";
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
@@ -21,79 +23,31 @@ export function ChatRoomSessionControls({
     enabled: canDraft,
     roomId,
   });
-  const isUnavailable = !canDraft;
+  const placeholder = canDraft
+    ? "메시지를 입력해 주세요."
+    : view.canDraft
+      ? "메시지 동기화가 끝나면 입력할 수 있습니다."
+      : "이 탭을 활성화하면 메시지를 입력할 수 있습니다.";
 
   return (
     <>
-      <div
-        aria-live="polite"
-        className={`border-t px-5 py-4 ${
-          view.kind === "active"
-            ? "border-emerald-200 bg-emerald-50 text-emerald-950"
-            : view.kind === "replaced"
-              ? "border-amber-200 bg-amber-50 text-amber-950"
-              : view.kind === "error"
-                ? "border-red-200 bg-red-50 text-red-950"
-                : "border-slate-200 bg-slate-50 text-slate-800"
-        }`}
-        role={view.kind === "error" || view.kind === "replaced" ? "alert" : "status"}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold">{view.title}</p>
-            <p className="mt-1 text-xs opacity-75">{view.description}</p>
-          </div>
-
-          {view.canReactivate ? (
-            <button className="secondary-button" onClick={session.reactivate} type="button">
-              이 탭에서 다시 활성화
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      {composer.validationError ? (
-        <div className="border-t border-red-200 bg-red-50 px-5 py-3 text-red-950" role="alert">
-          <p className="text-sm">{composer.validationError}</p>
-        </div>
-      ) : null}
-
-      <form
-        className="flex gap-3 border-t border-slate-200 bg-white p-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          composer.send();
-        }}
-      >
-        <label className="sr-only" htmlFor={`chat-message-${roomId}`}>
-          메시지
-        </label>
-        <input
-          className={`min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 ${
-            isUnavailable
-              ? "cursor-not-allowed bg-slate-100 text-slate-500"
-              : "bg-white text-slate-950"
-          }`}
-          disabled={isUnavailable}
-          id={`chat-message-${roomId}`}
-          onChange={(event) => composer.setDraft(event.target.value)}
-          placeholder={
-            canDraft
-              ? "메시지를 입력해 주세요."
-              : view.canDraft
-                ? "메시지 동기화가 끝나면 입력할 수 있습니다."
-                : "이 탭을 활성화하면 메시지를 입력할 수 있습니다."
-          }
-          value={composer.draft}
-        />
-        <button
-          className={`primary-button ${composer.canSend ? "" : "cursor-not-allowed opacity-50"}`}
-          disabled={!composer.canSend}
-          type="submit"
-        >
-          전송
-        </button>
-      </form>
+      <ChatRoomSessionBanner
+        canReactivate={view.canReactivate}
+        description={view.description}
+        kind={view.kind}
+        onReactivate={session.reactivate}
+        title={view.title}
+      />
+      <ChatMessageComposer
+        canSend={composer.canSend}
+        disabled={!canDraft}
+        draft={composer.draft}
+        inputId={`chat-message-${roomId}`}
+        onDraftChange={composer.setDraft}
+        onSubmit={composer.send}
+        placeholder={placeholder}
+        validationError={composer.validationError}
+      />
     </>
   );
 }

@@ -62,19 +62,28 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                             │       └── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
-                                    ├── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
-                                    ├── ChatMessageHistory [Client, internal]
-                                    │   ├── ChatMessageItem [internal] [conditional]
-                                    │   └── OutgoingChatMessageItem [internal] [conditional]
-                                    ├── ChatRealtimeSyncStatus [Client] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
-                                    ├── ChatRoomSessionControls [Client] (apps/web/components/chat-room-session-controls.tsx)
-                                    └── ChatRoomMembershipPanel [Client] (apps/web/components/chat-room-membership-panel.tsx)
+                                    └── ChatRoomView [Client] (apps/web/components/chat-room-view.tsx)
+                                        ├── ChatRoomHeader [internal]
+                                        │   └── ChatConnectionStatus [Client] [slot] (apps/web/components/chat-connection-status.tsx)
+                                        ├── ChatMessageHistory [internal]
+                                        │   └── ChatMessageList [Client] (apps/web/components/chat-message-list.tsx)
+                                        │       └── ChatMessageItem [internal] [repeated]
+                                        ├── ChatRealtimeSyncStatus [Client] [slot, conditional] (apps/web/components/chat-realtime-sync-status.tsx)
+                                        ├── ChatRoomSessionControls [Client] [slot] (apps/web/components/chat-room-session-controls.tsx)
+                                        │   ├── ChatRoomSessionBanner [Client] (apps/web/components/chat-room-session-banner.tsx)
+                                        │   └── ChatMessageComposer [Client] (apps/web/components/chat-message-composer.tsx)
+                                        └── ChatRoomMembershipPanel [Client] [slot, conditional] (apps/web/components/chat-room-membership-panel.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
 제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
 REST snapshot과 Worker buffer의 병합이 진행 중이거나 실패한 동안만 상태 UI를 렌더링하고,
 동기화 완료 상태에서는 `null`을 반환한다.
+
+`ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
+`ChatRoomView` 이하 컴포넌트는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode
+slot만 받아 화면을 렌더링한다. `ChatRoomSessionControls`도 session 정책을 해석하는 container로
+남고, 실제 배너와 입력 폼은 각각 `ChatRoomSessionBanner`, `ChatMessageComposer`가 담당한다.
 
 ## Route `/architecture`
 
@@ -138,13 +147,17 @@ flowchart TD
     ChatRoomListScreen["ChatRoomListScreen [Client]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomPage["ChatRoomPage [Server]<br/>apps/web/app/chat/[roomId]/page.tsx"]
     ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
-    ChatMessageHistory["ChatMessageHistory [Client, internal]<br/>apps/web/components/chat-room-screen.tsx"]
-    ChatMessageItem["ChatMessageItem [internal] [conditional]<br/>apps/web/components/chat-room-screen.tsx"]
-    OutgoingChatMessageItem["OutgoingChatMessageItem [internal] [conditional]<br/>apps/web/components/chat-room-screen.tsx"]
+    ChatRoomView["ChatRoomView [Client]<br/>apps/web/components/chat-room-view.tsx"]
+    ChatRoomHeader["ChatRoomHeader [internal]<br/>apps/web/components/chat-room-view.tsx"]
+    ChatMessageHistory["ChatMessageHistory [internal]<br/>apps/web/components/chat-room-view.tsx"]
+    ChatMessageList["ChatMessageList [Client]<br/>apps/web/components/chat-message-list.tsx"]
+    ChatMessageItem["ChatMessageItem [internal] [repeated]<br/>apps/web/components/chat-message-list.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client]<br/>apps/web/components/chat-room-session-controls.tsx"]
+    ChatRoomSessionBanner["ChatRoomSessionBanner [Client]<br/>apps/web/components/chat-room-session-banner.tsx"]
+    ChatMessageComposer["ChatMessageComposer [Client]<br/>apps/web/components/chat-message-composer.tsx"]
 
     ArchitecturePage["ArchitecturePage [Server]<br/>apps/web/app/architecture/page.tsx"]
 
@@ -174,13 +187,17 @@ flowchart TD
     ChatPage --> ChatRoomListScreen
     ChatRoomListScreen --> ChatConnectionStatus
     ChatRoomPage --> ChatRoomScreen
-    ChatRoomScreen --> ChatConnectionStatus
-    ChatRoomScreen --> ChatMessageHistory
-    ChatMessageHistory -->|confirmed| ChatMessageItem
-    ChatMessageHistory -->|optimistic| OutgoingChatMessageItem
-    ChatRoomScreen -->|"sync pending/error only"| ChatRealtimeSyncStatus
-    ChatRoomScreen --> ChatRoomSessionControls
-    ChatRoomScreen --> ChatRoomMembershipPanel
+    ChatRoomScreen --> ChatRoomView
+    ChatRoomView --> ChatRoomHeader
+    ChatRoomHeader -->|"slot"| ChatConnectionStatus
+    ChatRoomView --> ChatMessageHistory
+    ChatMessageHistory --> ChatMessageList
+    ChatMessageList -->|"confirmed / optimistic"| ChatMessageItem
+    ChatRoomView -->|"slot; sync pending/error only"| ChatRealtimeSyncStatus
+    ChatRoomView -->|"slot"| ChatRoomSessionControls
+    ChatRoomSessionControls --> ChatRoomSessionBanner
+    ChatRoomSessionControls --> ChatMessageComposer
+    ChatRoomView -->|"slot"| ChatRoomMembershipPanel
 
     ChildrenSlot -. "route /architecture" .-> ArchitecturePage
 
@@ -193,6 +210,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,ArchitecturePage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```
