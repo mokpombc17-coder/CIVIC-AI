@@ -79,7 +79,7 @@ export type StartChatMessageDeliveryInput = Readonly<{
 
 type ChatMessageDeliveryTimerHandle = ReturnType<typeof setTimeout>;
 
-type ChatMessageDeliverySchedulerOptions = Readonly<{
+export type ChatMessageDeliverySchedulerOptions = Readonly<{
   admissionRetryPolicy?: ChatMessageAdmissionRetryPolicy;
   cancelTimer?: (handle: ChatMessageDeliveryTimerHandle) => void;
   isContextCurrent?: (snapshot: ChatMessageDeliverySnapshot) => boolean;
@@ -212,8 +212,8 @@ export class ChatMessageDeliveryScheduler {
 
     const retrySignal = selectChatMessageAdmissionRetrySignal(result);
 
-    if (retrySignal) {
-      this.scheduleRetry(delivery, retrySignal);
+    if (retrySignal && result.status === "REJECTED") {
+      this.scheduleRetry(delivery, retrySignal, result);
       return true;
     }
 
@@ -296,11 +296,13 @@ export class ChatMessageDeliveryScheduler {
   private scheduleRetry(
     delivery: ActiveChatMessageDelivery,
     signal: NonNullable<ReturnType<typeof selectChatMessageAdmissionRetrySignal>>,
+    result: Extract<ChatMessageCommandResult, { status: "REJECTED" }>,
   ): void {
     if (delivery.attempt >= this.limits.maxAttempts) {
       this.finish(delivery, {
         kind: "failed",
         reason: "MAX_ATTEMPTS_REACHED",
+        result,
         snapshot: createSnapshot(delivery),
       });
       return;
@@ -319,6 +321,7 @@ export class ChatMessageDeliveryScheduler {
       this.finish(delivery, {
         kind: "failed",
         reason: "MAX_ELAPSED_TIME_REACHED",
+        result,
         snapshot: createSnapshot(delivery),
       });
       return;

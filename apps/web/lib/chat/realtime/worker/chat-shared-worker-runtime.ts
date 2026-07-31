@@ -1,5 +1,10 @@
 import type { Client, IFrame, IMessage } from "@stomp/stompjs";
 import {
+  ChatMessageDeliveryScheduler,
+  type ChatMessageDeliverySnapshot,
+  type ChatMessageDeliveryTerminalEvent,
+} from "../chat-message-delivery-scheduler";
+import {
   CHAT_CONNECTION_REPLACED_MESSAGE,
   CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
   CHAT_ROOM_CLOSED_MESSAGE,
@@ -100,11 +105,6 @@ type PendingRealtimeDelivery = ChatRealtimeEventDelivery &
     ownerPortId: string;
   }>;
 
-type PendingMessageCommand = Readonly<{
-  ownerPortId: string;
-  roomId: string;
-}>;
-
 const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
   status: "idle",
   error: null,
@@ -116,8 +116,8 @@ export class ChatSharedWorkerRuntime {
   private activeRoomLease: ActiveRoomLease | null = null;
   private deactivation: Promise<void> | null = null;
   private generation = 0;
+  private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private pendingRoomActivation: PendingRoomActivation | null = null;
-  private readonly pendingMessageCommands = new Map<string, PendingMessageCommand>();
   private pendingRoomSync: PendingRoomSync | null = null;
   private pendingRealtimeDelivery: PendingRealtimeDelivery | null = null;
   private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
@@ -137,6 +137,13 @@ export class ChatSharedWorkerRuntime {
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
       onSystemEvent: this.handleSystemEvent,
+    });
+    this.messageDeliveries = new ChatMessageDeliveryScheduler({
+      isContextCurrent: (snapshot) => this.isMessageDeliveryContextCurrent(snapshot),
+      onTerminal: (event) => this.handleMessageDeliveryTerminal(event),
+      publish: ({ request, roomId }) => {
+        this.subscriptions.sendRoomMessage(roomId, request);
+      },
     });
     this.client.onConnect = () => {
       this.handleConnected();
@@ -163,6 +170,7 @@ export class ChatSharedWorkerRuntime {
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
       this.pauseRealtimeDelivery();
+      this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
@@ -291,8 +299,11 @@ export class ChatSharedWorkerRuntime {
 
   private detachPort(connectedPort: ConnectedPort): void {
     const lease = this.activeRoomLease;
+    const portId = connectedPort.portId;
 
-    if (lease && connectedPort.portId === lease.ownerPortId) {
+    this.cancelMessageDeliveriesForPort(portId, "OWNER_PORT_DETACHED");
+
+    if (lease && portId === lease.ownerPortId) {
       this.tryReleaseRoom(lease.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
       this.pauseRealtimeDelivery();
@@ -303,7 +314,6 @@ export class ChatSharedWorkerRuntime {
     }
 
     connectedPort.attached = false;
-    this.clearPendingMessageCommandsForPort(connectedPort.portId);
     connectedPort.port.removeEventListener("message", connectedPort.listener);
     this.ports.delete(connectedPort.port);
     connectedPort.port.close();
@@ -336,6 +346,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    this.messageDeliveries.cancelAll("TRANSPORT_STOPPED");
     this.snapshot = {
       status: "disconnecting",
       error: null,
@@ -401,6 +412,8 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    this.messageDeliveries.cancelAll("TRANSPORT_RECONNECTING");
+
     if (this.client.active) {
       this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
@@ -412,6 +425,7 @@ export class ChatSharedWorkerRuntime {
   }
 
   private stopConnectionReplacedReconnect(): void {
+    this.messageDeliveries.cancelAll("CONNECTION_REPLACED");
     this.pendingRoomActivation = null;
     this.pendingRoomSync = null;
     this.pauseRealtimeDelivery();
@@ -447,7 +461,6 @@ export class ChatSharedWorkerRuntime {
       this.realtimeBuffer.begin(refreshedLease.roomId, refreshedLease.generation);
     }
 
-    this.pendingMessageCommands.clear();
     this.setSnapshot("reconnecting", {
       source: "websocket",
       code: "ROOM_ACCESS_REVOKED",
@@ -460,6 +473,7 @@ export class ChatSharedWorkerRuntime {
     const lease = this.activeRoomLease;
 
     if (lease) {
+      this.cancelMessageDeliveriesForLease(lease, "SUBSCRIPTION_SETUP_FAILED");
       this.tryReleaseRoom(lease.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
       this.generation = lease.generation + 1;
@@ -475,7 +489,6 @@ export class ChatSharedWorkerRuntime {
 
     this.pendingRoomActivation = null;
     this.pendingRoomSync = null;
-    this.pendingMessageCommands.clear();
     this.pauseRealtimeDelivery();
     this.setSnapshot("reconnecting", {
       source: "websocket",
@@ -525,6 +538,10 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    if (previousLease) {
+      this.cancelMessageDeliveriesForLease(previousLease, "ROOM_LEASE_REPLACED");
+    }
+
     this.generation += 1;
     const nextLease: ActiveRoomLease = {
       requestId: command.requestId,
@@ -562,6 +579,7 @@ export class ChatSharedWorkerRuntime {
       lease?.ownerPortId === connectedPort.portId && lease.roomId === command.roomId;
 
     if (ownsLease && lease) {
+      this.cancelMessageDeliveriesForLease(lease, "ROOM_RELEASED");
       this.tryReleaseRoom(command.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
       this.pauseRealtimeDelivery();
@@ -620,15 +638,14 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
-    this.pendingMessageCommands.set(command.request.clientMessageId, {
-      ownerPortId: portId,
-      roomId: command.roomId,
-    });
-
     try {
-      this.subscriptions.sendRoomMessage(command.roomId, command.request);
+      this.messageDeliveries.start({
+        generation: lease.generation,
+        ownerId: portId,
+        request: command.request,
+        roomId: command.roomId,
+      });
     } catch (cause) {
-      this.pendingMessageCommands.delete(command.request.clientMessageId);
       this.sendMessageFailure(
         portId,
         command.roomId,
@@ -1018,6 +1035,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    this.cancelMessageDeliveriesForLease(lease, "ROOM_SUBSCRIPTION_REJECTED");
     this.tryReleaseRoom(lease.roomId);
     this.realtimeBuffer.clear(lease.roomId, lease.generation);
     this.pauseRealtimeDelivery();
@@ -1041,18 +1059,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
-    const pending = this.pendingMessageCommands.get(result.clientMessageId);
-
-    if (!pending) {
-      return;
-    }
-
-    this.pendingMessageCommands.delete(result.clientMessageId);
-    this.sendToPort(pending.ownerPortId, {
-      type: "ROOM_MESSAGE_COMMAND_RESULT",
-      roomId: pending.roomId,
-      result,
-    });
+    this.messageDeliveries.handleCommandResult(result);
   };
 
   private readonly handleRoomMessage = (roomId: string, message: IMessage): void => {
@@ -1149,6 +1156,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    this.cancelMessageDeliveriesForLease(lease, "ROOM_SUBSCRIPTION_STALE");
     const refreshedLease: ActiveRoomLease = {
       ...lease,
       generation: lease.generation + 1,
@@ -1202,16 +1210,70 @@ export class ChatSharedWorkerRuntime {
     });
   }
 
-  private clearPendingMessageCommandsForPort(portId: string | null): void {
+  private cancelMessageDeliveriesForPort(portId: string | null, reason: string): void {
     if (!portId) {
       return;
     }
 
-    for (const [clientMessageId, pending] of this.pendingMessageCommands) {
-      if (pending.ownerPortId === portId) {
-        this.pendingMessageCommands.delete(clientMessageId);
-      }
+    this.messageDeliveries.cancelMatching(({ ownerId }) => ownerId === portId, reason);
+  }
+
+  private cancelMessageDeliveriesForLease(lease: ActiveRoomLease, reason: string): void {
+    this.messageDeliveries.cancelMatching(
+      ({ generation, ownerId, roomId }) =>
+        generation === lease.generation && ownerId === lease.ownerPortId && roomId === lease.roomId,
+      reason,
+    );
+  }
+
+  private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+
+    return (
+      this.snapshot.status === "connected" &&
+      this.subscriptions.connected &&
+      this.subscriptions.activeRoomId === snapshot.roomId &&
+      lease?.ownerPortId === snapshot.ownerId &&
+      lease.roomId === snapshot.roomId &&
+      lease.generation === snapshot.generation &&
+      deliverySession?.ownerPortId === snapshot.ownerId &&
+      deliverySession.roomId === snapshot.roomId &&
+      deliverySession.generation === snapshot.generation
+    );
+  }
+
+  private handleMessageDeliveryTerminal(event: ChatMessageDeliveryTerminalEvent): void {
+    if (event.kind === "cancelled") {
+      return;
     }
+
+    if (event.kind === "sent") {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_COMMAND_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    if (event.result) {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_COMMAND_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    this.sendMessageFailure(
+      event.snapshot.ownerId,
+      event.snapshot.roomId,
+      event.snapshot.request.clientMessageId,
+      "MESSAGE_PUBLISH_FAILED",
+      event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
+      getMessageDeliveryFailureMessage(event),
+    );
   }
 
   private getAttachedPortCount(): number {
@@ -1246,6 +1308,28 @@ export class ChatSharedWorkerRuntime {
       attachedPortCount: this.getAttachedPortCount(),
       snapshot: this.snapshot,
     });
+  }
+}
+
+function getMessageDeliveryFailureMessage(
+  event: Extract<ChatMessageDeliveryTerminalEvent, { kind: "failed" }>,
+): string {
+  switch (event.reason) {
+    case "COMMAND_RESULT_TIMEOUT":
+      return "채팅 서버의 메시지 처리 결과를 시간 안에 받지 못했습니다.";
+    case "CONTEXT_VALIDATION_FAILED":
+      return "현재 채팅방 전송 상태를 확인하지 못해 메시지 전송을 중단했습니다.";
+    case "MAX_ATTEMPTS_REACHED":
+      return "메시지 자동 재전송 횟수를 초과했습니다.";
+    case "MAX_ELAPSED_TIME_REACHED":
+      return "메시지 자동 재전송 제한 시간을 초과했습니다.";
+    case "PUBLISH_FAILED":
+      return event.cause instanceof Error && event.cause.message.trim()
+        ? event.cause.message
+        : "STOMP 메시지 전송에 실패했습니다.";
+    case "COMMAND_FAILED":
+    case "COMMAND_REJECTED":
+      return "채팅 서버가 메시지 전송을 거절했습니다.";
   }
 }
 

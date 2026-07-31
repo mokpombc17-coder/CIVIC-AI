@@ -137,6 +137,10 @@ describe("ChatMessageDeliveryScheduler", () => {
     expect(harness.terminals.at(-1)).toMatchObject({
       kind: "failed",
       reason: "MAX_ATTEMPTS_REACHED",
+      result: {
+        code: "SERVER_BUSY",
+        status: "REJECTED",
+      },
     });
     expect(harness.timerCount()).toBe(0);
   });

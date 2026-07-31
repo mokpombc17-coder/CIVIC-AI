@@ -7,8 +7,8 @@
 - 적용 대상: `apps/web`의 STOMP 채팅 메시지 전송
 - 목적: 서버의 의도적인 사용량 제어를 사용자 오류로 노출하지 않으면서 재전송 트래픽을 분산한다.
 - 현재 구현: Java `String.strip()` 기준 content 정규화 후 검증·전송, admission 결과 분류와
-  retry delay 계산, transport 공용 delivery scheduler
-- 다음 구현: SharedWorker와 Direct transport 통합, 화면 상태와 scheduler lifecycle 연결
+  retry delay 계산, transport 공용 delivery scheduler와 SharedWorker runtime 통합
+- 다음 구현: Direct transport 동작 통일, 화면 상태와 scheduler lifecycle 연결
 
 ## 목표
 
@@ -155,6 +155,23 @@ Scheduler가 외부에 알리는 경계는 두 종류다.
 
 terminal 전환 전에 활성 timer와 delivery map을 먼저 정리한다. callback에서 다시 lifecycle
 명령이 발생하더라도 이미 종료된 메시지가 중복 처리되지 않는다.
+
+### SharedWorker 소유권
+
+SharedWorker를 지원하는 브라우저에서는 `ChatSharedWorkerRuntime`이 scheduler 하나를 소유한다.
+각 탭은 최초 전송 command만 Worker에 전달하고 admission 결과 분류, timer와 실제 STOMP
+재전송은 Worker 안에서 처리한다.
+
+- retryable admission 결과는 탭으로 즉시 전달하지 않는다.
+- 최종 `ACCEPTED`, `DUPLICATE`, terminal 거절 또는 자동 재전송 한도 초과만 원래 owner 탭으로
+  전달한다.
+- 다른 탭의 방 선점, owner port detach, 방 release와 WebSocket 재연결·종료는 관련 delivery를
+  취소한다.
+- `4001`, `4002`, `4003`으로 WebSocket이 종료되면 해당 연결의 모든 retry timer를 취소한다.
+- retry callback은 현재 STOMP 연결, active room subscription, owner와 generation이 모두
+  일치할 때만 publish한다.
+
+SharedWorker를 지원하지 않는 Direct transport도 다음 구현 단계에서 같은 scheduler를 소유한다.
 
 ## 대기시간과 Jitter
 

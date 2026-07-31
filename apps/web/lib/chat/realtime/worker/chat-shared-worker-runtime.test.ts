@@ -1182,6 +1182,175 @@ describe("ChatSharedWorkerRuntime", () => {
     });
     expect(otherPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
   });
+
+  it("USER_RATE_LIMITED는 owner 탭에 노출하지 않고 같은 메시지를 대기 후 재전송한다", () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    try {
+      const client = createFakeStompClient();
+      const runtime = new ChatSharedWorkerRuntime(client);
+      const ownerPort = createFakePort();
+      const request = {
+        clientMessageId: "550e8400-e29b-41d4-a716-446655440001",
+        content: "자동 재전송 메시지",
+      };
+      prepareMessageOwner(runtime, client, ownerPort);
+
+      ownerPort.send({
+        type: "SEND_ROOM_MESSAGE",
+        portId: "port-owner",
+        roomId: "room-01",
+        request,
+      });
+      client.deliver(
+        "/user/queue/command-results",
+        JSON.stringify({
+          clientMessageId: request.clientMessageId,
+          status: "REJECTED",
+          code: "USER_RATE_LIMITED",
+          retryable: true,
+          retryAfterMs: 1_000,
+          messageId: null,
+          roomSequence: null,
+        }),
+      );
+
+      expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+
+      vi.advanceTimersByTime(999);
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+
+      vi.advanceTimersByTime(1);
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(2);
+      expect(client.publish).toHaveBeenLastCalledWith({
+        destination: "/app/rooms/room-01/messages",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+
+      client.deliver(
+        "/user/queue/command-results",
+        JSON.stringify({
+          clientMessageId: request.clientMessageId,
+          status: "DUPLICATE",
+          code: null,
+          retryable: false,
+          retryAfterMs: null,
+          messageId: "message-01",
+          roomSequence: 1,
+        }),
+      );
+
+      expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toHaveLength(1);
+      expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT").at(-1)?.result.status).toBe(
+        "DUPLICATE",
+      );
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("retry 대기 중 다른 탭이 방을 선점하면 기존 owner 메시지를 재전송하지 않는다", () => {
+    vi.useFakeTimers();
+
+    try {
+      const client = createFakeStompClient();
+      const runtime = new ChatSharedWorkerRuntime(client);
+      const ownerPort = createFakePort();
+      const nextOwnerPort = createFakePort();
+      const request = {
+        clientMessageId: "550e8400-e29b-41d4-a716-446655440002",
+        content: "선점 전에 보낸 메시지",
+      };
+      prepareMessageOwner(runtime, client, ownerPort);
+      runtime.connectPort(nextOwnerPort);
+      nextOwnerPort.send({ type: "ATTACH", portId: "port-next-owner" });
+      ownerPort.send({
+        type: "SEND_ROOM_MESSAGE",
+        portId: "port-owner",
+        roomId: "room-01",
+        request,
+      });
+      client.deliver(
+        "/user/queue/command-results",
+        JSON.stringify({
+          clientMessageId: request.clientMessageId,
+          status: "REJECTED",
+          code: "SERVER_BUSY",
+          retryable: true,
+          retryAfterMs: 1_000,
+          messageId: null,
+          roomSequence: null,
+        }),
+      );
+
+      nextOwnerPort.send({
+        type: "CLAIM_ROOM",
+        portId: "port-next-owner",
+        requestId: "claim-2",
+        roomId: "room-02",
+      });
+      vi.advanceTimersByTime(2_000);
+
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+      expect(ownerPort.eventsOfType("ROOM_MESSAGE_COMMAND_RESULT")).toEqual([]);
+      expect(ownerPort.eventsOfType("ROOM_REPLACED").at(-1)).toMatchObject({
+        roomId: "room-01",
+        activatedRoomId: "room-02",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    [4001, "CONNECTION_REPLACED"],
+    [4002, "ROOM_ACCESS_REVOKED"],
+    [4003, "ROOM_CLOSED"],
+  ] as const)("WebSocket %i %s 종료는 대기 중인 메시지 retry timer를 취소한다", (code, reason) => {
+    vi.useFakeTimers();
+
+    try {
+      const client = createFakeStompClient();
+      const runtime = new ChatSharedWorkerRuntime(client);
+      const ownerPort = createFakePort();
+      const request = {
+        clientMessageId: `550e8400-e29b-41d4-a716-44665544${code}`,
+        content: "연결 종료 전에 보낸 메시지",
+      };
+      prepareMessageOwner(runtime, client, ownerPort);
+      ownerPort.send({
+        type: "SEND_ROOM_MESSAGE",
+        portId: "port-owner",
+        roomId: "room-01",
+        request,
+      });
+      client.deliver(
+        "/user/queue/command-results",
+        JSON.stringify({
+          clientMessageId: request.clientMessageId,
+          status: "REJECTED",
+          code: "SERVER_BUSY",
+          retryable: true,
+          retryAfterMs: 1_000,
+          messageId: null,
+          roomSequence: null,
+        }),
+      );
+
+      client.onWebSocketClose({ code, reason } as CloseEvent);
+      vi.advanceTimersByTime(2_000);
+
+      expect(countRoomMessagePublishes(client, "room-01")).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 type FakeStompClient = ChatSharedWorkerStompClient & {
@@ -1260,6 +1429,33 @@ function createFakeStompClient({ autoReady = true } = {}): FakeStompClient {
   };
 
   return client;
+}
+
+function prepareMessageOwner(
+  runtime: ChatSharedWorkerRuntime,
+  client: FakeStompClient,
+  ownerPort: FakePort,
+): void {
+  runtime.connectPort(ownerPort);
+  ownerPort.send({ type: "ATTACH", portId: "port-owner" });
+  client.onConnect({} as IFrame);
+  ownerPort.send({
+    type: "CLAIM_ROOM",
+    portId: "port-owner",
+    requestId: "claim-1",
+    roomId: "room-01",
+  });
+  ownerPort.send({
+    type: "ROOM_SNAPSHOT_APPLIED",
+    portId: "port-owner",
+    roomId: "room-01",
+    generation: 1,
+  });
+}
+
+function countRoomMessagePublishes(client: FakeStompClient, roomId: string): number {
+  const frame = `SEND /app/rooms/${roomId}/messages`;
+  return client.frames.filter((candidate) => candidate === frame).length;
 }
 
 function createMessageEvent(roomSequence: number, roomId = "room-01") {
