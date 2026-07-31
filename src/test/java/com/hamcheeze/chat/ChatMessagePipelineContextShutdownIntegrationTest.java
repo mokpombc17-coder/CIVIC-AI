@@ -9,6 +9,7 @@ import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxDispatcher;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxMetricsSamplingLifecycle;
 import com.hamcheeze.chat.pipeline.AdmittedChatCommand;
 import com.hamcheeze.chat.pipeline.InMemoryChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.PipelineAcceptance;
@@ -78,6 +79,9 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                 context.getBean(InMemoryChatMessagePipeline.class);
         ChatMessageOutboxDispatcher outboxDispatcher =
                 context.getBean(ChatMessageOutboxDispatcher.class);
+        ChatMessageOutboxMetricsSamplingLifecycle metricsSampling =
+                context.getBean(
+                        ChatMessageOutboxMetricsSamplingLifecycle.class);
         SmartLifecycle simpleBroker = context.getBean(
                 "simpleBrokerMessageHandler",
                 SmartLifecycle.class);
@@ -87,6 +91,7 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                     context,
                     pipeline,
                     outboxDispatcher,
+                    metricsSampling,
                     simpleBroker);
             List<Boolean> brokerAvailableDuringResultSend =
                     new CopyOnWriteArrayList<>();
@@ -128,6 +133,7 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                     .containsExactly(true, true);
             verify(resultSender, times(2)).send(any(), any(), any());
             assertThat(simpleBroker.isRunning()).isFalse();
+            assertThat(metricsSampling.isRunning()).isFalse();
         } finally {
             messageStore.releaseFirst.countDown();
             if (context.isActive()) {
@@ -141,6 +147,7 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
             ConfigurableApplicationContext context,
             InMemoryChatMessagePipeline pipeline,
             ChatMessageOutboxDispatcher outboxDispatcher,
+            ChatMessageOutboxMetricsSamplingLifecycle metricsSampling,
             SmartLifecycle simpleBroker
     ) {
         SubProtocolWebSocketHandler webSocketHandler =
@@ -149,6 +156,8 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
                 .isLessThan(outboxDispatcher.getPhase());
         assertThat(outboxDispatcher.getPhase())
                 .isLessThan(pipeline.getPhase());
+        assertThat(metricsSampling.getPhase())
+                .isLessThan(outboxDispatcher.getPhase());
         assertThat(pipeline.getPhase())
                 .isGreaterThan(webSocketHandler.getPhase());
         for (String beanName : List.of(

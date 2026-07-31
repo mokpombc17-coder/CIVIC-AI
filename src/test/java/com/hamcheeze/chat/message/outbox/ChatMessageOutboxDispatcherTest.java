@@ -96,7 +96,14 @@ class ChatMessageOutboxDispatcherTest {
                         "CHAT_MESSAGE_CREATED",
                         "room-1",
                         1L,
-                        null,
+                        new ClaimedChatMessageOutboxEvent.Payload(
+                                "message-1",
+                                "room-1",
+                                1L,
+                                "user-1",
+                                "client-1",
+                                "hello",
+                                NOW),
                         NOW);
         when(fixture.queue.claimNext(any(), any()))
                 .thenReturn(Optional.of(malformed), Optional.empty());
@@ -118,6 +125,9 @@ class ChatMessageOutboxDispatcherTest {
                 return false;
             }
         });
+        assertThat(fixture.dispatcher.state())
+                .isEqualTo(
+                        ChatMessageOutboxDispatcher.State.RUNNING);
         fixture.dispatcher.stop();
 
         verify(fixture.publisher, never()).publish(any());
@@ -268,10 +278,6 @@ class ChatMessageOutboxDispatcherTest {
                 mock(ChatMessageOutboxQueue.class);
         ChatMessagePublisher publisher =
                 mock(ChatMessagePublisher.class);
-        ChatMessageOutboxMonitor monitor =
-                mock(ChatMessageOutboxMonitor.class);
-        when(monitor.sample()).thenReturn(
-                new ChatMessageOutboxBacklogSnapshot(0, null, 0));
         SimpleMeterRegistry meterRegistry =
                 new SimpleMeterRegistry();
         ChatMessageOutboxProperties properties =
@@ -283,16 +289,11 @@ class ChatMessageOutboxDispatcherTest {
         properties.setMetricsSampleIntervalMs(1_000);
         properties.getRetry().setInitialBackoffMs(10);
         properties.getRetry().setMaxBackoffMs(100);
-        ChatMessageOutboxMetricsSampler sampler =
-                new ChatMessageOutboxMetricsSampler(
-                        monitor,
-                        meterRegistry);
         ChatMessageOutboxDispatcher dispatcher =
                 new ChatMessageOutboxDispatcher(
                         queue,
                         publisher,
                         properties,
-                        sampler,
                         Clock.fixed(NOW, ZoneOffset.UTC),
                         meterRegistry);
         return new Fixture(

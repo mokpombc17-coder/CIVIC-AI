@@ -31,7 +31,7 @@ public record ClaimedChatMessageOutboxEvent(
     }
 
     public ChatMessageEventEnvelope decodeEnvelope() {
-        if (eventId == null
+        if (isBlank(eventId)
                 || claimedAttemptCount < 1
                 || schemaVersion
                 != ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION
@@ -40,18 +40,23 @@ public record ClaimedChatMessageOutboxEvent(
                 || eventVersion
                 != ChatMessageOutboxEvent.CURRENT_EVENT_VERSION
                 || !ChatMessageOutboxEvent.MESSAGE_CREATED.equals(eventType)
-                || aggregateId == null
-                || roomId == null
+                || isBlank(aggregateId)
+                || isBlank(roomId)
                 || roomSequence == null
+                || roomSequence < 1
                 || occurredAt == null
                 || payload == null
-                || payload.messageId() == null
-                || payload.roomId() == null
+                || isBlank(payload.messageId())
+                || isBlank(payload.roomId())
                 || payload.roomSequence() == null
-                || payload.senderUserId() == null
-                || payload.clientMessageId() == null
-                || payload.content() == null
+                || payload.roomSequence() < 1
+                || isBlank(payload.senderUserId())
+                || isBlank(payload.clientMessageId())
+                || isBlank(payload.content())
                 || payload.createdAt() == null
+                || !eventId.equals(
+                ChatMessageOutboxEvent.messageCreatedEventId(
+                        aggregateId))
                 || !aggregateId.equals(payload.messageId())
                 || !roomId.equals(payload.roomId())
                 || !roomSequence.equals(payload.roomSequence())
@@ -71,5 +76,9 @@ public record ClaimedChatMessageOutboxEvent(
                 eventVersion,
                 eventType,
                 decodedPayload);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

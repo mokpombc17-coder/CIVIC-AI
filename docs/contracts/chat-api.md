@@ -1125,6 +1125,16 @@ payload:
 REST 메시지 이력 API로 복구한다. Outbox는 오프라인 클라이언트의 이벤트
 수신이나 exactly-once 전달을 보장하지 않는다.
 
+Backlog metric sampling은 메시지 dispatcher와 분리된 전용 worker에서
+fixed-delay로 실행된다. MongoDB metric 조회가 지연되거나 실패해도
+claim, publish, delete, retry와 `chatOutbox` readiness에는 영향을 주지
+않으며, Gauge는 마지막으로 성공한 메모리 snapshot만 읽는다.
+
+현재 binary가 지원하지 않는 outbox schema/event 문서는 claim하지 않고
+보존한다. 지원 metadata를 가졌지만 deterministic event ID, 양수
+`roomSequence`, 필수 식별자 또는 payload invariant가 손상된 문서는
+`PAYLOAD_DECODE_ERROR`로 최대 backoff에 재시도하며 자동 삭제하지 않는다.
+
 ### 메시지 Outbox 배포와 rollback
 
 Outbox v1은 단일 서버 인스턴스와 Spring Simple Broker를 전제로 하며,

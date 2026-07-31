@@ -50,7 +50,6 @@ public final class ChatMessageOutboxDispatcher
     private final ChatMessageOutboxQueue queue;
     private final ChatMessagePublisher publisher;
     private final ChatMessageOutboxProperties properties;
-    private final ChatMessageOutboxMetricsSampler metricsSampler;
     private final Clock clock;
     private final AtomicInteger workerRunning = new AtomicInteger();
     private final AtomicInteger inFlight = new AtomicInteger();
@@ -67,13 +66,11 @@ public final class ChatMessageOutboxDispatcher
 
     private volatile State state = State.NEW;
     private volatile long shutdownDeadlineNanos;
-    private volatile Instant nextMetricsSampleAt = Instant.EPOCH;
 
     public ChatMessageOutboxDispatcher(
             ChatMessageOutboxQueue queue,
             ChatMessagePublisher publisher,
             ChatMessageOutboxProperties properties,
-            ChatMessageOutboxMetricsSampler metricsSampler,
             Clock clock,
             MeterRegistry meterRegistry
     ) {
@@ -82,9 +79,6 @@ public final class ChatMessageOutboxDispatcher
         this.properties = Objects.requireNonNull(
                 properties,
                 "properties");
-        this.metricsSampler = Objects.requireNonNull(
-                metricsSampler,
-                "metricsSampler");
         this.clock = Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.claimedCounter = meterRegistry.counter(
@@ -233,7 +227,6 @@ public final class ChatMessageOutboxDispatcher
                         && currentState != State.STOPPING) {
                     break;
                 }
-                sampleMetricsIfDue();
                 if (currentState == State.STOPPING
                         && System.nanoTime()
                         >= shutdownDeadlineNanos) {
@@ -419,16 +412,6 @@ public final class ChatMessageOutboxDispatcher
                     : value * 2;
         }
         return Duration.ofMillis(Math.min(value, maximum));
-    }
-
-    private void sampleMetricsIfDue() {
-        Instant now = clock.instant();
-        if (now.isBefore(nextMetricsSampleAt)) {
-            return;
-        }
-        metricsSampler.sample(now);
-        nextMetricsSampleAt = now.plusMillis(
-                properties.getMetricsSampleIntervalMs());
     }
 
     private void waitForWork() {

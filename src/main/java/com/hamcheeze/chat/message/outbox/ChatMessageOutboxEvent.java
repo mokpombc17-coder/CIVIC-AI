@@ -46,7 +46,8 @@ public record ChatMessageOutboxEvent(
             throw new IllegalArgumentException(
                     "roomSequence must be at least 1");
         }
-        if (!aggregateId.equals(payload.messageId())
+        if (!eventId.equals(messageCreatedEventId(aggregateId))
+                || !aggregateId.equals(payload.messageId())
                 || !roomId.equals(payload.roomId())
                 || roomSequence != payload.roomSequence()
                 || !occurredAt.equals(payload.createdAt())) {
@@ -61,7 +62,7 @@ public record ChatMessageOutboxEvent(
         Objects.requireNonNull(message, "message");
         ChatMessagePayload payload = ChatMessagePayload.from(message);
         return new ChatMessageOutboxEvent(
-                MESSAGE_CREATED_ID_PREFIX + message.messageId(),
+                messageCreatedEventId(message.messageId()),
                 CURRENT_SCHEMA_VERSION,
                 AGGREGATE_TYPE,
                 message.messageId(),
@@ -71,6 +72,15 @@ public record ChatMessageOutboxEvent(
                 message.roomSequence(),
                 payload,
                 message.createdAt());
+    }
+
+    public static String messageCreatedEventId(String messageId) {
+        Objects.requireNonNull(messageId, "messageId");
+        if (messageId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "messageId must not be blank");
+        }
+        return MESSAGE_CREATED_ID_PREFIX + messageId;
     }
 
     public ChatMessageEventEnvelope toEnvelope() {

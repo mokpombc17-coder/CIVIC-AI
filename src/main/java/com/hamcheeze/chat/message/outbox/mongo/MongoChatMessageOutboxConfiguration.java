@@ -3,6 +3,7 @@ package com.hamcheeze.chat.message.outbox.mongo;
 import com.hamcheeze.chat.delivery.ChatMessagePublisher;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxDispatcher;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxMetricsSampler;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxMetricsSamplingLifecycle;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxProperties;
 import com.hamcheeze.chat.websocket.config.WebSocketTransportProperties;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -47,11 +48,22 @@ public class MongoChatMessageOutboxConfiguration {
     }
 
     @Bean
+    ChatMessageOutboxMetricsSamplingLifecycle
+    chatMessageOutboxMetricsSamplingLifecycle(
+            ChatMessageOutboxMetricsSampler metricsSampler,
+            ChatMessageOutboxProperties properties
+    ) {
+        return new ChatMessageOutboxMetricsSamplingLifecycle(
+                metricsSampler,
+                properties,
+                Clock.systemUTC());
+    }
+
+    @Bean
     ChatMessageOutboxDispatcher chatMessageOutboxDispatcher(
             MongoChatMessageOutboxStore store,
             ChatMessagePublisher publisher,
             ChatMessageOutboxProperties properties,
-            ChatMessageOutboxMetricsSampler metricsSampler,
             LifecycleProperties lifecycleProperties,
             WebSocketTransportProperties transportProperties,
             MeterRegistry meterRegistry
@@ -64,7 +76,6 @@ public class MongoChatMessageOutboxConfiguration {
                 store,
                 publisher,
                 properties,
-                metricsSampler,
                 Clock.systemUTC(),
                 meterRegistry);
     }
