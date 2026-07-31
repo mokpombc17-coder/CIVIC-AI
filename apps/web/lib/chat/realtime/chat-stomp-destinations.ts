@@ -13,6 +13,14 @@ export function getChatRoomMessageSendDestination(roomId: string): string {
   return `/app/rooms/${roomId}/messages`;
 }
 
+export function getChatRoomMessageEditDestination(roomId: string): string {
+  return `/app/rooms/${roomId}/messages/edit`;
+}
+
+export function getChatRoomMessageDeleteDestination(roomId: string): string {
+  return `/app/rooms/${roomId}/messages/delete`;
+}
+
 export function getChatRoomSubscriptionSyncDestination(roomId: string): string {
   return `/app/rooms/${roomId}/subscriptions/sync`;
 }

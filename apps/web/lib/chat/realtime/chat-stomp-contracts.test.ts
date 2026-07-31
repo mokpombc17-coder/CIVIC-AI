@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  chatMessageDeleteRequestSchema,
+  chatMessageEditRequestSchema,
   chatMessageSendRequestSchema,
   chatRoomSubscriptionSyncRequestSchema,
   parseChatMessageCommandResult,
   parseChatMessageCreatedEvent,
+  parseChatMessageMutationCommandResult,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
@@ -38,6 +41,45 @@ describe("chat STOMP outbound contracts", () => {
       chatMessageSendRequestSchema.safeParse({
         clientMessageId: CLIENT_MESSAGE_ID,
         content: "   ",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("메시지 수정 요청의 mutation UUID와 strip된 content를 검증한다", () => {
+    expect(
+      chatMessageEditRequestSchema.parse({
+        clientMutationId: REQUEST_ID,
+        messageId: "message-01",
+        content: " \t수정된 메시지\n ",
+      }),
+    ).toEqual({
+      clientMutationId: REQUEST_ID,
+      messageId: "message-01",
+      content: "수정된 메시지",
+    });
+    expect(
+      chatMessageEditRequestSchema.safeParse({
+        clientMutationId: "not-a-uuid",
+        messageId: "message-01",
+        content: "수정된 메시지",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("메시지 삭제 요청의 mutation UUID와 messageId를 검증한다", () => {
+    expect(
+      chatMessageDeleteRequestSchema.parse({
+        clientMutationId: REQUEST_ID,
+        messageId: "message-01",
+      }),
+    ).toEqual({
+      clientMutationId: REQUEST_ID,
+      messageId: "message-01",
+    });
+    expect(
+      chatMessageDeleteRequestSchema.safeParse({
+        clientMutationId: REQUEST_ID,
+        messageId: "",
       }).success,
     ).toBe(false);
   });
@@ -205,6 +247,106 @@ describe("chat realtime payload contracts", () => {
     ).toBeNull();
   });
 
+  it("수정·삭제 command의 성공과 no-op 결과를 상태별 snapshot으로 검증한다", () => {
+    const results = [
+      createMutationResult("EDIT_MESSAGE", "UPDATED", "ACTIVE", 2),
+      createMutationResult("EDIT_MESSAGE", "UNCHANGED", "ACTIVE", 2),
+      createMutationResult("DELETE_MESSAGE", "DELETED", "DELETED_BY_AUTHOR", 3),
+      createMutationResult("DELETE_MESSAGE", "ALREADY_DELETED", "DELETED_BY_AUTHOR", 3),
+    ] as const;
+
+    for (const result of results) {
+      expect(parseChatMessageMutationCommandResult(JSON.stringify(result))).toEqual(result);
+    }
+
+    expect(parseChatMessageCommandResult(JSON.stringify(results[0]))).toBeNull();
+    expect(
+      parseChatMessageMutationCommandResult(
+        JSON.stringify({
+          ...results[0],
+          commandType: "DELETE_MESSAGE",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("MESSAGE_DELETED 거절은 현재 tombstone snapshot을 필수로 검증한다", () => {
+    const rejected = {
+      clientMessageId: null,
+      clientMutationId: REQUEST_ID,
+      commandType: "EDIT_MESSAGE",
+      status: "REJECTED",
+      code: "MESSAGE_DELETED",
+      retryable: false,
+      retryAfterMs: null,
+      messageId: "message-01",
+      roomSequence: 1,
+      messageVersion: 3,
+      messageState: "DELETED_BY_AUTHOR",
+      replayed: false,
+    };
+
+    expect(parseChatMessageMutationCommandResult(JSON.stringify(rejected))).toEqual(rejected);
+    expect(
+      parseChatMessageMutationCommandResult(
+        JSON.stringify({
+          ...rejected,
+          messageVersion: null,
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("수정·삭제 command의 일반 거절과 실패는 snapshot nullable 계약을 따른다", () => {
+    const rateLimited = {
+      clientMessageId: null,
+      clientMutationId: REQUEST_ID,
+      commandType: "EDIT_MESSAGE",
+      status: "REJECTED",
+      code: "USER_RATE_LIMITED",
+      retryable: true,
+      retryAfterMs: 1_000,
+      messageId: "message-01",
+      roomSequence: null,
+      messageVersion: null,
+      messageState: null,
+      replayed: false,
+    };
+    const failed = {
+      clientMessageId: null,
+      clientMutationId: REQUEST_ID,
+      commandType: "DELETE_MESSAGE",
+      status: "FAILED",
+      code: "PERSISTENCE_FAILED",
+      retryable: true,
+      retryAfterMs: null,
+      messageId: null,
+      roomSequence: null,
+      messageVersion: null,
+      messageState: null,
+      replayed: false,
+    };
+
+    expect(parseChatMessageMutationCommandResult(JSON.stringify(rateLimited))).toEqual(rateLimited);
+    expect(parseChatMessageMutationCommandResult(JSON.stringify(failed))).toEqual(failed);
+    expect(
+      parseChatMessageMutationCommandResult(
+        JSON.stringify({
+          ...failed,
+          retryAfterMs: 1_000,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatMessageMutationCommandResult(
+        JSON.stringify({
+          ...failed,
+          replayed: undefined,
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("멤버 상태를 포함한 Room Event를 검증한다", () => {
     const event = createRoomEvent("ROOM_MEMBER_JOINED", {
       member: createMemberState("membership-02", "local-user-2", "MEMBER"),
@@ -252,6 +394,28 @@ function createRoomEvent(eventType: string, state: Record<string, unknown>) {
       roomStatus: "ACTIVE",
       ...state,
     },
+  };
+}
+
+function createMutationResult(
+  commandType: "EDIT_MESSAGE" | "DELETE_MESSAGE",
+  status: "UPDATED" | "UNCHANGED" | "DELETED" | "ALREADY_DELETED",
+  messageState: "ACTIVE" | "DELETED_BY_AUTHOR",
+  messageVersion: number,
+) {
+  return {
+    clientMessageId: null,
+    clientMutationId: REQUEST_ID,
+    commandType,
+    status,
+    code: null,
+    retryable: false,
+    retryAfterMs: null,
+    messageId: "message-01",
+    roomSequence: 1,
+    messageVersion,
+    messageState,
+    replayed: false,
   };
 }
 

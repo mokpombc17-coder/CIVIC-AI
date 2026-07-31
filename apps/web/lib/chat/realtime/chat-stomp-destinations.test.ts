@@ -3,6 +3,8 @@ import {
   CHAT_COMMAND_RESULTS_DESTINATION,
   CHAT_SYSTEM_EVENTS_DESTINATION,
   getChatRoomEventsDestination,
+  getChatRoomMessageDeleteDestination,
+  getChatRoomMessageEditDestination,
   getChatRoomMessageSendDestination,
   getChatRoomMessagesDestination,
   getChatRoomSubscriptionSyncDestination,
@@ -21,6 +23,10 @@ describe("chat STOMP destinations", () => {
 
   it("방 단위 SEND destination을 생성한다", () => {
     expect(getChatRoomMessageSendDestination("room-01")).toBe("/app/rooms/room-01/messages");
+    expect(getChatRoomMessageEditDestination("room-01")).toBe("/app/rooms/room-01/messages/edit");
+    expect(getChatRoomMessageDeleteDestination("room-01")).toBe(
+      "/app/rooms/room-01/messages/delete",
+    );
     expect(getChatRoomSubscriptionSyncDestination("room-01")).toBe(
       "/app/rooms/room-01/subscriptions/sync",
     );

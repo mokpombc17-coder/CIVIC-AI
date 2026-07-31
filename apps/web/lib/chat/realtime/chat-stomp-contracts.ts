@@ -24,6 +24,17 @@ export const chatMessageSendRequestSchema = z.object({
   content: chatMessageSendContentSchema,
 });
 
+export const chatMessageEditRequestSchema = z.object({
+  clientMutationId: requestIdSchema,
+  messageId: opaqueIdSchema,
+  content: chatMessageSendContentSchema,
+});
+
+export const chatMessageDeleteRequestSchema = z.object({
+  clientMutationId: requestIdSchema,
+  messageId: opaqueIdSchema,
+});
+
 export const chatRoomSubscriptionsReadySchema = z.object({
   status: z.literal("READY"),
   eventType: z.literal("ROOM_SUBSCRIPTIONS_READY"),
@@ -101,6 +112,82 @@ export const chatMessageCommandResultSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
+export const chatMessageMutationCommandTypeSchema = z.enum(["EDIT_MESSAGE", "DELETE_MESSAGE"]);
+
+const chatMessageMutationCommandResultBaseSchema = z.object({
+  clientMessageId: z.null(),
+  clientMutationId: requestIdSchema,
+  replayed: z.boolean(),
+});
+
+const chatMessageMutationSuccessBaseSchema = chatMessageMutationCommandResultBaseSchema.extend({
+  code: z.null(),
+  retryable: z.literal(false),
+  retryAfterMs: z.null(),
+  messageId: opaqueIdSchema,
+  roomSequence: positiveSequenceSchema,
+  messageVersion: z.number().int().positive(),
+});
+
+const chatMessageEditSuccessResultSchema = chatMessageMutationSuccessBaseSchema.extend({
+  commandType: z.literal("EDIT_MESSAGE"),
+  status: z.enum(["UPDATED", "UNCHANGED"]),
+  messageState: z.literal("ACTIVE"),
+});
+
+const chatMessageDeleteSuccessResultSchema = chatMessageMutationSuccessBaseSchema.extend({
+  commandType: z.literal("DELETE_MESSAGE"),
+  status: z.enum(["DELETED", "ALREADY_DELETED"]),
+  messageState: z.literal("DELETED_BY_AUTHOR"),
+});
+
+const chatMessageDeletedRejectionResultSchema = chatMessageMutationCommandResultBaseSchema.extend({
+  commandType: chatMessageMutationCommandTypeSchema,
+  status: z.literal("REJECTED"),
+  code: z.literal("MESSAGE_DELETED"),
+  retryable: z.literal(false),
+  retryAfterMs: z.null(),
+  messageId: opaqueIdSchema,
+  roomSequence: positiveSequenceSchema,
+  messageVersion: z.number().int().positive(),
+  messageState: z.literal("DELETED_BY_AUTHOR"),
+});
+
+const chatMessageMutationRejectionResultSchema = chatMessageMutationCommandResultBaseSchema.extend({
+  commandType: chatMessageMutationCommandTypeSchema,
+  status: z.literal("REJECTED"),
+  code: z
+    .string()
+    .min(1)
+    .refine((code) => code !== "MESSAGE_DELETED"),
+  retryable: z.boolean(),
+  retryAfterMs: z.number().int().nonnegative().nullable(),
+  messageId: opaqueIdSchema.nullable(),
+  roomSequence: z.null(),
+  messageVersion: z.null(),
+  messageState: z.null(),
+});
+
+const chatMessageMutationFailedResultSchema = chatMessageMutationCommandResultBaseSchema.extend({
+  commandType: chatMessageMutationCommandTypeSchema,
+  status: z.literal("FAILED"),
+  code: z.string().min(1),
+  retryable: z.boolean(),
+  retryAfterMs: z.null(),
+  messageId: opaqueIdSchema.nullable(),
+  roomSequence: z.null(),
+  messageVersion: z.null(),
+  messageState: z.null(),
+});
+
+export const chatMessageMutationCommandResultSchema = z.union([
+  chatMessageEditSuccessResultSchema,
+  chatMessageDeleteSuccessResultSchema,
+  chatMessageDeletedRejectionResultSchema,
+  chatMessageMutationRejectionResultSchema,
+  chatMessageMutationFailedResultSchema,
+]);
+
 export const chatMessageCreatedEventSchema = z.object({
   eventVersion: z.literal(1),
   eventType: z.literal("CHAT_MESSAGE_CREATED"),
@@ -170,12 +257,18 @@ export const chatSystemEventSchema = z.union([
 
 export type ChatRoomSubscriptionSyncRequest = z.infer<typeof chatRoomSubscriptionSyncRequestSchema>;
 export type ChatMessageSendRequest = z.infer<typeof chatMessageSendRequestSchema>;
+export type ChatMessageEditRequest = z.infer<typeof chatMessageEditRequestSchema>;
+export type ChatMessageDeleteRequest = z.infer<typeof chatMessageDeleteRequestSchema>;
 export type ChatRoomSubscriptionsReady = z.infer<typeof chatRoomSubscriptionsReadySchema>;
 export type ChatRoomSubscriptionSyncRejected = z.infer<
   typeof chatRoomSubscriptionSyncRejectedSchema
 >;
 export type ChatSubscriptionRejection = z.infer<typeof chatSubscriptionRejectionSchema>;
 export type ChatMessageCommandResult = z.infer<typeof chatMessageCommandResultSchema>;
+export type ChatMessageMutationCommandType = z.infer<typeof chatMessageMutationCommandTypeSchema>;
+export type ChatMessageMutationCommandResult = z.infer<
+  typeof chatMessageMutationCommandResultSchema
+>;
 export type ChatMessageCreatedEvent = z.infer<typeof chatMessageCreatedEventSchema>;
 export type ChatRoomEventMemberState = z.infer<typeof chatRoomEventMemberStateSchema>;
 export type ChatRoomEventEnvelope = z.infer<typeof chatRoomEventEnvelopeSchema>;
@@ -197,6 +290,12 @@ export function parseChatSubscriptionRejection(body: string): ChatSubscriptionRe
 
 export function parseChatMessageCommandResult(body: string): ChatMessageCommandResult | null {
   return parseChatStompBody(body, chatMessageCommandResultSchema);
+}
+
+export function parseChatMessageMutationCommandResult(
+  body: string,
+): ChatMessageMutationCommandResult | null {
+  return parseChatStompBody(body, chatMessageMutationCommandResultSchema);
 }
 
 export function parseChatMessageCreatedEvent(body: string): ChatMessageCreatedEvent | null {
