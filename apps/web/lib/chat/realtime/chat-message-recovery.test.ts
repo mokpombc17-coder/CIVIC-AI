@@ -219,5 +219,9 @@ function createMessage(roomSequence: number): ChatMessage {
     clientMessageId: `00000000-0000-4000-8000-${roomSequence.toString().padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,
     createdAt: "2026-07-30T00:00:00Z",
+    deletedAt: null,
+    messageVersion: 1,
+    state: "ACTIVE",
+    updatedAt: "2026-07-30T00:00:00Z",
   };
 }

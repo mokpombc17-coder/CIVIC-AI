@@ -354,6 +354,8 @@ describe("ChatRealtimeQueryCoordinator", () => {
               payload: {
                 ...createMessage(1),
                 content: "충돌하는 내용",
+                deletedAt: null,
+                state: "ACTIVE",
               },
             },
           },
@@ -632,6 +634,10 @@ function createMessage(roomSequence: number): ChatMessage {
     clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
     content: `message ${roomSequence}`,
     createdAt: "2026-07-30T00:00:00Z",
+    deletedAt: null,
+    messageVersion: 1,
+    state: "ACTIVE",
+    updatedAt: "2026-07-30T00:00:00Z",
   };
 }
 

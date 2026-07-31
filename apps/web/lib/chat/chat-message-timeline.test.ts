@@ -35,6 +35,10 @@ function createConfirmed(clientMessageId: string): ChatMessage {
     clientMessageId,
     content: "확정 메시지",
     createdAt: "2026-07-31T00:00:00Z",
+    deletedAt: null,
+    messageVersion: 1,
+    state: "ACTIVE",
+    updatedAt: "2026-07-31T00:00:00Z",
   };
 }
 

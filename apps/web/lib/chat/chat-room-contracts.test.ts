@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chatMessageContentSchema,
+  chatMessageSchema,
   chatMessageSendContentSchema,
   createRoomRequestSchema,
   createMessageHistoryResponseSchema,
@@ -130,6 +131,33 @@ describe("chat room REST contracts", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("활성 메시지와 작성자 삭제 tombstone snapshot을 구분해 검증한다", () => {
+    const activeMessage = createMessage(1);
+    const deletedMessage = {
+      ...activeMessage,
+      content: null,
+      state: "DELETED_BY_AUTHOR",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T05:00:00Z",
+      deletedAt: "2026-07-29T05:00:00Z",
+    };
+
+    expect(chatMessageSchema.parse(activeMessage)).toEqual(activeMessage);
+    expect(chatMessageSchema.parse(deletedMessage)).toEqual(deletedMessage);
+    expect(
+      chatMessageSchema.safeParse({
+        ...deletedMessage,
+        content: "삭제 전 내용",
+      }).success,
+    ).toBe(false);
+    expect(
+      chatMessageSchema.safeParse({
+        ...deletedMessage,
+        deletedAt: "2026-07-29T05:01:00Z",
+      }).success,
+    ).toBe(false);
+  });
 });
 
 function createMessage(roomSequence: number) {
@@ -141,5 +169,9 @@ function createMessage(roomSequence: number) {
     clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
     content: "안녕하세요.",
     createdAt: "2026-07-29T04:40:00Z",
+    deletedAt: null,
+    messageVersion: 1,
+    state: "ACTIVE" as const,
+    updatedAt: "2026-07-29T04:40:00Z",
   };
 }

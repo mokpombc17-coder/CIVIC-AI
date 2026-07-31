@@ -80,7 +80,7 @@ export function createChatMessageItemViewModels(
 
     return {
       clientMessageId: item.message.clientMessageId,
-      content: item.message.content,
+      content: item.message.content ?? "삭제된 메시지입니다.",
       deliveryLabel: null,
       deliveryStatus: null,
       deliveryTone: null,

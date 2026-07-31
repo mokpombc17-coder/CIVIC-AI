@@ -7,6 +7,7 @@ const nullableInstantSchema = instantSchema.nullable();
 const cursorSchema = z.string().min(1);
 const positiveSequenceSchema = z.number().int().min(1);
 const nonnegativeSequenceSchema = z.number().int().nonnegative();
+const positiveMessageVersionSchema = z.number().int().positive();
 const messageHistoryLimitSchema = z.number().int().min(1).max(100);
 const javaStringStripWhitespacePattern =
   /^[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+|[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+$/gu;
@@ -52,6 +53,7 @@ export const joinPolicySchema = z.enum(["OPEN", "INVITE_ONLY"]);
 export const roomStatusSchema = z.enum(["ACTIVE", "CLOSED"]);
 export const membershipRoleSchema = z.enum(["OWNER", "MEMBER"]);
 export const membershipStatusSchema = z.enum(["ACTIVE", "LEFT", "BANNED"]);
+export const messageStateSchema = z.enum(["ACTIVE", "DELETED_BY_AUTHOR"]);
 export const roomParticipationStatusSchema = z.enum([
   "ACTIVE",
   "LEFT",
@@ -192,15 +194,34 @@ export const closeRoomResponseSchema = commandResponseBaseSchema.extend({
   ownerMembershipVersion: versionSchema,
 });
 
-export const chatMessageSchema = z.object({
+const chatMessageSnapshotBaseSchema = z.object({
   messageId: opaqueIdSchema,
   roomId: roomIdSchema,
   roomSequence: positiveSequenceSchema,
   senderUserId: opaqueIdSchema,
   clientMessageId: idempotencyKeySchema,
-  content: chatMessageContentSchema,
+  messageVersion: positiveMessageVersionSchema,
   createdAt: instantSchema,
+  updatedAt: instantSchema,
 });
+
+export const chatMessageSchema = z.discriminatedUnion("state", [
+  chatMessageSnapshotBaseSchema.extend({
+    content: chatMessageContentSchema,
+    state: z.literal("ACTIVE"),
+    deletedAt: z.null(),
+  }),
+  chatMessageSnapshotBaseSchema
+    .extend({
+      content: z.null(),
+      state: z.literal("DELETED_BY_AUTHOR"),
+      deletedAt: instantSchema,
+    })
+    .refine((message) => message.deletedAt === message.updatedAt, {
+      message: "삭제 메시지의 deletedAt과 updatedAt은 같아야 합니다.",
+      path: ["deletedAt"],
+    }),
+]);
 
 export const messageHistoryModeSchema = z.enum(["latest", "before", "after"]);
 
@@ -248,6 +269,7 @@ export type JoinPolicy = z.infer<typeof joinPolicySchema>;
 export type RoomStatus = z.infer<typeof roomStatusSchema>;
 export type MembershipRole = z.infer<typeof membershipRoleSchema>;
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
+export type MessageState = z.infer<typeof messageStateSchema>;
 export type RoomParticipationStatus = z.infer<typeof roomParticipationStatusSchema>;
 export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type PublicRoomListItem = z.infer<typeof publicRoomListItemSchema>;

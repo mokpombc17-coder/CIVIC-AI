@@ -163,6 +163,10 @@ describe("chat realtime payload contracts", () => {
         clientMessageId: CLIENT_MESSAGE_ID,
         content: "안녕하세요.",
         createdAt: "2026-07-29T04:40:00Z",
+        deletedAt: null,
+        messageVersion: 1,
+        state: "ACTIVE",
+        updatedAt: "2026-07-29T04:40:00Z",
       },
     };
 

@@ -246,5 +246,9 @@ function createMessage(roomSequence: number) {
     clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
     content: `메시지 ${roomSequence}`,
     createdAt: "2026-07-29T04:40:00Z",
+    deletedAt: null,
+    messageVersion: 1,
+    state: "ACTIVE" as const,
+    updatedAt: "2026-07-29T04:40:00Z",
   };
 }

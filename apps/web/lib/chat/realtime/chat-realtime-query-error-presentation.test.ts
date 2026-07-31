@@ -62,6 +62,10 @@ describe("getChatRealtimeQueryErrorPresentation", () => {
       clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
       content: "안녕하세요.",
       createdAt: "2026-07-30T00:00:00Z",
+      deletedAt: null,
+      messageVersion: 1,
+      state: "ACTIVE" as const,
+      updatedAt: "2026-07-30T00:00:00Z",
     };
     const error = new ChatMessageMergeConflictError("ROOM_SEQUENCE_CONFLICT", message, message);
 

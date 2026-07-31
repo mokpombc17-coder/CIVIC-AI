@@ -27,7 +27,10 @@ describe("mergeChatMessages", () => {
     expect(() =>
       mergeChatMessages({
         roomId: "room-01",
-        sources: [[message], [{ ...message, content: "변경된 내용" }]],
+        sources: [
+          [message],
+          [{ ...message, content: "변경된 내용", state: "ACTIVE", deletedAt: null }],
+        ],
       }),
     ).toThrowError(
       expect.objectContaining<Partial<ChatMessageMergeConflictError>>({
@@ -150,5 +153,9 @@ function createMessage(roomSequence: number): ChatMessage {
     clientMessageId: `00000000-0000-4000-8000-${String(roomSequence).padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,
     createdAt: "2026-07-29T04:40:00Z",
+    deletedAt: null,
+    messageVersion: 1,
+    state: "ACTIVE",
+    updatedAt: "2026-07-29T04:40:00Z",
   };
 }

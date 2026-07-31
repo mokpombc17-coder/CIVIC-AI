@@ -31,10 +31,14 @@ describe("chat room view model", () => {
           clientMessageId: "550e8400-e29b-41d4-a716-446655440001",
           content: "확정 메시지",
           createdAt: "2026-07-31T00:00:00Z",
+          deletedAt: null,
           messageId: "message-01",
+          messageVersion: 1,
           roomId: "room-01",
           roomSequence: 1,
           senderUserId: "local-user-2",
+          state: "ACTIVE",
+          updatedAt: "2026-07-31T00:00:00Z",
         },
       },
       {
@@ -102,10 +106,14 @@ describe("chat room view model", () => {
             clientMessageId,
             content: "동일 메시지",
             createdAt: "2026-07-31T00:00:00Z",
+            deletedAt: null,
             messageId: "message-04",
+            messageVersion: 1,
             roomId: "room-01",
             roomSequence: 4,
             senderUserId: "local-user-1",
+            state: "ACTIVE",
+            updatedAt: "2026-07-31T00:00:00Z",
           },
         },
       ],
@@ -113,6 +121,36 @@ describe("chat room view model", () => {
     );
 
     expect(outgoing?.renderKey).toBe(confirmed?.renderKey);
+  });
+
+  it("작성자 삭제 메시지를 기존 위치의 tombstone 문구로 변환한다", () => {
+    const [deleted] = createChatMessageItemViewModels(
+      [
+        {
+          kind: "confirmed",
+          message: {
+            clientMessageId: "550e8400-e29b-41d4-a716-446655440005",
+            content: null,
+            createdAt: "2026-07-31T00:00:00Z",
+            deletedAt: "2026-07-31T00:01:00Z",
+            messageId: "message-05",
+            messageVersion: 2,
+            roomId: "room-01",
+            roomSequence: 5,
+            senderUserId: "local-user-1",
+            state: "DELETED_BY_AUTHOR",
+            updatedAt: "2026-07-31T00:01:00Z",
+          },
+        },
+      ],
+      "local-user-1",
+    );
+
+    expect(deleted).toMatchObject({
+      content: "삭제된 메시지입니다.",
+      isMine: true,
+      renderKey: "client-message-550e8400-e29b-41d4-a716-446655440005",
+    });
   });
 
   it("최종 실패의 원인을 message bubble용 오류 상태로 변환한다", () => {

@@ -145,6 +145,28 @@ describe("chatRoomApi message history", () => {
     });
   });
 
+  it("작성자 삭제 메시지를 목록 위치를 유지한 tombstone으로 파싱한다", async () => {
+    const deletedMessage = {
+      ...CHAT_MESSAGE,
+      content: null,
+      state: "DELETED_BY_AUTHOR",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T05:00:00Z",
+      deletedAt: "2026-07-29T05:00:00Z",
+    };
+    const { request } = createQueuedChatFetch({
+      items: [deletedMessage],
+      nextBeforeSequence: null,
+      nextAfterSequence: null,
+      hasMore: false,
+    });
+    const api = createChatRoomApi(request);
+
+    await expect(api.getRoomMessages("room-01")).resolves.toMatchObject({
+      items: [deletedMessage],
+    });
+  });
+
   it("유효하지 않은 sequence와 limit은 HTTP 요청 전에 거절한다", async () => {
     const { calls, request } = createQueuedChatFetch();
     const api = createChatRoomApi(request);
@@ -412,4 +434,8 @@ const CHAT_MESSAGE = {
   clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
   content: "안녕하세요.",
   createdAt: "2026-07-29T04:40:00Z",
+  deletedAt: null,
+  messageVersion: 1,
+  state: "ACTIVE",
+  updatedAt: "2026-07-29T04:40:00Z",
 };
