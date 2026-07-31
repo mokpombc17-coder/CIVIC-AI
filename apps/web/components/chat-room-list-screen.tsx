@@ -199,6 +199,7 @@ function CreateRoomForm({ onCancel }: { onCancel: () => void }) {
     const formData = new FormData(event.currentTarget);
     const request = createRoomRequestSchema.safeParse({
       name: formData.get("name"),
+      description: formData.get("description"),
       visibility: formData.get("visibility"),
       joinPolicy: formData.get("joinPolicy"),
     });
@@ -239,6 +240,23 @@ function CreateRoomForm({ onCancel }: { onCancel: () => void }) {
             required
           />
         </label>
+
+        <div className="grid gap-1 text-sm text-slate-700">
+          <label className="font-medium" htmlFor="create-room-description">
+            방 설명 <span className="font-normal text-slate-500">(선택)</span>
+          </label>
+          <textarea
+            aria-describedby="create-room-description-help"
+            className="min-h-24 resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-950"
+            id="create-room-description"
+            name="description"
+            placeholder="이 방에서 나눌 이야기를 간단히 소개해 주세요."
+            rows={3}
+          />
+          <span className="text-xs font-normal text-slate-500" id="create-room-description-help">
+            앞뒤 공백을 제외한 최대 500자이며, 일반 텍스트로 저장됩니다.
+          </span>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1 text-sm font-medium text-slate-700">
@@ -393,6 +411,11 @@ function RoomSummary({ children, room }: { children: ReactNode; room: PublicRoom
         <strong className="truncate text-slate-950">{room.name}</strong>
         {children}
       </span>
+      {room.description ? (
+        <span className="mt-1 line-clamp-2 block whitespace-pre-line break-words text-sm text-slate-600">
+          {room.description}
+        </span>
+      ) : null}
       <span className="mt-1 block truncate text-xs text-slate-500">방 ID: {room.roomId}</span>
       <span className="mt-2 block text-xs text-slate-500">
         참여자 {room.activeMemberCount}명 · {formatRoomDate(room.createdAt)} 생성
