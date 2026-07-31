@@ -6,6 +6,7 @@ import type { ChatRoomEventEnvelope, ChatRoomEventMemberState } from "./chat-sto
 export type ChatRoomEventCacheProjection = Readonly<{
   eventsApplied: number;
   myMembership: RoomMembership | undefined;
+  requiresRoomDetailRefetch: boolean;
   roomDetails: RoomDetails | undefined;
   roomId: string;
 }>;
@@ -22,9 +23,25 @@ export function createChatRoomEventCacheProjection(
   const currentUserId = myMembership?.userId ?? roomDetails?.myMembership?.userId;
   let nextRoomDetails = roomDetails;
   let nextMyMembership = myMembership;
+  let eventsApplied = 0;
+  let requiresRoomDetailRefetch = false;
 
   for (const event of events) {
     if (event.payload.roomId !== roomId) {
+      continue;
+    }
+
+    if (!nextRoomDetails) {
+      requiresRoomDetailRefetch = true;
+      continue;
+    }
+
+    if (event.payload.roomVersion <= nextRoomDetails.version) {
+      continue;
+    }
+
+    if (event.payload.roomVersion > nextRoomDetails.version + 1) {
+      requiresRoomDetailRefetch = true;
       continue;
     }
 
@@ -36,14 +53,14 @@ export function createChatRoomEventCacheProjection(
       nextMyMembership = projectMembership(nextMyMembership, currentUserState);
     }
 
-    if (nextRoomDetails) {
-      nextRoomDetails = projectRoomDetails(nextRoomDetails, event, currentUserState);
-    }
+    nextRoomDetails = projectRoomDetails(nextRoomDetails, event, currentUserState);
+    eventsApplied += 1;
   }
 
   return {
-    eventsApplied: events.length,
+    eventsApplied,
     myMembership: nextMyMembership,
+    requiresRoomDetailRefetch,
     roomDetails: nextRoomDetails,
     roomId,
   };
@@ -53,7 +70,7 @@ export function applyChatRoomEventCacheProjection(
   queryClient: QueryClient,
   projection: ChatRoomEventCacheProjection,
 ): void {
-  if (projection.eventsApplied === 0) {
+  if (projection.eventsApplied === 0 && !projection.requiresRoomDetailRefetch) {
     return;
   }
 
@@ -76,22 +93,23 @@ function projectRoomDetails(
   event: ChatRoomEventEnvelope,
   currentUserState: ChatRoomEventMemberState | undefined,
 ): RoomDetails {
-  let nextRoom = room;
-
-  if (event.payload.roomVersion > room.version) {
-    const isContiguous = event.payload.roomVersion === room.version + 1;
-    const activeMemberCount = projectActiveMemberCount(room, event, isContiguous);
-
-    nextRoom = {
-      ...room,
-      activeMemberCount,
-      ownerUserId: getOwnerUserId(event, room.ownerUserId),
-      participationStatus:
-        event.payload.roomStatus === "CLOSED" ? "ROOM_CLOSED" : room.participationStatus,
-      status: event.payload.roomStatus,
-      version: event.payload.roomVersion,
-    };
-  }
+  let nextRoom: RoomDetails = {
+    ...room,
+    activeMemberCount: projectActiveMemberCount(room, event),
+    ownerUserId: getOwnerUserId(event, room.ownerUserId),
+    participationStatus:
+      event.payload.roomStatus === "CLOSED" ? "ROOM_CLOSED" : room.participationStatus,
+    status: event.payload.roomStatus,
+    version: event.payload.roomVersion,
+    ...(event.eventType === "ROOM_SETTINGS_UPDATED"
+      ? {
+          name: event.payload.name,
+          description: event.payload.description,
+          visibility: event.payload.visibility,
+          joinPolicy: event.payload.joinPolicy,
+        }
+      : {}),
+  };
 
   if (
     currentUserState &&
@@ -128,21 +146,13 @@ function projectMembership(
   };
 }
 
-function projectActiveMemberCount(
-  room: RoomDetails,
-  event: ChatRoomEventEnvelope,
-  isContiguous: boolean,
-): number {
+function projectActiveMemberCount(room: RoomDetails, event: ChatRoomEventEnvelope): number {
   if (event.eventType === "ROOM_CREATED") {
     return 1;
   }
 
   if (event.eventType === "ROOM_CLOSED") {
     return 0;
-  }
-
-  if (!isContiguous) {
-    return room.activeMemberCount;
   }
 
   switch (event.eventType) {
@@ -176,6 +186,8 @@ function getEventMemberStates(event: ChatRoomEventEnvelope): readonly ChatRoomEv
       return [event.payload.owner];
     case "ROOM_OWNERSHIP_TRANSFERRED":
       return [event.payload.previousOwner, event.payload.newOwner];
+    case "ROOM_SETTINGS_UPDATED":
+      return [];
     default:
       return [event.payload.member];
   }

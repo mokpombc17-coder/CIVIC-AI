@@ -6,6 +6,7 @@ import {
   membershipRoleSchema,
   membershipStatusSchema,
   roomIdSchema,
+  roomSettingsSchema,
   roomStatusSchema,
 } from "../chat-room-contracts";
 
@@ -258,10 +259,16 @@ const chatRoomOwnershipTransferredEventSchema = chatRoomEventEnvelopeBaseSchema.
   }),
 });
 
+const chatRoomSettingsUpdatedEventSchema = chatRoomEventEnvelopeBaseSchema.extend({
+  eventType: z.literal("ROOM_SETTINGS_UPDATED"),
+  payload: chatRoomEventPayloadBaseSchema.extend(roomSettingsSchema.shape),
+});
+
 export const chatRoomEventEnvelopeSchema = z.union([
   chatRoomOwnerEventSchema,
   chatRoomMemberEventSchema,
   chatRoomOwnershipTransferredEventSchema,
+  chatRoomSettingsUpdatedEventSchema,
 ]);
 
 export const chatSystemEventSchema = z.union([

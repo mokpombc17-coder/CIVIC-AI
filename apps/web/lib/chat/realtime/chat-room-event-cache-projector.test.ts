@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RoomDetails, RoomMembership } from "../chat-room-contracts";
 import { chatRoomQueryKeys } from "../chat-room-queries";
 import type { ChatRoomEventEnvelope } from "./chat-stomp-contracts";
@@ -66,19 +66,19 @@ describe("chat room event cache projector", () => {
     });
   });
 
-  it("현재 사용자 차단과 방 종료 상태를 즉시 표시하되 version gap에서는 인원을 추정하지 않는다", () => {
+  it("현재 사용자 차단과 방 종료의 연속된 version을 즉시 반영한다", () => {
     const queryClient = createSeededQueryClient();
     const banned = createMemberEvent({
       eventId: "event-banned",
       eventType: "ROOM_MEMBER_BANNED",
-      roomVersion: 4,
+      roomVersion: 2,
       userId: "local-user-1",
       membershipId: "membership-01",
       membershipVersion: 2,
       role: "OWNER",
       status: "BANNED",
     });
-    const closed = createOwnerEvent("event-closed", 5);
+    const closed = createOwnerEvent("event-closed", 3);
 
     applyChatRoomEventCacheProjection(
       queryClient,
@@ -91,11 +91,93 @@ describe("chat room event cache projector", () => {
       activeMemberCount: 0,
       participationStatus: "ROOM_CLOSED",
       status: "CLOSED",
-      version: 5,
+      version: 3,
       myMembership: {
         status: "BANNED",
         version: 2,
       },
+    });
+  });
+
+  it("연속된 ROOM_SETTINGS_UPDATED의 전체 settings snapshot을 적용한다", () => {
+    const queryClient = createSeededQueryClient();
+    const event = createSettingsUpdatedEvent({
+      eventId: "event-settings",
+      roomVersion: 2,
+      name: "새 방 이름",
+      description: "새 방 설명",
+      visibility: "UNLISTED",
+      joinPolicy: "INVITE_ONLY",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [event]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection).toMatchObject({
+      eventsApplied: 1,
+      requiresRoomDetailRefetch: false,
+    });
+    expect(
+      queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01")),
+    ).toMatchObject({
+      name: "새 방 이름",
+      description: "새 방 설명",
+      visibility: "UNLISTED",
+      joinPolicy: "INVITE_ONLY",
+      version: 2,
+    });
+  });
+
+  it("같은 roomVersion의 설정 이벤트는 eventId가 달라도 다시 적용하지 않는다", () => {
+    const queryClient = createSeededQueryClient();
+    const first = createSettingsUpdatedEvent({
+      eventId: "event-settings-topic",
+      roomVersion: 2,
+      name: "먼저 적용된 이름",
+    });
+    const duplicateVersion = createSettingsUpdatedEvent({
+      eventId: "event-settings-user-queue",
+      roomVersion: 2,
+      name: "적용하면 안 되는 이름",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [
+      first,
+      duplicateVersion,
+    ]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection.eventsApplied).toBe(1);
+    expect(
+      queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01")),
+    ).toMatchObject({
+      name: "먼저 적용된 이름",
+      version: 2,
+    });
+  });
+
+  it("roomVersion gap이면 부분 snapshot을 적용하지 않고 방 상세 재조회를 요청한다", () => {
+    const queryClient = createSeededQueryClient();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const event = createSettingsUpdatedEvent({
+      eventId: "event-settings-gap",
+      roomVersion: 3,
+      name: "누락 구간 뒤의 이름",
+      visibility: "UNLISTED",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [event]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection).toMatchObject({
+      eventsApplied: 0,
+      requiresRoomDetailRefetch: true,
+    });
+    expect(queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01"))).toEqual(
+      ROOM_DETAILS,
+    );
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: chatRoomQueryKeys.detail("room-01"),
     });
   });
 });
@@ -203,6 +285,38 @@ function createOwnerEvent(eventId: string, roomVersion: number): ChatRoomEventEn
         status: "BANNED",
         membershipVersion: 2,
       },
+    },
+  };
+}
+
+function createSettingsUpdatedEvent({
+  eventId,
+  roomVersion,
+  name = "시민 AI 토론방",
+  description = "",
+  visibility = "LISTED",
+  joinPolicy = "OPEN",
+}: {
+  eventId: string;
+  roomVersion: number;
+  name?: string;
+  description?: string;
+  visibility?: "LISTED" | "UNLISTED";
+  joinPolicy?: "OPEN" | "INVITE_ONLY";
+}): ChatRoomEventEnvelope {
+  return {
+    eventVersion: 1,
+    eventId,
+    eventType: "ROOM_SETTINGS_UPDATED",
+    emittedAt: "2026-07-30T00:00:00Z",
+    payload: {
+      roomId: "room-01",
+      roomVersion,
+      roomStatus: "ACTIVE",
+      name,
+      description,
+      visibility,
+      joinPolicy,
     },
   };
 }

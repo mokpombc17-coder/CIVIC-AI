@@ -424,6 +424,29 @@ describe("chat realtime payload contracts", () => {
     expect(parseChatRoomEventEnvelope(JSON.stringify(event))).toEqual(event);
   });
 
+  it("전체 설정 snapshot을 포함한 ROOM_SETTINGS_UPDATED를 두 수신 경로에서 검증한다", () => {
+    const event = createRoomEvent("ROOM_SETTINGS_UPDATED", {
+      name: "새 방 이름",
+      description: "새 방 설명",
+      visibility: "UNLISTED",
+      joinPolicy: "INVITE_ONLY",
+    });
+
+    expect(parseChatRoomEventEnvelope(JSON.stringify(event))).toEqual(event);
+    expect(parseChatSystemEvent(JSON.stringify(event))).toEqual(event);
+  });
+
+  it("ROOM_SETTINGS_UPDATED의 description이 canonical하지 않으면 거절한다", () => {
+    const event = createRoomEvent("ROOM_SETTINGS_UPDATED", {
+      name: "새 방 이름",
+      description: " 앞뒤 공백 ",
+      visibility: "LISTED",
+      joinPolicy: "OPEN",
+    });
+
+    expect(parseChatRoomEventEnvelope(JSON.stringify(event))).toBeNull();
+  });
+
   it("Room Event 상태 객체에 userId가 없으면 거절한다", () => {
     const member = createMemberState("membership-02", "local-user-2", "MEMBER");
     const memberWithoutUserId: Partial<typeof member> = { ...member };
