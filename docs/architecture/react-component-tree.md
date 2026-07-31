@@ -67,6 +67,7 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                         │   └── ChatConnectionStatus [Client] [slot] (apps/web/components/chat-connection-status.tsx)
                                         ├── ChatMessageViewport [Client] (apps/web/components/chat-message-viewport.tsx)
                                         │   └── ChatMessageItem [Client] [virtualized, repeated] (apps/web/components/chat-message-item.tsx)
+                                        │       └── ChatMessageActionsPopover [Client] [conditional] (apps/web/components/chat-message-actions-popover.tsx)
                                         ├── ChatRealtimeSyncStatus [Client] [slot, conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                         ├── ChatRoomSessionControls [Client] [slot] (apps/web/components/chat-room-session-controls.tsx)
                                         │   ├── ChatRoomSessionBanner [Client] (apps/web/components/chat-room-session-banner.tsx)
@@ -83,6 +84,8 @@ REST snapshot과 Worker buffer의 병합이 진행 중이거나 실패한 동안
 `ChatRoomView` 이하 컴포넌트는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode
 slot만 받아 화면을 렌더링한다. `ChatRoomSessionControls`도 session 정책을 해석하는 container로
 남고, 실제 배너와 입력 폼은 각각 `ChatRoomSessionBanner`, `ChatMessageComposer`가 담당한다.
+메시지 수정·삭제 lifecycle과 transport command는 `ChatRoomScreen`의 container hook이 조립하고,
+`ChatMessageActionsPopover`는 작성자 메시지의 입력·확인·진행 상태만 표시한다.
 
 ## Route `/architecture`
 
@@ -150,6 +153,7 @@ flowchart TD
     ChatRoomHeader["ChatRoomHeader [internal]<br/>apps/web/components/chat-room-view.tsx"]
     ChatMessageViewport["ChatMessageViewport [Client]<br/>apps/web/components/chat-message-viewport.tsx"]
     ChatMessageItem["ChatMessageItem [Client] [virtualized] [repeated]<br/>apps/web/components/chat-message-item.tsx"]
+    ChatMessageActionsPopover["ChatMessageActionsPopover [Client] [conditional]<br/>apps/web/components/chat-message-actions-popover.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
@@ -190,6 +194,7 @@ flowchart TD
     ChatRoomHeader -->|"slot"| ChatConnectionStatus
     ChatRoomView --> ChatMessageViewport
     ChatMessageViewport -->|"confirmed / optimistic; visible range only"| ChatMessageItem
+    ChatMessageItem -->|"author-owned ACTIVE message"| ChatMessageActionsPopover
     ChatRoomView -->|"slot; sync pending/error only"| ChatRealtimeSyncStatus
     ChatRoomView -->|"slot"| ChatRoomSessionControls
     ChatRoomSessionControls --> ChatRoomSessionBanner

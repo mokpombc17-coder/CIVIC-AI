@@ -60,19 +60,23 @@ describe("chat room view model", () => {
     const items = createChatMessageItemViewModels(timeline, "local-user-1");
 
     expect(items[0]).toMatchObject({
+      canMutate: false,
       clientMessageId: "550e8400-e29b-41d4-a716-446655440001",
       deliveryLabel: null,
       deliveryTone: null,
       isMine: false,
+      messageId: "message-01",
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440001",
       senderLabel: "local-user-2",
     });
     expect(items[1]).toMatchObject({
+      canMutate: false,
       clientMessageId: "550e8400-e29b-41d4-a716-446655440002",
       deliveryLabel: "전송 대기 중",
       deliveryStatus: "queued",
       deliveryTone: "pending",
       isMine: true,
+      messageId: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440002",
     });
   });
@@ -147,9 +151,57 @@ describe("chat room view model", () => {
     );
 
     expect(deleted).toMatchObject({
+      canMutate: false,
       content: "삭제된 메시지입니다.",
+      isDeleted: true,
       isMine: true,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440005",
+    });
+  });
+
+  it("작성자의 ACTIVE 확정 메시지만 수정·삭제 가능한 상태로 변환한다", () => {
+    const [message] = createChatMessageItemViewModels(
+      [
+        {
+          kind: "confirmed",
+          message: {
+            clientMessageId: "550e8400-e29b-41d4-a716-446655440006",
+            content: "수정된 메시지",
+            createdAt: "2026-07-31T00:00:00Z",
+            deletedAt: null,
+            messageId: "message-06",
+            messageVersion: 2,
+            roomId: "room-01",
+            roomSequence: 6,
+            senderUserId: "local-user-1",
+            state: "ACTIVE",
+            updatedAt: "2026-07-31T00:01:00Z",
+          },
+        },
+      ],
+      "local-user-1",
+      new Map([
+        [
+          "message-06",
+          {
+            clientMutationId: "550e8400-e29b-41d4-a716-446655440016",
+            commandType: "EDIT_MESSAGE",
+            error: null,
+            status: "sending",
+          },
+        ],
+      ]),
+    );
+
+    expect(message).toMatchObject({
+      canMutate: true,
+      isDeleted: false,
+      isEdited: true,
+      messageId: "message-06",
+      mutation: {
+        clientMutationId: "550e8400-e29b-41d4-a716-446655440016",
+        status: "sending",
+      },
     });
   });
 

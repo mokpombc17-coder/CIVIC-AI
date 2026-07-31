@@ -1,4 +1,8 @@
 import type { ChatMessageTimelineItem } from "@/lib/chat/chat-message-timeline";
+import type {
+  ChatMessageMutationStates,
+  ChatMessageMutationViewState,
+} from "@/components/chat-message-mutation-state";
 
 const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   hour: "numeric",
@@ -16,12 +20,17 @@ export type ChatMessageDeliveryViewStatus =
   "queued" | "sending" | "retry-waiting" | "accepted" | "failed" | "cancelled";
 
 export type ChatMessageItemViewModel = Readonly<{
+  canMutate: boolean;
   clientMessageId: string;
   content: string;
   deliveryLabel: string | null;
   deliveryStatus: ChatMessageDeliveryViewStatus | null;
   deliveryTone: "pending" | "error" | null;
+  isDeleted: boolean;
+  isEdited: boolean;
   isMine: boolean;
+  messageId: string | null;
+  mutation: ChatMessageMutationViewState | null;
   renderKey: string;
   senderLabel: string | null;
   timeLabel: string;
@@ -58,18 +67,24 @@ export function createChatRoomHeaderViewModel({
 export function createChatMessageItemViewModels(
   timeline: readonly ChatMessageTimelineItem[],
   currentUserId: string | null,
+  mutationStates: ChatMessageMutationStates = new Map(),
 ): readonly ChatMessageItemViewModel[] {
   return timeline.map((item) => {
     if (item.kind === "outgoing") {
       const failed = item.message.status === "failed" || item.message.status === "cancelled";
 
       return {
+        canMutate: false,
         clientMessageId: item.message.clientMessageId,
         content: item.message.content,
         deliveryLabel: getOutgoingMessageStatusLabel(item.message),
         deliveryStatus: item.message.status,
         deliveryTone: failed ? "error" : "pending",
+        isDeleted: false,
+        isEdited: false,
         isMine: true,
+        messageId: null,
+        mutation: null,
         renderKey: createChatMessageRenderKey(item.message.clientMessageId),
         senderLabel: null,
         timeLabel: formatMessageTime(item.message.enqueuedAt),
@@ -79,12 +94,17 @@ export function createChatMessageItemViewModels(
     const isMine = item.message.senderUserId === currentUserId;
 
     return {
+      canMutate: isMine && item.message.state === "ACTIVE" && item.message.content !== null,
       clientMessageId: item.message.clientMessageId,
       content: item.message.content ?? "삭제된 메시지입니다.",
       deliveryLabel: null,
       deliveryStatus: null,
       deliveryTone: null,
+      isDeleted: item.message.state === "DELETED_BY_AUTHOR",
+      isEdited: item.message.state === "ACTIVE" && item.message.messageVersion > 1,
       isMine,
+      messageId: item.message.messageId,
+      mutation: mutationStates.get(item.message.messageId) ?? null,
       renderKey: createChatMessageRenderKey(item.message.clientMessageId),
       senderLabel: isMine ? null : item.message.senderUserId,
       timeLabel: formatMessageTime(item.message.createdAt),

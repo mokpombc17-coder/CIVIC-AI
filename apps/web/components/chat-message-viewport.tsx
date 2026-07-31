@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat-message-arrival-announcement";
 import { ChatMessageItem } from "@/components/chat-message-item";
+import type { ChatMessageMutationStartResult } from "@/components/chat-message-mutation-state";
 import {
   type ChatMessageAppendSource,
   type ChatMessageViewportPosition,
@@ -35,6 +36,8 @@ export type ChatMessageViewportViewModel = Readonly<{
   feedback: ChatMessageViewportFeedback | null;
   isLoadingOlder: boolean;
   items: readonly ChatMessageItemViewModel[];
+  onDeleteMessage: (messageId: string) => ChatMessageMutationStartResult;
+  onEditMessage: (messageId: string, content: string) => ChatMessageMutationStartResult;
   onLoadOlder: () => Promise<ChatMessageViewportLoadOlderResult>;
   onRetry: () => void;
   roomLabel: string;
@@ -436,6 +439,8 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
                 <ChatMessageItem
                   item={item}
                   key={virtualItem.key}
+                  onDeleteMessage={history.onDeleteMessage}
+                  onEditMessage={history.onEditMessage}
                   ref={virtualizer.measureElement}
                   style={{
                     left: 0,

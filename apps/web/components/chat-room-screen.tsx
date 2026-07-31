@@ -17,6 +17,7 @@ import { ChatRoomView, type ChatMessageHistoryFeedback } from "@/components/chat
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import { createChatMessageTimeline } from "@/lib/chat/chat-message-timeline";
+import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
@@ -28,6 +29,11 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const outbox = useChatMessageOutbox();
   const outgoingMessages = useChatOutgoingMessages(roomId);
   const session = useChatRealtimeRoom(roomId);
+  const messageMutations = useChatMessageMutations({
+    enabled: session.isActive,
+    generation: session.generation,
+    roomId,
+  });
   const roomQuery = useRoomDetailsQuery(roomId);
   const messageHistory = useRoomMessageHistoryQuery(roomId, {
     enabled: session.isActive,
@@ -56,8 +62,13 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     [messageHistory.messages, outgoingMessages],
   );
   const messageItems = useMemo(
-    () => createChatMessageItemViewModels(timeline, room?.myMembership?.userId ?? null),
-    [room?.myMembership?.userId, timeline],
+    () =>
+      createChatMessageItemViewModels(
+        timeline,
+        room?.myMembership?.userId ?? null,
+        messageMutations.states,
+      ),
+    [messageMutations.states, room?.myMembership?.userId, timeline],
   );
   const header = createChatRoomHeaderViewModel({
     memberCount: room?.activeMemberCount,
@@ -92,6 +103,8 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         feedback,
         isLoadingOlder: messageHistory.isFetchingNextPage,
         items: messageItems,
+        onDeleteMessage: messageMutations.deleteMessage,
+        onEditMessage: messageMutations.editMessage,
         onLoadOlder: async () => {
           const result = await messageHistory.fetchNextPage();
 

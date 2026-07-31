@@ -39,12 +39,17 @@ function createMessage(
   overrides: Partial<ChatMessageItemViewModel> = {},
 ): ChatMessageItemViewModel {
   return {
+    canMutate: false,
     clientMessageId: crypto.randomUUID(),
     content: "메시지",
     deliveryLabel: null,
     deliveryStatus: null,
     deliveryTone: null,
+    isDeleted: false,
+    isEdited: false,
     isMine: false,
+    messageId: null,
+    mutation: null,
     renderKey: crypto.randomUUID(),
     senderLabel: "local-user-1",
     timeLabel: "오후 3:00",
