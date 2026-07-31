@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { createChatMessageArrivalAnnouncement } from "@/components/chat-message-arrival-announcement";
 import { ChatMessageItem } from "@/components/chat-message-item";
 import {
   type ChatMessageAppendSource,
@@ -56,7 +57,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     scroll: null,
     settle: null,
   });
+  const arrivalAnnouncementSequenceRef = useRef(0);
   const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
+  const [arrivalAnnouncement, setArrivalAnnouncement] =
+    useState<ChatMessageArrivalAnnouncement | null>(null);
   const [viewportState, dispatch] = useReducer(
     reduceChatMessageViewportState,
     canLoadOlder,
@@ -188,6 +192,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     olderRequestInFlightRef.current = false;
     pendingAnchorRef.current = null;
     setOlderLoadError(null);
+    setArrivalAnnouncement(null);
     cancelLatestScroll();
   }, [cancelLatestScroll, viewportKey]);
 
@@ -230,6 +235,17 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     }
 
     if (appendedItems.length > 0) {
+      const announcedItems = appendedItems.filter((item) => item.deliveryTone === null);
+      const announcement = createChatMessageArrivalAnnouncement(announcedItems);
+
+      if (announcement) {
+        arrivalAnnouncementSequenceRef.current += 1;
+        setArrivalAnnouncement({
+          id: arrivalAnnouncementSequenceRef.current,
+          message: announcement,
+        });
+      }
+
       if (appendSource === "current-user") {
         viewportPositionRef.current = "pinned";
       }
@@ -370,6 +386,12 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
         </div>
       ) : null}
 
+      <p aria-atomic="true" aria-live="polite" aria-relevant="additions text" className="sr-only">
+        {arrivalAnnouncement ? (
+          <span key={arrivalAnnouncement.id}>{arrivalAnnouncement.message}</span>
+        ) : null}
+      </p>
+
       {viewportState.unseenMessageCount > 0 ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-5">
           <button
@@ -385,8 +407,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
 
       <div
         aria-label={history.roomLabel}
-        aria-live="polite"
-        aria-relevant="additions text"
+        aria-live="off"
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6"
         data-viewport-key={viewportKey}
         onScroll={handleScroll}
@@ -438,6 +459,11 @@ type ChatMessageViewportItemsSnapshot = Readonly<{
   itemCount: number;
   lastRenderKey: string | null;
   viewportKey: string;
+}>;
+
+type ChatMessageArrivalAnnouncement = Readonly<{
+  id: number;
+  message: string;
 }>;
 
 type ChatMessageViewportScrollFrames = {
