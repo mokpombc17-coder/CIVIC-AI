@@ -144,6 +144,23 @@ Optimistic 메시지 행의 `data-delivery-status`를 E2E 관찰 지점으로 �
 → 새로고침 후 REST 이력에도 세 메시지가 각각 한 번만 복구되는지 확인
 ```
 
+작성자 메시지 수정·삭제는 서로 다른 두 사용자를 같은 방에 참여시켜 command result와 room
+event, REST snapshot을 함께 검증한다. 메시지 행의 불변 `clientMessageId`를 사용해 수정·삭제
+후에도 동일한 목록 위치가 유지되는지 확인한다.
+
+```text
+사용자 A와 B가 같은 공개 방에 참여
+→ A가 메시지를 보내고 양쪽에서 확정 snapshot 확인
+→ B에게는 메시지 수정·삭제 액션이 노출되지 않는지 확인
+→ A가 앞뒤 공백이 있는 내용으로 수정
+→ 정규화된 내용과 (수정됨) 표시가 양쪽에 실시간 반영되는지 확인
+→ 같은 내용으로 다시 수정
+→ room event가 없는 UNCHANGED에서도 command result로 pending 종료 확인
+→ A가 메시지 삭제
+→ 기존 clientMessageId 행이 양쪽에서 tombstone으로 바뀌는지 확인
+→ 양쪽 새로고침 후 REST 이력에서도 tombstone 복구 확인
+```
+
 ## 사전 조건
 
 Chat Resource Server와 MongoDB가 로컬 `http://localhost:8082`에서 실행 중이어야 한다.
