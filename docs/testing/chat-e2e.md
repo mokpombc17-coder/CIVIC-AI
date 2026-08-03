@@ -161,6 +161,17 @@ event, REST snapshot을 함께 검증한다. 메시지 행의 불변 `clientMess
 → 양쪽 새로고침 후 REST 이력에서도 tombstone 복구 확인
 ```
 
+채팅방 참여 정원은 OWNER를 포함한 서로 다른 사용자로 실제 ACTIVE 인원을 채운 뒤 검증한다.
+
+```text
+OWNER가 공개 방 생성
+→ 서로 다른 사용자 49명이 참여해 ACTIVE 인원 50명 도달
+→ 51번째 사용자의 참여 요청이 ROOM_MEMBER_LIMIT_EXCEEDED로 거절
+→ 한국어 안내와 참여 버튼 복구 확인
+→ 같은 Idempotency-Key 재전송은 replayed=true 확인
+→ 사용자가 참여 버튼을 다시 누르면 새로운 Idempotency-Key 사용 확인
+```
+
 ## 사전 조건
 
 Chat Resource Server와 MongoDB가 로컬 `http://localhost:8082`에서 실행 중이어야 한다.

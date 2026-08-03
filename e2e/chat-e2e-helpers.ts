@@ -1,4 +1,4 @@
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 const AUTH_COOKIE_NAME = "civic_ai_access_token";
 
@@ -77,6 +77,15 @@ export async function joinPublicRoomAndEnter(
     await page.goto("/chat");
   }
 
+  const roomCard = await findPublicRoomCard(page, roomName);
+
+  await roomCard.getByRole("button", { name: "참여하기", exact: true }).click();
+
+  await expect(page).toHaveURL(new RegExp(`/chat/${roomId}$`));
+  await expect(page.getByRole("heading", { name: roomName, exact: true })).toBeVisible();
+}
+
+export async function findPublicRoomCard(page: Page, roomName: string): Promise<Locator> {
   const roomCards = page.getByRole("article");
   const roomCard = page.getByRole("article").filter({
     hasText: roomName,
@@ -114,10 +123,8 @@ export async function joinPublicRoomAndEnter(
     roomCard,
     `${roomName} 공개 방을 cursor pagination 결과에서 찾아야 합니다.`,
   ).toBeVisible();
-  await roomCard.getByRole("button", { name: "참여하기", exact: true }).click();
 
-  await expect(page).toHaveURL(new RegExp(`/chat/${roomId}$`));
-  await expect(page.getByRole("heading", { name: roomName, exact: true })).toBeVisible();
+  return roomCard;
 }
 
 function readRoomId(url: string): string {

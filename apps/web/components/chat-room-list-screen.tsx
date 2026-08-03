@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
+import { getJoinRoomErrorMessage } from "@/lib/chat/chat-room-command-error-presentation";
 import {
   createRoomRequestSchema,
   type CreateRoomRequest,
@@ -377,7 +378,7 @@ function JoinRoomControl({ room }: { room: PublicRoomListItem }) {
 
       {joinRoom.isError ? (
         <div className="text-right text-xs text-red-700" role="alert">
-          <p>{toErrorMessage(joinRoom.error)}</p>
+          <p>{getJoinRoomErrorMessage(joinRoom.error)}</p>
           {canRetry ? (
             <button
               className="mt-1 underline underline-offset-2"
