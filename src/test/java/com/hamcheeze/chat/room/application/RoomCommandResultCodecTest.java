@@ -47,6 +47,23 @@ class RoomCommandResultCodecTest {
     }
 
     @Test
+    void roundTripsMemberLimitRejectionWithoutChangingSchema() {
+        RoomCommandResult original = result(
+                RoomCommandResultCode.ROOM_MEMBER_LIMIT_EXCEEDED);
+
+        StoredRoomCommandResult stored = codec.encode(original);
+        RoomCommandResult restored = codec.decode(
+                stored,
+                RoomCommandType.JOIN_ROOM);
+
+        assertThat(stored.resultSchemaVersion()).isEqualTo(
+                RoomCommandResultCodec.RESULT_SCHEMA_VERSION);
+        assertThat(stored.payload()).contains(
+                "\"code\":\"ROOM_MEMBER_LIMIT_EXCEEDED\"");
+        assertThat(restored).isEqualTo(original);
+    }
+
+    @Test
     void rejectsUnsupportedSchemaMalformedAndUnknownPayload() {
         RoomCommandResult original =
                 result(RoomCommandResultCode.JOINED);

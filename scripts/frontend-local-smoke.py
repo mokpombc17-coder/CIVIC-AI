@@ -99,6 +99,43 @@ class HttpClient:
         return status, response_headers, parsed_body
 
 
+def find_public_room(
+    client: HttpClient,
+    room_id: str,
+) -> dict | None:
+    cursor = None
+    seen_cursors: set[str] = set()
+    while True:
+        query = {"limit": "100"}
+        if cursor is not None:
+            query["cursor"] = cursor
+        path = "/api/v1/rooms?" + urllib.parse.urlencode(query)
+        _, _, page = client.request("GET", path)
+        if not isinstance(page, dict):
+            raise AssertionError("공개 방 목록 응답이 JSON 객체가 아닙니다.")
+
+        found = next(
+            (
+                item
+                for item in page.get("items", [])
+                if item.get("roomId") == room_id
+            ),
+            None,
+        )
+        if found is not None or not page.get("hasNext"):
+            return found
+
+        next_cursor = page.get("nextCursor")
+        if (
+            not isinstance(next_cursor, str)
+            or not next_cursor
+            or next_cursor in seen_cursors
+        ):
+            raise AssertionError("공개 방 목록 cursor 계약이 유효하지 않습니다.")
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+
+
 class WebSocketClient:
     def __init__(self, url: str, origin: str, cookie: str):
         parsed = urllib.parse.urlparse(url)
@@ -799,15 +836,7 @@ def main() -> int:
         or room_detail.get("description") != room_description
     ):
         raise AssertionError("방 상세 응답의 settings가 생성 요청과 다릅니다.")
-    _, _, listed_rooms = client.request("GET", "/api/v1/rooms?limit=100")
-    listed_room = next(
-        (
-            item
-            for item in listed_rooms.get("items", [])
-            if item.get("roomId") == room_id
-        ),
-        None,
-    ) if isinstance(listed_rooms, dict) else None
+    listed_room = find_public_room(client, room_id)
     if (
         listed_room is None
         or listed_room.get("description") != room_description
@@ -844,11 +873,7 @@ def main() -> int:
         != "frontend local smoke updated description"
     ):
         raise AssertionError(f"최신 Room settings snapshot이 다릅니다: {updated_detail}")
-    _, _, unlisted_rooms = client.request("GET", "/api/v1/rooms?limit=100")
-    if any(
-        item.get("roomId") == room_id
-        for item in unlisted_rooms.get("items", [])
-    ):
+    if find_public_room(client, room_id) is not None:
         raise AssertionError("UNLISTED 방이 공개 방 목록에 남아 있습니다.")
     join_client = HttpClient(
         args.base_url,

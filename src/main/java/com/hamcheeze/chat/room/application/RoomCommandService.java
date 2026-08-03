@@ -56,6 +56,7 @@ public final class RoomCommandService {
     private final RoomCommandIdGenerator idGenerator;
     private final Clock clock;
     private final RoomCommandProperties properties;
+    private final RoomMembershipProperties membershipProperties;
     private final RoomCommandPostCommitCoordinator
             postCommitCoordinator;
 
@@ -78,6 +79,7 @@ public final class RoomCommandService {
                 idGenerator,
                 clock,
                 properties,
+                new RoomMembershipProperties(),
                 RoomCommandPostCommitCoordinator.disabled());
     }
 
@@ -102,6 +104,7 @@ public final class RoomCommandService {
                 idGenerator,
                 clock,
                 properties,
+                new RoomMembershipProperties(),
                 new RoomCommandPostCommitCoordinator(
                         RoomCommandEventPropagationCoordinator.disabled(),
                         accessRevocationCoordinator));
@@ -116,6 +119,31 @@ public final class RoomCommandService {
             RoomCommandIdGenerator idGenerator,
             Clock clock,
             RoomCommandProperties properties,
+            RoomCommandPostCommitCoordinator postCommitCoordinator
+    ) {
+        this(
+                roomStore,
+                membershipStore,
+                messageBoundaryPort,
+                executor,
+                fingerprintFactory,
+                idGenerator,
+                clock,
+                properties,
+                new RoomMembershipProperties(),
+                postCommitCoordinator);
+    }
+
+    public RoomCommandService(
+            RoomStore roomStore,
+            MembershipStore membershipStore,
+            RoomMessageBoundaryPort messageBoundaryPort,
+            IdempotentRoomCommandExecutor executor,
+            RoomCommandFingerprintFactory fingerprintFactory,
+            RoomCommandIdGenerator idGenerator,
+            Clock clock,
+            RoomCommandProperties properties,
+            RoomMembershipProperties membershipProperties,
             RoomCommandPostCommitCoordinator postCommitCoordinator
     ) {
         this.roomStore = Objects.requireNonNull(roomStore, "roomStore");
@@ -134,6 +162,9 @@ public final class RoomCommandService {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.properties =
                 Objects.requireNonNull(properties, "properties");
+        this.membershipProperties = Objects.requireNonNull(
+                membershipProperties,
+                "membershipProperties");
         this.postCommitCoordinator = Objects.requireNonNull(
                 postCommitCoordinator,
                 "postCommitCoordinator");
@@ -327,6 +358,18 @@ public final class RoomCommandService {
                         candidateMembershipId,
                         command.requesterUserId(),
                         transitionTime);
+        if ((outcome == JoinRoomTransition.Outcome.JOINED
+                || outcome == JoinRoomTransition.Outcome.REJOINED)
+                && room.activeMemberCount()
+                >= membershipProperties
+                        .maxActiveMembersPerRoom()) {
+            return rejection(
+                    command.commandType(),
+                    RoomCommandResultCode
+                            .ROOM_MEMBER_LIMIT_EXCEEDED,
+                    command.roomId(),
+                    null);
+        }
         long messageVisibleAfterSequence =
                 outcome == JoinRoomTransition.Outcome.ALREADY_ACTIVE
                         ? existing.messageVisibleAfterSequence()

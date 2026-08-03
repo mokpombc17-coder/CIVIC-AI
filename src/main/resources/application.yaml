@@ -10,6 +10,8 @@ chat:
       receipt-ttl: 1h
       max-attempts: 3
       retry-backoff: 10ms
+    membership:
+      max-active-members-per-room: ${CHAT_ROOM_MAX_ACTIVE_MEMBERS_PER_ROOM:50}
     authorization:
       max-consistency-attempts: 3
 

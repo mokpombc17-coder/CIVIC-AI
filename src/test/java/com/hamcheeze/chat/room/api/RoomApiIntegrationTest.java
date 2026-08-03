@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.api;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.command.BanMemberCommand;
 import com.hamcheeze.chat.room.application.command.CloseRoomCommand;
@@ -70,6 +71,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
 
     @Autowired
     private RoomCommandService commandService;
+
+    @Autowired
+    private RoomMembershipProperties membershipProperties;
 
     @MockitoSpyBean
     private RoomEventDeliveryPort eventDeliveryPort;
@@ -758,6 +762,80 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code")
                         .value("ROOM_NOT_FOUND"));
+    }
+
+    @Test
+    void memberLimitUsesConflictContractAndProducesNoEvent()
+            throws Exception {
+        membershipProperties.setMaxActiveMembersPerRoom(2);
+        try {
+            String roomId = createRoom(
+                    "owner-1",
+                    JoinPolicy.OPEN);
+            commandService.joinRoom(new JoinRoomCommand(
+                    "user-2",
+                    requestId(),
+                    roomId));
+            membershipProperties.setMaxActiveMembersPerRoom(1);
+
+            mockMvc.perform(get("/api/v1/rooms/{roomId}", roomId)
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject("owner-1"))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.activeMemberCount")
+                            .value(2));
+            mockMvc.perform(post(
+                            "/api/v1/rooms/{roomId}/commands/join",
+                            roomId)
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject("user-2")))
+                            .header("Idempotency-Key", requestId()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code")
+                            .value("ALREADY_ACTIVE"));
+
+            String requestId = requestId();
+            var roomBefore = roomStore.findById(roomId).orElseThrow();
+            clearInvocations(eventDeliveryPort);
+
+            mockMvc.perform(post(
+                            "/api/v1/rooms/{roomId}/commands/join",
+                            roomId)
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject("user-3")))
+                            .header("Idempotency-Key", requestId))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(
+                            "ROOM_MEMBER_LIMIT_EXCEEDED"))
+                    .andExpect(jsonPath("$.detail").value(
+                            "The room has reached its active "
+                                    + "member limit."))
+                    .andExpect(jsonPath("$.replayed").value(false));
+            mockMvc.perform(post(
+                            "/api/v1/rooms/{roomId}/commands/join",
+                            roomId)
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject("user-3")))
+                            .header("Idempotency-Key", requestId))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value(
+                            "ROOM_MEMBER_LIMIT_EXCEEDED"))
+                    .andExpect(jsonPath("$.replayed").value(true));
+
+            assertThat(roomStore.findById(roomId))
+                    .contains(roomBefore);
+            assertThat(membershipStore.findByRoomIdAndUserId(
+                    roomId,
+                    "user-3")).isEmpty();
+            assertThat(count(MongoMembershipDocument.COLLECTION_NAME))
+                    .isEqualTo(2);
+            assertThat(count(
+                    MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                    .isEqualTo(4);
+            verifyNoInteractions(eventDeliveryPort);
+        } finally {
+            membershipProperties.setMaxActiveMembersPerRoom(50);
+        }
     }
 
     @Test

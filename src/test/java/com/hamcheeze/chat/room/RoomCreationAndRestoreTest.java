@@ -129,6 +129,8 @@ class RoomCreationAndRestoreTest {
     void restoresValidActiveAndClosedRooms() {
         Room active = room(
                 RoomStatus.ACTIVE, 2, null, 4);
+        Room activeAboveCurrentDefaultLimit = room(
+                RoomStatus.ACTIVE, 70, null, 6);
         Room closed = room(
                 RoomStatus.CLOSED, 0,
                 CREATED_AT.plusSeconds(60), 5);
@@ -137,6 +139,10 @@ class RoomCreationAndRestoreTest {
         assertThat(active.name()).isEqualTo("room-1");
         assertThat(active.activeMemberCount()).isEqualTo(2);
         assertThat(active.version()).isEqualTo(4);
+        assertThat(activeAboveCurrentDefaultLimit.activeMemberCount())
+                .isEqualTo(70);
+        assertThat(activeAboveCurrentDefaultLimit.version())
+                .isEqualTo(6);
         assertThat(closed.status()).isEqualTo(RoomStatus.CLOSED);
         assertThat(closed.closedAt())
                 .isEqualTo(CREATED_AT.plusSeconds(60));

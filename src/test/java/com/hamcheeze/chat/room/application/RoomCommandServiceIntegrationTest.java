@@ -73,6 +73,9 @@ class RoomCommandServiceIntegrationTest
     @Autowired
     private ChatMessageHistoryReader messageHistoryReader;
 
+    @Autowired
+    private RoomMembershipProperties membershipProperties;
+
     @MockitoSpyBean
     private MembershipStore membershipStore;
 
@@ -638,6 +641,285 @@ class RoomCommandServiceIntegrationTest
                 MongoMembershipDocument.COLLECTION_NAME))
                 .isEqualTo(1);
         assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void defaultCapacityIncludesOwnerAndLimitRejectionReplays()
+            throws Exception {
+        assertThat(membershipProperties.maxActiveMembersPerRoom())
+                .isEqualTo(50);
+        String roomId = createOpenRoom("owner-1");
+        joinMembers(roomId, "member-", 1, 49);
+        Room fullRoom = roomStore.findById(roomId).orElseThrow();
+        assertThat(fullRoom.activeMemberCount()).isEqualTo(50);
+        assertThat(memberships(roomId)).hasSize(50);
+        long boundaryRevisionBefore = boundaryRevision(roomId);
+
+        String requestId = requestId();
+        JoinRoomCommand command = new JoinRoomCommand(
+                "member-50",
+                requestId,
+                roomId);
+        long receiptsBefore = count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME);
+
+        RoomCommandExecution rejected = service.joinRoom(command);
+        RoomCommandExecution replay = service.joinRoom(command);
+
+        assertThat(rejected.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_MEMBER_LIMIT_EXCEEDED);
+        assertThat(rejected.replayed()).isFalse();
+        assertThat(replay.result()).isEqualTo(rejected.result());
+        assertThat(replay.replayed()).isTrue();
+        assertThat(roomStore.findById(roomId)).contains(fullRoom);
+        assertThat(membershipStore.findByRoomIdAndUserId(
+                roomId,
+                "member-50")).isEmpty();
+        assertThat(memberships(roomId)).hasSize(50);
+        assertThat(boundaryRevision(roomId))
+                .isEqualTo(boundaryRevisionBefore);
+        assertThat(count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isEqualTo(receiptsBefore + 1);
+
+        RoomCommandExecution alreadyActive = service.joinRoom(
+                new JoinRoomCommand(
+                        "member-1",
+                        requestId(),
+                        roomId));
+        assertThat(alreadyActive.result().code()).isEqualTo(
+                RoomCommandResultCode.ALREADY_ACTIVE);
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void leaveBanUnbanAndJoinPolicyPreserveCapacityPriority() {
+        String roomId = createOpenRoom("owner-1");
+        joinMembers(roomId, "member-", 1, 49);
+
+        service.leaveRoom(new LeaveRoomCommand(
+                "member-1",
+                requestId(),
+                roomId));
+        assertThat(roomStore.findById(roomId).orElseThrow()
+                .activeMemberCount()).isEqualTo(49);
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "member-50",
+                requestId(),
+                roomId)).result().code()).isEqualTo(
+                RoomCommandResultCode.JOINED);
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "member-1",
+                requestId(),
+                roomId)).result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_MEMBER_LIMIT_EXCEEDED);
+
+        service.banMember(new BanMemberCommand(
+                "owner-1",
+                requestId(),
+                roomId,
+                "member-2"));
+        assertThat(roomStore.findById(roomId).orElseThrow()
+                .activeMemberCount()).isEqualTo(49);
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "member-1",
+                requestId(),
+                roomId)).result().code()).isEqualTo(
+                RoomCommandResultCode.REJOINED);
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "member-2",
+                requestId(),
+                roomId)).result().code()).isEqualTo(
+                RoomCommandResultCode.MEMBERSHIP_BANNED);
+
+        service.unbanMember(new UnbanMemberCommand(
+                "owner-1",
+                requestId(),
+                roomId,
+                "member-2"));
+        assertThat(roomStore.findById(roomId).orElseThrow()
+                .activeMemberCount()).isEqualTo(50);
+        assertThat(membership(roomId, "member-2").status())
+                .isEqualTo(MembershipStatus.LEFT);
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "member-2",
+                requestId(),
+                roomId)).result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_MEMBER_LIMIT_EXCEEDED);
+
+        service.updateRoomSettings(updateSettings(
+                "owner-1",
+                requestId(),
+                roomId,
+                false,
+                null,
+                false,
+                null,
+                false,
+                null,
+                true,
+                JoinPolicy.INVITE_ONLY));
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "member-51",
+                requestId(),
+                roomId)).result().code()).isEqualTo(
+                RoomCommandResultCode.JOIN_POLICY_NOT_OPEN);
+
+        service.leaveRoom(new LeaveRoomCommand(
+                "member-3",
+                requestId(),
+                roomId));
+        service.updateRoomSettings(updateSettings(
+                "owner-1",
+                requestId(),
+                roomId,
+                false,
+                null,
+                false,
+                null,
+                false,
+                null,
+                true,
+                JoinPolicy.OPEN));
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "member-2",
+                requestId(),
+                roomId)).result().code()).isEqualTo(
+                RoomCommandResultCode.REJOINED);
+        assertThat(roomStore.findById(roomId).orElseThrow()
+                .activeMemberCount()).isEqualTo(50);
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void concurrentJoinsAtLastSlotNeverExceedCapacity()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+        joinMembers(roomId, "member-", 1, 48);
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "member-49",
+                        requestId(),
+                        roomId)),
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "member-50",
+                        requestId(),
+                        roomId)));
+
+        assertThat(executions)
+                .extracting(execution -> execution.result().code())
+                .containsExactlyInAnyOrder(
+                        RoomCommandResultCode.JOINED,
+                        RoomCommandResultCode
+                                .ROOM_MEMBER_LIMIT_EXCEEDED);
+        assertThat(roomStore.findById(roomId).orElseThrow()
+                .activeMemberCount()).isEqualTo(50);
+        assertThat(memberships(roomId)).hasSize(50);
+        assertThat(List.of("member-49", "member-50").stream()
+                .filter(userId -> membershipStore
+                        .findByRoomIdAndUserId(roomId, userId)
+                        .isPresent()))
+                .hasSize(1);
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void concurrentRejoinsAtLastSlotNeverExceedCapacity()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+        joinMembers(roomId, "member-", 1, 49);
+        service.leaveRoom(new LeaveRoomCommand(
+                "member-1",
+                requestId(),
+                roomId));
+        service.leaveRoom(new LeaveRoomCommand(
+                "member-2",
+                requestId(),
+                roomId));
+        service.joinRoom(new JoinRoomCommand(
+                "filler-member",
+                requestId(),
+                roomId));
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "member-1",
+                        requestId(),
+                        roomId)),
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "member-2",
+                        requestId(),
+                        roomId)));
+
+        assertThat(executions)
+                .extracting(execution -> execution.result().code())
+                .containsExactlyInAnyOrder(
+                        RoomCommandResultCode.REJOINED,
+                        RoomCommandResultCode
+                                .ROOM_MEMBER_LIMIT_EXCEEDED);
+        assertThat(roomStore.findById(roomId).orElseThrow()
+                .activeMemberCount()).isEqualTo(50);
+        assertThat(List.of("member-1", "member-2").stream()
+                .filter(userId -> membership(roomId, userId)
+                        .status() == MembershipStatus.ACTIVE))
+                .hasSize(1);
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void loweredLimitDoesNotBreakExistingRoomAndAllowsShrink() {
+        String roomId = createOpenRoom("owner-1");
+        joinMembers(roomId, "member-", 1, 4);
+        membershipProperties.setMaxActiveMembersPerRoom(3);
+        try {
+            assertThat(roomStore.findById(roomId).orElseThrow()
+                    .activeMemberCount()).isEqualTo(5);
+            assertThat(service.joinRoom(new JoinRoomCommand(
+                    "member-1",
+                    requestId(),
+                    roomId)).result().code()).isEqualTo(
+                    RoomCommandResultCode.ALREADY_ACTIVE);
+            assertThat(service.joinRoom(new JoinRoomCommand(
+                    "new-member",
+                    requestId(),
+                    roomId)).result().code()).isEqualTo(
+                    RoomCommandResultCode
+                            .ROOM_MEMBER_LIMIT_EXCEEDED);
+
+            service.leaveRoom(new LeaveRoomCommand(
+                    "member-1",
+                    requestId(),
+                    roomId));
+            service.banMember(new BanMemberCommand(
+                    "owner-1",
+                    requestId(),
+                    roomId,
+                    "member-2"));
+            assertThat(roomStore.findById(roomId).orElseThrow()
+                    .activeMemberCount()).isEqualTo(3);
+            assertThat(service.joinRoom(new JoinRoomCommand(
+                    "new-member",
+                    requestId(),
+                    roomId)).result().code()).isEqualTo(
+                    RoomCommandResultCode
+                            .ROOM_MEMBER_LIMIT_EXCEEDED);
+
+            service.leaveRoom(new LeaveRoomCommand(
+                    "member-3",
+                    requestId(),
+                    roomId));
+            assertThat(service.joinRoom(new JoinRoomCommand(
+                    "new-member",
+                    requestId(),
+                    roomId)).result().code()).isEqualTo(
+                    RoomCommandResultCode.JOINED);
+            assertThat(roomStore.findById(roomId).orElseThrow()
+                    .activeMemberCount()).isEqualTo(3);
+            assertRoomInvariants(roomId);
+        } finally {
+            membershipProperties.setMaxActiveMembersPerRoom(50);
+        }
     }
 
     @Test
@@ -1245,6 +1527,23 @@ class RoomCommandServiceIntegrationTest
                     senderUserId,
                     requestId(),
                     "message " + index));
+        }
+    }
+
+    private void joinMembers(
+            String roomId,
+            String userPrefix,
+            int first,
+            int count
+    ) {
+        for (int index = first; index < first + count; index++) {
+            RoomCommandExecution execution = service.joinRoom(
+                    new JoinRoomCommand(
+                            userPrefix + index,
+                            requestId(),
+                            roomId));
+            assertThat(execution.result().code())
+                    .isEqualTo(RoomCommandResultCode.JOINED);
         }
     }
 

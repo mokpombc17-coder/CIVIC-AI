@@ -29,7 +29,10 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(RoomCommandProperties.class)
+@EnableConfigurationProperties({
+        RoomCommandProperties.class,
+        RoomMembershipProperties.class
+})
 public class RoomCommandApplicationConfiguration {
 
     @Bean
@@ -81,6 +84,7 @@ public class RoomCommandApplicationConfiguration {
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
             RoomCommandProperties properties,
+            RoomMembershipProperties membershipProperties,
             RoomCommandPostCommitCoordinator postCommitCoordinator
     ) {
         return new RoomCommandService(
@@ -92,6 +96,7 @@ public class RoomCommandApplicationConfiguration {
                 idGenerator,
                 Clock.systemUTC(),
                 properties,
+                membershipProperties,
                 postCommitCoordinator);
     }
 

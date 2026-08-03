@@ -298,6 +298,19 @@ Idempotency-Key: <uuid>
 
 최초 참여는 `201 Created`, 재참여 또는 이미 활성 상태이면 `200 OK`다.
 
+한 방의 `ACTIVE` Membership은 OWNER를 포함하며, 현재 제품 정책의 기본
+최대값은 50명이다. 이 값은 서버 설정으로 변경될 수 있으므로 클라이언트가
+숫자 50을 고정 계약으로 사용해서는 안 된다. 제한은 신규 join과
+`LEFT -> ACTIVE` rejoin에만 적용되며, 정원에 도달한 방에서 실제 ACTIVE 수를
+늘리려는 요청은 `409 ROOM_MEMBER_LIMIT_EXCEEDED`로 거절된다. 이미 ACTIVE인
+사용자의 중복 join은 정원과 관계없이 `ALREADY_ACTIVE`다. leave 또는 ACTIVE
+MEMBER ban으로 자리가 생기면 다시 join/rejoin할 수 있고, unban은 LEFT 상태만
+복원하므로 정원을 소비하지 않는다.
+
+이 영속 Membership 제한은 WebSocket의 동시 Room topic 구독 제한인
+`chat.websocket.subscription.max-subscribers-per-room`과 서로 다른 설정이다.
+두 값은 독립적으로 변경할 수 있다.
+
 최초 참여가 확정될 때 서버는 참여 직전까지 확정된 방의 최신
 `roomSequence`를 Membership의 `messageVisibleAfterSequence`로 저장한다.
 재참여(`LEFT -> ACTIVE`) 시에는 새 참여 시점의 최신 sequence로 이 경계를
