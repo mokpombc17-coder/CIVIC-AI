@@ -39,6 +39,7 @@ public record MongoChatMessageOutboxDocument(
             String clientMessageId,
             String content,
             MessageState state,
+            Boolean countable,
             Long messageVersion,
             Instant createdAt,
             Instant updatedAt,
@@ -54,6 +55,7 @@ public record MongoChatMessageOutboxDocument(
                     payload.clientMessageId(),
                     payload.content(),
                     payload.state(),
+                    payload.countable(),
                     payload.messageVersion(),
                     payload.createdAt(),
                     payload.updatedAt(),
@@ -69,6 +71,7 @@ public record MongoChatMessageOutboxDocument(
                     clientMessageId,
                     content,
                     state,
+                    countable,
                     messageVersion,
                     createdAt,
                     updatedAt,
@@ -91,10 +94,11 @@ public record MongoChatMessageOutboxDocument(
                     senderUserId,
                     clientMessageId,
                     content,
-                    null,
-                    null,
+                    MessageState.ACTIVE,
+                    true,
+                    1L,
                     createdAt,
-                    null,
+                    createdAt,
                     null);
         }
     }

@@ -97,7 +97,7 @@ await fetch("http://localhost:8082/api/v1/me/rooms", {
 
 - Allowed Origin: `http://localhost:3000` (`*` wildcard 사용 안 함)
 - Credentials: `true`
-- Allowed Methods: `GET`, `POST`, `OPTIONS`
+- Allowed Methods: `GET`, `POST`, `PUT`, `OPTIONS`
 - Allowed Headers: `Content-Type`, `Idempotency-Key`, `Authorization`
 
 인증 쿠키가 없거나 유효하지 않으면 `401 Unauthorized`, 필요한 권한이
@@ -110,6 +110,7 @@ chat:connect
 chat:rooms:read
 chat:rooms:write
 chat:messages:write
+chat:read-state:write
 ```
 
 기능별 요구 권한 계약은 다음과 같다.
@@ -121,6 +122,7 @@ chat:messages:write
 | 방 topic 구독 및 구독 준비 sync | `chat:rooms:read` |
 | 방 생성 및 상태 변경 | `chat:rooms:write` |
 | 채팅 메시지 전송 | `chat:messages:write` |
+| 개인 Room 읽음 위치 갱신 | `chat:read-state:write` |
 
 ### Idempotency-Key
 
@@ -1545,3 +1547,182 @@ python3 scripts/frontend-local-smoke.py
     각각 `clientMutationId`, `messageId`, `messageVersion`으로 연결한다.
 19. 재연결 후 현재 로드 범위를 REST로 새로 조회한 뒤 buffered event를
     `messageVersion`으로 병합한다.
+
+## Room inbox unread와 ReadState
+
+메시지 schema v3는 불변 boolean `countable`을 필수로 저장한다. 현재 USER
+메시지는 항상 `true`이며 UPDATE와 DELETE 뒤에도 값이 유지된다. REST 메시지
+이력과 `CHAT_MESSAGE_CREATED`, `CHAT_MESSAGE_UPDATED`,
+`CHAT_MESSAGE_DELETED` payload에도 이 값이 포함된다. 향후 SYSTEM 메시지는
+`false`로 생성할 수 있지만 이번 버전은 SYSTEM 메시지와 `MessageType`을
+제공하지 않는다.
+
+이 변경은 기존 message schema v1/v2, `countable`이 없는 outbox payload,
+mutation fixture의 보존이나 backfill을 지원하지 않는다. 배포 전에
+`chat_messages`, `chat_outbox_events` 및 충돌하는 로컬 message fixture를
+명시적으로 초기화해야 한다. 애플리케이션 startup은 운영 데이터를 자동으로
+삭제하지 않는다. 운영 데이터가 생긴 뒤에는 별도 migration 없이 같은 방식을
+다시 사용할 수 없다.
+
+사용자별 raw 읽음 cursor는 Membership가 아니라
+`chat_room_read_states`에 lazy 생성된다. 외부에 노출하는 값은 항상 다음
+effective cursor다.
+
+```text
+readThroughSequence = max(
+  membership.messageVisibleAfterSequence,
+  RoomReadState.lastReadSequence 또는 0
+)
+```
+
+### 읽음 위치 갱신
+
+```http
+PUT /api/v1/rooms/{roomId}/read-state
+Content-Type: application/json
+
+{"throughSequence":123}
+```
+
+`chat:read-state:write` scope와 ACTIVE Room의 ACTIVE Membership이 필요하다.
+로컬 CORS는 `PUT`을 허용한다. 응답은 다음과 같다.
+
+```json
+{
+  "roomId": "room-01",
+  "readThroughSequence": 123,
+  "updated": true
+}
+```
+
+- 요청이 현재 참여 경계보다 낮거나 effective cursor 이하이면 `200`,
+  `updated=false`이며 cursor와 `updatedAt`은 감소하거나 변경되지 않는다.
+- 현재 `chat_room_sequences.lastSequence`보다 크면
+  `409 READ_SEQUENCE_AHEAD`다. sequence 문서가 없으면 현재 값은 `0`이다.
+- 비활성 Membership은 `403 ACCESS_DENIED`, CLOSED Room은
+  `409 READ_STATE_NOT_AVAILABLE`다.
+- ACTIVE 확인 직후 leave/ban이 commit되면 마지막 monotonic 개인 cursor
+  write가 남을 수 있으나 접근 권한이나 Membership 상태를 복원하지 않는다.
+- 별도 `Idempotency-Key`는 필요하지 않다.
+
+### Room inbox 목록
+
+```http
+GET /api/v1/me/room-inbox?cursor={cursor}&limit=20
+```
+
+`chat:rooms:read` scope가 필요하고 limit은 기본·최대 모두 `20`이다.
+`limit=21`은 `400 INVALID_REQUEST`다. 기존 `/me/rooms`는 변경되지 않는다.
+cursor scope는 `MY_ROOM_INBOX`이므로 `/me/rooms` cursor와 서로 사용할 수
+없다. 정렬은 현재 ACTIVE Membership ID cursor 순서를 유지하며 최신
+메시지순 정렬은 제공하지 않는다.
+
+각 item은 기존 active Room metadata와 다음 값을 추가한다.
+
+```json
+{
+  "readThroughSequence": 123,
+  "unreadCount": 200,
+  "unreadCountCapped": true
+}
+```
+
+unread 조건은 `roomSequence > readThroughSequence`, `state=ACTIVE`,
+`countable=true`, `senderUserId != currentUserId`다. 수정은 unread 수를
+바꾸지 않고, 읽지 않은 tombstone은 제외하며 자신의 메시지도 제외한다.
+기본 cap은 `200`이다. 정확히 200이면 `capped=false`, 201 이상이면
+`unreadCount=200`, `capped=true`다.
+
+서버는 page의 최대 20개 Room을 순서대로 조회한다. 각 Mongo count는
+`limit=cap+1`, `maxTime`, `ix_chat_message_unread` hint를 사용한다. 한
+Room이라도 timeout 또는 Mongo 오류가 발생하면 일부 0을 반환하지 않고 전체
+요청을 `503 ROOM_INBOX_UNAVAILABLE`, `retryable=true`로 실패시킨다.
+
+대표 query plan은 다음 명령으로 반복 확인한다.
+
+```bash
+docker compose -f compose.local.yaml exec -T \
+  -e UNREAD_MESSAGE_COUNT=50000 mongodb \
+  mongosh --quiet mongodb://localhost:27017/chat_local --file /dev/stdin \
+  < scripts/unread-query-load.js
+
+docker compose -f compose.local.yaml exec -T mongodb \
+  mongosh --quiet mongodb://localhost:27017/chat_local --file /dev/stdin \
+  < scripts/unread-query-explain.js
+
+docker compose -f compose.local.yaml exec -T \
+  -e UNREAD_ROOM_COUNT=20 -e UNREAD_MESSAGE_COUNT=1000 mongodb \
+  mongosh --quiet mongodb://localhost:27017/chat_local --file /dev/stdin \
+  < scripts/unread-query-load.js
+
+docker compose -f compose.local.yaml exec -T \
+  -e UNREAD_ROOM_COUNT=20 mongodb \
+  mongosh --quiet mongodb://localhost:27017/chat_local --file /dev/stdin \
+  < scripts/unread-query-benchmark.js
+```
+
+출력의 `indexName`, `winningPlan`, `totalKeysExamined`,
+`totalDocsExamined`, `executionTimeMillis`, `nReturned`을 데이터 규모별로
+기록한다. benchmark는 MongoDB에 순차 count command를 실행한 DB 기준
+수치이며 HTTP endpoint latency가 아니다. 절대 latency를 자동 테스트의 고정
+성공 기준으로 사용하지 않는다.
+
+## 개인 Room inbox WebSocket event
+
+연결마다 다음 queue를 한 번 구독한다.
+
+```text
+/user/queue/room-inbox-events
+```
+
+이 구독은 기존 최대 subscription 5개에 포함된다. 개인 queue 3개와 현재
+Room topic 2개를 함께 구독할 수 있다. 현재 Room message topic을 구독 중인
+사용자도 서버 수신 대상에서 제외하지 않으며, foreground/현재 화면/토스트
+억제 판단은 프론트가 한다.
+
+CREATE 예:
+
+```json
+{
+  "eventVersion": 1,
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "eventType": "ROOM_INBOX_INVALIDATED",
+  "cause": "MESSAGE_CREATED",
+  "roomId": "room-01",
+  "roomNameHint": "토론방",
+  "emittedAt": "2026-08-03T01:10:00Z",
+  "sourceEventIds": ["chat-message-created:message-84"],
+  "coalescedCreateCount": 1,
+  "notificationHint": {
+    "messageId": "message-84",
+    "messageVersion": 1,
+    "senderUserId": "user-2",
+    "messageCreatedAt": "2026-08-03T01:09:59Z",
+    "preview": "다음 회의는 월요일입니다.",
+    "previewTruncated": false
+  }
+}
+```
+
+DELETE는 `cause=MESSAGE_DELETED`, `notificationHint=null`이며 REST query
+invalidation에만 사용한다. preview는 첫 CRLF/LF/CR 이전, 최대 30 Unicode
+code point이고 TAB은 공백으로 바꾸며 양끝 공백을 제거한다. 줄바꿈 뒤나
+30 code point 뒤가 생략될 때만 `previewTruncated=true`다. 서버는 말줄임표를
+붙이지 않는다.
+
+개인 event는 메시지 cache insert/update/delete payload가 아니며 unread를
+직접 `+1/-1` 하는 authoritative 값도 아니다. 수신 시 room-inbox query를
+debounce invalidate한다. delivery는 비영속 best-effort/at-least-once이며
+outbox delete 실패 후 같은 `sourceEventIds`가 중복될 수 있다. 클라이언트는
+bounded TTL/LRU로 중복을 제거할 수 있다.
+
+서버는 room-topic publish 성공 뒤 bounded in-memory queue에 non-blocking
+offer하고, Room별 100ms window에서 recipient 조회와 외부 event를
+coalescing한다. queue full, observer 오류, 개별 전송 오류는 message outbox
+성공과 재시도 상태를 바꾸지 않는다. 동일 window의 같은 메시지
+CREATE→DELETE는 CREATE hint를 억제하고 DELETE invalidation만 보낸다.
+
+현재 구현은 단일 chat-server 인스턴스와 in-memory presence를 전제로 하며
+오프라인 replay, Push, durable notification outbox를 제공하지 않는다. 향후
+Push 보장이 필요하면 message와 room-topic outbox를 저장하는 transaction에
+별도 durable notification intent를 함께 기록해야 한다.

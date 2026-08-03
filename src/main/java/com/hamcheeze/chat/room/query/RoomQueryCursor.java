@@ -29,6 +29,7 @@ public record RoomQueryCursor(
 
     public enum Scope {
         MY_ACTIVE_ROOMS,
+        MY_ROOM_INBOX,
         ROOM_MEMBERSHIPS
     }
 }

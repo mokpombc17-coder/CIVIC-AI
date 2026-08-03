@@ -23,6 +23,7 @@ DEFAULT_SCOPE = " ".join(
         "chat:rooms:read",
         "chat:rooms:write",
         "chat:messages:write",
+        "chat:read-state:write",
     )
 )
 

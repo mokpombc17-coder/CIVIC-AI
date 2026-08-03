@@ -22,6 +22,7 @@ public record MongoChatMessageDocument(
         String content,
         String creationContentFingerprint,
         MessageState state,
+        Boolean countable,
         Long messageVersion,
         Instant createdAt,
         Instant updatedAt,
@@ -29,7 +30,7 @@ public record MongoChatMessageDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_messages";
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCHEMA_VERSION = 3;
 
     @PersistenceCreator
     public MongoChatMessageDocument {
@@ -38,37 +39,33 @@ public record MongoChatMessageDocument(
         Objects.requireNonNull(senderUserId, "senderUserId");
         Objects.requireNonNull(clientMessageId, "clientMessageId");
         Objects.requireNonNull(createdAt, "createdAt");
-        if (schemaVersion < 1) {
-            throw new IllegalArgumentException(
-                    "schemaVersion must be at least 1");
-        }
         if (roomSequence < 1) {
             throw new IllegalArgumentException(
                     "roomSequence must be at least 1");
         }
-        if (schemaVersion >= CURRENT_SCHEMA_VERSION) {
-            if (schemaVersion != CURRENT_SCHEMA_VERSION
-                    || state == null
-                    || messageVersion == null
-                    || updatedAt == null
-                    || creationContentFingerprint == null
-                    || creationContentFingerprint.isBlank()) {
-                throw new IllegalArgumentException(
-                        "Unsupported or malformed chat message document");
-            }
-            new ChatMessage(
-                    messageId,
-                    roomId,
-                    roomSequence,
-                    senderUserId,
-                    clientMessageId,
-                    content,
-                    state,
-                    messageVersion,
-                    createdAt,
-                    updatedAt,
-                    deletedAt);
+        if (schemaVersion != CURRENT_SCHEMA_VERSION
+                || state == null
+                || countable == null
+                || messageVersion == null
+                || updatedAt == null
+                || creationContentFingerprint == null
+                || creationContentFingerprint.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Unsupported or malformed chat message document");
         }
+        new ChatMessage(
+                messageId,
+                roomId,
+                roomSequence,
+                senderUserId,
+                clientMessageId,
+                content,
+                state,
+                countable,
+                messageVersion,
+                createdAt,
+                updatedAt,
+                deletedAt);
     }
 
     public MongoChatMessageDocument(
@@ -89,33 +86,19 @@ public record MongoChatMessageDocument(
                 senderUserId,
                 clientMessageId,
                 content,
-                schemaVersion == 1
-                        ? null
-                        : ChatMessageContentFingerprint.of(content),
-                schemaVersion == 1 ? null : MessageState.ACTIVE,
-                schemaVersion == 1 ? null : 1L,
+                ChatMessageContentFingerprint.of(content),
+                MessageState.ACTIVE,
+                true,
+                1L,
                 createdAt,
-                schemaVersion == 1 ? null : createdAt,
+                createdAt,
                 null);
     }
 
     ChatMessage toDomain() {
-        if (schemaVersion == 1) {
-            if (content == null) {
-                throw new IllegalArgumentException(
-                        "Legacy ACTIVE message content must not be null");
-            }
-            return new ChatMessage(
-                    messageId,
-                    roomId,
-                    roomSequence,
-                    senderUserId,
-                    clientMessageId,
-                    content,
-                    createdAt);
-        }
         if (schemaVersion != CURRENT_SCHEMA_VERSION
                 || state == null
+                || countable == null
                 || messageVersion == null
                 || updatedAt == null) {
             throw new IllegalArgumentException(
@@ -129,6 +112,7 @@ public record MongoChatMessageDocument(
                 clientMessageId,
                 content,
                 state,
+                countable,
                 messageVersion,
                 createdAt,
                 updatedAt,
@@ -153,6 +137,7 @@ public record MongoChatMessageDocument(
                 message.content(),
                 creationContentFingerprint,
                 message.state(),
+                message.countable(),
                 message.messageVersion(),
                 message.createdAt(),
                 message.updatedAt(),
@@ -164,18 +149,12 @@ public record MongoChatMessageDocument(
                 && !creationContentFingerprint.isBlank()) {
             return creationContentFingerprint;
         }
-        if (schemaVersion == 1 && content != null) {
-            return ChatMessageContentFingerprint.of(content);
-        }
         throw new IllegalArgumentException(
                 "Message creation content fingerprint is unavailable");
     }
 
     boolean hasSameCreationContent(String candidateContent) {
         Objects.requireNonNull(candidateContent, "candidateContent");
-        if (schemaVersion == 1) {
-            return Objects.equals(content, candidateContent);
-        }
         return effectiveCreationContentFingerprint().equals(
                 ChatMessageContentFingerprint.of(candidateContent));
     }

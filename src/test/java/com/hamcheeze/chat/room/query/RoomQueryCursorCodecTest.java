@@ -70,6 +70,31 @@ class RoomQueryCursorCodecTest {
                 """));
     }
 
+    @Test
+    void roomInboxAndActiveRoomCursorsAreNotInterchangeable() {
+        String inbox = codec.encode(new RoomQueryCursor(
+                1,
+                Scope.MY_ROOM_INBOX,
+                MembershipStatus.ACTIVE,
+                "m-1"));
+        String activeRooms = codec.encode(new RoomQueryCursor(
+                1,
+                Scope.MY_ACTIVE_ROOMS,
+                MembershipStatus.ACTIVE,
+                "m-1"));
+
+        assertThatThrownBy(() -> codec.decode(
+                inbox,
+                Scope.MY_ACTIVE_ROOMS,
+                MembershipStatus.ACTIVE))
+                .isInstanceOf(RoomQueryException.class);
+        assertThatThrownBy(() -> codec.decode(
+                activeRooms,
+                Scope.MY_ROOM_INBOX,
+                MembershipStatus.ACTIVE))
+                .isInstanceOf(RoomQueryException.class);
+    }
+
     private void assertInvalid(String token) {
         assertThatThrownBy(() -> codec.decode(
                 token,

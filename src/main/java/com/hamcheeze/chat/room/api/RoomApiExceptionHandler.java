@@ -9,6 +9,8 @@ import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionExcep
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.query.RoomQueryErrorCode;
 import com.hamcheeze.chat.room.query.RoomQueryException;
+import com.hamcheeze.chat.room.inbox.RoomInboxErrorCode;
+import com.hamcheeze.chat.room.inbox.RoomInboxException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -140,6 +142,39 @@ public class RoomApiExceptionHandler {
                 detail,
                 request,
                 retryable,
+                null);
+    }
+
+    @ExceptionHandler(RoomInboxException.class)
+    ResponseEntity<ProblemDetail> roomInbox(
+            RoomInboxException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = switch (exception.code()) {
+            case ACCESS_DENIED -> HttpStatus.FORBIDDEN;
+            case READ_STATE_NOT_AVAILABLE,
+                    READ_SEQUENCE_AHEAD -> HttpStatus.CONFLICT;
+            case ROOM_INBOX_UNAVAILABLE ->
+                    HttpStatus.SERVICE_UNAVAILABLE;
+        };
+        String detail = switch (exception.code()) {
+            case ACCESS_DENIED ->
+                    "An active room membership is required.";
+            case READ_STATE_NOT_AVAILABLE ->
+                    "Read state is not available for this room.";
+            case READ_SEQUENCE_AHEAD ->
+                    "The requested read sequence is ahead of the room.";
+            case ROOM_INBOX_UNAVAILABLE ->
+                    "The room inbox is temporarily unavailable.";
+        };
+        return problem(
+                status,
+                exception.code().name(),
+                "Room inbox request failed",
+                detail,
+                request,
+                exception.code()
+                        == RoomInboxErrorCode.ROOM_INBOX_UNAVAILABLE,
                 null);
     }
 

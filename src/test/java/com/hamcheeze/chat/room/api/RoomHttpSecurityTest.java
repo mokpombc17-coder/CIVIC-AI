@@ -31,6 +31,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -247,6 +248,102 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                 .getResponse()
                 .getStatus();
         assertThat(status).isNotEqualTo(401);
+    }
+
+    @Test
+    void readStateUsesDedicatedScopeAndRoomInboxUsesReadScope()
+            throws Exception {
+        String body = "{\"throughSequence\":0}";
+        String createResponse = mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_WRITE))))
+                        .header(
+                                RoomIdempotencyKeyResolver.HEADER_NAME,
+                                UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String roomId = createResponse.replaceFirst(
+                ".*\\\"roomId\\\":\\\"([^\\\"]+)\\\".*",
+                "$1");
+
+        mockMvc.perform(put("/api/v1/rooms/" + roomId + "/read-state")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .READ_STATE_WRITE))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.readThroughSequence").value(0))
+                .andExpect(jsonPath("$.updated").value(false));
+
+        mockMvc.perform(put("/api/v1/rooms/room-1/read-state")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_WRITE))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/api/v1/rooms/room-1/read-state")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .READ_STATE_WRITE))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        mockMvc.perform(get("/api/v1/me/room-inbox")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_READ)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray());
+
+        mockMvc.perform(get("/api/v1/me/room-inbox?limit=21")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_READ)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+
+        mockMvc.perform(get("/api/v1/me/room-inbox")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_WRITE)))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void allowsReadStatePutCorsPreflight() throws Exception {
+        mockMvc.perform(options("/api/v1/rooms/room-1/read-state")
+                        .header(HttpHeaders.ORIGIN,
+                                "http://localhost:3000")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                "PUT")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                        org.hamcrest.Matchers.containsString("PUT")));
     }
 
     private String createBody() {

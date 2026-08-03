@@ -94,7 +94,8 @@ class MongoChatMessageMutationStoreTest {
                 .isEqualTo(MessageState.ACTIVE);
         assertThat(message().content()).isEqualTo("edited");
         assertThat(message().roomSequence()).isEqualTo(1);
-        assertThat(message().schemaVersion()).isEqualTo(2);
+        assertThat(message().schemaVersion()).isEqualTo(3);
+        assertThat(message().countable()).isTrue();
         assertThat(outboxCount()).isEqualTo(1);
         assertThat(outboxId())
                 .isEqualTo("chat-message-updated:message-1:v2");
@@ -248,53 +249,18 @@ class MongoChatMessageMutationStoreTest {
     }
 
     @Test
-    void upgradesLegacySchemaOneMessageOnFirstEdit() {
-        CONFIGURATION.mongoOperations().insert(
-                new MongoChatMessageDocument(
-                        "legacy-1",
-                        1,
-                        "room-1",
-                        7,
-                        "user-1",
-                        "legacy-client",
-                        "legacy",
-                        CREATED_AT));
-        CONFIGURATION.mongoOperations().insert(
-                new MongoChatMessageDocument(
-                        "legacy-2",
-                        1,
-                        "room-1",
-                        8,
-                        "user-1",
-                        "legacy-client-2",
-                        "legacy delete",
-                        CREATED_AT));
-
-        ChatMessageMutationResult result = mutationStore.edit(
-                new EditChatMessageMutation(
-                        "user-1",
-                        UUID.randomUUID().toString(),
-                        "room-1",
-                        "legacy-1",
-                        "edited legacy"));
-
-        assertThat(result.outcome())
-                .isEqualTo(MessageMutationOutcome.UPDATED);
-        assertThat(result.messageVersion()).isEqualTo(2);
-        assertThat(message("legacy-1").schemaVersion()).isEqualTo(2);
-        assertThat(message("legacy-1").updatedAt())
-                .isEqualTo(MUTATED_AT);
-
-        ChatMessageMutationResult deleted = mutationStore.delete(
-                new DeleteChatMessageMutation(
-                        "user-1",
-                        UUID.randomUUID().toString(),
-                        "room-1",
-                        "legacy-2"));
-        assertThat(deleted.outcome())
-                .isEqualTo(MessageMutationOutcome.DELETED);
-        assertThat(message("legacy-2").schemaVersion()).isEqualTo(2);
-        assertThat(message("legacy-2").content()).isNull();
+    void rejectsLegacySchemaWithoutCountable() {
+        assertThatThrownBy(() -> new MongoChatMessageDocument(
+                "legacy-1",
+                1,
+                "room-1",
+                7,
+                "user-1",
+                "legacy-client",
+                "legacy",
+                CREATED_AT))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported or malformed");
     }
 
     @Test

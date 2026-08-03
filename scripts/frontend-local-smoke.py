@@ -352,7 +352,7 @@ def assert_cors(client: HttpClient) -> None:
         item.strip().upper()
         for item in headers.get("access-control-allow-methods", "").split(",")
     }
-    if not {"GET", "POST", "OPTIONS"} <= allowed_methods:
+    if not {"GET", "POST", "PUT", "OPTIONS"} <= allowed_methods:
         raise AssertionError("CORS allowed methods 계약이 충족되지 않았습니다.")
 
 
@@ -386,6 +386,7 @@ def run_websocket_flow(
         subscriptions = (
             ("command-results", "/user/queue/command-results"),
             ("system-events", "/user/queue/system-events"),
+            ("room-inbox-events", "/user/queue/room-inbox-events"),
             ("room-messages", f"/topic/rooms/{room_id}/messages"),
             ("room-events", f"/topic/rooms/{room_id}/room-events"),
         )
@@ -768,6 +769,217 @@ def run_websocket_flow(
         client.close()
 
 
+def find_inbox_room(client: HttpClient, room_id: str) -> dict | None:
+    cursor = None
+    while True:
+        query = {"limit": "20"}
+        if cursor is not None:
+            query["cursor"] = cursor
+        _, _, page = client.request(
+            "GET",
+            "/api/v1/me/room-inbox?" + urllib.parse.urlencode(query),
+        )
+        found = next(
+            (
+                item
+                for item in page.get("items", [])
+                if item.get("roomId") == room_id
+            ),
+            None,
+        )
+        if found is not None or not page.get("hasNext"):
+            return found
+        cursor = page.get("nextCursor")
+        if not isinstance(cursor, str) or not cursor:
+            raise AssertionError("room-inbox cursor 계약이 유효하지 않습니다.")
+
+
+def connect_stomp(client: WebSocketClient) -> None:
+    client.connect()
+    client.send_text(
+        stomp_frame(
+            "CONNECT",
+            {"accept-version": "1.2", "heart-beat": "10000,10000"},
+        )
+    )
+    receive_stomp(
+        client,
+        expected_commands=("CONNECTED",),
+        deadline=time.monotonic() + 10,
+    )
+
+
+def subscribe_stomp(
+    client: WebSocketClient,
+    subscription_id: str,
+    destination: str,
+) -> None:
+    client.send_text(
+        stomp_frame(
+            "SUBSCRIBE",
+            {
+                "id": subscription_id,
+                "destination": destination,
+                "ack": "auto",
+            },
+        )
+    )
+
+
+def receive_json_matching(
+    client: WebSocketClient,
+    predicate,
+    description: str,
+) -> dict:
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        _, _, body = receive_stomp(
+            client,
+            expected_commands=("MESSAGE",),
+            deadline=deadline,
+        )
+        document = json.loads(body)
+        if predicate(document):
+            return document
+    raise TimeoutError(f"{description} 이벤트를 기다리다 시간 초과됐습니다.")
+
+
+def run_room_inbox_flow(
+    ws_url: str,
+    origin: str,
+    owner_client: HttpClient,
+    member_client: HttpClient,
+    room_id: str,
+) -> None:
+    owner_ws = WebSocketClient(ws_url, origin, owner_client.cookie)
+    member_ws = WebSocketClient(ws_url, origin, member_client.cookie)
+    connect_stomp(owner_ws)
+    connect_stomp(member_ws)
+    try:
+        subscribe_stomp(
+            owner_ws,
+            "room-inbox-events",
+            "/user/queue/room-inbox-events",
+        )
+        subscribe_stomp(
+            owner_ws,
+            "room-messages",
+            f"/topic/rooms/{room_id}/messages",
+        )
+        subscribe_stomp(
+            member_ws,
+            "command-results",
+            "/user/queue/command-results",
+        )
+
+        def create_member_message(content: str) -> tuple[str, int, dict]:
+            client_message_id = str(uuid.uuid4())
+            body = json.dumps(
+                {"clientMessageId": client_message_id, "content": content}
+            )
+            member_ws.send_text(
+                stomp_frame(
+                    "SEND",
+                    {
+                        "destination": f"/app/rooms/{room_id}/messages",
+                        "content-type": "application/json",
+                        "content-length": str(len(body.encode("utf-8"))),
+                    },
+                    body,
+                )
+            )
+            result = receive_json_matching(
+                member_ws,
+                lambda value: value.get("clientMessageId")
+                == client_message_id,
+                "member message command result",
+            )
+            if result.get("status") != "ACCEPTED":
+                raise AssertionError(f"member CREATE가 실패했습니다: {result}")
+            inbox_event = receive_json_matching(
+                owner_ws,
+                lambda value: value.get("eventType")
+                == "ROOM_INBOX_INVALIDATED"
+                and value.get("cause") == "MESSAGE_CREATED"
+                and value.get("notificationHint", {}).get("messageId")
+                == result.get("messageId"),
+                "개인 inbox CREATE",
+            )
+            if (
+                "payload" in inbox_event
+                or inbox_event.get("coalescedCreateCount") != 1
+                or not inbox_event.get("sourceEventIds")
+            ):
+                raise AssertionError(
+                    f"개인 inbox event가 cache payload처럼 보입니다: {inbox_event}"
+                )
+            return result["messageId"], int(result["roomSequence"]), inbox_event
+
+        first_message_id, first_sequence, _ = create_member_message(
+            "frontend inbox unread"
+        )
+        inbox = find_inbox_room(owner_client, room_id)
+        if inbox is None or inbox.get("unreadCount") != 1:
+            raise AssertionError(f"다른 사용자 메시지 unread가 1이 아닙니다: {inbox}")
+        _, _, read_result = owner_client.request(
+            "PUT",
+            f"/api/v1/rooms/{room_id}/read-state",
+            body={"throughSequence": first_sequence},
+        )
+        if (
+            read_result.get("readThroughSequence") != first_sequence
+            or not read_result.get("updated")
+        ):
+            raise AssertionError(f"read-state 증가 응답이 다릅니다: {read_result}")
+        if find_inbox_room(owner_client, room_id).get("unreadCount") != 0:
+            raise AssertionError("read-state PUT 이후 unreadCount가 0이 아닙니다.")
+
+        second_message_id, _, _ = create_member_message(
+            "frontend inbox delete"
+        )
+        if find_inbox_room(owner_client, room_id).get("unreadCount") != 1:
+            raise AssertionError("삭제 전 두 번째 unreadCount가 1이 아닙니다.")
+        mutation_id = str(uuid.uuid4())
+        delete_body = json.dumps(
+            {
+                "clientMutationId": mutation_id,
+                "messageId": second_message_id,
+            }
+        )
+        member_ws.send_text(
+            stomp_frame(
+                "SEND",
+                {
+                    "destination": f"/app/rooms/{room_id}/messages/delete",
+                    "content-type": "application/json",
+                    "content-length": str(len(delete_body.encode("utf-8"))),
+                },
+                delete_body,
+            )
+        )
+        delete_result = receive_json_matching(
+            member_ws,
+            lambda value: value.get("clientMutationId") == mutation_id,
+            "member DELETE command result",
+        )
+        if delete_result.get("status") != "DELETED":
+            raise AssertionError(f"member DELETE가 실패했습니다: {delete_result}")
+        delete_event = receive_json_matching(
+            owner_ws,
+            lambda value: value.get("eventType")
+            == "ROOM_INBOX_INVALIDATED"
+            and value.get("cause") == "MESSAGE_DELETED",
+            "개인 inbox DELETE",
+        )
+        if delete_event.get("notificationHint") is not None:
+            raise AssertionError("DELETE invalidation에 preview가 포함됐습니다.")
+        if find_inbox_room(owner_client, room_id).get("unreadCount") != 0:
+            raise AssertionError("읽지 않은 메시지 삭제 후 unreadCount가 0이 아닙니다.")
+    finally:
+        owner_ws.close()
+        member_ws.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Verify the complete local frontend integration contract."
@@ -793,7 +1005,7 @@ def main() -> int:
     token = generate_token(args.subject)
     client = HttpClient(args.base_url, args.origin, token)
 
-    print("[1/12] 서버 health 확인")
+    print("[1/14] 서버 health 확인")
     _, _, health = client.request(
         "GET",
         "/actuator/health",
@@ -802,14 +1014,14 @@ def main() -> int:
     if not isinstance(health, dict) or health.get("status") != "UP":
         raise AssertionError(f"서버 health가 UP이 아닙니다: {health}")
 
-    print("[2/12] credential CORS preflight 확인")
+    print("[2/14] credential CORS preflight 확인")
     assert_cors(client)
 
-    print("[3/12] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
+    print("[3/14] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
     client.request("GET", "/api/v1/me/rooms")
     client.request("GET", "/api/v1/rooms")
 
-    print("[4/12] description 포함 LISTED/OPEN 방 생성")
+    print("[4/14] description 포함 LISTED/OPEN 방 생성")
     room_name = f"frontend-smoke-{uuid.uuid4().hex[:8]}"
     room_description = "frontend local smoke description"
     _, _, create_result = client.request(
@@ -828,7 +1040,7 @@ def main() -> int:
         raise AssertionError("방 생성 응답이 JSON 객체가 아닙니다.")
     room_id = create_result["roomId"]
 
-    print("[5/12] 방 상세·공개 방 목록 description 반영 확인")
+    print("[5/14] 방 상세·공개 방 목록 description 반영 확인")
     _, _, room_detail = client.request("GET", f"/api/v1/rooms/{room_id}")
     if (
         not isinstance(room_detail, dict)
@@ -844,7 +1056,7 @@ def main() -> int:
         raise AssertionError("생성한 LISTED 방이 공개 방 목록에 없습니다.")
 
     print(
-        "[6/12] 구독 유지 상태에서 Room settings update/event/replay/no-op 확인"
+        "[6/14] 구독 유지 상태에서 Room settings update/event/replay/no-op 확인"
     )
     (
         client_message_id,
@@ -861,7 +1073,7 @@ def main() -> int:
         args.subject,
     )
 
-    print("[7/12] settings detail, 공개 목록 제외, INVITE_ONLY 확인")
+    print("[7/14] settings detail, 공개 목록 제외, INVITE_ONLY 확인")
     _, _, updated_detail = client.request(
         "GET",
         f"/api/v1/rooms/{room_id}",
@@ -894,11 +1106,11 @@ def main() -> int:
             f"INVITE_ONLY join 거절이 올바르지 않습니다: {join_rejection}"
         )
 
-    print("[8/12] CREATE/UPDATE/DELETE event와 result 확인")
+    print("[8/14] CREATE/UPDATE/DELETE event와 result 확인")
     if room_sequence < 1:
         raise AssertionError("roomSequence는 1 이상이어야 합니다.")
 
-    print("[9/12] REST 메시지 tombstone 재동기화 확인")
+    print("[9/14] REST 메시지 tombstone 재동기화 확인")
     _, _, history = client.request(
         "GET",
         f"/api/v1/rooms/{room_id}/messages?afterSequence=0&limit=100",
@@ -918,15 +1130,16 @@ def main() -> int:
         or tombstone.get("roomSequence") != room_sequence
         or tombstone.get("messageVersion") != 3
         or tombstone.get("state") != "DELETED_BY_AUTHOR"
+        or tombstone.get("countable") is not True
         or tombstone.get("content") is not None
     ):
         raise AssertionError(f"REST tombstone이 올바르지 않습니다: {tombstone}")
 
-    print("[10/12] 수정·삭제 roomSequence 불변 확인")
+    print("[10/14] 수정·삭제 roomSequence 불변 확인")
     if next_sequence != room_sequence + 1:
         raise AssertionError("후속 메시지 sequence가 정확히 1 증가하지 않았습니다.")
 
-    print("[11/12] 후속 CREATE REST snapshot 확인")
+    print("[11/14] 후속 CREATE REST snapshot 확인")
     next_messages = [
         item
         for item in history.get("items", [])
@@ -935,7 +1148,7 @@ def main() -> int:
     if len(next_messages) != 1 or next_messages[0].get("roomSequence") != next_sequence:
         raise AssertionError("후속 메시지를 REST 이력에서 찾지 못했습니다.")
 
-    print("[12/12] LISTED/OPEN 복원과 공개 목록 재반영 확인")
+    print("[12/14] LISTED/OPEN 복원과 공개 목록 재반영 확인")
     client.request(
         "POST",
         f"/api/v1/rooms/{room_id}/commands/update-settings",
@@ -952,9 +1165,32 @@ def main() -> int:
     ):
         raise AssertionError("LISTED로 복원한 방이 공개 목록에 없습니다.")
 
+    print("[13/14] 두 번째 사용자 Room join 확인")
+    inbox_member = HttpClient(
+        args.base_url,
+        args.origin,
+        generate_token(f"{args.subject}-inbox-member"),
+    )
+    inbox_member.request(
+        "POST",
+        f"/api/v1/rooms/{room_id}/commands/join",
+        headers={"Idempotency-Key": str(uuid.uuid4())},
+        expected_statuses=(201,),
+    )
+
+    print("[14/14] unread/read-state와 개인 CREATE/DELETE event 확인")
+    run_room_inbox_flow(
+        ws_url,
+        args.origin,
+        client,
+        inbox_member,
+        room_id,
+    )
+
     print(
         "PASS: 쿠키 인증 → CORS → 방 생성/설정 변경/목록·join 정책 → "
-        "WebSocket/STOMP 구독 준비 → 생성/수정/삭제 → REST tombstone 흐름이 정상입니다."
+        "WebSocket/STOMP 구독 준비 → 생성/수정/삭제 → REST tombstone → "
+        "Room inbox unread/read-state/개인 invalidation 흐름이 정상입니다."
     )
     return 0
 

@@ -1,0 +1,452 @@
+package com.hamcheeze.chat.room.inbox.notification;
+
+import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
+import com.hamcheeze.chat.delivery.ChatMessagePayload;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxDispatcher;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxEvent;
+import com.hamcheeze.chat.message.outbox.ClaimedChatMessageOutboxEvent;
+import com.hamcheeze.chat.message.outbox.PublishedChatMessageObserver;
+import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
+import com.hamcheeze.chat.room.Membership;
+import com.hamcheeze.chat.room.MembershipStatus;
+import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.application.RoomMembershipProperties;
+import com.hamcheeze.chat.room.inbox.RoomInboxProperties;
+import com.hamcheeze.chat.room.query.CursorSlice;
+import com.hamcheeze.chat.room.query.RoomQueryReader;
+import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.SmartLifecycle;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public final class RoomInboxNotificationPipeline
+        implements PublishedChatMessageObserver, SmartLifecycle {
+
+    private static final Logger log = LoggerFactory.getLogger(
+            RoomInboxNotificationPipeline.class);
+    public static final int LIFECYCLE_PHASE =
+            ChatMessageOutboxDispatcher.LIFECYCLE_PHASE - 1_000;
+
+    private final BlockingQueue<RoomInboxNotificationIntent> queue;
+    private final RoomQueryReader roomReader;
+    private final ActiveConnectionRegistry activeConnections;
+    private final RoomInboxEventDelivery delivery;
+    private final RoomInboxProperties.Notification properties;
+    private final int maxActiveMembers;
+    private final Clock clock;
+    private final AtomicBoolean running = new AtomicBoolean();
+    private final AtomicInteger workerRunning = new AtomicInteger();
+    private final Counter enqueuedCounter;
+    private final Counter droppedCounter;
+    private final Counter coalescedCounter;
+    private final Counter roomBatchSizeCounter;
+    private final Counter recipientsCounter;
+    private final Counter successCounter;
+    private final Counter failureCounter;
+    private final Counter duplicateCounter;
+    private final Timer dispatchTimer;
+    private volatile Thread worker;
+
+    public RoomInboxNotificationPipeline(
+            RoomQueryReader roomReader,
+            ActiveConnectionRegistry activeConnections,
+            RoomInboxEventDelivery delivery,
+            RoomInboxProperties inboxProperties,
+            RoomMembershipProperties membershipProperties,
+            Clock clock,
+            MeterRegistry meterRegistry
+    ) {
+        this.roomReader = Objects.requireNonNull(
+                roomReader, "roomReader");
+        this.activeConnections = Objects.requireNonNull(
+                activeConnections, "activeConnections");
+        this.delivery = Objects.requireNonNull(delivery, "delivery");
+        this.properties = Objects.requireNonNull(
+                inboxProperties, "inboxProperties").getNotification();
+        this.maxActiveMembers = membershipProperties
+                .maxActiveMembersPerRoom();
+        this.clock = Objects.requireNonNull(clock, "clock");
+        Objects.requireNonNull(meterRegistry, "meterRegistry");
+        this.queue = new ArrayBlockingQueue<>(
+                properties.getQueueCapacity());
+        this.enqueuedCounter = meterRegistry.counter(
+                "room.inbox.notification.enqueued");
+        this.droppedCounter = meterRegistry.counter(
+                "room.inbox.notification.enqueue.dropped");
+        this.coalescedCounter = meterRegistry.counter(
+                "room.inbox.notification.coalesced");
+        this.roomBatchSizeCounter = meterRegistry.counter(
+                "room.inbox.notification.room_batch.size");
+        this.recipientsCounter = meterRegistry.counter(
+                "room.inbox.notification.recipients");
+        this.successCounter = meterRegistry.counter(
+                "room.inbox.notification.delivery.success");
+        this.failureCounter = meterRegistry.counter(
+                "room.inbox.notification.delivery.failure");
+        this.duplicateCounter = meterRegistry.counter(
+                "room.inbox.notification.duplicate.source");
+        this.dispatchTimer = meterRegistry.timer(
+                "room.inbox.notification.dispatch.duration");
+        Gauge.builder(
+                        "room.inbox.notification.queue.depth",
+                        queue,
+                        BlockingQueue::size)
+                .register(meterRegistry);
+    }
+
+    @Override
+    public void onPublished(
+            ClaimedChatMessageOutboxEvent claimed,
+            ChatMessageEventEnvelope envelope
+    ) {
+        if (!ChatMessageOutboxEvent.MESSAGE_CREATED.equals(
+                envelope.eventType())
+                && !ChatMessageOutboxEvent.MESSAGE_DELETED.equals(
+                envelope.eventType())) {
+            return;
+        }
+        RoomInboxNotificationIntent intent =
+                RoomInboxNotificationIntent.from(claimed, envelope);
+        if (queue.offer(intent)) {
+            BestEffortMetricRecorder.increment(
+                    "room.inbox.notification.enqueued",
+                    enqueuedCounter);
+            return;
+        }
+        BestEffortMetricRecorder.increment(
+                "room.inbox.notification.enqueue.dropped",
+                droppedCounter);
+        log.warn(
+                "Room inbox notification intent dropped because queue "
+                        + "is full: eventId={}, roomId={}",
+                claimed.eventId(), envelope.payload().roomId());
+    }
+
+    @Override
+    public void start() {
+        if (!running.compareAndSet(false, true)) {
+            return;
+        }
+        worker = Thread.ofPlatform()
+                .name("room-inbox-notification")
+                .start(this::runWorker);
+    }
+
+    @Override
+    public void stop(Runnable callback) {
+        running.set(false);
+        Thread current = worker;
+        if (current != null) {
+            current.interrupt();
+            try {
+                current.join(properties.getShutdownDrainTimeoutMs());
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        callback.run();
+    }
+
+    @Override
+    public void stop() {
+        CountDownLatch latch = new CountDownLatch(1);
+        stop(latch::countDown);
+    }
+
+    @Override
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    @Override
+    public int getPhase() {
+        return LIFECYCLE_PHASE;
+    }
+
+    private void runWorker() {
+        workerRunning.set(1);
+        try {
+            while (running.get() || !queue.isEmpty()) {
+                List<RoomInboxNotificationIntent> window =
+                        collectWindow();
+                if (!window.isEmpty()) {
+                    flush(window);
+                }
+            }
+        } finally {
+            workerRunning.set(0);
+        }
+    }
+
+    private List<RoomInboxNotificationIntent> collectWindow() {
+        List<RoomInboxNotificationIntent> result = new ArrayList<>();
+        try {
+            RoomInboxNotificationIntent first = queue.poll(
+                    properties.getCoalescingWindowMs(),
+                    TimeUnit.MILLISECONDS);
+            if (first == null) {
+                return result;
+            }
+            result.add(first);
+            long deadline = System.nanoTime()
+                    + TimeUnit.MILLISECONDS.toNanos(
+                    properties.getCoalescingWindowMs());
+            while (result.size() < properties.getQueueCapacity()) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    break;
+                }
+                RoomInboxNotificationIntent next = queue.poll(
+                        remaining, TimeUnit.NANOSECONDS);
+                if (next == null) {
+                    break;
+                }
+                result.add(next);
+            }
+        } catch (InterruptedException exception) {
+            if (running.get()) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        return result;
+    }
+
+    private void flush(List<RoomInboxNotificationIntent> window) {
+        Map<String, List<RoomInboxNotificationIntent>> byRoom =
+                new LinkedHashMap<>();
+        for (RoomInboxNotificationIntent intent : window) {
+            byRoom.computeIfAbsent(intent.roomId(), ignored ->
+                    new ArrayList<>()).add(intent);
+        }
+        for (List<RoomInboxNotificationIntent> batch :
+                byRoom.values()) {
+            int max = properties.getMaxEventsPerRoomBatch();
+            for (int start = 0; start < batch.size(); start += max) {
+                flushRoom(batch.subList(
+                        start, Math.min(start + max, batch.size())));
+            }
+        }
+    }
+
+    private void flushRoom(List<RoomInboxNotificationIntent> rawBatch) {
+        long started = System.nanoTime();
+        try {
+            List<RoomInboxNotificationIntent> batch =
+                    deduplicate(rawBatch);
+            BestEffortMetricRecorder.increment(
+                    "room.inbox.notification.room_batch.size",
+                    roomBatchSizeCounter,
+                    batch.size());
+            if (batch.size() > 1) {
+                for (int ignored = 1; ignored < batch.size(); ignored++) {
+                    BestEffortMetricRecorder.increment(
+                            "room.inbox.notification.coalesced",
+                            coalescedCounter);
+                }
+            }
+            String roomId = batch.getFirst().roomId();
+            Room room = roomReader.findRoomById(roomId).orElse(null);
+            if (room == null || room.status() != RoomStatus.ACTIVE
+                    || room.activeMemberCount() > maxActiveMembers) {
+                return;
+            }
+            CursorSlice<Membership> slice = roomReader
+                    .findMembershipsByRoomAndStatus(
+                            roomId,
+                            MembershipStatus.ACTIVE,
+                            null,
+                            maxActiveMembers);
+            if (slice.hasNext()
+                    || slice.items().size()
+                    != room.activeMemberCount()) {
+                log.warn(
+                        "Room inbox recipient snapshot is inconsistent; "
+                                + "batch dropped: roomId={}",
+                        roomId);
+                return;
+            }
+            Set<String> deletedMessageIds = new LinkedHashSet<>();
+            for (RoomInboxNotificationIntent intent : batch) {
+                if (ChatMessageOutboxEvent.MESSAGE_DELETED.equals(
+                        intent.eventType())) {
+                    deletedMessageIds.add(intent.messageId());
+                }
+            }
+            for (Membership membership : slice.items()) {
+                String connectionId = activeConnections
+                        .findConnectionIdByUser(membership.userId())
+                        .orElse(null);
+                if (connectionId == null
+                        || !activeConnections.isActive(
+                        membership.userId(), connectionId)) {
+                    continue;
+                }
+                if (deliverRecipient(
+                        room,
+                        membership,
+                        connectionId,
+                        batch,
+                        deletedMessageIds)) {
+                    BestEffortMetricRecorder.increment(
+                            "room.inbox.notification.recipients",
+                            recipientsCounter);
+                }
+            }
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Room inbox notification room batch failed; "
+                            + "the message outbox remains successful",
+                    exception);
+        } finally {
+            BestEffortMetricRecorder.record(
+                    "room.inbox.notification.dispatch.duration",
+                    dispatchTimer,
+                    Duration.ofNanos(Math.max(
+                            0, System.nanoTime() - started)));
+        }
+    }
+
+    private List<RoomInboxNotificationIntent> deduplicate(
+            List<RoomInboxNotificationIntent> batch
+    ) {
+        Map<String, RoomInboxNotificationIntent> unique =
+                new LinkedHashMap<>();
+        for (RoomInboxNotificationIntent intent : batch) {
+            if (unique.putIfAbsent(
+                    intent.sourceOutboxEventId(), intent) != null) {
+                BestEffortMetricRecorder.increment(
+                        "room.inbox.notification.duplicate.source",
+                        duplicateCounter);
+            }
+        }
+        return List.copyOf(unique.values());
+    }
+
+    private boolean deliverRecipient(
+            Room room,
+            Membership membership,
+            String connectionId,
+            List<RoomInboxNotificationIntent> batch,
+            Set<String> deletedMessageIds
+    ) {
+        List<RoomInboxNotificationIntent> creates = batch.stream()
+                .filter(value -> ChatMessageOutboxEvent.MESSAGE_CREATED
+                        .equals(value.eventType()))
+                .filter(value -> !deletedMessageIds.contains(
+                        value.messageId()))
+                .filter(value -> eligible(value.message(), membership))
+                .toList();
+        List<RoomInboxNotificationIntent> deletes = batch.stream()
+                .filter(value -> ChatMessageOutboxEvent.MESSAGE_DELETED
+                        .equals(value.eventType()))
+                .filter(value -> eligible(value.message(), membership))
+                .toList();
+        if (!creates.isEmpty()) {
+            RoomInboxNotificationIntent latest = creates.stream()
+                    .max(java.util.Comparator.comparingLong(
+                            value -> value.message().roomSequence()))
+                    .orElseThrow();
+            NotificationPreview preview = NotificationPreview.from(
+                    latest.message().content());
+            deliverOne(
+                    membership.userId(),
+                    connectionId,
+                    new RoomInboxEvent(
+                            RoomInboxEvent.CURRENT_EVENT_VERSION,
+                            UUID.randomUUID().toString(),
+                            RoomInboxEvent.EVENT_TYPE,
+                            RoomInboxEvent.Cause.MESSAGE_CREATED,
+                            room.roomId(),
+                            room.name(),
+                            clock.instant(),
+                            creates.stream()
+                                    .map(RoomInboxNotificationIntent::
+                                            sourceOutboxEventId)
+                                    .toList(),
+                            creates.size(),
+                            new RoomInboxNotificationHint(
+                                    latest.message().messageId(),
+                                    latest.message().messageVersion(),
+                                    latest.message().senderUserId(),
+                                    latest.message().createdAt(),
+                                    preview.value(),
+                                    preview.truncated())));
+        }
+        if (!deletes.isEmpty()) {
+            deliverOne(
+                    membership.userId(),
+                    connectionId,
+                    new RoomInboxEvent(
+                            RoomInboxEvent.CURRENT_EVENT_VERSION,
+                            UUID.randomUUID().toString(),
+                            RoomInboxEvent.EVENT_TYPE,
+                            RoomInboxEvent.Cause.MESSAGE_DELETED,
+                            room.roomId(),
+                            null,
+                            clock.instant(),
+                            deletes.stream()
+                                    .map(RoomInboxNotificationIntent::
+                                            sourceOutboxEventId)
+                                    .toList(),
+                            null,
+                            null));
+        }
+        return !creates.isEmpty() || !deletes.isEmpty();
+    }
+
+    private static boolean eligible(
+            ChatMessagePayload message,
+            Membership membership
+    ) {
+        return message.countable()
+                && message.roomSequence()
+                > membership.messageVisibleAfterSequence()
+                && !message.senderUserId().equals(
+                membership.userId());
+    }
+
+    private void deliverOne(
+            String userId,
+            String connectionId,
+            RoomInboxEvent event
+    ) {
+        try {
+            delivery.deliver(userId, connectionId, event);
+            BestEffortMetricRecorder.increment(
+                    "room.inbox.notification.delivery.success",
+                    successCounter);
+        } catch (RuntimeException exception) {
+            BestEffortMetricRecorder.increment(
+                    "room.inbox.notification.delivery.failure",
+                    failureCounter);
+            log.warn(
+                    "Room inbox event delivery failed: cause={}, "
+                            + "exceptionClass={}",
+                    event.cause(),
+                    exception.getClass().getName());
+        }
+    }
+}

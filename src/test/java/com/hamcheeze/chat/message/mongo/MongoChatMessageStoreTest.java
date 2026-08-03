@@ -91,7 +91,8 @@ class MongoChatMessageStoreTest {
         Document document = messages().find().first();
         assertThat(document).isNotNull();
         assertThat(document.get("_id")).isEqualTo("message-1");
-        assertThat(document.getInteger("schemaVersion")).isEqualTo(2);
+        assertThat(document.getInteger("schemaVersion")).isEqualTo(3);
+        assertThat(document.getBoolean("countable")).isTrue();
         assertThat(document.getLong("roomSequence")).isEqualTo(1L);
         assertThat(document.getString("senderUserId"))
                 .isEqualTo("user-1");
@@ -508,7 +509,21 @@ class MongoChatMessageStoreTest {
                         .ROOM_SEQUENCE_INDEX_NAME,
                 new Document("roomId", 1)
                         .append("roomSequence", 1));
-        assertThat(indexes).hasSize(3);
+        Document unreadIndex = indexes.stream()
+                .filter(candidate -> MongoChatMessageSchemaInitializer
+                        .UNREAD_INDEX_NAME.equals(
+                                candidate.getString("name")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(unreadIndex.get("key", Document.class))
+                .isEqualTo(new Document("roomId", 1)
+                        .append("roomSequence", 1)
+                        .append("senderUserId", 1));
+        assertThat(unreadIndex.get(
+                "partialFilterExpression", Document.class))
+                .isEqualTo(new Document("state", "ACTIVE")
+                        .append("countable", true));
+        assertThat(indexes).hasSize(4);
     }
 
     @Test

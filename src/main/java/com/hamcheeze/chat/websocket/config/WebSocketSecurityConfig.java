@@ -42,6 +42,16 @@ public class WebSocketSecurityConfig {
                         .permitAll()
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/api/v1/me/room-inbox")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ))
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/rooms/*/read-state")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.READ_STATE_WRITE))
+                        .requestMatchers(
+                                HttpMethod.GET,
                                 "/api/v1/rooms/**")
                         .hasAuthority(ChatScopes.authority(
                                 ChatScopes.ROOMS_READ))

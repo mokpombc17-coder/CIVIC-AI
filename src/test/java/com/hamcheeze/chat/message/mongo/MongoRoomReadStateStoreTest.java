@@ -1,0 +1,187 @@
+package com.hamcheeze.chat.message.mongo;
+
+import com.hamcheeze.chat.room.inbox.RoomReadState;
+import com.hamcheeze.chat.room.inbox.RoomReadStateAdvance;
+import com.hamcheeze.chat.room.inbox.RoomInboxProperties;
+import com.hamcheeze.chat.room.inbox.UnreadCount;
+import com.hamcheeze.chat.room.inbox.mongo.MongoRoomReadStateDocument;
+import com.hamcheeze.chat.room.inbox.mongo.MongoRoomReadStateSchemaInitializer;
+import com.hamcheeze.chat.room.inbox.mongo.MongoRoomReadStateStore;
+import com.hamcheeze.chat.room.inbox.mongo.MongoUnreadCountReader;
+import com.hamcheeze.chat.message.MessageState;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.bson.Document;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class MongoRoomReadStateStoreTest {
+
+    private static final MongoChatMessageStoreTestConfiguration
+            CONFIGURATION =
+            new MongoChatMessageStoreTestConfiguration();
+    private static final Instant FIRST =
+            Instant.parse("2026-08-03T01:00:00Z");
+    private static final Instant SECOND = FIRST.plusSeconds(1);
+
+    private MongoRoomReadStateStore store;
+
+    @BeforeAll
+    static void startMongo() {
+        CONFIGURATION.start();
+    }
+
+    @AfterAll
+    static void stopMongo() {
+        CONFIGURATION.close();
+    }
+
+    @BeforeEach
+    void setUp() {
+        CONFIGURATION.resetSchema();
+        if (CONFIGURATION.mongoOperations().collectionExists(
+                MongoRoomReadStateDocument.COLLECTION_NAME)) {
+            CONFIGURATION.mongoOperations().dropCollection(
+                    MongoRoomReadStateDocument.COLLECTION_NAME);
+        }
+        new MongoRoomReadStateSchemaInitializer(
+                CONFIGURATION.mongoOperations()).initialize();
+        store = new MongoRoomReadStateStore(
+                CONFIGURATION.mongoOperations());
+    }
+
+    @Test
+    void unreadCountFiltersSenderDeletionAndCountableWithTrueCap() {
+        insertMessage("message-1", 1, "other", true,
+                MessageState.ACTIVE);
+        insertMessage("message-2", 2, "user-1", true,
+                MessageState.ACTIVE);
+        insertMessage("message-3", 3, "other", true,
+                MessageState.DELETED_BY_AUTHOR);
+        insertMessage("message-4", 4, "other", false,
+                MessageState.ACTIVE);
+        insertMessage("message-5", 5, "other", true,
+                MessageState.ACTIVE);
+        insertMessage("message-6", 6, "other", true,
+                MessageState.ACTIVE);
+        RoomInboxProperties properties = new RoomInboxProperties();
+        properties.setUnreadCountCap(2);
+        MongoUnreadCountReader reader = new MongoUnreadCountReader(
+                CONFIGURATION.mongoOperations(),
+                properties,
+                new SimpleMeterRegistry());
+
+        assertThat(reader.count("room-1", "user-1", 0))
+                .isEqualTo(new UnreadCount(2, true));
+        assertThat(reader.count("room-1", "user-1", 1))
+                .isEqualTo(new UnreadCount(2, false));
+    }
+
+    @Test
+    void advancesMonotonicallyWithoutChangingNoopTimestamp() {
+        RoomReadStateAdvance first = store.advance(
+                "membership-1", "room-1", "user-1", 10, FIRST);
+        RoomReadStateAdvance lower = store.advance(
+                "membership-1", "room-1", "user-1", 5, SECOND);
+        RoomReadStateAdvance higher = store.advance(
+                "membership-1", "room-1", "user-1", 12, SECOND);
+
+        assertThat(first.updated()).isTrue();
+        assertThat(lower.updated()).isFalse();
+        assertThat(lower.state().lastReadSequence()).isEqualTo(10);
+        assertThat(lower.state().updatedAt()).isEqualTo(FIRST);
+        assertThat(higher.updated()).isTrue();
+        assertThat(higher.state().lastReadSequence()).isEqualTo(12);
+        assertThat(higher.state().updatedAt()).isEqualTo(SECOND);
+    }
+
+    @Test
+    void concurrentInitialAdvancesConvergeToMaximum() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<?> lower = executor.submit(() -> {
+                await(start);
+                store.advance(
+                        "membership-1", "room-1", "user-1", 10, FIRST);
+            });
+            Future<?> higher = executor.submit(() -> {
+                await(start);
+                store.advance(
+                        "membership-1", "room-1", "user-1", 20, SECOND);
+            });
+            start.countDown();
+            lower.get();
+            higher.get();
+        } finally {
+            executor.shutdownNow();
+        }
+
+        RoomReadState state = store.findByMembershipId(
+                "membership-1").orElseThrow();
+        assertThat(state.lastReadSequence()).isEqualTo(20);
+        List<Document> indexes = CONFIGURATION.mongoOperations()
+                .getCollection(MongoRoomReadStateDocument.COLLECTION_NAME)
+                .listIndexes(Document.class)
+                .into(new ArrayList<>());
+        Document index = indexes.stream()
+                .filter(value -> MongoRoomReadStateSchemaInitializer
+                        .USER_ROOM_INDEX_NAME.equals(
+                                value.getString("name")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(index.getBoolean("unique")).isTrue();
+        assertThat(index.get("key", Document.class))
+                .isEqualTo(new Document("userId", 1)
+                        .append("roomId", 1));
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private void insertMessage(
+            String messageId,
+            long sequence,
+            String sender,
+            boolean countable,
+            MessageState state
+    ) {
+        Instant updated = state == MessageState.ACTIVE
+                ? FIRST : SECOND;
+        CONFIGURATION.mongoOperations().insert(
+                new MongoChatMessageDocument(
+                        messageId,
+                        MongoChatMessageDocument.CURRENT_SCHEMA_VERSION,
+                        "room-1",
+                        sequence,
+                        sender,
+                        "client-" + sequence,
+                        state == MessageState.ACTIVE
+                                ? "message " + sequence : null,
+                        ChatMessageContentFingerprint.of(
+                                "message " + sequence),
+                        state,
+                        countable,
+                        state == MessageState.ACTIVE ? 1L : 2L,
+                        FIRST,
+                        updated,
+                        state == MessageState.ACTIVE ? null : updated));
+    }
+}

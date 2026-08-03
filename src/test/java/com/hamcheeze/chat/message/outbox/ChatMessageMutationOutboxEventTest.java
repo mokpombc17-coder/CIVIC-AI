@@ -63,7 +63,7 @@ class ChatMessageMutationOutboxEventTest {
     }
 
     @Test
-    void decodeLegacyCreatePayloadUsesVersionOneDefaults() {
+    void legacyCreatePayloadWithoutCountableFailsClosed() {
         ClaimedChatMessageOutboxEvent claimed =
                 new ClaimedChatMessageOutboxEvent(
                         "chat-message-created:message-1",
@@ -82,15 +82,17 @@ class ChatMessageMutationOutboxEventTest {
                                 "user-1",
                                 "client-1",
                                 "hello",
-                                CREATED_AT),
+                                MessageState.ACTIVE,
+                                null,
+                                1L,
+                                CREATED_AT,
+                                CREATED_AT,
+                                null),
                         CREATED_AT);
 
-        var payload = claimed.decodeEnvelope().payload();
-
-        assertThat(payload.state()).isEqualTo(MessageState.ACTIVE);
-        assertThat(payload.messageVersion()).isEqualTo(1);
-        assertThat(payload.updatedAt()).isEqualTo(CREATED_AT);
-        assertThat(payload.deletedAt()).isNull();
+        assertThatThrownBy(claimed::decodeEnvelope)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Malformed");
     }
 
     @Test

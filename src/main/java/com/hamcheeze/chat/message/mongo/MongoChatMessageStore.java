@@ -391,7 +391,14 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                         newMessage.senderUserId(),
                         newMessage.clientMessageId(),
                         newMessage.content(),
-                        candidateCreatedAt);
+                        ChatMessageContentFingerprint.of(
+                                newMessage.content()),
+                        com.hamcheeze.chat.message.MessageState.ACTIVE,
+                        true,
+                        1L,
+                        candidateCreatedAt,
+                        candidateCreatedAt,
+                        null);
         mongoOperations.insert(document);
         ChatMessage storedMessage = document.toDomain();
         outboxWriter.appendMessageCreated(storedMessage);

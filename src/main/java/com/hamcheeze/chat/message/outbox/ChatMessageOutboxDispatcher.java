@@ -50,6 +50,7 @@ public final class ChatMessageOutboxDispatcher
     private final ChatMessageOutboxQueue queue;
     private final ChatMessagePublisher publisher;
     private final ChatMessageOutboxProperties properties;
+    private final PublishedChatMessageObserver publishedObserver;
     private final Clock clock;
     private final AtomicInteger workerRunning = new AtomicInteger();
     private final AtomicInteger inFlight = new AtomicInteger();
@@ -62,6 +63,7 @@ public final class ChatMessageOutboxDispatcher
     private final Counter rescheduleFailureCounter;
     private final Counter rescheduleFencedCounter;
     private final Counter workerFailureCounter;
+    private final Counter observerFailureCounter;
     private final Timer dispatchTimer;
 
     private volatile State state = State.NEW;
@@ -74,12 +76,31 @@ public final class ChatMessageOutboxDispatcher
             Clock clock,
             MeterRegistry meterRegistry
     ) {
+        this(
+                queue,
+                publisher,
+                properties,
+                clock,
+                meterRegistry,
+                PublishedChatMessageObserver.NOOP);
+    }
+
+    public ChatMessageOutboxDispatcher(
+            ChatMessageOutboxQueue queue,
+            ChatMessagePublisher publisher,
+            ChatMessageOutboxProperties properties,
+            Clock clock,
+            MeterRegistry meterRegistry,
+            PublishedChatMessageObserver publishedObserver
+    ) {
         this.queue = Objects.requireNonNull(queue, "queue");
         this.publisher = Objects.requireNonNull(publisher, "publisher");
         this.properties = Objects.requireNonNull(
                 properties,
                 "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.publishedObserver = Objects.requireNonNull(
+                publishedObserver, "publishedObserver");
         Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.claimedCounter = meterRegistry.counter(
                 "chat.outbox.claimed");
@@ -99,6 +120,8 @@ public final class ChatMessageOutboxDispatcher
                 "chat.outbox.reschedule.fenced");
         this.workerFailureCounter = meterRegistry.counter(
                 "chat.outbox.worker.failures");
+        this.observerFailureCounter = meterRegistry.counter(
+                "room.inbox.notification.observer.failures");
         this.dispatchTimer = meterRegistry.timer(
                 "chat.outbox.dispatch.duration");
         Gauge.builder(
@@ -328,6 +351,20 @@ public final class ChatMessageOutboxDispatcher
             BestEffortMetricRecorder.increment(
                     "chat.outbox.published",
                     publishedCounter);
+            try {
+                publishedObserver.onPublished(claimed, envelope);
+            } catch (RuntimeException exception) {
+                BestEffortMetricRecorder.increment(
+                        "room.inbox.notification.observer.failures",
+                        observerFailureCounter);
+                log.warn(
+                        "Room inbox notification observer failed; "
+                                + "message outbox completion continues: "
+                                + "eventId={}, attemptCount={}",
+                        claimed.eventId(),
+                        claimed.claimedAttemptCount(),
+                        exception);
+            }
             try {
                 boolean deleted = queue.deletePublished(
                         claimed.eventId(),

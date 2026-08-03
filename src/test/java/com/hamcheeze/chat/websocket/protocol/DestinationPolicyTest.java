@@ -22,6 +22,7 @@ class DestinationPolicyTest {
             "/topic/rooms/room-1/read-receipts,TOPIC_READ_RECEIPTS_DISABLED,room-1",
             "/user/queue/command-results,USER_COMMAND_RESULTS,NULL",
             "/user/queue/system-events,USER_SYSTEM_EVENTS,NULL",
+            "/user/queue/room-inbox-events,USER_ROOM_INBOX_EVENTS,NULL",
             "/topic/rooms/*/messages,INVALID,NULL",
             "/topic/rooms/한글/messages,INVALID,NULL",
             "/topic/rooms/room-1/unknown,INVALID,NULL"

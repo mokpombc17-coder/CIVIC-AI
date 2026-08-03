@@ -30,6 +30,14 @@ public final class DestinationPolicy {
             return new DestinationDescriptor(
                     DestinationKind.USER_SYSTEM_EVENTS, destination, null);
         }
+        if (Objects.equals(
+                destination,
+                "/user/queue/room-inbox-events")) {
+            return new DestinationDescriptor(
+                    DestinationKind.USER_ROOM_INBOX_EVENTS,
+                    destination,
+                    null);
+        }
         if (destination.startsWith(APP_PREFIX)) {
             DestinationDescriptor edit = roomDestination(
                     destination, APP_PREFIX, "/messages/edit",

@@ -74,7 +74,7 @@ public class LocalJwtConfiguration {
         configuration.setAllowedOrigins(
                 List.of("http://localhost:3000"));
         configuration.setAllowedMethods(
-                List.of("GET", "POST", "OPTIONS"));
+                List.of("GET", "POST", "PUT", "OPTIONS"));
         configuration.setAllowedHeaders(
                 List.of(
                         "Content-Type",

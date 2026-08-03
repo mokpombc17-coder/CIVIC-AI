@@ -273,6 +273,45 @@ class ChatMessageOutboxDispatcherTest {
                 .isEqualTo(Duration.ofMillis(100));
     }
 
+    @Test
+    void observerFailureDoesNotPreventPublishedDelete()
+            throws Exception {
+        ChatMessageOutboxQueue queue =
+                mock(ChatMessageOutboxQueue.class);
+        ChatMessagePublisher publisher =
+                mock(ChatMessagePublisher.class);
+        PublishedChatMessageObserver observer =
+                mock(PublishedChatMessageObserver.class);
+        ClaimedChatMessageOutboxEvent claimed = claimed(1L);
+        when(queue.claimNext(any(), any()))
+                .thenReturn(Optional.of(claimed), Optional.empty());
+        when(queue.deletePublished(claimed.eventId(), 1L))
+                .thenReturn(true);
+        doThrow(new IllegalStateException("queue full"))
+                .when(observer).onPublished(any(), any());
+        ChatMessageOutboxProperties properties =
+                new ChatMessageOutboxProperties();
+        properties.setPollIntervalMs(5);
+        SimpleMeterRegistry metrics = new SimpleMeterRegistry();
+        ChatMessageOutboxDispatcher dispatcher =
+                new ChatMessageOutboxDispatcher(
+                        queue,
+                        publisher,
+                        properties,
+                        Clock.fixed(NOW, ZoneOffset.UTC),
+                        metrics,
+                        observer);
+
+        dispatcher.start();
+        await(() -> metrics.counter(
+                "room.inbox.notification.observer.failures")
+                .count() == 1);
+        dispatcher.stop();
+
+        verify(publisher).publish(any());
+        verify(queue).deletePublished(claimed.eventId(), 1L);
+    }
+
     private Fixture fixture() {
         ChatMessageOutboxQueue queue =
                 mock(ChatMessageOutboxQueue.class);

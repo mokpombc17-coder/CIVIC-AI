@@ -5,6 +5,7 @@ import com.hamcheeze.chat.message.outbox.ChatMessageOutboxDispatcher;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxMetricsSampler;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxMetricsSamplingLifecycle;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxProperties;
+import com.hamcheeze.chat.message.outbox.PublishedChatMessageObserver;
 import com.hamcheeze.chat.websocket.config.WebSocketTransportProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.context.LifecycleProperties;
@@ -66,7 +67,8 @@ public class MongoChatMessageOutboxConfiguration {
             ChatMessageOutboxProperties properties,
             LifecycleProperties lifecycleProperties,
             WebSocketTransportProperties transportProperties,
-            MeterRegistry meterRegistry
+            MeterRegistry meterRegistry,
+            PublishedChatMessageObserver publishedObserver
     ) {
         validateProperties(
                 properties,
@@ -77,7 +79,8 @@ public class MongoChatMessageOutboxConfiguration {
                 publisher,
                 properties,
                 Clock.systemUTC(),
-                meterRegistry);
+                meterRegistry,
+                publishedObserver);
     }
 
     private static void validateProperties(

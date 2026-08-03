@@ -11,6 +11,7 @@ public record ChatMessage(
         String clientMessageId,
         String content,
         MessageState state,
+        boolean countable,
         long messageVersion,
         Instant createdAt,
         Instant updatedAt,
@@ -69,6 +70,34 @@ public record ChatMessage(
             String senderUserId,
             String clientMessageId,
             String content,
+            MessageState state,
+            long messageVersion,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant deletedAt
+    ) {
+        this(
+                messageId,
+                roomId,
+                roomSequence,
+                senderUserId,
+                clientMessageId,
+                content,
+                state,
+                true,
+                messageVersion,
+                createdAt,
+                updatedAt,
+                deletedAt);
+    }
+
+    public ChatMessage(
+            String messageId,
+            String roomId,
+            long roomSequence,
+            String senderUserId,
+            String clientMessageId,
+            String content,
             Instant createdAt
     ) {
         this(
@@ -79,6 +108,7 @@ public record ChatMessage(
                 clientMessageId,
                 content,
                 MessageState.ACTIVE,
+                true,
                 1,
                 createdAt,
                 createdAt,

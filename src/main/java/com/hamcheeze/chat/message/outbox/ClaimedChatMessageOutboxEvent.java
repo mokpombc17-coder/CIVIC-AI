@@ -28,11 +28,40 @@ public record ClaimedChatMessageOutboxEvent(
             String clientMessageId,
             String content,
             MessageState state,
+            Boolean countable,
             Long messageVersion,
             Instant createdAt,
             Instant updatedAt,
             Instant deletedAt
     ) {
+        public Payload(
+                String messageId,
+                String roomId,
+                Long roomSequence,
+                String senderUserId,
+                String clientMessageId,
+                String content,
+                MessageState state,
+                Long messageVersion,
+                Instant createdAt,
+                Instant updatedAt,
+                Instant deletedAt
+        ) {
+            this(
+                    messageId,
+                    roomId,
+                    roomSequence,
+                    senderUserId,
+                    clientMessageId,
+                    content,
+                    state,
+                    true,
+                    messageVersion,
+                    createdAt,
+                    updatedAt,
+                    deletedAt);
+        }
+
         public Payload(
                 String messageId,
                 String roomId,
@@ -49,10 +78,11 @@ public record ClaimedChatMessageOutboxEvent(
                     senderUserId,
                     clientMessageId,
                     content,
-                    null,
-                    null,
+                    MessageState.ACTIVE,
+                    true,
+                    1L,
                     createdAt,
-                    null,
+                    createdAt,
                     null);
         }
     }
@@ -81,26 +111,12 @@ public record ClaimedChatMessageOutboxEvent(
                 || isBlank(payload.senderUserId())
                 || isBlank(payload.clientMessageId())
                 || payload.createdAt() == null
+                || payload.countable() == null
                 || !aggregateId.equals(payload.messageId())
                 || !roomId.equals(payload.roomId())
                 || !roomSequence.equals(payload.roomSequence())) {
             throw new IllegalArgumentException(
                     "Malformed chat message outbox event");
-        }
-        MessageState state = payload.state();
-        Long messageVersion = payload.messageVersion();
-        Instant updatedAt = payload.updatedAt();
-        Instant deletedAt = payload.deletedAt();
-        boolean legacyCreated = ChatMessageOutboxEvent.MESSAGE_CREATED
-                .equals(eventType)
-                && state == null
-                && messageVersion == null
-                && updatedAt == null
-                && deletedAt == null;
-        if (legacyCreated) {
-            state = MessageState.ACTIVE;
-            messageVersion = 1L;
-            updatedAt = payload.createdAt();
         }
         ChatMessagePayload decodedPayload = new ChatMessagePayload(
                 payload.messageId(),
@@ -109,11 +125,13 @@ public record ClaimedChatMessageOutboxEvent(
                 payload.senderUserId(),
                 payload.clientMessageId(),
                 payload.content(),
-                state,
-                messageVersion == null ? 0 : messageVersion,
+                payload.state(),
+                payload.countable(),
+                payload.messageVersion() == null
+                        ? 0 : payload.messageVersion(),
                 payload.createdAt(),
-                updatedAt,
-                deletedAt);
+                payload.updatedAt(),
+                payload.deletedAt());
         return new ChatMessageOutboxEvent(
                 eventId,
                 schemaVersion,

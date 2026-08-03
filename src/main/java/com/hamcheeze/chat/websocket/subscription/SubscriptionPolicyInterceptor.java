@@ -219,6 +219,7 @@ public final class SubscriptionPolicyInterceptor
         return kind == DestinationKind.TOPIC_ROOM_MESSAGES
                 || kind == DestinationKind.TOPIC_ROOM_EVENTS
                 || kind == DestinationKind.USER_COMMAND_RESULTS
-                || kind == DestinationKind.USER_SYSTEM_EVENTS;
+                || kind == DestinationKind.USER_SYSTEM_EVENTS
+                || kind == DestinationKind.USER_ROOM_INBOX_EVENTS;
     }
 }
