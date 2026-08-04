@@ -95,7 +95,6 @@ describe("mobile association routes", () => {
 });
 
 function stubServerEnvironment(): void {
-  vi.stubEnv("OPERATIONS_API_URL", "http://localhost:8080");
   vi.stubEnv("IOS_APP_STORE_URL", "");
   vi.stubEnv("ANDROID_PLAY_STORE_URL", "");
   vi.stubEnv("IOS_MINIMUM_BUILD_VERSION", "");

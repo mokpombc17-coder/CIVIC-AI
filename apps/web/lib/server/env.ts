@@ -21,7 +21,6 @@ const optionalPositiveInteger = z.preprocess((value) => {
 }, z.number().int().positive().optional());
 
 const serverEnvSchema = z.object({
-  OPERATIONS_API_URL: z.string().url().default("http://localhost:8080"),
   IOS_APP_STORE_URL: optionalUrl,
   ANDROID_PLAY_STORE_URL: optionalUrl,
   IOS_MINIMUM_BUILD_VERSION: optionalPositiveInteger,
@@ -38,7 +37,6 @@ const serverEnvSchema = z.object({
 });
 
 export const serverEnv = serverEnvSchema.parse({
-  OPERATIONS_API_URL: process.env.OPERATIONS_API_URL,
   IOS_APP_STORE_URL: process.env.IOS_APP_STORE_URL,
   ANDROID_PLAY_STORE_URL: process.env.ANDROID_PLAY_STORE_URL,
   IOS_MINIMUM_BUILD_VERSION: process.env.IOS_MINIMUM_BUILD_VERSION,

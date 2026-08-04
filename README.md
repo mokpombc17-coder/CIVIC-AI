@@ -87,8 +87,7 @@ pnpm check
 pnpm dev:web
 ```
 
-기본 주소는 `http://localhost:3000`이다. 운영 Spring Boot가 없어도 홈과 브리지 예제는 동작한다.
-`/api/upstream-health` 예제만 `OPERATIONS_API_URL`의 서버를 호출한다.
+기본 주소는 `http://localhost:3000`이다.
 
 ### 6. 모바일 앱 실행
 
@@ -117,13 +116,10 @@ Internet :443
 ## 실제 서비스 연결 시 수정할 부분
 
 ```text
-1. 스프링부트 주소
-    OPERATIONS_API_URL=http://operations-server:8080
+1. 채팅 Resource Server 주소
+    NEXT_PUBLIC_CHAT_API_URL=https://chat-api.example.com
 
-2. 인증 연결
-    apps/web/lib/server/operations-api.ts
-
-3. 모바일 식별자, OAuth, 딥링크, 푸시 및 스토어 설정
+2. 모바일 식별자, OAuth, 딥링크, 푸시 및 스토어 설정
     apps/mobile/README.md
 ```
 

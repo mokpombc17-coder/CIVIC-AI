@@ -164,12 +164,6 @@ main {
   color: #93c5fd;
 }
 
-.panel-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
 .panel {
   border: 1px solid #dce2ef;
   border-radius: 1rem;
@@ -211,11 +205,6 @@ main {
   color: #166534;
 }
 
-.status-neutral {
-  background: #e2e8f0;
-  color: #475569;
-}
-
 .primary-button,
 .secondary-button,
 .link-button {
@@ -249,54 +238,6 @@ main {
 
 .link-button {
   text-decoration: none;
-}
-
-.inline-form {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.inline-form label {
-  display: grid;
-  flex: 1;
-  gap: 0.35rem;
-  color: #475569;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.inline-form input {
-  min-height: 2.7rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.7rem;
-  background: white;
-  padding: 0.65rem 0.8rem;
-  color: #172033;
-}
-
-.definition-grid {
-  display: grid;
-  gap: 0.6rem;
-  margin: 1rem 0;
-}
-
-.definition-grid div {
-  display: grid;
-  grid-template-columns: 7rem 1fr;
-  gap: 0.75rem;
-}
-
-.definition-grid dt {
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.definition-grid dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 .table-wrapper {
@@ -334,10 +275,6 @@ th {
   .site-header .secondary-button {
     grid-column: 1 / -1;
   }
-
-  .panel-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 560px) {
@@ -357,11 +294,6 @@ th {
 
   .site-header .secondary-button {
     grid-column: auto;
-  }
-
-  .inline-form {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .hero {
