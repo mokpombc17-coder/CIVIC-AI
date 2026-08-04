@@ -10,6 +10,7 @@ import {
 } from "./chat-stomp-contracts";
 import {
   CHAT_COMMAND_RESULTS_DESTINATION,
+  CHAT_ROOM_INBOX_EVENTS_DESTINATION,
   CHAT_SYSTEM_EVENTS_DESTINATION,
   getChatRoomEventsDestination,
   getChatRoomMessageDeleteDestination,
@@ -23,6 +24,7 @@ export type ChatStompSubscriptionClient = Pick<Client, "publish" | "subscribe">;
 
 type ChatStompSubscriptionCallbacks = Readonly<{
   onCommandResult?: (message: IMessage) => void;
+  onRoomInboxEvent?: (message: IMessage) => void;
   onRoomEvent?: (roomId: string, message: IMessage) => void;
   onRoomMessage?: (roomId: string, message: IMessage) => void;
   onSystemEvent?: (message: IMessage) => void;
@@ -196,6 +198,12 @@ export class ChatStompSubscriptionManager {
         this.client.subscribe(
           CHAT_COMMAND_RESULTS_DESTINATION,
           this.callbacks.onCommandResult ?? ignoreStompMessage,
+        ),
+      );
+      subscriptions.push(
+        this.client.subscribe(
+          CHAT_ROOM_INBOX_EVENTS_DESTINATION,
+          this.callbacks.onRoomInboxEvent ?? ignoreStompMessage,
         ),
       );
       this.commonSubscriptions = subscriptions;

@@ -37,6 +37,44 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(portB.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot.status).toBe("connected");
   });
 
+  it("개인 inbox 이벤트를 연결된 모든 port에 broadcast한다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const portA = createFakePort();
+    const portB = createFakePort();
+
+    runtime.connectPort(portA);
+    runtime.connectPort(portB);
+    portA.send({ type: "ATTACH", portId: "port-a" });
+    portB.send({ type: "ATTACH", portId: "port-b" });
+    client.onConnect({} as IFrame);
+    client.deliver(
+      "/user/queue/room-inbox-events",
+      JSON.stringify({
+        eventVersion: 1,
+        eventId: "550e8400-e29b-41d4-a716-446655440022",
+        eventType: "ROOM_INBOX_INVALIDATED",
+        cause: "MESSAGE_CREATED",
+        roomId: "room-02",
+        roomNameHint: "다른 방",
+        emittedAt: "2026-08-04T01:10:00Z",
+        sourceEventIds: ["chat-message-created:message-22"],
+        coalescedCreateCount: 1,
+        notificationHint: {
+          messageId: "message-22",
+          messageVersion: 1,
+          senderUserId: "user-02",
+          messageCreatedAt: "2026-08-04T01:09:59Z",
+          preview: "새 메시지",
+          previewTruncated: false,
+        },
+      }),
+    );
+
+    expect(portA.eventsOfType("ROOM_INBOX_EVENT")).toHaveLength(1);
+    expect(portB.eventsOfType("ROOM_INBOX_EVENT")).toHaveLength(1);
+  });
+
   it("마지막 port가 떨어질 때만 STOMP Client를 비활성화한다", () => {
     const client = createFakeStompClient();
     const runtime = new ChatSharedWorkerRuntime(client);
@@ -229,6 +267,7 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.frames).toEqual([
       "SUBSCRIBE /user/queue/system-events",
       "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /user/queue/room-inbox-events",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
       "SEND /app/rooms/room-01/subscriptions/sync",
@@ -297,6 +336,7 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.frames).toEqual([
       "SUBSCRIBE /user/queue/system-events",
       "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /user/queue/room-inbox-events",
     ]);
     expect(port.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual({
       status: "connected",
@@ -349,6 +389,7 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.frames).toEqual([
       "SUBSCRIBE /user/queue/system-events",
       "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /user/queue/room-inbox-events",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
       "SEND /app/rooms/room-01/subscriptions/sync",
@@ -1030,6 +1071,7 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.frames).toEqual([
       "SUBSCRIBE /user/queue/system-events",
       "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /user/queue/room-inbox-events",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
       "SEND /app/rooms/room-01/subscriptions/sync",

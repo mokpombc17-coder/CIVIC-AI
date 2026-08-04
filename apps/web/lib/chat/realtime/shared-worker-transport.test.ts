@@ -636,6 +636,37 @@ describe("SharedWorkerTransport", () => {
     });
   });
 
+  it("Worker의 개인 inbox 이벤트를 탭 구독자에게 중계한다", () => {
+    const worker = createFakeWorker();
+    const transport = new SharedWorkerTransport({
+      createId: () => "port-1",
+      createWorker: () => worker,
+    });
+    const listener = vi.fn();
+
+    transport.attach();
+    transport.observeRoomInboxEvent(listener);
+    worker.port.dispatchMessage({
+      type: "ROOM_INBOX_EVENT",
+      event: {
+        eventVersion: 1,
+        eventId: "550e8400-e29b-41d4-a716-446655440021",
+        eventType: "ROOM_INBOX_INVALIDATED",
+        cause: "MESSAGE_DELETED",
+        roomId: "room-02",
+        roomNameHint: null,
+        emittedAt: "2026-08-04T01:10:00Z",
+        sourceEventIds: ["chat-message-deleted:message-20:v2"],
+        coalescedCreateCount: null,
+        notificationHint: null,
+      },
+    });
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: "MESSAGE_DELETED", roomId: "room-02" }),
+    );
+  });
+
   it("메시지 수정·삭제 명령과 Worker mutation 결과를 탭 transport로 중계한다", () => {
     const worker = createFakeWorker();
     const createId = vi.fn().mockReturnValueOnce("port-1").mockReturnValueOnce("claim-1");

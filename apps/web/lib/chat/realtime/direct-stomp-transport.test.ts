@@ -152,6 +152,7 @@ describe("DirectStompTransport", () => {
     expect(client.frames).toEqual([
       "SUBSCRIBE /user/queue/system-events",
       "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /user/queue/room-inbox-events",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
       "SEND /app/rooms/room-01/subscriptions/sync",
@@ -197,6 +198,7 @@ describe("DirectStompTransport", () => {
     expect(client.frames).toEqual([
       "SUBSCRIBE /user/queue/system-events",
       "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /user/queue/room-inbox-events",
     ]);
     expect(transport.getSnapshot()).toEqual({
       status: "connected",
@@ -630,6 +632,42 @@ describe("DirectStompTransport", () => {
         status: "ACCEPTED",
       }),
     });
+  });
+
+  it("Direct fallback에서 개인 inbox 이벤트를 구독자에게 전달한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+    const listener = vi.fn();
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.observeRoomInboxEvent(listener);
+    client.deliver(
+      "/user/queue/room-inbox-events",
+      JSON.stringify({
+        eventVersion: 1,
+        eventId: "550e8400-e29b-41d4-a716-446655440020",
+        eventType: "ROOM_INBOX_INVALIDATED",
+        cause: "MESSAGE_CREATED",
+        roomId: "room-02",
+        roomNameHint: "다른 방",
+        emittedAt: "2026-08-04T01:10:00Z",
+        sourceEventIds: ["chat-message-created:message-20"],
+        coalescedCreateCount: 1,
+        notificationHint: {
+          messageId: "message-20",
+          messageVersion: 1,
+          senderUserId: "user-02",
+          messageCreatedAt: "2026-08-04T01:09:59Z",
+          preview: "새 메시지",
+          previewTruncated: false,
+        },
+      }),
+    );
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ cause: "MESSAGE_CREATED", roomId: "room-02" }),
+    );
   });
 
   it("Direct fallback에서 수정·삭제를 publish하고 mutation 결과를 호출자에게 전달한다", () => {

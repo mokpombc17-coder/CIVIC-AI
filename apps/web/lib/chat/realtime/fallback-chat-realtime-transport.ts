@@ -11,6 +11,7 @@ import type {
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import type { ChatMessageMutationLifecycleEvent } from "./chat-message-mutation-scheduler";
+import type { ChatRoomInboxEvent } from "./chat-stomp-contracts";
 
 export type ChatRealtimeTransportCandidateLifecycle = {
   onReady: () => void;
@@ -41,6 +42,7 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   >();
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
+  private readonly roomInboxEventListeners = new Set<(event: ChatRoomInboxEvent) => void>();
   private switchScheduled = false;
 
   constructor(candidates: readonly ChatRealtimeTransportCandidate[]) {
@@ -92,6 +94,13 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   readonly observeRoom = (listener: () => void): (() => void) => {
     this.roomListeners.add(listener);
     return () => this.roomListeners.delete(listener);
+  };
+
+  readonly observeRoomInboxEvent = (
+    listener: (event: ChatRoomInboxEvent) => void,
+  ): (() => void) => {
+    this.roomInboxEventListeners.add(listener);
+    return () => this.roomInboxEventListeners.delete(listener);
   };
 
   readonly observeMessageCommandEvent = (
@@ -198,6 +207,9 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
       }),
       this.delegate.observeRoom(() => {
         this.roomListeners.forEach((listener) => listener());
+      }),
+      this.delegate.observeRoomInboxEvent((event) => {
+        this.roomInboxEventListeners.forEach((listener) => listener(event));
       }),
       this.delegate.observeMessageCommandEvent((event) => {
         this.messageCommandListeners.forEach((listener) => listener(event));

@@ -56,7 +56,7 @@ RootLayout [Server] (apps/web/app/layout.tsx)
             └── ChatLayout [Server] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] (apps/web/components/chat-query-provider.tsx)
                     └── ChatRealtimeProvider [Client] (apps/web/components/chat-realtime-provider.tsx)
-                        └── children [slot: nested page를 제공]
+                        ├── children [slot: nested page를 제공]
                             ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
                             │   └── ChatRoomListScreen [Client] (apps/web/components/chat-room-list-screen.tsx)
                             │       ├── RoomUnreadBadge [internal, conditional]
@@ -75,12 +75,16 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                         │   └── ChatMessageComposer [Client] (apps/web/components/chat-message-composer.tsx)
                                         └── ChatRoomMembershipPanel [Client] [slot, conditional] (apps/web/components/chat-room-membership-panel.tsx)
                                             └── ChatRoomSettingsControl [Client] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
+                        └── ChatRoomInboxRuntime [Client] [conditional] (apps/web/components/chat-room-inbox-runtime.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
 제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
 REST snapshot과 Worker buffer의 병합이 진행 중이거나 실패한 동안만 상태 UI를 렌더링하고,
 동기화 완료 상태에서는 `null`을 반환한다.
+
+`ChatRoomInboxRuntime`은 개인 inbox WebSocket 이벤트를 받아 Room inbox Query를 무효화하고,
+현재 포커스된 탭에서 다른 Room의 CREATE 알림이 있을 때만 조건부 토스트를 렌더링한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
 `ChatRoomView` 이하 컴포넌트는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode
@@ -131,6 +135,7 @@ flowchart TD
     ChatLayout["ChatLayout [Server]<br/>apps/web/app/chat/layout.tsx"]
     ChatQueryProvider["ChatQueryProvider [Client]<br/>apps/web/components/chat-query-provider.tsx"]
     ChatRealtimeProvider["ChatRealtimeProvider [Client]<br/>apps/web/components/chat-realtime-provider.tsx"]
+    ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [conditional]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
     ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
     ChatPage["ChatPage [Server]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomListScreen["ChatRoomListScreen [Client]<br/>apps/web/components/chat-room-list-screen.tsx"]
@@ -170,6 +175,7 @@ flowchart TD
     ChatLayout --> ChatQueryProvider
     ChatQueryProvider --> ChatRealtimeProvider
     ChatRealtimeProvider --> ChatChildrenSlot
+    ChatRealtimeProvider -->|"conditional toast"| ChatRoomInboxRuntime
     ChatChildrenSlot -. "route /chat" .-> ChatPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
     ChatPage --> ChatRoomListScreen
@@ -198,6 +204,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomInboxRuntime,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

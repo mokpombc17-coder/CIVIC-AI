@@ -19,12 +19,14 @@ import {
   chatMessageEditRequestSchema,
   chatMessageMutationCommandResultSchema,
   chatMessageSendRequestSchema,
+  chatRoomInboxEventSchema,
   chatRoomEventEnvelopeSchema,
   type ChatMessageCommandResult,
   type ChatMessageDeleteRequest,
   type ChatMessageEditRequest,
   type ChatMessageMutationCommandResult,
   type ChatMessageSendRequest,
+  type ChatRoomInboxEvent,
 } from "./chat-stomp-contracts";
 
 export const CHAT_SHARED_WORKER_NAME = "civic-ai-chat-realtime";
@@ -92,6 +94,10 @@ export type ChatSharedWorkerEvent =
       workerInstanceId: string;
       attachedPortCount: number;
       snapshot: ChatConnectionSnapshot;
+    }>
+  | Readonly<{
+      type: "ROOM_INBOX_EVENT";
+      event: ChatRoomInboxEvent;
     }>
   | Readonly<{
       type: "ROOM_SYNCING";
@@ -260,6 +266,10 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
   }
 
   const event = value as Record<string, unknown>;
+
+  if (event.type === "ROOM_INBOX_EVENT") {
+    return chatRoomInboxEventSchema.safeParse(event.event).success;
+  }
 
   if (event.type === "CONNECTION_SNAPSHOT") {
     const snapshot = event.snapshot as Partial<ChatConnectionSnapshot> | undefined;

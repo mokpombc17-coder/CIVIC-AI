@@ -75,6 +75,56 @@ export const chatSubscriptionRejectionSchema = z.object({
   destination: z.string().min(1),
 });
 
+const chatRoomInboxSourceEventIdsSchema = z
+  .array(opaqueIdSchema)
+  .min(1)
+  .max(100)
+  .refine((sourceEventIds) => new Set(sourceEventIds).size === sourceEventIds.length, {
+    message: "sourceEventIds에는 중복 값이 없어야 합니다.",
+  });
+
+const chatRoomInboxEventBaseSchema = z.object({
+  eventVersion: z.literal(1),
+  eventId: requestIdSchema,
+  eventType: z.literal("ROOM_INBOX_INVALIDATED"),
+  roomId: roomIdSchema,
+  emittedAt: instantSchema,
+  sourceEventIds: chatRoomInboxSourceEventIdsSchema,
+});
+
+const chatRoomInboxNotificationHintSchema = z.object({
+  messageId: opaqueIdSchema,
+  messageVersion: z.number().int().positive(),
+  senderUserId: opaqueIdSchema,
+  messageCreatedAt: instantSchema,
+  preview: z.string(),
+  previewTruncated: z.boolean(),
+});
+
+const chatRoomInboxCreatedEventSchema = chatRoomInboxEventBaseSchema
+  .extend({
+    cause: z.literal("MESSAGE_CREATED"),
+    roomNameHint: z.string().trim().min(1),
+    coalescedCreateCount: z.number().int().positive(),
+    notificationHint: chatRoomInboxNotificationHintSchema,
+  })
+  .refine((event) => event.coalescedCreateCount === event.sourceEventIds.length, {
+    message: "coalescedCreateCount는 sourceEventIds 개수와 같아야 합니다.",
+    path: ["coalescedCreateCount"],
+  });
+
+const chatRoomInboxDeletedEventSchema = chatRoomInboxEventBaseSchema.extend({
+  cause: z.literal("MESSAGE_DELETED"),
+  roomNameHint: z.null(),
+  coalescedCreateCount: z.null(),
+  notificationHint: z.null(),
+});
+
+export const chatRoomInboxEventSchema = z.union([
+  chatRoomInboxCreatedEventSchema,
+  chatRoomInboxDeletedEventSchema,
+]);
+
 export const chatMessageCommandResultSchema = z.discriminatedUnion("status", [
   z.object({
     clientMessageId: requestIdSchema,
@@ -287,6 +337,7 @@ export type ChatRoomSubscriptionSyncRejected = z.infer<
   typeof chatRoomSubscriptionSyncRejectedSchema
 >;
 export type ChatSubscriptionRejection = z.infer<typeof chatSubscriptionRejectionSchema>;
+export type ChatRoomInboxEvent = z.infer<typeof chatRoomInboxEventSchema>;
 export type ChatMessageCommandResult = z.infer<typeof chatMessageCommandResultSchema>;
 export type ChatMessageMutationCommandType = z.infer<typeof chatMessageMutationCommandTypeSchema>;
 export type ChatMessageMutationCommandResult = z.infer<
@@ -309,6 +360,10 @@ export function parseChatRoomSubscriptionSyncRejected(
 
 export function parseChatSubscriptionRejection(body: string): ChatSubscriptionRejection | null {
   return parseChatStompBody(body, chatSubscriptionRejectionSchema);
+}
+
+export function parseChatRoomInboxEvent(body: string): ChatRoomInboxEvent | null {
+  return parseChatStompBody(body, chatRoomInboxEventSchema);
 }
 
 export function parseChatMessageCommandResult(body: string): ChatMessageCommandResult | null {

@@ -226,6 +226,7 @@ function createFakeTransport(): ChatRealtimeTransport & {
     observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
+    observeRoomInboxEvent: () => () => {},
     observe: () => () => {},
     reconnect: () => {},
     releaseRoom: () => {},

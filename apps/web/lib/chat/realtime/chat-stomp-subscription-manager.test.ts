@@ -19,6 +19,7 @@ describe("ChatStompSubscriptionManager", () => {
     expect(client.frames).toEqual([
       "SUBSCRIBE /user/queue/system-events",
       "SUBSCRIBE /user/queue/command-results",
+      "SUBSCRIBE /user/queue/room-inbox-events",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
       "SEND /app/rooms/room-01/subscriptions/sync",

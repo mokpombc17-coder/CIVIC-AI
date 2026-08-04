@@ -2,6 +2,32 @@ import { describe, expect, it } from "vitest";
 import { isChatSharedWorkerCommand, isChatSharedWorkerEvent } from "./chat-shared-worker-protocol";
 
 describe("chat shared worker protocol", () => {
+  it("개인 inbox event payload를 검증한다", () => {
+    const event = {
+      type: "ROOM_INBOX_EVENT",
+      event: {
+        eventVersion: 1,
+        eventId: "550e8400-e29b-41d4-a716-446655440023",
+        eventType: "ROOM_INBOX_INVALIDATED",
+        cause: "MESSAGE_DELETED",
+        roomId: "room-02",
+        roomNameHint: null,
+        emittedAt: "2026-08-04T01:10:00Z",
+        sourceEventIds: ["chat-message-deleted:message-23:v2"],
+        coalescedCreateCount: null,
+        notificationHint: null,
+      },
+    };
+
+    expect(isChatSharedWorkerEvent(event)).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...event,
+        event: { ...event.event, sourceEventIds: [] },
+      }),
+    ).toBe(false);
+  });
+
   it("서버 close snapshot의 상태와 오류 code를 검증한다", () => {
     const snapshotEvent = {
       type: "CONNECTION_SNAPSHOT",

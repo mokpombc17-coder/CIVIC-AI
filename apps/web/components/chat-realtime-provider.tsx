@@ -24,6 +24,7 @@ import type {
   ChatRealtimeTransport,
   ChatRoomSessionSnapshot,
 } from "@/lib/chat/realtime/chat-realtime-transport";
+import { ChatRoomInboxRuntime } from "@/components/chat-room-inbox-runtime";
 
 type ChatRealtimeContextValue = Readonly<{
   outbox: ChatMessageOutbox;
@@ -59,7 +60,12 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
     };
   }, [outbox, transport]);
 
-  return <ChatRealtimeContext value={realtime}>{children}</ChatRealtimeContext>;
+  return (
+    <ChatRealtimeContext value={realtime}>
+      {children}
+      <ChatRoomInboxRuntime transport={transport} />
+    </ChatRealtimeContext>
+  );
 }
 
 export function useChatRealtimeConnection(): ChatConnectionSnapshot & {

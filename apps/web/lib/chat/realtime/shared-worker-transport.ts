@@ -6,6 +6,7 @@ import {
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import type { ChatMessageMutationLifecycleEvent } from "./chat-message-mutation-scheduler";
+import type { ChatRoomInboxEvent } from "./chat-stomp-contracts";
 import {
   ChatMessageMutationError,
   ChatMessageSendError,
@@ -92,6 +93,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
+  private readonly roomInboxEventListeners = new Set<(event: ChatRoomInboxEvent) => void>();
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
   private readonly onWorkerReady: () => void;
@@ -151,6 +153,16 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
     return () => {
       this.roomListeners.delete(listener);
+    };
+  };
+
+  readonly observeRoomInboxEvent = (
+    listener: (event: ChatRoomInboxEvent) => void,
+  ): (() => void) => {
+    this.roomInboxEventListeners.add(listener);
+
+    return () => {
+      this.roomInboxEventListeners.delete(listener);
     };
   };
 
@@ -587,6 +599,9 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
           roomId: workerEvent.roomId,
           result: workerEvent.result,
         });
+        return;
+      case "ROOM_INBOX_EVENT":
+        this.roomInboxEventListeners.forEach((listener) => listener(workerEvent.event));
         return;
       case "ROOM_MESSAGE_SEND_FAILED":
         this.emitMessageCommandEvent({

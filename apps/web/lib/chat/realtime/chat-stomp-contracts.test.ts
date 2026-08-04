@@ -8,6 +8,7 @@ import {
   parseChatMessageEvent,
   parseChatMessageMutationCommandResult,
   parseChatRoomEventEnvelope,
+  parseChatRoomInboxEvent,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
   parseChatSubscriptionRejection,
@@ -16,6 +17,26 @@ import {
 
 const REQUEST_ID = "550e8400-e29b-41d4-a716-446655440000";
 const CLIENT_MESSAGE_ID = "ed7d2fe8-996d-4660-822f-e84af1218743";
+
+const ROOM_INBOX_CREATED_EVENT = {
+  eventVersion: 1,
+  eventId: REQUEST_ID,
+  eventType: "ROOM_INBOX_INVALIDATED",
+  cause: "MESSAGE_CREATED",
+  roomId: "room-01",
+  roomNameHint: "토론방",
+  emittedAt: "2026-08-04T01:10:00Z",
+  sourceEventIds: ["chat-message-created:message-84"],
+  coalescedCreateCount: 1,
+  notificationHint: {
+    messageId: "message-84",
+    messageVersion: 1,
+    senderUserId: "user-02",
+    messageCreatedAt: "2026-08-04T01:09:59Z",
+    preview: "다음 회의는 월요일입니다.",
+    previewTruncated: false,
+  },
+} as const;
 
 describe("chat STOMP outbound contracts", () => {
   it("구독 준비 sync 요청의 UUID를 검증한다", () => {
@@ -463,6 +484,46 @@ describe("chat realtime payload contracts", () => {
   it("잘못된 JSON과 알려지지 않은 system event를 무시한다", () => {
     expect(parseChatSystemEvent("{")).toBeNull();
     expect(parseChatSystemEvent(JSON.stringify({ eventType: "UNKNOWN" }))).toBeNull();
+  });
+});
+
+describe("room inbox event contracts", () => {
+  it("CREATE와 DELETE 이벤트의 nullability 계약을 검증한다", () => {
+    expect(parseChatRoomInboxEvent(JSON.stringify(ROOM_INBOX_CREATED_EVENT))).toEqual(
+      ROOM_INBOX_CREATED_EVENT,
+    );
+
+    const deletedEvent = {
+      ...ROOM_INBOX_CREATED_EVENT,
+      eventId: "550e8400-e29b-41d4-a716-446655440001",
+      cause: "MESSAGE_DELETED",
+      roomNameHint: null,
+      sourceEventIds: ["chat-message-deleted:message-84:v2"],
+      coalescedCreateCount: null,
+      notificationHint: null,
+    };
+
+    expect(parseChatRoomInboxEvent(JSON.stringify(deletedEvent))).toEqual(deletedEvent);
+  });
+
+  it("sourceEventIds 중복과 CREATE count 불일치를 거절한다", () => {
+    expect(
+      parseChatRoomInboxEvent(
+        JSON.stringify({
+          ...ROOM_INBOX_CREATED_EVENT,
+          sourceEventIds: ["source-1", "source-1"],
+          coalescedCreateCount: 2,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatRoomInboxEvent(
+        JSON.stringify({
+          ...ROOM_INBOX_CREATED_EVENT,
+          coalescedCreateCount: 2,
+        }),
+      ),
+    ).toBeNull();
   });
 });
 

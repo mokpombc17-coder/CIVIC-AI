@@ -7,6 +7,7 @@ import type {
   ChatMessageEditRequest,
   ChatMessageMutationCommandResult,
   ChatMessageSendRequest,
+  ChatRoomInboxEvent,
 } from "./chat-stomp-contracts";
 
 export type ChatConnectionStatus =
@@ -174,6 +175,7 @@ export type ChatRealtimeTransport = {
   ): () => void;
   observeMessageMutationEvent(listener: (event: ChatMessageMutationEvent) => void): () => void;
   observeRealtimeEventDelivery(listener: () => void): () => void;
+  observeRoomInboxEvent(listener: (event: ChatRoomInboxEvent) => void): () => void;
   observeRoom(listener: () => void): () => void;
   observe(listener: () => void): () => void;
   reconnect(): void;

@@ -26,11 +26,13 @@ import {
   parseChatMessageEvent,
   parseChatMessageCommandResult,
   parseChatMessageMutationCommandResult,
+  parseChatRoomInboxEvent,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
   parseChatSubscriptionRejection,
   type ChatRoomEventEnvelope,
+  type ChatRoomInboxEvent,
   type ChatRoomSubscriptionSyncRejected,
   type ChatRoomSubscriptionsReady,
 } from "./chat-stomp-contracts";
@@ -123,6 +125,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
+  private readonly roomInboxEventListeners = new Set<(event: ChatRoomInboxEvent) => void>();
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
   private readonly subscriptions: ChatStompSubscriptionManager;
@@ -134,6 +137,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   ) {
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
       onCommandResult: this.handleMessageCommandResult,
+      onRoomInboxEvent: this.handleRoomInboxEvent,
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
       onSystemEvent: this.handleSystemEvent,
@@ -297,6 +301,16 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
     return () => {
       this.roomListeners.delete(listener);
+    };
+  };
+
+  readonly observeRoomInboxEvent = (
+    listener: (event: ChatRoomInboxEvent) => void,
+  ): (() => void) => {
+    this.roomInboxEventListeners.add(listener);
+
+    return () => {
+      this.roomInboxEventListeners.delete(listener);
     };
   };
 
@@ -817,6 +831,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.messageMutations.handleCommandResult(mutationResult);
+  };
+
+  private readonly handleRoomInboxEvent = (message: IMessage): void => {
+    const event = parseChatRoomInboxEvent(message.body);
+
+    if (event) {
+      this.roomInboxEventListeners.forEach((listener) => listener(event));
+    }
   };
 
   private cancelMessageDeliveriesForRoom(roomId: string, reason: string): void {

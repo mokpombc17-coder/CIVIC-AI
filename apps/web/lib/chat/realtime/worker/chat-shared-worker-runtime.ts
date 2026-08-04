@@ -34,11 +34,13 @@ import {
   parseChatMessageEvent,
   parseChatMessageCommandResult,
   parseChatMessageMutationCommandResult,
+  parseChatRoomInboxEvent,
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
   parseChatSubscriptionRejection,
   type ChatRoomEventEnvelope,
+  type ChatRoomInboxEvent,
   type ChatRoomSubscriptionSyncRejected,
   type ChatRoomSubscriptionsReady,
 } from "../chat-stomp-contracts";
@@ -147,6 +149,7 @@ export class ChatSharedWorkerRuntime {
   ) {
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
       onCommandResult: this.handleMessageCommandResult,
+      onRoomInboxEvent: this.handleRoomInboxEvent,
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
       onSystemEvent: this.handleSystemEvent,
@@ -1204,6 +1207,16 @@ export class ChatSharedWorkerRuntime {
     this.messageMutations.handleCommandResult(mutationResult);
   };
 
+  private readonly handleRoomInboxEvent = (message: IMessage): void => {
+    const event = parseChatRoomInboxEvent(message.body);
+
+    if (!event) {
+      return;
+    }
+
+    this.broadcastRoomInboxEvent(event);
+  };
+
   private readonly handleRoomMessage = (roomId: string, message: IMessage): void => {
     const lease = this.getCurrentBufferLease(roomId);
 
@@ -1521,6 +1534,17 @@ export class ChatSharedWorkerRuntime {
     for (const connectedPort of this.ports.values()) {
       if (connectedPort.attached) {
         this.sendSnapshot(connectedPort);
+      }
+    }
+  }
+
+  private broadcastRoomInboxEvent(event: ChatRoomInboxEvent): void {
+    for (const connectedPort of this.ports.values()) {
+      if (connectedPort.attached) {
+        connectedPort.port.postMessage({
+          type: "ROOM_INBOX_EVENT",
+          event,
+        });
       }
     }
   }

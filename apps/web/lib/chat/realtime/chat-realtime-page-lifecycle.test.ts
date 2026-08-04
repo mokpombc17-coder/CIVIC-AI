@@ -69,6 +69,7 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
     observeRoom: () => () => {},
+    observeRoomInboxEvent: () => () => {},
     observe: () => () => {},
     reconnect: () => {},
     releaseRoom: () => {},
