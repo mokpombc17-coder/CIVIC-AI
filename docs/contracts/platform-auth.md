@@ -84,9 +84,9 @@ http://localhost:8082
 
 Emulator는 `NODE_ENV`가 `production`이 아닐 때만 사용할 수 있다.
 
-로컬 개발자는 루트 페이지(`/`)의 `임시 로그인` 버튼으로 session을 생성한다. 버튼은
-`local-user-1`을 subject로 사용해 아래 API를 호출하며, 이미 인증 쿠키가 있으면 로그인 완료
-상태를 표시한다. 이 UI는 production에서 렌더링되지 않는다.
+로컬 개발자는 전역 헤더의 `임시 로그인 갱신` 버튼으로 session을 생성하거나 갱신한다. 버튼은
+`local-user-1`을 subject로 사용해 아래 API를 호출하며, 현재 route와 관계없이 다시 발급할 수
+있다. 이 UI는 production에서 렌더링되지 않는다.
 
 Session 생성:
 

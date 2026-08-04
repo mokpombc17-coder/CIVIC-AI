@@ -26,16 +26,16 @@ RootLayout [Server] (apps/web/app/layout.tsx)
         ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
         ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
         │   └── 조건: store URL이 없으면 null 반환
+        ├── TemporaryLoginControl [Client] [conditional] (apps/web/components/temporary-login-control.tsx)
+        │   └── 조건: NODE_ENV가 production이 아닐 때만 렌더링
         └── children [slot: App Router가 route child를 제공]
             └── HomePage [Server] (apps/web/app/page.tsx)
-                ├── TemporaryLoginPanel [Client] [conditional] (apps/web/components/temporary-login-panel.tsx)
-                │   └── 조건: NODE_ENV가 production이 아닐 때만 렌더링
                 ├── RuntimeQueryPanel [Client] (apps/web/components/runtime-query-panel.tsx)
                 ├── UpstreamHealthPanel [Client] (apps/web/components/upstream-health-panel.tsx)
                 └── NativeBridgePanel [Client] (apps/web/components/native-bridge-panel.tsx)
 ```
 
-`TemporaryLoginPanel`, `RuntimeQueryPanel`, `UpstreamHealthPanel`, `NativeBridgePanel` 내부에는 조건부 UI가 있지만 모두 intrinsic HTML element이므로 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
+`TemporaryLoginControl`, `RuntimeQueryPanel`, `UpstreamHealthPanel`, `NativeBridgePanel` 내부에는 조건부 UI가 있지만 모두 intrinsic HTML element이므로 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
 
 ## Route `/chat`와 `/chat/[roomId]`
 
@@ -52,6 +52,7 @@ RootLayout [Server] (apps/web/app/layout.tsx)
     ├── NativeBridgeRuntime [Client] (apps/web/components/native-bridge-runtime.tsx)
     └── AppUpdateGate [Client] [conditional] (apps/web/components/app-update-gate.tsx)
         ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
+        ├── TemporaryLoginControl [Client] [conditional] (apps/web/components/temporary-login-control.tsx)
         └── children [slot: App Router가 route child를 제공]
             └── ChatLayout [Server] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] (apps/web/components/chat-query-provider.tsx)
@@ -115,7 +116,7 @@ NotFound [Server] [conditional: unmatched route 또는 notFound()]
 
 ## 전체 component dependency graph
 
-실선은 소스에 직접 나타나는 프로젝트 컴포넌트 렌더링 관계다. 점선은 App Router 또는 `children` slot이 런타임에 결정하는 관계다. `AppUpdateGate`는 정책 판정에 따라 전달받은 `children` 또는 자체 안내 UI를 선택하며, `AppInstallBanner`와 `TemporaryLoginPanel`은 조건부 관계를 edge label에 표시했다.
+실선은 소스에 직접 나타나는 프로젝트 컴포넌트 렌더링 관계다. 점선은 App Router 또는 `children` slot이 런타임에 결정하는 관계다. `AppUpdateGate`는 정책 판정에 따라 전달받은 `children` 또는 자체 안내 UI를 선택하며, `AppInstallBanner`와 `TemporaryLoginControl`은 조건부 관계를 edge label에 표시했다.
 
 ```mermaid
 flowchart TD
@@ -127,7 +128,7 @@ flowchart TD
     ChildrenSlot["children slot<br/>App Router가 실제 자식을 결정"]
 
     HomePage["HomePage [Server]<br/>apps/web/app/page.tsx"]
-    TemporaryLoginPanel["TemporaryLoginPanel [Client] [conditional]<br/>apps/web/components/temporary-login-panel.tsx"]
+    TemporaryLoginControl["TemporaryLoginControl [Client] [conditional]<br/>apps/web/components/temporary-login-control.tsx"]
     RuntimeQueryPanel["RuntimeQueryPanel [Client]<br/>apps/web/components/runtime-query-panel.tsx"]
     UpstreamHealthPanel["UpstreamHealthPanel [Client]<br/>apps/web/components/upstream-health-panel.tsx"]
     NativeBridgePanel["NativeBridgePanel [Client]<br/>apps/web/components/native-bridge-panel.tsx"]
@@ -163,10 +164,10 @@ flowchart TD
     AppShell --> NativeBridgeRuntime
     AppShell -->|"update policy branch"| AppUpdateGate
     AppUpdateGate -->|"component output conditional"| AppInstallBanner
+    AppUpdateGate -->|"non-production only"| TemporaryLoginControl
     AppUpdateGate --> ChildrenSlot
 
     ChildrenSlot -. "route /" .-> HomePage
-    HomePage -->|"non-production only"| TemporaryLoginPanel
     HomePage --> RuntimeQueryPanel
     HomePage --> UpstreamHealthPanel
     HomePage --> NativeBridgePanel
@@ -204,6 +205,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomInboxRuntime,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomInboxRuntime,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

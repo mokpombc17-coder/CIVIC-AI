@@ -4,12 +4,9 @@ const AUTH_COOKIE_NAME = "civic_ai_access_token";
 
 export async function authenticateDevUser(page: Page, context: BrowserContext): Promise<void> {
   await page.goto("/");
-  await page.getByRole("button", { name: "임시 로그인", exact: true }).click();
+  await page.getByRole("button", { name: "임시 로그인 갱신", exact: true }).click();
 
-  await expect(page.getByRole("button", { name: "임시 로그인 완료" })).toBeDisabled();
-  await expect(
-    page.getByText("브라우저가 HttpOnly 쿠키를 보관하고 이후 채팅 요청에 자동으로 전달합니다."),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "임시 로그인 다시 갱신" })).toBeEnabled();
 
   const authCookie = (await context.cookies()).find((cookie) => cookie.name === AUTH_COOKIE_NAME);
 
@@ -33,7 +30,7 @@ export async function authenticateDevUserAs(
   expect(response.status(), `${subject} 사용자의 임시 로그인이 성공해야 합니다.`).toBe(204);
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "임시 로그인 완료" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "임시 로그인 갱신" })).toBeEnabled();
 
   const authCookie = (await context.cookies()).find((cookie) => cookie.name === AUTH_COOKIE_NAME);
 

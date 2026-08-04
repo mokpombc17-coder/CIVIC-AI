@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
 import { authenticateDevUser, createRoomAndEnter } from "./chat-e2e-helpers";
 
 test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 흐름을 검증한다", async ({
@@ -17,6 +17,21 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
     createRoomAndEnter(page, roomName));
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
   const messageInput = page.getByRole("textbox", { name: "메시지" });
+
+  await test.step("채팅 화면의 전역 헤더에서도 임시 로그인을 다시 갱신할 수 있다", async () => {
+    const previousAuthCookie = await readAuthCookieValue(context);
+    const sessionResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/dev/auth/session",
+    );
+
+    await page.getByRole("button", { name: "임시 로그인 갱신", exact: true }).click();
+
+    expect((await sessionResponse).status()).toBe(204);
+    await expect(page.getByRole("button", { name: "임시 로그인 다시 갱신" })).toBeEnabled();
+    expect(await readAuthCookieValue(context)).not.toBe(previousAuthCookie);
+  });
 
   await test.step("SharedWorker WebSocket 구독과 REST snapshot 준비를 기다린다", async () => {
     await expect(
@@ -50,3 +65,12 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
     await expect(messageLog.getByText(message, { exact: true })).toBeVisible();
   });
 });
+
+async function readAuthCookieValue(context: BrowserContext): Promise<string> {
+  const authCookie = (await context.cookies()).find(
+    (cookie) => cookie.name === "civic_ai_access_token",
+  );
+
+  expect(authCookie, "임시 로그인 쿠키가 발급되어야 합니다.").toBeDefined();
+  return authCookie!.value;
+}

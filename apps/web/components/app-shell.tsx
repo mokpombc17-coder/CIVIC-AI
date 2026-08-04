@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AppInstallBanner } from "@/components/app-install-banner";
 import { AppUpdateGate } from "@/components/app-update-gate";
 import { NativeBridgeRuntime } from "@/components/native-bridge-runtime";
+import { TemporaryLoginControl } from "@/components/temporary-login-control";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [navigationCounter, setNavigationCounter] = useState(0);
 
   return (
     <div className="app-shell">
@@ -36,13 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </nav>
 
-          <button
-            className="secondary-button"
-            onClick={() => setNavigationCounter((value) => value + 1)}
-            type="button"
-          >
-            layout state: {navigationCounter}
-          </button>
+          {process.env.NODE_ENV !== "production" ? <TemporaryLoginControl /> : null}
         </header>
 
         <main>{children}</main>
