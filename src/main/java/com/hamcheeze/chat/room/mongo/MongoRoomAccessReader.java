@@ -117,6 +117,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                 document,
                 MongoRoomDocument.COLLECTION_NAME,
                 MongoRoomDocument.LEGACY_SCHEMA_VERSION,
+                MongoRoomDocument.PREVIOUS_SCHEMA_VERSION,
                 MongoRoomDocument.CURRENT_SCHEMA_VERSION);
         return new RoomProjection(
                 enumValue(document, "status", RoomStatus.class),

@@ -38,6 +38,23 @@ class MongoRoomAccessReaderTest {
     }
 
     @Test
+    void acceptsPreviousRoomSchemaVersion() {
+        Document previous = room("ACTIVE", 1);
+        previous.put(
+                "schemaVersion",
+                MongoRoomDocument.PREVIOUS_SCHEMA_VERSION);
+        whenRoom(previous, previous);
+        whenMembership(membership("ACTIVE", 1));
+
+        var snapshot = reader.readAccess("user-1", "room-1");
+
+        assertThat(snapshot.state())
+                .isEqualTo(RoomAccessState.ACTIVE_MEMBER);
+        assertThat(snapshot.messageVisibleAfterSequence())
+                .isEqualTo(100);
+    }
+
+    @Test
     void retriesWhenRoomVersionChangesAroundMembershipRead() {
         whenRoom(
                 room("ACTIVE", 3),
