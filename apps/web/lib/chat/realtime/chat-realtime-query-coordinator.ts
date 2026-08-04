@@ -1,7 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { chatRoomApi, type ChatRoomApi } from "../chat-room-api";
 import { DEFAULT_MESSAGE_HISTORY_LIMIT, chatRoomQueryKeys } from "../chat-room-queries";
-import { mergeChatMessages, type ChatMessageMergeResult } from "../chat-message-merge";
+import {
+  inspectSortedChatMessages,
+  mergeChatMessages,
+  type ChatMessageMergeResult,
+} from "../chat-message-merge";
 import {
   getLastContiguousMessageSequence,
   mergeMessagesIntoChatHistory,
@@ -320,18 +324,15 @@ export function applyChatRealtimeEventDelivery(
     messageEvents,
   );
   const roomEvents = delivery.events.filter((event) => event.kind === "room");
-  const { history: nextHistory } = mergeMessagesIntoChatHistory(
+  const { history: nextHistory, merge: historyMerge } = mergeMessagesIntoChatHistory(
     delivery.roomId,
     currentHistory,
     applicableMessageSnapshots,
   );
-  const messageMerge = mergeChatMessages({
-    roomId: delivery.roomId,
-    sources: nextHistory.pages.map((page) =>
-      page.items.filter((message) => message.roomSequence > messageVisibleAfterSequence),
-    ),
-    ...(hadVisibleMessage ? {} : { afterSequence: messageVisibleAfterSequence }),
-  });
+  const messageMerge = inspectSortedChatMessages(
+    historyMerge.messages.filter((message) => message.roomSequence > messageVisibleAfterSequence),
+    hadVisibleMessage ? undefined : messageVisibleAfterSequence,
+  );
   const roomEventJournalKey = chatRoomQueryKeys.roomEventJournal(delivery.roomId);
   const currentRoomEventJournal =
     queryClient.getQueryData<ChatRoomEventJournal>(roomEventJournalKey);

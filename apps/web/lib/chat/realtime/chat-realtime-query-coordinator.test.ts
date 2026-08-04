@@ -604,6 +604,26 @@ describe("ChatRealtimeQueryCoordinator", () => {
 });
 
 describe("applyChatRealtimeEventDelivery", () => {
+  it("cache merge 결과에서 참여 경계 이후의 messageMerge를 그대로 반환한다", () => {
+    const queryClient = new QueryClient();
+    seedMessageHistory(queryClient, "room-01", [[createMessage(99)]]);
+
+    const result = applyChatRealtimeEventDelivery(
+      queryClient,
+      createDelivery({
+        events: [createBufferedMessage(101, 1), createBufferedMessage(102, 2)],
+      }),
+      DEFAULT_MESSAGE_HISTORY_LIMIT,
+      100,
+    );
+
+    expect(result.messageMerge).toEqual({
+      messages: [createMessage(101), createMessage(102)],
+      gaps: [],
+      lastContiguousSequence: 102,
+    });
+  });
+
   it("delivery에 sequence gap이 있으면 cache 적용을 보류한다", () => {
     const queryClient = new QueryClient();
     seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);

@@ -91,11 +91,18 @@ export function mergeChatMessages({
   const messages = [...messagesBySequence.values()].sort(
     (left, right) => left.roomSequence - right.roomSequence,
   );
-  const gaps = findChatMessageSequenceGaps(messages, afterSequence);
+  return inspectSortedChatMessages(messages, afterSequence);
+}
+
+export function inspectSortedChatMessages(
+  messages: readonly ChatMessage[],
+  afterSequence?: number,
+): ChatMessageMergeResult {
+  assertAfterSequence(afterSequence);
 
   return {
     messages,
-    gaps,
+    gaps: findChatMessageSequenceGaps(messages, afterSequence),
     lastContiguousSequence: findLastContiguousSequence(messages, afterSequence),
   };
 }
