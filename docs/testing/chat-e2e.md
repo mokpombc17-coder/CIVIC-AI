@@ -161,6 +161,19 @@ event, REST snapshot을 함께 검증한다. 메시지 행의 불변 `clientMess
 → 양쪽 새로고침 후 REST 이력에서도 tombstone 복구 확인
 ```
 
+사용자별 Room inbox는 참여자가 목록 화면을 보고 있는 동안 다른 사용자가 메시지를 생성·삭제하는
+실제 개인 WebSocket 이벤트와 authoritative REST 재조회를 함께 검증한다.
+
+```text
+사용자 A와 B가 같은 공개 방에 참여
+→ B가 채팅방 목록에서 개인 inbox 구독 유지
+→ A의 메시지 생성으로 B의 토스트와 unread badge 갱신
+→ B가 방에 진입해 메시지를 실제 렌더링
+→ PUT /read-state 성공 후 목록 badge 제거
+→ A가 새 unread 메시지를 생성한 뒤 삭제
+→ DELETE 토스트 없이 Room inbox 재조회로 badge 제거
+```
+
 채팅방 참여 정원은 OWNER를 포함한 서로 다른 사용자로 실제 ACTIVE 인원을 채운 뒤 검증한다.
 
 ```text

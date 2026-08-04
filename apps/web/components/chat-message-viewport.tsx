@@ -241,9 +241,14 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       return;
     }
 
+    if (history.items.length > 0 && viewportPositionRef.current === "initializing") {
+      scrollToLatest();
+      return;
+    }
+
     const frame = requestAnimationFrame(reportVisibleReadSequence);
     return () => cancelAnimationFrame(frame);
-  }, [history.items, history.readStateEnabled, reportVisibleReadSequence]);
+  }, [history.items, history.readStateEnabled, reportVisibleReadSequence, scrollToLatest]);
 
   useEffect(() => {
     const previous = previousItemsRef.current;

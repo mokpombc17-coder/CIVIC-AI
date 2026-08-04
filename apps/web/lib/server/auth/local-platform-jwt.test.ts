@@ -46,6 +46,7 @@ describe("issueLocalPlatformJwt", () => {
       exp: issuedAt + LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS,
       jti: jwtId,
     });
+    expect(String(payload.scope).split(" ")).toContain("chat:read-state:write");
   });
 
   it("rejects an empty subject before signing", async () => {

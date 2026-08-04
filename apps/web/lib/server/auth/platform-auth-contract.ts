@@ -7,6 +7,7 @@ export const CHAT_AUTH_SCOPES = [
   "chat:rooms:read",
   "chat:rooms:write",
   "chat:messages:write",
+  "chat:read-state:write",
 ] as const;
 
 export const CHAT_AUTH_SCOPE = CHAT_AUTH_SCOPES.join(" ");
