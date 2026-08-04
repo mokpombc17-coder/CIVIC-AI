@@ -1,16 +1,21 @@
 import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { ChatApiError } from "./chat-fetch";
 import { ChatMessageMergeConflictError } from "./chat-message-merge";
 import {
   chatRoomQueryKeys,
   flattenRoomListPages,
   flattenRoomMessageHistoryPages,
+  getNextRoomInboxPageParam,
+  getRoomInboxRetryDelay,
   myRoomMembershipQueryOptions,
   myRoomsInfiniteQueryOptions,
   publicRoomsInfiniteQueryOptions,
   roomDetailsQueryOptions,
+  roomInboxInfiniteQueryOptions,
   roomMessageHistoryInfiniteQueryOptions,
   roomMembershipsInfiniteQueryOptions,
+  shouldRetryRoomInboxQuery,
 } from "./chat-room-queries";
 import type { MessageHistoryResponse } from "./chat-room-contracts";
 
@@ -46,6 +51,44 @@ describe("chat room query options", () => {
 
     expect(options.queryKey).toEqual(chatRoomQueryKeys.myList(20));
     expect(listMyRooms).toHaveBeenCalledWith({ limit: 20 });
+  });
+
+  it("Room inbox는 전용 key와 최대 limit 20을 사용한다", async () => {
+    const listRoomInbox = vi.fn(async () => EMPTY_PAGE);
+    const options = roomInboxInfiniteQueryOptions({}, { listRoomInbox });
+
+    await createQueryClient().fetchInfiniteQuery(options);
+
+    expect(options.queryKey).toEqual(chatRoomQueryKeys.roomInbox(20));
+    expect(listRoomInbox).toHaveBeenCalledWith({ limit: 20 });
+    expect(options.queryKey).not.toEqual(chatRoomQueryKeys.myList(20));
+  });
+
+  it("Room inbox는 빈 page여도 hasNext cursor를 사용하고 반복 cursor는 중단한다", () => {
+    const page = {
+      items: [],
+      nextCursor: "membership-20",
+      hasNext: true,
+    };
+
+    expect(getNextRoomInboxPageParam(page, [], null, [null])).toBe("membership-20");
+    expect(getNextRoomInboxPageParam(page, [], "membership-20", [null, "membership-20"])).toBe(
+      null,
+    );
+  });
+
+  it("Room inbox의 retryable 오류만 최대 3회 bounded backoff한다", () => {
+    const retryableError = createChatApiError(true);
+    const nonRetryableError = createChatApiError(false);
+
+    expect(shouldRetryRoomInboxQuery(0, retryableError)).toBe(true);
+    expect(shouldRetryRoomInboxQuery(2, retryableError)).toBe(true);
+    expect(shouldRetryRoomInboxQuery(3, retryableError)).toBe(false);
+    expect(shouldRetryRoomInboxQuery(0, nonRetryableError)).toBe(false);
+    expect(shouldRetryRoomInboxQuery(0, new Error("network"))).toBe(false);
+    expect([0, 1, 2, 3].map((attempt) => getRoomInboxRetryDelay(attempt, () => 0.5))).toEqual([
+      500, 1_000, 2_000, 2_000,
+    ]);
   });
 
   it("여러 cursor page의 방을 서버 순서대로 펼친다", () => {
@@ -233,6 +276,19 @@ function createQueryClient(): QueryClient {
         retry: false,
       },
     },
+  });
+}
+
+function createChatApiError(retryable: boolean): ChatApiError {
+  return new ChatApiError(503, "Service Unavailable", "http://localhost/api/v1/me/room-inbox", {
+    type: "urn:hamcheeze:problem:room-inbox-unavailable",
+    title: "Room inbox unavailable",
+    status: 503,
+    detail: "Room inbox is temporarily unavailable.",
+    instance: "/api/v1/me/room-inbox",
+    code: "ROOM_INBOX_UNAVAILABLE",
+    replayed: false,
+    retryable,
   });
 }
 

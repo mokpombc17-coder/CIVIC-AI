@@ -18,6 +18,8 @@ import {
   publicRoomListResponseSchema,
   roomDetailsSchema,
   roomIdSchema,
+  roomInboxListParamsSchema,
+  roomInboxListResponseSchema,
   roomMembershipListParamsSchema,
   roomMembershipListResponseSchema,
   roomMembershipSchema,
@@ -38,6 +40,8 @@ import {
   type MyRoomListResponse,
   type PublicRoomListResponse,
   type RoomDetails,
+  type RoomInboxListParams,
+  type RoomInboxListResponse,
   type RoomMembership,
   type RoomMembershipListParams,
   type RoomMembershipListResponse,
@@ -87,6 +91,7 @@ export type ChatRoomApi = Readonly<{
   getRoom(roomId: string): Promise<RoomDetails>;
   getMyMembership(roomId: string): Promise<RoomMembership>;
   listMyRooms(params?: CursorPaginationParams): Promise<MyRoomListResponse>;
+  listRoomInbox(params?: RoomInboxListParams): Promise<RoomInboxListResponse>;
   listRoomMemberships(
     roomId: string,
     params?: RoomMembershipListParams,
@@ -237,6 +242,15 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
         "내 활성 방 목록 응답",
         myRoomListResponseSchema,
         createListPath("/me/rooms", cursorPaginationParamsSchema.parse(params)),
+      );
+    },
+
+    async listRoomInbox(params = {}) {
+      return requestAndParse(
+        request,
+        "Room inbox 목록 응답",
+        roomInboxListResponseSchema,
+        createListPath("/me/room-inbox", roomInboxListParamsSchema.parse(params)),
       );
     },
 

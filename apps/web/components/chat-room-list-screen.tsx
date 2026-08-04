@@ -4,16 +4,17 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
+import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
 import { getJoinRoomErrorMessage } from "@/lib/chat/chat-room-command-error-presentation";
 import {
   createRoomRequestSchema,
   type CreateRoomRequest,
-  type MyRoomListItem,
   type PublicRoomListItem,
+  type RoomInboxListItem,
 } from "@/lib/chat/chat-room-contracts";
 import { useCreateRoomMutation, useJoinRoomMutation } from "@/lib/chat/chat-room-mutations";
-import { useMyRoomsQuery, usePublicRoomsQuery } from "@/lib/chat/chat-room-queries";
+import { usePublicRoomsQuery, useRoomInboxQuery } from "@/lib/chat/chat-room-queries";
 import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
 const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
@@ -23,11 +24,11 @@ const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
 
 export function ChatRoomListScreen() {
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
-  const myRooms = useMyRoomsQuery();
+  const roomInbox = useRoomInboxQuery();
   const publicRooms = usePublicRoomsQuery();
   const participatingRoomIds = useMemo(
-    () => new Set(myRooms.rooms.map((room) => room.roomId)),
-    [myRooms.rooms],
+    () => new Set(roomInbox.rooms.map((room) => room.roomId)),
+    [roomInbox.rooms],
   );
   const discoverableRooms = useMemo(
     () => publicRooms.rooms.filter((room) => !participatingRoomIds.has(room.roomId)),
@@ -66,19 +67,21 @@ export function ChatRoomListScreen() {
         {isCreateRoomOpen ? <CreateRoomForm onCancel={() => setIsCreateRoomOpen(false)} /> : null}
 
         <QueryFailure
-          error={myRooms.error}
-          onRetry={() => void myRooms.refetch()}
+          error={roomInbox.error}
+          onRetry={() => void roomInbox.refetch()}
           title="참여 중인 방을 불러오지 못했습니다."
-          visible={myRooms.isError}
+          visible={roomInbox.isError}
         />
 
-        {myRooms.isPending && myRooms.rooms.length === 0 ? (
+        {roomInbox.isPending && roomInbox.rooms.length === 0 ? (
           <RoomListNotice message="참여 중인 방을 불러오고 있습니다." />
-        ) : myRooms.rooms.length === 0 && !myRooms.isError ? (
+        ) : roomInbox.rooms.length === 0 && !roomInbox.isError && roomInbox.hasNextPage ? (
+          <RoomListNotice message="현재 페이지에 표시할 방이 없습니다. 다음 페이지를 확인해 주세요." />
+        ) : roomInbox.rooms.length === 0 && !roomInbox.isError ? (
           <RoomListNotice message="현재 참여 중인 방이 없습니다." />
-        ) : myRooms.rooms.length > 0 ? (
+        ) : roomInbox.rooms.length > 0 ? (
           <ul className="grid gap-3">
-            {myRooms.rooms.map((room) => (
+            {roomInbox.rooms.map((room) => (
               <li key={room.roomId}>
                 <MyRoomCard room={room} />
               </li>
@@ -87,10 +90,10 @@ export function ChatRoomListScreen() {
         ) : null}
 
         <LoadMoreButton
-          hasNextPage={myRooms.hasNextPage}
-          isFetching={myRooms.isFetchingNextPage}
+          hasNextPage={roomInbox.hasNextPage}
+          isFetching={roomInbox.isFetchingNextPage}
           label="참여 중인 방 더 보기"
-          onClick={() => void myRooms.fetchNextPage()}
+          onClick={() => void roomInbox.fetchNextPage()}
         />
       </RoomListSection>
 
@@ -154,7 +157,7 @@ function RoomListSection({ action, children, eyebrow, title }: RoomListSectionPr
   );
 }
 
-function MyRoomCard({ room }: { room: MyRoomListItem }) {
+function MyRoomCard({ room }: { room: RoomInboxListItem }) {
   return (
     <Link
       className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50"
@@ -162,11 +165,29 @@ function MyRoomCard({ room }: { room: MyRoomListItem }) {
     >
       <RoomAvatar name={room.name} />
       <RoomSummary room={room}>
+        <RoomUnreadBadge room={room} />
         <span className="status">
           {room.membershipRole} · {room.membershipStatus}
         </span>
       </RoomSummary>
     </Link>
+  );
+}
+
+function RoomUnreadBadge({ room }: { room: RoomInboxListItem }) {
+  const badge = getChatRoomUnreadBadgePresentation(room.unreadCount, room.unreadCountCapped);
+
+  if (!badge) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-label={badge.ariaLabel}
+      className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white"
+    >
+      {badge.text}
+    </span>
   );
 }
 

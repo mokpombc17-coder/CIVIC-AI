@@ -59,6 +59,7 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                         └── children [slot: nested page를 제공]
                             ├── route /chat: ChatPage [Server] (apps/web/app/chat/page.tsx)
                             │   └── ChatRoomListScreen [Client] (apps/web/components/chat-room-list-screen.tsx)
+                            │       ├── RoomUnreadBadge [internal, conditional]
                             │       └── ChatConnectionStatus [Client] (apps/web/components/chat-connection-status.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
@@ -172,6 +173,7 @@ flowchart TD
     ChatChildrenSlot -. "route /chat" .-> ChatPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
     ChatPage --> ChatRoomListScreen
+    ChatRoomListScreen --> RoomUnreadBadge
     ChatRoomListScreen --> ChatConnectionStatus
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView

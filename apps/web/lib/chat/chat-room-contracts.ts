@@ -134,6 +134,12 @@ export const myRoomListItemSchema = publicRoomListItemSchema.extend({
   membershipVersion: versionSchema,
 });
 
+export const roomInboxListItemSchema = myRoomListItemSchema.extend({
+  readThroughSequence: nonnegativeSequenceSchema,
+  unreadCount: z.number().int().nonnegative(),
+  unreadCountCapped: z.boolean(),
+});
+
 export const roomMembershipListItemSchema = z.object({
   membershipId: opaqueIdSchema,
   userId: opaqueIdSchema,
@@ -147,6 +153,7 @@ export const roomMembershipListItemSchema = z.object({
 
 export const publicRoomListResponseSchema = createCursorPageSchema(publicRoomListItemSchema);
 export const myRoomListResponseSchema = createCursorPageSchema(myRoomListItemSchema);
+export const roomInboxListResponseSchema = createCursorPageSchema(roomInboxListItemSchema);
 export const roomMembershipListResponseSchema = createCursorPageSchema(
   roomMembershipListItemSchema,
 );
@@ -319,6 +326,11 @@ export const cursorPaginationParamsSchema = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
 
+export const roomInboxListParamsSchema = z.object({
+  cursor: cursorSchema.optional(),
+  limit: z.number().int().min(1).max(20).optional(),
+});
+
 export const roomMembershipListParamsSchema = cursorPaginationParamsSchema.extend({
   status: membershipStatusSchema.optional(),
 });
@@ -335,9 +347,11 @@ export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type PublicRoomListItem = z.infer<typeof publicRoomListItemSchema>;
 export type RoomDetails = z.infer<typeof roomDetailsSchema>;
 export type MyRoomListItem = z.infer<typeof myRoomListItemSchema>;
+export type RoomInboxListItem = z.infer<typeof roomInboxListItemSchema>;
 export type RoomMembershipListItem = z.infer<typeof roomMembershipListItemSchema>;
 export type PublicRoomListResponse = z.infer<typeof publicRoomListResponseSchema>;
 export type MyRoomListResponse = z.infer<typeof myRoomListResponseSchema>;
+export type RoomInboxListResponse = z.infer<typeof roomInboxListResponseSchema>;
 export type RoomMembershipListResponse = z.infer<typeof roomMembershipListResponseSchema>;
 export type CreateRoomRequest = z.input<typeof createRoomRequestSchema>;
 export type UpdateRoomSettingsRequest = z.input<typeof updateRoomSettingsRequestSchema>;
@@ -355,6 +369,7 @@ export type MessageHistoryMode = z.infer<typeof messageHistoryModeSchema>;
 export type MessageHistoryRequest = z.input<typeof messageHistoryRequestSchema>;
 export type MessageHistoryResponse = z.infer<typeof messageHistoryResponseBaseSchema>;
 export type CursorPaginationParams = z.input<typeof cursorPaginationParamsSchema>;
+export type RoomInboxListParams = z.input<typeof roomInboxListParamsSchema>;
 export type RoomMembershipListParams = z.input<typeof roomMembershipListParamsSchema>;
 
 export function createMessageHistoryResponseSchema(

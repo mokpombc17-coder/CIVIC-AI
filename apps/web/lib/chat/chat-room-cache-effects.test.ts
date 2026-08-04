@@ -17,6 +17,7 @@ describe("chat room cache effects", () => {
     expectInvalidationOrder(invalidateQueries, [
       chatRoomQueryKeys.publicLists(),
       chatRoomQueryKeys.myLists(),
+      chatRoomQueryKeys.roomInboxes(),
     ]);
   });
 
@@ -28,6 +29,7 @@ describe("chat room cache effects", () => {
     expectInvalidationOrder(invalidateQueries, [
       chatRoomQueryKeys.publicLists(),
       chatRoomQueryKeys.myLists(),
+      chatRoomQueryKeys.roomInboxes(),
       chatRoomQueryKeys.detail("room-01"),
     ]);
   });
@@ -40,6 +42,7 @@ describe("chat room cache effects", () => {
     expectInvalidationOrder(invalidateQueries, [
       chatRoomQueryKeys.publicLists(),
       chatRoomQueryKeys.myLists(),
+      chatRoomQueryKeys.roomInboxes(),
       chatRoomQueryKeys.detail("room-01"),
       chatRoomQueryKeys.myMembership("room-01"),
       chatRoomQueryKeys.membershipLists("room-01"),
@@ -57,6 +60,7 @@ describe("chat room cache effects", () => {
       chatRoomQueryKeys.membershipLists("room-01"),
       chatRoomQueryKeys.publicLists(),
       chatRoomQueryKeys.myLists(),
+      chatRoomQueryKeys.roomInboxes(),
     ]);
   });
 });

@@ -12,6 +12,8 @@ import {
   roomDescriptionSchema,
   roomDetailsSchema,
   roomIdSchema,
+  roomInboxListParamsSchema,
+  roomInboxListResponseSchema,
   updateRoomSettingsRequestSchema,
   updateRoomSettingsResponseSchema,
 } from "./chat-room-contracts";
@@ -176,6 +178,49 @@ describe("chat room REST contracts", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("Room inbox unread projection과 최대 limit 20을 검증한다", () => {
+    const page = roomInboxListResponseSchema.parse({
+      items: [
+        {
+          roomId: "room-01",
+          name: "시민 AI 토론방",
+          description: "",
+          ownerUserId: "local-user-1",
+          status: "ACTIVE",
+          visibility: "LISTED",
+          joinPolicy: "OPEN",
+          activeMemberCount: 2,
+          createdAt: "2026-07-29T04:30:00Z",
+          version: 2,
+          membershipId: "membership-01",
+          membershipRole: "OWNER",
+          membershipStatus: "ACTIVE",
+          joinedAt: "2026-07-29T04:30:00Z",
+          membershipVersion: 1,
+          readThroughSequence: 123,
+          unreadCount: 200,
+          unreadCountCapped: false,
+        },
+      ],
+      nextCursor: "membership-01",
+      hasNext: true,
+    });
+
+    expect(page.items[0]).toMatchObject({
+      readThroughSequence: 123,
+      unreadCount: 200,
+      unreadCountCapped: false,
+    });
+    expect(roomInboxListParamsSchema.safeParse({ limit: 20 }).success).toBe(true);
+    expect(roomInboxListParamsSchema.safeParse({ limit: 21 }).success).toBe(false);
+    expect(
+      roomInboxListResponseSchema.safeParse({
+        ...page,
+        items: [{ ...page.items[0], unreadCount: -1 }],
+      }).success,
+    ).toBe(false);
   });
 
   it("메시지 이력 조회 방향을 동시에 지정할 수 없게 한다", () => {

@@ -5,7 +5,7 @@ import { ChatRestContractError, createChatRoomApi } from "./chat-room-api";
 const IDEMPOTENCY_KEY = "07af9111-3e20-43e5-ae80-78d1bf547647";
 
 describe("chatRoomApi queries", () => {
-  it("공개 방, 내 방, 상세, 내 멤버십과 멤버 목록 경로를 구성한다", async () => {
+  it("공개 방, 내 방, inbox, 상세, 내 멤버십과 멤버 목록 경로를 구성한다", async () => {
     const { calls, request } = createQueuedChatFetch(
       {
         items: [PUBLIC_ROOM],
@@ -16,6 +16,11 @@ describe("chatRoomApi queries", () => {
         items: [MY_ROOM],
         nextCursor: null,
         hasNext: false,
+      },
+      {
+        items: [ROOM_INBOX_ITEM],
+        nextCursor: "membership-01",
+        hasNext: true,
       },
       ROOM_DETAILS,
       MEMBERSHIP,
@@ -32,6 +37,10 @@ describe("chatRoomApi queries", () => {
       limit: 20,
     });
     await api.listMyRooms({ limit: 100 });
+    await api.listRoomInbox({
+      cursor: "inbox cursor",
+      limit: 20,
+    });
     await api.getRoom("room-01");
     await api.getMyMembership("room-01");
     await api.listRoomMemberships("room-01", {
@@ -43,6 +52,7 @@ describe("chatRoomApi queries", () => {
     expect(calls.map(({ path }) => path)).toEqual([
       "/rooms?cursor=public+cursor&limit=20",
       "/me/rooms?limit=100",
+      "/me/room-inbox?cursor=inbox+cursor&limit=20",
       "/rooms/room-01",
       "/rooms/room-01/memberships/me",
       "/rooms/room-01/memberships?status=BANNED&cursor=member+cursor&limit=10",
@@ -71,6 +81,7 @@ describe("chatRoomApi queries", () => {
     const api = createChatRoomApi(request);
 
     await expect(api.listPublicRooms({ limit: 101 })).rejects.toThrow();
+    await expect(api.listRoomInbox({ limit: 21 })).rejects.toThrow();
     await expect(api.getRoom("invalid room")).rejects.toThrow("roomId 형식이 올바르지 않습니다.");
     expect(calls).toHaveLength(0);
   });
@@ -431,6 +442,13 @@ const MY_ROOM = {
   membershipStatus: "ACTIVE",
   joinedAt: "2026-07-29T04:30:00Z",
   membershipVersion: 1,
+};
+
+const ROOM_INBOX_ITEM = {
+  ...MY_ROOM,
+  readThroughSequence: 123,
+  unreadCount: 200,
+  unreadCountCapped: false,
 };
 
 const MEMBERSHIP_LIST_ITEM = {

@@ -9,6 +9,9 @@ export async function invalidateRoomLists(queryClient: QueryClient): Promise<voi
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myLists(),
     }),
+    queryClient.invalidateQueries({
+      queryKey: chatRoomQueryKeys.roomInboxes(),
+    }),
   ]);
 }
 
@@ -58,6 +61,9 @@ export async function refreshAuthoritativeRoomQueries(
     }),
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myLists(),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: chatRoomQueryKeys.roomInboxes(),
     }),
   ]);
 }
