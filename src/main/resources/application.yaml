@@ -56,7 +56,7 @@ chat:
 
     subscription:
       max-active-rooms-per-connection: 1
-      max-subscriptions-per-connection: 5
+      max-subscriptions-per-connection: 6
       max-subscribers-per-room: 50
       reject-duplicate-destination: true
       allow-wildcard-destination: false

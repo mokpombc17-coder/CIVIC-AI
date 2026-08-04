@@ -12,8 +12,8 @@ public class SubscriptionLimitProperties {
 
     @Min(1)
     private int maxActiveRoomsPerConnection = 1;
-    @Min(1)
-    private int maxSubscriptionsPerConnection = 5;
+    @Min(5)
+    private int maxSubscriptionsPerConnection = 6;
     @Min(1)
     private int maxSubscribersPerRoom = 50;
     @AssertTrue

@@ -926,7 +926,10 @@ const client = new Client({
 구독하려면 해당 방의 활성 멤버여야 한다.
 
 로컬 기본 설정상 한 연결에서 활성 방 구독은 한 개, 전체 구독은 최대
-다섯 개다.
+여섯 개다. 정상 클라이언트는 사용자 queue 세 개와 현재 Room topic 두 개,
+총 다섯 개를 동시에 사용하므로 `max-subscriptions-per-connection`은 최소
+`5`여야 하며, 그보다 낮은 설정은 애플리케이션 startup validation에서
+거절된다. 기본값 `6`은 추가 구독 하나의 여유를 둔다.
 
 ### 구독 준비 barrier
 
@@ -1720,10 +1723,11 @@ docker compose -f compose.local.yaml exec -T \
 /user/queue/room-inbox-events
 ```
 
-이 구독은 기존 최대 subscription 5개에 포함된다. 개인 queue 3개와 현재
-Room topic 2개를 함께 구독할 수 있다. 현재 Room message topic을 구독 중인
-사용자도 서버 수신 대상에서 제외하지 않으며, foreground/현재 화면/토스트
-억제 판단은 프론트가 한다.
+이 구독은 기본 최대 subscription 6개 중 하나다. 개인 queue 3개와 현재
+Room topic 2개를 함께 구독하며, 기본 설정에는 추가 subscription 하나의
+여유가 있다. 현재 Room message topic을 구독 중인 사용자도 서버 수신
+대상에서 제외하지 않으며, foreground/현재 화면/토스트 억제 판단은 프론트가
+한다.
 
 CREATE 예:
 
