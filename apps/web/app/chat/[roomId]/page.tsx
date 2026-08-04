@@ -9,13 +9,9 @@ type ChatRoomPageProps = {
   }>;
 };
 
-export async function generateMetadata({ params }: ChatRoomPageProps): Promise<Metadata> {
-  const { roomId } = await params;
-
-  return {
-    title: roomIdSchema.safeParse(roomId).success ? `채팅방 ${roomId}` : "채팅방",
-  };
-}
+export const metadata: Metadata = {
+  title: "채팅방",
+};
 
 export default async function ChatRoomPage({ params }: ChatRoomPageProps) {
   const { roomId } = await params;

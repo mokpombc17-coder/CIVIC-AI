@@ -2,13 +2,16 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
+import { resolveSiteUrl } from "@/lib/site-url";
+
+const siteUrl = resolveSiteUrl(process.env.SITE_URL);
 
 export const metadata: Metadata = {
+  ...(siteUrl ? { metadataBase: siteUrl } : {}),
   title: {
-    default: "Next + Expo WebView Starter",
-    template: "%s | Next + Expo WebView Starter",
+    default: "Civic AI Platform",
+    template: "%s | Civic AI Platform",
   },
-  description: "Next.js web/BFF and Expo WebView shell starter",
 };
 
 export const viewport: Viewport = {

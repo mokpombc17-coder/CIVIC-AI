@@ -91,24 +91,6 @@ slot만 받아 화면을 렌더링한다. `ChatRoomSessionControls`도 session �
 control은 설정 Dialog, 부분 patch 계산, update-settings mutation과 같은 멱등성 key 재시도를
 소유하며, 멤버십 패널은 owner 여부와 배치만 담당한다.
 
-## Route `/architecture`
-
-`/architecture`에는 별도의 nested layout이 없다. 따라서 root layout의 `children`이 바로 `ArchitecturePage`로 결정된다.
-
-```text
-RootLayout [Server] (apps/web/app/layout.tsx)
-└── AppShell [Client] (apps/web/components/app-shell.tsx)
-    ├── NativeBridgeRuntime [Client] (apps/web/components/native-bridge-runtime.tsx)
-    └── AppUpdateGate [Client] [conditional] (apps/web/components/app-update-gate.tsx)
-        ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
-        ├── AppInstallBanner [Client] [conditional] (apps/web/components/app-install-banner.tsx)
-        │   └── 조건: store URL이 없으면 null 반환
-        └── children [slot: App Router가 route child를 제공]
-            └── ArchitecturePage [Server] (apps/web/app/architecture/page.tsx)
-```
-
-`ArchitecturePage`는 프로젝트에서 정의한 다른 React 컴포넌트를 렌더링하지 않는다.
-
 ## App Router special UI
 
 다음 파일은 일반 route page가 아니라 root app segment에 연결된 App Router special file이다. 어떤 boundary와 runtime 상태에서 실제로 선택되는지는 Next.js가 관리하며, 프로젝트 소스에는 이들을 `RootLayout`이나 `AppShell`이 직접 JSX 자식으로 호출하는 관계가 없다. 따라서 아래 항목은 직접 부모를 추정하지 않고 독립된 framework-managed branch로 표시한다.
@@ -166,8 +148,6 @@ flowchart TD
     ChatRoomSessionBanner["ChatRoomSessionBanner [Client]<br/>apps/web/components/chat-room-session-banner.tsx"]
     ChatMessageComposer["ChatMessageComposer [Client]<br/>apps/web/components/chat-message-composer.tsx"]
 
-    ArchitecturePage["ArchitecturePage [Server]<br/>apps/web/app/architecture/page.tsx"]
-
     SpecialBoundary["App Router root-segment special UI<br/>framework-managed; direct JSX parent 미확정"]
     Loading["Loading [Server] [conditional]<br/>apps/web/app/loading.tsx"]
     ErrorPage["ErrorPage [Client] [conditional]<br/>apps/web/app/error.tsx"]
@@ -207,8 +187,6 @@ flowchart TD
     ChatRoomView -->|"slot"| ChatRoomMembershipPanel
     ChatRoomMembershipPanel -->|"active OWNER only"| ChatRoomSettingsControl
 
-    ChildrenSlot -. "route /architecture" .-> ArchitecturePage
-
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage
     SpecialBoundary -. "not-found state" .-> NotFound
@@ -217,7 +195,7 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,ArchitecturePage,Loading,NotFound server;
+    class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
     class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginPanel,RuntimeQueryPanel,UpstreamHealthPanel,NativeBridgePanel,ChatQueryProvider,ChatRealtimeProvider,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```
