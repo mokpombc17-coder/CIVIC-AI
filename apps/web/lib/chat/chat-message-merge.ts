@@ -41,7 +41,7 @@ export function mergeChatMessages({
 }: MergeChatMessagesOptions): ChatMessageMergeResult {
   assertAfterSequence(afterSequence);
 
-  const messagesBySequence = mergeChatMessageSources(roomId, sources);
+  const { messagesBySequence } = mergeChatMessageSources(roomId, sources);
   const messages = [...messagesBySequence.values()].sort(
     (left, right) => left.roomSequence - right.roomSequence,
   );
@@ -55,27 +55,38 @@ export function mergePresortedChatMessages({
 }: MergeChatMessagesOptions): ChatMessageMergeResult {
   assertAfterSequence(afterSequence);
 
-  if (!hasNondecreasingRoomSequences(sources)) {
-    return mergeChatMessages({
-      roomId,
-      sources,
-      ...(afterSequence === undefined ? {} : { afterSequence }),
-    });
+  const { messagesBySequence, hasNondecreasingRoomSequences } = mergeChatMessageSources(
+    roomId,
+    sources,
+  );
+  const messages = [...messagesBySequence.values()];
+
+  if (!hasNondecreasingRoomSequences) {
+    messages.sort((left, right) => left.roomSequence - right.roomSequence);
   }
 
-  const messagesBySequence = mergeChatMessageSources(roomId, sources);
-  return inspectSortedChatMessages([...messagesBySequence.values()], afterSequence);
+  return inspectSortedChatMessages(messages, afterSequence);
 }
 
 function mergeChatMessageSources(
   roomId: string,
   sources: readonly (readonly ChatMessage[])[],
-): Map<number, ChatMessage> {
+): Readonly<{
+  messagesBySequence: Map<number, ChatMessage>;
+  hasNondecreasingRoomSequences: boolean;
+}> {
   const messagesById = new Map<string, ChatMessage>();
   const messagesBySequence = new Map<number, ChatMessage>();
+  let previousSequence: number | null = null;
+  let hasNondecreasingRoomSequences = true;
 
   for (const source of sources) {
     for (const message of source) {
+      if (previousSequence !== null && message.roomSequence < previousSequence) {
+        hasNondecreasingRoomSequences = false;
+      }
+      previousSequence = message.roomSequence;
+
       if (message.roomId !== roomId) {
         throw new ChatMessageMergeConflictError("ROOM_MISMATCH", null, message);
       }
@@ -118,7 +129,7 @@ function mergeChatMessageSources(
     }
   }
 
-  return messagesBySequence;
+  return { messagesBySequence, hasNondecreasingRoomSequences };
 }
 
 export function inspectSortedChatMessages(
@@ -188,22 +199,6 @@ function findLastContiguousSequence(
   }
 
   return lastSequence;
-}
-
-function hasNondecreasingRoomSequences(sources: readonly (readonly ChatMessage[])[]): boolean {
-  let previousSequence: number | null = null;
-
-  for (const source of sources) {
-    for (const message of source) {
-      if (previousSequence !== null && message.roomSequence < previousSequence) {
-        return false;
-      }
-
-      previousSequence = message.roomSequence;
-    }
-  }
-
-  return true;
 }
 
 function hasSameChatMessageIdentity(left: ChatMessage, right: ChatMessage): boolean {
