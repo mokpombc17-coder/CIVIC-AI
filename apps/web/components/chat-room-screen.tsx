@@ -18,6 +18,7 @@ import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import { createChatMessageTimeline } from "@/lib/chat/chat-message-timeline";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
+import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
@@ -29,6 +30,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const outbox = useChatMessageOutbox();
   const outgoingMessages = useChatOutgoingMessages(roomId);
   const session = useChatRealtimeRoom(roomId);
+  const updateReadThroughSequence = useChatRoomReadState(roomId);
   const messageMutations = useChatMessageMutations({
     enabled: session.isActive,
     generation: session.generation,
@@ -85,6 +87,12 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     isPending: messageHistory.isPending,
     messageCount: messageItems.length,
   });
+  const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
+  const readStateEnabled =
+    coordinatorEnabled &&
+    realtimeQuery.isSynchronized &&
+    realtimeQuery.error === null &&
+    session.isActive;
 
   useEffect(() => {
     outbox.acknowledgeConfirmed(
@@ -103,6 +111,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         feedback,
         isLoadingOlder: messageHistory.isFetchingNextPage,
         items: messageItems,
+        latestConfirmedSequence,
         onDeleteMessage: messageMutations.deleteMessage,
         onEditMessage: messageMutations.editMessage,
         onLoadOlder: async () => {
@@ -116,7 +125,9 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
             hasOlderMessages: result.hasNextPage,
           };
         },
+        onReadThroughSequence: updateReadThroughSequence,
         onRetry: () => void messageHistory.refetch(),
+        readStateEnabled,
         roomLabel: `${roomId} 메시지`,
         viewportKey: `${roomId}:${session.generation}`,
       }}

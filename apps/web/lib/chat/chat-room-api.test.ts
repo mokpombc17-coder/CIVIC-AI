@@ -85,6 +85,27 @@ describe("chatRoomApi queries", () => {
     await expect(api.getRoom("invalid room")).rejects.toThrow("roomId 형식이 올바르지 않습니다.");
     expect(calls).toHaveLength(0);
   });
+
+  it("읽음 위치를 Idempotency-Key 없이 PUT하고 응답을 검증한다", async () => {
+    const { calls, request } = createQueuedChatFetch({
+      roomId: "room-01",
+      readThroughSequence: 123,
+      updated: true,
+    });
+    const api = createChatRoomApi(request);
+
+    await expect(api.updateRoomReadState("room-01", { throughSequence: 123 })).resolves.toEqual({
+      roomId: "room-01",
+      readThroughSequence: 123,
+      updated: true,
+    });
+
+    expect(calls[0]?.path).toBe("/rooms/room-01/read-state");
+    expect(calls[0]?.init?.method).toBe("PUT");
+    expect(new Headers(calls[0]?.init?.headers).get("Content-Type")).toBe("application/json");
+    expect(new Headers(calls[0]?.init?.headers).has("Idempotency-Key")).toBe(false);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ throughSequence: 123 });
+  });
 });
 
 describe("chatRoomApi message history", () => {
@@ -546,6 +567,7 @@ const CHAT_MESSAGE = {
   messageId: "message-120",
   roomId: "room-01",
   roomSequence: 120,
+  countable: true,
   senderUserId: "local-user-1",
   clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
   content: "안녕하세요.",

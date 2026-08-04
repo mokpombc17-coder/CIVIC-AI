@@ -32,6 +32,7 @@ export type ChatMessageItemViewModel = Readonly<{
   messageId: string | null;
   mutation: ChatMessageMutationViewState | null;
   renderKey: string;
+  roomSequence: number | null;
   senderLabel: string | null;
   timeLabel: string;
 }>;
@@ -86,6 +87,7 @@ export function createChatMessageItemViewModels(
         messageId: null,
         mutation: null,
         renderKey: createChatMessageRenderKey(item.message.clientMessageId),
+        roomSequence: null,
         senderLabel: null,
         timeLabel: formatMessageTime(item.message.enqueuedAt),
       };
@@ -106,6 +108,7 @@ export function createChatMessageItemViewModels(
       messageId: item.message.messageId,
       mutation: mutationStates.get(item.message.messageId) ?? null,
       renderKey: createChatMessageRenderKey(item.message.clientMessageId),
+      roomSequence: item.message.roomSequence,
       senderLabel: isMine ? null : item.message.senderUserId,
       timeLabel: formatMessageTime(item.message.createdAt),
     };

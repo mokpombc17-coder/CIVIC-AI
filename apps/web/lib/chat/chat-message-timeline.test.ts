@@ -31,6 +31,7 @@ function createConfirmed(clientMessageId: string): ChatMessage {
     messageId: "message-01",
     roomId: "room-01",
     roomSequence: 1,
+    countable: true,
     senderUserId: "local-user-1",
     clientMessageId,
     content: "확정 메시지",

@@ -116,6 +116,7 @@ function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACT
     messageId: `message-${roomSequence}`,
     roomId: "room-01",
     roomSequence,
+    countable: true,
     senderUserId: "local-user-1",
     clientMessageId: `00000000-0000-4000-8000-${String(roomSequence).padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,

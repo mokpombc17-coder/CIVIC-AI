@@ -36,6 +36,7 @@ describe("chat room view model", () => {
           messageVersion: 1,
           roomId: "room-01",
           roomSequence: 1,
+          countable: true,
           senderUserId: "local-user-2",
           state: "ACTIVE",
           updatedAt: "2026-07-31T00:00:00Z",
@@ -67,6 +68,7 @@ describe("chat room view model", () => {
       isMine: false,
       messageId: "message-01",
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440001",
+      roomSequence: 1,
       senderLabel: "local-user-2",
     });
     expect(items[1]).toMatchObject({
@@ -78,6 +80,7 @@ describe("chat room view model", () => {
       isMine: true,
       messageId: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440002",
+      roomSequence: null,
     });
   });
 
@@ -115,6 +118,7 @@ describe("chat room view model", () => {
             messageVersion: 1,
             roomId: "room-01",
             roomSequence: 4,
+            countable: true,
             senderUserId: "local-user-1",
             state: "ACTIVE",
             updatedAt: "2026-07-31T00:00:00Z",
@@ -141,6 +145,7 @@ describe("chat room view model", () => {
             messageVersion: 2,
             roomId: "room-01",
             roomSequence: 5,
+            countable: true,
             senderUserId: "local-user-1",
             state: "DELETED_BY_AUTHOR",
             updatedAt: "2026-07-31T00:01:00Z",
@@ -173,6 +178,7 @@ describe("chat room view model", () => {
             messageVersion: 2,
             roomId: "room-01",
             roomSequence: 6,
+            countable: true,
             senderUserId: "local-user-1",
             state: "ACTIVE",
             updatedAt: "2026-07-31T00:01:00Z",

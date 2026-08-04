@@ -26,6 +26,8 @@ import {
   targetUserRequestSchema,
   transferRoomOwnershipResponseSchema,
   unbanRoomMemberResponseSchema,
+  updateRoomReadStateRequestSchema,
+  updateRoomReadStateResponseSchema,
   updateRoomSettingsRequestSchema,
   updateRoomSettingsResponseSchema,
   type BanRoomMemberResponse,
@@ -48,6 +50,8 @@ import {
   type TargetUserRequest,
   type TransferRoomOwnershipResponse,
   type UnbanRoomMemberResponse,
+  type UpdateRoomReadStateRequest,
+  type UpdateRoomReadStateResponse,
   type UpdateRoomSettingsRequest,
   type UpdateRoomSettingsResponse,
 } from "./chat-room-contracts";
@@ -92,6 +96,10 @@ export type ChatRoomApi = Readonly<{
   getMyMembership(roomId: string): Promise<RoomMembership>;
   listMyRooms(params?: CursorPaginationParams): Promise<MyRoomListResponse>;
   listRoomInbox(params?: RoomInboxListParams): Promise<RoomInboxListResponse>;
+  updateRoomReadState(
+    roomId: string,
+    request: UpdateRoomReadStateRequest,
+  ): Promise<UpdateRoomReadStateResponse>;
   listRoomMemberships(
     roomId: string,
     params?: RoomMembershipListParams,
@@ -251,6 +259,24 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
         "Room inbox 목록 응답",
         roomInboxListResponseSchema,
         createListPath("/me/room-inbox", roomInboxListParamsSchema.parse(params)),
+      );
+    },
+
+    async updateRoomReadState(roomId, readStateRequest) {
+      const body = updateRoomReadStateRequestSchema.parse(readStateRequest);
+
+      return requestAndParse(
+        request,
+        "Room read-state 갱신 응답",
+        updateRoomReadStateResponseSchema,
+        `${createRoomPath(roomId)}/read-state`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        },
       );
     },
 

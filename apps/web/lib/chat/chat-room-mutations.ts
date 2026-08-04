@@ -10,6 +10,7 @@ import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
 import type {
   CreateRoomRequest,
   TargetUserRequest,
+  UpdateRoomReadStateRequest,
   UpdateRoomSettingsRequest,
 } from "./chat-room-contracts";
 import {
@@ -17,12 +18,21 @@ import {
   invalidateRoomSettingsState,
   invalidateRoomState,
 } from "./chat-room-cache-effects";
-import { chatRoomQueryKeys } from "./chat-room-queries";
+import {
+  chatRoomQueryKeys,
+  getRoomInboxRetryDelay,
+  shouldRetryRoomInboxRequest,
+} from "./chat-room-queries";
 import type { IdempotentCommand } from "./idempotent-command";
 
 type RoomCommandVariables<TBody> = Readonly<{
   roomId: string;
   command: IdempotentCommand<TBody>;
+}>;
+
+export type UpdateRoomReadStateVariables = Readonly<{
+  request: UpdateRoomReadStateRequest;
+  roomId: string;
 }>;
 
 export function createRoomMutationOptions(
@@ -136,6 +146,23 @@ export function closeRoomMutationOptions(
   });
 }
 
+export function updateRoomReadStateMutationOptions(
+  queryClient: QueryClient,
+  api: Pick<ChatRoomApi, "updateRoomReadState"> = chatRoomApi,
+) {
+  return mutationOptions({
+    mutationKey: [...chatRoomQueryKeys.all, "read-state"] as const,
+    mutationFn: ({ request, roomId }: UpdateRoomReadStateVariables) =>
+      api.updateRoomReadState(roomId, request),
+    retry: shouldRetryRoomInboxRequest,
+    retryDelay: (attemptIndex) => getRoomInboxRetryDelay(attemptIndex),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: chatRoomQueryKeys.roomInboxes(),
+      }),
+  });
+}
+
 export function useCreateRoomMutation() {
   const queryClient = useQueryClient();
   return useMutation(createRoomMutationOptions(queryClient));
@@ -174,4 +201,9 @@ export function useUnbanRoomMemberMutation() {
 export function useCloseRoomMutation() {
   const queryClient = useQueryClient();
   return useMutation(closeRoomMutationOptions(queryClient));
+}
+
+export function useUpdateRoomReadStateMutation() {
+  const queryClient = useQueryClient();
+  return useMutation(updateRoomReadStateMutationOptions(queryClient));
 }

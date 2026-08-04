@@ -879,6 +879,7 @@ function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACT
     messageId: `message-${roomSequence}`,
     roomId: "room-01",
     roomSequence,
+    countable: true,
     senderUserId: "local-user-1",
     clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
     content: `message ${roomSequence}`,

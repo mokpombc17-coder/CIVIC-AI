@@ -14,6 +14,8 @@ import {
   roomIdSchema,
   roomInboxListParamsSchema,
   roomInboxListResponseSchema,
+  updateRoomReadStateRequestSchema,
+  updateRoomReadStateResponseSchema,
   updateRoomSettingsRequestSchema,
   updateRoomSettingsResponseSchema,
 } from "./chat-room-contracts";
@@ -223,6 +225,27 @@ describe("chat room REST contracts", () => {
     ).toBe(false);
   });
 
+  it("read-state 요청과 monotonic 응답 계약을 검증한다", () => {
+    expect(updateRoomReadStateRequestSchema.parse({ throughSequence: 0 })).toEqual({
+      throughSequence: 0,
+    });
+    expect(
+      updateRoomReadStateResponseSchema.parse({
+        roomId: "room-01",
+        readThroughSequence: 123,
+        updated: false,
+      }),
+    ).toEqual({
+      roomId: "room-01",
+      readThroughSequence: 123,
+      updated: false,
+    });
+    expect(updateRoomReadStateRequestSchema.safeParse({ throughSequence: -1 }).success).toBe(false);
+    expect(
+      updateRoomReadStateRequestSchema.safeParse({ throughSequence: 1, unknown: true }).success,
+    ).toBe(false);
+  });
+
   it("메시지 이력 조회 방향을 동시에 지정할 수 없게 한다", () => {
     expect(
       messageHistoryRequestSchema.safeParse({
@@ -300,6 +323,9 @@ describe("chat room REST contracts", () => {
 
     expect(chatMessageSchema.parse(activeMessage)).toEqual(activeMessage);
     expect(chatMessageSchema.parse(deletedMessage)).toEqual(deletedMessage);
+    expect(chatMessageSchema.safeParse({ ...activeMessage, countable: undefined }).success).toBe(
+      false,
+    );
     expect(
       chatMessageSchema.safeParse({
         ...deletedMessage,
@@ -320,6 +346,7 @@ function createMessage(roomSequence: number) {
     messageId: `message-${roomSequence}`,
     roomId: "room-01",
     roomSequence,
+    countable: true,
     senderUserId: "local-user-1",
     clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
     content: "안녕하세요.",

@@ -118,7 +118,7 @@ export function roomInboxInfiniteQueryOptions(
         ...(pageParam === null ? {} : { cursor: pageParam }),
       }),
     getNextPageParam: getNextRoomInboxPageParam,
-    retry: shouldRetryRoomInboxQuery,
+    retry: shouldRetryRoomInboxRequest,
     retryDelay: (attemptIndex) => getRoomInboxRetryDelay(attemptIndex),
   });
 }
@@ -315,7 +315,7 @@ export function getNextRoomInboxPageParam(
   return allPageParams.includes(lastPage.nextCursor) ? null : lastPage.nextCursor;
 }
 
-export function shouldRetryRoomInboxQuery(failureCount: number, error: Error): boolean {
+export function shouldRetryRoomInboxRequest(failureCount: number, error: Error): boolean {
   return failureCount < ROOM_INBOX_MAX_RETRIES && error instanceof ChatApiError && error.retryable;
 }
 

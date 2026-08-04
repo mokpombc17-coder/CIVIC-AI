@@ -51,6 +51,7 @@ function createMessage(
     messageId: null,
     mutation: null,
     renderKey: crypto.randomUUID(),
+    roomSequence: null,
     senderLabel: "local-user-1",
     timeLabel: "오후 3:00",
     ...overrides,

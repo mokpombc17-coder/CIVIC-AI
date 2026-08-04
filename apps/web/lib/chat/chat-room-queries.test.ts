@@ -15,7 +15,7 @@ import {
   roomInboxInfiniteQueryOptions,
   roomMessageHistoryInfiniteQueryOptions,
   roomMembershipsInfiniteQueryOptions,
-  shouldRetryRoomInboxQuery,
+  shouldRetryRoomInboxRequest,
 } from "./chat-room-queries";
 import type { MessageHistoryResponse } from "./chat-room-contracts";
 
@@ -81,11 +81,11 @@ describe("chat room query options", () => {
     const retryableError = createChatApiError(true);
     const nonRetryableError = createChatApiError(false);
 
-    expect(shouldRetryRoomInboxQuery(0, retryableError)).toBe(true);
-    expect(shouldRetryRoomInboxQuery(2, retryableError)).toBe(true);
-    expect(shouldRetryRoomInboxQuery(3, retryableError)).toBe(false);
-    expect(shouldRetryRoomInboxQuery(0, nonRetryableError)).toBe(false);
-    expect(shouldRetryRoomInboxQuery(0, new Error("network"))).toBe(false);
+    expect(shouldRetryRoomInboxRequest(0, retryableError)).toBe(true);
+    expect(shouldRetryRoomInboxRequest(2, retryableError)).toBe(true);
+    expect(shouldRetryRoomInboxRequest(3, retryableError)).toBe(false);
+    expect(shouldRetryRoomInboxRequest(0, nonRetryableError)).toBe(false);
+    expect(shouldRetryRoomInboxRequest(0, new Error("network"))).toBe(false);
     expect([0, 1, 2, 3].map((attempt) => getRoomInboxRetryDelay(attempt, () => 0.5))).toEqual([
       500, 1_000, 2_000, 2_000,
     ]);
@@ -354,6 +354,7 @@ function createMessage(roomSequence: number) {
     messageId: `message-${roomSequence}`,
     roomId: "room-01",
     roomSequence,
+    countable: true,
     senderUserId: "local-user-1",
     clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
     content: `메시지 ${roomSequence}`,

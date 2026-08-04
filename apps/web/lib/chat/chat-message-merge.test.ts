@@ -96,6 +96,31 @@ describe("mergeChatMessages", () => {
     );
   });
 
+  it("생성 시 결정된 countable이 이후 snapshot에서 바뀌면 계약 충돌로 처리한다", () => {
+    const message = createMessage(1);
+
+    expect(() =>
+      mergeChatMessages({
+        roomId: "room-01",
+        sources: [
+          [message],
+          [
+            {
+              ...message,
+              countable: false,
+              messageVersion: 2,
+              updatedAt: "2026-07-29T04:41:00Z",
+            },
+          ],
+        ],
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<ChatMessageMergeConflictError>>({
+        code: "MESSAGE_ID_CONFLICT",
+      }),
+    );
+  });
+
   it("같은 roomSequence에 다른 messageId가 오면 계약 충돌로 처리한다", () => {
     const message = createMessage(1);
 
@@ -205,6 +230,7 @@ function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACT
     messageId: `message-${roomSequence}`,
     roomId: "room-01",
     roomSequence,
+    countable: true,
     senderUserId: "local-user-1",
     clientMessageId: `00000000-0000-4000-8000-${String(roomSequence).padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,

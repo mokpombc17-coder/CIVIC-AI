@@ -4,6 +4,7 @@ import {
   createRoomMutationOptions,
   joinRoomMutationOptions,
   transferRoomOwnershipMutationOptions,
+  updateRoomReadStateMutationOptions,
   updateRoomSettingsMutationOptions,
 } from "./chat-room-mutations";
 import { chatRoomQueryKeys } from "./chat-room-queries";
@@ -221,6 +222,32 @@ describe("chat room mutation options", () => {
 
     expect(options.retry).toBe(false);
     expect(transferRoomOwnership).toHaveBeenCalledWith("room-01", variables.command);
+  });
+
+  it("read-state 성공 시 Room inbox만 무효화하고 공통 retry 정책을 사용한다", async () => {
+    const queryClient = createQueryClient();
+    seedRoomQueries(queryClient);
+    queryClient.setQueryData(chatRoomQueryKeys.roomInbox(20), "inbox");
+    const updateRoomReadState = vi.fn(async () => ({
+      roomId: "room-01",
+      readThroughSequence: 123,
+      updated: true,
+    }));
+    const options = updateRoomReadStateMutationOptions(queryClient, { updateRoomReadState });
+    const observer = new MutationObserver(queryClient, options);
+    const variables = {
+      request: { throughSequence: 123 },
+      roomId: "room-01",
+    };
+
+    await observer.mutate(variables);
+
+    expect(updateRoomReadState).toHaveBeenCalledWith("room-01", variables.request);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.roomInbox(20))).toBe(true);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(false);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(false);
+    expect(options.retry).toBeTypeOf("function");
+    expect(options.retryDelay).toBeTypeOf("function");
   });
 });
 

@@ -36,10 +36,13 @@ export type ChatMessageViewportViewModel = Readonly<{
   feedback: ChatMessageViewportFeedback | null;
   isLoadingOlder: boolean;
   items: readonly ChatMessageItemViewModel[];
+  latestConfirmedSequence: number | null;
   onDeleteMessage: (messageId: string) => ChatMessageMutationStartResult;
   onEditMessage: (messageId: string, content: string) => ChatMessageMutationStartResult;
   onLoadOlder: () => Promise<ChatMessageViewportLoadOlderResult>;
+  onReadThroughSequence: (throughSequence: number) => void;
   onRetry: () => void;
+  readStateEnabled: boolean;
   roomLabel: string;
   viewportKey: string;
 }>;
@@ -49,7 +52,15 @@ export type ChatMessageViewportLoadOlderResult = Readonly<{
 }>;
 
 export function ChatMessageViewport({ history }: { history: ChatMessageViewportViewModel }) {
-  const { canLoadOlder, isLoadingOlder: isHistoryLoadingOlder, onLoadOlder, viewportKey } = history;
+  const {
+    canLoadOlder,
+    isLoadingOlder: isHistoryLoadingOlder,
+    latestConfirmedSequence,
+    onLoadOlder,
+    onReadThroughSequence,
+    readStateEnabled,
+    viewportKey,
+  } = history;
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const previousItemsRef = useRef<ChatMessageViewportItemsSnapshot | null>(null);
   const pendingAnchorRef = useRef<ChatMessageViewportAnchor | null>(null);
@@ -84,6 +95,25 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   virtualizerRef.current = virtualizer;
   const virtualItems = virtualizer.getVirtualItems();
   currentViewportKeyRef.current = viewportKey;
+
+  const reportVisibleReadSequence = useCallback(() => {
+    if (
+      !readStateEnabled ||
+      latestConfirmedSequence === null ||
+      document.visibilityState !== "visible" ||
+      viewportPositionRef.current !== "pinned"
+    ) {
+      return;
+    }
+
+    const scrollElement = scrollElementRef.current;
+
+    if (!scrollElement || !isSequenceVisible(scrollElement, latestConfirmedSequence)) {
+      return;
+    }
+
+    onReadThroughSequence(latestConfirmedSequence);
+  }, [latestConfirmedSequence, onReadThroughSequence, readStateEnabled]);
 
   const cancelLatestScroll = useCallback(() => {
     const frames = latestScrollFramesRef.current;
@@ -130,9 +160,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
           type: "viewport-ready",
           isAtEnd: true,
         });
+        reportVisibleReadSequence();
       });
     });
-  }, [cancelLatestScroll, history.items.length]);
+  }, [cancelLatestScroll, history.items.length, reportVisibleReadSequence]);
 
   const loadOlderMessages = useCallback(async () => {
     if (
@@ -198,6 +229,21 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     setArrivalAnnouncement(null);
     cancelLatestScroll();
   }, [cancelLatestScroll, viewportKey]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => reportVisibleReadSequence();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [reportVisibleReadSequence]);
+
+  useEffect(() => {
+    if (!history.readStateEnabled) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(reportVisibleReadSequence);
+    return () => cancelAnimationFrame(frame);
+  }, [history.items, history.readStateEnabled, reportVisibleReadSequence]);
 
   useEffect(() => {
     const previous = previousItemsRef.current;
@@ -333,6 +379,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       type: "scroll-position-changed",
       isAtEnd,
     });
+
+    if (isAtEnd) {
+      reportVisibleReadSequence();
+    }
 
     if (scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
       void loadOlderMessages();
@@ -525,6 +575,20 @@ function findRenderedAnchorElement(
 
 function currentViewportKeyFromElement(scrollElement: HTMLDivElement): string {
   return scrollElement.dataset.viewportKey ?? "";
+}
+
+function isSequenceVisible(scrollElement: HTMLDivElement, roomSequence: number): boolean {
+  const messageElement = scrollElement.querySelector<HTMLLIElement>(
+    `[data-room-sequence="${roomSequence}"]`,
+  );
+
+  if (!messageElement) {
+    return false;
+  }
+
+  const viewportBounds = scrollElement.getBoundingClientRect();
+  const messageBounds = messageElement.getBoundingClientRect();
+  return messageBounds.bottom > viewportBounds.top && messageBounds.top < viewportBounds.bottom;
 }
 
 function toErrorMessage(error: unknown): string {

@@ -263,6 +263,7 @@ const chatMessageSnapshotBaseSchema = z.object({
   messageId: opaqueIdSchema,
   roomId: roomIdSchema,
   roomSequence: positiveSequenceSchema,
+  countable: z.boolean(),
   senderUserId: opaqueIdSchema,
   clientMessageId: idempotencyKeySchema,
   messageVersion: positiveMessageVersionSchema,
@@ -331,6 +332,18 @@ export const roomInboxListParamsSchema = z.object({
   limit: z.number().int().min(1).max(20).optional(),
 });
 
+export const updateRoomReadStateRequestSchema = z
+  .object({
+    throughSequence: nonnegativeSequenceSchema,
+  })
+  .strict();
+
+export const updateRoomReadStateResponseSchema = z.object({
+  roomId: roomIdSchema,
+  readThroughSequence: nonnegativeSequenceSchema,
+  updated: z.boolean(),
+});
+
 export const roomMembershipListParamsSchema = cursorPaginationParamsSchema.extend({
   status: membershipStatusSchema.optional(),
 });
@@ -371,6 +384,8 @@ export type MessageHistoryResponse = z.infer<typeof messageHistoryResponseBaseSc
 export type CursorPaginationParams = z.input<typeof cursorPaginationParamsSchema>;
 export type RoomInboxListParams = z.input<typeof roomInboxListParamsSchema>;
 export type RoomMembershipListParams = z.input<typeof roomMembershipListParamsSchema>;
+export type UpdateRoomReadStateRequest = z.input<typeof updateRoomReadStateRequestSchema>;
+export type UpdateRoomReadStateResponse = z.infer<typeof updateRoomReadStateResponseSchema>;
 
 export function createMessageHistoryResponseSchema(
   request: MessageHistoryRequest,
