@@ -12,6 +12,11 @@ import type {
   TargetUserRequest,
   UpdateRoomSettingsRequest,
 } from "./chat-room-contracts";
+import {
+  invalidateRoomLists,
+  invalidateRoomSettingsState,
+  invalidateRoomState,
+} from "./chat-room-cache-effects";
 import { chatRoomQueryKeys } from "./chat-room-queries";
 import type { IdempotentCommand } from "./idempotent-command";
 
@@ -169,42 +174,4 @@ export function useUnbanRoomMemberMutation() {
 export function useCloseRoomMutation() {
   const queryClient = useQueryClient();
   return useMutation(closeRoomMutationOptions(queryClient));
-}
-
-async function invalidateRoomLists(queryClient: QueryClient): Promise<void> {
-  await Promise.all([
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.publicLists(),
-    }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.myLists(),
-    }),
-  ]);
-}
-
-async function invalidateRoomSettingsState(
-  queryClient: QueryClient,
-  roomId: string,
-): Promise<void> {
-  await Promise.all([
-    invalidateRoomLists(queryClient),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.detail(roomId),
-    }),
-  ]);
-}
-
-async function invalidateRoomState(queryClient: QueryClient, roomId: string): Promise<void> {
-  await Promise.all([
-    invalidateRoomLists(queryClient),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.detail(roomId),
-    }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.myMembership(roomId),
-    }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.membershipLists(roomId),
-    }),
-  ]);
 }

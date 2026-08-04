@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { refreshAuthoritativeRoomQueries } from "../chat-room-cache-effects";
 import type { RoomDetails, RoomMembership } from "../chat-room-contracts";
 import { chatRoomQueryKeys } from "../chat-room-queries";
 import type { ChatRoomEventEnvelope, ChatRoomEventMemberState } from "./chat-stomp-contracts";
@@ -197,27 +198,4 @@ function toParticipationStatus(
   status: ChatRoomEventMemberState["status"],
 ): RoomDetails["participationStatus"] {
   return status;
-}
-
-async function refreshAuthoritativeRoomQueries(
-  queryClient: QueryClient,
-  roomId: string,
-): Promise<void> {
-  await Promise.all([
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.detail(roomId),
-    }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.myMembership(roomId),
-    }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.membershipLists(roomId),
-    }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.publicLists(),
-    }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.myLists(),
-    }),
-  ]);
 }
