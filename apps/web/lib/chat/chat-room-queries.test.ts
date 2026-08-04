@@ -1,5 +1,6 @@
 import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { ChatMessageMergeConflictError } from "./chat-message-merge";
 import {
   chatRoomQueryKeys,
   flattenRoomListPages,
@@ -178,6 +179,51 @@ describe("chat room query options", () => {
       ),
     ).toEqual([70, 71, 119, 120]);
   });
+
+  it("page 경계에서 겹친 메시지는 최신 page의 높은 version snapshot으로 교체한다", () => {
+    const originalMessage = createMessage(70);
+    const updatedMessage = {
+      ...originalMessage,
+      content: "수정된 메시지 70",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T04:41:00Z",
+    };
+
+    expect(
+      flattenRoomMessageHistoryPages("room-01", [
+        createMessagePage([updatedMessage, createMessage(71)]),
+        createMessagePage([originalMessage]),
+      ]),
+    ).toEqual([updatedMessage, createMessage(71)]);
+  });
+
+  it("page 경계에서 같은 sequence에 다른 messageId가 있으면 충돌로 처리한다", () => {
+    const conflictingMessage = {
+      ...createMessage(70),
+      messageId: "another-message-70",
+      clientMessageId: "03c02813-df0e-4f5f-809c-9a21f940446d",
+    };
+
+    expect(() =>
+      flattenRoomMessageHistoryPages("room-01", [
+        createMessagePage([conflictingMessage]),
+        createMessagePage([createMessage(70)]),
+      ]),
+    ).toThrowError(
+      expect.objectContaining<Partial<ChatMessageMergeConflictError>>({
+        code: "ROOM_SEQUENCE_CONFLICT",
+      }),
+    );
+  });
+
+  it("page 순서가 계약과 다르면 기존 범용 merge로 정렬한다", () => {
+    expect(
+      flattenRoomMessageHistoryPages("room-01", [
+        createMessagePage([createMessage(50)]),
+        createMessagePage([createMessage(70)]),
+      ]).map(({ roomSequence }) => roomSequence),
+    ).toEqual([50, 70]);
+  });
 });
 
 function createQueryClient(): QueryClient {
@@ -237,6 +283,15 @@ const OLDER_MESSAGE_PAGE = {
   nextAfterSequence: null,
   hasMore: false,
 } satisfies MessageHistoryResponse;
+
+function createMessagePage(items: MessageHistoryResponse["items"]): MessageHistoryResponse {
+  return {
+    items,
+    nextBeforeSequence: null,
+    nextAfterSequence: null,
+    hasMore: false,
+  };
+}
 
 function createMessage(roomSequence: number) {
   return {

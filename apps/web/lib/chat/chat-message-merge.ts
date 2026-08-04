@@ -41,6 +41,36 @@ export function mergeChatMessages({
 }: MergeChatMessagesOptions): ChatMessageMergeResult {
   assertAfterSequence(afterSequence);
 
+  const messagesBySequence = mergeChatMessageSources(roomId, sources);
+  const messages = [...messagesBySequence.values()].sort(
+    (left, right) => left.roomSequence - right.roomSequence,
+  );
+  return inspectSortedChatMessages(messages, afterSequence);
+}
+
+export function mergePresortedChatMessages({
+  roomId,
+  sources,
+  afterSequence,
+}: MergeChatMessagesOptions): ChatMessageMergeResult {
+  assertAfterSequence(afterSequence);
+
+  if (!hasNondecreasingRoomSequences(sources)) {
+    return mergeChatMessages({
+      roomId,
+      sources,
+      ...(afterSequence === undefined ? {} : { afterSequence }),
+    });
+  }
+
+  const messagesBySequence = mergeChatMessageSources(roomId, sources);
+  return inspectSortedChatMessages([...messagesBySequence.values()], afterSequence);
+}
+
+function mergeChatMessageSources(
+  roomId: string,
+  sources: readonly (readonly ChatMessage[])[],
+): Map<number, ChatMessage> {
   const messagesById = new Map<string, ChatMessage>();
   const messagesBySequence = new Map<number, ChatMessage>();
 
@@ -88,10 +118,7 @@ export function mergeChatMessages({
     }
   }
 
-  const messages = [...messagesBySequence.values()].sort(
-    (left, right) => left.roomSequence - right.roomSequence,
-  );
-  return inspectSortedChatMessages(messages, afterSequence);
+  return messagesBySequence;
 }
 
 export function inspectSortedChatMessages(
@@ -161,6 +188,22 @@ function findLastContiguousSequence(
   }
 
   return lastSequence;
+}
+
+function hasNondecreasingRoomSequences(sources: readonly (readonly ChatMessage[])[]): boolean {
+  let previousSequence: number | null = null;
+
+  for (const source of sources) {
+    for (const message of source) {
+      if (previousSequence !== null && message.roomSequence < previousSequence) {
+        return false;
+      }
+
+      previousSequence = message.roomSequence;
+    }
+  }
+
+  return true;
 }
 
 function hasSameChatMessageIdentity(left: ChatMessage, right: ChatMessage): boolean {

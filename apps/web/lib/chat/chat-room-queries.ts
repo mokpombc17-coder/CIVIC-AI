@@ -7,7 +7,7 @@ import {
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
-import { mergeChatMessages } from "./chat-message-merge";
+import { mergePresortedChatMessages } from "./chat-message-merge";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
 import type {
   ChatMessage,
@@ -178,7 +178,7 @@ export function flattenRoomMessageHistoryPages(
     return EMPTY_CHAT_MESSAGES;
   }
 
-  return mergeChatMessages({
+  return mergePresortedChatMessages({
     roomId,
     sources: [...pages].reverse().map((page) => page.items),
   }).messages;
