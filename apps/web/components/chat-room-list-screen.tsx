@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
@@ -21,9 +21,11 @@ const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
   timeZone: "Asia/Seoul",
 });
+const CREATE_ROOM_FORM_ID = "create-room-form";
 
 export function ChatRoomListScreen() {
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
+  const createRoomTriggerRef = useRef<HTMLButtonElement>(null);
   const roomInbox = useRoomInboxQuery();
   const publicRooms = usePublicRoomsQuery();
   const participatingRoomIds = useMemo(
@@ -35,8 +37,22 @@ export function ChatRoomListScreen() {
     [participatingRoomIds, publicRooms.rooms],
   );
 
+  function closeCreateRoomForm() {
+    setIsCreateRoomOpen(false);
+    createRoomTriggerRef.current?.focus();
+  }
+
+  function toggleCreateRoomForm() {
+    if (isCreateRoomOpen) {
+      closeCreateRoomForm();
+      return;
+    }
+
+    setIsCreateRoomOpen(true);
+  }
+
   return (
-    <div className="page-stack">
+    <div className="chat-room-list page-stack">
       <section className="hero hero-compact">
         <p className="eyebrow">Chat rooms</p>
         <h1>채팅방</h1>
@@ -50,21 +66,20 @@ export function ChatRoomListScreen() {
       <RoomListSection
         action={
           <button
+            aria-controls={CREATE_ROOM_FORM_ID}
             aria-expanded={isCreateRoomOpen}
-            className={
-              isCreateRoomOpen ? "primary-button cursor-not-allowed opacity-50" : "primary-button"
-            }
-            disabled={isCreateRoomOpen}
-            onClick={() => setIsCreateRoomOpen(true)}
+            className={isCreateRoomOpen ? "secondary-button" : "primary-button"}
+            onClick={toggleCreateRoomForm}
+            ref={createRoomTriggerRef}
             type="button"
           >
-            {isCreateRoomOpen ? "작성 중" : "새 채팅방"}
+            {isCreateRoomOpen ? "작성 닫기" : "새 채팅방"}
           </button>
         }
         eyebrow="My rooms"
         title="참여 중인 방"
       >
-        {isCreateRoomOpen ? <CreateRoomForm onCancel={() => setIsCreateRoomOpen(false)} /> : null}
+        {isCreateRoomOpen ? <CreateRoomForm onCancel={closeCreateRoomForm} /> : null}
 
         <QueryFailure
           error={roomInbox.error}
@@ -245,6 +260,7 @@ function CreateRoomForm({ onCancel }: { onCancel: () => void }) {
   return (
     <form
       className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4"
+      id={CREATE_ROOM_FORM_ID}
       onChange={clearFailedAttempt}
       onSubmit={handleSubmit}
     >
@@ -347,11 +363,13 @@ function CreateRoomForm({ onCancel }: { onCancel: () => void }) {
 }
 
 function PublicRoomCard({ room }: { room: PublicRoomListItem }) {
+  const isOpen = room.joinPolicy === "OPEN";
+
   return (
     <article className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4">
       <RoomAvatar name={room.name} />
       <RoomSummary room={room}>
-        <span className="status">{room.joinPolicy}</span>
+        <span className="status">{isOpen ? "누구나 참여" : "초대 전용"}</span>
       </RoomSummary>
       <JoinRoomControl room={room} />
     </article>
@@ -385,16 +403,23 @@ function JoinRoomControl({ room }: { room: PublicRoomListItem }) {
   const canRetry =
     retryCommand !== null && joinRoom.isError && isRetryableChatCommandError(joinRoom.error);
 
+  if (!isOpen) {
+    return (
+      <span className="inline-flex min-h-[2.6rem] shrink-0 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500">
+        초대 전용
+      </span>
+    );
+  }
+
   return (
     <div className="flex max-w-64 shrink-0 flex-col items-end gap-2">
       <button
-        className={isOpen ? "secondary-button" : "secondary-button cursor-not-allowed opacity-50"}
-        disabled={!isOpen || joinRoom.isPending}
+        className="secondary-button"
+        disabled={joinRoom.isPending}
         onClick={handleJoin}
-        title={isOpen ? "이 공개 방에 참여합니다." : "초대 전용 방입니다."}
         type="button"
       >
-        {joinRoom.isPending ? "참여 중…" : isOpen ? "참여하기" : "초대 전용"}
+        {joinRoom.isPending ? "참여 중…" : "참여하기"}
       </button>
 
       {joinRoom.isError ? (

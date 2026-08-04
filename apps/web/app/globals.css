@@ -236,6 +236,11 @@ main {
   opacity: 0.48;
 }
 
+.chat-room-list :where(a[href], button, input, textarea, select):focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 3px;
+}
+
 .link-button {
   text-decoration: none;
 }

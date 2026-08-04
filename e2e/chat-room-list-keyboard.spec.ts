@@ -1,0 +1,50 @@
+import { expect, test } from "@playwright/test";
+import { authenticateDevUserAs } from "./chat-e2e-helpers";
+
+test("새 채팅방 폼은 키보드로 열고 닫아도 논리적인 포커스를 유지한다", async ({
+  context,
+  page,
+}) => {
+  await authenticateDevUserAs(page, context, `e2e-room-list-keyboard-${crypto.randomUUID()}`);
+  await page.goto("/chat");
+
+  const createRoomButton = page.getByRole("button", { name: "새 채팅방", exact: true });
+
+  await createRoomButton.focus();
+  await page.keyboard.press("Enter");
+
+  const roomNameInput = page.getByRole("textbox", { name: "방 이름", exact: true });
+
+  await expect(roomNameInput).toBeFocused();
+  await expect(page.getByRole("button", { name: "작성 닫기", exact: true })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+
+  await page.keyboard.press("Shift+Tab");
+
+  const closeCreateRoomButton = page.getByRole("button", { name: "작성 닫기", exact: true });
+
+  await expect(closeCreateRoomButton).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(createRoomButton).toBeFocused();
+  await expect(roomNameInput).toHaveCount(0);
+
+  await page.keyboard.press("Enter");
+  await expect(roomNameInput).toBeFocused();
+
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("textbox", { name: "방 설명" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("combobox", { name: "공개 범위" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("combobox", { name: "참여 정책" })).toBeFocused();
+  await page.keyboard.press("Tab");
+
+  const cancelButton = page.getByRole("button", { name: "취소", exact: true });
+
+  await expect(cancelButton).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(createRoomButton).toBeFocused();
+  await expect(roomNameInput).toHaveCount(0);
+});
