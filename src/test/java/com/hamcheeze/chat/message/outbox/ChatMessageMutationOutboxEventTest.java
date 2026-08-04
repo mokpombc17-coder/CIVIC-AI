@@ -52,12 +52,18 @@ class ChatMessageMutationOutboxEventTest {
                 .isEqualTo("chat-message-updated:message-1:v2");
         assertThat(update.eventType())
                 .isEqualTo("CHAT_MESSAGE_UPDATED");
+        assertThat(update.schemaVersion()).isEqualTo(2);
+        assertThat(update.eventVersion()).isEqualTo(1);
+        assertThat(update.payload().countable()).isTrue();
         assertThat(update.occurredAt()).isEqualTo(UPDATED_AT);
         assertThat(update.roomSequence()).isEqualTo(10);
         assertThat(delete.eventId())
                 .isEqualTo("chat-message-deleted:message-1:v3");
         assertThat(delete.eventType())
                 .isEqualTo("CHAT_MESSAGE_DELETED");
+        assertThat(delete.schemaVersion()).isEqualTo(2);
+        assertThat(delete.eventVersion()).isEqualTo(1);
+        assertThat(delete.payload().countable()).isTrue();
         assertThat(delete.payload().content()).isNull();
         assertThat(delete.payload().messageVersion()).isEqualTo(3);
     }
@@ -68,7 +74,7 @@ class ChatMessageMutationOutboxEventTest {
                 new ClaimedChatMessageOutboxEvent(
                         "chat-message-created:message-1",
                         1,
-                        1,
+                        ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                         "CHAT_MESSAGE",
                         "message-1",
                         1,
@@ -101,7 +107,7 @@ class ChatMessageMutationOutboxEventTest {
                 new ClaimedChatMessageOutboxEvent(
                         "chat-message-updated:message-1:v3",
                         1,
-                        1,
+                        ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                         "CHAT_MESSAGE",
                         "message-1",
                         1,
@@ -116,6 +122,7 @@ class ChatMessageMutationOutboxEventTest {
                                 "client-1",
                                 "edited",
                                 MessageState.ACTIVE,
+                                true,
                                 2L,
                                 CREATED_AT,
                                 UPDATED_AT,
@@ -132,7 +139,7 @@ class ChatMessageMutationOutboxEventTest {
                 new ClaimedChatMessageOutboxEvent(
                         "chat-message-updated:message-1:v2",
                         1,
-                        1,
+                        ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                         "CHAT_MESSAGE",
                         "message-1",
                         1,
@@ -147,6 +154,7 @@ class ChatMessageMutationOutboxEventTest {
                                 "client-1",
                                 "edited",
                                 MessageState.ACTIVE,
+                                true,
                                 2L,
                                 CREATED_AT,
                                 UPDATED_AT,
@@ -156,7 +164,7 @@ class ChatMessageMutationOutboxEventTest {
                 new ClaimedChatMessageOutboxEvent(
                         "chat-message-deleted:message-1:v2",
                         1,
-                        1,
+                        ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                         "CHAT_MESSAGE",
                         "message-1",
                         1,
@@ -171,6 +179,7 @@ class ChatMessageMutationOutboxEventTest {
                                 "client-1",
                                 "still visible",
                                 MessageState.ACTIVE,
+                                true,
                                 2L,
                                 CREATED_AT,
                                 UPDATED_AT,

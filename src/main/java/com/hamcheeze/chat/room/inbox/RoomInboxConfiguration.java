@@ -7,7 +7,6 @@ import com.hamcheeze.chat.room.inbox.mongo.MongoRoomReadStateStore;
 import com.hamcheeze.chat.room.inbox.mongo.MongoUnreadCountReader;
 import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
-import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxEventDelivery;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxNotificationPipeline;
 import com.hamcheeze.chat.room.inbox.notification.SimpleBrokerRoomInboxEventDelivery;
@@ -106,7 +105,6 @@ public class RoomInboxConfiguration {
             ActiveConnectionRegistry activeConnections,
             RoomInboxEventDelivery delivery,
             RoomInboxProperties properties,
-            RoomMembershipProperties membershipProperties,
             MeterRegistry meterRegistry
     ) {
         return new RoomInboxNotificationPipeline(
@@ -114,7 +112,6 @@ public class RoomInboxConfiguration {
                 activeConnections,
                 delivery,
                 properties,
-                membershipProperties,
                 Clock.systemUTC(),
                 meterRegistry);
     }

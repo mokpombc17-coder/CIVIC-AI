@@ -18,7 +18,7 @@ public final class SimpleBrokerRoomInboxEventDelivery
     }
 
     @Override
-    public boolean deliver(
+    public void deliver(
             String userId,
             String connectionId,
             RoomInboxEvent event
@@ -32,6 +32,5 @@ public final class SimpleBrokerRoomInboxEventDelivery
                 "/queue/room-inbox-events",
                 event,
                 headers.getMessageHeaders());
-        return true;
     }
 }

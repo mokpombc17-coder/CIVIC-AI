@@ -78,29 +78,6 @@ public record MongoChatMessageOutboxDocument(
                     deletedAt);
         }
 
-        public Payload(
-                String messageId,
-                String roomId,
-                Long roomSequence,
-                String senderUserId,
-                String clientMessageId,
-                String content,
-                Instant createdAt
-        ) {
-            this(
-                    messageId,
-                    roomId,
-                    roomSequence,
-                    senderUserId,
-                    clientMessageId,
-                    content,
-                    MessageState.ACTIVE,
-                    true,
-                    1L,
-                    createdAt,
-                    createdAt,
-                    null);
-        }
     }
 
     static MongoChatMessageOutboxDocument pending(

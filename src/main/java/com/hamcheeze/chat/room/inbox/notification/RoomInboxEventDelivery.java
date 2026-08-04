@@ -2,7 +2,7 @@ package com.hamcheeze.chat.room.inbox.notification;
 
 public interface RoomInboxEventDelivery {
 
-    boolean deliver(
+    void deliver(
             String userId,
             String connectionId,
             RoomInboxEvent event);

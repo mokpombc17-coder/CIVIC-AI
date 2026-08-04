@@ -169,7 +169,7 @@ class MongoChatMessageOutboxStoreTest {
         events().insertOne(supportedDocument(
                 "malformed-1",
                 NOW,
-                new Document("messageId", "message-1")));
+                supportedPayload().append("countable", null)));
 
         ClaimedChatMessageOutboxEvent claimed =
                 store.claimNext(NOW, Duration.ofSeconds(30))
@@ -232,7 +232,7 @@ class MongoChatMessageOutboxStoreTest {
 
     private void insertUnsupported() {
         events().insertOne(new Document("_id", "unsupported-1")
-                .append("schemaVersion", 2)
+                .append("schemaVersion", 1)
                 .append("aggregateType", "CHAT_MESSAGE")
                 .append("eventType", "CHAT_MESSAGE_CREATED")
                 .append("eventVersion", 1)
@@ -248,7 +248,7 @@ class MongoChatMessageOutboxStoreTest {
             Document payload
     ) {
         return new Document("_id", eventId)
-                .append("schemaVersion", 1)
+                .append("schemaVersion", 2)
                 .append("aggregateType", "CHAT_MESSAGE")
                 .append("aggregateId", "message-1")
                 .append("eventType", "CHAT_MESSAGE_CREATED")
@@ -261,6 +261,21 @@ class MongoChatMessageOutboxStoreTest {
                 .append("attemptCount", 0L)
                 .append("nextAttemptAt",
                         java.util.Date.from(occurredAt));
+    }
+
+    private Document supportedPayload() {
+        return new Document("messageId", "message-1")
+                .append("roomId", "room-1")
+                .append("roomSequence", 1L)
+                .append("senderUserId", "user-1")
+                .append("clientMessageId", "client-1")
+                .append("content", "hello")
+                .append("state", "ACTIVE")
+                .append("countable", true)
+                .append("messageVersion", 1L)
+                .append("createdAt", java.util.Date.from(NOW))
+                .append("updatedAt", java.util.Date.from(NOW))
+                .append("deletedAt", null);
     }
 
     private ChatMessage message(

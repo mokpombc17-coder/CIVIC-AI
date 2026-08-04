@@ -11,6 +11,7 @@ import com.hamcheeze.chat.room.query.RoomQueryReader;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -112,6 +113,114 @@ class RoomReadStateServiceTest {
                         exception -> assertThat(exception.code())
                                 .isEqualTo(RoomInboxErrorCode
                                         .READ_SEQUENCE_AHEAD));
+    }
+
+    @Test
+    void rejectsMembershipBoundaryAheadOfPersistedRoomSequence() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        when(sequenceReader.currentSequence("room-1"))
+                .thenReturn(49L);
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 49))
+                .isInstanceOfSatisfying(
+                        RoomInboxException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo(RoomInboxErrorCode
+                                        .READ_STATE_INCONSISTENT));
+    }
+
+    @Test
+    void rejectsStoredCursorAheadOfPersistedRoomSequence() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.of(new RoomReadState(
+                        "membership-1",
+                        "room-1",
+                        "user-1",
+                        61,
+                        NOW)));
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 55))
+                .isInstanceOfSatisfying(
+                        RoomInboxException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo(RoomInboxErrorCode
+                                        .READ_STATE_INCONSISTENT));
+    }
+
+    @Test
+    void classifiesEveryReadStateStorageBoundaryAsUnavailable() {
+        for (StoragePoint point : StoragePoint.values()) {
+            assertStorageFailure(point);
+        }
+    }
+
+    @Test
+    void identityMismatchRemainsNonRetryableProgrammingFailure() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.of(new RoomReadState(
+                        "membership-1",
+                        "different-room",
+                        "user-1",
+                        50,
+                        NOW)));
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 50))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(RoomInboxException.class);
+    }
+
+    private void assertStorageFailure(StoragePoint point) {
+        setUp();
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenReturn(new RoomReadStateAdvance(
+                        new RoomReadState(
+                                "membership-1",
+                                "room-1",
+                                "user-1",
+                                55,
+                                NOW),
+                        true));
+        switch (point) {
+            case MEMBERSHIP -> when(roomReader.findMembership(
+                    "room-1", "user-1")).thenThrow(storageFailure());
+            case ROOM -> when(roomReader.findRoomById(
+                    "room-1")).thenThrow(storageFailure());
+            case READ_STATE -> when(store.findByMembershipId(
+                    "membership-1")).thenThrow(storageFailure());
+            case SEQUENCE -> when(sequenceReader.currentSequence(
+                    "room-1")).thenThrow(storageFailure());
+            case ADVANCE -> when(store.advance(
+                    "membership-1", "room-1", "user-1", 55, NOW))
+                    .thenThrow(storageFailure());
+        }
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 55))
+                .isInstanceOfSatisfying(
+                        RoomInboxException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo(RoomInboxErrorCode
+                                        .ROOM_INBOX_UNAVAILABLE));
+    }
+
+    private DataAccessResourceFailureException storageFailure() {
+        return new DataAccessResourceFailureException(
+                "internal storage detail");
+    }
+
+    private enum StoragePoint {
+        MEMBERSHIP,
+        ROOM,
+        READ_STATE,
+        SEQUENCE,
+        ADVANCE
     }
 
     private Room activeRoom() {

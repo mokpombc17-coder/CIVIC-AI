@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.message.outbox;
 
+import com.hamcheeze.chat.message.MessageState;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -251,7 +252,7 @@ class ClaimedChatMessageOutboxEventTest {
         return new ClaimedChatMessageOutboxEvent(
                 eventId,
                 1L,
-                1,
+                ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                 "CHAT_MESSAGE",
                 aggregateId,
                 1,
@@ -277,6 +278,11 @@ class ClaimedChatMessageOutboxEventTest {
                 senderUserId,
                 clientMessageId,
                 content,
-                NOW);
+                MessageState.ACTIVE,
+                true,
+                1L,
+                NOW,
+                NOW,
+                null);
     }
 }

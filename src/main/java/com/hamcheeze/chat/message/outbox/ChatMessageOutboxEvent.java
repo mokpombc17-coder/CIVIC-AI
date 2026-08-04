@@ -22,7 +22,7 @@ public record ChatMessageOutboxEvent(
         Instant occurredAt
 ) {
 
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
     public static final String AGGREGATE_TYPE = "CHAT_MESSAGE";
     public static final int CURRENT_EVENT_VERSION = 1;
     public static final String MESSAGE_CREATED = "CHAT_MESSAGE_CREATED";

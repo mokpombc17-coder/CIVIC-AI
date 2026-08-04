@@ -1558,11 +1558,47 @@ python3 scripts/frontend-local-smoke.py
 제공하지 않는다.
 
 이 변경은 기존 message schema v1/v2, `countable`이 없는 outbox payload,
-mutation fixture의 보존이나 backfill을 지원하지 않는다. 배포 전에
-`chat_messages`, `chat_outbox_events` 및 충돌하는 로컬 message fixture를
-명시적으로 초기화해야 한다. 애플리케이션 startup은 운영 데이터를 자동으로
-삭제하지 않는다. 운영 데이터가 생긴 뒤에는 별도 migration 없이 같은 방식을
-다시 사용할 수 없다.
+mutation fixture의 보존이나 backfill을 지원하지 않는다. message outbox의
+storage `schemaVersion`은 `2`이고 `countable`이 필수다. 외부
+`CHAT_MESSAGE_*`의 `eventVersion`은 기존 `1`을 유지한다. outbox storage
+schema v1은 claim하지 않고 unsupported backlog로 관찰하며, schema v2에서
+`countable`이 누락되면 supported malformed payload로 fail-closed 처리한다.
+
+애플리케이션 startup은 운영 데이터를 자동으로 삭제하거나 sequence를
+수정하지 않는다. message collection을 초기화할 때는 다음 중 하나를 선택한다.
+
+```text
+A. Room과 Membership도 함께 초기화
+B. 기존 chat_room_sequences 보존
+C. Room/Membership를 보존한다면 repair script로 접근 경계 이상의
+   안전한 sequence lower bound 재생성
+```
+
+Room/Membership를 보존하면서 `chat_room_sequences`를 빈 상태로 두면 안 된다.
+복구 스크립트는 유실된 과거의 exact lastSequence를 재구성하지 않고, 보존된
+Membership·ReadState·현재 Message보다 작지 않은 lower bound만 복구한다.
+
+```bash
+# 변경 예정값만 출력
+docker compose -f compose.local.yaml exec -T \
+  -e REPAIR_ROOM_SEQUENCE_MODE=dry-run mongodb \
+  mongosh --quiet mongodb://localhost:27017/chat_local --file /dev/stdin \
+  < scripts/repair-room-sequences-after-message-reset.js
+
+# 명시적으로 적용
+docker compose -f compose.local.yaml exec -T \
+  -e REPAIR_ROOM_SEQUENCE_MODE=apply mongodb \
+  mongosh --quiet mongodb://localhost:27017/chat_local --file /dev/stdin \
+  < scripts/repair-room-sequences-after-message-reset.js
+
+# Membership/ReadState/Message가 current sequence를 넘지 않는지 확인
+docker compose -f compose.local.yaml exec -T mongodb \
+  mongosh --quiet mongodb://localhost:27017/chat_local --file /dev/stdin \
+  < scripts/validate-room-sequence-consistency.js
+```
+
+운영 데이터가 생긴 뒤에는 별도 migration 없이 같은 초기화 방식을 다시 사용할
+수 없다.
 
 사용자별 raw 읽음 cursor는 Membership가 아니라
 `chat_room_read_states`에 lazy 생성된다. 외부에 노출하는 값은 항상 다음
@@ -1599,6 +1635,12 @@ Content-Type: application/json
   `updated=false`이며 cursor와 `updatedAt`은 감소하거나 변경되지 않는다.
 - 현재 `chat_room_sequences.lastSequence`보다 크면
   `409 READ_SEQUENCE_AHEAD`다. sequence 문서가 없으면 현재 값은 `0`이다.
+- Membership 접근 경계나 저장된 ReadState가 current sequence보다 크면
+  서버 데이터 오류인 `500 READ_STATE_INCONSISTENT`, `retryable=false`다.
+- Room/Membership/ReadState/sequence Mongo 조회나 ReadState 갱신의
+  `DataAccessException`·`MongoException`은 내부 원인을 노출하지 않고
+  `503 ROOM_INBOX_UNAVAILABLE`, `retryable=true`로 반환한다. identity 충돌,
+  unsupported schema 및 programming invariant는 503으로 감싸지 않는다.
 - 비활성 Membership은 `403 ACCESS_DENIED`, CLOSED Room은
   `409 READ_STATE_NOT_AVAILABLE`다.
 - ACTIVE 확인 직후 leave/ban이 commit되면 마지막 monotonic 개인 cursor
@@ -1721,6 +1763,27 @@ offer하고, Room별 100ms window에서 recipient 조회와 외부 event를
 coalescing한다. queue full, observer 오류, 개별 전송 오류는 message outbox
 성공과 재시도 상태를 바꾸지 않는다. 동일 window의 같은 메시지
 CREATE→DELETE는 CREATE hint를 억제하고 DELETE invalidation만 보낸다.
+
+Room window 전체에서 먼저 `sourceOutboxEventId`를 중복 제거하고 전체
+`deletedMessageIds`를 계산한 뒤 Room과 ACTIVE Membership을 각각 한 번만
+조회한다. `max-events-per-room-batch`는 semantic window를 먼저 나누지 않으므로
+전체 window 정규화 이후 recipient별 eligible event를 계산하는 내부 chunk
+크기로만 사용한다. 값이 1이어도 같은 window의 CREATE→DELETE 억제와
+원인별 외부 event 최대 1건 계약은 유지된다. 동일 source가 다른 window에
+다시 전달되는 at-least-once 동작은 허용한다.
+
+public event는 생성 시 version/type/canonical UUID/Room ID/time/source ID를
+검증한다. CREATE는 Room 이름, 1 이상의 count, 동일 개수의 CREATE source,
+30 code point 이하 hint가 필수다. DELETE는 DELETE source만 허용하고 Room
+이름·count·hint가 모두 null이어야 한다.
+
+notification recipient snapshot은 Room 정원 설정과 별개인 안전 상한
+`max-recipient-snapshot-size`(기본 100)를 사용한다. 따라서 정원 설정을 50
+아래로 낮춰도 기존 초과 Room이 안전 상한 이하면 개인 event를 계속 제공한다.
+안전 상한 초과, `activeMemberCount` 불일치 또는 `hasNext=true`면 batch를
+fail-closed하고 `room.inbox.notification.recipient_snapshot.rejected`를
+기록한다. REST room-inbox는 계속 authoritative하다. 한 recipient delivery가
+실패해도 다음 recipient 전송을 계속한다.
 
 현재 구현은 단일 chat-server 인스턴스와 in-memory presence를 전제로 하며
 오프라인 replay, Push, durable notification outbox를 제공하지 않는다. 향후

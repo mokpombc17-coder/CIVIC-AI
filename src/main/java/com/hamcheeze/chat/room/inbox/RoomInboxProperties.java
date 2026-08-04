@@ -70,6 +70,10 @@ public class RoomInboxProperties {
         private int maxEventsPerRoomBatch = 100;
 
         @Min(1)
+        @Max(1_000)
+        private int maxRecipientSnapshotSize = 100;
+
+        @Min(1)
         private long shutdownDrainTimeoutMs = 1_000;
 
         public int getQueueCapacity() {
@@ -94,6 +98,14 @@ public class RoomInboxProperties {
 
         public void setMaxEventsPerRoomBatch(int value) {
             this.maxEventsPerRoomBatch = value;
+        }
+
+        public int getMaxRecipientSnapshotSize() {
+            return maxRecipientSnapshotSize;
+        }
+
+        public void setMaxRecipientSnapshotSize(int value) {
+            this.maxRecipientSnapshotSize = value;
         }
 
         public long getShutdownDrainTimeoutMs() {

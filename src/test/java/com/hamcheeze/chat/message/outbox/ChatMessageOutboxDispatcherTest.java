@@ -89,7 +89,7 @@ class ChatMessageOutboxDispatcherTest {
                 new ClaimedChatMessageOutboxEvent(
                         "event-1",
                         1L,
-                        1,
+                        ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                         "CHAT_MESSAGE",
                         "message-1",
                         1,
@@ -103,7 +103,12 @@ class ChatMessageOutboxDispatcherTest {
                                 "user-1",
                                 "client-1",
                                 "hello",
-                                NOW),
+                                com.hamcheeze.chat.message.MessageState.ACTIVE,
+                                true,
+                                1L,
+                                NOW,
+                                NOW,
+                                null),
                         NOW);
         when(fixture.queue.claimNext(any(), any()))
                 .thenReturn(Optional.of(malformed), Optional.empty());
@@ -225,7 +230,12 @@ class ChatMessageOutboxDispatcherTest {
                                 "user-1",
                                 "client-2",
                                 "hello",
-                                NOW),
+                                com.hamcheeze.chat.message.MessageState.ACTIVE,
+                                true,
+                                1L,
+                                NOW,
+                                NOW,
+                                null),
                         NOW);
         when(fixture.queue.claimNext(any(), any()))
                 .thenReturn(
@@ -347,7 +357,7 @@ class ChatMessageOutboxDispatcherTest {
         return new ClaimedChatMessageOutboxEvent(
                 "chat-message-created:message-1",
                 attempt,
-                1,
+                ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                 "CHAT_MESSAGE",
                 "message-1",
                 1,
@@ -361,7 +371,12 @@ class ChatMessageOutboxDispatcherTest {
                         "user-1",
                         "client-1",
                         "hello",
-                        NOW),
+                        com.hamcheeze.chat.message.MessageState.ACTIVE,
+                        true,
+                        1L,
+                        NOW,
+                        NOW,
+                        null),
                 NOW);
     }
 

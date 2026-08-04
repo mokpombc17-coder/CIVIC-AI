@@ -17,6 +17,8 @@ public final class RoomReadStateService {
     private final RoomQueryReader roomReader;
     private final RoomReadStateStore readStateStore;
     private final RoomSequenceReader sequenceReader;
+    private final RoomInboxStorageExceptionClassifier
+            storageExceptionClassifier;
     private final Clock clock;
     private final Counter updatedCounter;
     private final Counter noopCounter;
@@ -35,6 +37,8 @@ public final class RoomReadStateService {
                 readStateStore, "readStateStore");
         this.sequenceReader = Objects.requireNonNull(
                 sequenceReader, "sequenceReader");
+        this.storageExceptionClassifier =
+                new RoomInboxStorageExceptionClassifier();
         this.clock = Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.updatedCounter = meterRegistry.counter(
@@ -81,6 +85,15 @@ public final class RoomReadStateService {
                     existing == null ? 0 : existing.lastReadSequence());
             long currentRoomSequence = sequenceReader.currentSequence(
                     roomId);
+            if (membership.messageVisibleAfterSequence()
+                    > currentRoomSequence
+                    || existing != null
+                    && existing.lastReadSequence()
+                    > currentRoomSequence) {
+                throw new RoomInboxException(
+                        RoomInboxErrorCode.READ_STATE_INCONSISTENT,
+                        "Persisted read state exceeds the room sequence");
+            }
             if (throughSequence
                     < membership.messageVisibleAfterSequence()
                     || throughSequence <= effective) {
@@ -114,6 +127,14 @@ public final class RoomReadStateService {
             if (!(exception instanceof RoomInboxException)) {
                 BestEffortMetricRecorder.increment(
                         "room.read_state.failures", failureCounter);
+            }
+            if (!(exception instanceof RoomInboxException)
+                    && storageExceptionClassifier.isStorageFailure(
+                    exception)) {
+                throw new RoomInboxException(
+                        RoomInboxErrorCode.ROOM_INBOX_UNAVAILABLE,
+                        "Read state storage is temporarily unavailable",
+                        exception);
             }
             throw exception;
         }

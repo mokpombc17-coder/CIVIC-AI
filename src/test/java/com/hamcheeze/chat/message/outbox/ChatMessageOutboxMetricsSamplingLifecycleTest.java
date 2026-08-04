@@ -271,7 +271,7 @@ class ChatMessageOutboxMetricsSamplingLifecycleTest {
                 ChatMessageOutboxEvent.messageCreatedEventId(
                         "message-1"),
                 1L,
-                1,
+                ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                 "CHAT_MESSAGE",
                 "message-1",
                 1,
@@ -285,7 +285,12 @@ class ChatMessageOutboxMetricsSamplingLifecycleTest {
                         "user-1",
                         "client-1",
                         "hello",
-                        NOW),
+                        com.hamcheeze.chat.message.MessageState.ACTIVE,
+                        true,
+                        1L,
+                        NOW,
+                        NOW,
+                        null),
                 NOW);
     }
 

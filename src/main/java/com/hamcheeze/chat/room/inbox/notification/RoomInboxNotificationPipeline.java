@@ -11,7 +11,6 @@ import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
-import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.inbox.RoomInboxProperties;
 import com.hamcheeze.chat.room.query.CursorSlice;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
@@ -55,7 +54,6 @@ public final class RoomInboxNotificationPipeline
     private final ActiveConnectionRegistry activeConnections;
     private final RoomInboxEventDelivery delivery;
     private final RoomInboxProperties.Notification properties;
-    private final int maxActiveMembers;
     private final Clock clock;
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicInteger workerRunning = new AtomicInteger();
@@ -67,6 +65,7 @@ public final class RoomInboxNotificationPipeline
     private final Counter successCounter;
     private final Counter failureCounter;
     private final Counter duplicateCounter;
+    private final Counter snapshotRejectedCounter;
     private final Timer dispatchTimer;
     private volatile Thread worker;
 
@@ -75,7 +74,6 @@ public final class RoomInboxNotificationPipeline
             ActiveConnectionRegistry activeConnections,
             RoomInboxEventDelivery delivery,
             RoomInboxProperties inboxProperties,
-            RoomMembershipProperties membershipProperties,
             Clock clock,
             MeterRegistry meterRegistry
     ) {
@@ -86,8 +84,6 @@ public final class RoomInboxNotificationPipeline
         this.delivery = Objects.requireNonNull(delivery, "delivery");
         this.properties = Objects.requireNonNull(
                 inboxProperties, "inboxProperties").getNotification();
-        this.maxActiveMembers = membershipProperties
-                .maxActiveMembersPerRoom();
         this.clock = Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.queue = new ArrayBlockingQueue<>(
@@ -108,6 +104,8 @@ public final class RoomInboxNotificationPipeline
                 "room.inbox.notification.delivery.failure");
         this.duplicateCounter = meterRegistry.counter(
                 "room.inbox.notification.duplicate.source");
+        this.snapshotRejectedCounter = meterRegistry.counter(
+                "room.inbox.notification.recipient_snapshot.rejected");
         this.dispatchTimer = meterRegistry.timer(
                 "room.inbox.notification.dispatch.duration");
         Gauge.builder(
@@ -243,11 +241,7 @@ public final class RoomInboxNotificationPipeline
         }
         for (List<RoomInboxNotificationIntent> batch :
                 byRoom.values()) {
-            int max = properties.getMaxEventsPerRoomBatch();
-            for (int start = 0; start < batch.size(); start += max) {
-                flushRoom(batch.subList(
-                        start, Math.min(start + max, batch.size())));
-            }
+            flushRoom(batch);
         }
     }
 
@@ -269,8 +263,14 @@ public final class RoomInboxNotificationPipeline
             }
             String roomId = batch.getFirst().roomId();
             Room room = roomReader.findRoomById(roomId).orElse(null);
-            if (room == null || room.status() != RoomStatus.ACTIVE
-                    || room.activeMemberCount() > maxActiveMembers) {
+            if (room == null || room.status() != RoomStatus.ACTIVE) {
+                return;
+            }
+            int snapshotLimit = properties
+                    .getMaxRecipientSnapshotSize();
+            if (room.activeMemberCount() > snapshotLimit) {
+                rejectRecipientSnapshot(
+                        roomId, room.activeMemberCount(), snapshotLimit);
                 return;
             }
             CursorSlice<Membership> slice = roomReader
@@ -278,10 +278,14 @@ public final class RoomInboxNotificationPipeline
                             roomId,
                             MembershipStatus.ACTIVE,
                             null,
-                            maxActiveMembers);
+                            snapshotLimit);
             if (slice.hasNext()
                     || slice.items().size()
                     != room.activeMemberCount()) {
+                BestEffortMetricRecorder.increment(
+                        "room.inbox.notification."
+                                + "recipient_snapshot.rejected",
+                        snapshotRejectedCounter);
                 log.warn(
                         "Room inbox recipient snapshot is inconsistent; "
                                 + "batch dropped: roomId={}",
@@ -329,6 +333,23 @@ public final class RoomInboxNotificationPipeline
         }
     }
 
+    private void rejectRecipientSnapshot(
+            String roomId,
+            int activeMemberCount,
+            int snapshotLimit
+    ) {
+        BestEffortMetricRecorder.increment(
+                "room.inbox.notification.recipient_snapshot.rejected",
+                snapshotRejectedCounter);
+        log.warn(
+                "Room inbox recipient snapshot exceeds safety limit; "
+                        + "batch dropped: roomId={}, activeMemberCount={}, "
+                        + "snapshotLimit={}",
+                roomId,
+                activeMemberCount,
+                snapshotLimit);
+    }
+
     private List<RoomInboxNotificationIntent> deduplicate(
             List<RoomInboxNotificationIntent> batch
     ) {
@@ -352,18 +373,18 @@ public final class RoomInboxNotificationPipeline
             List<RoomInboxNotificationIntent> batch,
             Set<String> deletedMessageIds
     ) {
-        List<RoomInboxNotificationIntent> creates = batch.stream()
-                .filter(value -> ChatMessageOutboxEvent.MESSAGE_CREATED
-                        .equals(value.eventType()))
-                .filter(value -> !deletedMessageIds.contains(
-                        value.messageId()))
-                .filter(value -> eligible(value.message(), membership))
-                .toList();
-        List<RoomInboxNotificationIntent> deletes = batch.stream()
-                .filter(value -> ChatMessageOutboxEvent.MESSAGE_DELETED
-                        .equals(value.eventType()))
-                .filter(value -> eligible(value.message(), membership))
-                .toList();
+        List<RoomInboxNotificationIntent> creates = new ArrayList<>();
+        List<RoomInboxNotificationIntent> deletes = new ArrayList<>();
+        int chunkSize = properties.getMaxEventsPerRoomBatch();
+        for (int from = 0; from < batch.size(); from += chunkSize) {
+            int to = Math.min(batch.size(), from + chunkSize);
+            collectEligibleRecipientEvents(
+                    batch.subList(from, to),
+                    membership,
+                    deletedMessageIds,
+                    creates,
+                    deletes);
+        }
         if (!creates.isEmpty()) {
             RoomInboxNotificationIntent latest = creates.stream()
                     .max(java.util.Comparator.comparingLong(
@@ -417,11 +438,37 @@ public final class RoomInboxNotificationPipeline
         return !creates.isEmpty() || !deletes.isEmpty();
     }
 
+    private static void collectEligibleRecipientEvents(
+            List<RoomInboxNotificationIntent> chunk,
+            Membership membership,
+            Set<String> deletedMessageIds,
+            List<RoomInboxNotificationIntent> creates,
+            List<RoomInboxNotificationIntent> deletes
+    ) {
+        for (RoomInboxNotificationIntent intent : chunk) {
+            if (!eligible(intent.message(), membership)) {
+                continue;
+            }
+            if (ChatMessageOutboxEvent.MESSAGE_CREATED.equals(
+                    intent.eventType())) {
+                if (!deletedMessageIds.contains(intent.messageId())) {
+                    creates.add(intent);
+                }
+                continue;
+            }
+            if (ChatMessageOutboxEvent.MESSAGE_DELETED.equals(
+                    intent.eventType())) {
+                deletes.add(intent);
+            }
+        }
+    }
+
     private static boolean eligible(
             ChatMessagePayload message,
             Membership membership
     ) {
-        return message.countable()
+        return membership.status() == MembershipStatus.ACTIVE
+                && message.countable()
                 && message.roomSequence()
                 > membership.messageVisibleAfterSequence()
                 && !message.senderUserId().equals(
