@@ -12,6 +12,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DuplicateKeyException;
 
 import java.time.Clock;
@@ -186,6 +187,24 @@ class RoomReadStateServiceTest {
 
         assertThatThrownBy(() -> service.update(
                 "user-1", "room-1", 55)).isSameAs(duplicate);
+    }
+
+    @Test
+    void exhaustedAdvanceRaceIsRetryableStorageFailure() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenThrow(new ConcurrencyFailureException(
+                        "internal cursor race"));
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 55))
+                .isInstanceOfSatisfying(
+                        RoomInboxException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo(RoomInboxErrorCode
+                                        .ROOM_INBOX_UNAVAILABLE));
     }
 
     private void assertStorageFailure(StoragePoint point) {

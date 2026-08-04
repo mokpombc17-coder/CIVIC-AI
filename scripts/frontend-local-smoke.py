@@ -1158,11 +1158,7 @@ def main() -> int:
         },
         headers={"Idempotency-Key": str(uuid.uuid4())},
     )
-    _, _, restored_rooms = client.request("GET", "/api/v1/rooms?limit=100")
-    if not any(
-        item.get("roomId") == room_id
-        for item in restored_rooms.get("items", [])
-    ):
+    if find_public_room(client, room_id) is None:
         raise AssertionError("LISTED로 복원한 방이 공개 목록에 없습니다.")
 
     print("[13/14] 두 번째 사용자 Room join 확인")

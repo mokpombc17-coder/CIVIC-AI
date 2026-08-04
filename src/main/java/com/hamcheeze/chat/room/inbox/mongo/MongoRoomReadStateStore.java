@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.inbox.mongo;
 import com.hamcheeze.chat.room.inbox.RoomReadState;
 import com.hamcheeze.chat.room.inbox.RoomReadStateAdvance;
 import com.hamcheeze.chat.room.inbox.RoomReadStateStore;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -20,7 +21,7 @@ import java.util.stream.Collectors;
 public final class MongoRoomReadStateStore
         implements RoomReadStateStore {
 
-    private static final int MAX_INITIAL_RACE_ATTEMPTS = 3;
+    static final int MAX_ADVANCE_ATTEMPTS = 3;
 
     private final MongoOperations mongoOperations;
 
@@ -77,8 +78,9 @@ public final class MongoRoomReadStateStore
                 userId,
                 throughSequence,
                 updatedAt);
+        DuplicateKeyException lastDuplicate = null;
         for (int attempt = 1;
-             attempt <= MAX_INITIAL_RACE_ATTEMPTS;
+             attempt <= MAX_ADVANCE_ATTEMPTS;
              attempt++) {
             Query updateQuery = Query.query(new Criteria().andOperator(
                     Criteria.where("_id").is(membershipId),
@@ -98,13 +100,20 @@ public final class MongoRoomReadStateStore
                 RoomReadState stored = findByMembershipId(
                         membershipId).orElseThrow();
                 verifyIdentity(stored, candidate);
+                if (stored.lastReadSequence() < throughSequence) {
+                    throw new IllegalStateException(
+                            "Advanced read state is below requested sequence");
+                }
                 return new RoomReadStateAdvance(stored, true);
             }
             RoomReadState existing = findByMembershipId(
                     membershipId).orElse(null);
             if (existing != null) {
                 verifyIdentity(existing, candidate);
-                return new RoomReadStateAdvance(existing, false);
+                if (existing.lastReadSequence() >= throughSequence) {
+                    return new RoomReadStateAdvance(existing, false);
+                }
+                continue;
             }
             try {
                 MongoRoomReadStateDocument inserted =
@@ -122,13 +131,24 @@ public final class MongoRoomReadStateStore
                 return new RoomReadStateAdvance(
                         inserted.toDomain(), true);
             } catch (DuplicateKeyException exception) {
-                if (attempt == MAX_INITIAL_RACE_ATTEMPTS) {
-                    throw exception;
-                }
+                lastDuplicate = exception;
             }
         }
-        throw new IllegalStateException(
-                "Room read state retry loop exited unexpectedly");
+        RoomReadState finalState = findByMembershipId(
+                membershipId).orElse(null);
+        if (finalState != null) {
+            verifyIdentity(finalState, candidate);
+            if (finalState.lastReadSequence() >= throughSequence) {
+                return new RoomReadStateAdvance(finalState, false);
+            }
+            throw new ConcurrencyFailureException(
+                    "Room read state advance did not converge");
+        }
+        if (lastDuplicate != null) {
+            throw lastDuplicate;
+        }
+        throw new ConcurrencyFailureException(
+                "Room read state advance did not converge");
     }
 
     private static void verifyIdentity(

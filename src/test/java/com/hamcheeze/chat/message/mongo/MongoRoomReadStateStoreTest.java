@@ -109,28 +109,51 @@ class MongoRoomReadStateStoreTest {
     @Test
     void concurrentInitialAdvancesConvergeToMaximum() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch start = new CountDownLatch(1);
         try {
-            Future<?> lower = executor.submit(() -> {
-                await(start);
-                store.advance(
-                        "membership-1", "room-1", "user-1", 10, FIRST);
-            });
-            Future<?> higher = executor.submit(() -> {
-                await(start);
-                store.advance(
-                        "membership-1", "room-1", "user-1", 20, SECOND);
-            });
-            start.countDown();
-            lower.get();
-            higher.get();
+            for (int iteration = 0; iteration < 50; iteration++) {
+                int currentIteration = iteration;
+                String membershipId = "membership-" + iteration;
+                CountDownLatch start = new CountDownLatch(1);
+                java.util.concurrent.Callable<RoomReadStateAdvance> lower =
+                        () -> {
+                            await(start);
+                            return store.advance(
+                                    membershipId,
+                                    "room-1",
+                                    "user-1-" + currentIteration,
+                                    10,
+                                    FIRST);
+                        };
+                java.util.concurrent.Callable<RoomReadStateAdvance> higher =
+                        () -> {
+                            await(start);
+                            return store.advance(
+                                    membershipId,
+                                    "room-1",
+                                    "user-1-" + currentIteration,
+                                    20,
+                                    SECOND);
+                        };
+                Future<RoomReadStateAdvance> first = executor.submit(
+                        iteration % 2 == 0 ? lower : higher);
+                Future<RoomReadStateAdvance> second = executor.submit(
+                        iteration % 2 == 0 ? higher : lower);
+                start.countDown();
+                first.get();
+                second.get();
+
+                RoomReadState state = store.findByMembershipId(
+                        membershipId).orElseThrow();
+                assertThat(state.membershipId()).isEqualTo(membershipId);
+                assertThat(state.roomId()).isEqualTo("room-1");
+                assertThat(state.userId())
+                        .isEqualTo("user-1-" + iteration);
+                assertThat(state.lastReadSequence()).isEqualTo(20);
+                assertThat(state.updatedAt()).isEqualTo(SECOND);
+            }
         } finally {
             executor.shutdownNow();
         }
-
-        RoomReadState state = store.findByMembershipId(
-                "membership-1").orElseThrow();
-        assertThat(state.lastReadSequence()).isEqualTo(20);
         List<Document> indexes = CONFIGURATION.mongoOperations()
                 .getCollection(MongoRoomReadStateDocument.COLLECTION_NAME)
                 .listIndexes(Document.class)
