@@ -10,6 +10,7 @@ import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxEventDelivery;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxNotificationPipeline;
 import com.hamcheeze.chat.room.inbox.notification.SimpleBrokerRoomInboxEventDelivery;
+import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -17,6 +18,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 
@@ -105,6 +107,8 @@ public class RoomInboxConfiguration {
             ActiveConnectionRegistry activeConnections,
             RoomInboxEventDelivery delivery,
             RoomInboxProperties properties,
+            ObjectMapper objectMapper,
+            ChatContentProperties contentProperties,
             MeterRegistry meterRegistry
     ) {
         return new RoomInboxNotificationPipeline(
@@ -112,6 +116,8 @@ public class RoomInboxConfiguration {
                 activeConnections,
                 delivery,
                 properties,
+                objectMapper,
+                contentProperties,
                 Clock.systemUTC(),
                 meterRegistry);
     }

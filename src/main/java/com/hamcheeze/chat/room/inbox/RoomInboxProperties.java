@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.inbox;
 
+import com.hamcheeze.chat.room.inbox.notification.RoomInboxEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -67,6 +68,7 @@ public class RoomInboxProperties {
         private long coalescingWindowMs = 100;
 
         @Min(1)
+        @Max(RoomInboxEvent.MAX_SOURCE_EVENT_IDS)
         private int maxEventsPerRoomBatch = 100;
 
         @Min(1)

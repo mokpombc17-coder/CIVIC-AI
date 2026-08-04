@@ -1,6 +1,9 @@
 package com.hamcheeze.chat.room.inbox.notification;
 
+import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -85,6 +88,25 @@ class RoomInboxEventTest {
     }
 
     @Test
+    void enforcesPublicSourceEventHardLimit() {
+        List<String> maximum = java.util.stream.IntStream.range(
+                        0, RoomInboxEvent.MAX_SOURCE_EVENT_IDS)
+                .mapToObj(value -> "chat-message-created:message-" + value)
+                .toList();
+        assertThat(createdWith(
+                "Room", maximum.size(), hint(), maximum)
+                .sourceEventIds()).hasSize(
+                RoomInboxEvent.MAX_SOURCE_EVENT_IDS);
+
+        List<String> oversized = java.util.stream.IntStream.rangeClosed(
+                        0, RoomInboxEvent.MAX_SOURCE_EVENT_IDS)
+                .mapToObj(value -> "chat-message-created:message-" + value)
+                .toList();
+        assertInvalid(() -> createdWith(
+                "Room", oversized.size(), hint(), oversized));
+    }
+
+    @Test
     void rejectsMalformedCreateFields() {
         assertInvalid(() -> createdWith(
                 null, 1, hint(), List.of(CREATED_SOURCE)));
@@ -121,6 +143,49 @@ class RoomInboxEventTest {
         assertHintInvalid("message", 1, "sender", NOW, "tab\tvalue");
         assertHintInvalid(
                 "message", 1, "sender", NOW, "가".repeat(31));
+    }
+
+    @Test
+    void maximumCreateAndDeleteJsonFitStompMessageLimit()
+            throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        int maxBytes = new ChatContentProperties()
+                .getMaxStompMessageBytes();
+        List<String> createSources = java.util.stream.IntStream.range(
+                        0, RoomInboxEvent.MAX_SOURCE_EVENT_IDS)
+                .mapToObj(value -> "chat-message-created:"
+                        + String.format("%064d", value))
+                .toList();
+        List<String> deleteSources = java.util.stream.IntStream.range(
+                        0, RoomInboxEvent.MAX_SOURCE_EVENT_IDS)
+                .mapToObj(value -> "chat-message-deleted:"
+                        + String.format("%064d", value)
+                        + ":v9223372036854775807")
+                .toList();
+        RoomInboxEvent create = created(
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID,
+                RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.Cause.MESSAGE_CREATED,
+                "r".repeat(64),
+                "R".repeat(Room.MAX_NAME_LENGTH),
+                NOW,
+                createSources,
+                createSources.size(),
+                new RoomInboxNotificationHint(
+                        "m".repeat(64),
+                        Long.MAX_VALUE,
+                        "s".repeat(64),
+                        NOW,
+                        "😀".repeat(30),
+                        true));
+        RoomInboxEvent delete = deleted(
+                null, null, null, deleteSources);
+
+        int createBytes = objectMapper.writeValueAsBytes(create).length;
+        int deleteBytes = objectMapper.writeValueAsBytes(delete).length;
+        assertThat(createBytes).isLessThan(maxBytes);
+        assertThat(deleteBytes).isLessThan(maxBytes);
     }
 
     private RoomInboxEvent createdWith(

@@ -1,7 +1,6 @@
 package com.hamcheeze.chat.room.inbox.mongo;
 
 import com.hamcheeze.chat.message.mongo.MongoChatMessageSchemaInitializer;
-import com.hamcheeze.chat.room.inbox.RoomInboxException;
 import com.hamcheeze.chat.room.inbox.RoomInboxProperties;
 import com.hamcheeze.chat.room.inbox.UnreadCount;
 import com.mongodb.client.MongoCollection;
@@ -81,7 +80,7 @@ class MongoUnreadCountReaderTest {
 
         assertThatThrownBy(() -> reader.count(
                 "room-1", "user-1", 0))
-                .isInstanceOf(RoomInboxException.class)
-                .hasMessageContaining("Unread count query failed");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("timeout");
     }
 }

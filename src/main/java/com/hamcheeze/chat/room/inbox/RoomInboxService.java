@@ -29,6 +29,8 @@ public final class RoomInboxService {
     private final RoomReadStateStore readStateStore;
     private final UnreadCountReader unreadCountReader;
     private final RoomQueryCursorCodec cursorCodec;
+    private final RoomInboxStorageExceptionClassifier
+            storageExceptionClassifier;
     private final Counter requestCounter;
     private final Timer queryTimer;
 
@@ -47,6 +49,8 @@ public final class RoomInboxService {
                 unreadCountReader, "unreadCountReader");
         this.cursorCodec = Objects.requireNonNull(
                 cursorCodec, "cursorCodec");
+        this.storageExceptionClassifier =
+                new RoomInboxStorageExceptionClassifier();
         Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.requestCounter = meterRegistry.counter(
                 "room.inbox.requests");
@@ -126,10 +130,16 @@ public final class RoomInboxService {
         } catch (RoomInboxException exception) {
             throw exception;
         } catch (RuntimeException exception) {
-            throw new RoomInboxException(
-                    RoomInboxErrorCode.ROOM_INBOX_UNAVAILABLE,
-                    "Room inbox query failed",
-                    exception);
+            if (storageExceptionClassifier.classify(exception)
+                    .orElse(null)
+                    == RoomInboxStorageExceptionClassifier.FailureKind
+                    .RETRYABLE) {
+                throw new RoomInboxException(
+                        RoomInboxErrorCode.ROOM_INBOX_UNAVAILABLE,
+                        "Room inbox query is temporarily unavailable",
+                        exception);
+            }
+            throw exception;
         } finally {
             BestEffortMetricRecorder.record(
                     "room.inbox.query.duration",

@@ -3,8 +3,6 @@ package com.hamcheeze.chat.room.inbox.mongo;
 import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
 import com.hamcheeze.chat.message.mongo.MongoChatMessageSchemaInitializer;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
-import com.hamcheeze.chat.room.inbox.RoomInboxErrorCode;
-import com.hamcheeze.chat.room.inbox.RoomInboxException;
 import com.hamcheeze.chat.room.inbox.RoomInboxProperties;
 import com.hamcheeze.chat.room.inbox.UnreadCount;
 import com.hamcheeze.chat.room.inbox.UnreadCountReader;
@@ -94,10 +92,7 @@ public final class MongoUnreadCountReader
             BestEffortMetricRecorder.increment(
                     "room.inbox.unread.count.failures",
                     failureCounter);
-            throw new RoomInboxException(
-                    RoomInboxErrorCode.ROOM_INBOX_UNAVAILABLE,
-                    "Unread count query failed",
-                    exception);
+            throw exception;
         } finally {
             BestEffortMetricRecorder.record(
                     "room.inbox.unread.count.duration",

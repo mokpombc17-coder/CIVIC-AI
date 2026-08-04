@@ -129,8 +129,10 @@ public final class RoomReadStateService {
                         "room.read_state.failures", failureCounter);
             }
             if (!(exception instanceof RoomInboxException)
-                    && storageExceptionClassifier.isStorageFailure(
-                    exception)) {
+                    && storageExceptionClassifier.classify(exception)
+                    .orElse(null)
+                    == RoomInboxStorageExceptionClassifier.FailureKind
+                    .RETRYABLE) {
                 throw new RoomInboxException(
                         RoomInboxErrorCode.ROOM_INBOX_UNAVAILABLE,
                         "Read state storage is temporarily unavailable",

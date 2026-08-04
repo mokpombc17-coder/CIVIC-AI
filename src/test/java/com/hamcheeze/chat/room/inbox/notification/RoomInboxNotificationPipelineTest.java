@@ -15,9 +15,11 @@ import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.inbox.RoomInboxProperties;
 import com.hamcheeze.chat.room.query.CursorSlice;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
+import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -77,6 +79,8 @@ class RoomInboxNotificationPipelineTest {
                         activeConnections,
                         delivery,
                         properties,
+                        new ObjectMapper(),
+                        new ChatContentProperties(),
                         Clock.fixed(NOW, ZoneOffset.UTC),
                         new SimpleMeterRegistry());
 
@@ -525,6 +529,221 @@ class RoomInboxNotificationPipelineTest {
         }
     }
 
+    @Test
+    void splitsFiveEligibleCreatesIntoDeterministicPublicEvents()
+            throws Exception {
+        RoomQueryReader reader = readerWithTargetMember();
+        List<RoomInboxEvent> delivered = synchronizedEvents();
+        CountDownLatch latch = new CountDownLatch(3);
+        RoomInboxProperties properties = properties();
+        properties.getNotification().setMaxEventsPerRoomBatch(2);
+        RoomInboxNotificationPipeline pipeline = pipeline(
+                reader,
+                online("target"),
+                (userId, connectionId, event) -> {
+                    delivered.add(event);
+                    latch.countDown();
+                },
+                properties,
+                new SimpleMeterRegistry());
+
+        pipeline.start();
+        try {
+            for (long sequence = 1; sequence <= 5; sequence++) {
+                pipeline.onPublished(
+                        claimed(sequence),
+                        envelope(sequence, "message-" + sequence));
+            }
+            assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pipeline.stop();
+        }
+
+        assertThat(delivered).hasSize(3);
+        assertThat(delivered).extracting(value ->
+                        value.sourceEventIds().size())
+                .containsExactly(2, 2, 1);
+        assertThat(delivered).extracting(
+                        RoomInboxEvent::coalescedCreateCount)
+                .containsExactly(2, 2, 1);
+        assertThat(delivered).extracting(value ->
+                        value.notificationHint().messageId())
+                .containsExactly("message-2", "message-4", "message-5");
+        assertThat(delivered.stream()
+                .flatMap(value -> value.sourceEventIds().stream()))
+                .containsExactly(
+                        ChatMessageOutboxEvent.messageCreatedEventId(
+                                "message-1"),
+                        ChatMessageOutboxEvent.messageCreatedEventId(
+                                "message-2"),
+                        ChatMessageOutboxEvent.messageCreatedEventId(
+                                "message-3"),
+                        ChatMessageOutboxEvent.messageCreatedEventId(
+                                "message-4"),
+                        ChatMessageOutboxEvent.messageCreatedEventId(
+                                "message-5"));
+    }
+
+    @Test
+    void splitsFiveEligibleDeletesWithoutToastPayload()
+            throws Exception {
+        RoomQueryReader reader = readerWithTargetMember();
+        List<RoomInboxEvent> delivered = synchronizedEvents();
+        CountDownLatch latch = new CountDownLatch(3);
+        RoomInboxProperties properties = properties();
+        properties.getNotification().setMaxEventsPerRoomBatch(2);
+        RoomInboxNotificationPipeline pipeline = pipeline(
+                reader,
+                online("target"),
+                (userId, connectionId, event) -> {
+                    delivered.add(event);
+                    latch.countDown();
+                },
+                properties,
+                new SimpleMeterRegistry());
+
+        pipeline.start();
+        try {
+            for (long sequence = 1; sequence <= 5; sequence++) {
+                pipeline.onPublished(
+                        deletedClaimed(sequence),
+                        deletedEnvelope(sequence));
+            }
+            assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pipeline.stop();
+        }
+
+        assertThat(delivered).hasSize(3);
+        assertThat(delivered).extracting(value ->
+                        value.sourceEventIds().size())
+                .containsExactly(2, 2, 1);
+        assertThat(delivered).allSatisfy(event -> {
+            assertThat(event.cause()).isEqualTo(
+                    RoomInboxEvent.Cause.MESSAGE_DELETED);
+            assertThat(event.roomNameHint()).isNull();
+            assertThat(event.coalescedCreateCount()).isNull();
+            assertThat(event.notificationHint()).isNull();
+        });
+        assertThat(delivered.stream()
+                .flatMap(value -> value.sourceEventIds().stream()))
+                .doesNotHaveDuplicates()
+                .hasSize(5);
+    }
+
+    @Test
+    void normalizesCreateDeleteBeforePublicEventSplitting()
+            throws Exception {
+        RoomQueryReader reader = readerWithTargetMember();
+        List<RoomInboxEvent> delivered = synchronizedEvents();
+        CountDownLatch latch = new CountDownLatch(2);
+        RoomInboxProperties properties = properties();
+        properties.getNotification().setMaxEventsPerRoomBatch(2);
+        RoomInboxNotificationPipeline pipeline = pipeline(
+                reader,
+                online("target"),
+                (userId, connectionId, event) -> {
+                    delivered.add(event);
+                    latch.countDown();
+                },
+                properties,
+                new SimpleMeterRegistry());
+
+        pipeline.start();
+        try {
+            for (long sequence = 1; sequence <= 3; sequence++) {
+                pipeline.onPublished(
+                        claimed(sequence),
+                        envelope(sequence, "message-" + sequence));
+            }
+            pipeline.onPublished(deletedClaimed(1), deletedEnvelope(1));
+            assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pipeline.stop();
+        }
+
+        RoomInboxEvent created = delivered.stream()
+                .filter(value -> value.cause()
+                        == RoomInboxEvent.Cause.MESSAGE_CREATED)
+                .findFirst().orElseThrow();
+        RoomInboxEvent deleted = delivered.stream()
+                .filter(value -> value.cause()
+                        == RoomInboxEvent.Cause.MESSAGE_DELETED)
+                .findFirst().orElseThrow();
+        assertThat(created.sourceEventIds()).containsExactly(
+                ChatMessageOutboxEvent.messageCreatedEventId("message-2"),
+                ChatMessageOutboxEvent.messageCreatedEventId("message-3"));
+        assertThat(deleted.sourceEventIds()).containsExactly(
+                ChatMessageOutboxEvent.messageDeletedEventId(
+                        "message-1", 2));
+    }
+
+    @Test
+    void dropsOversizedPublicEventWithoutCallingDelivery() {
+        RoomQueryReader reader = readerWithTargetMember();
+        RoomInboxEventDelivery delivery = mock(
+                RoomInboxEventDelivery.class);
+        ChatContentProperties contentProperties =
+                new ChatContentProperties();
+        contentProperties.setMaxStompMessageBytes(1);
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        RoomInboxNotificationPipeline pipeline = pipeline(
+                reader,
+                online("target"),
+                delivery,
+                properties(),
+                contentProperties,
+                meters);
+
+        runAndStop(pipeline, claimed(1), envelope(1, "message"));
+
+        verify(delivery, never()).deliver(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any());
+        assertThat(meters.counter(
+                "room.inbox.notification.public_event.oversized").count())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void sameSourceCanBeRedeliveredInDifferentWindows()
+            throws Exception {
+        RoomQueryReader reader = readerWithTargetMember();
+        List<RoomInboxEvent> delivered = synchronizedEvents();
+        CountDownLatch first = new CountDownLatch(1);
+        CountDownLatch second = new CountDownLatch(2);
+        RoomInboxNotificationPipeline pipeline = pipeline(
+                reader,
+                online("target"),
+                (userId, connectionId, event) -> {
+                    delivered.add(event);
+                    first.countDown();
+                    second.countDown();
+                },
+                properties(),
+                new SimpleMeterRegistry());
+
+        pipeline.start();
+        try {
+            pipeline.onPublished(claimed(1), envelope(1, "message"));
+            assertThat(first.await(2, TimeUnit.SECONDS)).isTrue();
+            Thread.sleep(50);
+            pipeline.onPublished(claimed(1), envelope(1, "message"));
+            assertThat(second.await(2, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            pipeline.stop();
+        }
+
+        assertThat(delivered).hasSize(2);
+        assertThat(delivered).extracting(RoomInboxEvent::eventId)
+                .doesNotHaveDuplicates();
+        assertThat(delivered).extracting(RoomInboxEvent::sourceEventIds)
+                .containsOnly(List.of(
+                        ChatMessageOutboxEvent.messageCreatedEventId(
+                                "message-1")));
+    }
+
     private RoomInboxNotificationPipeline pipeline(
             RoomQueryReader roomReader,
             ActiveConnectionRegistry activeConnections,
@@ -532,13 +751,47 @@ class RoomInboxNotificationPipelineTest {
             RoomInboxProperties properties,
             SimpleMeterRegistry meterRegistry
     ) {
+        return pipeline(
+                roomReader,
+                activeConnections,
+                delivery,
+                properties,
+                new ChatContentProperties(),
+                meterRegistry);
+    }
+
+    private RoomInboxNotificationPipeline pipeline(
+            RoomQueryReader roomReader,
+            ActiveConnectionRegistry activeConnections,
+            RoomInboxEventDelivery delivery,
+            RoomInboxProperties properties,
+            ChatContentProperties contentProperties,
+            SimpleMeterRegistry meterRegistry
+    ) {
         return new RoomInboxNotificationPipeline(
                 roomReader,
                 activeConnections,
                 delivery,
                 properties,
+                new ObjectMapper(),
+                contentProperties,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 meterRegistry);
+    }
+
+    private RoomQueryReader readerWithTargetMember() {
+        RoomQueryReader reader = mock(RoomQueryReader.class);
+        Membership owner = membership(
+                "membership-owner", "owner", MembershipRole.OWNER);
+        Membership target = membership(
+                "membership-target", "target", MembershipRole.MEMBER);
+        when(reader.findRoomById("room-1"))
+                .thenReturn(Optional.of(room()));
+        when(reader.findMembershipsByRoomAndStatus(
+                "room-1", MembershipStatus.ACTIVE, null, 100))
+                .thenReturn(new CursorSlice<>(
+                        List.of(owner, target), false));
+        return reader;
     }
 
     private void assertNoDelivery(

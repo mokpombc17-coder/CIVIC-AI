@@ -14,12 +14,17 @@ import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.dao.QueryTimeoutException;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -95,5 +100,68 @@ class RoomInboxServiceTest {
                     assertThat(item.unreadCountCapped()).isTrue();
                 });
         verify(unread).count("room-1", "user-1", 55);
+    }
+
+    @Test
+    void unreadTimeoutAndResourceFailureAreRetryable() {
+        assertRetryableInboxFailure(new QueryTimeoutException("timeout"));
+        assertRetryableInboxFailure(new DataAccessResourceFailureException(
+                "connection unavailable"));
+    }
+
+    @Test
+    void invalidHintAndDuplicateKeyRemainNonRetryable() {
+        RuntimeException badHint = new InvalidDataAccessApiUsageException(
+                "bad hint");
+        assertThatThrownBy(() -> failureService(badHint)
+                .inbox("user-1", null, 20)).isSameAs(badHint);
+
+        RuntimeException duplicate = new DuplicateKeyException(
+                "duplicate");
+        assertThatThrownBy(() -> failureService(duplicate)
+                .inbox("user-1", null, 20)).isSameAs(duplicate);
+    }
+
+    private void assertRetryableInboxFailure(RuntimeException failure) {
+        assertThatThrownBy(() -> failureService(failure)
+                .inbox("user-1", null, 20))
+                .isInstanceOf(RoomInboxException.class)
+                .satisfies(value -> assertThat(
+                        ((RoomInboxException) value).code())
+                        .isEqualTo(RoomInboxErrorCode
+                                .ROOM_INBOX_UNAVAILABLE));
+    }
+
+    private RoomInboxService failureService(RuntimeException failure) {
+        Instant now = Instant.parse("2026-08-03T01:00:00Z");
+        Membership membership = Membership.restore(
+                "membership-1", "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                now, null, null, 0, 1);
+        Room room = Room.restore(
+                "room-1", "Room", "description", "owner-1",
+                RoomStatus.ACTIVE, RoomVisibility.LISTED,
+                JoinPolicy.OPEN, 2, now, null, 3);
+        RoomQueryReader reader = mock(RoomQueryReader.class);
+        RoomReadStateStore store = mock(RoomReadStateStore.class);
+        UnreadCountReader unread = mock(UnreadCountReader.class);
+        RoomQueryCursorCodec codec = mock(RoomQueryCursorCodec.class);
+        when(codec.decode(
+                null,
+                RoomQueryCursor.Scope.MY_ROOM_INBOX,
+                MembershipStatus.ACTIVE)).thenReturn(null);
+        when(reader.findMembershipsByUserAndStatus(
+                "user-1", MembershipStatus.ACTIVE, null, 20))
+                .thenReturn(new CursorSlice<>(
+                        List.of(membership), false));
+        when(reader.findRoomsByIds(List.of("room-1")))
+                .thenReturn(List.of(room));
+        when(store.findByMembershipIds(List.of("membership-1")))
+                .thenReturn(Map.of());
+        when(unread.count("room-1", "user-1", 0))
+                .thenThrow(failure);
+        return new RoomInboxService(
+                reader, store, unread, codec,
+                new SimpleMeterRegistry());
     }
 }

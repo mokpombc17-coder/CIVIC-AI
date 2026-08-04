@@ -1637,10 +1637,13 @@ Content-Type: application/json
   `409 READ_SEQUENCE_AHEAD`다. sequence 문서가 없으면 현재 값은 `0`이다.
 - Membership 접근 경계나 저장된 ReadState가 current sequence보다 크면
   서버 데이터 오류인 `500 READ_STATE_INCONSISTENT`, `retryable=false`다.
-- Room/Membership/ReadState/sequence Mongo 조회나 ReadState 갱신의
-  `DataAccessException`·`MongoException`은 내부 원인을 노출하지 않고
-  `503 ROOM_INBOX_UNAVAILABLE`, `retryable=true`로 반환한다. identity 충돌,
-  unsupported schema 및 programming invariant는 503으로 감싸지 않는다.
+- Room/Membership/ReadState/sequence Mongo 조회나 ReadState 갱신 중 발생한
+  timeout, connection/socket, recoverable resource failure와 MongoDB의
+  transient transaction label만 내부 원인을 노출하지 않고
+  `503 ROOM_INBOX_UNAVAILABLE`, `retryable=true`로 반환한다.
+  duplicate key, document validation, permission, invalid command/hint,
+  generic Mongo 오류, identity 충돌, unsupported schema 및 programming
+  invariant는 503으로 감싸지 않고 `500`, `retryable=false`로 처리한다.
 - 비활성 Membership은 `403 ACCESS_DENIED`, CLOSED Room은
   `409 READ_STATE_NOT_AVAILABLE`다.
 - ACTIVE 확인 직후 leave/ban이 commit되면 마지막 monotonic 개인 cursor
@@ -1754,9 +1757,10 @@ code point이고 TAB은 공백으로 바꾸며 양끝 공백을 제거한다. �
 
 개인 event는 메시지 cache insert/update/delete payload가 아니며 unread를
 직접 `+1/-1` 하는 authoritative 값도 아니다. 수신 시 room-inbox query를
-debounce invalidate한다. delivery는 비영속 best-effort/at-least-once이며
-outbox delete 실패 후 같은 `sourceEventIds`가 중복될 수 있다. 클라이언트는
-bounded TTL/LRU로 중복을 제거할 수 있다.
+debounce invalidate한다. delivery는 비영속 best-effort/at-least-once이다.
+`eventId`는 public delivery instance를, `sourceEventIds`는 원본 outbox event를
+식별한다. outbox delete 실패 후 새로운 `eventId`로 같은 source가 다시 전달될
+수 있으므로 클라이언트는 source ID를 bounded TTL/LRU로 중복 제거한다.
 
 서버는 room-topic publish 성공 뒤 bounded in-memory queue에 non-blocking
 offer하고, Room별 100ms window에서 recipient 조회와 외부 event를
@@ -1766,11 +1770,23 @@ CREATE→DELETE는 CREATE hint를 억제하고 DELETE invalidation만 보낸다.
 
 Room window 전체에서 먼저 `sourceOutboxEventId`를 중복 제거하고 전체
 `deletedMessageIds`를 계산한 뒤 Room과 ACTIVE Membership을 각각 한 번만
-조회한다. `max-events-per-room-batch`는 semantic window를 먼저 나누지 않으므로
-전체 window 정규화 이후 recipient별 eligible event를 계산하는 내부 chunk
-크기로만 사용한다. 값이 1이어도 같은 window의 CREATE→DELETE 억제와
-원인별 외부 event 최대 1건 계약은 유지된다. 동일 source가 다른 window에
-다시 전달되는 at-least-once 동작은 허용한다.
+조회한다. CREATE→DELETE cancellation과 recipient eligibility를 전체 window에
+적용한 다음에만 public event를 분할한다.
+
+하나의 public event는 `sourceEventIds`를 최소 1개, 최대 100개 포함한다.
+`max-events-per-room-batch`는 한 public event의 source 상한이며 설정 범위도
+1~100이다. eligible source가 더 많으면 CREATE와 DELETE 원인별로 여러 event가
+전송될 수 있다. CREATE의 `coalescedCreateCount`는 전체 Room window가 아니라
+해당 public event chunk의 source 수이며, hint도 그 chunk에서 가장 큰
+`roomSequence`를 사용한다. DELETE chunk는 Room 이름·count·hint가 모두 null이다.
+같은 window의 source 순서는 outbox queue 관측 순서를 유지하고, 한 원인 안에서
+하나의 source는 정확히 한 chunk에만 포함된다.
+
+각 public event는 delivery 전에 production ObjectMapper로 직렬화하며 JSON
+UTF-8 크기가 `chat.websocket.message.max-stomp-message-bytes` 이상이면 해당
+event만 drop하고 `room.inbox.notification.public_event.oversized`를 기록한다.
+다른 recipient/event 처리와 message outbox 성공 상태에는 영향을 주지 않는다.
+동일 source가 다른 window에서 다시 전달되는 at-least-once 동작은 허용한다.
 
 public event는 생성 시 version/type/canonical UUID/Room ID/time/source ID를
 검증한다. CREATE는 Room 이름, 1 이상의 count, 동일 개수의 CREATE source,

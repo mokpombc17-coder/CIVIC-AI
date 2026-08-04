@@ -23,6 +23,7 @@ public record RoomInboxEvent(
 
     public static final int CURRENT_EVENT_VERSION = 1;
     public static final String EVENT_TYPE = "ROOM_INBOX_INVALIDATED";
+    public static final int MAX_SOURCE_EVENT_IDS = 100;
     private static final Pattern ROOM_ID =
             Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
 
@@ -48,6 +49,7 @@ public record RoomInboxEvent(
                     "emittedAt must not be null");
         }
         if (sourceEventIds == null || sourceEventIds.isEmpty()
+                || sourceEventIds.size() > MAX_SOURCE_EVENT_IDS
                 || sourceEventIds.stream().anyMatch(
                 value -> value == null || value.isBlank())
                 || new HashSet<>(sourceEventIds).size()

@@ -12,6 +12,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -171,6 +172,20 @@ class RoomReadStateServiceTest {
                 "user-1", "room-1", 50))
                 .isInstanceOf(IllegalStateException.class)
                 .isNotInstanceOf(RoomInboxException.class);
+    }
+
+    @Test
+    void duplicateKeyAfterAdvanceRetryRemainsNonRetryable() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        DuplicateKeyException duplicate = new DuplicateKeyException(
+                "duplicate identity");
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenThrow(duplicate);
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 55)).isSameAs(duplicate);
     }
 
     private void assertStorageFailure(StoragePoint point) {

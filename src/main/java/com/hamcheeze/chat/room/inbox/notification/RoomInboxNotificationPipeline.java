@@ -14,6 +14,7 @@ import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.inbox.RoomInboxProperties;
 import com.hamcheeze.chat.room.query.CursorSlice;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
+import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
@@ -22,6 +23,7 @@ import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -54,6 +56,8 @@ public final class RoomInboxNotificationPipeline
     private final ActiveConnectionRegistry activeConnections;
     private final RoomInboxEventDelivery delivery;
     private final RoomInboxProperties.Notification properties;
+    private final ObjectMapper objectMapper;
+    private final int maxPublicEventBytes;
     private final Clock clock;
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicInteger workerRunning = new AtomicInteger();
@@ -66,6 +70,9 @@ public final class RoomInboxNotificationPipeline
     private final Counter failureCounter;
     private final Counter duplicateCounter;
     private final Counter snapshotRejectedCounter;
+    private final Counter publicEventSplitCounter;
+    private final Counter publicEventOversizedCounter;
+    private final Counter publicEventSourcesCounter;
     private final Timer dispatchTimer;
     private volatile Thread worker;
 
@@ -74,6 +81,8 @@ public final class RoomInboxNotificationPipeline
             ActiveConnectionRegistry activeConnections,
             RoomInboxEventDelivery delivery,
             RoomInboxProperties inboxProperties,
+            ObjectMapper objectMapper,
+            ChatContentProperties contentProperties,
             Clock clock,
             MeterRegistry meterRegistry
     ) {
@@ -84,6 +93,11 @@ public final class RoomInboxNotificationPipeline
         this.delivery = Objects.requireNonNull(delivery, "delivery");
         this.properties = Objects.requireNonNull(
                 inboxProperties, "inboxProperties").getNotification();
+        this.objectMapper = Objects.requireNonNull(
+                objectMapper, "objectMapper");
+        this.maxPublicEventBytes = Objects.requireNonNull(
+                contentProperties, "contentProperties")
+                .getMaxStompMessageBytes();
         this.clock = Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(meterRegistry, "meterRegistry");
         this.queue = new ArrayBlockingQueue<>(
@@ -106,6 +120,12 @@ public final class RoomInboxNotificationPipeline
                 "room.inbox.notification.duplicate.source");
         this.snapshotRejectedCounter = meterRegistry.counter(
                 "room.inbox.notification.recipient_snapshot.rejected");
+        this.publicEventSplitCounter = meterRegistry.counter(
+                "room.inbox.notification.public_event.split");
+        this.publicEventOversizedCounter = meterRegistry.counter(
+                "room.inbox.notification.public_event.oversized");
+        this.publicEventSourcesCounter = meterRegistry.counter(
+                "room.inbox.notification.public_event.sources");
         this.dispatchTimer = meterRegistry.timer(
                 "room.inbox.notification.dispatch.duration");
         Gauge.builder(
@@ -375,25 +395,34 @@ public final class RoomInboxNotificationPipeline
     ) {
         List<RoomInboxNotificationIntent> creates = new ArrayList<>();
         List<RoomInboxNotificationIntent> deletes = new ArrayList<>();
-        int chunkSize = properties.getMaxEventsPerRoomBatch();
-        for (int from = 0; from < batch.size(); from += chunkSize) {
-            int to = Math.min(batch.size(), from + chunkSize);
-            collectEligibleRecipientEvents(
-                    batch.subList(from, to),
-                    membership,
-                    deletedMessageIds,
-                    creates,
-                    deletes);
-        }
-        if (!creates.isEmpty()) {
-            RoomInboxNotificationIntent latest = creates.stream()
+        collectEligibleRecipientEvents(
+                batch,
+                membership,
+                deletedMessageIds,
+                creates,
+                deletes);
+        deliverCreatedChunks(
+                room, membership.userId(), connectionId, creates);
+        deliverDeletedChunks(
+                room, membership.userId(), connectionId, deletes);
+        return !creates.isEmpty() || !deletes.isEmpty();
+    }
+
+    private void deliverCreatedChunks(
+            Room room,
+            String userId,
+            String connectionId,
+            List<RoomInboxNotificationIntent> creates
+    ) {
+        forEachPublicEventChunk(creates, chunk -> {
+            RoomInboxNotificationIntent latest = chunk.stream()
                     .max(java.util.Comparator.comparingLong(
                             value -> value.message().roomSequence()))
                     .orElseThrow();
             NotificationPreview preview = NotificationPreview.from(
                     latest.message().content());
             deliverOne(
-                    membership.userId(),
+                    userId,
                     connectionId,
                     new RoomInboxEvent(
                             RoomInboxEvent.CURRENT_EVENT_VERSION,
@@ -403,11 +432,8 @@ public final class RoomInboxNotificationPipeline
                             room.roomId(),
                             room.name(),
                             clock.instant(),
-                            creates.stream()
-                                    .map(RoomInboxNotificationIntent::
-                                            sourceOutboxEventId)
-                                    .toList(),
-                            creates.size(),
+                            sourceEventIds(chunk),
+                            chunk.size(),
                             new RoomInboxNotificationHint(
                                     latest.message().messageId(),
                                     latest.message().messageVersion(),
@@ -415,27 +441,56 @@ public final class RoomInboxNotificationPipeline
                                     latest.message().createdAt(),
                                     preview.value(),
                                     preview.truncated())));
+        });
+    }
+
+    private void deliverDeletedChunks(
+            Room room,
+            String userId,
+            String connectionId,
+            List<RoomInboxNotificationIntent> deletes
+    ) {
+        forEachPublicEventChunk(deletes, chunk -> deliverOne(
+                userId,
+                connectionId,
+                new RoomInboxEvent(
+                        RoomInboxEvent.CURRENT_EVENT_VERSION,
+                        UUID.randomUUID().toString(),
+                        RoomInboxEvent.EVENT_TYPE,
+                        RoomInboxEvent.Cause.MESSAGE_DELETED,
+                        room.roomId(),
+                        null,
+                        clock.instant(),
+                        sourceEventIds(chunk),
+                        null,
+                        null)));
+    }
+
+    private void forEachPublicEventChunk(
+            List<RoomInboxNotificationIntent> intents,
+            java.util.function.Consumer<
+                    List<RoomInboxNotificationIntent>> consumer
+    ) {
+        int chunkSize = properties.getMaxEventsPerRoomBatch();
+        int chunks = (intents.size() + chunkSize - 1) / chunkSize;
+        if (chunks > 1) {
+            BestEffortMetricRecorder.increment(
+                    "room.inbox.notification.public_event.split",
+                    publicEventSplitCounter,
+                    chunks - 1);
         }
-        if (!deletes.isEmpty()) {
-            deliverOne(
-                    membership.userId(),
-                    connectionId,
-                    new RoomInboxEvent(
-                            RoomInboxEvent.CURRENT_EVENT_VERSION,
-                            UUID.randomUUID().toString(),
-                            RoomInboxEvent.EVENT_TYPE,
-                            RoomInboxEvent.Cause.MESSAGE_DELETED,
-                            room.roomId(),
-                            null,
-                            clock.instant(),
-                            deletes.stream()
-                                    .map(RoomInboxNotificationIntent::
-                                            sourceOutboxEventId)
-                                    .toList(),
-                            null,
-                            null));
+        for (int from = 0; from < intents.size(); from += chunkSize) {
+            consumer.accept(List.copyOf(intents.subList(
+                    from, Math.min(intents.size(), from + chunkSize))));
         }
-        return !creates.isEmpty() || !deletes.isEmpty();
+    }
+
+    private static List<String> sourceEventIds(
+            List<RoomInboxNotificationIntent> intents
+    ) {
+        return intents.stream()
+                .map(RoomInboxNotificationIntent::sourceOutboxEventId)
+                .toList();
     }
 
     private static void collectEligibleRecipientEvents(
@@ -481,6 +536,27 @@ public final class RoomInboxNotificationPipeline
             RoomInboxEvent event
     ) {
         try {
+            int serializedBytes = objectMapper
+                    .writeValueAsBytes(event).length;
+            if (serializedBytes >= maxPublicEventBytes) {
+                BestEffortMetricRecorder.increment(
+                        "room.inbox.notification.public_event.oversized",
+                        publicEventOversizedCounter);
+                log.warn(
+                        "Room inbox public event dropped because its "
+                                + "serialized payload is oversized: "
+                                + "cause={}, sourceCount={}, bytes={}, "
+                                + "maxBytes={}",
+                        event.cause(),
+                        event.sourceEventIds().size(),
+                        serializedBytes,
+                        maxPublicEventBytes);
+                return;
+            }
+            BestEffortMetricRecorder.increment(
+                    "room.inbox.notification.public_event.sources",
+                    publicEventSourcesCounter,
+                    event.sourceEventIds().size());
             delivery.deliver(userId, connectionId, event);
             BestEffortMetricRecorder.increment(
                     "room.inbox.notification.delivery.success",
