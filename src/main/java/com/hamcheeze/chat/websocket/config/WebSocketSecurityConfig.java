@@ -4,6 +4,7 @@ import com.hamcheeze.chat.room.api.RoomApiSecurityProblemWriter;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Bean;
@@ -17,26 +18,41 @@ import org.springframework.security.web.SecurityFilterChain;
 public class WebSocketSecurityConfig {
 
     @Bean
-    SecurityFilterChain webSocketSecurityFilterChain(
+    @Order(1)
+    SecurityFilterChain webSocketHandshakeSecurityFilterChain(
             HttpSecurity http,
-            WebSocketEndpointProperties properties,
-            RoomApiSecurityProblemWriter problemWriter,
-            BearerTokenResolver bearerTokenResolver
+            WebSocketEndpointProperties properties
     ) throws Exception {
         String endpoint = properties.getEndpoint();
         return http
+                .securityMatcher(endpoint, endpoint + "/**")
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .anyRequest()
+                        .permitAll())
+                .build();
+    }
+
+    @Bean
+    @Order(2)
+    SecurityFilterChain apiSecurityFilterChain(
+            HttpSecurity http,
+            RoomApiSecurityProblemWriter problemWriter,
+            BearerTokenResolver bearerTokenResolver
+    ) throws Exception {
+        return http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.ignoringRequestMatchers(
-                        endpoint,
-                        endpoint + "/**",
                         "/api/v1/**"))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
-                                endpoint,
-                                endpoint + "/**",
                                 "/actuator/health",
                                 "/actuator/health/**")
                         .permitAll()

@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.websocket.config;
 
 import com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptor;
+import com.hamcheeze.chat.websocket.authentication.WebSocketAuthenticationHandshakeInterceptor;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptor;
 import com.hamcheeze.chat.websocket.connection.TrackingWebSocketHandlerDecoratorFactory;
 import com.hamcheeze.chat.websocket.metrics.OutboundMetricsInterceptor;
@@ -42,6 +43,8 @@ public class ChatWebSocketConfig
     private final ThreadPoolTaskScheduler heartbeatScheduler;
     private final ThreadPoolTaskExecutor outboundExecutor;
     private final TrackingWebSocketHandlerDecoratorFactory trackingDecorator;
+    private final WebSocketAuthenticationHandshakeInterceptor
+            authenticationHandshakeInterceptor;
     private final StompJwtAuthenticationInterceptor authenticationInterceptor;
     private final StompProtocolPolicyInterceptor protocolInterceptor;
     private final ActiveConnectionLifecycleInterceptor connectionInterceptor;
@@ -63,6 +66,8 @@ public class ChatWebSocketConfig
             @Qualifier("chatClientOutboundExecutor")
             ThreadPoolTaskExecutor outboundExecutor,
             TrackingWebSocketHandlerDecoratorFactory trackingDecorator,
+            WebSocketAuthenticationHandshakeInterceptor
+                    authenticationHandshakeInterceptor,
             StompJwtAuthenticationInterceptor authenticationInterceptor,
             StompProtocolPolicyInterceptor protocolInterceptor,
             ActiveConnectionLifecycleInterceptor connectionInterceptor,
@@ -81,6 +86,8 @@ public class ChatWebSocketConfig
         this.heartbeatScheduler = heartbeatScheduler;
         this.outboundExecutor = outboundExecutor;
         this.trackingDecorator = trackingDecorator;
+        this.authenticationHandshakeInterceptor =
+                authenticationHandshakeInterceptor;
         this.authenticationInterceptor = authenticationInterceptor;
         this.protocolInterceptor = protocolInterceptor;
         this.connectionInterceptor = connectionInterceptor;
@@ -98,6 +105,7 @@ public class ChatWebSocketConfig
         registry.setErrorHandler(stompErrorHandler);
         registry.setPreserveReceiveOrder(true);
         registry.addEndpoint(endpointProperties.getEndpoint())
+                .addInterceptors(authenticationHandshakeInterceptor)
                 .setAllowedOriginPatterns(
                         endpointProperties.getAllowedOrigins()
                                 .toArray(String[]::new));

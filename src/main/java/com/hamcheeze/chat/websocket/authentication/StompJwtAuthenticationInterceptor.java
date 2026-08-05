@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Component
@@ -55,11 +56,12 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
             return message;
         }
 
-        if (command == StompCommand.CONNECT && accessor.getUser() == null) {
-            authenticateBearerFallback(accessor);
-        }
-
         if (command == StompCommand.CONNECT) {
+            if (accessor.getUser() == null) {
+                authenticate(accessor);
+            } else {
+                clearHandshakeAuthentication(accessor);
+            }
             requireScope(accessor.getUser(), ChatScopes.CONNECT);
         } else if (command == StompCommand.SUBSCRIBE) {
             requireScope(accessor.getUser(), ChatScopes.ROOMS_READ);
@@ -81,16 +83,24 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
         return ChatScopes.MESSAGES_WRITE;
     }
 
-    private void authenticateBearerFallback(
+    private void authenticate(
             StompHeaderAccessor accessor
     ) {
-        String authorization = first(
-                accessor.getNativeHeader("Authorization"));
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        String token = consumeHandshakeBearerToken(accessor);
+        if (token == null) {
+            String authorization = first(
+                    accessor.getNativeHeader("Authorization"));
+            if (authorization == null
+                    || !authorization.startsWith("Bearer ")) {
+                throw new StompPolicyException("UNAUTHORIZED");
+            }
+            token = authorization.substring(7);
+        }
+        if (token.isBlank()) {
             throw new StompPolicyException("UNAUTHORIZED");
         }
         try {
-            Jwt jwt = jwtDecoder.decode(authorization.substring(7));
+            Jwt jwt = jwtDecoder.decode(token);
             if (jwt.getSubject() == null || jwt.getSubject().isBlank()) {
                 throw new StompPolicyException("UNAUTHORIZED");
             }
@@ -101,6 +111,40 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
         } catch (JwtException exception) {
             throw new StompPolicyException("UNAUTHORIZED", exception);
         }
+    }
+
+    private static String consumeHandshakeBearerToken(
+            StompHeaderAccessor accessor
+    ) {
+        Map<String, Object> attributes = accessor.getSessionAttributes();
+        if (attributes == null) {
+            return null;
+        }
+        Object invalid = attributes.remove(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .INVALID_BEARER_TOKEN_ATTRIBUTE);
+        Object token = attributes.remove(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .BEARER_TOKEN_ATTRIBUTE);
+        if (Boolean.TRUE.equals(invalid)) {
+            throw new StompPolicyException("UNAUTHORIZED");
+        }
+        return token instanceof String value ? value : null;
+    }
+
+    private static void clearHandshakeAuthentication(
+            StompHeaderAccessor accessor
+    ) {
+        Map<String, Object> attributes = accessor.getSessionAttributes();
+        if (attributes == null) {
+            return;
+        }
+        attributes.remove(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .INVALID_BEARER_TOKEN_ATTRIBUTE);
+        attributes.remove(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .BEARER_TOKEN_ATTRIBUTE);
     }
 
     private static void requireScope(

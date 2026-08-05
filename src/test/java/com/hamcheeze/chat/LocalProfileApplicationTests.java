@@ -360,7 +360,7 @@ class LocalProfileApplicationTests
                 .hasSize(1)
                 .containsValue(roomQueryCursorCodec);
         assertThat(applicationContext.getBeansOfType(
-                SecurityFilterChain.class)).hasSize(1);
+                SecurityFilterChain.class)).hasSize(2);
         assertThat(mongoOperations.collectionExists(
                 MongoChatMessageDocument.COLLECTION_NAME)).isTrue();
         assertThat(mongoOperations.collectionExists(

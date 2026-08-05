@@ -12,9 +12,12 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,6 +51,97 @@ class StompJwtAuthenticationInterceptorTest {
         assertThat(resultAccessor.getUser()).isNotNull();
         assertThat(resultAccessor.getUser().getName()).isEqualTo("user-1");
         verify(decoder).decode("valid-token");
+    }
+
+    @Test
+    void authenticatesCapturedHandshakeCookieAtStompConnect() {
+        JwtDecoder decoder = mock(JwtDecoder.class);
+        when(decoder.decode("cookie-token")).thenReturn(Jwt.withTokenValue(
+                        "cookie-token")
+                .header("alg", "none")
+                .subject("user-1")
+                .claim("scope", ChatScopes.CONNECT)
+                .build());
+        StompJwtAuthenticationInterceptor interceptor =
+                interceptor(decoder);
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.create(StompCommand.CONNECT);
+        Map<String, Object> sessionAttributes = new HashMap<>();
+        sessionAttributes.put(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .BEARER_TOKEN_ATTRIBUTE,
+                "cookie-token");
+        accessor.setSessionAttributes(sessionAttributes);
+
+        Message<?> result = interceptor.preSend(message(accessor), null);
+
+        assertThat(StompHeaderAccessor.wrap(result).getUser().getName())
+                .isEqualTo("user-1");
+        assertThat(sessionAttributes).doesNotContainKey(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .BEARER_TOKEN_ATTRIBUTE);
+        verify(decoder).decode("cookie-token");
+    }
+
+    @Test
+    void rejectsExpiredOrInvalidCapturedTokenAtStompConnect() {
+        JwtDecoder decoder = mock(JwtDecoder.class);
+        when(decoder.decode("expired-token"))
+                .thenThrow(new JwtException("expired"));
+        StompJwtAuthenticationInterceptor interceptor =
+                interceptor(decoder);
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.setSessionAttributes(new HashMap<>(Map.of(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .BEARER_TOKEN_ATTRIBUTE,
+                "expired-token")));
+
+        assertThatThrownBy(() ->
+                interceptor.preSend(message(accessor), null))
+                .isInstanceOf(StompPolicyException.class)
+                .extracting(exception ->
+                        ((StompPolicyException) exception).code())
+                .isEqualTo("UNAUTHORIZED");
+        verify(decoder).decode("expired-token");
+    }
+
+    @Test
+    void rejectsInvalidHandshakeCredentialMarkerAtStompConnect() {
+        JwtDecoder decoder = mock(JwtDecoder.class);
+        StompJwtAuthenticationInterceptor interceptor =
+                interceptor(decoder);
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.setSessionAttributes(new HashMap<>(Map.of(
+                WebSocketAuthenticationHandshakeInterceptor
+                        .INVALID_BEARER_TOKEN_ATTRIBUTE,
+                Boolean.TRUE)));
+
+        assertThatThrownBy(() ->
+                interceptor.preSend(message(accessor), null))
+                .isInstanceOf(StompPolicyException.class)
+                .extracting(exception ->
+                        ((StompPolicyException) exception).code())
+                .isEqualTo("UNAUTHORIZED");
+        verifyNoInteractions(decoder);
+    }
+
+    @Test
+    void rejectsConnectWithoutHandshakeOrStompCredentials() {
+        JwtDecoder decoder = mock(JwtDecoder.class);
+        StompJwtAuthenticationInterceptor interceptor =
+                interceptor(decoder);
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.create(StompCommand.CONNECT);
+
+        assertThatThrownBy(() ->
+                interceptor.preSend(message(accessor), null))
+                .isInstanceOf(StompPolicyException.class)
+                .extracting(exception ->
+                        ((StompPolicyException) exception).code())
+                .isEqualTo("UNAUTHORIZED");
+        verifyNoInteractions(decoder);
     }
 
     @Test

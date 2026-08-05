@@ -251,6 +251,32 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
+    void websocketHandshakeDefersInvalidCookieAuthenticationToStompConnect()
+            throws Exception {
+        int malformedStatus = mockMvc.perform(get("/ws")
+                        .cookie(new Cookie(
+                                CookieOrHeaderBearerTokenResolver.COOKIE_NAME,
+                                "not-a-jwt")))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+        String expiredToken = token(
+                "local-user-1",
+                List.of(ChatScopes.CONNECT),
+                Instant.now().minusSeconds(60));
+        int expiredStatus = mockMvc.perform(get("/ws")
+                        .cookie(new Cookie(
+                                CookieOrHeaderBearerTokenResolver.COOKIE_NAME,
+                                expiredToken)))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+
+        assertThat(malformedStatus).isNotEqualTo(401);
+        assertThat(expiredStatus).isNotEqualTo(401);
+    }
+
+    @Test
     void readStateUsesDedicatedScopeAndRoomInboxUsesReadScope()
             throws Exception {
         String body = "{\"throughSequence\":0}";
@@ -360,6 +386,17 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
             String subject,
             List<String> scopes
     ) throws Exception {
+        return token(
+                subject,
+                scopes,
+                Instant.now().plusSeconds(3_600));
+    }
+
+    private String token(
+            String subject,
+            List<String> scopes,
+            Instant expirationTime
+    ) throws Exception {
         Instant now = Instant.now();
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),
@@ -369,8 +406,7 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                         .audience(localJwtProperties.getAudience())
                         .claim("scope", String.join(" ", scopes))
                         .issueTime(Date.from(now.minusSeconds(1)))
-                        .expirationTime(Date.from(
-                                now.plusSeconds(3_600)))
+                        .expirationTime(Date.from(expirationTime))
                         .jwtID(UUID.randomUUID().toString())
                         .build());
         jwt.sign(new MACSigner(localJwtProperties.getSecret()
