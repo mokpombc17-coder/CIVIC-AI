@@ -16,6 +16,7 @@ import {
   type ChatMessageMutationTerminalEvent,
 } from "../chat-message-mutation-scheduler";
 import {
+  CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
   CHAT_CONNECTION_REPLACED_MESSAGE,
   CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
   CHAT_ROOM_CLOSED_MESSAGE,
@@ -38,6 +39,7 @@ import {
   parseChatRoomEventEnvelope,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
+  parseChatStompError,
   parseChatSubscriptionRejection,
   type ChatRoomEventEnvelope,
   type ChatRoomInboxEvent,
@@ -192,13 +194,22 @@ export class ChatSharedWorkerRuntime {
         return;
       }
 
+      if (parseChatStompError(frame)?.code === "AUTHENTICATION_REQUIRED") {
+        this.stopAuthenticationRequiredReconnect();
+        return;
+      }
+
+      if (this.snapshot.status === "authentication-required") {
+        return;
+      }
+
       this.setSnapshot("error", {
         source: "stomp",
         message: getStompErrorMessage(frame),
       });
     };
     this.client.onWebSocketError = () => {
-      if (this.getAttachedPortCount() > 0) {
+      if (this.getAttachedPortCount() > 0 && this.snapshot.status !== "authentication-required") {
         this.setSnapshot("error", {
           source: "websocket",
           message: "WebSocket 연결 중 오류가 발생했습니다.",
@@ -211,6 +222,10 @@ export class ChatSharedWorkerRuntime {
       this.messageMutations.cancelAll("WEBSOCKET_CLOSED");
       this.pauseRealtimeDelivery();
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
+
+      if (this.snapshot.status === "authentication-required") {
+        return;
+      }
 
       if (isChatConnectionReplacedCloseEvent(event)) {
         this.stopConnectionReplacedReconnect();
@@ -459,7 +474,7 @@ export class ChatSharedWorkerRuntime {
   }
 
   private reconnect(): void {
-    if (this.snapshot.status === "replaced") {
+    if (this.snapshot.status === "replaced" || this.snapshot.status === "authentication-required") {
       return;
     }
 
@@ -473,6 +488,29 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.startConnection();
+  }
+
+  private stopAuthenticationRequiredReconnect(): void {
+    this.messageDeliveries.cancelAll("AUTHENTICATION_REQUIRED");
+    this.messageMutations.cancelAll("AUTHENTICATION_REQUIRED");
+    this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
+    this.subscriptions.disconnect();
+    this.pauseRealtimeDelivery();
+    this.realtimeBuffer.clear();
+    this.setSnapshot("authentication-required", {
+      source: "stomp",
+      code: "AUTHENTICATION_REQUIRED",
+      message: CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
+    });
+
+    try {
+      void this.client.deactivate().catch(() => {
+        // Keep the terminal authentication state even if STOMP cleanup rejects.
+      });
+    } catch {
+      // Keep the terminal authentication state even if STOMP cleanup throws synchronously.
+    }
   }
 
   private stopConnectionReplacedReconnect(): void {

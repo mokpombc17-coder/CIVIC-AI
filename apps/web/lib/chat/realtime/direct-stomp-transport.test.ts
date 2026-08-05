@@ -109,6 +109,43 @@ describe("DirectStompTransport", () => {
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });
 
+  it("AUTHENTICATION_REQUIRED에서는 후속 close가 상태를 덮지 않고 재연결을 중단한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onStompError({
+      headers: {
+        message: "AUTHENTICATION_REQUIRED",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        code: "AUTHENTICATION_REQUIRED",
+        retryable: false,
+      }),
+    } as unknown as IFrame);
+
+    const authenticationRequiredSnapshot = {
+      status: "authentication-required",
+      error: {
+        source: "stomp",
+        code: "AUTHENTICATION_REQUIRED",
+        message: "채팅 연결 인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.",
+      },
+    };
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(transport.getSnapshot()).toEqual(authenticationRequiredSnapshot);
+
+    client.onWebSocketError({} as Event);
+    client.onWebSocketClose({ code: 1002, reason: "PROTOCOL_ERROR" } as CloseEvent);
+    transport.reconnect();
+
+    expect(transport.getSnapshot()).toEqual(authenticationRequiredSnapshot);
+    expect(client.activate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+  });
+
   it("4002 ROOM_ACCESS_REVOKED에서는 기존 연결을 폐기하고 방 구독을 새로 구성한다", async () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);

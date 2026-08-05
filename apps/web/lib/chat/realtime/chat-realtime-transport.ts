@@ -31,6 +31,8 @@ export const CHAT_CONNECTION_REPLACED_CLOSE_CODE = 4001;
 export const CHAT_CONNECTION_REPLACED_REASON = "CONNECTION_REPLACED";
 export const CHAT_CONNECTION_REPLACED_MESSAGE =
   "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.";
+export const CHAT_AUTHENTICATION_REQUIRED_MESSAGE =
+  "채팅 연결 인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.";
 export const CHAT_ROOM_ACCESS_REVOKED_CLOSE_CODE = 4002;
 export const CHAT_ROOM_ACCESS_REVOKED_REASON = "ROOM_ACCESS_REVOKED";
 export const CHAT_ROOM_ACCESS_REVOKED_MESSAGE =

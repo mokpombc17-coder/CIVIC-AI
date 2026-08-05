@@ -207,6 +207,55 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });
 
+  it("AUTHENTICATION_REQUIRED를 모든 port에 알리고 후속 close와 재연결을 차단한다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const portA = createFakePort();
+    const portB = createFakePort();
+
+    runtime.connectPort(portA);
+    runtime.connectPort(portB);
+    portA.send({ type: "ATTACH", portId: "port-a" });
+    portB.send({ type: "ATTACH", portId: "port-b" });
+    client.onStompError({
+      headers: {
+        message: "AUTHENTICATION_REQUIRED",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        code: "AUTHENTICATION_REQUIRED",
+        retryable: false,
+      }),
+    } as unknown as IFrame);
+
+    const authenticationRequiredSnapshot = {
+      status: "authentication-required",
+      error: {
+        source: "stomp",
+        code: "AUTHENTICATION_REQUIRED",
+        message: "채팅 연결 인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.",
+      },
+    };
+
+    expect(client.deactivate).toHaveBeenCalledTimes(1);
+    expect(portA.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual(
+      authenticationRequiredSnapshot,
+    );
+    expect(portB.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual(
+      authenticationRequiredSnapshot,
+    );
+
+    client.onWebSocketError({} as Event);
+    client.onWebSocketClose({ code: 1002, reason: "PROTOCOL_ERROR" } as CloseEvent);
+    portA.send({ type: "RECONNECT", portId: "port-a" });
+
+    expect(portA.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual(
+      authenticationRequiredSnapshot,
+    );
+    expect(client.activate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+  });
+
   it("4002 ROOM_ACCESS_REVOKED에서는 새 연결에서 방 구독과 sync를 다시 구성한다", async () => {
     const client = createFakeStompClient({ autoReady: false });
     const createId = vi
