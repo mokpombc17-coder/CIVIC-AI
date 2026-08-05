@@ -4,7 +4,6 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat-message-arrival-announcement";
 import { ChatMessageItem } from "@/components/chat-message-item";
-import type { ChatMessageMutationStartResult } from "@/components/chat-message-mutation-state";
 import {
   type ChatMessageAppendSource,
   type ChatMessageViewportPosition,
@@ -38,9 +37,8 @@ export type ChatMessageViewportViewModel = Readonly<{
   isLoadingOlder: boolean;
   items: readonly ChatMessageItemViewModel[];
   latestConfirmedSequence: number | null;
-  onDeleteMessage: (messageId: string) => ChatMessageMutationStartResult;
-  onEditMessage: (messageId: string, content: string) => ChatMessageMutationStartResult;
   onLoadOlder: () => Promise<ChatMessageViewportLoadOlderResult>;
+  onOpenMessageActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
   onReadThroughSequence: (throughSequence: number) => void;
   onRetry: () => void;
   readStateEnabled: boolean;
@@ -524,6 +522,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
         onScroll={handleScroll}
         ref={scrollElementRef}
         role="log"
+        tabIndex={-1}
       >
         {history.feedback?.kind === "notice" ? (
           <MessageHistoryNotice message={history.feedback.message} />
@@ -547,8 +546,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
                 <ChatMessageItem
                   item={item}
                   key={virtualItem.key}
-                  onDeleteMessage={history.onDeleteMessage}
-                  onEditMessage={history.onEditMessage}
+                  onOpenActions={history.onOpenMessageActions}
                   ref={virtualizer.measureElement}
                   style={{
                     left: 0,

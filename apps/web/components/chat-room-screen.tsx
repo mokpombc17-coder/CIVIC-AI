@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
+import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
@@ -18,6 +19,7 @@ import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import { createChatMessageTimeline } from "@/lib/chat/chat-message-timeline";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
+import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
@@ -72,6 +74,13 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       ),
     [messageMutations.states, room?.myMembership?.userId, timeline],
   );
+  const viewportKey = `${roomId}:${session.generation}`;
+  const messageActions = useChatMessageActionsBottomSheet({
+    items: messageItems,
+    onDeleteMessage: messageMutations.deleteMessage,
+    onEditMessage: messageMutations.editMessage,
+    viewportKey,
+  });
   const header = createChatRoomHeaderViewModel({
     memberCount: room?.activeMemberCount,
     name: room?.name,
@@ -112,8 +121,6 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         isLoadingOlder: messageHistory.isFetchingNextPage,
         items: messageItems,
         latestConfirmedSequence,
-        onDeleteMessage: messageMutations.deleteMessage,
-        onEditMessage: messageMutations.editMessage,
         onLoadOlder: async () => {
           const result = await messageHistory.fetchNextPage();
 
@@ -125,12 +132,16 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
             hasOlderMessages: result.hasNextPage,
           };
         },
+        onOpenMessageActions: messageActions.openMessageActions,
         onReadThroughSequence: updateReadThroughSequence,
         onRetry: () => void messageHistory.refetch(),
         readStateEnabled,
         roomLabel: `${roomId} 메시지`,
-        viewportKey: `${roomId}:${session.generation}`,
+        viewportKey,
       }}
+      overlay={
+        messageActions.sheet ? <ChatMessageActionsBottomSheet sheet={messageActions.sheet} /> : null
+      }
       roomError={
         roomQuery.isError
           ? {

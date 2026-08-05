@@ -1,18 +1,15 @@
 import { forwardRef, type CSSProperties } from "react";
-import { ChatMessageActionsPopover } from "@/components/chat-message-actions-popover";
-import type { ChatMessageMutationStartResult } from "@/components/chat-message-mutation-state";
 import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model";
 
 type ChatMessageItemProps = Readonly<{
   item: ChatMessageItemViewModel;
-  onDeleteMessage: (messageId: string) => ChatMessageMutationStartResult;
-  onEditMessage: (messageId: string, content: string) => ChatMessageMutationStartResult;
+  onOpenActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
   style: CSSProperties;
   virtualIndex: number;
 }>;
 
 export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
-  function ChatMessageItem({ item, onDeleteMessage, onEditMessage, style, virtualIndex }, ref) {
+  function ChatMessageItem({ item, onOpenActions, style, virtualIndex }, ref) {
     const failed = item.deliveryTone === "error";
     const bubbleClassName = `whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6 ${
       item.isDeleted
@@ -48,13 +45,14 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
               <span className="text-[0.7rem] text-slate-400">{item.timeLabel}</span>
             ) : null}
             {item.canMutate && item.messageId ? (
-              <ChatMessageActionsPopover
-                content={item.content}
-                mutation={item.mutation}
-                onDelete={() => onDeleteMessage(item.messageId!)}
-                onEdit={(content) => onEditMessage(item.messageId!, content)}
-                triggerClassName={bubbleClassName}
-              />
+              <button
+                aria-haspopup="dialog"
+                className={`${bubbleClassName} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300`}
+                onClick={(event) => onOpenActions(item, event.currentTarget)}
+                type="button"
+              >
+                {item.content}
+              </button>
             ) : (
               <p className={bubbleClassName}>{item.content}</p>
             )}

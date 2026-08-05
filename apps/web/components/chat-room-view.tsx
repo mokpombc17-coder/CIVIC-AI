@@ -7,6 +7,7 @@ import {
   type ChatMessageViewportFeedback,
   type ChatMessageViewportViewModel,
 } from "@/components/chat-message-viewport";
+import { ChatRoomOverlayHost } from "@/components/chat-room-overlay-host";
 import type { ChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
 import { useChatRoomVisualViewportMaxHeight } from "@/components/use-chat-room-visual-viewport";
 
@@ -20,6 +21,7 @@ export type ChatRoomViewProps = Readonly<{
   header: ChatRoomHeaderViewModel;
   membershipPanel: ReactNode;
   messageHistory: ChatMessageHistoryViewModel;
+  overlay: ReactNode;
   roomError: Readonly<{
     message: string;
     onRetry: () => void;
@@ -33,31 +35,45 @@ export function ChatRoomView({
   header,
   membershipPanel,
   messageHistory,
+  overlay,
   roomError,
   sessionControls,
   syncStatus,
 }: ChatRoomViewProps) {
   const chatRoomCardRef = useChatRoomVisualViewportMaxHeight(CHAT_ROOM_BOTTOM_GAP);
+  const hasOverlay = overlay !== null && overlay !== undefined && overlay !== false;
 
   return (
     <div className="page-stack">
       <section
-        className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
         ref={chatRoomCardRef}
       >
-        <ChatRoomHeader connectionStatus={connectionStatus} header={header} />
+        <div
+          aria-hidden={hasOverlay ? true : undefined}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          inert={hasOverlay}
+        >
+          <ChatRoomHeader connectionStatus={connectionStatus} header={header} />
 
-        {roomError ? <ChatRoomError error={roomError} /> : null}
+          {roomError ? <ChatRoomError error={roomError} /> : null}
 
-        <ChatMessageViewport history={messageHistory} />
+          <ChatMessageViewport history={messageHistory} />
 
-        <div className="shrink-0">
-          {syncStatus}
-          {sessionControls}
+          <div className="shrink-0">
+            {syncStatus}
+            {sessionControls}
+          </div>
         </div>
+
+        <ChatRoomOverlayHost>{overlay}</ChatRoomOverlayHost>
       </section>
 
-      {membershipPanel}
+      {membershipPanel ? (
+        <div aria-hidden={hasOverlay ? true : undefined} inert={hasOverlay}>
+          {membershipPanel}
+        </div>
+      ) : null}
     </div>
   );
 }

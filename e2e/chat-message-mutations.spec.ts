@@ -62,7 +62,29 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
         return id!;
       });
 
-    await test.step("작성자가 Popover에서 메시지를 수정하면 양쪽 화면에 반영된다", async () => {
+    await test.step("공용 Bottom Sheet를 닫아도 composer draft와 trigger focus를 보존한다", async () => {
+      const messageInput = ownerPage.locator('textarea[enterkeyhint="send"]');
+      const actionTrigger = ownerMessageLog.getByRole("button", {
+        name: originalMessage,
+        exact: true,
+      });
+      const draftMessage = `작성 중 draft ${uniqueId}`;
+
+      await messageInput.fill(draftMessage);
+      await actionTrigger.click();
+
+      const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      await expect(ownerPage.locator('[data-chat-message-actions-sheet="true"]')).toHaveCount(1);
+      await expect(messageInput).toHaveValue(draftMessage);
+      await mutationDialog.getByRole("button", { name: "메시지 작업 닫기" }).click();
+
+      await expect(mutationDialog).toHaveCount(0);
+      await expect(actionTrigger).toBeFocused();
+      await expect(messageInput).toHaveValue(draftMessage);
+      await messageInput.fill("");
+    });
+
+    await test.step("작성자가 공용 Bottom Sheet에서 메시지를 수정하면 양쪽 화면에 반영된다", async () => {
       await ownerMessageLog
         .getByRole("button", {
           name: originalMessage,
@@ -71,6 +93,7 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
         .click();
 
       const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      await expect(ownerPage.locator('[data-chat-message-actions-sheet="true"]')).toHaveCount(1);
       await expect(mutationDialog).toBeVisible();
       await mutationDialog.getByRole("button", { name: "수정", exact: true }).click();
       await mutationDialog
