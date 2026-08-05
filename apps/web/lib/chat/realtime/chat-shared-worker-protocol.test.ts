@@ -114,6 +114,20 @@ describe("chat shared worker protocol", () => {
         roomId: "room-01",
       }),
     ).toBe(false);
+    expect(
+      isChatSharedWorkerCommand({
+        type: "RECONNECT",
+        portId: "port-1",
+        reason: "authentication-succeeded",
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerCommand({
+        type: "RECONNECT",
+        portId: "port-1",
+        reason: "unknown-reason",
+      }),
+    ).toBe(false);
   });
 
   it("방 lease event의 generation과 오류 payload를 검증한다", () => {

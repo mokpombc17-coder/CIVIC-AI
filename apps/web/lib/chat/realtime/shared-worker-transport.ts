@@ -14,6 +14,7 @@ import {
   type ChatMessageCommandEvent,
   type ChatMessageMutationEvent,
   type ChatRealtimeError,
+  type ChatRealtimeReconnectReason,
   type ChatRealtimeTransport,
   type ChatRoomMessageDeleteCommand,
   type ChatRoomMessageEditCommand,
@@ -381,7 +382,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     }
   }
 
-  readonly reconnect = (): void => {
+  readonly reconnect = (reason?: ChatRealtimeReconnectReason): void => {
     if (this.attachmentCount === 0) {
       return;
     }
@@ -395,6 +396,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       this.connection.port.postMessage({
         type: "RECONNECT",
         portId: this.portId,
+        ...(reason ? { reason } : {}),
       });
     } catch (cause) {
       this.closeConnection(false);

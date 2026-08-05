@@ -2,6 +2,7 @@ import type {
   ChatConnectionSnapshot,
   ChatMessageCommandEvent,
   ChatMessageMutationEvent,
+  ChatRealtimeReconnectReason,
   ChatRealtimeTransport,
   ChatRoomMessageDeleteCommand,
   ChatRoomMessageEditCommand,
@@ -149,8 +150,8 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
     this.delegate.releaseRoom(roomId);
   };
 
-  readonly reconnect = (): void => {
-    this.delegate.reconnect();
+  readonly reconnect = (reason?: ChatRealtimeReconnectReason): void => {
+    this.delegate.reconnect(reason);
   };
 
   readonly markRoomSnapshotApplied = (roomId: string, generation: number): void => {

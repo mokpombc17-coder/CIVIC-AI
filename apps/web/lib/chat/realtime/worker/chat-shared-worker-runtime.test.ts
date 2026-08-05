@@ -207,6 +207,28 @@ describe("ChatSharedWorkerRuntime", () => {
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });
 
+  it("정상 연결에서는 로그인 성공 신호로 불필요한 재연결을 만들지 않는다", () => {
+    const client = createFakeStompClient();
+    const runtime = new ChatSharedWorkerRuntime(client);
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-1" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "RECONNECT",
+      portId: "port-1",
+      reason: "authentication-succeeded",
+    });
+
+    expect(port.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual({
+      status: "connected",
+      error: null,
+    });
+    expect(client.activate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+  });
+
   it("AUTHENTICATION_REQUIRED를 모든 port에 알리고 후속 close와 재연결을 차단한다", () => {
     const client = createFakeStompClient();
     const runtime = new ChatSharedWorkerRuntime(client);
@@ -254,6 +276,18 @@ describe("ChatSharedWorkerRuntime", () => {
     );
     expect(client.activate).toHaveBeenCalledTimes(1);
     expect(client.forceDisconnect).not.toHaveBeenCalled();
+
+    portA.send({
+      type: "RECONNECT",
+      portId: "port-a",
+      reason: "authentication-succeeded",
+    });
+
+    expect(portA.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.snapshot).toEqual({
+      status: "connecting",
+      error: null,
+    });
+    expect(client.activate).toHaveBeenCalledTimes(2);
   });
 
   it("4002 ROOM_ACCESS_REVOKED에서는 새 연결에서 방 구독과 sync를 다시 구성한다", async () => {

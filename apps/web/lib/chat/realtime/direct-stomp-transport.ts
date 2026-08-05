@@ -57,6 +57,7 @@ import {
   type ChatMessageCommandEvent,
   type ChatMessageMutationEvent,
   type ChatRealtimeError,
+  type ChatRealtimeReconnectReason,
   type ChatRealtimeTransport,
   ChatMessageSendError,
   type ChatRoomMessageDeleteCommand,
@@ -603,7 +604,15 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
   }
 
-  readonly reconnect = (): void => {
+  readonly reconnect = (reason?: ChatRealtimeReconnectReason): void => {
+    if (reason === "authentication-succeeded") {
+      if (this.snapshot.status === "authentication-required" && this.attachmentCount > 0) {
+        this.setSnapshot("connecting", null);
+        this.client.activate();
+      }
+      return;
+    }
+
     if (
       this.attachmentCount === 0 ||
       this.snapshot.status === "replaced" ||

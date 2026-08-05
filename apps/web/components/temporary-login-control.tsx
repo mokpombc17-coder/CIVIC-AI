@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { notifyAuthenticationSucceeded } from "@/lib/auth/authentication-session-events";
 import { requestTemporaryLogin } from "@/lib/auth/request-temporary-login";
 
 type TemporaryLoginStatus = "idle" | "loading" | "authenticated" | "error";
@@ -13,6 +14,7 @@ export function TemporaryLoginControl() {
 
     try {
       await requestTemporaryLogin();
+      notifyAuthenticationSucceeded(window);
       setStatus("authenticated");
     } catch {
       setStatus("error");

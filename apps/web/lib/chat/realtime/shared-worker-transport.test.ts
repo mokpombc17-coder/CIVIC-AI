@@ -67,6 +67,13 @@ describe("SharedWorkerTransport", () => {
       type: "RECONNECT",
       portId: "port-1",
     });
+
+    transport.reconnect("authentication-succeeded");
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "RECONNECT",
+      portId: "port-1",
+      reason: "authentication-succeeded",
+    });
   });
 
   it("React effect가 다시 attach되면 새 port로 안전하게 연결한다", () => {

@@ -58,6 +58,8 @@ export type ChatConnectionSnapshot = Readonly<{
   error: ChatRealtimeError | null;
 }>;
 
+export type ChatRealtimeReconnectReason = "authentication-succeeded";
+
 export type ChatRoomSessionStatus =
   "idle" | "claiming" | "active" | "replaced" | "releasing" | "error";
 
@@ -181,7 +183,7 @@ export type ChatRealtimeTransport = {
   observeRoomInboxEvent(listener: (event: ChatRoomInboxEvent) => void): () => void;
   observeRoom(listener: () => void): () => void;
   observe(listener: () => void): () => void;
-  reconnect(): void;
+  reconnect(reason?: ChatRealtimeReconnectReason): void;
   releaseRoom(roomId: string): void;
   sendRoomMessage(command: ChatRoomMessageSendCommand): void;
 };

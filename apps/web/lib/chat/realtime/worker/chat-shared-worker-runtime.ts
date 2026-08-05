@@ -304,7 +304,7 @@ export class ChatSharedWorkerRuntime {
         return;
       case "RECONNECT":
         if (connectedPort.attached && connectedPort.portId === command.portId) {
-          this.reconnect();
+          this.reconnect(command.reason);
         }
         return;
       case "CLAIM_ROOM":
@@ -473,7 +473,14 @@ export class ChatSharedWorkerRuntime {
     };
   }
 
-  private reconnect(): void {
+  private reconnect(reason?: "authentication-succeeded"): void {
+    if (reason === "authentication-succeeded") {
+      if (this.snapshot.status === "authentication-required") {
+        this.startConnection();
+      }
+      return;
+    }
+
     if (this.snapshot.status === "replaced" || this.snapshot.status === "authentication-required") {
       return;
     }

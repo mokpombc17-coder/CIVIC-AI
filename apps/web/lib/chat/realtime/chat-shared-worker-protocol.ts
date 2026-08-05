@@ -11,6 +11,7 @@ import type {
   ChatConnectionSnapshot,
   ChatMessageMutationFailureCode,
   ChatMessageSendFailureCode,
+  ChatRealtimeReconnectReason,
 } from "./chat-realtime-transport";
 import {
   chatMessageCommandResultSchema,
@@ -43,6 +44,7 @@ export type ChatSharedWorkerCommand =
   | Readonly<{
       type: "RECONNECT";
       portId: string;
+      reason?: ChatRealtimeReconnectReason;
     }>
   | Readonly<{
       type: "CLAIM_ROOM";
@@ -215,8 +217,12 @@ export function isChatSharedWorkerCommand(value: unknown): value is ChatSharedWo
     return false;
   }
 
-  if (command.type === "ATTACH" || command.type === "DETACH" || command.type === "RECONNECT") {
+  if (command.type === "ATTACH" || command.type === "DETACH") {
     return true;
+  }
+
+  if (command.type === "RECONNECT") {
+    return command.reason === undefined || command.reason === "authentication-succeeded";
   }
 
   if (command.type === "ROOM_SNAPSHOT_APPLIED") {

@@ -109,6 +109,19 @@ describe("DirectStompTransport", () => {
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });
 
+  it("정상 연결에서는 로그인 성공 신호로 불필요한 재연결을 만들지 않는다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.reconnect("authentication-succeeded");
+
+    expect(transport.getSnapshot()).toEqual({ status: "connected", error: null });
+    expect(client.activate).toHaveBeenCalledTimes(1);
+    expect(client.forceDisconnect).not.toHaveBeenCalled();
+  });
+
   it("AUTHENTICATION_REQUIRED에서는 후속 close가 상태를 덮지 않고 재연결을 중단한다", () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);
@@ -144,6 +157,11 @@ describe("DirectStompTransport", () => {
     expect(transport.getSnapshot()).toEqual(authenticationRequiredSnapshot);
     expect(client.activate).toHaveBeenCalledTimes(1);
     expect(client.forceDisconnect).not.toHaveBeenCalled();
+
+    transport.reconnect("authentication-succeeded");
+
+    expect(transport.getSnapshot()).toEqual({ status: "connecting", error: null });
+    expect(client.activate).toHaveBeenCalledTimes(2);
   });
 
   it("4002 ROOM_ACCESS_REVOKED에서는 기존 연결을 폐기하고 방 구독을 새로 구성한다", async () => {
