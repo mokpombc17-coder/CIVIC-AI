@@ -57,11 +57,13 @@ import {
   type ChatSharedWorkerCommand,
   type ChatSharedWorkerEvent,
 } from "../chat-shared-worker-protocol";
+import { ChatRealtimeDiagnosticStore } from "../diagnostics/chat-realtime-diagnostic-store";
 
 export type ChatSharedWorkerStompClient = Pick<
   Client,
   | "active"
   | "activate"
+  | "beforeConnect"
   | "deactivate"
   | "forceDisconnect"
   | "onConnect"
@@ -128,15 +130,27 @@ const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
 
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
+type ChatRealtimeRuntimeKind = "shared-worker" | "leader-tab";
+type ConnectionAttemptTrigger =
+  | "initial-attach"
+  | "transport-reconnect"
+  | "authentication-succeeded"
+  | "deactivation-completed"
+  | "manual";
+
 export class ChatSharedWorkerRuntime {
   private activeRoomLease: ActiveRoomLease | null = null;
+  private connectionAttemptId: string | null = null;
+  private connectionAttemptStartedAt = 0;
   private deactivation: Promise<void> | null = null;
+  private diagnosticIdSequence = 0;
   private generation = 0;
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageMutations: ChatMessageMutationScheduler;
   private pendingRoomActivation: PendingRoomActivation | null = null;
   private pendingRoomSync: PendingRoomSync | null = null;
   private pendingRealtimeDelivery: PendingRealtimeDelivery | null = null;
+  private pendingConnectionTrigger: ConnectionAttemptTrigger | null = null;
   private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
   private readyRoomSession: RealtimeDeliverySession | null = null;
   private realtimeDeliverySession: RealtimeDeliverySession | null = null;
@@ -148,7 +162,17 @@ export class ChatSharedWorkerRuntime {
     private readonly workerInstanceId = crypto.randomUUID(),
     private readonly createId = () => crypto.randomUUID(),
     private readonly realtimeBuffer = new ChatRealtimeEventBuffer(),
+    private readonly runtimeKind: ChatRealtimeRuntimeKind = "shared-worker",
+    private readonly diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId: workerInstanceId,
+    }),
+    private readonly createDiagnosticId = () => crypto.randomUUID(),
+    private readonly monotonicNow = () => performance.now(),
   ) {
+    this.diagnostics.emit({
+      event: "runtime.started",
+      transportKind: this.runtimeKind,
+    });
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
       onCommandResult: this.handleMessageCommandResult,
       onRoomInboxEvent: this.handleRoomInboxEvent,
@@ -186,7 +210,20 @@ export class ChatSharedWorkerRuntime {
         this.subscriptions.deleteRoomMessage(roomId, request);
       },
     });
+    this.client.beforeConnect = () => {
+      if (!this.connectionAttemptId) {
+        this.beginConnectionAttempt(this.pendingConnectionTrigger ?? "transport-reconnect");
+      }
+      this.pendingConnectionTrigger = null;
+    };
     this.client.onConnect = () => {
+      if (this.connectionAttemptId) {
+        this.diagnostics.emit({
+          event: "stomp.connected",
+          connectionAttemptId: this.connectionAttemptId,
+          connectionDurationMs: this.getConnectionDurationMs(),
+        });
+      }
       this.handleConnected();
     };
     this.client.onStompError = (frame) => {
@@ -194,7 +231,20 @@ export class ChatSharedWorkerRuntime {
         return;
       }
 
-      if (parseChatStompError(frame)?.code === "AUTHENTICATION_REQUIRED") {
+      const stompError = parseChatStompError(frame);
+      const stompErrorCode = stompError?.code ?? frame.headers.message?.trim() ?? null;
+      this.diagnostics.emit({
+        event: "stomp.error",
+        connectionAttemptId: this.connectionAttemptId,
+        code: stompErrorCode ? sanitizeDiagnosticText(stompErrorCode) : null,
+        retryable: stompError?.retryable ?? null,
+      });
+
+      if (stompError?.code === "AUTHENTICATION_REQUIRED") {
+        this.diagnostics.emit({
+          event: "authentication.required",
+          connectionAttemptId: this.connectionAttemptId,
+        });
         this.stopAuthenticationRequiredReconnect();
         return;
       }
@@ -209,6 +259,10 @@ export class ChatSharedWorkerRuntime {
       });
     };
     this.client.onWebSocketError = () => {
+      this.diagnostics.emit({
+        event: "websocket.error",
+        connectionAttemptId: this.connectionAttemptId,
+      });
       if (this.getAttachedPortCount() > 0 && this.snapshot.status !== "authentication-required") {
         this.setSnapshot("error", {
           source: "websocket",
@@ -217,6 +271,7 @@ export class ChatSharedWorkerRuntime {
       }
     };
     this.client.onWebSocketClose = (event) => {
+      const statusBefore = this.snapshot.status;
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
       this.messageMutations.cancelAll("WEBSOCKET_CLOSED");
@@ -224,25 +279,30 @@ export class ChatSharedWorkerRuntime {
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
       if (this.snapshot.status === "authentication-required") {
+        this.recordWebSocketClose(event, statusBefore, "authentication-state-preserved");
         return;
       }
 
       if (isChatConnectionReplacedCloseEvent(event)) {
+        this.recordWebSocketClose(event, statusBefore, "connection-replaced");
         this.stopConnectionReplacedReconnect();
         return;
       }
 
       if (isChatRoomAccessRevokedCloseEvent(event)) {
+        this.recordWebSocketClose(event, statusBefore, "room-access-revoked");
         this.restartAfterRoomAccessRevoked();
         return;
       }
 
       if (isChatRoomClosedCloseEvent(event)) {
+        this.recordWebSocketClose(event, statusBefore, "room-closed");
         this.restartAfterRoomClosed();
         return;
       }
 
       if (this.getAttachedPortCount() === 0 || this.deactivation || !this.client.active) {
+        this.recordWebSocketClose(event, statusBefore, "disconnected");
         this.snapshot = {
           status: "disconnected",
           error: null,
@@ -250,6 +310,7 @@ export class ChatSharedWorkerRuntime {
         return;
       }
 
+      this.recordWebSocketClose(event, statusBefore, "reconnecting");
       const error = event.reason.trim()
         ? {
             source: "websocket" as const,
@@ -307,6 +368,24 @@ export class ChatSharedWorkerRuntime {
           this.reconnect(command.reason);
         }
         return;
+      case "GET_DIAGNOSTICS":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          connectedPort.port.postMessage({
+            type: "DIAGNOSTICS_SNAPSHOT",
+            requestId: command.requestId,
+            snapshot: this.diagnostics.getSnapshot(),
+          });
+        }
+        return;
+      case "CLEAR_DIAGNOSTICS":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.diagnostics.clear();
+          connectedPort.port.postMessage({
+            type: "DIAGNOSTICS_CLEARED",
+            requestId: command.requestId,
+          });
+        }
+        return;
       case "CLAIM_ROOM":
         if (connectedPort.attached && connectedPort.portId === command.portId) {
           this.claimRoom(connectedPort, command);
@@ -349,13 +428,18 @@ export class ChatSharedWorkerRuntime {
     const hadAttachedPorts = this.getAttachedPortCount() > 0;
     connectedPort.attached = true;
     connectedPort.portId = portId;
+    this.diagnostics.emit({
+      event: "port.attached",
+      portId,
+      attachedPortCount: this.getAttachedPortCount(),
+    });
 
     if (hadAttachedPorts) {
       this.broadcastSnapshot();
       return;
     }
 
-    this.startConnection();
+    this.startConnection("initial-attach");
   }
 
   private detachPort(connectedPort: ConnectedPort): void {
@@ -382,6 +466,13 @@ export class ChatSharedWorkerRuntime {
     connectedPort.port.removeEventListener("message", connectedPort.listener);
     this.ports.delete(connectedPort.port);
     connectedPort.port.close();
+    if (portId) {
+      this.diagnostics.emit({
+        event: "port.detached",
+        portId,
+        attachedPortCount: this.getAttachedPortCount(),
+      });
+    }
 
     if (this.getAttachedPortCount() > 0) {
       this.broadcastSnapshot();
@@ -391,8 +482,9 @@ export class ChatSharedWorkerRuntime {
     this.stopConnection();
   }
 
-  private startConnection(): void {
+  private startConnection(trigger: ConnectionAttemptTrigger): void {
     if (this.deactivation) {
+      this.pendingConnectionTrigger = trigger;
       this.setSnapshot("connecting", null);
       return;
     }
@@ -402,6 +494,8 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    this.beginConnectionAttempt(trigger);
+    this.pendingConnectionTrigger = null;
     this.setSnapshot("connecting", null);
     this.client.activate();
   }
@@ -438,7 +532,7 @@ export class ChatSharedWorkerRuntime {
         this.deactivation = null;
 
         if (this.getAttachedPortCount() > 0) {
-          this.startConnection();
+          this.startConnection(this.pendingConnectionTrigger ?? "deactivation-completed");
           return;
         }
 
@@ -474,14 +568,26 @@ export class ChatSharedWorkerRuntime {
   }
 
   private reconnect(reason?: "authentication-succeeded"): void {
+    this.diagnostics.emit({
+      event: "reconnect.requested",
+      reason: reason ?? "manual",
+      statusBefore: this.snapshot.status,
+    });
+
     if (reason === "authentication-succeeded") {
       if (this.snapshot.status === "authentication-required") {
-        this.startConnection();
+        this.startConnection("authentication-succeeded");
       }
       return;
     }
 
     if (this.snapshot.status === "replaced" || this.snapshot.status === "authentication-required") {
+      this.diagnostics.emit({
+        event: "reconnect.suppressed",
+        reason:
+          this.snapshot.status === "replaced" ? "connection-replaced" : "authentication-required",
+        statusBefore: this.snapshot.status,
+      });
       return;
     }
 
@@ -490,11 +596,71 @@ export class ChatSharedWorkerRuntime {
     if (this.client.active) {
       this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
+      this.pendingConnectionTrigger = "manual";
       this.client.forceDisconnect();
       return;
     }
 
-    this.startConnection();
+    this.startConnection("manual");
+  }
+
+  private beginConnectionAttempt(trigger: ConnectionAttemptTrigger): void {
+    this.connectionAttemptId = this.nextDiagnosticId();
+
+    try {
+      this.connectionAttemptStartedAt = this.monotonicNow();
+    } catch {
+      this.connectionAttemptStartedAt = 0;
+    }
+    this.diagnostics.emit({
+      event: "connection.requested",
+      connectionAttemptId: this.connectionAttemptId,
+      trigger,
+      statusBefore: this.snapshot.status,
+    });
+  }
+
+  private nextDiagnosticId(): string {
+    this.diagnosticIdSequence += 1;
+
+    try {
+      const value = this.createDiagnosticId().trim();
+      return value && value.length <= 128 ? value : `diagnostic-${this.diagnosticIdSequence}`;
+    } catch {
+      return `diagnostic-${this.diagnosticIdSequence}`;
+    }
+  }
+
+  private getConnectionDurationMs(): number {
+    try {
+      return Math.max(0, this.monotonicNow() - this.connectionAttemptStartedAt);
+    } catch {
+      return 0;
+    }
+  }
+
+  private recordWebSocketClose(
+    event: CloseEvent,
+    statusBefore: ChatConnectionStatus,
+    reconnectDecision:
+      | "authentication-state-preserved"
+      | "connection-replaced"
+      | "room-access-revoked"
+      | "room-closed"
+      | "reconnecting"
+      | "disconnected",
+  ): void {
+    this.diagnostics.emit({
+      event: "websocket.closed",
+      connectionAttemptId: this.connectionAttemptId,
+      closeCode: event.code,
+      closeReason: sanitizeDiagnosticText(event.reason),
+      wasClean: event.wasClean,
+      statusBefore,
+      reconnectDecision,
+    });
+    this.connectionAttemptId = null;
+    this.connectionAttemptStartedAt = 0;
   }
 
   private stopAuthenticationRequiredReconnect(): void {
@@ -630,6 +796,13 @@ export class ChatSharedWorkerRuntime {
         ownerPortId: portId,
         generation: previousLease.generation,
       };
+      this.diagnostics.emit({
+        event: "room.claim.requested",
+        portId,
+        requestId: command.requestId,
+        roomId: command.roomId,
+        generation: previousLease.generation,
+      });
       this.activatePendingRoom();
       return;
     }
@@ -651,8 +824,21 @@ export class ChatSharedWorkerRuntime {
       ownerPortId: portId,
       generation: this.generation,
     };
+    this.diagnostics.emit({
+      event: "room.claim.requested",
+      portId,
+      requestId: command.requestId,
+      roomId: command.roomId,
+      generation: nextLease.generation,
+    });
 
     if (previousLease && previousLease.ownerPortId !== portId) {
+      this.diagnostics.emit({
+        event: "room.replaced",
+        roomId: previousLease.roomId,
+        activatedRoomId: command.roomId,
+        generation: nextLease.generation,
+      });
       this.sendToPort(previousLease.ownerPortId, {
         type: "ROOM_REPLACED",
         roomId: previousLease.roomId,
@@ -694,6 +880,13 @@ export class ChatSharedWorkerRuntime {
       this.pendingRoomActivation = null;
       this.pendingRoomSync = null;
     }
+
+    this.diagnostics.emit({
+      event: "room.released",
+      requestId: command.requestId,
+      roomId: command.roomId,
+      generation: this.generation,
+    });
 
     connectedPort.port.postMessage({
       type: "ROOM_RELEASED",
@@ -860,6 +1053,14 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
+    if (lease) {
+      this.diagnostics.emit({
+        event: "room.subscriptions.started",
+        roomId: lease.roomId,
+        generation: lease.generation,
+      });
+    }
+
     this.setSnapshot("connected", null);
 
     if (lease) {
@@ -889,10 +1090,15 @@ export class ChatSharedWorkerRuntime {
       this.handleSubscriptionSetupFailure(cause);
       return;
     }
-
     if (!this.subscriptions.connected) {
       return;
     }
+
+    this.diagnostics.emit({
+      event: "room.subscriptions.started",
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
 
     if (this.snapshot.status === "error") {
       this.setSnapshot("connected", null);
@@ -917,6 +1123,12 @@ export class ChatSharedWorkerRuntime {
       generation: lease.generation,
     };
     this.pendingRoomSync = pendingSync;
+    this.diagnostics.emit({
+      event: "room.sync.requested",
+      requestId: pendingSync.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
     this.sendToPort(lease.ownerPortId, {
       type: "ROOM_SYNCING",
       roomId: lease.roomId,
@@ -929,6 +1141,7 @@ export class ChatSharedWorkerRuntime {
       this.pendingRoomSync = null;
       this.handleRoomSyncFailure(
         lease,
+        pendingSync.requestId,
         "ROOM_SUBSCRIPTION_SYNC_PUBLISH_FAILED",
         true,
         cause instanceof Error && cause.message.trim()
@@ -970,6 +1183,20 @@ export class ChatSharedWorkerRuntime {
       ownerPortId: lease.ownerPortId,
       generation: lease.generation,
     };
+    this.diagnostics.emit({
+      event: "room.sync.ready",
+      requestId: ready.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      messageVisibleAfterSequence: ready.messageVisibleAfterSequence,
+      watermarkSequence: ready.watermarkSequence,
+    });
+    this.diagnostics.emit({
+      event: "room.activated",
+      requestId: lease.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
     this.sendToPort(lease.ownerPortId, {
       type: "ROOM_ACTIVATED",
       requestId: lease.requestId,
@@ -1157,6 +1384,7 @@ export class ChatSharedWorkerRuntime {
 
   private handleRoomSyncFailure(
     lease: ActiveRoomLease,
+    syncRequestId: string,
     code: string,
     retryable: boolean,
     message: string,
@@ -1173,6 +1401,14 @@ export class ChatSharedWorkerRuntime {
     }
 
     this.pendingRoomActivation = null;
+    this.diagnostics.emit({
+      event: "room.sync.rejected",
+      requestId: syncRequestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      code: sanitizeDiagnosticText(code),
+      retryable,
+    });
     this.sendToPort(lease.ownerPortId, {
       type: "ROOM_SYNC_FAILED",
       requestId: lease.requestId,
@@ -1337,12 +1573,21 @@ export class ChatSharedWorkerRuntime {
     this.pendingRoomSync = null;
 
     if (rejection.code === "ROOM_SUBSCRIPTION_STALE") {
+      this.diagnostics.emit({
+        event: "room.sync.rejected",
+        requestId: rejection.requestId,
+        roomId: lease.roomId,
+        generation: lease.generation,
+        code: rejection.code,
+        retryable: rejection.retryable,
+      });
       this.recoverStaleRoomSubscriptions(lease);
       return;
     }
 
     this.handleRoomSyncFailure(
       lease,
+      rejection.requestId,
       rejection.code,
       rejection.retryable,
       rejection.retryable
@@ -1608,4 +1853,11 @@ function getStompErrorMessage(frame: IFrame): string {
   return (
     frame.headers.message?.trim() || frame.body.trim() || "STOMP 서버가 연결 오류를 반환했습니다."
   );
+}
+
+function sanitizeDiagnosticText(value: string): string {
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .trim()
+    .slice(0, 256);
 }

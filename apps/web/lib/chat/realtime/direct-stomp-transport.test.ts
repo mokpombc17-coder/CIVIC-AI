@@ -1,8 +1,92 @@
 import type { IFrame, IMessage, StompSubscription } from "@stomp/stompjs";
 import { describe, expect, it, vi } from "vitest";
+import { ChatRealtimeDiagnosticStore } from "./diagnostics/chat-realtime-diagnostic-store";
 import { DirectStompTransport, type DirectStompClient } from "./direct-stomp-transport";
 
 describe("DirectStompTransport", () => {
+  it("fallback 연결과 자동 재연결 lifecycle을 같은 진단 계약으로 기록한다", () => {
+    const client = createFakeClient();
+    const diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId: "direct-1",
+      enabled: true,
+      now: () => new Date("2026-08-05T00:00:00.000Z"),
+      monotonicNow: () => 1,
+    });
+    let attempt = 0;
+    const transport = new DirectStompTransport(
+      client,
+      undefined,
+      undefined,
+      "direct-1",
+      diagnostics,
+      () => `attempt-${++attempt}`,
+      () => 1,
+    );
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    client.onWebSocketClose({
+      code: 1006,
+      reason: "NETWORK_DISCONNECTED",
+      wasClean: false,
+    } as CloseEvent);
+    void client.beforeConnect(undefined as never);
+    client.onConnect({} as IFrame);
+
+    expect(diagnostics.getSnapshot().events.map((event) => event.event)).toEqual([
+      "runtime.started",
+      "connection.requested",
+      "stomp.connected",
+      "websocket.closed",
+      "connection.requested",
+      "stomp.connected",
+    ]);
+    expect(
+      diagnostics.getSnapshot().events.filter((event) => event.event === "connection.requested"),
+    ).toMatchObject([
+      { connectionAttemptId: "attempt-1", trigger: "initial-attach" },
+      { connectionAttemptId: "attempt-2", trigger: "transport-reconnect" },
+    ]);
+  });
+
+  it("fallback Room subscription lifecycle도 같은 진단 계약으로 기록한다", () => {
+    const client = createFakeClient();
+    const diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId: "direct-1",
+      enabled: true,
+    });
+    const transport = new DirectStompTransport(
+      client,
+      () => "550e8400-e29b-41d4-a716-446655440001",
+      undefined,
+      "direct-1",
+      diagnostics,
+      () => crypto.randomUUID(),
+    );
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    transport.claimRoom("room-01");
+
+    const roomEvents = diagnostics
+      .getSnapshot()
+      .events.filter((event) => event.event.startsWith("room."));
+    expect(roomEvents.map((event) => event.event)).toEqual([
+      "room.claim.requested",
+      "room.subscriptions.started",
+      "room.sync.requested",
+      "room.sync.ready",
+      "room.activated",
+    ]);
+    expect(roomEvents.find((event) => event.event === "room.sync.ready")).toMatchObject({
+      requestId: "550e8400-e29b-41d4-a716-446655440001",
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 100,
+      watermarkSequence: 120,
+    });
+  });
+
   it("첫 consumer가 붙을 때만 연결하고 마지막 consumer가 떨어질 때 연결을 종료한다", async () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);
@@ -1030,6 +1114,7 @@ function createFakeClient({ autoReady = true } = {}): FakeDirectStompClient {
     activate: vi.fn(() => {
       active = true;
     }),
+    beforeConnect: vi.fn(),
     deactivate: vi.fn(async () => {
       active = false;
     }),

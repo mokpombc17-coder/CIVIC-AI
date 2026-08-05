@@ -4,6 +4,7 @@ import type {
   ChatSharedWorkerCommand,
   ChatSharedWorkerEvent,
 } from "../chat-shared-worker-protocol";
+import { ChatRealtimeDiagnosticStore } from "../diagnostics/chat-realtime-diagnostic-store";
 import {
   ChatSharedWorkerRuntime,
   type ChatSharedWorkerPort,
@@ -11,6 +12,165 @@ import {
 } from "./chat-shared-worker-runtime";
 
 describe("ChatSharedWorkerRuntime", () => {
+  it("연결과 자동 재연결 lifecycle을 구조화 진단 로그로 보관한다", () => {
+    const client = createFakeStompClient();
+    const diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId: "worker-1",
+      enabled: true,
+      now: () => new Date("2026-08-05T00:00:00.000Z"),
+      monotonicNow: () => 1,
+    });
+    let attempt = 0;
+    const runtime = new ChatSharedWorkerRuntime(
+      client,
+      "worker-1",
+      undefined,
+      undefined,
+      "shared-worker",
+      diagnostics,
+      () => `attempt-${++attempt}`,
+      () => 1,
+    );
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    client.onWebSocketClose({
+      code: 1006,
+      reason: "NETWORK_DISCONNECTED",
+      wasClean: false,
+    } as CloseEvent);
+    void client.beforeConnect(undefined as never);
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "GET_DIAGNOSTICS",
+      portId: "port-a",
+      requestId: "diagnostics-1",
+    });
+
+    const snapshot = port.eventsOfType("DIAGNOSTICS_SNAPSHOT").at(-1)?.snapshot;
+    expect(snapshot?.events.map((event) => event.event)).toEqual([
+      "runtime.started",
+      "port.attached",
+      "connection.requested",
+      "stomp.connected",
+      "websocket.closed",
+      "connection.requested",
+      "stomp.connected",
+    ]);
+    expect(
+      snapshot?.events.filter((event) => event.event === "connection.requested"),
+    ).toMatchObject([
+      { connectionAttemptId: "attempt-1", trigger: "initial-attach" },
+      { connectionAttemptId: "attempt-2", trigger: "transport-reconnect" },
+    ]);
+    expect(snapshot?.events.find((event) => event.event === "websocket.closed")).toMatchObject({
+      closeCode: 1006,
+      closeReason: "NETWORK_DISCONNECTED",
+      reconnectDecision: "reconnecting",
+    });
+  });
+
+  it("인증 terminal 상태와 후속 close 결정을 순서대로 기록한다", () => {
+    const client = createFakeStompClient();
+    const diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId: "worker-1",
+      enabled: true,
+    });
+    const runtime = new ChatSharedWorkerRuntime(
+      client,
+      "worker-1",
+      undefined,
+      undefined,
+      "shared-worker",
+      diagnostics,
+      () => "attempt-1",
+    );
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onStompError({
+      headers: {
+        message: "AUTHENTICATION_REQUIRED",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ code: "AUTHENTICATION_REQUIRED", retryable: false }),
+    } as unknown as IFrame);
+    client.onWebSocketClose({ code: 1002, reason: "", wasClean: false } as CloseEvent);
+    port.send({
+      type: "GET_DIAGNOSTICS",
+      portId: "port-a",
+      requestId: "diagnostics-1",
+    });
+
+    const events = port.eventsOfType("DIAGNOSTICS_SNAPSHOT").at(-1)?.snapshot.events ?? [];
+    expect(events.slice(-3).map((event) => event.event)).toEqual([
+      "stomp.error",
+      "authentication.required",
+      "websocket.closed",
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      event: "websocket.closed",
+      closeCode: 1002,
+      reconnectDecision: "authentication-state-preserved",
+    });
+  });
+
+  it("Room claim부터 subscription sync 완료까지의 lifecycle을 기록한다", () => {
+    const client = createFakeStompClient();
+    const diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId: "worker-1",
+      enabled: true,
+    });
+    const runtime = new ChatSharedWorkerRuntime(
+      client,
+      "worker-1",
+      () => "550e8400-e29b-41d4-a716-446655440001",
+      undefined,
+      "shared-worker",
+      diagnostics,
+      () => "attempt-1",
+    );
+    const port = createFakePort();
+
+    runtime.connectPort(port);
+    port.send({ type: "ATTACH", portId: "port-a" });
+    client.onConnect({} as IFrame);
+    port.send({
+      type: "CLAIM_ROOM",
+      portId: "port-a",
+      requestId: "claim-1",
+      roomId: "room-01",
+    });
+    port.send({
+      type: "GET_DIAGNOSTICS",
+      portId: "port-a",
+      requestId: "diagnostics-1",
+    });
+
+    const roomEvents =
+      port
+        .eventsOfType("DIAGNOSTICS_SNAPSHOT")
+        .at(-1)
+        ?.snapshot.events.filter((event) => event.event.startsWith("room.")) ?? [];
+    expect(roomEvents.map((event) => event.event)).toEqual([
+      "room.claim.requested",
+      "room.subscriptions.started",
+      "room.sync.requested",
+      "room.sync.ready",
+      "room.activated",
+    ]);
+    expect(roomEvents.find((event) => event.event === "room.sync.ready")).toMatchObject({
+      requestId: "550e8400-e29b-41d4-a716-446655440001",
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 100,
+      watermarkSequence: 120,
+    });
+  });
+
   it("여러 port가 붙어도 STOMP Client를 한 번만 활성화하고 snapshot을 공유한다", () => {
     const client = createFakeStompClient();
     const runtime = new ChatSharedWorkerRuntime(client, "worker-1");
@@ -1673,6 +1833,7 @@ function createFakeStompClient({ autoReady = true } = {}): FakeStompClient {
     activate: vi.fn(() => {
       active = true;
     }),
+    beforeConnect: vi.fn(),
     deactivate: vi.fn(async () => {
       active = false;
     }),

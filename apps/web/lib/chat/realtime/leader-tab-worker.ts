@@ -212,7 +212,14 @@ class LeaderTabCoordinator {
     {
       createChannel = (name) => new BroadcastChannel(name) as LeaderTabBroadcastChannel,
       createId = () => crypto.randomUUID(),
-      createRuntime = () => new ChatSharedWorkerRuntime(createChatStompClient()),
+      createRuntime = () =>
+        new ChatSharedWorkerRuntime(
+          createChatStompClient(),
+          undefined,
+          undefined,
+          undefined,
+          "leader-tab",
+        ),
       heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
       leaderTimeoutMs = LEADER_TIMEOUT_MS,
       locks = (navigator as Navigator & { locks: LeaderTabLockManager }).locks,

@@ -58,32 +58,36 @@ export class ChatRealtimeDiagnosticStore {
       return;
     }
 
-    const event = {
-      ...input,
-      eventVersion: CHAT_REALTIME_DIAGNOSTIC_SCHEMA_VERSION,
-      sequence: this.sequence + 1,
-      occurredAt: this.now().toISOString(),
-      elapsedMs: this.monotonicNow(),
-      runtimeInstanceId: this.runtimeInstanceId,
-      level: getChatRealtimeDiagnosticLevel(input.event),
-    };
-    const parsed = chatRealtimeDiagnosticEventSchema.safeParse(event);
+    try {
+      const event = {
+        ...input,
+        eventVersion: CHAT_REALTIME_DIAGNOSTIC_SCHEMA_VERSION,
+        sequence: this.sequence + 1,
+        occurredAt: this.now().toISOString(),
+        elapsedMs: this.monotonicNow(),
+        runtimeInstanceId: this.runtimeInstanceId,
+        level: getChatRealtimeDiagnosticLevel(input.event),
+      };
+      const parsed = chatRealtimeDiagnosticEventSchema.safeParse(event);
 
-    if (!parsed.success) {
+      if (!parsed.success) {
+        this.rejectedEventCount += 1;
+        return;
+      }
+
+      this.sequence += 1;
+      this.events[this.nextIndex] = Object.freeze(parsed.data);
+      this.nextIndex = (this.nextIndex + 1) % this.capacity;
+
+      if (this.size === this.capacity) {
+        this.droppedEventCount += 1;
+        return;
+      }
+
+      this.size += 1;
+    } catch {
       this.rejectedEventCount += 1;
-      return;
     }
-
-    this.sequence += 1;
-    this.events[this.nextIndex] = Object.freeze(parsed.data);
-    this.nextIndex = (this.nextIndex + 1) % this.capacity;
-
-    if (this.size === this.capacity) {
-      this.droppedEventCount += 1;
-      return;
-    }
-
-    this.size += 1;
   }
 
   clear(): void {

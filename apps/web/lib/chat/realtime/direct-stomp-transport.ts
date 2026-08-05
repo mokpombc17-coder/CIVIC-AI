@@ -43,6 +43,7 @@ import {
   type ChatRealtimeEventBufferSnapshot,
 } from "./chat-realtime-event-buffer";
 import { ChatStompSubscriptionManager } from "./chat-stomp-subscription-manager";
+import { ChatRealtimeDiagnosticStore } from "./diagnostics/chat-realtime-diagnostic-store";
 import {
   CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
   CHAT_CONNECTION_REPLACED_MESSAGE,
@@ -70,6 +71,7 @@ export type DirectStompClient = Pick<
   Client,
   | "active"
   | "activate"
+  | "beforeConnect"
   | "deactivate"
   | "forceDisconnect"
   | "onConnect"
@@ -109,14 +111,25 @@ type RealtimeDeliverySession = Readonly<{
   generation: number;
 }>;
 
+type ConnectionAttemptTrigger =
+  | "initial-attach"
+  | "transport-reconnect"
+  | "authentication-succeeded"
+  | "deactivation-completed"
+  | "manual";
+
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
+  private connectionAttemptId: string | null = null;
+  private connectionAttemptStartedAt = 0;
   private connectionRestart: Promise<void> | null = null;
+  private diagnosticIdSequence = 0;
   private readonly listeners = new Set<() => void>();
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
   private readonly messageMutations: ChatMessageMutationScheduler;
+  private pendingConnectionTrigger: ConnectionAttemptTrigger | null = null;
   private readonly messageDeliveryLifecycleListeners = new Set<
     (event: ChatMessageDeliveryLifecycleEvent) => void
   >();
@@ -129,6 +142,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
   private readonly roomInboxEventListeners = new Set<(event: ChatRoomInboxEvent) => void>();
+  private roomClaimRequestId: string | null = null;
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
   private readonly subscriptions: ChatStompSubscriptionManager;
@@ -137,7 +151,17 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     private readonly client: DirectStompClient = createChatStompClient(),
     private readonly createId = () => crypto.randomUUID(),
     private readonly realtimeBuffer = new ChatRealtimeEventBuffer(),
+    private readonly runtimeInstanceId = crypto.randomUUID(),
+    private readonly diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId,
+    }),
+    private readonly createDiagnosticId = () => crypto.randomUUID(),
+    private readonly monotonicNow = () => performance.now(),
   ) {
+    this.diagnostics.emit({
+      event: "runtime.started",
+      transportKind: "direct",
+    });
     this.subscriptions = new ChatStompSubscriptionManager(this.client, {
       onCommandResult: this.handleMessageCommandResult,
       onRoomInboxEvent: this.handleRoomInboxEvent,
@@ -169,9 +193,23 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         this.subscriptions.deleteRoomMessage(roomId, request);
       },
     });
+    this.client.beforeConnect = () => {
+      if (!this.connectionAttemptId) {
+        this.beginConnectionAttempt(this.pendingConnectionTrigger ?? "transport-reconnect");
+      }
+      this.pendingConnectionTrigger = null;
+    };
     this.client.onConnect = () => {
       if (this.attachmentCount === 0) {
         return;
+      }
+
+      if (this.connectionAttemptId) {
+        this.diagnostics.emit({
+          event: "stomp.connected",
+          connectionAttemptId: this.connectionAttemptId,
+          connectionDurationMs: this.getConnectionDurationMs(),
+        });
       }
 
       const { error: roomError, generation, roomId, status } = this.roomSnapshot;
@@ -189,6 +227,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         return;
       }
 
+      if (shouldRestoreRoom && roomId) {
+        this.diagnostics.emit({
+          event: "room.subscriptions.started",
+          roomId,
+          generation,
+        });
+      }
+
       this.setSnapshot("connected", null);
 
       if (shouldRestoreRoom && roomId) {
@@ -196,7 +242,20 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       }
     };
     this.client.onStompError = (frame) => {
-      if (parseChatStompError(frame)?.code === "AUTHENTICATION_REQUIRED") {
+      const stompError = parseChatStompError(frame);
+      const stompErrorCode = stompError?.code ?? frame.headers.message?.trim() ?? null;
+      this.diagnostics.emit({
+        event: "stomp.error",
+        connectionAttemptId: this.connectionAttemptId,
+        code: stompErrorCode ? sanitizeDiagnosticText(stompErrorCode) : null,
+        retryable: stompError?.retryable ?? null,
+      });
+
+      if (stompError?.code === "AUTHENTICATION_REQUIRED") {
+        this.diagnostics.emit({
+          event: "authentication.required",
+          connectionAttemptId: this.connectionAttemptId,
+        });
         this.stopAuthenticationRequiredReconnect();
         return;
       }
@@ -214,6 +273,10 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       });
     };
     this.client.onWebSocketError = () => {
+      this.diagnostics.emit({
+        event: "websocket.error",
+        connectionAttemptId: this.connectionAttemptId,
+      });
       if (this.snapshot.status === "authentication-required") {
         return;
       }
@@ -224,6 +287,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       });
     };
     this.client.onWebSocketClose = (event) => {
+      const statusBefore = this.snapshot.status;
       this.subscriptions.disconnect();
       this.pendingRoomSync = null;
       this.messageMutations.cancelAll("WEBSOCKET_CLOSED");
@@ -231,29 +295,35 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
       if (this.snapshot.status === "authentication-required") {
+        this.recordWebSocketClose(event, statusBefore, "authentication-state-preserved");
         return;
       }
 
       if (isChatConnectionReplacedCloseEvent(event)) {
+        this.recordWebSocketClose(event, statusBefore, "connection-replaced");
         this.stopConnectionReplacedReconnect();
         return;
       }
 
       if (isChatRoomAccessRevokedCloseEvent(event)) {
+        this.recordWebSocketClose(event, statusBefore, "room-access-revoked");
         this.restartAfterRoomAccessRevoked();
         return;
       }
 
       if (isChatRoomClosedCloseEvent(event)) {
+        this.recordWebSocketClose(event, statusBefore, "room-closed");
         this.restartAfterRoomClosed();
         return;
       }
 
       if (this.connectionRestart) {
+        this.recordWebSocketClose(event, statusBefore, "disconnected");
         return;
       }
 
       if (this.attachmentCount === 0 || !this.client.active) {
+        this.recordWebSocketClose(event, statusBefore, "disconnected");
         this.setSnapshot("disconnected", null);
         return;
       }
@@ -274,6 +344,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
           error: null,
         });
       }
+      this.recordWebSocketClose(event, statusBefore, "reconnecting");
       this.setSnapshot("reconnecting", error);
     };
   }
@@ -282,6 +353,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.attachmentCount += 1;
 
     if (this.attachmentCount === 1) {
+      this.beginConnectionAttempt("initial-attach");
+      this.pendingConnectionTrigger = null;
       this.setSnapshot("connecting", null);
       this.client.activate();
     }
@@ -403,6 +476,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
+    const previousRoomId = this.roomSnapshot.roomId;
     this.messageDeliveries.cancelAll("ROOM_REPLACED");
     this.messageMutations.cancelAll("ROOM_REPLACED");
     const claimingSnapshot: ChatRoomSessionSnapshot = {
@@ -417,6 +491,23 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       watermarkSequence: null,
       error: null,
     };
+    const claimRequestId = this.nextDiagnosticId();
+    this.roomClaimRequestId = claimRequestId;
+    this.diagnostics.emit({
+      event: "room.claim.requested",
+      portId: DIRECT_MESSAGE_DELIVERY_OWNER_ID,
+      requestId: claimRequestId,
+      roomId,
+      generation: claimingSnapshot.generation,
+    });
+    if (previousRoomId && previousRoomId !== roomId) {
+      this.diagnostics.emit({
+        event: "room.replaced",
+        roomId: previousRoomId,
+        activatedRoomId: roomId,
+        generation: claimingSnapshot.generation,
+      });
+    }
     this.pauseRealtimeDelivery();
     this.setRoomSnapshot(claimingSnapshot);
     this.realtimeBuffer.begin(roomId, claimingSnapshot.generation);
@@ -427,8 +518,12 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       this.handleSubscriptionSetupFailure(cause);
       return;
     }
-
     if (this.subscriptions.connected) {
+      this.diagnostics.emit({
+        event: "room.subscriptions.started",
+        roomId,
+        generation: claimingSnapshot.generation,
+      });
       if (this.snapshot.status === "error") {
         this.setSnapshot("connected", null);
       }
@@ -451,12 +546,20 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         message: getSubscriptionErrorMessage(cause, "기존 채팅방 STOMP 구독 해제에 실패했습니다."),
       });
     } finally {
+      const releasedGeneration = this.roomSnapshot.generation + 1;
       this.pendingRoomSync = null;
+      this.roomClaimRequestId = null;
       this.pauseRealtimeDelivery();
       this.realtimeBuffer.clear(roomId, this.roomSnapshot.generation);
       this.setRoomSnapshot({
         ...INITIAL_ROOM_SNAPSHOT,
-        generation: this.roomSnapshot.generation + 1,
+        generation: releasedGeneration,
+      });
+      this.diagnostics.emit({
+        event: "room.released",
+        requestId: this.nextDiagnosticId(),
+        roomId,
+        generation: releasedGeneration,
       });
     }
   };
@@ -605,8 +708,16 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   }
 
   readonly reconnect = (reason?: ChatRealtimeReconnectReason): void => {
+    this.diagnostics.emit({
+      event: "reconnect.requested",
+      reason: reason ?? "manual",
+      statusBefore: this.snapshot.status,
+    });
+
     if (reason === "authentication-succeeded") {
       if (this.snapshot.status === "authentication-required" && this.attachmentCount > 0) {
+        this.beginConnectionAttempt("authentication-succeeded");
+        this.pendingConnectionTrigger = null;
         this.setSnapshot("connecting", null);
         this.client.activate();
       }
@@ -619,6 +730,18 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       this.snapshot.status === "authentication-required" ||
       this.connectionRestart
     ) {
+      this.diagnostics.emit({
+        event: "reconnect.suppressed",
+        reason:
+          this.attachmentCount === 0
+            ? "no-attached-ports"
+            : this.snapshot.status === "replaced"
+              ? "connection-replaced"
+              : this.snapshot.status === "authentication-required"
+                ? "authentication-required"
+                : "inactive-client",
+        statusBefore: this.snapshot.status,
+      });
       return;
     }
 
@@ -627,13 +750,75 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     if (this.client.active) {
       this.subscriptions.disconnect();
       this.setSnapshot("reconnecting", null);
+      this.pendingConnectionTrigger = "manual";
       this.client.forceDisconnect();
       return;
     }
 
+    this.beginConnectionAttempt("manual");
+    this.pendingConnectionTrigger = null;
     this.setSnapshot("connecting", null);
     this.client.activate();
   };
+
+  private beginConnectionAttempt(trigger: ConnectionAttemptTrigger): void {
+    this.connectionAttemptId = this.nextDiagnosticId();
+
+    try {
+      this.connectionAttemptStartedAt = this.monotonicNow();
+    } catch {
+      this.connectionAttemptStartedAt = 0;
+    }
+    this.diagnostics.emit({
+      event: "connection.requested",
+      connectionAttemptId: this.connectionAttemptId,
+      trigger,
+      statusBefore: this.snapshot.status,
+    });
+  }
+
+  private nextDiagnosticId(): string {
+    this.diagnosticIdSequence += 1;
+
+    try {
+      const value = this.createDiagnosticId().trim();
+      return value && value.length <= 128 ? value : `diagnostic-${this.diagnosticIdSequence}`;
+    } catch {
+      return `diagnostic-${this.diagnosticIdSequence}`;
+    }
+  }
+
+  private getConnectionDurationMs(): number {
+    try {
+      return Math.max(0, this.monotonicNow() - this.connectionAttemptStartedAt);
+    } catch {
+      return 0;
+    }
+  }
+
+  private recordWebSocketClose(
+    event: CloseEvent,
+    statusBefore: ChatConnectionStatus,
+    reconnectDecision:
+      | "authentication-state-preserved"
+      | "connection-replaced"
+      | "room-access-revoked"
+      | "room-closed"
+      | "reconnecting"
+      | "disconnected",
+  ): void {
+    this.diagnostics.emit({
+      event: "websocket.closed",
+      connectionAttemptId: this.connectionAttemptId,
+      closeCode: event.code,
+      closeReason: sanitizeDiagnosticText(event.reason),
+      wasClean: event.wasClean,
+      statusBefore,
+      reconnectDecision,
+    });
+    this.connectionAttemptId = null;
+    this.connectionAttemptStartedAt = 0;
+  }
 
   private detach(): void {
     this.attachmentCount -= 1;
@@ -814,6 +999,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
           return;
         }
 
+        this.beginConnectionAttempt("deactivation-completed");
+        this.pendingConnectionTrigger = null;
         this.client.activate();
       },
       (cause: unknown) => {
@@ -1144,11 +1331,25 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       generation,
     };
     this.pendingRoomSync = pendingSync;
+    this.diagnostics.emit({
+      event: "room.sync.requested",
+      requestId: pendingSync.requestId,
+      roomId,
+      generation,
+    });
 
     try {
       this.subscriptions.syncRoomSubscriptions(roomId, pendingSync.requestId);
     } catch (cause) {
       this.pendingRoomSync = null;
+      this.diagnostics.emit({
+        event: "room.sync.rejected",
+        requestId: pendingSync.requestId,
+        roomId,
+        generation,
+        code: "ROOM_SUBSCRIPTION_SYNC_PUBLISH_FAILED",
+        retryable: true,
+      });
       this.setRoomSyncError(
         roomId,
         generation,
@@ -1173,6 +1374,20 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.pendingRoomSync = null;
+    this.diagnostics.emit({
+      event: "room.sync.ready",
+      requestId: ready.requestId,
+      roomId: ready.roomId,
+      generation: pendingSync.generation,
+      messageVisibleAfterSequence: ready.messageVisibleAfterSequence,
+      watermarkSequence: ready.watermarkSequence,
+    });
+    this.diagnostics.emit({
+      event: "room.activated",
+      requestId: this.roomClaimRequestId ?? ready.requestId,
+      roomId: ready.roomId,
+      generation: pendingSync.generation,
+    });
     this.setRoomSnapshot({
       ...this.roomSnapshot,
       status: "active",
@@ -1196,6 +1411,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     this.pendingRoomSync = null;
+    this.diagnostics.emit({
+      event: "room.sync.rejected",
+      requestId: rejection.requestId,
+      roomId: rejection.roomId,
+      generation: pendingSync.generation,
+      code: sanitizeDiagnosticText(rejection.code),
+      retryable: rejection.retryable,
+    });
 
     if (rejection.code === "ROOM_SUBSCRIPTION_STALE") {
       this.recoverStaleRoomSubscriptions(rejection.roomId, pendingSync.generation);
@@ -1322,4 +1545,11 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
 function getSubscriptionErrorMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message.trim() ? cause.message : fallback;
+}
+
+function sanitizeDiagnosticText(value: string): string {
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .trim()
+    .slice(0, 256);
 }
