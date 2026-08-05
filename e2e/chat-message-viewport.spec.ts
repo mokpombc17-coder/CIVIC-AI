@@ -17,7 +17,10 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
   const uniqueId = crypto.randomUUID();
   const roomName = `e2e-viewport-${uniqueId}`;
   const ownerContext = await browser.newContext({ baseURL });
-  const memberContext = await browser.newContext({ baseURL });
+  const memberContext = await browser.newContext({
+    baseURL,
+    viewport: { height: 844, width: 390 },
+  });
   const ownerPage = await ownerContext.newPage();
   const memberPage = await memberContext.newPage();
   const seedMessages = Array.from(
@@ -53,6 +56,21 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
       });
     });
 
+    await test.step("visual viewport가 줄어들어도 최신 메시지를 하단에 고정한다", async () => {
+      await memberPage.setViewportSize({ height: 560, width: 390 });
+      await waitForViewportSettled(memberPage);
+      await expect(memberMessageLog.getByText(seedMessages.at(-1)!, { exact: true })).toBeVisible();
+      await expect
+        .poll(() => isMessageFullyVisible(memberMessageLog, seedMessages.at(-1)!))
+        .toBe(true);
+
+      await memberPage.setViewportSize({ height: 844, width: 390 });
+      await waitForViewportSettled(memberPage);
+      await expect
+        .poll(() => isMessageFullyVisible(memberMessageLog, seedMessages.at(-1)!))
+        .toBe(true);
+    });
+
     const detachedPosition =
       await test.step("참여자가 과거 메시지 위치로 이동해 detached 상태가 된다", async () => {
         await memberMessageLog.evaluate(
@@ -67,6 +85,20 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
 
         const position = await readFirstVisibleMessage(memberMessageLog);
         expect(position.distanceFromEnd).toBeGreaterThan(96);
+
+        return position;
+      });
+
+    const resizedDetachedPosition =
+      await test.step("과거 메시지를 읽을 때는 visual viewport가 줄어들어도 위치를 유지한다", async () => {
+        await memberPage.setViewportSize({ height: 560, width: 390 });
+
+        const position = await readFirstVisibleMessage(memberMessageLog);
+        expect(position.clientMessageId).toBe(detachedPosition.clientMessageId);
+        expect(position.scrollTop).toBe(detachedPosition.scrollTop);
+        expect(
+          Math.abs(position.offsetFromViewportTop - detachedPosition.offsetFromViewportTop),
+        ).toBeLessThanOrEqual(1);
 
         return position;
       });
@@ -88,11 +120,12 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
       await expect(newMessageButton).toBeVisible({ timeout: 20_000 });
 
       const positionAfterMessages = await readFirstVisibleMessage(memberMessageLog);
-      expect(positionAfterMessages.clientMessageId).toBe(detachedPosition.clientMessageId);
-      expect(positionAfterMessages.scrollTop).toBe(detachedPosition.scrollTop);
+      expect(positionAfterMessages.clientMessageId).toBe(resizedDetachedPosition.clientMessageId);
+      expect(positionAfterMessages.scrollTop).toBe(resizedDetachedPosition.scrollTop);
       expect(
         Math.abs(
-          positionAfterMessages.offsetFromViewportTop - detachedPosition.offsetFromViewportTop,
+          positionAfterMessages.offsetFromViewportTop -
+            resizedDetachedPosition.offsetFromViewportTop,
         ),
       ).toBeLessThanOrEqual(1);
     });
@@ -107,13 +140,7 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
 
       await expect(newMessageButton).toHaveCount(0);
       await expect(memberMessageLog.getByText(secondNewMessage, { exact: true })).toBeVisible();
-      await expect
-        .poll(() =>
-          memberMessageLog.evaluate(
-            (element) => element.scrollHeight - element.scrollTop - element.clientHeight,
-          ),
-        )
-        .toBeLessThanOrEqual(1);
+      await expect.poll(() => isMessageFullyVisible(memberMessageLog, secondNewMessage)).toBe(true);
     });
   } finally {
     await Promise.all([ownerContext.close(), memberContext.close()]);
@@ -123,6 +150,43 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
 async function sendMessage(page: Page, message: string): Promise<void> {
   await page.getByRole("textbox", { name: "메시지" }).fill(message);
   await page.getByRole("button", { name: "전송", exact: true }).click();
+}
+
+async function waitForViewportSettled(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let remainingFrames = 8;
+        const waitForNextFrame = () => {
+          remainingFrames -= 1;
+
+          if (remainingFrames === 0) {
+            resolve();
+            return;
+          }
+
+          requestAnimationFrame(waitForNextFrame);
+        };
+
+        requestAnimationFrame(waitForNextFrame);
+      }),
+  );
+}
+
+async function isMessageFullyVisible(messageLog: Locator, messageText: string): Promise<boolean> {
+  return messageLog.evaluate((element, text) => {
+    const viewportBounds = element.getBoundingClientRect();
+    const message = [...element.querySelectorAll<HTMLElement>("li[data-client-message-id]")].find(
+      (candidate) => candidate.textContent?.includes(text),
+    );
+
+    if (!message) {
+      return false;
+    }
+
+    const messageBounds = message.getBoundingClientRect();
+    return messageBounds.top >= viewportBounds.top && messageBounds.bottom <= viewportBounds.bottom;
+  }, messageText);
 }
 
 async function readFirstVisibleMessage(messageLog: Locator): Promise<ViewportPosition> {

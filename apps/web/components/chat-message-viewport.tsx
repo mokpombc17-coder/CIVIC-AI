@@ -18,6 +18,7 @@ const AT_END_THRESHOLD = 96;
 const ESTIMATED_MESSAGE_HEIGHT = 76;
 const MESSAGE_GAP = 20;
 const MESSAGE_OVERSCAN = 10;
+const LATEST_SCROLL_SETTLE_FRAMES = 4;
 const TOP_LOAD_THRESHOLD = 120;
 
 export type ChatMessageViewportFeedback =
@@ -146,22 +147,32 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
         align: "end",
       });
 
-      latestScrollFramesRef.current.settle = requestAnimationFrame(() => {
-        latestScrollFramesRef.current.settle = null;
-        const scrollElement = scrollElementRef.current;
+      const settleAtLatest = (remainingFrames: number) => {
+        latestScrollFramesRef.current.settle = requestAnimationFrame(() => {
+          latestScrollFramesRef.current.settle = null;
+          const scrollElement = scrollElementRef.current;
 
-        if (!scrollElement) {
-          return;
-        }
+          if (!scrollElement) {
+            return;
+          }
 
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-        viewportPositionRef.current = "pinned";
-        dispatch({
-          type: "viewport-ready",
-          isAtEnd: true,
+          scrollElement.scrollTop = scrollElement.scrollHeight;
+
+          if (remainingFrames > 1) {
+            settleAtLatest(remainingFrames - 1);
+            return;
+          }
+
+          viewportPositionRef.current = "pinned";
+          dispatch({
+            type: "viewport-ready",
+            isAtEnd: true,
+          });
+          reportVisibleReadSequence();
         });
-        reportVisibleReadSequence();
-      });
+      };
+
+      settleAtLatest(LATEST_SCROLL_SETTLE_FRAMES);
     });
   }, [cancelLatestScroll, history.items.length, reportVisibleReadSequence]);
 
@@ -235,6 +246,48 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [reportVisibleReadSequence]);
+
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    let resizeFrame: number | null = null;
+
+    const restoreLatestAfterResize = () => {
+      if (viewportPositionRef.current !== "pinned") {
+        return;
+      }
+
+      if (resizeFrame !== null) {
+        cancelAnimationFrame(resizeFrame);
+      }
+
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        scrollToLatest();
+      });
+    };
+
+    window.addEventListener("resize", restoreLatestAfterResize);
+    visualViewport?.addEventListener("resize", restoreLatestAfterResize);
+    visualViewport?.addEventListener("scroll", restoreLatestAfterResize);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(restoreLatestAfterResize);
+    const scrollElement = scrollElementRef.current;
+
+    if (scrollElement) {
+      resizeObserver?.observe(scrollElement);
+    }
+
+    return () => {
+      window.removeEventListener("resize", restoreLatestAfterResize);
+      visualViewport?.removeEventListener("resize", restoreLatestAfterResize);
+      visualViewport?.removeEventListener("scroll", restoreLatestAfterResize);
+      resizeObserver?.disconnect();
+
+      if (resizeFrame !== null) {
+        cancelAnimationFrame(resizeFrame);
+      }
+    };
+  }, [scrollToLatest]);
 
   useEffect(() => {
     if (!history.readStateEnabled) {
@@ -403,7 +456,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const isLoadingOlder = isHistoryLoadingOlder || viewportState.olderHistory === "loading";
 
   return (
-    <div className="relative flex h-[clamp(22rem,62dvh,42rem)] min-h-0 flex-col bg-slate-50">
+    <div className="relative flex h-[clamp(22rem,62dvh,42rem)] min-h-0 shrink flex-col bg-slate-50">
       {isLoadingOlder || olderLoadError ? (
         <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-5">
           {olderLoadError ? (

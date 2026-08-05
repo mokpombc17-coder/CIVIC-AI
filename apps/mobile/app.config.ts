@@ -44,6 +44,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     ...config.android,
+    softwareKeyboardLayoutMode: "resize",
     package: androidPackageName,
     ...(appHost
       ? {
