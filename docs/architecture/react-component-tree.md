@@ -66,13 +66,13 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
                                     └── ChatRoomView [Client] (apps/web/components/chat-room-view.tsx)
                                         ├── ChatRoomHeader [internal]
-                                        │   ├── ChatConnectionStatus [Client] [slot] (apps/web/components/chat-connection-status.tsx)
+                                        │   ├── ChatRoomSessionIndicator [Client] [slot] (apps/web/components/chat-room-session-status.tsx)
+                                        │   ├── ChatRoomSessionNotice [Client] [slot, conditional] (apps/web/components/chat-room-session-status.tsx)
+                                        │   ├── ChatRealtimeSyncStatus [Client] [slot, conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                         │   └── ChatRoomMembershipDialogTrigger [Client] [slot, conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                         ├── ChatMessageViewport [Client] (apps/web/components/chat-message-viewport.tsx)
                                         │   └── ChatMessageItem [Client] [virtualized, repeated] (apps/web/components/chat-message-item.tsx)
-                                        ├── ChatRealtimeSyncStatus [Client] [slot, conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                         ├── ChatRoomSessionControls [Client] [slot] (apps/web/components/chat-room-session-controls.tsx)
-                                        │   ├── ChatRoomSessionBanner [Client] (apps/web/components/chat-room-session-banner.tsx)
                                         │   └── ChatMessageComposer [Client] (apps/web/components/chat-message-composer.tsx)
                                         ├── ChatRoomOverlayHost [conditional] (apps/web/components/chat-room-overlay-host.tsx)
                                         │   ├── ChatMessageActionsBottomSheet [Client] [conditional, single] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
@@ -85,8 +85,8 @@ RootLayout [Server] (apps/web/app/layout.tsx)
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
 제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
-REST snapshot과 Worker buffer의 병합이 진행 중이거나 실패한 동안만 상태 UI를 렌더링하고,
-동기화 완료 상태에서는 `null`을 반환한다.
+REST snapshot과 Worker buffer의 병합이 실패해 조치가 필요할 때만 header 안에 오류 UI를
+렌더링하고, 정상·진행 중 상태에서는 `null`을 반환한다.
 
 `ChatRoomInboxRuntime`은 개인 inbox 이벤트, Query 무효화, grouping과 timer를 담당하는 hook을
 `ChatRoomInboxToastList`에 연결한다. Toast list는 현재 포커스된 탭에서 다른 Room의 CREATE
@@ -98,8 +98,11 @@ validation, mutation, 멱등성 key 재시도와 라우팅 구현은 JSX 밖에 
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
 `ChatRoomView` 이하 컴포넌트는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode
-slot만 받아 화면을 렌더링한다. `ChatRoomSessionControls`도 session 정책을 해석하는 container로
-남고, 실제 배너와 입력 폼은 각각 `ChatRoomSessionBanner`, `ChatMessageComposer`가 담당한다.
+slot만 받아 화면을 렌더링한다. 연결·방 session·메시지 동기화 상태를 합친 간단한 상태 표시는
+`ChatRoomSessionIndicator`가 header metadata 옆에 렌더링하고, 다른 탭 사용이나 연결 오류처럼
+조치가 필요한 상세 안내는 `ChatRoomSessionNotice`가 같은 header 안에 조건부로 렌더링한다.
+snapshot 동기화의 오류 안내인 `ChatRealtimeSyncStatus`도 header 안에 렌더링한다.
+`ChatRoomSessionControls`는 해석된 session view를 받아 `ChatMessageComposer`만 제어한다.
 메시지 수정·삭제 lifecycle과 transport command는 `ChatRoomScreen`의 container hook이 조립하고,
 가상화된 각 `ChatMessageItem`은 액션 trigger만 렌더링한다. 선택된 메시지의 입력·확인·진행 상태는
 `ChatRoomOverlayHost`에 하나만 mount되는 `ChatMessageActionsBottomSheet`가 표시한다.
@@ -170,7 +173,8 @@ flowchart TD
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client]<br/>apps/web/components/chat-room-session-controls.tsx"]
-    ChatRoomSessionBanner["ChatRoomSessionBanner [Client]<br/>apps/web/components/chat-room-session-banner.tsx"]
+    ChatRoomSessionIndicator["ChatRoomSessionIndicator [Client]<br/>apps/web/components/chat-room-session-status.tsx"]
+    ChatRoomSessionNotice["ChatRoomSessionNotice [Client] [conditional]<br/>apps/web/components/chat-room-session-status.tsx"]
     ChatMessageComposer["ChatMessageComposer [Client]<br/>apps/web/components/chat-message-composer.tsx"]
 
     SpecialBoundary["App Router root-segment special UI<br/>framework-managed; direct JSX parent 미확정"]
@@ -204,7 +208,9 @@ flowchart TD
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView
     ChatRoomView --> ChatRoomHeader
-    ChatRoomHeader -->|"slot"| ChatConnectionStatus
+    ChatRoomHeader -->|"session status slot"| ChatRoomSessionIndicator
+    ChatRoomHeader -->|"actionable session notice slot"| ChatRoomSessionNotice
+    ChatRoomHeader -->|"snapshot sync error slot"| ChatRealtimeSyncStatus
     ChatRoomHeader -->|"room loaded; slot"| ChatRoomMembershipDialogTrigger
     ChatRoomView --> ChatMessageViewport
     ChatMessageViewport -->|"confirmed / optimistic; visible range only"| ChatMessageItem
@@ -212,9 +218,7 @@ flowchart TD
     ChatRoomOverlayHost -->|"one selected message"| ChatMessageActionsBottomSheet
     ChatRoomOverlayHost -->|"room info requested"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
-    ChatRoomView -->|"slot; sync pending/error only"| ChatRealtimeSyncStatus
     ChatRoomView -->|"slot"| ChatRoomSessionControls
-    ChatRoomSessionControls --> ChatRoomSessionBanner
     ChatRoomSessionControls --> ChatMessageComposer
     ChatRoomMembershipPanel -->|"active OWNER only"| ChatRoomSettingsControl
 
@@ -227,6 +231,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,CreateChatRoomForm,RoomUnreadBadge,JoinChatRoomControl,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionBanner,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,CreateChatRoomForm,RoomUnreadBadge,JoinChatRoomControl,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionIndicator,ChatRoomSessionNotice,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

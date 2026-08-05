@@ -55,22 +55,21 @@ export function ChatMessageActionsBottomSheet({
       <section
         aria-labelledby={titleId}
         aria-modal="true"
-        className="relative max-h-[calc(100%-1rem)] w-full overflow-y-auto rounded-t-2xl border border-b-0 border-slate-200 bg-white px-5 pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-slate-950 shadow-2xl sm:mx-4 sm:mb-4 sm:max-w-lg sm:rounded-2xl sm:border-b"
+        className={`relative max-h-[calc(100%-1rem)] w-full overflow-y-auto rounded-t-2xl border border-b-0 border-slate-200 bg-white px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] text-slate-950 shadow-2xl ${
+          sheet.mode === "menu" ? "min-h-40" : ""
+        }`}
         data-chat-message-actions-sheet="true"
         onKeyDown={handleKeyDown}
         role="dialog"
       >
-        <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300" />
+        <div aria-hidden="true" className="mx-auto mb-2 h-1 w-10 rounded-full bg-slate-300" />
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="eyebrow">Message actions</p>
-            <h2 className="text-lg font-bold" id={titleId}>
-              메시지 작업
-            </h2>
-          </div>
+          <h2 className="text-base font-bold" id={titleId}>
+            메시지 작업
+          </h2>
           <button
             aria-label="메시지 작업 닫기"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-100"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-100"
             onClick={sheet.onClose}
             type="button"
           >
@@ -78,35 +77,42 @@ export function ChatMessageActionsBottomSheet({
           </button>
         </div>
 
-        <p className="mt-4 line-clamp-3 whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-          {sheet.content}
-        </p>
-
         {sheet.mode === "menu" ? (
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button
-              autoFocus
-              className="secondary-button"
-              disabled={sheet.isPending}
-              onClick={() => sheet.onModeChange("edit")}
-              type="button"
-            >
-              수정
-            </button>
-            <button
-              className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={sheet.isPending}
-              onClick={() => sheet.onModeChange("delete")}
-              type="button"
-            >
-              삭제
-            </button>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <p className="line-clamp-1 whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              {sheet.content}
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:min-w-52">
+              <button
+                autoFocus
+                className="secondary-button"
+                disabled={sheet.isPending}
+                onClick={() => sheet.onModeChange("edit")}
+                type="button"
+              >
+                수정
+              </button>
+              <button
+                className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={sheet.isPending}
+                onClick={() => sheet.onModeChange("delete")}
+                type="button"
+              >
+                삭제
+              </button>
+            </div>
           </div>
+        ) : null}
+
+        {sheet.mode !== "menu" ? (
+          <p className="mt-3 line-clamp-2 whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+            {sheet.content}
+          </p>
         ) : null}
 
         {sheet.mode === "edit" ? (
           <form
-            className="mt-4"
+            className="mt-3"
             onSubmit={(event) => {
               event.preventDefault();
               sheet.onEditSubmit();
@@ -140,7 +146,7 @@ export function ChatMessageActionsBottomSheet({
         ) : null}
 
         {sheet.mode === "delete" ? (
-          <div className="mt-4">
+          <div className="mt-3">
             <p className="text-sm font-semibold">이 메시지를 삭제할까요?</p>
             <p className="mt-1 text-xs text-slate-500">
               메시지 위치는 유지되고 삭제된 메시지로 표시됩니다.

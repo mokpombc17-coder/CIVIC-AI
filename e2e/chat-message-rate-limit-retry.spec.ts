@@ -22,9 +22,7 @@ test("USER_RATE_LIMITED 중에도 composer를 열어 두고 FIFO로 자동 재�
   const messageInput = page.getByRole("textbox", { name: "메시지" });
 
   await test.step("SharedWorker WebSocket과 방 snapshot 준비를 기다린다", async () => {
-    await expect(
-      page.getByText("이 탭에서 실시간 채팅을 사용 중입니다.", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("채팅 가능", { exact: true })).toBeVisible();
     await expect(messageInput).toBeEnabled();
   });
 

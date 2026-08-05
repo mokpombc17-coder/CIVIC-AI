@@ -1,53 +1,38 @@
 "use client";
 
 import { ChatMessageComposer } from "@/components/chat-message-composer";
-import type { ChatRealtimeRoomState } from "@/components/chat-realtime-provider";
-import { ChatRoomSessionBanner } from "@/components/chat-room-session-banner";
 import { useChatMessageComposer } from "@/components/use-chat-message-composer";
-import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
+import type { ChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
 type ChatRoomSessionControlsProps = Readonly<{
-  realtimeReady: boolean;
   roomId: string;
-  session: ChatRealtimeRoomState;
+  view: ChatRoomSessionView;
 }>;
 
-export function ChatRoomSessionControls({
-  realtimeReady,
-  roomId,
-  session,
-}: ChatRoomSessionControlsProps) {
-  const view = getChatRoomSessionView(session, roomId);
-  const canDraft = view.canDraft && realtimeReady;
+export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControlsProps) {
+  const canDraft = view.canDraft;
   const composer = useChatMessageComposer({
     enabled: canDraft,
     roomId,
   });
   const placeholder = canDraft
     ? "메시지를 입력해 주세요."
-    : view.canDraft
-      ? "메시지 동기화가 끝나면 입력할 수 있습니다."
-      : "이 탭을 활성화하면 메시지를 입력할 수 있습니다.";
+    : view.kind === "pending"
+      ? "채팅 준비가 끝나면 입력할 수 있습니다."
+      : view.kind === "replaced"
+        ? "이 탭에서 계속하기를 선택하면 입력할 수 있습니다."
+        : "채팅을 사용할 수 없습니다.";
 
   return (
-    <>
-      <ChatRoomSessionBanner
-        canReactivate={view.canReactivate}
-        description={view.description}
-        kind={view.kind}
-        onReactivate={session.reactivate}
-        title={view.title}
-      />
-      <ChatMessageComposer
-        canSend={composer.canSend}
-        disabled={!canDraft}
-        draft={composer.draft}
-        inputId={`chat-message-${roomId}`}
-        onDraftChange={composer.setDraft}
-        onSubmit={composer.send}
-        placeholder={placeholder}
-        validationError={composer.validationError}
-      />
-    </>
+    <ChatMessageComposer
+      canSend={composer.canSend}
+      disabled={!canDraft}
+      draft={composer.draft}
+      inputId={`chat-message-${roomId}`}
+      onDraftChange={composer.setDraft}
+      onSubmit={composer.send}
+      placeholder={placeholder}
+      validationError={composer.validationError}
+    />
   );
 }

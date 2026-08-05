@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 
-const ACTIVE_ROOM_LABEL = "이 탭에서 실시간 채팅을 사용 중입니다.";
-const CONNECTED_LABEL = "실시간 연결: 연결됨";
+const ACTIVE_ROOM_LABEL = "채팅 가능";
 const REPLACED_ROOM_LABEL = "다른 탭에서 채팅방을 사용 중입니다.";
 const ROOM_SESSION_FAILED_LABEL = "채팅방 실시간 연결을 활성화하지 못했습니다.";
 const ROOM_CLOSED_MESSAGE = "채팅방이 종료되어 실시간 연결이 해제되었습니다.";
@@ -48,7 +47,7 @@ test("방 종료를 전달받은 활성 탭은 4003 이후 해당 방을 다시 
     });
 
     await test.step("활성 탭은 4003 이후 새 연결에서 종료된 방의 실패 상태를 확인한다", async () => {
-      await expect(activePage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(activePage.getByText("채팅 불가", { exact: true })).toBeVisible();
       await expect(activePage.getByText(ROOM_SESSION_FAILED_LABEL, { exact: true })).toBeVisible();
       await expect(activePage.getByText(ROOM_CLOSED_MESSAGE, { exact: true })).toBeVisible();
       await expect(activePage.getByRole("textbox", { name: "메시지" })).toBeDisabled();

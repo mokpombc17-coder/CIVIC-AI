@@ -5,7 +5,7 @@ import {
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
 
-const ACTIVE_ROOM_LABEL = "이 탭에서 실시간 채팅을 사용 중입니다.";
+const ACTIVE_ROOM_LABEL = "채팅 가능";
 
 test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapshot을 복구한다", async ({
   browser,
@@ -74,8 +74,25 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
       await actionTrigger.click();
 
       const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
-      await expect(ownerPage.locator('[data-chat-message-actions-sheet="true"]')).toHaveCount(1);
+      const messageActionsSheet = ownerPage.locator('[data-chat-message-actions-sheet="true"]');
+      await expect(messageActionsSheet).toHaveCount(1);
       await expect(messageInput).toHaveValue(draftMessage);
+
+      const [chatRoomBounds, composerBounds, sheetBounds] = await Promise.all([
+        ownerPage.locator('[data-chat-room-view="true"]').boundingBox(),
+        ownerPage.locator('form:has(textarea[enterkeyhint="send"])').boundingBox(),
+        messageActionsSheet.boundingBox(),
+      ]);
+
+      if (!chatRoomBounds || !composerBounds || !sheetBounds) {
+        throw new Error("채팅방, composer와 Bottom Sheet의 화면 위치를 확인할 수 없습니다.");
+      }
+
+      expect(
+        Math.abs(sheetBounds.y + sheetBounds.height - (chatRoomBounds.y + chatRoomBounds.height)),
+      ).toBeLessThanOrEqual(2);
+      expect(sheetBounds.y).toBeLessThanOrEqual(composerBounds.y);
+
       await mutationDialog.getByRole("button", { name: "메시지 작업 닫기" }).click();
 
       await expect(mutationDialog).toHaveCount(0);

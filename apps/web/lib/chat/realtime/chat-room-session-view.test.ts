@@ -20,6 +20,33 @@ describe("getChatRoomSessionView", () => {
       kind: "active",
       canDraft: true,
       canReactivate: false,
+      indicatorLabel: "채팅 가능",
+      indicatorTone: "positive",
+      showNotice: false,
+    });
+  });
+
+  it("활성 방의 메시지 동기화가 끝나기 전에는 준비 상태를 반환한다", () => {
+    const view = getChatRoomSessionView(
+      {
+        status: "active",
+        roomId: "room-01",
+        generation: 1,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: 100,
+        watermarkSequence: 120,
+        error: null,
+      },
+      "room-01",
+      false,
+    );
+
+    expect(view).toMatchObject({
+      kind: "pending",
+      canDraft: false,
+      indicatorLabel: "준비 중",
+      indicatorTone: "pending",
+      showNotice: false,
     });
   });
 
@@ -42,6 +69,8 @@ describe("getChatRoomSessionView", () => {
       title: "다른 탭에서 채팅방을 사용 중입니다.",
       canDraft: false,
       canReactivate: true,
+      indicatorLabel: "다른 탭 사용 중",
+      showNotice: true,
     });
   });
 
@@ -148,6 +177,34 @@ describe("getChatRoomSessionView", () => {
       title: "다른 환경에서 채팅 연결을 사용 중입니다.",
       canDraft: false,
       canReactivate: false,
+      canReconnect: false,
+      indicatorLabel: "채팅 불가",
+      showNotice: true,
+    });
+  });
+
+  it("연결이 끊기면 헤더에서 다시 연결할 수 있는 오류 상태를 반환한다", () => {
+    const view = getChatRoomSessionView(
+      {
+        status: "active",
+        roomId: "room-01",
+        generation: 3,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: 100,
+        watermarkSequence: 120,
+        error: null,
+        connectionStatus: "disconnected",
+        connectionError: null,
+      },
+      "room-01",
+    );
+
+    expect(view).toMatchObject({
+      kind: "error",
+      canDraft: false,
+      canReconnect: true,
+      indicatorLabel: "채팅 불가",
+      showNotice: true,
     });
   });
 

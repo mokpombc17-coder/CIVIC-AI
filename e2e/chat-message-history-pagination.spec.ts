@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 
-const ACTIVE_ROOM_LABEL = "이 탭에서 실시간 채팅을 사용 중입니다.";
+const ACTIVE_ROOM_LABEL = "채팅 가능";
 const MESSAGE_COUNT = 52;
 
 test("메시지 상단 접근이 beforeSequence 이력을 자동 조회하고 읽던 위치를 보존한다", async ({

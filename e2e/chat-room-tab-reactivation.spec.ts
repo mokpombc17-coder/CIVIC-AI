@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { authenticateDevUser, createRoomAndEnter } from "./chat-e2e-helpers";
 
-const ACTIVE_ROOM_LABEL = "이 탭에서 실시간 채팅을 사용 중입니다.";
+const ACTIVE_ROOM_LABEL = "채팅 가능";
 const REPLACED_ROOM_LABEL = "다른 탭에서 채팅방을 사용 중입니다.";
 
 test("같은 브라우저의 두 탭이 채팅방을 선점하고 다시 활성화할 수 있다", async ({

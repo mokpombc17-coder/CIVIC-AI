@@ -10,9 +10,7 @@ test("Enter 전송, Shift+Enter 줄바꿈, IME 조합 보호 정책을 적용한
   const messageInput = page.getByRole("textbox", { name: "메시지" });
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
 
-  await expect(
-    page.getByText("이 탭에서 실시간 채팅을 사용 중입니다.", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("채팅 가능", { exact: true })).toBeVisible();
   await expect(messageInput).toBeEnabled();
 
   const firstLine = `첫 줄 ${uniqueId}`;

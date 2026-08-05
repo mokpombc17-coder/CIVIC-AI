@@ -5,9 +5,8 @@ import {
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
 
-const ACTIVE_ROOM_LABEL = "이 탭에서 실시간 채팅을 사용 중입니다.";
-const CONNECTED_LABEL = "실시간 연결: 연결됨";
-const RECONNECTING_LABEL = "실시간 연결: 재연결 중";
+const ACTIVE_ROOM_LABEL = "채팅 가능";
+const RECONNECTING_LABEL = "준비 중";
 
 test("네트워크 단절 중 누락된 메시지를 afterSequence로 재연결 복구한다", async ({
   browser,
@@ -116,7 +115,6 @@ test("네트워크 단절 중 누락된 메시지를 afterSequence로 재연결 
         true,
       );
       expect(requestUrl.searchParams.get("afterSequence")).toBe("1");
-      await expect(ownerPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
       await expect(ownerPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
       await expect(ownerMessageLog.getByText(firstMissedMessage, { exact: true })).toBeVisible();
       await expect(ownerMessageLog.getByText(secondMissedMessage, { exact: true })).toBeVisible();

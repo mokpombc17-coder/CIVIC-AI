@@ -5,7 +5,7 @@ import {
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
 
-const ACTIVE_ROOM_LABEL = "이 탭에서 실시간 채팅을 사용 중입니다.";
+const ACTIVE_ROOM_LABEL = "채팅 가능";
 const CONNECTED_LABEL = "실시간 연결: 연결됨";
 const INBOX_TOAST_LABEL = "새 채팅 메시지 알림";
 

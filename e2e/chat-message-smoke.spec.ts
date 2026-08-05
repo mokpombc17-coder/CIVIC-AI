@@ -34,9 +34,7 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
   });
 
   await test.step("SharedWorker WebSocket 구독과 REST snapshot 준비를 기다린다", async () => {
-    await expect(
-      page.getByText("이 탭에서 실시간 채팅을 사용 중입니다.", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("채팅 가능", { exact: true })).toBeVisible();
     await expect(messageInput).toBeEnabled();
   });
 

@@ -17,7 +17,6 @@ export type ChatMessageHistoryFeedback = ChatMessageViewportFeedback;
 export type ChatMessageHistoryViewModel = ChatMessageViewportViewModel;
 
 export type ChatRoomViewProps = Readonly<{
-  connectionStatus: ReactNode;
   header: ChatRoomHeaderViewModel;
   headerAction: ReactNode;
   messageHistory: ChatMessageHistoryViewModel;
@@ -26,17 +25,20 @@ export type ChatRoomViewProps = Readonly<{
     message: string;
     onRetry: () => void;
   }> | null;
+  sessionIndicator: ReactNode;
+  sessionNotice: ReactNode;
   sessionControls: ReactNode;
   syncStatus: ReactNode;
 }>;
 
 export function ChatRoomView({
-  connectionStatus,
   header,
   headerAction,
   messageHistory,
   overlay,
   roomError,
+  sessionIndicator,
+  sessionNotice,
   sessionControls,
   syncStatus,
 }: ChatRoomViewProps) {
@@ -47,6 +49,7 @@ export function ChatRoomView({
     <div className="page-stack">
       <section
         className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        data-chat-room-view="true"
         ref={chatRoomCardRef}
       >
         <div
@@ -56,18 +59,17 @@ export function ChatRoomView({
         >
           <ChatRoomHeader
             action={headerAction}
-            connectionStatus={connectionStatus}
             header={header}
+            sessionIndicator={sessionIndicator}
+            sessionNotice={sessionNotice}
+            syncStatus={syncStatus}
           />
 
           {roomError ? <ChatRoomError error={roomError} /> : null}
 
           <ChatMessageViewport history={messageHistory} />
 
-          <div className="shrink-0">
-            {syncStatus}
-            {sessionControls}
-          </div>
+          <div className="shrink-0">{sessionControls}</div>
         </div>
 
         <ChatRoomOverlayHost>{overlay}</ChatRoomOverlayHost>
@@ -78,12 +80,16 @@ export function ChatRoomView({
 
 function ChatRoomHeader({
   action,
-  connectionStatus,
   header,
+  sessionIndicator,
+  sessionNotice,
+  syncStatus,
 }: {
   action: ReactNode;
-  connectionStatus: ReactNode;
   header: ChatRoomHeaderViewModel;
+  sessionIndicator: ReactNode;
+  sessionNotice: ReactNode;
+  syncStatus: ReactNode;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-4 border-b border-slate-200 px-5 py-4">
@@ -99,9 +105,11 @@ function ChatRoomHeader({
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="truncate text-xl font-bold text-slate-950">{header.title}</h1>
           <span className="status">{header.statusLabel}</span>
+          {sessionIndicator}
         </div>
         <p className="mt-1 text-sm text-slate-500">{header.description}</p>
-        <div className="mt-2">{connectionStatus}</div>
+        {sessionNotice}
+        {syncStatus}
       </div>
 
       {action}

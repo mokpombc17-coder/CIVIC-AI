@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
+  useChatRealtimeConnection,
   useChatRealtimeRoom,
 } from "@/components/chat-realtime-provider";
 import {
@@ -13,6 +13,10 @@ import {
   ChatRoomMembershipDialogTrigger,
 } from "@/components/chat-room-membership-dialog";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
+import {
+  ChatRoomSessionIndicator,
+  ChatRoomSessionNotice,
+} from "@/components/chat-room-session-status";
 import {
   createChatMessageItemViewModels,
   createChatRoomHeaderViewModel,
@@ -31,10 +35,12 @@ import {
   useRoomMessageHistoryQuery,
 } from "@/lib/chat/chat-room-queries";
 import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
+import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const outbox = useChatMessageOutbox();
   const outgoingMessages = useChatOutgoingMessages(roomId);
+  const { reconnect } = useChatRealtimeConnection();
   const session = useChatRealtimeRoom(roomId);
   const updateReadThroughSequence = useChatRoomReadState(roomId);
   const {
@@ -70,6 +76,9 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     messageVisibleAfterSequence: session.messageVisibleAfterSequence ?? 0,
     watermarkSequence: session.watermarkSequence ?? 0,
   });
+  const realtimeReady =
+    coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null;
+  const sessionView = getChatRoomSessionView(session, roomId, realtimeReady);
   const room = roomQuery.data;
   const timeline = useMemo(
     () => createChatMessageTimeline(messageHistory.messages, outgoingMessages),
@@ -107,11 +116,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     messageCount: messageItems.length,
   });
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
-  const readStateEnabled =
-    coordinatorEnabled &&
-    realtimeQuery.isSynchronized &&
-    realtimeQuery.error === null &&
-    session.isActive;
+  const readStateEnabled = realtimeReady && session.isActive;
 
   useEffect(() => {
     outbox.acknowledgeConfirmed(
@@ -122,7 +127,6 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
 
   return (
     <ChatRoomView
-      connectionStatus={<ChatConnectionStatus />}
       header={header}
       headerAction={
         room ? (
@@ -172,20 +176,18 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
             }
           : null
       }
-      sessionControls={
-        <ChatRoomSessionControls
-          realtimeReady={
-            coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null
-          }
-          roomId={roomId}
-          session={session}
+      sessionIndicator={<ChatRoomSessionIndicator view={sessionView} />}
+      sessionNotice={
+        <ChatRoomSessionNotice
+          onReactivate={session.reactivate}
+          onReconnect={reconnect}
+          view={sessionView}
         />
       }
+      sessionControls={<ChatRoomSessionControls roomId={roomId} view={sessionView} />}
       syncStatus={
         <ChatRealtimeSyncStatus
           error={realtimeQuery.error}
-          isRecovering={realtimeQuery.isRecovering}
-          isSynchronized={realtimeQuery.isSynchronized}
           onRetry={realtimeQuery.retry}
           visible={coordinatorEnabled}
         />
