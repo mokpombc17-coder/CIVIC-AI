@@ -1715,6 +1715,22 @@ docker compose -f compose.local.yaml exec -T \
 수치이며 HTTP endpoint latency가 아니다. 절대 latency를 자동 테스트의 고정
 성공 기준으로 사용하지 않는다.
 
+### Room inbox summary persistence (내부 계약)
+
+`chat_room_inbox_summaries`는 `_id=roomId`, `schemaVersion=1`인 Room별
+희소 projection이다. 메시지가 없는 Room에는 document를 만들지 않으며 기존
+데이터 backfill 전까지 read path에서 사용하지 않는다. CREATE/UPDATE/DELETE
+message, mutation receipt, message outbox와 같은 Mongo transaction에서
+summary를 조건부 갱신한다.
+
+마지막 메시지는 가장 큰 CREATE `roomSequence`로만 정한다. UPDATE/DELETE는
+현재 summary가 같은 `messageId`와 `roomSequence`를 가리키고 더 큰
+`messageVersion`일 때만 반영한다. `lastActivityAt`은 원본 message
+`createdAt`으로 고정하고 snapshot `updatedAt`은 message `updatedAt`을
+사용한다. ACTIVE preview는 첫 CRLF/LF/CR 이전의 최대 60 Unicode code
+point이며 TAB을 공백으로 바꾸고 양끝 공백을 제거한다. 삭제 tombstone은
+`preview=null`, `previewTruncated=false`다.
+
 ## 개인 Room inbox WebSocket event
 
 연결마다 다음 queue를 한 번 구독한다.

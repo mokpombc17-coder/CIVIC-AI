@@ -8,6 +8,10 @@ import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxSchemaIniti
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxStore;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.message.ChatMessageMutationStore;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaInitializer;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryWriter;
 import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -56,9 +60,30 @@ final class MongoChatMessageStoreTestConfiguration
         return new MongoChatMessageSchemaInitializer(mongoTemplate);
     }
 
+    MongoRoomInboxSummarySchemaInitializer summarySchemaInitializer() {
+        return new MongoRoomInboxSummarySchemaInitializer(mongoTemplate);
+    }
+
+    RoomInboxSummaryWriter summaryWriter() {
+        return new MongoRoomInboxSummaryWriter(mongoTemplate);
+    }
+
     MongoChatMessageStore store(
             Clock clock,
             Supplier<String> messageIdGenerator,
+            MeterRegistry meterRegistry
+    ) {
+        return store(
+                clock,
+                messageIdGenerator,
+                summaryWriter(),
+                meterRegistry);
+    }
+
+    MongoChatMessageStore store(
+            Clock clock,
+            Supplier<String> messageIdGenerator,
+            RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
         return new MongoChatMessageStore(
@@ -68,6 +93,7 @@ final class MongoChatMessageStoreTestConfiguration
                 messageIdGenerator,
                 new MongoChatMessageExceptionClassifier(),
                 new MongoChatMessageOutboxStore(mongoTemplate),
+                summaryWriter,
                 meterRegistry);
     }
 
@@ -76,12 +102,26 @@ final class MongoChatMessageStoreTestConfiguration
             ChatMessageOutboxWriter outboxWriter,
             MeterRegistry meterRegistry
     ) {
+        return mutationStore(
+                clock,
+                outboxWriter,
+                summaryWriter(),
+                meterRegistry);
+    }
+
+    ChatMessageMutationStore mutationStore(
+            Clock clock,
+            ChatMessageOutboxWriter outboxWriter,
+            RoomInboxSummaryWriter summaryWriter,
+            MeterRegistry meterRegistry
+    ) {
         return new MongoChatMessageMutationStore(
                 mongoTemplate,
                 transactionTemplate,
                 clock,
                 new MongoChatMessageExceptionClassifier(),
                 outboxWriter,
+                summaryWriter,
                 meterRegistry);
     }
 
@@ -108,7 +148,13 @@ final class MongoChatMessageStoreTestConfiguration
                     MongoChatMessageMutationReceiptDocument
                             .COLLECTION_NAME);
         }
+        if (mongoTemplate.collectionExists(
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME)) {
+            mongoTemplate.dropCollection(
+                    MongoRoomInboxSummaryDocument.COLLECTION_NAME);
+        }
         schemaInitializer().initialize();
+        summarySchemaInitializer().initialize();
         new MongoChatMessageMutationSchemaInitializer(
                 mongoTemplate).initialize();
         new MongoChatMessageOutboxSchemaInitializer(

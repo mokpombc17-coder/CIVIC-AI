@@ -24,6 +24,7 @@ import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.mongo.MongoRoomStore;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
 import com.hamcheeze.chat.room.mongo.MongoRoomQueryReader;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
 import com.hamcheeze.chat.room.api.AuthenticatedUserIdResolver;
 import com.hamcheeze.chat.room.api.RoomApiExceptionHandler;
 import com.hamcheeze.chat.room.api.RoomCommandController;
@@ -364,6 +365,8 @@ class LocalProfileApplicationTests
                 MongoChatMessageDocument.COLLECTION_NAME)).isTrue();
         assertThat(mongoOperations.collectionExists(
                 MongoRoomSequenceDocument.COLLECTION_NAME)).isTrue();
+        assertThat(mongoOperations.collectionExists(
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME)).isTrue();
         assertThat(mongoOperations.indexOps(
                 MongoChatMessageDocument.COLLECTION_NAME)
                 .getIndexInfo())
@@ -443,6 +446,15 @@ class LocalProfileApplicationTests
         assertThat(storedDocument.messageVersion()).isEqualTo(1);
         assertThat(storedDocument.state().name())
                 .isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void roomCreationAloneKeepsInboxSummaryProjectionSparse() {
+        seedActiveRoom("empty-summary-room", "summary-owner");
+
+        assertThat(mongoOperations.count(
+                new Query(),
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME)).isZero();
     }
 
     @Test

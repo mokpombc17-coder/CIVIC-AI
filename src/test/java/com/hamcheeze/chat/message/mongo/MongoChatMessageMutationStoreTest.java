@@ -15,6 +15,10 @@ import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxStore;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummary;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
+import com.hamcheeze.chat.room.inbox.summary.SummaryWriteResult;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
 import com.mongodb.MongoException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.bson.Document;
@@ -99,6 +103,10 @@ class MongoChatMessageMutationStoreTest {
         assertThat(outboxCount()).isEqualTo(1);
         assertThat(outboxId())
                 .isEqualTo("chat-message-updated:message-1:v2");
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(2);
+        assertThat(summary().lastMessage().preview()).isEqualTo("edited");
+        assertThat(summary().lastActivityAt()).isEqualTo(CREATED_AT);
+        assertThat(summary().updatedAt()).isEqualTo(MUTATED_AT);
 
         ChatMessageMutationResult replay = mutationStore.edit(
                 new EditChatMessageMutation(
@@ -112,6 +120,7 @@ class MongoChatMessageMutationStoreTest {
         assertThat(replay.messageVersion()).isEqualTo(2);
         assertThat(outboxCount()).isEqualTo(1);
         assertThat(receiptCount()).isEqualTo(1);
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(2);
 
         ChatMessageMutationResult conflict = mutationStore.edit(
                 new EditChatMessageMutation(
@@ -143,6 +152,15 @@ class MongoChatMessageMutationStoreTest {
         assertThat(message().roomSequence()).isEqualTo(1);
         assertThat(outboxId())
                 .isEqualTo("chat-message-deleted:message-1:v3");
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(3);
+        assertThat(summary().lastMessage().state())
+                .isEqualTo(MessageState.DELETED_BY_AUTHOR);
+        assertThat(summary().lastMessage().preview()).isNull();
+        assertThat(summary().lastMessage().previewTruncated()).isFalse();
+        assertThat(summary().lastMessage().createdAt())
+                .isEqualTo(CREATED_AT);
+        assertThat(summary().lastActivityAt()).isEqualTo(CREATED_AT);
+        assertThat(summary().updatedAt()).isEqualTo(MUTATED_AT);
 
         assertThat(messageStore.append(new NewChatMessage(
                 "room-1",
@@ -300,6 +318,42 @@ class MongoChatMessageMutationStoreTest {
         assertThat(message().messageVersion()).isEqualTo(1);
         assertThat(receiptCount()).isZero();
         assertThat(outboxCount()).isZero();
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(1);
+        assertThat(summary().lastMessage().preview()).isEqualTo("original");
+    }
+
+    @Test
+    void summaryFailureRollsBackUpdateDeleteReceiptAndOutbox() {
+        ChatMessage created = create("message-client-1");
+        clearOutbox();
+        ChatMessageMutationStore failingStore =
+                CONFIGURATION.mutationStore(
+                        Clock.fixed(MUTATED_AT, ZoneOffset.UTC),
+                        new MongoChatMessageOutboxStore(
+                                CONFIGURATION.mongoOperations()),
+                        new FailingRoomInboxSummaryWriter(),
+                        new SimpleMeterRegistry());
+
+        assertThatThrownBy(() -> failingStore.edit(
+                new EditChatMessageMutation(
+                        "user-1",
+                        UUID.randomUUID().toString(),
+                        "room-1",
+                        created.messageId(),
+                        "will roll back")))
+                .isInstanceOf(RuntimeException.class)
+                .hasRootCauseMessage("forced summary update failure");
+        assertUnchangedAfterSummaryFailure();
+
+        assertThatThrownBy(() -> failingStore.delete(
+                new DeleteChatMessageMutation(
+                        "user-1",
+                        UUID.randomUUID().toString(),
+                        "room-1",
+                        created.messageId())))
+                .isInstanceOf(RuntimeException.class)
+                .hasRootCauseMessage("forced summary delete failure");
+        assertUnchangedAfterSummaryFailure();
     }
 
     @Test
@@ -382,6 +436,7 @@ class MongoChatMessageMutationStoreTest {
                         new MongoChatMessageExceptionClassifier(),
                         new MongoChatMessageOutboxStore(
                                 CONFIGURATION.mongoOperations()),
+                        CONFIGURATION.summaryWriter(),
                         new SimpleMeterRegistry());
 
         ChatMessageMutationResult result = recoveringStore.edit(
@@ -423,6 +478,24 @@ class MongoChatMessageMutationStoreTest {
                 MongoChatMessageDocument.class);
     }
 
+    private RoomInboxSummary summary() {
+        return CONFIGURATION.mongoOperations().findById(
+                        "room-1",
+                        MongoRoomInboxSummaryDocument.class,
+                        MongoRoomInboxSummaryDocument.COLLECTION_NAME)
+                .toDomain();
+    }
+
+    private void assertUnchangedAfterSummaryFailure() {
+        assertThat(message().content()).isEqualTo("original");
+        assertThat(message().state()).isEqualTo(MessageState.ACTIVE);
+        assertThat(message().messageVersion()).isEqualTo(1);
+        assertThat(receiptCount()).isZero();
+        assertThat(outboxCount()).isZero();
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(1);
+        assertThat(summary().lastMessage().preview()).isEqualTo("original");
+    }
+
     private long receiptCount() {
         return CONFIGURATION.mongoOperations().count(
                 new org.springframework.data.mongodb.core.query.Query(),
@@ -449,5 +522,26 @@ class MongoChatMessageMutationStoreTest {
         CONFIGURATION.mongoOperations().remove(
                 new org.springframework.data.mongodb.core.query.Query(),
                 MongoChatMessageOutboxDocument.COLLECTION_NAME);
+    }
+
+    private static final class FailingRoomInboxSummaryWriter
+            implements RoomInboxSummaryWriter {
+
+        @Override
+        public SummaryWriteResult applyCreated(ChatMessage message) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SummaryWriteResult applyUpdated(ChatMessage message) {
+            throw new IllegalStateException(
+                    "forced summary update failure");
+        }
+
+        @Override
+        public SummaryWriteResult applyDeleted(ChatMessage message) {
+            throw new IllegalStateException(
+                    "forced summary delete failure");
+        }
     }
 }

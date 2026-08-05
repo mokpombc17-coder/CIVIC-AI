@@ -11,6 +11,7 @@ import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -53,6 +54,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
     private final MongoChatMessageExceptionClassifier exceptionClassifier;
     private final MongoRoomSequenceAllocator sequenceAllocator;
     private final ChatMessageOutboxWriter outboxWriter;
+    private final RoomInboxSummaryWriter summaryWriter;
     private final Counter storedCounter;
     private final Counter duplicateCounter;
     private final Counter conflictCounter;
@@ -67,6 +69,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             Supplier<String> messageIdGenerator,
             MongoChatMessageExceptionClassifier exceptionClassifier,
             ChatMessageOutboxWriter outboxWriter,
+            RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
         this(
@@ -76,6 +79,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                 messageIdGenerator,
                 exceptionClassifier,
                 outboxWriter,
+                summaryWriter,
                 meterRegistry);
     }
 
@@ -86,6 +90,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             Supplier<String> messageIdGenerator,
             MongoChatMessageExceptionClassifier exceptionClassifier,
             ChatMessageOutboxWriter outboxWriter,
+            RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
         this.mongoOperations = Objects.requireNonNull(
@@ -104,6 +109,9 @@ public final class MongoChatMessageStore implements ChatMessageStore {
         this.outboxWriter = Objects.requireNonNull(
                 outboxWriter,
                 "outboxWriter");
+        this.summaryWriter = Objects.requireNonNull(
+                summaryWriter,
+                "summaryWriter");
         this.sequenceAllocator =
                 new MongoRoomSequenceAllocator(mongoOperations);
         Objects.requireNonNull(meterRegistry, "meterRegistry");
@@ -401,6 +409,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                         null);
         mongoOperations.insert(document);
         ChatMessage storedMessage = document.toDomain();
+        summaryWriter.applyCreated(storedMessage);
         outboxWriter.appendMessageCreated(storedMessage);
         return new StoredChatMessage(storedMessage);
     }

@@ -9,6 +9,7 @@ import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
 import com.mongodb.MongoException;
 import com.mongodb.MongoTimeoutException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -617,6 +618,7 @@ class MongoChatMessageStoreRetryTest {
                 new MongoChatMessageExceptionClassifier(),
                 message -> {
                 },
+                mock(RoomInboxSummaryWriter.class),
                 registry);
     }
 

@@ -12,6 +12,7 @@ import com.hamcheeze.chat.message.MessageMutationOutcome;
 import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.data.mongodb.core.MongoOperations;
@@ -40,6 +41,7 @@ public final class MongoChatMessageMutationStore
     private final Clock clock;
     private final MongoChatMessageExceptionClassifier exceptionClassifier;
     private final ChatMessageOutboxWriter outboxWriter;
+    private final RoomInboxSummaryWriter summaryWriter;
     private final Map<MessageMutationOutcome, Counter> resultCounters =
             new EnumMap<>(MessageMutationOutcome.class);
     private final Counter failureCounter;
@@ -51,6 +53,7 @@ public final class MongoChatMessageMutationStore
             Clock clock,
             MongoChatMessageExceptionClassifier exceptionClassifier,
             ChatMessageOutboxWriter outboxWriter,
+            RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
         this.mongoOperations = Objects.requireNonNull(
@@ -62,6 +65,8 @@ public final class MongoChatMessageMutationStore
                 exceptionClassifier, "exceptionClassifier");
         this.outboxWriter = Objects.requireNonNull(
                 outboxWriter, "outboxWriter");
+        this.summaryWriter = Objects.requireNonNull(
+                summaryWriter, "summaryWriter");
         Objects.requireNonNull(meterRegistry, "meterRegistry");
         for (MessageMutationOutcome outcome
                 : MessageMutationOutcome.values()) {
@@ -482,6 +487,7 @@ public final class MongoChatMessageMutationStore
                         updated,
                         creationContentFingerprint),
                 MongoChatMessageDocument.COLLECTION_NAME);
+        summaryWriter.applyUpdated(updated);
         ChatMessageMutationResult result = insertReceipt(
                 MessageMutationCommandType.EDIT_MESSAGE,
                 actorUserId,
@@ -535,6 +541,7 @@ public final class MongoChatMessageMutationStore
                         deleted,
                         creationContentFingerprint),
                 MongoChatMessageDocument.COLLECTION_NAME);
+        summaryWriter.applyDeleted(deleted);
         ChatMessageMutationResult result = insertReceipt(
                 MessageMutationCommandType.DELETE_MESSAGE,
                 actorUserId,

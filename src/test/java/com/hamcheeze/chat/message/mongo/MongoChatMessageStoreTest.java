@@ -9,6 +9,9 @@ import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
+import com.hamcheeze.chat.room.inbox.summary.SummaryWriteResult;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -129,6 +132,26 @@ class MongoChatMessageStoreTest {
                 .isEqualTo("normalized content");
         assertThat(payload.getDate("createdAt").toInstant())
                 .isEqualTo(NOW);
+        Document summary = summaries().find().first();
+        assertThat(summary).isNotNull();
+        assertThat(summary.get("_id")).isEqualTo("room-1");
+        assertThat(summary.getInteger("schemaVersion")).isEqualTo(1);
+        Document lastMessage = summary.get(
+                "lastMessage", Document.class);
+        assertThat(lastMessage.getString("messageId"))
+                .isEqualTo("message-1");
+        assertThat(lastMessage.getLong("roomSequence")).isEqualTo(1L);
+        assertThat(lastMessage.getLong("messageVersion")).isEqualTo(1L);
+        assertThat(lastMessage.getString("state")).isEqualTo("ACTIVE");
+        assertThat(lastMessage.getString("preview"))
+                .isEqualTo("normalized content");
+        assertThat(lastMessage.getBoolean("previewTruncated")).isFalse();
+        assertThat(lastMessage.getDate("createdAt").toInstant())
+                .isEqualTo(NOW);
+        assertThat(summary.getDate("lastActivityAt").toInstant())
+                .isEqualTo(NOW);
+        assertThat(summary.getDate("updatedAt").toInstant())
+                .isEqualTo(NOW);
     }
 
     @Test
@@ -227,6 +250,7 @@ class MongoChatMessageStoreTest {
 
         assertThat(messages().countDocuments()).isZero();
         assertThat(outboxEvents().countDocuments()).isEqualTo(1L);
+        assertThat(summaries().countDocuments()).isZero();
         Document sequence = CONFIGURATION
                 .mongoOperations()
                 .getCollection(
@@ -234,6 +258,29 @@ class MongoChatMessageStoreTest {
                 .find(new Document("_id", "room-1"))
                 .first();
         assertThat(sequence).isNull();
+    }
+
+    @Test
+    void summaryFailureRollsBackMessageSequenceAndOutbox() {
+        RoomInboxSummaryWriter failingWriter =
+                new FailingRoomInboxSummaryWriter();
+        MongoChatMessageStore failingStore = CONFIGURATION.store(
+                CLOCK,
+                () -> "message-summary-failure",
+                failingWriter,
+                new SimpleMeterRegistry());
+
+        assertThatThrownBy(() -> failingStore.append(message(
+                "room-1", "user-1", "client-1", "hello")))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("forced summary failure");
+
+        assertThat(messages().countDocuments()).isZero();
+        assertThat(outboxEvents().countDocuments()).isZero();
+        assertThat(summaries().countDocuments()).isZero();
+        assertThat(CONFIGURATION.mongoOperations().getCollection(
+                        MongoRoomSequenceDocument.COLLECTION_NAME)
+                .countDocuments()).isZero();
     }
 
     @Test
@@ -576,6 +623,36 @@ class MongoChatMessageStoreTest {
     private MongoCollection<Document> outboxEvents() {
         return CONFIGURATION.mongoOperations().getCollection(
                 MongoChatMessageOutboxDocument.COLLECTION_NAME);
+    }
+
+    private MongoCollection<Document> summaries() {
+        return CONFIGURATION.mongoOperations().getCollection(
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME);
+    }
+
+    private static final class FailingRoomInboxSummaryWriter
+            implements RoomInboxSummaryWriter {
+
+        @Override
+        public SummaryWriteResult applyCreated(
+                com.hamcheeze.chat.message.ChatMessage message
+        ) {
+            throw new IllegalStateException("forced summary failure");
+        }
+
+        @Override
+        public SummaryWriteResult applyUpdated(
+                com.hamcheeze.chat.message.ChatMessage message
+        ) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SummaryWriteResult applyDeleted(
+                com.hamcheeze.chat.message.ChatMessage message
+        ) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private long lastSequence(String roomId) {

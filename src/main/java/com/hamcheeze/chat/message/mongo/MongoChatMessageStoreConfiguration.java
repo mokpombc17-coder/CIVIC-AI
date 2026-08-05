@@ -5,6 +5,9 @@ import com.hamcheeze.chat.message.ChatMessageMutationStore;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.room.application.RoomMessageBoundaryPort;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaInitializer;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryWriter;
 import com.mongodb.client.MongoClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.mongodb.health.MongoHealthIndicator;
@@ -42,6 +45,23 @@ public class MongoChatMessageStoreConfiguration {
                 mongoOperations);
     }
 
+    @Bean(initMethod = "initialize")
+    MongoRoomInboxSummarySchemaInitializer
+    mongoRoomInboxSummarySchemaInitializer(
+            MongoOperations mongoOperations
+    ) {
+        return new MongoRoomInboxSummarySchemaInitializer(
+                mongoOperations);
+    }
+
+    @Bean
+    RoomInboxSummaryWriter roomInboxSummaryWriter(
+            MongoOperations mongoOperations,
+            MongoRoomInboxSummarySchemaInitializer schemaInitializer
+    ) {
+        return new MongoRoomInboxSummaryWriter(mongoOperations);
+    }
+
     @Bean(name = "chatMessageStore")
     ChatMessageStore chatMessageStore(
             MongoOperations mongoOperations,
@@ -50,6 +70,7 @@ public class MongoChatMessageStoreConfiguration {
             MongoChatMessageSchemaInitializer schemaInitializer,
             MongoChatMessageExceptionClassifier exceptionClassifier,
             ChatMessageOutboxWriter outboxWriter,
+            RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
         return new MongoChatMessageStore(
@@ -59,6 +80,7 @@ public class MongoChatMessageStoreConfiguration {
                 () -> UUID.randomUUID().toString(),
                 exceptionClassifier,
                 outboxWriter,
+                summaryWriter,
                 meterRegistry);
     }
 
@@ -79,6 +101,7 @@ public class MongoChatMessageStoreConfiguration {
             MongoChatMessageMutationSchemaInitializer schemaInitializer,
             MongoChatMessageExceptionClassifier exceptionClassifier,
             ChatMessageOutboxWriter outboxWriter,
+            RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
         return new MongoChatMessageMutationStore(
@@ -87,6 +110,7 @@ public class MongoChatMessageStoreConfiguration {
                 Clock.systemUTC(),
                 exceptionClassifier,
                 outboxWriter,
+                summaryWriter,
                 meterRegistry);
     }
 
