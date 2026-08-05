@@ -102,7 +102,7 @@ class StompJwtAuthenticationInterceptorTest {
                 .isInstanceOf(StompPolicyException.class)
                 .extracting(exception ->
                         ((StompPolicyException) exception).code())
-                .isEqualTo("UNAUTHORIZED");
+                .isEqualTo("AUTHENTICATION_REQUIRED");
         verify(decoder).decode("expired-token");
     }
 
@@ -123,7 +123,7 @@ class StompJwtAuthenticationInterceptorTest {
                 .isInstanceOf(StompPolicyException.class)
                 .extracting(exception ->
                         ((StompPolicyException) exception).code())
-                .isEqualTo("UNAUTHORIZED");
+                .isEqualTo("AUTHENTICATION_REQUIRED");
         verifyNoInteractions(decoder);
     }
 
@@ -140,7 +140,7 @@ class StompJwtAuthenticationInterceptorTest {
                 .isInstanceOf(StompPolicyException.class)
                 .extracting(exception ->
                         ((StompPolicyException) exception).code())
-                .isEqualTo("UNAUTHORIZED");
+                .isEqualTo("AUTHENTICATION_REQUIRED");
         verifyNoInteractions(decoder);
     }
 

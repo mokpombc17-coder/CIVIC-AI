@@ -24,6 +24,10 @@ public final class ChatStompErrorHandler
             log.info(
                     "STOMP client message rejected: code={}",
                     policyException.code());
+            if (AuthenticationRequiredStompFrame.CODE.equals(
+                    policyException.code())) {
+                return AuthenticationRequiredStompFrame.message();
+            }
         } else {
             log.error(
                     "STOMP client message processing failed",

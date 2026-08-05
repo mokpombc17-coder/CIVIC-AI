@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.websocket.config;
 
 import com.hamcheeze.chat.websocket.authentication.StompJwtAuthenticationInterceptor;
+import com.hamcheeze.chat.websocket.authentication.StompConnectAuthenticationWebSocketHandlerDecoratorFactory;
 import com.hamcheeze.chat.websocket.authentication.WebSocketAuthenticationHandshakeInterceptor;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionLifecycleInterceptor;
 import com.hamcheeze.chat.websocket.connection.TrackingWebSocketHandlerDecoratorFactory;
@@ -43,6 +44,8 @@ public class ChatWebSocketConfig
     private final ThreadPoolTaskScheduler heartbeatScheduler;
     private final ThreadPoolTaskExecutor outboundExecutor;
     private final TrackingWebSocketHandlerDecoratorFactory trackingDecorator;
+    private final StompConnectAuthenticationWebSocketHandlerDecoratorFactory
+            connectAuthenticationDecorator;
     private final WebSocketAuthenticationHandshakeInterceptor
             authenticationHandshakeInterceptor;
     private final StompJwtAuthenticationInterceptor authenticationInterceptor;
@@ -66,6 +69,8 @@ public class ChatWebSocketConfig
             @Qualifier("chatClientOutboundExecutor")
             ThreadPoolTaskExecutor outboundExecutor,
             TrackingWebSocketHandlerDecoratorFactory trackingDecorator,
+            StompConnectAuthenticationWebSocketHandlerDecoratorFactory
+                    connectAuthenticationDecorator,
             WebSocketAuthenticationHandshakeInterceptor
                     authenticationHandshakeInterceptor,
             StompJwtAuthenticationInterceptor authenticationInterceptor,
@@ -86,6 +91,8 @@ public class ChatWebSocketConfig
         this.heartbeatScheduler = heartbeatScheduler;
         this.outboundExecutor = outboundExecutor;
         this.trackingDecorator = trackingDecorator;
+        this.connectAuthenticationDecorator =
+                connectAuthenticationDecorator;
         this.authenticationHandshakeInterceptor =
                 authenticationHandshakeInterceptor;
         this.authenticationInterceptor = authenticationInterceptor;
@@ -155,6 +162,7 @@ public class ChatWebSocketConfig
                                 .getSendBufferSizeLimitPerConnectionBytes())
                 .setSendTimeLimit(
                         transportProperties.getSendTimeLimitPerConnectionMs())
+                .addDecoratorFactory(connectAuthenticationDecorator)
                 .addDecoratorFactory(trackingDecorator);
     }
 }
