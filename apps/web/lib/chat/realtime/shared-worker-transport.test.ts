@@ -3,6 +3,51 @@ import type { ChatSharedWorkerCommand, ChatSharedWorkerEvent } from "./chat-shar
 import { SharedWorkerTransport } from "./shared-worker-transport";
 
 describe("SharedWorkerTransport", () => {
+  it("진단 snapshot과 clear 요청을 requestId로 연결한다", async () => {
+    const worker = createFakeWorker();
+    let requestSequence = 0;
+    const transport = new SharedWorkerTransport({
+      createDiagnosticRequestId: () => `diagnostics-${++requestSequence}`,
+      createId: () => "port-1",
+      createWorker: () => worker,
+    });
+    const snapshot = {
+      schemaVersion: 1 as const,
+      capturedAt: "2026-08-05T00:00:00.000Z",
+      capacity: 500,
+      droppedEventCount: 0,
+      rejectedEventCount: 0,
+      events: [],
+    };
+
+    transport.attach();
+    const snapshotPromise = transport.getDiagnosticSnapshot();
+
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "GET_DIAGNOSTICS",
+      portId: "port-1",
+      requestId: "diagnostics-1",
+    });
+    worker.port.dispatchMessage({
+      type: "DIAGNOSTICS_SNAPSHOT",
+      requestId: "diagnostics-1",
+      snapshot,
+    });
+    await expect(snapshotPromise).resolves.toEqual(snapshot);
+
+    const clearPromise = transport.clearDiagnostics();
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "CLEAR_DIAGNOSTICS",
+      portId: "port-1",
+      requestId: "diagnostics-2",
+    });
+    worker.port.dispatchMessage({
+      type: "DIAGNOSTICS_CLEARED",
+      requestId: "diagnostics-2",
+    });
+    await expect(clearPromise).resolves.toBeUndefined();
+  });
+
   it("첫 consumer에서 port를 attach하고 마지막 consumer에서 한 번만 detach한다", () => {
     const worker = createFakeWorker();
     const transport = new SharedWorkerTransport({

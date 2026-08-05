@@ -87,6 +87,10 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
     this.delegate.getRealtimeEventDelivery();
 
+  readonly getDiagnosticSnapshot = () => this.delegate.getDiagnosticSnapshot();
+
+  readonly clearDiagnostics = () => this.delegate.clearDiagnostics();
+
   readonly observe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

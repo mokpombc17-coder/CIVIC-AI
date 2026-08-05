@@ -207,12 +207,15 @@ function createFakeTransport(): ChatRealtimeTransport & {
     acknowledgeRealtimeEventDelivery: () => {},
     attach,
     claimRoom,
+    clearDiagnostics: () => Promise.resolve(),
     deleteRoomMessage: () => {},
     detach,
     editRoomMessage: () => {},
     emitMessageDeliveryLifecycle(event) {
       messageDeliveryLifecycleListeners.forEach((listener) => listener(event));
     },
+    getDiagnosticSnapshot: () =>
+      Promise.reject(new Error("Diagnostics are not used in this test.")),
     getRealtimeEventDelivery: () => null,
     getRoomSnapshot: () => roomSnapshot,
     getSnapshot: () => ({ status: "idle", error: null }),

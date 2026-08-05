@@ -60,8 +60,12 @@ function createFakeTransport(): ChatRealtimeTransport {
     acknowledgeRealtimeEventDelivery: vi.fn(),
     attach: vi.fn(() => vi.fn()),
     claimRoom: vi.fn(),
+    clearDiagnostics: vi.fn(() => Promise.resolve()),
     deleteRoomMessage: vi.fn(),
     editRoomMessage: vi.fn(),
+    getDiagnosticSnapshot: vi.fn(() =>
+      Promise.reject(new Error("Diagnostics are not used in this test.")),
+    ),
     getRealtimeEventDelivery: vi.fn(() => null),
     getRoomSnapshot: vi.fn(() => ({
       status: "idle" as const,

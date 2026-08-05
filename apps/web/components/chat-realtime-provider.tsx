@@ -14,6 +14,7 @@ import { observeAuthenticationSucceeded } from "@/lib/auth/authentication-sessio
 import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
 import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realtime-room-lifecycle";
 import { createChatRealtimeTransport } from "@/lib/chat/realtime/create-chat-realtime-transport";
+import { attachChatRealtimeDiagnosticsDevtools } from "@/lib/chat/realtime/diagnostics/chat-realtime-diagnostics-devtools";
 import {
   ChatMessageOutbox,
   type ChatOutgoingMessage,
@@ -54,12 +55,14 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const detachOutbox = outbox.attach();
     const detachRealtime = attachChatRealtimePageLifecycle(transport, window);
+    const detachDiagnostics = attachChatRealtimeDiagnosticsDevtools(transport, window);
     const detachAuthentication = observeAuthenticationSucceeded(window, () => {
       transport.reconnect("authentication-succeeded");
     });
 
     return () => {
       detachAuthentication();
+      detachDiagnostics();
       detachRealtime();
       detachOutbox();
     };

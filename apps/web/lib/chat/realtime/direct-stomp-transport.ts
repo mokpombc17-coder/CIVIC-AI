@@ -371,6 +371,13 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     };
   }
 
+  readonly getDiagnosticSnapshot = () => Promise.resolve(this.diagnostics.getSnapshot());
+
+  readonly clearDiagnostics = (): Promise<void> => {
+    this.diagnostics.clear();
+    return Promise.resolve();
+  };
+
   readonly getSnapshot = (): ChatConnectionSnapshot => this.snapshot;
 
   readonly getRoomSnapshot = (): ChatRoomSessionSnapshot => this.roomSnapshot;

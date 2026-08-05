@@ -7,6 +7,7 @@ import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import type { ChatMessageMutationLifecycleEvent } from "./chat-message-mutation-scheduler";
 import type { ChatRoomInboxEvent } from "./chat-stomp-contracts";
+import type { ChatRealtimeDiagnosticSnapshot } from "./diagnostics/chat-realtime-diagnostic-events";
 import {
   ChatMessageMutationError,
   ChatMessageSendError,
@@ -50,9 +51,25 @@ type SharedWorkerConnection = {
   worker: SharedWorkerTransportWorker;
 };
 
+type PendingDiagnosticRequest =
+  | Readonly<{
+      kind: "snapshot";
+      reject: (reason: Error) => void;
+      resolve: (snapshot: ChatRealtimeDiagnosticSnapshot) => void;
+      timeout: ReturnType<typeof setTimeout>;
+    }>
+  | Readonly<{
+      kind: "clear";
+      reject: (reason: Error) => void;
+      resolve: () => void;
+      timeout: ReturnType<typeof setTimeout>;
+    }>;
+
 export type SharedWorkerTransportOptions = {
+  createDiagnosticRequestId?: () => string;
   createId?: () => string;
   createWorker?: () => SharedWorkerTransportWorker;
+  diagnosticRequestTimeoutMs?: number;
   handshakeTimeoutMs?: number;
   onWorkerReady?: () => void;
   onWorkerUnavailable?: (error: ChatRealtimeError) => void;
@@ -76,10 +93,12 @@ const INITIAL_ROOM_SNAPSHOT: ChatRoomSessionSnapshot = {
 export class SharedWorkerTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
   private connection: SharedWorkerConnection | null = null;
+  private readonly createDiagnosticRequestId: () => string;
   private readonly createId: () => string;
   private readonly createWorker: () => SharedWorkerTransportWorker;
   private handshakeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly handshakeTimeoutMs: number;
+  private readonly diagnosticRequestTimeoutMs: number;
   private readonly listeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
@@ -90,6 +109,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     (event: ChatMessageMutationLifecycleEvent) => void
   >();
   private pendingRoomRequestId: string | null = null;
+  private readonly pendingDiagnosticRequests = new Map<string, PendingDiagnosticRequest>();
   private portId: string | null = null;
   private realtimeEventDelivery: ChatRealtimeEventDelivery | null = null;
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
@@ -102,14 +122,18 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private workerReady = false;
 
   constructor({
+    createDiagnosticRequestId = () => crypto.randomUUID(),
     createId = () => crypto.randomUUID(),
     createWorker = createBrowserChatSharedWorker,
+    diagnosticRequestTimeoutMs = 5_000,
     handshakeTimeoutMs = 5_000,
     onWorkerReady = () => {},
     onWorkerUnavailable = () => {},
   }: SharedWorkerTransportOptions = {}) {
+    this.createDiagnosticRequestId = createDiagnosticRequestId;
     this.createId = createId;
     this.createWorker = createWorker;
+    this.diagnosticRequestTimeoutMs = diagnosticRequestTimeoutMs;
     this.handshakeTimeoutMs = handshakeTimeoutMs;
     this.onWorkerReady = onWorkerReady;
     this.onWorkerUnavailable = onWorkerUnavailable;
@@ -140,6 +164,16 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
   readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
     this.realtimeEventDelivery;
+
+  readonly getDiagnosticSnapshot = (): Promise<ChatRealtimeDiagnosticSnapshot> =>
+    new Promise((resolve, reject) => {
+      this.postDiagnosticRequest("snapshot", resolve, reject);
+    });
+
+  readonly clearDiagnostics = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      this.postDiagnosticRequest("clear", resolve, reject);
+    });
 
   readonly observe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -463,6 +497,12 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     const workerEvent = event.data;
 
     switch (workerEvent.type) {
+      case "DIAGNOSTICS_SNAPSHOT":
+        this.resolveDiagnosticSnapshot(workerEvent.requestId, workerEvent.snapshot);
+        return;
+      case "DIAGNOSTICS_CLEARED":
+        this.resolveDiagnosticsCleared(workerEvent.requestId);
+        return;
       case "CONNECTION_SNAPSHOT":
         this.setSnapshot(workerEvent.snapshot);
 
@@ -711,6 +751,9 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
 
   private closeConnection(notifyWorker: boolean): void {
     this.clearHandshakeTimer();
+    this.rejectPendingDiagnosticRequests(
+      new Error("실시간 연결이 종료되어 채팅 진단 요청을 완료하지 못했습니다."),
+    );
 
     if (!this.connection) {
       return;
@@ -735,6 +778,102 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     port.close();
     this.connection = null;
     this.portId = null;
+  }
+
+  private postDiagnosticRequest(
+    kind: "snapshot",
+    resolve: (snapshot: ChatRealtimeDiagnosticSnapshot) => void,
+    reject: (reason: Error) => void,
+  ): void;
+  private postDiagnosticRequest(
+    kind: "clear",
+    resolve: () => void,
+    reject: (reason: Error) => void,
+  ): void;
+  private postDiagnosticRequest(
+    kind: "snapshot" | "clear",
+    resolve: ((snapshot: ChatRealtimeDiagnosticSnapshot) => void) | (() => void),
+    reject: (reason: Error) => void,
+  ): void {
+    if (!this.connection || !this.portId) {
+      reject(new Error("SharedWorker 연결이 없어 채팅 진단 정보를 요청할 수 없습니다."));
+      return;
+    }
+
+    const requestId = this.createDiagnosticRequestId().trim();
+
+    if (!requestId || this.pendingDiagnosticRequests.has(requestId)) {
+      reject(new Error("채팅 진단 요청 식별자를 생성하지 못했습니다."));
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      const pending = this.pendingDiagnosticRequests.get(requestId);
+
+      if (!pending) {
+        return;
+      }
+
+      this.pendingDiagnosticRequests.delete(requestId);
+      pending.reject(new Error("채팅 진단 요청 응답 시간이 초과되었습니다."));
+    }, this.diagnosticRequestTimeoutMs);
+
+    const pending =
+      kind === "snapshot"
+        ? ({ kind, resolve, reject, timeout } as PendingDiagnosticRequest)
+        : ({ kind, resolve, reject, timeout } as PendingDiagnosticRequest);
+    this.pendingDiagnosticRequests.set(requestId, pending);
+
+    try {
+      this.connection.port.postMessage({
+        type: kind === "snapshot" ? "GET_DIAGNOSTICS" : "CLEAR_DIAGNOSTICS",
+        portId: this.portId,
+        requestId,
+      });
+    } catch (cause) {
+      clearTimeout(timeout);
+      this.pendingDiagnosticRequests.delete(requestId);
+      reject(
+        cause instanceof Error
+          ? cause
+          : new Error("SharedWorker에 채팅 진단 요청을 전달하지 못했습니다."),
+      );
+    }
+  }
+
+  private resolveDiagnosticSnapshot(
+    requestId: string,
+    snapshot: ChatRealtimeDiagnosticSnapshot,
+  ): void {
+    const pending = this.pendingDiagnosticRequests.get(requestId);
+
+    if (!pending || pending.kind !== "snapshot") {
+      return;
+    }
+
+    clearTimeout(pending.timeout);
+    this.pendingDiagnosticRequests.delete(requestId);
+    pending.resolve(snapshot);
+  }
+
+  private resolveDiagnosticsCleared(requestId: string): void {
+    const pending = this.pendingDiagnosticRequests.get(requestId);
+
+    if (!pending || pending.kind !== "clear") {
+      return;
+    }
+
+    clearTimeout(pending.timeout);
+    this.pendingDiagnosticRequests.delete(requestId);
+    pending.resolve();
+  }
+
+  private rejectPendingDiagnosticRequests(reason: Error): void {
+    this.pendingDiagnosticRequests.forEach((pending) => {
+      clearTimeout(pending.timeout);
+      pending.reject(reason);
+    });
+    this.pendingDiagnosticRequests.clear();
   }
 
   private setWorkerError(cause: unknown, fallbackMessage: string): void {

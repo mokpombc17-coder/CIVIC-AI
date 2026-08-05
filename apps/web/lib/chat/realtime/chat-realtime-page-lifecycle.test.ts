@@ -49,8 +49,11 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     acknowledgeRealtimeEventDelivery: () => {},
     attach: vi.fn(() => detachments.shift() ?? (() => {})),
     claimRoom: () => {},
+    clearDiagnostics: () => Promise.resolve(),
     deleteRoomMessage: () => {},
     editRoomMessage: () => {},
+    getDiagnosticSnapshot: () =>
+      Promise.reject(new Error("Diagnostics are not used in this test.")),
     getRealtimeEventDelivery: () => null,
     getRoomSnapshot: () => ({
       status: "idle",

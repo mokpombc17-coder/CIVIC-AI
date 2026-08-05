@@ -1,4 +1,5 @@
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+import type { ChatRealtimeDiagnosticSnapshot } from "./diagnostics/chat-realtime-diagnostic-events";
 import type { ChatMessageDeliveryLifecycleEvent } from "./chat-message-delivery-scheduler";
 import type { ChatMessageMutationLifecycleEvent } from "./chat-message-mutation-scheduler";
 import type {
@@ -165,8 +166,10 @@ export type ChatRealtimeTransport = {
   acknowledgeRealtimeEventDelivery(deliveryId: string): void;
   attach(): () => void;
   claimRoom(roomId: string): void;
+  clearDiagnostics(): Promise<void>;
   deleteRoomMessage(command: ChatRoomMessageDeleteCommand): void;
   editRoomMessage(command: ChatRoomMessageEditCommand): void;
+  getDiagnosticSnapshot(): Promise<ChatRealtimeDiagnosticSnapshot>;
   getRealtimeEventDelivery(): ChatRealtimeEventDelivery | null;
   getRoomSnapshot(): ChatRoomSessionSnapshot;
   getSnapshot(): ChatConnectionSnapshot;
