@@ -12,6 +12,8 @@ const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
   timeZone: "Asia/Seoul",
 });
+const SCROLLABLE_ROOM_LIST_CLASS_NAME =
+  "grid max-h-[60dvh] scroll-p-1 gap-3 overflow-y-auto overscroll-contain p-1 pr-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:max-h-[32rem] [scrollbar-gutter:stable]";
 
 type RoomListState<TItem> = Readonly<{
   error: unknown;
@@ -87,7 +89,11 @@ export function ChatRoomListView({
         ) : participatingRooms.rooms.length === 0 && !participatingRooms.isError ? (
           <RoomListNotice message="현재 참여 중인 방이 없습니다." />
         ) : participatingRooms.rooms.length > 0 ? (
-          <ul className="grid gap-3">
+          <ul
+            aria-label="참여 중인 채팅방"
+            className={SCROLLABLE_ROOM_LIST_CLASS_NAME}
+            tabIndex={0}
+          >
             {participatingRooms.rooms.map((room) => (
               <li key={room.roomId}>
                 <MyRoomCard room={room} />
@@ -122,7 +128,7 @@ export function ChatRoomListView({
         ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
           <RoomListNotice message="현재 새로 참여할 수 있는 공개 방이 없습니다." />
         ) : publicRooms.rooms.length > 0 ? (
-          <ul className="grid gap-3">
+          <ul aria-label="공개 채팅방" className={SCROLLABLE_ROOM_LIST_CLASS_NAME} tabIndex={0}>
             {publicRooms.rooms.map((room) => (
               <li key={room.roomId}>
                 <PublicRoomCard room={room} />
