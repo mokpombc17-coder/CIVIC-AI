@@ -41,6 +41,7 @@ test("방 종료를 전달받은 활성 탭은 4003 이후 해당 방을 다시 
 
     await test.step("비활성 탭에서 방장이 실제 방 종료 Command를 실행한다", async () => {
       commandPage.once("dialog", (dialog) => dialog.accept());
+      await commandPage.getByRole("button", { name: "방 정보", exact: true }).click();
       await commandPage.getByRole("button", { name: "방 종료", exact: true }).click();
 
       await expect(commandPage).toHaveURL(/\/chat$/);

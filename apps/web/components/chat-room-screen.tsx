@@ -8,7 +8,10 @@ import {
   useChatOutgoingMessages,
   useChatRealtimeRoom,
 } from "@/components/chat-realtime-provider";
-import { ChatRoomMembershipPanel } from "@/components/chat-room-membership-panel";
+import {
+  ChatRoomMembershipDialog,
+  ChatRoomMembershipDialogTrigger,
+} from "@/components/chat-room-membership-dialog";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
 import {
   createChatMessageItemViewModels,
@@ -21,6 +24,7 @@ import { createChatMessageTimeline } from "@/lib/chat/chat-message-timeline";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
+import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
@@ -33,6 +37,12 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const outgoingMessages = useChatOutgoingMessages(roomId);
   const session = useChatRealtimeRoom(roomId);
   const updateReadThroughSequence = useChatRoomReadState(roomId);
+  const {
+    close: closeMembershipDialog,
+    isOpen: isMembershipDialogOpen,
+    open: openMembershipDialog,
+    triggerRef: membershipDialogTriggerRef,
+  } = useChatRoomMembershipDialog(roomId);
   const messageMutations = useChatMessageMutations({
     enabled: session.isActive,
     generation: session.generation,
@@ -114,7 +124,15 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     <ChatRoomView
       connectionStatus={<ChatConnectionStatus />}
       header={header}
-      membershipPanel={room ? <ChatRoomMembershipPanel room={room} roomId={roomId} /> : null}
+      headerAction={
+        room ? (
+          <ChatRoomMembershipDialogTrigger
+            isOpen={isMembershipDialogOpen}
+            onOpen={openMembershipDialog}
+            ref={membershipDialogTriggerRef}
+          />
+        ) : null
+      }
       messageHistory={{
         canLoadOlder: messageHistory.hasNextPage,
         feedback,
@@ -140,7 +158,11 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         viewportKey,
       }}
       overlay={
-        messageActions.sheet ? <ChatMessageActionsBottomSheet sheet={messageActions.sheet} /> : null
+        isMembershipDialogOpen && room ? (
+          <ChatRoomMembershipDialog onClose={closeMembershipDialog} room={room} roomId={roomId} />
+        ) : messageActions.sheet ? (
+          <ChatMessageActionsBottomSheet sheet={messageActions.sheet} />
+        ) : null
       }
       roomError={
         roomQuery.isError

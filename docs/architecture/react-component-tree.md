@@ -66,7 +66,8 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                 └── ChatRoomScreen [Client] (apps/web/components/chat-room-screen.tsx)
                                     └── ChatRoomView [Client] (apps/web/components/chat-room-view.tsx)
                                         ├── ChatRoomHeader [internal]
-                                        │   └── ChatConnectionStatus [Client] [slot] (apps/web/components/chat-connection-status.tsx)
+                                        │   ├── ChatConnectionStatus [Client] [slot] (apps/web/components/chat-connection-status.tsx)
+                                        │   └── ChatRoomMembershipDialogTrigger [Client] [slot, conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                         ├── ChatMessageViewport [Client] (apps/web/components/chat-message-viewport.tsx)
                                         │   └── ChatMessageItem [Client] [virtualized, repeated] (apps/web/components/chat-message-item.tsx)
                                         ├── ChatRealtimeSyncStatus [Client] [slot, conditional] (apps/web/components/chat-realtime-sync-status.tsx)
@@ -74,9 +75,10 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                         │   ├── ChatRoomSessionBanner [Client] (apps/web/components/chat-room-session-banner.tsx)
                                         │   └── ChatMessageComposer [Client] (apps/web/components/chat-message-composer.tsx)
                                         ├── ChatRoomOverlayHost [conditional] (apps/web/components/chat-room-overlay-host.tsx)
-                                        │   └── ChatMessageActionsBottomSheet [Client] [conditional, single] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
-                                        └── ChatRoomMembershipPanel [Client] [slot, conditional] (apps/web/components/chat-room-membership-panel.tsx)
-                                            └── ChatRoomSettingsControl [Client] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
+                                        │   ├── ChatMessageActionsBottomSheet [Client] [conditional, single] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
+                                        │   └── ChatRoomMembershipDialog [Client] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
+                                        │       └── ChatRoomMembershipPanel [Client] (apps/web/components/chat-room-membership-panel.tsx)
+                                        │           └── ChatRoomSettingsControl [Client] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
                         └── ChatRoomInboxRuntime [Client] (apps/web/components/chat-room-inbox-runtime.tsx)
                             └── ChatRoomInboxToastList [Client] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
 ```
@@ -101,7 +103,10 @@ slot만 받아 화면을 렌더링한다. `ChatRoomSessionControls`도 session �
 메시지 수정·삭제 lifecycle과 transport command는 `ChatRoomScreen`의 container hook이 조립하고,
 가상화된 각 `ChatMessageItem`은 액션 trigger만 렌더링한다. 선택된 메시지의 입력·확인·진행 상태는
 `ChatRoomOverlayHost`에 하나만 mount되는 `ChatMessageActionsBottomSheet`가 표시한다.
-`ChatRoomMembershipPanel`은 활성 OWNER에게만 `ChatRoomSettingsControl`을 렌더링한다. 이
+상시 하단에 있던 멤버십 UI는 header의 `ChatRoomMembershipDialogTrigger`로 열며, 같은 overlay
+slot의 `ChatRoomMembershipDialog` 안에서만 `ChatRoomMembershipPanel`을 mount한다. 메시지 액션과
+멤버십 Dialog는 동시에 렌더링하지 않는다. `ChatRoomMembershipPanel`은 활성 OWNER에게만
+`ChatRoomSettingsControl`을 렌더링한다. 이
 control은 설정 Dialog, 부분 patch 계산, update-settings mutation과 같은 멱등성 key 재시도를
 소유하며, 멤버십 패널은 owner 여부와 배치만 담당한다.
 
@@ -154,10 +159,12 @@ flowchart TD
     ChatRoomScreen["ChatRoomScreen [Client]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatRoomView["ChatRoomView [Client]<br/>apps/web/components/chat-room-view.tsx"]
     ChatRoomHeader["ChatRoomHeader [internal]<br/>apps/web/components/chat-room-view.tsx"]
+    ChatRoomMembershipDialogTrigger["ChatRoomMembershipDialogTrigger [Client] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatMessageViewport["ChatMessageViewport [Client]<br/>apps/web/components/chat-message-viewport.tsx"]
     ChatMessageItem["ChatMessageItem [Client] [virtualized] [repeated]<br/>apps/web/components/chat-message-item.tsx"]
     ChatRoomOverlayHost["ChatRoomOverlayHost [conditional]<br/>apps/web/components/chat-room-overlay-host.tsx"]
     ChatMessageActionsBottomSheet["ChatMessageActionsBottomSheet [Client] [conditional, single]<br/>apps/web/components/chat-message-actions-bottom-sheet.tsx"]
+    ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [conditional]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client]<br/>apps/web/components/chat-connection-status.tsx"]
@@ -198,15 +205,17 @@ flowchart TD
     ChatRoomScreen --> ChatRoomView
     ChatRoomView --> ChatRoomHeader
     ChatRoomHeader -->|"slot"| ChatConnectionStatus
+    ChatRoomHeader -->|"room loaded; slot"| ChatRoomMembershipDialogTrigger
     ChatRoomView --> ChatMessageViewport
     ChatMessageViewport -->|"confirmed / optimistic; visible range only"| ChatMessageItem
     ChatRoomView -->|"conditional overlay slot"| ChatRoomOverlayHost
     ChatRoomOverlayHost -->|"one selected message"| ChatMessageActionsBottomSheet
+    ChatRoomOverlayHost -->|"room info requested"| ChatRoomMembershipDialog
+    ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomView -->|"slot; sync pending/error only"| ChatRealtimeSyncStatus
     ChatRoomView -->|"slot"| ChatRoomSessionControls
     ChatRoomSessionControls --> ChatRoomSessionBanner
     ChatRoomSessionControls --> ChatMessageComposer
-    ChatRoomView -->|"slot"| ChatRoomMembershipPanel
     ChatRoomMembershipPanel -->|"active OWNER only"| ChatRoomSettingsControl
 
     SpecialBoundary -. "loading state" .-> Loading

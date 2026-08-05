@@ -19,7 +19,7 @@ export type ChatMessageHistoryViewModel = ChatMessageViewportViewModel;
 export type ChatRoomViewProps = Readonly<{
   connectionStatus: ReactNode;
   header: ChatRoomHeaderViewModel;
-  membershipPanel: ReactNode;
+  headerAction: ReactNode;
   messageHistory: ChatMessageHistoryViewModel;
   overlay: ReactNode;
   roomError: Readonly<{
@@ -33,7 +33,7 @@ export type ChatRoomViewProps = Readonly<{
 export function ChatRoomView({
   connectionStatus,
   header,
-  membershipPanel,
+  headerAction,
   messageHistory,
   overlay,
   roomError,
@@ -54,7 +54,11 @@ export function ChatRoomView({
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
           inert={hasOverlay}
         >
-          <ChatRoomHeader connectionStatus={connectionStatus} header={header} />
+          <ChatRoomHeader
+            action={headerAction}
+            connectionStatus={connectionStatus}
+            header={header}
+          />
 
           {roomError ? <ChatRoomError error={roomError} /> : null}
 
@@ -68,20 +72,16 @@ export function ChatRoomView({
 
         <ChatRoomOverlayHost>{overlay}</ChatRoomOverlayHost>
       </section>
-
-      {membershipPanel ? (
-        <div aria-hidden={hasOverlay ? true : undefined} inert={hasOverlay}>
-          {membershipPanel}
-        </div>
-      ) : null}
     </div>
   );
 }
 
 function ChatRoomHeader({
+  action,
   connectionStatus,
   header,
 }: {
+  action: ReactNode;
   connectionStatus: ReactNode;
   header: ChatRoomHeaderViewModel;
 }) {
@@ -103,6 +103,8 @@ function ChatRoomHeader({
         <p className="mt-1 text-sm text-slate-500">{header.description}</p>
         <div className="mt-2">{connectionStatus}</div>
       </div>
+
+      {action}
     </header>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
 import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
@@ -62,7 +62,17 @@ const COMMAND_SUCCESS_MESSAGE: Record<RoomManagementCommandKind, string> = {
   unban: "멤버의 차단을 해제했습니다.",
 };
 
-export function ChatRoomMembershipPanel({ room, roomId }: { room: RoomDetails; roomId: string }) {
+export function ChatRoomMembershipPanel({
+  headerAction,
+  headingId,
+  room,
+  roomId,
+}: {
+  headerAction?: ReactNode;
+  headingId?: string;
+  room: RoomDetails;
+  roomId: string;
+}) {
   const router = useRouter();
   const [membershipStatus, setMembershipStatus] = useState<MembershipStatus>("ACTIVE");
   const [pendingCommand, setPendingCommand] = useState<RoomManagementCommand | null>(null);
@@ -181,11 +191,12 @@ export function ChatRoomMembershipPanel({ room, roomId }: { room: RoomDetails; r
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Room membership</p>
-          <h2>방 정보와 멤버십</h2>
+          <h2 id={headingId}>방 정보와 멤버십</h2>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="status">version {room.version}</span>
           {isOwner ? <ChatRoomSettingsControl room={room} /> : null}
+          {headerAction}
         </div>
       </div>
 

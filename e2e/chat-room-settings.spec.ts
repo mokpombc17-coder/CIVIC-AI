@@ -24,8 +24,20 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
         description: initialDescription,
       });
 
-      await expect(ownerPage.getByText(initialDescription, { exact: true })).toBeVisible();
-      await expect(ownerPage.getByRole("button", { name: "방 설정", exact: true })).toBeVisible();
+      const roomInfoTrigger = ownerPage.getByRole("button", { name: "방 정보", exact: true });
+      await roomInfoTrigger.click();
+
+      const membershipDialog = ownerPage.getByRole("dialog", { name: "방 정보와 멤버십" });
+      await expect(membershipDialog).toBeVisible();
+      await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
+      await expect(
+        membershipDialog.getByRole("button", { name: "방 설정", exact: true }),
+      ).toBeVisible();
+      await membershipDialog
+        .getByRole("button", { name: "방 정보와 멤버십 닫기", exact: true })
+        .click();
+      await expect(membershipDialog).toHaveCount(0);
+      await expect(roomInfoTrigger).toBeFocused();
     });
 
     const roomId = new URL(ownerPage.url()).pathname.split("/").at(-1);
@@ -36,11 +48,20 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       await authenticateDevUserAs(memberPage, memberContext, `e2e-settings-member-${uniqueId}`);
       await joinPublicRoomAndEnter(memberPage, roomId!, initialName);
 
-      await expect(memberPage.getByText(initialDescription, { exact: true })).toBeVisible();
-      await expect(memberPage.getByRole("button", { name: "방 설정", exact: true })).toHaveCount(0);
+      await memberPage.getByRole("button", { name: "방 정보", exact: true }).click();
+
+      const membershipDialog = memberPage.getByRole("dialog", { name: "방 정보와 멤버십" });
+      await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
+      await expect(
+        membershipDialog.getByRole("button", { name: "방 설정", exact: true }),
+      ).toHaveCount(0);
+      await membershipDialog
+        .getByRole("button", { name: "방 정보와 멤버십 닫기", exact: true })
+        .click();
     });
 
     await test.step("방장이 Dialog에서 전체 설정을 변경한다", async () => {
+      await ownerPage.getByRole("button", { name: "방 정보", exact: true }).click();
       await ownerPage.getByRole("button", { name: "방 설정", exact: true }).click();
 
       const dialog = ownerPage.getByRole("dialog", { name: "방 설정 변경" });
@@ -69,12 +90,19 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       await expect(
         ownerPage.getByRole("status").filter({ hasText: "방 설정을 변경했습니다." }),
       ).toBeVisible();
+      await ownerPage.getByRole("button", { name: "방 정보와 멤버십 닫기", exact: true }).click();
     });
 
     await test.step("방장과 참여자 화면이 최신 설정 snapshot으로 수렴한다", async () => {
       for (const page of [ownerPage, memberPage]) {
         await expect(page.getByRole("heading", { name: updatedName, exact: true })).toBeVisible();
-        await expect(page.getByText(updatedDescription, { exact: true })).toBeVisible();
+        await page.getByRole("button", { name: "방 정보", exact: true }).click();
+
+        const membershipDialog = page.getByRole("dialog", { name: "방 정보와 멤버십" });
+        await expect(membershipDialog.getByText(updatedDescription, { exact: true })).toBeVisible();
+        await membershipDialog
+          .getByRole("button", { name: "방 정보와 멤버십 닫기", exact: true })
+          .click();
       }
 
       await expect(memberPage.getByRole("button", { name: "방 설정", exact: true })).toHaveCount(0);
