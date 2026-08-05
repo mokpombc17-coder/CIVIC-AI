@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   ChatMessageViewport,
   type ChatMessageViewportFeedback,
   type ChatMessageViewportViewModel,
 } from "@/components/chat-message-viewport";
-import { calculateChatRoomVisibleHeight } from "@/components/chat-room-visual-viewport";
 import type { ChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
+import { useChatRoomVisualViewportMaxHeight } from "@/components/use-chat-room-visual-viewport";
 
 const CHAT_ROOM_BOTTOM_GAP = 16;
 
@@ -37,48 +37,7 @@ export function ChatRoomView({
   sessionControls,
   syncStatus,
 }: ChatRoomViewProps) {
-  const chatRoomCardRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const visualViewport = window.visualViewport;
-    let frame: number | null = null;
-
-    const updateMaxHeight = () => {
-      frame = null;
-      const card = chatRoomCardRef.current;
-
-      if (!card) {
-        return;
-      }
-
-      const maxHeight = calculateChatRoomVisibleHeight({
-        bottomGap: CHAT_ROOM_BOTTOM_GAP,
-        viewportHeight: visualViewport?.height ?? window.innerHeight,
-      });
-      card.style.maxHeight = `${maxHeight}px`;
-    };
-
-    const scheduleMaxHeightUpdate = () => {
-      if (frame !== null) {
-        cancelAnimationFrame(frame);
-      }
-
-      frame = requestAnimationFrame(updateMaxHeight);
-    };
-
-    scheduleMaxHeightUpdate();
-    window.addEventListener("resize", scheduleMaxHeightUpdate);
-    visualViewport?.addEventListener("resize", scheduleMaxHeightUpdate);
-
-    return () => {
-      window.removeEventListener("resize", scheduleMaxHeightUpdate);
-      visualViewport?.removeEventListener("resize", scheduleMaxHeightUpdate);
-
-      if (frame !== null) {
-        cancelAnimationFrame(frame);
-      }
-    };
-  }, []);
+  const chatRoomCardRef = useChatRoomVisualViewportMaxHeight(CHAT_ROOM_BOTTOM_GAP);
 
   return (
     <div className="page-stack">
