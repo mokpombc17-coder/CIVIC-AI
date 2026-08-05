@@ -392,6 +392,11 @@ class MongoChatMessageMutationStoreTest {
         assertThat(message().messageVersion()).isEqualTo(1);
         assertThat(receiptCount()).isEqualTo(1);
         assertThat(outboxCount()).isZero();
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(1);
+        assertThat(summary().lastMessage().preview()).isEqualTo("original");
+        assertThat(summary().lastMessage().state())
+                .isEqualTo(MessageState.ACTIVE);
+        assertThat(summary().updatedAt()).isEqualTo(CREATED_AT);
     }
 
     @Test
@@ -457,6 +462,13 @@ class MongoChatMessageMutationStoreTest {
         assertThat(outboxCount()).isEqualTo(1);
         assertThat(outboxId())
                 .isEqualTo("chat-message-updated:message-1:v2");
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(2);
+        assertThat(summary().lastMessage().preview())
+                .isEqualTo("edited once");
+        assertThat(summary().lastMessage().state())
+                .isEqualTo(MessageState.ACTIVE);
+        assertThat(summary().lastActivityAt()).isEqualTo(CREATED_AT);
+        assertThat(summary().updatedAt()).isEqualTo(MUTATED_AT);
     }
 
     private ChatMessage create(String clientMessageId) {

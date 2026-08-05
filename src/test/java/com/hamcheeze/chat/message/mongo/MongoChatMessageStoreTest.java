@@ -155,6 +155,26 @@ class MongoChatMessageStoreTest {
     }
 
     @Test
+    void storesDollarPrefixedPreviewInMessageTransaction() {
+        StoredChatMessage stored =
+                (StoredChatMessage) store.append(
+                        message(
+                                "room-1",
+                                "user-1",
+                                "client-1",
+                                "$27"));
+
+        assertThat(stored.message().content()).isEqualTo("$27");
+        assertThat(messages().countDocuments()).isEqualTo(1L);
+        assertThat(outboxEvents().countDocuments()).isEqualTo(1L);
+        assertThat(summaries().countDocuments()).isEqualTo(1L);
+        Document summary = summaries().find().first();
+        assertThat(summary).isNotNull();
+        assertThat(summary.get("lastMessage", Document.class)
+                .getString("preview")).isEqualTo("$27");
+    }
+
+    @Test
     void assignsSequentialNumbersWithinRoom() {
         StoredChatMessage first =
                 (StoredChatMessage) store.append(

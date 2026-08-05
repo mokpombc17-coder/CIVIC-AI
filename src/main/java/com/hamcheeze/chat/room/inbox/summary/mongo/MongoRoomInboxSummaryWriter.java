@@ -70,7 +70,9 @@ public final class MongoRoomInboxSummaryWriter
                     field,
                     new Document("$cond", List.of(
                             shouldReplace,
-                            replacement.get(field),
+                            new Document(
+                                    "$literal",
+                                    replacement.get(field)),
                             "$" + field)));
         }
         UpdateResult result = mongoOperations.execute(

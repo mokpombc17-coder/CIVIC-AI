@@ -28,13 +28,24 @@ public record RoomInboxLastMessage(
         }
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(createdAt, "createdAt");
-        if (state == MessageState.ACTIVE) {
-            new RoomInboxSummaryPreview(
+        switch (state) {
+            case ACTIVE -> new RoomInboxSummaryPreview(
                     Objects.requireNonNull(preview, "preview"),
                     previewTruncated);
-        } else if (preview != null || previewTruncated) {
-            throw new IllegalArgumentException(
-                    "Deleted summary preview must be null and not truncated");
+            case DELETED_BY_AUTHOR -> {
+                if (messageVersion < 2) {
+                    throw new IllegalArgumentException(
+                            "Deleted summary messageVersion "
+                                    + "must be at least 2");
+                }
+                if (preview != null || previewTruncated) {
+                    throw new IllegalArgumentException(
+                            "Deleted summary preview must be null "
+                                    + "and not truncated");
+                }
+            }
+            default -> throw new IllegalArgumentException(
+                    "Unsupported summary message state " + state);
         }
     }
 

@@ -97,6 +97,28 @@ class MongoRoomInboxSummaryWriterTest {
     }
 
     @Test
+    void createStoresSystemVariablePreviewAsLiteral() {
+        assertThat(writer.applyCreated(active(1, 1, "$$NOW", true)))
+                .isEqualTo(SummaryWriteResult.CREATED);
+
+        assertThat(summary().lastMessage().preview()).isEqualTo("$$NOW");
+    }
+
+    @Test
+    void greaterCreateStoresFieldPathPreviewAsLiteral() {
+        writer.applyCreated(active(1, 1, "original", true));
+
+        assertThat(writer.applyCreated(active(
+                2,
+                1,
+                "$lastMessage.messageId",
+                true))).isEqualTo(SummaryWriteResult.UPDATED);
+
+        assertThat(summary().lastMessage().preview())
+                .isEqualTo("$lastMessage.messageId");
+    }
+
+    @Test
     void reorderedConcurrentCreatesCannotMoveSummaryBackward()
             throws Exception {
         List<Integer> sequences = new ArrayList<>();
