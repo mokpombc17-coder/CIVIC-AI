@@ -10,6 +10,7 @@ import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryBackfil
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryCandidate;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceAction;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceCommand;
+import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceHook;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceMode;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceOptions;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceReport;
@@ -22,6 +23,7 @@ import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Updates;
 import org.bson.Document;
@@ -338,6 +340,144 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
     }
 
     @Test
+    void reverseValidationDetectsUpdateBetweenValidationPhases() {
+        ChatMessage version1 = active(
+                "room-1", 1, 1, "before", true);
+        ChatMessage version2 = active(
+                "room-1", 1, 2, "after", true);
+        insertMessage(version1);
+        insertSequence("room-1", 1);
+        insertSummary(expected(version1));
+
+        RoomInboxSummaryMaintenanceReport report = validate(
+                betweenValidationPhases(() ->
+                        mongoOperations.save(document(version2))));
+
+        assertThat(report.valid()).isFalse();
+        assertThat(report.projectionViolations()).isEqualTo(1);
+        assertThat(report.violations()).isGreaterThanOrEqualTo(1);
+        assertThat(report.completedSuccessfully()).isFalse();
+    }
+
+    @Test
+    void reverseValidationDetectsDeleteBetweenValidationPhases() {
+        ChatMessage version1 = active(
+                "room-1", 1, 1, "before", true);
+        ChatMessage version2 = deleted(
+                "room-1", 1, 2, true);
+        insertMessage(version1);
+        insertSequence("room-1", 1);
+        insertSummary(expected(version1));
+
+        RoomInboxSummaryMaintenanceReport report = validate(
+                betweenValidationPhases(() ->
+                        mongoOperations.save(document(version2))));
+
+        assertThat(report.valid()).isFalse();
+        assertThat(report.projectionViolations()).isEqualTo(1);
+    }
+
+    @Test
+    void reverseValidationAcceptsSourceAndSummaryUpdatedTogether() {
+        ChatMessage version1 = active(
+                "room-1", 1, 1, "before", true);
+        ChatMessage version2 = active(
+                "room-1", 1, 2, "after", true);
+        insertMessage(version1);
+        insertSequence("room-1", 1);
+        insertSummary(expected(version1));
+        MongoRoomInboxSummaryWriter runtimeWriter =
+                new MongoRoomInboxSummaryWriter(mongoOperations);
+
+        RoomInboxSummaryMaintenanceReport report = validate(
+                betweenValidationPhases(() -> {
+                    mongoOperations.save(document(version2));
+                    runtimeWriter.applyUpdated(version2);
+                }));
+
+        assertThat(report.valid()).isTrue();
+        assertThat(report.projectionViolations()).isZero();
+    }
+
+    @Test
+    void reversePairChangeRetriesAndConverges() {
+        ChatMessage version1 = active(
+                "room-1", 1, 1, "before", true);
+        ChatMessage version2 = active(
+                "room-1", 1, 2, "after", true);
+        insertMessage(version1);
+        insertSequence("room-1", 1);
+        insertSummary(expected(version1));
+        AtomicBoolean once = new AtomicBoolean();
+        MongoRoomInboxSummaryWriter runtimeWriter =
+                new MongoRoomInboxSummaryWriter(mongoOperations);
+
+        RoomInboxSummaryMaintenanceReport report = validate(
+                new RoomInboxSummaryMaintenanceHook() {
+                    @Override
+                    public void afterCandidateRead(
+                            RoomInboxSummaryCandidate candidate,
+                            int attempt
+                    ) {
+                    }
+
+                    @Override
+                    public void afterReverseFirstObservation(
+                            String roomId,
+                            int attempt
+                    ) {
+                        if (once.compareAndSet(false, true)) {
+                            mongoOperations.save(document(version2));
+                            runtimeWriter.applyUpdated(version2);
+                        }
+                    }
+                });
+
+        assertThat(report.valid()).isTrue();
+        assertThat(report.concurrentlyChanged()).isZero();
+    }
+
+    @Test
+    void reversePairRetryExhaustionIsNotValid() {
+        ChatMessage version1 = active(
+                "room-1", 1, 1, "version-1", true);
+        insertMessage(version1);
+        insertSequence("room-1", 1);
+        insertSummary(expected(version1));
+        MongoRoomInboxSummaryWriter runtimeWriter =
+                new MongoRoomInboxSummaryWriter(mongoOperations);
+
+        RoomInboxSummaryMaintenanceReport report = validate(
+                new RoomInboxSummaryMaintenanceHook() {
+                    @Override
+                    public void afterCandidateRead(
+                            RoomInboxSummaryCandidate candidate,
+                            int attempt
+                    ) {
+                    }
+
+                    @Override
+                    public void afterReverseFirstObservation(
+                            String roomId,
+                            int attempt
+                    ) {
+                        ChatMessage next = active(
+                                roomId,
+                                1,
+                                attempt + 2,
+                                "version-" + (attempt + 2),
+                                true);
+                        mongoOperations.save(document(next));
+                        runtimeWriter.applyUpdated(next);
+                    }
+                });
+
+        assertThat(report.valid()).isFalse();
+        assertThat(report.concurrentlyChanged()).isEqualTo(1);
+        assertThat(report.completedSuccessfully()).isFalse();
+    }
+
+    @Test
     void applyRefusesUnsupportedSummaryAndMalformedMessage() {
         ChatMessage source = active("room-1", 1, 1, "source", true);
         insertMessage(source);
@@ -461,6 +601,53 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
     }
 
     @Test
+    void summaryNumericBsonTypesAreFailClosed() {
+        RoomInboxSummary expected = expected(active(
+                "room-1", 1, 2, "expected", true));
+
+        assertMalformedSummaryNumber(
+                expected, "roomSequence", 1.5D);
+        assertMalformedSummaryNumber(
+                expected, "messageVersion", 2.0D);
+        assertMalformedSummaryNumber(
+                expected, "roomSequence", 1);
+
+        replaceSummary(MongoRoomInboxSummaryDocument
+                .fromDomain(expected)
+                .toBson());
+        assertThat(repository.observe("room-1").kind())
+                .isEqualTo(MongoRoomInboxSummaryMaintenanceRepository
+                        .ObservationKind.VALID);
+    }
+
+    @Test
+    void messageNumericAndBooleanBsonTypesAreFailClosed() {
+        assertMalformedMessage(raw ->
+                raw.put("roomSequence", 1.5D));
+        assertMalformedMessage(raw ->
+                raw.put("messageVersion", "2"));
+        assertMalformedMessage(raw ->
+                raw.put("schemaVersion", 3L));
+        assertMalformedMessage(raw ->
+                raw.put("countable", "true"));
+    }
+
+    @Test
+    void roomSequenceLastSequenceRequiresNonNegativeInt64() {
+        ChatMessage source = active(
+                "room-1", 1, 1, "source", true);
+        insertMessage(source);
+        insertSummary(expected(source));
+
+        assertInvalidRoomSequenceValue(1.5D);
+        assertInvalidRoomSequenceValue("1");
+        assertInvalidRoomSequenceValue(null);
+
+        replaceRoomSequence(1L);
+        assertThat(validate(null).valid()).isTrue();
+    }
+
+    @Test
     void candidateScanUsesBoundedCursorForFiveHundredRooms() {
         List<MongoChatMessageDocument> messages = new ArrayList<>();
         for (int index = 0; index < 500; index++) {
@@ -493,6 +680,144 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
         assertThat(runCommand("apply", environment)).isZero();
         assertThat(summaryCount()).isEqualTo(1);
         assertThat(runCommand("validate", environment)).isZero();
+    }
+
+    @Test
+    void emptyDatabaseFailsBeforeValidateOrApplyCanWrite() {
+        MongoOperations validateDatabase = isolatedDatabase(
+                "summary_preflight_empty_validate");
+        CommandResult validate = runCommandResult(
+                "validate",
+                MongoRuntimeTestContainer.replicaSetUrl(
+                        "summary_preflight_empty_validate"));
+
+        assertThat(validate.exitCode()).isEqualTo(1);
+        assertThat(validate.output()).doesNotContain("\"valid\":true");
+        assertThat(validateDatabase.collectionExists(
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME)).isFalse();
+
+        MongoOperations applyDatabase = isolatedDatabase(
+                "summary_preflight_empty_apply");
+        CommandResult apply = runCommandResult(
+                "apply",
+                MongoRuntimeTestContainer.replicaSetUrl(
+                        "summary_preflight_empty_apply"));
+
+        assertThat(apply.exitCode()).isEqualTo(1);
+        assertThat(applyDatabase.collectionExists(
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME)).isFalse();
+    }
+
+    @Test
+    void sourceSchemaControlsEmptyDatabaseModeSemantics() {
+        MongoOperations dryRunDatabase = isolatedDatabase(
+                "summary_preflight_source_dry_run");
+        new MongoChatMessageSchemaInitializer(
+                dryRunDatabase).initialize();
+
+        CommandResult dryRun = runCommandResult(
+                "dry-run",
+                MongoRuntimeTestContainer.replicaSetUrl(
+                        "summary_preflight_source_dry_run"));
+
+        assertThat(dryRun.exitCode()).isZero();
+        assertThat(dryRunDatabase.collectionExists(
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME)).isFalse();
+
+        MongoOperations validateDatabase = isolatedDatabase(
+                "summary_preflight_source_validate");
+        new MongoChatMessageSchemaInitializer(
+                validateDatabase).initialize();
+        new MongoRoomInboxSummarySchemaInitializer(
+                validateDatabase).initialize();
+
+        CommandResult validate = runCommandResult(
+                "validate",
+                MongoRuntimeTestContainer.replicaSetUrl(
+                        "summary_preflight_source_validate"));
+
+        assertThat(validate.exitCode()).isZero();
+        assertThat(validate.output())
+                .contains("\"valid\":true")
+                .contains("\"roomsWithMessages\":0")
+                .contains("\"summariesObserved\":0");
+
+        MongoOperations applyDatabase = isolatedDatabase(
+                "summary_preflight_source_apply");
+        new MongoChatMessageSchemaInitializer(
+                applyDatabase).initialize();
+
+        CommandResult apply = runCommandResult(
+                "apply",
+                MongoRuntimeTestContainer.replicaSetUrl(
+                        "summary_preflight_source_apply"));
+
+        assertThat(apply.exitCode()).isZero();
+        assertThat(applyDatabase.collectionExists(
+                MongoRoomInboxSummaryDocument.COLLECTION_NAME)).isTrue();
+    }
+
+    @Test
+    void missingRequiredIndexFailsEveryModeBeforeApplyCanWrite() {
+        for (String mode : List.of("dry-run", "apply", "validate")) {
+            String databaseName = "summary_preflight_missing_"
+                    + mode.replace('-', '_');
+            MongoOperations database = isolatedDatabase(databaseName);
+            new MongoChatMessageSchemaInitializer(database).initialize();
+            if (mode.equals("validate")) {
+                new MongoRoomInboxSummarySchemaInitializer(
+                        database).initialize();
+            }
+            database.getCollection(
+                            MongoChatMessageDocument.COLLECTION_NAME)
+                    .dropIndex(MongoChatMessageSchemaInitializer
+                            .ROOM_SEQUENCE_INDEX_NAME);
+
+            CommandResult result = runCommandResult(
+                    mode,
+                    MongoRuntimeTestContainer.replicaSetUrl(databaseName));
+
+            assertThat(result.exitCode()).isEqualTo(1);
+            assertThat(result.error()).contains(
+                    "maintenance-preflight-error="
+                            + "required-source-index-missing");
+            if (mode.equals("apply")) {
+                assertThat(database.collectionExists(
+                        MongoRoomInboxSummaryDocument.COLLECTION_NAME))
+                        .isFalse();
+            }
+        }
+    }
+
+    @Test
+    void requiredIndexKeyOrderAndUniqueFlagAreExact() {
+        MongoOperations reversed = isolatedDatabase(
+                "summary_preflight_reversed_index");
+        replaceRequiredIndex(
+                reversed,
+                new Document("roomSequence", 1)
+                        .append("roomId", 1),
+                true);
+
+        assertThat(runCommandResult(
+                "dry-run",
+                MongoRuntimeTestContainer.replicaSetUrl(
+                        "summary_preflight_reversed_index"))
+                .exitCode()).isEqualTo(1);
+
+        MongoOperations nonUnique = isolatedDatabase(
+                "summary_preflight_non_unique_index");
+        replaceRequiredIndex(
+                nonUnique,
+                new Document("roomId", 1)
+                        .append("roomSequence", 1),
+                false);
+
+        assertThat(runCommandResult(
+                "dry-run",
+                MongoRuntimeTestContainer.replicaSetUrl(
+                        "summary_preflight_non_unique_index"))
+                .exitCode()).isEqualTo(1);
     }
 
     private void assertConcurrentMutationConverges(boolean delete) {
@@ -573,6 +898,84 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
         assertThat(validate(null).valid()).isFalse();
     }
 
+    private void assertMalformedSummaryNumber(
+            RoomInboxSummary expected,
+            String field,
+            Object value
+    ) {
+        Document raw = MongoRoomInboxSummaryDocument
+                .fromDomain(expected)
+                .toBson();
+        last(raw).put(field, value);
+        replaceSummary(raw);
+
+        assertThat(repository.observe(expected.roomId()).kind())
+                .isEqualTo(MongoRoomInboxSummaryMaintenanceRepository
+                        .ObservationKind.MALFORMED);
+    }
+
+    private void replaceSummary(Document raw) {
+        mongoOperations.getCollection(
+                        MongoRoomInboxSummaryDocument.COLLECTION_NAME)
+                .replaceOne(
+                        Filters.eq("_id", raw.getString("_id")),
+                        raw,
+                        new ReplaceOptions().upsert(true));
+    }
+
+    private void assertMalformedMessage(Consumer<Document> corruptor) {
+        mongoOperations.getCollection(
+                        MongoChatMessageDocument.COLLECTION_NAME)
+                .deleteMany(new Document());
+        mongoOperations.getCollection(
+                        MongoRoomSequenceDocument.COLLECTION_NAME)
+                .deleteMany(new Document());
+        mongoOperations.getCollection(
+                        MongoRoomInboxSummaryDocument.COLLECTION_NAME)
+                .deleteMany(new Document());
+
+        ChatMessage source = active(
+                "room-1", 1, 1, "source", true);
+        insertMessage(source);
+        insertSequence("room-1", 1);
+        Document raw = mongoOperations.getCollection(
+                        MongoChatMessageDocument.COLLECTION_NAME)
+                .find(Filters.eq("_id", source.messageId()))
+                .first();
+        corruptor.accept(raw);
+        mongoOperations.getCollection(
+                        MongoChatMessageDocument.COLLECTION_NAME)
+                .replaceOne(Filters.eq("_id", source.messageId()), raw);
+
+        RoomInboxSummaryMaintenanceReport report = validate(null);
+
+        assertThat(report.valid()).isFalse();
+        assertThat(report.malformedMessages()).isGreaterThanOrEqualTo(1);
+    }
+
+    private void assertInvalidRoomSequenceValue(Object value) {
+        replaceRoomSequence(value);
+
+        RoomInboxSummaryMaintenanceReport report = validate(null);
+
+        assertThat(report.valid()).isFalse();
+        assertThat(report.sequenceViolations()).isGreaterThanOrEqualTo(1);
+    }
+
+    private void replaceRoomSequence(Object value) {
+        Document raw = new Document("_id", "room-1")
+                .append("schemaVersion", 1);
+        if (value != null) {
+            raw.append("lastSequence", value);
+        }
+        mongoOperations.getCollection(
+                        MongoRoomSequenceDocument.COLLECTION_NAME)
+                .replaceOne(
+                        Filters.eq("_id", "room-1"),
+                        raw,
+                        new ReplaceOptions().upsert(true));
+    }
+
     private RoomInboxSummaryMaintenanceReport backfill(
             RoomInboxSummaryMaintenanceMode mode,
             com.hamcheeze.chat.room.inbox.summary.maintenance
@@ -607,6 +1010,23 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
                         });
         return validator.validate(options(
                 RoomInboxSummaryMaintenanceMode.VALIDATE, 100));
+    }
+
+    private static RoomInboxSummaryMaintenanceHook
+            betweenValidationPhases(Runnable action) {
+        return new RoomInboxSummaryMaintenanceHook() {
+            @Override
+            public void afterCandidateRead(
+                    RoomInboxSummaryCandidate candidate,
+                    int attempt
+            ) {
+            }
+
+            @Override
+            public void beforeSummaryToMessageValidation() {
+                action.run();
+            }
+        };
     }
 
     private List<RoomInboxSummaryCandidate> scanCandidates(int batchSize) {
@@ -766,6 +1186,52 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
                 environment,
                 new PrintStream(new ByteArrayOutputStream()),
                 new PrintStream(new ByteArrayOutputStream()));
+    }
+
+    private static CommandResult runCommandResult(
+            String mode,
+            String uri
+    ) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream error = new ByteArrayOutputStream();
+        int exitCode = RoomInboxSummaryMaintenanceCommand.run(
+                new String[]{"--mode=" + mode},
+                Map.of("CHAT_MONGODB_URI", uri),
+                new PrintStream(output),
+                new PrintStream(error));
+        return new CommandResult(
+                exitCode, output.toString(), error.toString());
+    }
+
+    private static MongoOperations isolatedDatabase(String databaseName) {
+        mongoClient.getDatabase(databaseName).drop();
+        return new MongoTemplate(new SimpleMongoClientDatabaseFactory(
+                mongoClient, databaseName));
+    }
+
+    private static void replaceRequiredIndex(
+            MongoOperations database,
+            Document keys,
+            boolean unique
+    ) {
+        new MongoChatMessageSchemaInitializer(database).initialize();
+        database.getCollection(MongoChatMessageDocument.COLLECTION_NAME)
+                .dropIndex(MongoChatMessageSchemaInitializer
+                        .ROOM_SEQUENCE_INDEX_NAME);
+        database.getCollection(MongoChatMessageDocument.COLLECTION_NAME)
+                .createIndex(
+                        keys,
+                        new IndexOptions()
+                                .name(MongoChatMessageSchemaInitializer
+                                        .ROOM_SEQUENCE_INDEX_NAME)
+                                .unique(unique));
+    }
+
+    private record CommandResult(
+            int exitCode,
+            String output,
+            String error
+    ) {
     }
 
     private static void drop(String collectionName) {

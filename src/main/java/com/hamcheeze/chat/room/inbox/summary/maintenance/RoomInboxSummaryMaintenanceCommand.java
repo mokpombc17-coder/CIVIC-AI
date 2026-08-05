@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.inbox.summary.maintenance;
 
 import com.hamcheeze.chat.room.inbox.summary.maintenance.mongo.MongoRoomInboxSummaryCandidateReader;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.mongo.MongoRoomInboxSummaryMaintenanceRepository;
+import com.hamcheeze.chat.room.inbox.summary.maintenance.mongo.MongoRoomInboxSummaryMaintenancePreflight;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.mongo.MongoRoomInboxSummaryRepairWriter;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaInitializer;
 import com.mongodb.ConnectionString;
@@ -39,23 +40,32 @@ public final class RoomInboxSummaryMaintenanceCommand {
             PrintStream error
     ) {
         RoomInboxSummaryMaintenanceOptions options;
-        ConnectionString connectionString;
         try {
             options = RoomInboxSummaryMaintenanceOptions.parse(args);
-            String uri = environment.get("CHAT_MONGODB_URI");
-            if (uri == null || uri.isBlank()) {
-                throw new IllegalArgumentException(
-                        "CHAT_MONGODB_URI is required");
-            }
-            connectionString = new ConnectionString(uri);
-            if (connectionString.getDatabase() == null
-                    || connectionString.getDatabase().isBlank()) {
-                throw new IllegalArgumentException(
-                        "CHAT_MONGODB_URI must include a database name");
-            }
         } catch (IllegalArgumentException exception) {
             error.println("maintenance-argument-error="
                     + safe(exception.getMessage()));
+            return EXIT_INVALID_ARGUMENT;
+        }
+
+        String uri = environment.get("CHAT_MONGODB_URI");
+        if (uri == null || uri.isBlank()) {
+            error.println(
+                    "maintenance-argument-error=mongodb-uri-missing");
+            return EXIT_INVALID_ARGUMENT;
+        }
+        ConnectionString connectionString;
+        try {
+            connectionString = new ConnectionString(uri);
+        } catch (IllegalArgumentException exception) {
+            error.println(
+                    "maintenance-argument-error=invalid-mongodb-uri");
+            return EXIT_INVALID_ARGUMENT;
+        }
+        if (connectionString.getDatabase() == null
+                || connectionString.getDatabase().isBlank()) {
+            error.println("maintenance-argument-error="
+                    + "mongodb-uri-database-missing");
             return EXIT_INVALID_ARGUMENT;
         }
 
@@ -65,6 +75,15 @@ public final class RoomInboxSummaryMaintenanceCommand {
                     new SimpleMongoClientDatabaseFactory(
                             mongoClient,
                             connectionString.getDatabase()));
+            try {
+                new MongoRoomInboxSummaryMaintenancePreflight(
+                        mongoOperations).verify(options.mode());
+            } catch (MongoRoomInboxSummaryMaintenancePreflight
+                    .PreflightException exception) {
+                error.println("maintenance-preflight-error="
+                        + exception.failureKind());
+                return EXIT_OPERATION_FAILED;
+            }
             if (options.mode()
                     == RoomInboxSummaryMaintenanceMode.APPLY) {
                 new MongoRoomInboxSummarySchemaInitializer(

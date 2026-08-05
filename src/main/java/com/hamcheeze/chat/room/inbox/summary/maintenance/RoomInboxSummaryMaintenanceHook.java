@@ -10,4 +10,13 @@ public interface RoomInboxSummaryMaintenanceHook {
             RoomInboxSummaryCandidate candidate,
             int attempt
     );
+
+    default void beforeSummaryToMessageValidation() {
+    }
+
+    default void afterReverseFirstObservation(
+            String roomId,
+            int attempt
+    ) {
+    }
 }

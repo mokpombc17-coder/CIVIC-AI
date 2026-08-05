@@ -1747,21 +1747,44 @@ CHAT_MONGODB_URI='mongodb://localhost:27017/chat_local?replicaSet=rs0' \
 ./gradlew roomInboxSummaryMaintenance --args='--mode=validate'
 ```
 
-Candidate는 `(roomId, roomSequence)` index를 cursor/batch로 순회하여 Room별
-가장 큰 CREATE sequence의 현재 message snapshot으로 정한다. `countable`,
-Room 또는 Membership 상태는 선정 조건이 아니다. Apply는 관측한 summary
-전체 snapshot에 대한 CAS와 source message 재조회·bounded retry를 사용하고,
-더 큰 sequence나 같은 sequence의 더 큰 version을 뒤로 돌리지 않는다.
-변경 가능한 collection은 `chat_room_inbox_summaries`뿐이다.
+모든 mode는 source인 `chat_messages`, `chat_room_sequences` collection과
+`uk_chat_message_room_sequence` unique index의 정확한 key 순서
+(`roomId ASC`, `roomSequence ASC`)를 write 전에 확인한다. `validate`는 summary
+collection 존재도 요구하고, `apply`는 source preflight가 통과한 뒤에만
+summary collection을 초기화한다. Candidate는 이 index를 명시적으로 hint한
+cursor/batch query로 순회하여 Room별 가장 큰 CREATE sequence의 현재 message
+snapshot으로 정한다. `countable`, Room 또는 Membership 상태는 선정 조건이
+아니다. Apply는 관측한 summary 전체 snapshot에 대한 CAS와 source message
+재조회·bounded retry를 사용하고, 더 큰 sequence나 같은 sequence의 더 큰
+version을 뒤로 돌리지 않는다. 변경 가능한 collection은
+`chat_room_inbox_summaries`뿐이다.
 
-Validation은 Message → Summary, Summary → Message, `chat_room_sequences`,
-sparse document count를 함께 검증한다. Orphan summary는 violation으로
-보고하지만 자동 삭제하지 않는다. 운영 순서는 `dry-run` → 결과 검토 →
-`apply` → `validate` → `apply` 재실행 → `validate` 재실행이며,
-`violations=0`을 확인하기 전에는 summary를 read path에서 사용하지 않는다.
-Dry-run은 관측 시점의 예상 action이고 apply는 write 시점의 CAS 조건을 다시
-평가한다. 선택 옵션은 `--room-id`, `--after-room-id`, `--batch-size`,
-`--max-room-retries`다.
+Validation은 Message → Summary와 stable source/summary pair를 사용하는
+Summary → Message exact snapshot 비교, `chat_room_sequences`, sparse document
+count를 함께 검증한다. Orphan, unsupported schema, malformed reverse 상태는
+violation으로 보고하지만 자동 삭제하지 않는다. Dry-run은 message-bearing
+Room의 관측 시점 예상 repair action만 계산하며 projection 전체 검증을
+대체하지 않는다. Apply는 write 시점의 CAS 조건을 다시 평가한다. 선택 옵션은
+`--room-id`, `--after-room-id`, `--batch-size`, `--max-room-retries`다.
+
+Summary를 REST read source로 전환하기 직전에는 기존 배포/운영 수단으로 신규
+message와 mutation admission을 잠시 중지하고, 이미 수락된 pipeline과 in-flight
+Mongo transaction이 모두 끝났음을 확인한다. Maintenance 도구 자체는 runtime
+server 또는 admission을 제어하지 않는다. Maintenance window에서는 다음
+순서로 실행한다.
+
+1. `dry-run` 실행 및 결과 검토
+2. `apply` 실행
+3. `validate` 실행
+4. `apply` 재실행
+5. `validate` 재실행
+6. `violations=0`, `projectionViolations=0`, `concurrentlyChanged=0`,
+   `failures=0`, `valid=true` 확인
+7. summary read path 전환
+8. message와 mutation admission 재개
+
+위 gate를 실제 환경에서 확인하기 전에는 summary를 read path에서 사용하지
+않는다.
 
 ## 개인 Room inbox WebSocket event
 

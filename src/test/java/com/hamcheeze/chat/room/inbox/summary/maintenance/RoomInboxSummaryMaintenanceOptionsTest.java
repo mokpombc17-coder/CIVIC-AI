@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.inbox.summary.maintenance;
 
+import org.bson.Document;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -57,6 +58,44 @@ class RoomInboxSummaryMaintenanceOptionsTest {
         assertThat(run(
                 new String[]{"--mode=apply"},
                 Map.of())).isEqualTo(2);
+    }
+
+    @Test
+    void invalidMongoUriIsNotEchoedToErrorOutput() {
+        ByteArrayOutputStream error = new ByteArrayOutputStream();
+        String sensitiveUri = "not-a-mongodb-uri-with-secret";
+
+        int exitCode = RoomInboxSummaryMaintenanceCommand.run(
+                new String[]{"--mode=validate"},
+                Map.of("CHAT_MONGODB_URI", sensitiveUri),
+                new PrintStream(new ByteArrayOutputStream()),
+                new PrintStream(error));
+
+        assertThat(exitCode).isEqualTo(2);
+        assertThat(error.toString())
+                .contains("maintenance-argument-error="
+                        + "invalid-mongodb-uri")
+                .doesNotContain(sensitiveUri);
+    }
+
+    @Test
+    void jsonReportExposesProjectionViolationsAndCategorySum()
+            throws Exception {
+        RoomInboxSummaryMaintenanceReport report =
+                new RoomInboxSummaryMaintenanceReport(
+                        RoomInboxSummaryMaintenanceMode.VALIDATE);
+        report.incrementProjectionViolations();
+        report.incrementMalformedMessages();
+        report.incrementSequenceViolations();
+
+        Document json = Document.parse(report.toJson());
+
+        assertThat(report.projectionViolations()).isEqualTo(1);
+        assertThat(((Number) json.get("projectionViolations")).longValue())
+                .isEqualTo(1);
+        assertThat(((Number) json.get("violations")).longValue())
+                .isEqualTo(3);
+        assertThat(report.violations()).isEqualTo(3);
     }
 
     private static int run(

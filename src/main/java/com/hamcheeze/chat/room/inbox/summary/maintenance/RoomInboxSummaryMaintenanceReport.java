@@ -118,6 +118,8 @@ public final class RoomInboxSummaryMaintenanceReport {
                 "\"malformedMessages\":" + malformedMessages + "," +
                 "\"malformedSummaries\":" + malformedSummaries + "," +
                 "\"sequenceViolations\":" + sequenceViolations + "," +
+                "\"projectionViolations\":"
+                + projectionViolations + "," +
                 "\"concurrentlyChanged\":" + concurrentlyChanged + "," +
                 "\"failures\":" + failures + "," +
                 "\"violations\":" + violations() +
@@ -178,6 +180,10 @@ public final class RoomInboxSummaryMaintenanceReport {
 
     public long sequenceViolations() {
         return sequenceViolations;
+    }
+
+    public long projectionViolations() {
+        return projectionViolations;
     }
 
     public long concurrentlyChanged() {

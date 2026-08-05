@@ -1,14 +1,15 @@
 package com.hamcheeze.chat.room.inbox.summary.maintenance;
 
 import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
-import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummary;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.mongo.MongoRoomInboxSummaryCandidateReader;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.mongo.MongoRoomInboxSummaryMaintenanceRepository;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.mongo.MongoRoomInboxSummaryRepairWriter;
 import org.bson.Document;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public final class RoomInboxSummaryValidator {
@@ -56,9 +57,19 @@ public final class RoomInboxSummaryValidator {
         }
         RoomInboxSummaryMaintenanceReport report =
                 new RoomInboxSummaryMaintenanceReport(options.mode());
-        validateMessageToSummary(options, report);
-        validateSummaryToMessage(options, report);
-        if (report.roomsWithMessages() != report.summariesObserved()) {
+        Set<String> projectionViolationRooms = new HashSet<>();
+        validateMessageToSummary(
+                options, report, projectionViolationRooms);
+        hook.beforeSummaryToMessageValidation();
+        validateSummaryToMessage(
+                options, report, projectionViolationRooms);
+        if (report.roomsWithMessages() != report.summariesObserved()
+                && projectionViolationRooms.isEmpty()
+                && report.orphanSummaries() == 0
+                && report.unsupportedSchemas() == 0
+                && report.malformedMessages() == 0
+                && report.malformedSummaries() == 0
+                && report.concurrentlyChanged() == 0) {
             report.incrementProjectionViolations();
             diagnosticSink.accept(new RoomInboxSummaryMaintenanceDiagnostic(
                     null,
@@ -77,7 +88,8 @@ public final class RoomInboxSummaryValidator {
 
     private void validateMessageToSummary(
             RoomInboxSummaryMaintenanceOptions options,
-            RoomInboxSummaryMaintenanceReport report
+            RoomInboxSummaryMaintenanceReport report,
+            Set<String> projectionViolationRooms
     ) {
         candidateReader.scan(
                 options,
@@ -89,7 +101,10 @@ public final class RoomInboxSummaryValidator {
                     ) {
                         report.incrementRoomsWithMessages();
                         validateStableCandidate(
-                                candidate, options, report);
+                                candidate,
+                                options,
+                                report,
+                                projectionViolationRooms);
                     }
 
                     @Override
@@ -115,7 +130,8 @@ public final class RoomInboxSummaryValidator {
     private void validateStableCandidate(
             RoomInboxSummaryCandidate initial,
             RoomInboxSummaryMaintenanceOptions options,
-            RoomInboxSummaryMaintenanceReport report
+            RoomInboxSummaryMaintenanceReport report,
+            Set<String> projectionViolationRooms
     ) {
         RoomInboxSummaryCandidate current = initial;
         for (int attempt = 0;
@@ -142,7 +158,11 @@ public final class RoomInboxSummaryValidator {
                 concurrentlyChanged(current, report);
                 return;
             }
-            validateStablePair(current, observed, report);
+            validateStablePair(
+                    current,
+                    observed,
+                    report,
+                    projectionViolationRooms);
             validateMessageSequence(current, report);
             return;
         }
@@ -152,11 +172,15 @@ public final class RoomInboxSummaryValidator {
             RoomInboxSummaryCandidate candidate,
             MongoRoomInboxSummaryMaintenanceRepository.SummaryObservation
                     observed,
-            RoomInboxSummaryMaintenanceReport report
+            RoomInboxSummaryMaintenanceReport report,
+            Set<String> projectionViolationRooms
     ) {
         switch (observed.kind()) {
             case MISSING -> {
-                report.incrementProjectionViolations();
+                recordProjectionViolation(
+                        candidate.source().roomId(),
+                        report,
+                        projectionViolationRooms);
                 diagnosticSink.accept(diagnostic(
                         candidate.source().roomId(),
                         candidate.source().messageId(),
@@ -172,7 +196,10 @@ public final class RoomInboxSummaryValidator {
                                 candidate.expected());
                 if (mismatch.action()
                         != RoomInboxSummaryMaintenanceAction.UNCHANGED) {
-                    report.incrementProjectionViolations();
+                    recordProjectionViolation(
+                            candidate.source().roomId(),
+                            report,
+                            projectionViolationRooms);
                     diagnosticSink.accept(diagnostic(
                             candidate.source().roomId(),
                             candidate.source().messageId(),
@@ -190,70 +217,52 @@ public final class RoomInboxSummaryValidator {
 
     private void validateSummaryToMessage(
             RoomInboxSummaryMaintenanceOptions options,
-            RoomInboxSummaryMaintenanceReport report
+            RoomInboxSummaryMaintenanceReport report,
+            Set<String> projectionViolationRooms
     ) {
         repository.scan(options, observed -> {
-            report.incrementSummariesObserved();
-            switch (observed.kind()) {
-                case UNSUPPORTED_SCHEMA -> {
-                    report.incrementUnsupportedSchemas();
-                    diagnosticSink.accept(diagnostic(
-                            observed.roomId(),
-                            null,
-                            RoomInboxSummaryMaintenanceAction
-                                    .UNSUPPORTED_SCHEMA,
-                            null,
-                            List.of("schemaVersion"),
-                            "unsupported-summary-schema"));
-                }
-                case MALFORMED -> {
-                    report.incrementMalformedSummaries();
-                    diagnosticSink.accept(diagnostic(
-                            observed.roomId(),
-                            null,
-                            RoomInboxSummaryMaintenanceAction.MALFORMED,
-                            null,
-                            List.of("summary"),
-                            "malformed-summary"));
-                }
-                case MISSING -> throw new IllegalStateException(
-                        "Summary scan cannot yield missing observation");
-                case VALID -> validateReverse(
-                        observed, options, report);
+            if (observed.roomId() == null) {
+                report.incrementSummariesObserved();
+                report.incrementMalformedSummaries();
+                diagnosticSink.accept(diagnostic(
+                        null,
+                        null,
+                        RoomInboxSummaryMaintenanceAction.MALFORMED,
+                        null,
+                        List.of("summary._id"),
+                        "malformed-summary"));
+            } else {
+                validateReverse(
+                        observed.roomId(),
+                        options,
+                        report,
+                        projectionViolationRooms);
             }
         });
     }
 
     private void validateReverse(
-            MongoRoomInboxSummaryMaintenanceRepository.SummaryObservation
-                    observed,
+            String roomId,
             RoomInboxSummaryMaintenanceOptions options,
-            RoomInboxSummaryMaintenanceReport report
+            RoomInboxSummaryMaintenanceReport report,
+            Set<String> projectionViolationRooms
     ) {
-        MongoRoomInboxSummaryMaintenanceRepository.StoredSummarySnapshot
-                summary = observed.snapshot();
-        MongoRoomInboxSummaryCandidateReader.CandidateRead stable = null;
+        StableReversePair stable = null;
         for (int attempt = 0;
                 attempt <= options.maxRoomRetries();
                 attempt++) {
-            MongoRoomInboxSummaryCandidateReader.CandidateRead first =
-                    candidateReader.latest(observed.roomId());
-            MongoRoomInboxSummaryCandidateReader.CandidateRead second =
-                    candidateReader.latest(observed.roomId());
-            if (first.missing() && second.missing()) {
-                stable = second;
-                break;
-            }
-            if (first.malformed() != null
-                    || second.malformed() != null) {
-                report.incrementProjectionViolations();
-                return;
-            }
-            if (!first.missing()
-                    && !second.missing()
-                    && first.candidate().source().equals(
-                            second.candidate().source())) {
-                stable = second;
+            MongoRoomInboxSummaryCandidateReader.CandidateRead sourceA =
+                    candidateReader.latest(roomId);
+            MongoRoomInboxSummaryMaintenanceRepository.SummaryObservation
+                    summaryA = repository.observe(roomId);
+            hook.afterReverseFirstObservation(roomId, attempt);
+            MongoRoomInboxSummaryCandidateReader.CandidateRead sourceB =
+                    candidateReader.latest(roomId);
+            MongoRoomInboxSummaryMaintenanceRepository.SummaryObservation
+                    summaryB = repository.observe(roomId);
+            if (sourceA.sameSnapshot(sourceB)
+                    && summaryA.sameSnapshot(summaryB)) {
+                stable = new StableReversePair(sourceB, summaryB);
                 break;
             }
         }
@@ -261,41 +270,103 @@ public final class RoomInboxSummaryValidator {
             report.recordAction(
                     RoomInboxSummaryMaintenanceAction
                             .CONCURRENTLY_CHANGED);
+            diagnosticSink.accept(diagnostic(
+                    roomId,
+                    null,
+                    RoomInboxSummaryMaintenanceAction
+                            .CONCURRENTLY_CHANGED,
+                    null,
+                    List.of("sourceSnapshot", "summarySnapshot"),
+                    "reverse-validation-retry-exhausted"));
             return;
         }
-        if (stable.missing()) {
+
+        MongoRoomInboxSummaryCandidateReader.CandidateRead source =
+                stable.source();
+        MongoRoomInboxSummaryMaintenanceRepository.SummaryObservation
+                observed = stable.summary();
+        if (observed.kind()
+                == MongoRoomInboxSummaryMaintenanceRepository
+                .ObservationKind.MISSING) {
+            if (!source.missing() && source.malformed() == null) {
+                recordProjectionViolation(
+                        roomId, report, projectionViolationRooms);
+                diagnosticSink.accept(diagnostic(
+                        roomId,
+                        source.candidate().source().messageId(),
+                        RoomInboxSummaryMaintenanceAction.CREATE,
+                        source.candidate(),
+                        List.of("summary"),
+                        "reverse-missing-summary"));
+            }
+            return;
+        }
+
+        report.incrementSummariesObserved();
+        if (observed.kind()
+                == MongoRoomInboxSummaryMaintenanceRepository
+                .ObservationKind.UNSUPPORTED_SCHEMA) {
+            report.incrementUnsupportedSchemas();
+            diagnosticSink.accept(diagnostic(
+                    roomId,
+                    null,
+                    RoomInboxSummaryMaintenanceAction.UNSUPPORTED_SCHEMA,
+                    null,
+                    List.of("schemaVersion"),
+                    "unsupported-summary-schema"));
+            return;
+        }
+        if (observed.kind()
+                == MongoRoomInboxSummaryMaintenanceRepository
+                .ObservationKind.MALFORMED) {
+            report.incrementMalformedSummaries();
+            diagnosticSink.accept(diagnostic(
+                    roomId,
+                    null,
+                    RoomInboxSummaryMaintenanceAction.MALFORMED,
+                    null,
+                    List.of("summary"),
+                    "malformed-summary"));
+            return;
+        }
+
+        MongoRoomInboxSummaryMaintenanceRepository.StoredSummarySnapshot
+                summary = observed.snapshot();
+        if (source.missing()) {
             report.recordAction(
                     RoomInboxSummaryMaintenanceAction.ORPHAN_SUMMARY);
             diagnosticSink.accept(diagnostic(
-                    observed.roomId(),
+                    roomId,
                     summary.messageId(),
                     RoomInboxSummaryMaintenanceAction.ORPHAN_SUMMARY,
                     null,
                     List.of("sourceMessage"),
                     "orphan-summary"));
             validateSummarySequence(
-                    observed.roomId(), summary, report);
+                    roomId, summary, report);
+            return;
+        }
+        if (source.malformed() != null) {
             return;
         }
 
-        MongoRoomInboxSummaryCandidateReader.MessageRead source =
-                candidateReader.findMessage(
-                        summary.messageId());
-        if (source.missing()
-                || source.malformedReason() != null
-                || !source.message().roomId().equals(observed.roomId())
-                || !source.message().messageId().equals(
-                        stable.candidate().source().messageId())) {
-            report.incrementProjectionViolations();
+        MongoRoomInboxSummaryRepairWriter.RepairAttempt comparison =
+                MongoRoomInboxSummaryRepairWriter.classify(
+                        observed,
+                        source.candidate().expected());
+        if (comparison.action()
+                != RoomInboxSummaryMaintenanceAction.UNCHANGED) {
+            recordProjectionViolation(
+                    roomId, report, projectionViolationRooms);
             diagnosticSink.accept(diagnostic(
-                    observed.roomId(),
+                    roomId,
                     summary.messageId(),
-                    RoomInboxSummaryMaintenanceAction.REPAIR_SNAPSHOT,
-                    stable.candidate(),
-                    List.of("sourceMessage"),
-                    "summary-to-message-mismatch"));
+                    comparison.action(),
+                    source.candidate(),
+                    comparison.mismatchFields(),
+                    "reverse-exact-snapshot-mismatch"));
         }
-        validateSummarySequence(observed.roomId(), summary, report);
+        validateSummarySequence(roomId, summary, report);
     }
 
     private void validateMessageSequence(
@@ -342,10 +413,22 @@ public final class RoomInboxSummaryValidator {
                 .getCollection(MongoRoomSequenceDocument.COLLECTION_NAME)
                 .find(new Document("_id", roomId))
                 .first();
-        if (raw == null || !(raw.get("lastSequence") instanceof Number value)) {
+        if (raw == null
+                || !(raw.get("lastSequence") instanceof Long value)
+                || value < 0) {
             return null;
         }
-        return value.longValue();
+        return value;
+    }
+
+    private static void recordProjectionViolation(
+            String roomId,
+            RoomInboxSummaryMaintenanceReport report,
+            Set<String> projectionViolationRooms
+    ) {
+        if (projectionViolationRooms.add(roomId)) {
+            report.incrementProjectionViolations();
+        }
     }
 
     private void concurrentlyChanged(
@@ -388,5 +471,12 @@ public final class RoomInboxSummaryValidator {
                 action,
                 mismatchFields,
                 detail);
+    }
+
+    private record StableReversePair(
+            MongoRoomInboxSummaryCandidateReader.CandidateRead source,
+            MongoRoomInboxSummaryMaintenanceRepository.SummaryObservation
+                    summary
+    ) {
     }
 }

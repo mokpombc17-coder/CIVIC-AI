@@ -107,8 +107,8 @@ public final class MongoRoomInboxSummaryMaintenanceRepository {
                 || !message.containsKey("preview")
                 || !(message.get("messageId") instanceof String messageId)
                 || messageId.isBlank()
-                || !(message.get("roomSequence") instanceof Number sequence)
-                || !(message.get("messageVersion") instanceof Number version)
+                || !(message.get("roomSequence") instanceof Long sequence)
+                || !(message.get("messageVersion") instanceof Long version)
                 || !(message.get("state") instanceof String state)
                 || !(message.get("previewTruncated")
                         instanceof Boolean previewTruncated)
@@ -118,7 +118,7 @@ public final class MongoRoomInboxSummaryMaintenanceRepository {
                 || !(document.get("updatedAt") instanceof Date updatedAt)) {
             return null;
         }
-        if (sequence.longValue() < 1 || version.longValue() < 1) {
+        if (sequence < 1 || version < 1) {
             return null;
         }
         Object preview = message.get("preview");
@@ -136,7 +136,7 @@ public final class MongoRoomInboxSummaryMaintenanceRepository {
                 return null;
             }
         } else if ("DELETED_BY_AUTHOR".equals(state)) {
-            if (version.longValue() < 2
+            if (version < 2
                     || preview != null
                     || previewTruncated) {
                 return null;
@@ -146,8 +146,8 @@ public final class MongoRoomInboxSummaryMaintenanceRepository {
         }
         return new StoredSummarySnapshot(
                 messageId,
-                sequence.longValue(),
-                version.longValue(),
+                sequence,
+                version,
                 state,
                 (String) preview,
                 previewTruncated,
@@ -182,6 +182,11 @@ public final class MongoRoomInboxSummaryMaintenanceRepository {
             RoomInboxSummary summary,
             StoredSummarySnapshot snapshot
     ) {
+
+        public boolean sameSnapshot(SummaryObservation other) {
+            return kind == other.kind
+                    && Objects.equals(raw, other.raw);
+        }
 
         static SummaryObservation missing(String roomId) {
             return new SummaryObservation(

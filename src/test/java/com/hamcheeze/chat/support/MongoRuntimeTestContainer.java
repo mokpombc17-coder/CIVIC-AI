@@ -28,4 +28,8 @@ public final class MongoRuntimeTestContainer {
     public static String replicaSetUrl() {
         return CONTAINER.getReplicaSetUrl(DATABASE);
     }
+
+    public static String replicaSetUrl(String database) {
+        return CONTAINER.getReplicaSetUrl(database);
+    }
 }

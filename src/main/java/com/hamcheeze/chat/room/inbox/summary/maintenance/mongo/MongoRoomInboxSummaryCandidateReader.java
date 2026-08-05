@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.inbox.summary.maintenance.mongo;
 
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
+import com.hamcheeze.chat.message.mongo.MongoChatMessageSchemaInitializer;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryCandidate;
 import com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceOptions;
 import com.mongodb.client.FindIterable;
@@ -11,6 +12,7 @@ import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.data.mongodb.core.MongoOperations;
 
+import java.util.Date;
 import java.util.Objects;
 
 public final class MongoRoomInboxSummaryCandidateReader {
@@ -35,6 +37,8 @@ public final class MongoRoomInboxSummaryCandidateReader {
                 .find(filter(options))
                 .sort(new Document("roomId", 1)
                         .append("roomSequence", 1))
+                .hintString(MongoChatMessageSchemaInitializer
+                        .ROOM_SEQUENCE_INDEX_NAME)
                 .batchSize(options.batchSize());
         String currentRoomId = null;
         Document latest = null;
@@ -69,6 +73,8 @@ public final class MongoRoomInboxSummaryCandidateReader {
                 .getCollection(MongoChatMessageDocument.COLLECTION_NAME)
                 .find(Filters.eq("roomId", roomId))
                 .sort(new Document("roomSequence", -1))
+                .hintString(MongoChatMessageSchemaInitializer
+                        .ROOM_SEQUENCE_INDEX_NAME)
                 .limit(1)
                 .first();
         if (document == null) {
@@ -84,6 +90,10 @@ public final class MongoRoomInboxSummaryCandidateReader {
                 .first();
         if (document == null) {
             return MessageRead.missing(messageId);
+        }
+        if (!hasExactMessageBsonTypes(document)) {
+            return MessageRead.malformed(
+                    messageId, "invalid-bson-types");
         }
         try {
             MongoChatMessageDocument mapped = mongoOperations
@@ -109,18 +119,48 @@ public final class MongoRoomInboxSummaryCandidateReader {
     private CandidateRead map(Document document) {
         String roomId = stringValue(document.get("roomId"));
         String messageId = stringValue(document.get("_id"));
+        if (!hasExactMessageBsonTypes(document)) {
+            return CandidateRead.malformed(new MalformedCandidate(
+                    roomId,
+                    messageId,
+                    "invalid-bson-types"),
+                    document);
+        }
         try {
             MongoChatMessageDocument mapped = mongoOperations
                     .getConverter()
                     .read(MongoChatMessageDocument.class, document);
             return CandidateRead.found(
-                    RoomInboxSummaryCandidate.from(mapped.toDomain()));
+                    RoomInboxSummaryCandidate.from(mapped.toDomain()),
+                    document);
         } catch (RuntimeException exception) {
-            return CandidateRead.malformed(new MalformedCandidate(
-                    roomId,
-                    messageId,
-                    exception.getClass().getSimpleName()));
+            return CandidateRead.malformed(
+                    new MalformedCandidate(
+                            roomId,
+                            messageId,
+                            exception.getClass().getSimpleName()),
+                    document);
         }
+    }
+
+    private static boolean hasExactMessageBsonTypes(Document document) {
+        Object content = document.get("content");
+        Object deletedAt = document.get("deletedAt");
+        return document.get("_id") instanceof String
+                && document.get("schemaVersion") instanceof Integer
+                && document.get("roomId") instanceof String
+                && document.get("roomSequence") instanceof Long
+                && document.get("senderUserId") instanceof String
+                && document.get("clientMessageId") instanceof String
+                && (content == null || content instanceof String)
+                && document.get("creationContentFingerprint")
+                instanceof String
+                && document.get("state") instanceof String
+                && document.get("countable") instanceof Boolean
+                && document.get("messageVersion") instanceof Long
+                && document.get("createdAt") instanceof Date
+                && document.get("updatedAt") instanceof Date
+                && (deletedAt == null || deletedAt instanceof Date);
     }
 
     private static Bson filter(
@@ -157,27 +197,44 @@ public final class MongoRoomInboxSummaryCandidateReader {
             String roomId,
             RoomInboxSummaryCandidate candidate,
             MalformedCandidate malformed,
-            boolean missing
+            boolean missing,
+            Document raw
     ) {
 
-        static CandidateRead found(RoomInboxSummaryCandidate candidate) {
+        static CandidateRead found(
+                RoomInboxSummaryCandidate candidate,
+                Document raw
+        ) {
             return new CandidateRead(
                     candidate.source().roomId(),
                     candidate,
                     null,
-                    false);
+                    false,
+                    new Document(raw));
         }
 
-        static CandidateRead malformed(MalformedCandidate malformed) {
+        static CandidateRead malformed(
+                MalformedCandidate malformed,
+                Document raw
+        ) {
             return new CandidateRead(
                     malformed.roomId(),
                     null,
                     malformed,
-                    false);
+                    false,
+                    new Document(raw));
         }
 
         static CandidateRead missing(String roomId) {
-            return new CandidateRead(roomId, null, null, true);
+            return new CandidateRead(
+                    roomId, null, null, true, null);
+        }
+
+        public boolean sameSnapshot(CandidateRead other) {
+            if (missing || other.missing) {
+                return missing && other.missing;
+            }
+            return Objects.equals(raw, other.raw);
         }
     }
 
