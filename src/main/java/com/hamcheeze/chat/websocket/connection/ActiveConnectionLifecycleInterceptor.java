@@ -94,8 +94,36 @@ public final class ActiveConnectionLifecycleInterceptor
             BestEffortMetricRecorder.increment(
                     REPLACEMENT_CLOSE_METRIC,
                     replacementCloseCounters.get(closeResult));
+            logReplacement(
+                    user.getName(),
+                    replaced,
+                    connectionId,
+                    closeResult);
             handleReplacementClose(replaced, closeResult);
         }
+    }
+
+    private static void logReplacement(
+            String userId,
+            String replacedConnectionId,
+            String newConnectionId,
+            TransportSessionCloseResult closeResult
+    ) {
+        String message = "WebSocket connection replacement: "
+                + "userId={}, oldConnectionId={}, newConnectionId={}, "
+                + "replacementReason={}, closeResult={}";
+        Object[] arguments = {
+                userId,
+                replacedConnectionId,
+                newConnectionId,
+                TransportSessionRegistry.CONNECTION_REPLACED.getReason(),
+                closeResult
+        };
+        if (closeResult == TransportSessionCloseResult.FAILED) {
+            log.warn(message, arguments);
+            return;
+        }
+        log.info(message, arguments);
     }
 
     private void handleReplacementClose(
@@ -112,10 +140,6 @@ public final class ActiveConnectionLifecycleInterceptor
                             replacedConnectionId));
             transportSessions.remove(replacedConnectionId);
             return;
-        }
-        if (closeResult == TransportSessionCloseResult.FAILED) {
-            log.warn(
-                    "Replaced WebSocket connection close failed; tracking is retained for later revocation");
         }
     }
 

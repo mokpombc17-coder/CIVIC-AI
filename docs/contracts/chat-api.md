@@ -39,7 +39,7 @@
 > 최종 확인했습니다. 서버는 동일 WebSocket session의 STOMP frame을 수신
 > 순서대로 처리합니다.
 >
-> 방 전환 시 사용자 공통 queue 2개는 유지하고 다음 순서로 처리해 주세요.
+> 방 전환 시 사용자 공통 queue 3개는 유지하고 다음 순서로 처리해 주세요.
 >
 > 1. 기존 방 `/messages` UNSUBSCRIBE
 > 2. 기존 방 `/room-events` UNSUBSCRIBE
@@ -69,9 +69,16 @@
 > 프론트 이벤트 버퍼링은 방 topic의 `SUBSCRIBE`를 보내기 전에 시작해야 합니다.
 > Native STOMP `receipt`는 구독 준비 계약으로 사용하지 않습니다.
 >
-> 다른 브라우저나 디바이스의 새 연결이 기존 연결을 교체하면 서버는 기존
+> 같은 `userId`로 인증된 새 연결이 기존 연결을 교체하면 서버는 기존
 > WebSocket을 close code `4001`, reason `CONNECTION_REPLACED`로 종료합니다.
 > 이 경우 기존 연결에서는 자동 재연결을 중단해 주세요.
+>
+> STOMP `CONNECT` 시 인증 쿠키가 없거나 JWT가 만료·변조·무효한 경우에는
+> close code `4004`가 아니라 `AUTHENTICATION_REQUIRED` STOMP `ERROR`
+> frame을 보냅니다. 최초 연결과 자동 재연결 모두 같은 계약입니다. 프론트는
+> 이 ERROR를 받으면 인증 필요 상태를 먼저 확정하고 자동 재연결을 중단한 뒤,
+> 로그인 성공 후 명시적으로 새 연결을 생성해 주세요. ERROR 뒤에 오는 일반
+> WebSocket close event가 인증 필요 상태를 덮어쓰면 안 됩니다.
 
 ## 인증 및 공통 요청 규칙
 
@@ -854,6 +861,7 @@ ws://localhost:8082/ws
 - SockJS endpoint가 아니다.
 - 브라우저가 WebSocket handshake에 HttpOnly 쿠키를 자동으로 첨부한다.
 - 쿠키로 인증되었다면 STOMP `CONNECT`에 `Authorization`을 넣지 않는다.
+- 인증은 WebSocket HTTP upgrade가 아니라 STOMP `CONNECT`에서 확정한다.
 - STOMP heartbeat는 송신·수신 모두 `10000ms`를 권장한다.
 - 한 사용자에게는 활성 연결 한 개만 유지한다. 새 연결이 생기면 기존
   연결이 교체될 수 있다.
@@ -864,6 +872,68 @@ ws://localhost:8082/ws
   `ROOM_ACCESS_REVOKED`, 방 종료 시에는 close code `4003`, reason
   `ROOM_CLOSED`로 연결을 종료한다. 이 코드로 종료된 기존 연결은 재사용하지
   않고 필요한 경우 새 WebSocket 연결을 생성한다.
+
+### STOMP CONNECT 인증 실패
+
+다음 인증 실패는 외부에서 세부 원인을 구분하지 않고 모두 동일한 terminal
+신호로 전달한다.
+
+- 인증 쿠키 없음
+- JWT 만료
+- JWT 서명·issuer·audience 등 검증 실패
+- 인증 Principal 생성 실패
+
+서버가 반환하는 STOMP frame의 계약은 다음과 같다.
+
+```text
+ERROR
+message:AUTHENTICATION_REQUIRED
+content-type:application/json
+
+{"code":"AUTHENTICATION_REQUIRED","retryable":false}\0
+```
+
+`authReason`은 현재 제공하지 않는다. `message`, `code`, `retryable`이 인증
+실패를 판정하는 authoritative 값이다. 인증 ERROR 이후 Spring STOMP transport가
+WebSocket을 `1002 PROTOCOL_ERROR` 등 일반 close code로 종료할 수 있지만,
+후속 close는 앞서 수신한 `AUTHENTICATION_REQUIRED` 상태를 덮는 신호가 아니다.
+인증 실패에 전용 close code `4004`를 사용하지 않는다.
+
+최초 연결과 자동 재연결은 모두 새로운 WebSocket에서 같은 STOMP `CONNECT`
+인증 경로를 사용하므로 위 ERROR 계약이 동일하게 적용된다. 다만 네트워크
+단절, TLS 오류, HTTP upgrade 실패처럼 STOMP `CONNECT`가 서버에 도달하지 않은
+경우에는 ERROR frame을 보낼 수 없으며 일반 transport failure로 처리한다.
+
+프론트는 `AUTHENTICATION_REQUIRED`를 받으면 다음 순서를 따른다.
+
+1. terminal authentication state를 저장한다.
+2. STOMP 자동 재연결을 중단한다.
+3. 로그인 필요 UI를 표시한다.
+4. 후속 WebSocket close event로 terminal 상태를 덮지 않는다.
+5. 로그인 성공 후 명시적으로 새 WebSocket/STOMP 연결을 생성한다.
+6. 연결 성공 후 기존 active Room session과 topic subscription을 재동기화한다.
+
+현재 활성 WebSocket은 연결 시점의 STOMP `CONNECT`에서만 인증한다. 연결된
+상태에서 JWT `exp`에 도달했다는 이유만으로 서버가 socket을 즉시 종료하거나
+SEND/SUBSCRIBE마다 JWT를 다시 검증하지 않는다. 연결이 끊어진 뒤 새
+`CONNECT`를 시도할 때 쿠키가 유효하지 않으면 위 인증 ERROR가 적용된다.
+
+`4001 CONNECTION_REPLACED`는 인증에 성공한 같은 `userId`의 새 연결이 기존
+active connection을 교체할 때만 기존 연결에 전달한다. 현재 프로토콜에는
+`clientInstanceId`나 `logicalSessionId`가 없으므로 같은 브라우저의 새 연결과
+다른 기기의 새 연결을 서버가 구분하지 않는다. 인증되지 않은 연결 시도만으로
+기존 연결에 `4001`을 보내지는 않는다.
+
+교체 시 서버는 다음 key-value 필드를 한 줄의 구조화 로그로 남긴다.
+
+```text
+WebSocket connection replacement: userId=<userId>, oldConnectionId=<oldId>, newConnectionId=<newId>, replacementReason=CONNECTION_REPLACED, closeResult=<result>
+```
+
+`closeResult`는 `CLOSED`, `ALREADY_CLOSED_OR_MISSING`, `FAILED` 중 하나다.
+`FAILED`는 WARN, 나머지는 INFO level로 기록한다. JWT, 인증 쿠키, STOMP frame
+body는 기록하지 않는다. 현재 서버가 `clientInstanceId`를 수집하지 않으므로
+`oldClientInstanceId`와 `newClientInstanceId`도 로그 필드에 포함하지 않는다.
 
 퇴장, 차단 또는 방 종료가 commit된 뒤 transport close가 실패하더라도
 해당 connection의 그 방 `messages`, `room-events` subscription은 서버
@@ -915,6 +985,7 @@ const client = new Client({
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/room-events` | 방 상태 변경 이벤트 수신 |
 | `SUBSCRIBE` | `/user/queue/command-results` | 내 메시지 전송 결과 수신 |
 | `SUBSCRIBE` | `/user/queue/system-events` | 구독 거절 및 사용자 대상 방 이벤트 수신 |
+| `SUBSCRIBE` | `/user/queue/room-inbox-events` | 토스트 hint 및 room-inbox REST query invalidation 수신 |
 
 다음 destination은 현재 비활성화되어 있다.
 
@@ -1501,22 +1572,25 @@ docker compose -f compose.local.yaml up --build -d
 python3 scripts/frontend-local-smoke.py
 ```
 
-스크립트는 별도 Python 패키지 없이 다음 흐름을 검증한다.
+스크립트는 별도 Python 패키지 없이 다음 15단계 흐름을 검증한다.
 
 1. `http://localhost:8082/actuator/health`
 2. credential CORS preflight
-3. `civic_ai_access_token` 쿠키 JWT REST 인증
-4. 내 방 목록과 공개 방 목록
-5. description을 포함한 `LISTED`, `OPEN` 방 생성과 상세·공개 목록 조회
-6. 설정 변경, `ROOM_SETTINGS_UPDATED`, detail snapshot 확인
-7. `UNLISTED` 공개 목록 제외와 `INVITE_ONLY` join 차단 확인
-8. 쿠키 WebSocket handshake
-9. `Authorization` 헤더 없는 STOMP `CONNECT`
-10. 방 topic 두 개의 구독 준비 sync와 `ROOM_SUBSCRIPTIONS_READY`
-11. 메시지 전송, command 결과, `CHAT_MESSAGE_CREATED`
-12. 메시지 수정과 `CHAT_MESSAGE_UPDATED`, REST 최신 snapshot
-13. 메시지 soft delete와 `CHAT_MESSAGE_DELETED`, REST tombstone
-14. 수정·삭제 중 `roomSequence` 불변 및 다음 CREATE sequence 확인
+3. 잘못된 쿠키로 최초 STOMP `CONNECT`와 새 연결의 재연결 `CONNECT`가 모두
+   동일한 `AUTHENTICATION_REQUIRED` ERROR를 반환하고, 유효한 쿠키로 명시적
+   재연결하면 `CONNECTED`가 반환되는지 확인
+4. `civic_ai_access_token` 쿠키 JWT로 내 방 목록과 공개 방 목록 조회
+5. description을 포함한 `LISTED`, `OPEN` 방 생성
+6. 방 상세와 cursor 기반 전체 공개 목록에서 description 반영 확인
+7. 구독 유지 상태의 설정 변경, `ROOM_SETTINGS_UPDATED`, replay/no-op 확인
+8. `UNLISTED` 공개 목록 제외와 `INVITE_ONLY` join 차단 확인
+9. 메시지 CREATE/UPDATE/DELETE event와 command result 확인
+10. REST 메시지 tombstone 재동기화 확인
+11. 수정·삭제 중 `roomSequence` 불변 확인
+12. 다음 CREATE의 sequence와 REST snapshot 확인
+13. `LISTED`, `OPEN` 복원 후 cursor 기반 전체 공개 목록 재반영 확인
+14. 두 번째 사용자 Room join 확인
+15. room-inbox unread, read-state PUT, 개인 CREATE/DELETE invalidation 확인
 
 각 실행은 이름이 `frontend-smoke-`로 시작하는 테스트 방 하나와 메시지 하나를 로컬 MongoDB에
 추가한다. 다른 주소를 사용할 때는 `--base-url`, `--ws-url`, `--origin`, `--subject` 옵션으로
