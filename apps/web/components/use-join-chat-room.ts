@@ -1,0 +1,49 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
+import { getJoinRoomErrorMessage } from "@/lib/chat/chat-room-command-error-presentation";
+import type { PublicRoomListItem } from "@/lib/chat/chat-room-contracts";
+import { useJoinRoomMutation } from "@/lib/chat/chat-room-mutations";
+import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
+
+export function useJoinChatRoom(room: PublicRoomListItem) {
+  const router = useRouter();
+  const joinRoom = useJoinRoomMutation();
+  const [retryCommand, setRetryCommand] = useState<IdempotentCommand<undefined> | null>(null);
+
+  function execute(command: IdempotentCommand<undefined>) {
+    void joinRoom
+      .mutateAsync({
+        roomId: room.roomId,
+        command,
+      })
+      .then(() => router.push(`/chat/${room.roomId}`))
+      .catch(() => undefined);
+  }
+
+  function join() {
+    joinRoom.reset();
+
+    const command = createIdempotentCommand(undefined);
+    setRetryCommand(command);
+    execute(command);
+  }
+
+  const canRetry =
+    retryCommand !== null && joinRoom.isError && isRetryableChatCommandError(joinRoom.error);
+
+  return {
+    canRetry,
+    errorMessage: joinRoom.isError ? getJoinRoomErrorMessage(joinRoom.error) : null,
+    isOpen: room.joinPolicy === "OPEN",
+    isPending: joinRoom.isPending,
+    join,
+    retry: () => {
+      if (retryCommand) {
+        execute(retryCommand);
+      }
+    },
+  };
+}
