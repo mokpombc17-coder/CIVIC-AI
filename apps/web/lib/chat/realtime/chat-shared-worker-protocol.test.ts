@@ -2,6 +2,64 @@ import { describe, expect, it } from "vitest";
 import { isChatSharedWorkerCommand, isChatSharedWorkerEvent } from "./chat-shared-worker-protocol";
 
 describe("chat shared worker protocol", () => {
+  it("개발 진단 snapshot 요청과 응답을 검증한다", () => {
+    expect(
+      isChatSharedWorkerCommand({
+        type: "GET_DIAGNOSTICS",
+        portId: "port-1",
+        requestId: "request-1",
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerCommand({
+        type: "CLEAR_DIAGNOSTICS",
+        portId: "port-1",
+        requestId: "",
+      }),
+    ).toBe(false);
+
+    const snapshotEvent = {
+      type: "DIAGNOSTICS_SNAPSHOT",
+      requestId: "request-1",
+      snapshot: {
+        schemaVersion: 1,
+        capturedAt: "2026-08-05T00:00:00.000Z",
+        capacity: 500,
+        droppedEventCount: 0,
+        rejectedEventCount: 0,
+        events: [
+          {
+            eventVersion: 1,
+            sequence: 1,
+            occurredAt: "2026-08-05T00:00:00.000Z",
+            elapsedMs: 1,
+            runtimeInstanceId: "worker-1",
+            level: "info",
+            event: "runtime.started",
+            transportKind: "shared-worker",
+          },
+        ],
+      },
+    };
+
+    expect(isChatSharedWorkerEvent(snapshotEvent)).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...snapshotEvent,
+        snapshot: {
+          ...snapshotEvent.snapshot,
+          events: [{ ...snapshotEvent.snapshot.events[0], transportKind: "unknown" }],
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        type: "DIAGNOSTICS_CLEARED",
+        requestId: "request-1",
+      }),
+    ).toBe(true);
+  });
+
   it("개인 inbox event payload를 검증한다", () => {
     const event = {
       type: "ROOM_INBOX_EVENT",

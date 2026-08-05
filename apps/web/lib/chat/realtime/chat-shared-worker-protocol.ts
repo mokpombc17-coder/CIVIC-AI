@@ -29,6 +29,10 @@ import {
   type ChatMessageSendRequest,
   type ChatRoomInboxEvent,
 } from "./chat-stomp-contracts";
+import {
+  isChatRealtimeDiagnosticSnapshot,
+  type ChatRealtimeDiagnosticSnapshot,
+} from "./diagnostics/chat-realtime-diagnostic-events";
 
 export const CHAT_SHARED_WORKER_NAME = "civic-ai-chat-realtime";
 
@@ -45,6 +49,16 @@ export type ChatSharedWorkerCommand =
       type: "RECONNECT";
       portId: string;
       reason?: ChatRealtimeReconnectReason;
+    }>
+  | Readonly<{
+      type: "GET_DIAGNOSTICS";
+      portId: string;
+      requestId: string;
+    }>
+  | Readonly<{
+      type: "CLEAR_DIAGNOSTICS";
+      portId: string;
+      requestId: string;
     }>
   | Readonly<{
       type: "CLAIM_ROOM";
@@ -96,6 +110,15 @@ export type ChatSharedWorkerEvent =
       workerInstanceId: string;
       attachedPortCount: number;
       snapshot: ChatConnectionSnapshot;
+    }>
+  | Readonly<{
+      type: "DIAGNOSTICS_SNAPSHOT";
+      requestId: string;
+      snapshot: ChatRealtimeDiagnosticSnapshot;
+    }>
+  | Readonly<{
+      type: "DIAGNOSTICS_CLEARED";
+      requestId: string;
     }>
   | Readonly<{
       type: "ROOM_INBOX_EVENT";
@@ -221,6 +244,10 @@ export function isChatSharedWorkerCommand(value: unknown): value is ChatSharedWo
     return true;
   }
 
+  if (command.type === "GET_DIAGNOSTICS" || command.type === "CLEAR_DIAGNOSTICS") {
+    return typeof command.requestId === "string" && command.requestId.length > 0;
+  }
+
   if (command.type === "RECONNECT") {
     return command.reason === undefined || command.reason === "authentication-succeeded";
   }
@@ -273,6 +300,18 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
   }
 
   const event = value as Record<string, unknown>;
+
+  if (event.type === "DIAGNOSTICS_CLEARED") {
+    return typeof event.requestId === "string" && event.requestId.length > 0;
+  }
+
+  if (event.type === "DIAGNOSTICS_SNAPSHOT") {
+    return (
+      typeof event.requestId === "string" &&
+      event.requestId.length > 0 &&
+      isChatRealtimeDiagnosticSnapshot(event.snapshot)
+    );
+  }
 
   if (event.type === "ROOM_INBOX_EVENT") {
     return chatRoomInboxEventSchema.safeParse(event.event).success;
