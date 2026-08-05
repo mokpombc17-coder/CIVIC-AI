@@ -72,6 +72,17 @@ class WebSocketAuthenticationErrorIntegrationTest
                 Instant.now().plusSeconds(3_600))));
     }
 
+    @Test
+    void returnsSameStructuredErrorForInitialAndReconnectAttempts()
+            throws Exception {
+        WebSocketHttpHeaders expiredCredentials = cookieHeaders(token(
+                "local-user-reconnect",
+                Instant.now().minusSeconds(60)));
+
+        assertAuthenticationRequired(expiredCredentials);
+        assertAuthenticationRequired(expiredCredentials);
+    }
+
     private void assertAuthenticationRequired(
             WebSocketHttpHeaders webSocketHeaders
     ) throws Exception {

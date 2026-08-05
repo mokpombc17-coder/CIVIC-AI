@@ -325,6 +325,81 @@ def receive_stomp(
     raise TimeoutError(f"STOMP {expected_commands} frame을 기다리다 시간 초과됐습니다.")
 
 
+def assert_authentication_required(
+    ws_url: str,
+    origin: str,
+    cookie: str,
+    attempt_name: str,
+) -> None:
+    client = WebSocketClient(ws_url, origin, cookie)
+    try:
+        client.connect()
+        client.send_text(
+            stomp_frame(
+                "CONNECT",
+                {
+                    "accept-version": "1.2",
+                    "heart-beat": "0,0",
+                },
+            )
+        )
+        command, headers, body = parse_stomp_frame(client.receive_text())
+        if command != "ERROR":
+            raise AssertionError(
+                f"{attempt_name} 인증 실패가 ERROR frame이 아닙니다: {command}"
+            )
+        if headers.get("message") != "AUTHENTICATION_REQUIRED":
+            raise AssertionError(
+                f"{attempt_name} 인증 오류 code가 다릅니다: {headers}"
+            )
+        if headers.get("content-type") != "application/json":
+            raise AssertionError(
+                f"{attempt_name} 인증 오류 content-type이 다릅니다: {headers}"
+            )
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as error:
+            raise AssertionError(
+                f"{attempt_name} 인증 오류 body가 JSON이 아닙니다: {body}"
+            ) from error
+        if payload != {
+            "code": "AUTHENTICATION_REQUIRED",
+            "retryable": False,
+        }:
+            raise AssertionError(
+                f"{attempt_name} 인증 오류 payload가 다릅니다: {payload}"
+            )
+    finally:
+        client.close()
+
+
+def assert_websocket_authentication_reconnect_contract(
+    ws_url: str,
+    origin: str,
+    valid_cookie: str,
+) -> None:
+    invalid_cookie = f"{COOKIE_NAME}=not-a-jwt"
+    assert_authentication_required(
+        ws_url,
+        origin,
+        invalid_cookie,
+        "최초 CONNECT",
+    )
+    assert_authentication_required(
+        ws_url,
+        origin,
+        invalid_cookie,
+        "새 연결의 자동 reconnect CONNECT",
+    )
+
+    authenticated_client = WebSocketClient(ws_url, origin, valid_cookie)
+    try:
+        authenticated_client.connect()
+        connect_stomp(authenticated_client)
+    finally:
+        authenticated_client.close()
+
+
 def assert_cors(client: HttpClient) -> None:
     _, headers, _ = client.request(
         "OPTIONS",
@@ -1005,7 +1080,7 @@ def main() -> int:
     token = generate_token(args.subject)
     client = HttpClient(args.base_url, args.origin, token)
 
-    print("[1/14] 서버 health 확인")
+    print("[1/15] 서버 health 확인")
     _, _, health = client.request(
         "GET",
         "/actuator/health",
@@ -1014,14 +1089,21 @@ def main() -> int:
     if not isinstance(health, dict) or health.get("status") != "UP":
         raise AssertionError(f"서버 health가 UP이 아닙니다: {health}")
 
-    print("[2/14] credential CORS preflight 확인")
+    print("[2/15] credential CORS preflight 확인")
     assert_cors(client)
 
-    print("[3/14] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
+    print("[3/15] WebSocket 최초·재연결 인증 실패 ERROR 계약 확인")
+    assert_websocket_authentication_reconnect_contract(
+        ws_url,
+        args.origin,
+        client.cookie,
+    )
+
+    print("[4/15] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
     client.request("GET", "/api/v1/me/rooms")
     client.request("GET", "/api/v1/rooms")
 
-    print("[4/14] description 포함 LISTED/OPEN 방 생성")
+    print("[5/15] description 포함 LISTED/OPEN 방 생성")
     room_name = f"frontend-smoke-{uuid.uuid4().hex[:8]}"
     room_description = "frontend local smoke description"
     _, _, create_result = client.request(
@@ -1040,7 +1122,7 @@ def main() -> int:
         raise AssertionError("방 생성 응답이 JSON 객체가 아닙니다.")
     room_id = create_result["roomId"]
 
-    print("[5/14] 방 상세·공개 방 목록 description 반영 확인")
+    print("[6/15] 방 상세·공개 방 목록 description 반영 확인")
     _, _, room_detail = client.request("GET", f"/api/v1/rooms/{room_id}")
     if (
         not isinstance(room_detail, dict)
@@ -1056,7 +1138,7 @@ def main() -> int:
         raise AssertionError("생성한 LISTED 방이 공개 방 목록에 없습니다.")
 
     print(
-        "[6/14] 구독 유지 상태에서 Room settings update/event/replay/no-op 확인"
+        "[7/15] 구독 유지 상태에서 Room settings update/event/replay/no-op 확인"
     )
     (
         client_message_id,
@@ -1073,7 +1155,7 @@ def main() -> int:
         args.subject,
     )
 
-    print("[7/14] settings detail, 공개 목록 제외, INVITE_ONLY 확인")
+    print("[8/15] settings detail, 공개 목록 제외, INVITE_ONLY 확인")
     _, _, updated_detail = client.request(
         "GET",
         f"/api/v1/rooms/{room_id}",
@@ -1106,11 +1188,11 @@ def main() -> int:
             f"INVITE_ONLY join 거절이 올바르지 않습니다: {join_rejection}"
         )
 
-    print("[8/14] CREATE/UPDATE/DELETE event와 result 확인")
+    print("[9/15] CREATE/UPDATE/DELETE event와 result 확인")
     if room_sequence < 1:
         raise AssertionError("roomSequence는 1 이상이어야 합니다.")
 
-    print("[9/14] REST 메시지 tombstone 재동기화 확인")
+    print("[10/15] REST 메시지 tombstone 재동기화 확인")
     _, _, history = client.request(
         "GET",
         f"/api/v1/rooms/{room_id}/messages?afterSequence=0&limit=100",
@@ -1135,11 +1217,11 @@ def main() -> int:
     ):
         raise AssertionError(f"REST tombstone이 올바르지 않습니다: {tombstone}")
 
-    print("[10/14] 수정·삭제 roomSequence 불변 확인")
+    print("[11/15] 수정·삭제 roomSequence 불변 확인")
     if next_sequence != room_sequence + 1:
         raise AssertionError("후속 메시지 sequence가 정확히 1 증가하지 않았습니다.")
 
-    print("[11/14] 후속 CREATE REST snapshot 확인")
+    print("[12/15] 후속 CREATE REST snapshot 확인")
     next_messages = [
         item
         for item in history.get("items", [])
@@ -1148,7 +1230,7 @@ def main() -> int:
     if len(next_messages) != 1 or next_messages[0].get("roomSequence") != next_sequence:
         raise AssertionError("후속 메시지를 REST 이력에서 찾지 못했습니다.")
 
-    print("[12/14] LISTED/OPEN 복원과 공개 목록 재반영 확인")
+    print("[13/15] LISTED/OPEN 복원과 공개 목록 재반영 확인")
     client.request(
         "POST",
         f"/api/v1/rooms/{room_id}/commands/update-settings",
@@ -1161,7 +1243,7 @@ def main() -> int:
     if find_public_room(client, room_id) is None:
         raise AssertionError("LISTED로 복원한 방이 공개 목록에 없습니다.")
 
-    print("[13/14] 두 번째 사용자 Room join 확인")
+    print("[14/15] 두 번째 사용자 Room join 확인")
     inbox_member = HttpClient(
         args.base_url,
         args.origin,
@@ -1174,7 +1256,7 @@ def main() -> int:
         expected_statuses=(201,),
     )
 
-    print("[14/14] unread/read-state와 개인 CREATE/DELETE event 확인")
+    print("[15/15] unread/read-state와 개인 CREATE/DELETE event 확인")
     run_room_inbox_flow(
         ws_url,
         args.origin,
@@ -1184,7 +1266,8 @@ def main() -> int:
     )
 
     print(
-        "PASS: 쿠키 인증 → CORS → 방 생성/설정 변경/목록·join 정책 → "
+        "PASS: 쿠키 인증 → CORS → WebSocket 인증 실패/재연결 계약 → "
+        "방 생성/설정 변경/목록·join 정책 → "
         "WebSocket/STOMP 구독 준비 → 생성/수정/삭제 → REST tombstone → "
         "Room inbox unread/read-state/개인 invalidation 흐름이 정상입니다."
     )
