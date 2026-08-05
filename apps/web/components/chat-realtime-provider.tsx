@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { observeAuthenticationSucceeded } from "@/lib/auth/authentication-session-events";
+import { ChatRealtimeDiagnosticsPanel } from "@/components/chat-realtime-diagnostics-panel";
 import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
 import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realtime-room-lifecycle";
 import { createChatRealtimeTransport } from "@/lib/chat/realtime/create-chat-realtime-transport";
@@ -72,6 +73,9 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
     <ChatRealtimeContext value={realtime}>
       {children}
       <ChatRoomInboxRuntime transport={transport} />
+      {process.env.NODE_ENV === "development" ? (
+        <ChatRealtimeDiagnosticsPanel transport={transport} />
+      ) : null}
     </ChatRealtimeContext>
   );
 }

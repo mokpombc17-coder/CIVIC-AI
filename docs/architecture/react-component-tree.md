@@ -79,8 +79,9 @@ RootLayout [Server] (apps/web/app/layout.tsx)
                                         │   └── ChatRoomMembershipDialog [Client] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                         │       └── ChatRoomMembershipPanel [Client] (apps/web/components/chat-room-membership-panel.tsx)
                                         │           └── ChatRoomSettingsControl [Client] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
-                        └── ChatRoomInboxRuntime [Client] (apps/web/components/chat-room-inbox-runtime.tsx)
-                            └── ChatRoomInboxToastList [Client] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
+                        ├── ChatRoomInboxRuntime [Client] (apps/web/components/chat-room-inbox-runtime.tsx)
+                        │   └── ChatRoomInboxToastList [Client] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
+                        └── ChatRealtimeDiagnosticsPanel [Client] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
 ```
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
@@ -91,6 +92,10 @@ REST snapshot과 Worker buffer의 병합이 실패해 조치가 필요할 때만
 `ChatRoomInboxRuntime`은 개인 inbox 이벤트, Query 무효화, grouping과 timer를 담당하는 hook을
 `ChatRoomInboxToastList`에 연결한다. Toast list는 현재 포커스된 탭에서 다른 Room의 CREATE
 알림이 있을 때 만들어진 UI 전용 항목과 선택 callback만 받아 조건부로 렌더링한다.
+
+`ChatRealtimeDiagnosticsPanel`은 development 환경에서만 우측 하단 trigger와 진단 패널을
+렌더링한다. 패널이 열린 동안 SharedWorker 또는 direct transport의 구조화 진단 snapshot을
+주기적으로 조회하며, 초기화와 전체 JSON 다운로드 기능을 제공한다.
 
 `ChatRoomListScreen`은 목록 Query, 공개 방 필터링, 생성 폼 disclosure를 담당하는 hook과
 `ChatRoomListView`를 연결한다. View 이하의 생성 폼과 참여 control은 각각 동작 hook을 호출하되,
@@ -149,6 +154,7 @@ flowchart TD
     ChatLayout["ChatLayout [Server]<br/>apps/web/app/chat/layout.tsx"]
     ChatQueryProvider["ChatQueryProvider [Client]<br/>apps/web/components/chat-query-provider.tsx"]
     ChatRealtimeProvider["ChatRealtimeProvider [Client]<br/>apps/web/components/chat-realtime-provider.tsx"]
+    ChatRealtimeDiagnosticsPanel["ChatRealtimeDiagnosticsPanel [Client] [conditional, development]<br/>apps/web/components/chat-realtime-diagnostics-panel.tsx"]
     ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
     ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [conditional]<br/>apps/web/components/chat-room-inbox-toast-list.tsx"]
     ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
@@ -196,6 +202,7 @@ flowchart TD
     ChatQueryProvider --> ChatRealtimeProvider
     ChatRealtimeProvider --> ChatChildrenSlot
     ChatRealtimeProvider --> ChatRoomInboxRuntime
+    ChatRealtimeProvider -->|"development only"| ChatRealtimeDiagnosticsPanel
     ChatRoomInboxRuntime -->|"conditional toast"| ChatRoomInboxToastList
     ChatChildrenSlot -. "route /chat" .-> ChatPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
@@ -231,6 +238,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,CreateChatRoomForm,RoomUnreadBadge,JoinChatRoomControl,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionIndicator,ChatRoomSessionNotice,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,CreateChatRoomForm,RoomUnreadBadge,JoinChatRoomControl,ChatRoomScreen,ChatRoomView,ChatRoomHeader,ChatMessageHistory,ChatMessageList,ChatMessageItem,ChatConnectionStatus,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionIndicator,ChatRoomSessionNotice,ChatMessageComposer,ChatRoomMembershipPanel,ChatRoomSettingsControl,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```
