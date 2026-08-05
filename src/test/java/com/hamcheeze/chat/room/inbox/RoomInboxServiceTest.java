@@ -7,11 +7,10 @@ import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxLastMessage;
+import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.room.query.CursorPage;
 import com.hamcheeze.chat.room.query.CursorSlice;
-import com.hamcheeze.chat.room.query.RoomQueryCursor;
-import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
-import com.hamcheeze.chat.room.query.RoomQueryReader;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -32,81 +31,147 @@ import static org.mockito.Mockito.when;
 class RoomInboxServiceTest {
 
     @Test
-    void batchesReadStatesAndCountsRoomsSequentially() {
-        Instant now = Instant.parse("2026-08-03T01:00:00Z");
-        Membership membership = Membership.restore(
-                "membership-1",
-                "room-1",
-                "user-1",
-                MembershipRole.MEMBER,
-                MembershipStatus.ACTIVE,
-                now,
-                null,
-                null,
-                50,
-                1);
-        Room room = Room.restore(
-                "room-1",
-                "Room",
-                "description",
-                "owner-1",
-                RoomStatus.ACTIVE,
-                RoomVisibility.LISTED,
-                JoinPolicy.OPEN,
-                2,
-                now,
-                null,
-                3);
-        RoomQueryReader reader = mock(RoomQueryReader.class);
+    void batchesReadStatesAndPreservesReaderOrder() {
+        RoomInboxPageEntry first = entry(
+                "room-b", "membership-b", 50,
+                Instant.parse("2026-08-03T02:00:00Z"));
+        RoomInboxPageEntry second = entry(
+                "room-a", "membership-a", 10,
+                Instant.parse("2026-08-03T01:00:00Z"));
+        RoomInboxPageReader reader = mock(RoomInboxPageReader.class);
         RoomReadStateStore store = mock(RoomReadStateStore.class);
         UnreadCountReader unread = mock(UnreadCountReader.class);
-        RoomQueryCursorCodec codec = mock(RoomQueryCursorCodec.class);
-        when(codec.decode(
-                null,
-                RoomQueryCursor.Scope.MY_ROOM_INBOX,
-                MembershipStatus.ACTIVE)).thenReturn(null);
-        when(reader.findMembershipsByUserAndStatus(
-                "user-1", MembershipStatus.ACTIVE, null, 20))
+        RoomInboxCursorCodec codec = mock(RoomInboxCursorCodec.class);
+        when(codec.decode(null)).thenReturn(null);
+        when(reader.findPage("user-1", null, 20))
                 .thenReturn(new CursorSlice<>(
-                        List.of(membership), false));
-        when(reader.findRoomsByIds(List.of("room-1")))
-                .thenReturn(List.of(room));
-        when(store.findByMembershipIds(List.of("membership-1")))
+                        List.of(first, second), false));
+        when(store.findByMembershipIds(List.of(
+                "membership-b", "membership-a")))
                 .thenReturn(Map.of(
-                        "membership-1",
+                        "membership-b",
                         new RoomReadState(
-                                "membership-1",
-                                "room-1",
-                                "user-1",
-                                55,
-                                now)));
-        when(unread.count("room-1", "user-1", 55))
+                                "membership-b", "room-b", "user-1",
+                                55, first.lastActivityAt())));
+        when(unread.count("room-b", "user-1", 55))
                 .thenReturn(new UnreadCount(200, true));
-        RoomInboxService service = new RoomInboxService(
-                reader,
-                store,
-                unread,
-                codec,
-                new SimpleMeterRegistry());
+        when(unread.count("room-a", "user-1", 10))
+                .thenReturn(new UnreadCount(3, false));
+        RoomInboxService service = service(
+                reader, store, unread, codec);
 
         CursorPage<com.hamcheeze.chat.room.inbox.model.RoomInboxView>
                 page = service.inbox("user-1", null, 20);
 
-        assertThat(page.items()).singleElement()
-                .satisfies(item -> {
-                    assertThat(item.readThroughSequence())
-                            .isEqualTo(55);
-                    assertThat(item.unreadCount()).isEqualTo(200);
-                    assertThat(item.unreadCountCapped()).isTrue();
-                });
-        verify(unread).count("room-1", "user-1", 55);
+        assertThat(page.items())
+                .extracting(item -> item.roomId())
+                .containsExactly("room-b", "room-a");
+        assertThat(page.items().getFirst().readThroughSequence())
+                .isEqualTo(55);
+        assertThat(page.items().getFirst().unreadCount()).isEqualTo(200);
+        assertThat(page.items().getFirst().unreadCountCapped()).isTrue();
+        assertThat(page.items().getFirst().lastActivityAt())
+                .isEqualTo(first.lastActivityAt());
+        verify(unread).count("room-b", "user-1", 55);
+        verify(unread).count("room-a", "user-1", 10);
     }
 
     @Test
-    void unreadTimeoutAndResourceFailureAreRetryable() {
+    void nextCursorUsesLastReturnedEffectiveActivityAndRoomId() {
+        RoomInboxPageEntry entry = entry(
+                "room-a", "membership-a", 0,
+                Instant.parse("2026-08-03T01:00:00Z"));
+        RoomInboxPageReader reader = mock(RoomInboxPageReader.class);
+        RoomReadStateStore store = mock(RoomReadStateStore.class);
+        UnreadCountReader unread = mock(UnreadCountReader.class);
+        RoomInboxCursorCodec codec = mock(RoomInboxCursorCodec.class);
+        when(codec.decode(null)).thenReturn(null);
+        when(reader.findPage("user-1", null, 20))
+                .thenReturn(new CursorSlice<>(List.of(entry), true));
+        when(store.findByMembershipIds(List.of("membership-a")))
+                .thenReturn(Map.of());
+        when(unread.count("room-a", "user-1", 0))
+                .thenReturn(new UnreadCount(0, false));
+        RoomInboxCursor expected = new RoomInboxCursor(
+                2,
+                RoomInboxCursor.Scope.MY_ROOM_INBOX,
+                entry.lastActivityAt(),
+                "room-a");
+        when(codec.encode(expected)).thenReturn("next");
+
+        CursorPage<?> page = service(reader, store, unread, codec)
+                .inbox("user-1", null, 20);
+
+        assertThat(page.nextCursor()).isEqualTo("next");
+        assertThat(page.hasNext()).isTrue();
+        verify(codec).encode(expected);
+    }
+
+    @Test
+    void deletedLastMessageRemainsWhileReadStateMakesUnreadZero() {
+        Instant createdAt = Instant.parse("2026-08-03T01:00:00Z");
+        RoomInboxPageEntry base = entry(
+                "room-a", "membership-a", 0, createdAt);
+        RoomInboxLastMessage tombstone = new RoomInboxLastMessage(
+                "message-1",
+                1,
+                2,
+                MessageState.DELETED_BY_AUTHOR,
+                null,
+                false,
+                createdAt);
+        RoomInboxPageEntry entry = new RoomInboxPageEntry(
+                base.room(), base.membership(), tombstone, createdAt);
+        RoomInboxPageReader reader = mock(RoomInboxPageReader.class);
+        RoomReadStateStore store = mock(RoomReadStateStore.class);
+        UnreadCountReader unread = mock(UnreadCountReader.class);
+        RoomInboxCursorCodec codec = mock(RoomInboxCursorCodec.class);
+        when(codec.decode(null)).thenReturn(null);
+        when(reader.findPage("user-1", null, 20))
+                .thenReturn(new CursorSlice<>(List.of(entry), false));
+        when(store.findByMembershipIds(List.of("membership-a")))
+                .thenReturn(Map.of(
+                        "membership-a",
+                        new RoomReadState(
+                                "membership-a", "room-a", "user-1",
+                                1, createdAt.plusSeconds(1))));
+        when(unread.count("room-a", "user-1", 1))
+                .thenReturn(new UnreadCount(0, false));
+
+        var item = service(reader, store, unread, codec)
+                .inbox("user-1", null, 20)
+                .items().getFirst();
+
+        assertThat(item.unreadCount()).isZero();
+        assertThat(item.lastMessage()).isEqualTo(tombstone);
+        assertThat(item.lastActivityAt()).isEqualTo(createdAt);
+    }
+
+    @Test
+    void queryAndUnreadStorageFailuresAreRetryable() {
         assertRetryableInboxFailure(new QueryTimeoutException("timeout"));
         assertRetryableInboxFailure(new DataAccessResourceFailureException(
                 "connection unavailable"));
+    }
+
+    @Test
+    void dataConsistencyFailureUsesNonRetryableSummaryCode() {
+        RoomInboxPageReader reader = mock(RoomInboxPageReader.class);
+        when(reader.findPage("user-1", null, 20)).thenThrow(
+                new RoomInboxDataConsistencyException(
+                        "room-1", 2, "summary-schema-unsupported"));
+        RoomInboxCursorCodec codec = mock(RoomInboxCursorCodec.class);
+        when(codec.decode(null)).thenReturn(null);
+
+        assertThatThrownBy(() -> service(
+                reader,
+                mock(RoomReadStateStore.class),
+                mock(UnreadCountReader.class),
+                codec).inbox("user-1", null, 20))
+                .isInstanceOf(RoomInboxException.class)
+                .extracting("code")
+                .isEqualTo(RoomInboxErrorCode
+                        .ROOM_INBOX_SUMMARY_INCONSISTENT);
     }
 
     @Test
@@ -126,42 +191,63 @@ class RoomInboxServiceTest {
         assertThatThrownBy(() -> failureService(failure)
                 .inbox("user-1", null, 20))
                 .isInstanceOf(RoomInboxException.class)
-                .satisfies(value -> assertThat(
-                        ((RoomInboxException) value).code())
-                        .isEqualTo(RoomInboxErrorCode
-                                .ROOM_INBOX_UNAVAILABLE));
+                .extracting("code")
+                .isEqualTo(RoomInboxErrorCode.ROOM_INBOX_UNAVAILABLE);
     }
 
     private RoomInboxService failureService(RuntimeException failure) {
-        Instant now = Instant.parse("2026-08-03T01:00:00Z");
-        Membership membership = Membership.restore(
-                "membership-1", "room-1", "user-1",
-                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                now, null, null, 0, 1);
-        Room room = Room.restore(
-                "room-1", "Room", "description", "owner-1",
-                RoomStatus.ACTIVE, RoomVisibility.LISTED,
-                JoinPolicy.OPEN, 2, now, null, 3);
-        RoomQueryReader reader = mock(RoomQueryReader.class);
-        RoomReadStateStore store = mock(RoomReadStateStore.class);
-        UnreadCountReader unread = mock(UnreadCountReader.class);
-        RoomQueryCursorCodec codec = mock(RoomQueryCursorCodec.class);
-        when(codec.decode(
-                null,
-                RoomQueryCursor.Scope.MY_ROOM_INBOX,
-                MembershipStatus.ACTIVE)).thenReturn(null);
-        when(reader.findMembershipsByUserAndStatus(
-                "user-1", MembershipStatus.ACTIVE, null, 20))
-                .thenReturn(new CursorSlice<>(
-                        List.of(membership), false));
-        when(reader.findRoomsByIds(List.of("room-1")))
-                .thenReturn(List.of(room));
-        when(store.findByMembershipIds(List.of("membership-1")))
-                .thenReturn(Map.of());
-        when(unread.count("room-1", "user-1", 0))
-                .thenThrow(failure);
+        RoomInboxPageReader reader = mock(RoomInboxPageReader.class);
+        RoomInboxCursorCodec codec = mock(RoomInboxCursorCodec.class);
+        when(codec.decode(null)).thenReturn(null);
+        when(reader.findPage("user-1", null, 20)).thenThrow(failure);
+        return service(
+                reader,
+                mock(RoomReadStateStore.class),
+                mock(UnreadCountReader.class),
+                codec);
+    }
+
+    private static RoomInboxService service(
+            RoomInboxPageReader reader,
+            RoomReadStateStore store,
+            UnreadCountReader unread,
+            RoomInboxCursorCodec codec
+    ) {
         return new RoomInboxService(
                 reader, store, unread, codec,
                 new SimpleMeterRegistry());
+    }
+
+    private static RoomInboxPageEntry entry(
+            String roomId,
+            String membershipId,
+            long boundary,
+            Instant activityAt
+    ) {
+        Membership membership = Membership.restore(
+                membershipId,
+                roomId,
+                "user-1",
+                MembershipRole.MEMBER,
+                MembershipStatus.ACTIVE,
+                activityAt.minusSeconds(100),
+                null,
+                null,
+                boundary,
+                1);
+        Room room = Room.restore(
+                roomId,
+                roomId,
+                "description",
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                2,
+                activityAt.minusSeconds(200),
+                null,
+                3);
+        return new RoomInboxPageEntry(
+                room, membership, null, activityAt);
     }
 }

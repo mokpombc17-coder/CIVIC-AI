@@ -27,7 +27,9 @@ public record RoomInboxResponse(
         long membershipVersion,
         long readThroughSequence,
         int unreadCount,
-        boolean unreadCountCapped
+        boolean unreadCountCapped,
+        RoomInboxLastMessageResponse lastMessage,
+        Instant lastActivityAt
 ) {
     public static RoomInboxResponse from(RoomInboxView view) {
         return new RoomInboxResponse(
@@ -48,6 +50,9 @@ public record RoomInboxResponse(
                 view.membershipVersion(),
                 view.readThroughSequence(),
                 view.unreadCount(),
-                view.unreadCountCapped());
+                view.unreadCountCapped(),
+                RoomInboxLastMessageResponse.from(
+                        view.lastMessage()),
+                view.lastActivityAt());
     }
 }

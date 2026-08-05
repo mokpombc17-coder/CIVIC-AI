@@ -32,6 +32,7 @@ chat:
   room-inbox:
     unread-count-cap: ${CHAT_ROOM_INBOX_UNREAD_COUNT_CAP:200}
     count-query-max-time: ${CHAT_ROOM_INBOX_COUNT_QUERY_MAX_TIME:1s}
+    page-query-max-time: ${CHAT_ROOM_INBOX_PAGE_QUERY_MAX_TIME:1s}
     notification:
       queue-capacity: ${CHAT_ROOM_INBOX_NOTIFICATION_QUEUE_CAPACITY:1000}
       coalescing-window-ms: ${CHAT_ROOM_INBOX_COALESCING_WINDOW_MS:100}

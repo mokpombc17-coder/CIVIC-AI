@@ -4,8 +4,10 @@ import com.hamcheeze.chat.message.mongo.MongoChatMessageSchemaInitializer;
 import com.hamcheeze.chat.message.mongo.MongoRoomSequenceReader;
 import com.hamcheeze.chat.room.inbox.mongo.MongoRoomReadStateSchemaInitializer;
 import com.hamcheeze.chat.room.inbox.mongo.MongoRoomReadStateStore;
+import com.hamcheeze.chat.room.inbox.mongo.MongoRoomInboxPageReader;
 import com.hamcheeze.chat.room.inbox.mongo.MongoUnreadCountReader;
-import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaInitializer;
+import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxEventDelivery;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxNotificationPipeline;
@@ -79,18 +81,29 @@ public class RoomInboxConfiguration {
 
     @Bean
     RoomInboxService roomInboxService(
-            RoomQueryReader roomReader,
+            RoomInboxPageReader pageReader,
             RoomReadStateStore store,
             UnreadCountReader unreadCountReader,
-            RoomQueryCursorCodec cursorCodec,
+            RoomInboxCursorCodec cursorCodec,
             MeterRegistry meterRegistry
     ) {
         return new RoomInboxService(
-                roomReader,
+                pageReader,
                 store,
                 unreadCountReader,
                 cursorCodec,
                 meterRegistry);
+    }
+
+    @Bean
+    RoomInboxPageReader roomInboxPageReader(
+            MongoOperations mongoOperations,
+            MongoRoomSchemaInitializer roomSchemaInitializer,
+            MongoRoomInboxSummarySchemaInitializer summarySchemaInitializer,
+            RoomInboxProperties properties
+    ) {
+        return new MongoRoomInboxPageReader(
+                mongoOperations, properties);
     }
 
     @Bean

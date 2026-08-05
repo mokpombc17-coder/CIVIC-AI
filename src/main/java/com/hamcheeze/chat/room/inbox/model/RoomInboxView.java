@@ -5,6 +5,7 @@ import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.inbox.summary.RoomInboxLastMessage;
 
 import java.time.Instant;
 
@@ -26,6 +27,8 @@ public record RoomInboxView(
         long membershipVersion,
         long readThroughSequence,
         int unreadCount,
-        boolean unreadCountCapped
+        boolean unreadCountCapped,
+        RoomInboxLastMessage lastMessage,
+        Instant lastActivityAt
 ) {
 }

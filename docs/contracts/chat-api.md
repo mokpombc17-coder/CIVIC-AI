@@ -1735,19 +1735,60 @@ GET /api/v1/me/room-inbox?cursor={cursor}&limit=20
 
 `chat:rooms:read` scope가 필요하고 limit은 기본·최대 모두 `20`이다.
 `limit=21`은 `400 INVALID_REQUEST`다. 기존 `/me/rooms`는 변경되지 않는다.
-cursor scope는 `MY_ROOM_INBOX`이므로 `/me/rooms` cursor와 서로 사용할 수
-없다. 정렬은 현재 ACTIVE Membership ID cursor 순서를 유지하며 최신
-메시지순 정렬은 제공하지 않는다.
+목록은 사용자의 전체 ACTIVE Membership 후보에 ACTIVE Room과 공통 summary를
+결합한 뒤 `effectiveLastActivityAt DESC`, `roomId DESC`로 정렬한다.
 
-각 item은 기존 active Room metadata와 다음 값을 추가한다.
+Summary last message는
+`lastMessage.roomSequence > membership.messageVisibleAfterSequence`일 때만
+노출한다. 같거나 낮으면 `lastMessage=null`이고 `lastActivityAt`은 현재 참여
+구간의 `membership.joinedAt`이다. Rejoin은 `joinedAt`과 접근 경계를 함께
+갱신하므로 참여 전 message 시각은 응답, 정렬, cursor 어디에도 사용하지
+않는다. Summary가 없는 sparse Room도 같은 fallback을 사용한다.
+
+각 item은 기존 active Room metadata와 다음 값을 포함한다.
 
 ```json
 {
   "readThroughSequence": 123,
   "unreadCount": 200,
-  "unreadCountCapped": true
+  "unreadCountCapped": true,
+  "lastMessage": {
+    "messageId": "message-124",
+    "roomSequence": 124,
+    "messageVersion": 1,
+    "state": "ACTIVE",
+    "preview": "다음 회의는 월요일입니다.",
+    "previewTruncated": false,
+    "createdAt": "2026-08-04T08:30:00Z"
+  },
+  "lastActivityAt": "2026-08-04T08:30:00Z"
 }
 ```
+
+삭제 tombstone은 `state=DELETED_BY_AUTHOR`, `preview=null`,
+`previewTruncated=false`로 반환하며 localized 삭제 문구는 반환하지 않는다.
+접근 가능한 last message가 없으면 `lastMessage=null`이고 `lastActivityAt`은
+항상 non-null인 Membership `joinedAt`이다.
+
+Room inbox cursor는 전용 v2 payload를 JSON → UTF-8 → URL-safe Base64
+without padding으로 인코딩한다.
+
+```json
+{
+  "version": 2,
+  "scope": "MY_ROOM_INBOX",
+  "lastActivityAt": "2026-08-04T08:30:00Z",
+  "lastRoomId": "room-A"
+}
+```
+
+다음 페이지 조건은 `effectiveLastActivityAt < lastActivityAt` 또는 시각이
+같고 `roomId < lastRoomId`다. 기존 Room inbox v1 cursor, `/me/rooms` cursor,
+다른 scope, unknown JSON field는 `400 INVALID_CURSOR`다. 다음 cursor는 마지막
+반환 item의 effective 시각과 Room ID로 생성한다. 정적인 source에서는
+중복·누락이 없지만 페이지 요청 사이 새로운 CREATE로 순서가 변하면 장기
+snapshot은 보장하지 않는다. 클라이언트는 invalidation 후 첫 페이지부터
+재조회해야 한다.
 
 unread 조건은 `roomSequence > readThroughSequence`, `state=ACTIVE`,
 `countable=true`, `senderUserId != currentUserId`다. 수정은 unread 수를
@@ -1755,10 +1796,33 @@ unread 조건은 `roomSequence > readThroughSequence`, `state=ACTIVE`,
 기본 cap은 `200`이다. 정확히 200이면 `capped=false`, 201 이상이면
 `unreadCount=200`, `capped=true`다.
 
-서버는 page의 최대 20개 Room을 순서대로 조회한다. 각 Mongo count는
+Mongo page query는 `chat_memberships`의 `userId/status` index를 hint하고,
+Room과 summary를 각각 `_id`로 lookup한 뒤 effective 시각을 계산하여 cursor
+filter, blocking sort, `limit+1`을 적용한다. query에는 bounded maxTime과
+`allowDiskUse=false`가 적용된다. Service는 reader 순서를 변경하지 않는다.
+각 page의 최대 20개 Room에 대한 unread Mongo count는
 `limit=cap+1`, `maxTime`, `ix_chat_message_unread` hint를 사용한다. 한
 Room이라도 timeout 또는 Mongo 오류가 발생하면 일부 0을 반환하지 않고 전체
 요청을 `503 ROOM_INBOX_UNAVAILABLE`, `retryable=true`로 실패시킨다.
+Summary document가 없으면 정상 fallback이지만 unsupported/malformed summary,
+잘못된 lookup cardinality 또는 domain invariant는 fallback하지 않고
+`500 ROOM_INBOX_SUMMARY_INCONSISTENT`, `retryable=false`다. Request path는
+summary를 repair하거나 write하지 않는다.
+
+MongoDB 7.0.14 replica-set Testcontainers에서 visible/hidden/missing summary,
+ACTIVE/DELETED snapshot과 time tie를 섞은 fixture로 확인한 executionStats는
+다음과 같다. Membership은
+`ix_chat_membership_user_status`, Room과 summary lookup은 각각 `_id_`의
+indexed loop join을 사용했다. Effective field 때문에 bounded blocking sort가
+발생하지만 500 Room까지 `allowDiskUse=false`, `usedDisk=false`, spill 0이었다.
+
+| ACTIVE Room | keys examined | docs examined | execution ms | returned |
+|---:|---:|---:|---:|---:|
+| 20 | 55 | 55 | 5 | 20 |
+| 100 | 275 | 275 | 5 | 21 |
+| 500 | 1375 | 1375 | 14 | 21 |
+
+절대 실행 시간은 CI 성공 기준이 아니며 환경별로 다시 기록한다.
 
 대표 query plan은 다음 명령으로 반복 확인한다.
 

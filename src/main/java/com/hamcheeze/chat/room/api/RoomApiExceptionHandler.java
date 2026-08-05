@@ -156,6 +156,8 @@ public class RoomApiExceptionHandler {
                     READ_SEQUENCE_AHEAD -> HttpStatus.CONFLICT;
             case READ_STATE_INCONSISTENT ->
                     HttpStatus.INTERNAL_SERVER_ERROR;
+            case ROOM_INBOX_SUMMARY_INCONSISTENT ->
+                    HttpStatus.INTERNAL_SERVER_ERROR;
             case ROOM_INBOX_UNAVAILABLE ->
                     HttpStatus.SERVICE_UNAVAILABLE;
         };
@@ -168,6 +170,8 @@ public class RoomApiExceptionHandler {
                     "The requested read sequence is ahead of the room.";
             case READ_STATE_INCONSISTENT ->
                     "The persisted read state is inconsistent.";
+            case ROOM_INBOX_SUMMARY_INCONSISTENT ->
+                    "The Room inbox summary is inconsistent.";
             case ROOM_INBOX_UNAVAILABLE ->
                     "The room inbox is temporarily unavailable.";
         };

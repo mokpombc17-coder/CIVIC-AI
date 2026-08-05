@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
+import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -10,6 +11,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import jakarta.servlet.http.Cookie;
+import org.bson.Document;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +29,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -336,7 +340,15 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                                         ChatScopes.authority(
                                                 ChatScopes.ROOMS_READ)))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items").isArray());
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items[0]")
+                        .value(hasKey("lastMessage")))
+                .andExpect(jsonPath("$.items[0].lastMessage")
+                        .value(nullValue()))
+                .andExpect(jsonPath("$.items[0].lastActivityAt")
+                        .exists());
 
         mockMvc.perform(get("/api/v1/me/room-inbox?limit=21")
                         .with(jwt().jwt(jwt -> jwt.subject("user-1"))
@@ -353,6 +365,51 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                                         ChatScopes.authority(
                                                 ChatScopes.ROOMS_WRITE)))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void roomInboxFailsClosedForUnsupportedSummaryWithoutRepair()
+            throws Exception {
+        String roomId = "room-summary-inconsistent";
+        seedActiveRoom(roomId, "user-1");
+        Document raw = new Document("_id", roomId)
+                .append("schemaVersion", 2)
+                .append("lastMessage", new Document(
+                        "messageId", "message-secret")
+                        .append("roomSequence", 1L)
+                        .append("messageVersion", 1L)
+                        .append("state", "ACTIVE")
+                        .append("preview", "secret-preview")
+                        .append("previewTruncated", false)
+                        .append("createdAt", Date.from(Instant.parse(
+                                "2026-08-04T08:30:00Z"))))
+                .append("lastActivityAt", Date.from(Instant.parse(
+                        "2026-08-04T08:30:00Z")))
+                .append("updatedAt", Date.from(Instant.parse(
+                        "2026-08-04T08:30:00Z")));
+        mongoOperations.getCollection(
+                        MongoRoomInboxSummaryDocument.COLLECTION_NAME)
+                .insertOne(raw);
+
+        String response = mockMvc.perform(get("/api/v1/me/room-inbox")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_READ)))))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value(
+                        "ROOM_INBOX_SUMMARY_INCONSISTENT"))
+                .andExpect(jsonPath("$.retryable").value(false))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(response).doesNotContain(
+                "secret-preview", "message-secret", "raw BSON");
+        assertThat(mongoOperations.getCollection(
+                        MongoRoomInboxSummaryDocument.COLLECTION_NAME)
+                .find(new Document("_id", roomId))
+                .first()).isEqualTo(raw);
     }
 
     @Test

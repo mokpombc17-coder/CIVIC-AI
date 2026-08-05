@@ -23,6 +23,9 @@ public class RoomInboxProperties {
     @NotNull
     private Duration countQueryMaxTime = Duration.ofSeconds(1);
 
+    @NotNull
+    private Duration pageQueryMaxTime = Duration.ofSeconds(1);
+
     @Valid
     @NotNull
     private Notification notification = new Notification();
@@ -48,6 +51,21 @@ public class RoomInboxProperties {
                     "countQueryMaxTime must be between 1ms and 30s");
         }
         this.countQueryMaxTime = countQueryMaxTime;
+    }
+
+    public Duration getPageQueryMaxTime() {
+        return pageQueryMaxTime;
+    }
+
+    public void setPageQueryMaxTime(Duration pageQueryMaxTime) {
+        if (pageQueryMaxTime == null
+                || pageQueryMaxTime.toNanos() < 1_000_000
+                || pageQueryMaxTime.compareTo(
+                        Duration.ofSeconds(30)) > 0) {
+            throw new IllegalArgumentException(
+                    "pageQueryMaxTime must be between 1ms and 30s");
+        }
+        this.pageQueryMaxTime = pageQueryMaxTime;
     }
 
     public Notification getNotification() {
