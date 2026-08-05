@@ -7,7 +7,9 @@
 - 웹과 네이티브가 공유하는 bridge message contract는 `packages/bridge`에 정의한다.
 - bridge contract를 변경할 때는 웹 송신 코드, 모바일 수신 코드 및 bridge 테스트를 함께 확인한다.
 - 작업 완료 전 `pnpm check`를 실행한다.
-- `apps/web`의 layout, page 또는 프로젝트 컴포넌트 렌더링 관계를 변경하면 `docs/architecture/react-component-tree.md`를 함께 갱신한다.
+- `docs/architecture/react-component-tree.md`는 주요 React 컴포넌트의 책임 경계와 논리적 조립 관계를 기록한다.
+- `apps/web`에서 route/layout, Server·Client 경계, provider 범위, screen/container/view/feature control의 책임 또는 이들 사이의 조립 관계가 변경되면 해당 문서를 함께 갱신한다.
+- 순수 표현용 내부 컴포넌트, HTML 구조, 스타일 변경 또는 책임 경계를 바꾸지 않는 JSX 리팩터링은 component tree에 추가하지 않는다.
 
 ## CodeGraph usage
 
