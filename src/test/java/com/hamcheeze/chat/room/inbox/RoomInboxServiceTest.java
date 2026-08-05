@@ -11,14 +11,19 @@ import com.hamcheeze.chat.room.inbox.summary.RoomInboxLastMessage;
 import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.room.query.CursorPage;
 import com.hamcheeze.chat.room.query.CursorSlice;
+import com.hamcheeze.chat.room.query.RoomQueryErrorCode;
+import com.hamcheeze.chat.room.query.RoomQueryException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.dao.QueryTimeoutException;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class RoomInboxServiceTest {
@@ -185,6 +191,31 @@ class RoomInboxServiceTest {
                 "duplicate");
         assertThatThrownBy(() -> failureService(duplicate)
                 .inbox("user-1", null, 20)).isSameAs(duplicate);
+    }
+
+    @Test
+    void invalidCursorStopsBeforePageReaderQuery() {
+        RoomInboxPageReader reader = mock(RoomInboxPageReader.class);
+        RoomInboxCursorCodec codec = new RoomInboxCursorCodec(
+                JsonMapper.builder().build());
+        String cursor = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString("""
+                        {"version":2,"scope":"MY_ROOM_INBOX",
+                        "lastActivityAt":
+                        "2026-08-04T08:30:00.123000001Z",
+                        "lastRoomId":"room-A"}
+                        """.getBytes(StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> service(
+                reader,
+                mock(RoomReadStateStore.class),
+                mock(UnreadCountReader.class),
+                codec).inbox("user-1", cursor, 20))
+                .isInstanceOf(RoomQueryException.class)
+                .extracting("code")
+                .isEqualTo(RoomQueryErrorCode.INVALID_CURSOR);
+        verifyNoInteractions(reader);
     }
 
     private void assertRetryableInboxFailure(RuntimeException failure) {

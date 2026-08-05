@@ -294,6 +294,64 @@ class MongoRoomInboxPageReaderIntegrationTest {
     }
 
     @Test
+    void paginatesMixedEffectiveActivityTimesAcrossBothCursorBranches() {
+        Instant nine = BASE.plusSeconds(9 * 60 * 60);
+        Instant ten = BASE.plusSeconds(10 * 60 * 60);
+        Instant eleven = BASE.plusSeconds(11 * 60 * 60);
+        Instant twelve = BASE.plusSeconds(12 * 60 * 60);
+
+        insert("room-f", 0, BASE);
+        insertSummary(activeSummary("room-f", 1, twelve, "visible-f"));
+        insert("room-e", 0, eleven);
+        insert("room-d", 0, BASE);
+        insertSummary(activeSummary("room-d", 1, eleven, "visible-d"));
+        insert("room-c", 10, ten);
+        insertSummary(activeSummary(
+                "room-c", 10, BASE.plusSeconds(15 * 60 * 60),
+                "hidden-c"));
+        insert("room-b", 0, BASE);
+        insertSummary(activeSummary("room-b", 1, nine, "visible-b"));
+        insert("room-a", 0, nine);
+
+        CursorSlice<RoomInboxPageEntry> first = reader.findPage(
+                USER_ID, null, 2);
+        RoomInboxPageEntry firstLast = first.items().getLast();
+        CursorSlice<RoomInboxPageEntry> second = reader.findPage(
+                USER_ID, cursor(firstLast), 2);
+        RoomInboxPageEntry secondLast = second.items().getLast();
+        CursorSlice<RoomInboxPageEntry> third = reader.findPage(
+                USER_ID, cursor(secondLast), 2);
+
+        assertThat(first.items())
+                .extracting(value -> value.room().roomId())
+                .containsExactly("room-f", "room-e");
+        assertThat(second.items())
+                .extracting(value -> value.room().roomId())
+                .containsExactly("room-d", "room-c");
+        assertThat(third.items())
+                .extracting(value -> value.room().roomId())
+                .containsExactly("room-b", "room-a");
+        assertThat(firstLast.lastActivityAt()).isEqualTo(eleven);
+        assertThat(secondLast.lastActivityAt()).isEqualTo(ten);
+        assertThat(secondLast.lastMessage()).isNull();
+
+        List<String> allIds = new ArrayList<>();
+        allIds.addAll(first.items().stream()
+                .map(value -> value.room().roomId()).toList());
+        allIds.addAll(second.items().stream()
+                .map(value -> value.room().roomId()).toList());
+        allIds.addAll(third.items().stream()
+                .map(value -> value.room().roomId()).toList());
+        assertThat(allIds).containsExactly(
+                "room-f", "room-e", "room-d",
+                "room-c", "room-b", "room-a");
+        assertThat(new HashSet<>(allIds)).hasSize(6);
+        assertThat(first.hasNext()).isTrue();
+        assertThat(second.hasNext()).isTrue();
+        assertThat(third.hasNext()).isFalse();
+    }
+
+    @Test
     void unsupportedAndMalformedSummaryFailClosedWithoutRepair() {
         insert("room-1", 0, BASE);
         Document unsupported = raw(activeSummary(
@@ -459,6 +517,14 @@ class MongoRoomInboxPageReaderIntegrationTest {
                 createdAt);
         return new RoomInboxSummary(
                 roomId, message, createdAt, createdAt);
+    }
+
+    private static RoomInboxCursor cursor(RoomInboxPageEntry entry) {
+        return new RoomInboxCursor(
+                2,
+                RoomInboxCursor.Scope.MY_ROOM_INBOX,
+                entry.lastActivityAt(),
+                entry.room().roomId());
     }
 
     private static RoomInboxSummary deletedSummary(

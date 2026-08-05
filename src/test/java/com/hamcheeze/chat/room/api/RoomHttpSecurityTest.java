@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -413,6 +414,26 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
+    void roomInboxRejectsSubMillisecondCursorAsInvalidRequest()
+            throws Exception {
+        String cursor = roomInboxCursorToken("""
+                {"version":2,"scope":"MY_ROOM_INBOX",
+                "lastActivityAt":"2026-08-04T08:30:00.123000001Z",
+                "lastRoomId":"room-A"}
+                """);
+
+        mockMvc.perform(get("/api/v1/me/room-inbox")
+                        .param("cursor", cursor)
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_READ)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"))
+                .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    @Test
     void allowsReadStatePutCorsPreflight() throws Exception {
         mockMvc.perform(options("/api/v1/rooms/room-1/read-state")
                         .header(HttpHeaders.ORIGIN,
@@ -437,6 +458,13 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                   "joinPolicy":"OPEN"
                 }
                 """;
+    }
+
+    private static String roomInboxCursorToken(String payload) {
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(payload.getBytes(
+                        StandardCharsets.UTF_8));
     }
 
     private String token(

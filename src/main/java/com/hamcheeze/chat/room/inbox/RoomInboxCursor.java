@@ -24,11 +24,27 @@ public record RoomInboxCursor(
             throw new IllegalArgumentException(
                     "Unsupported Room inbox cursor scope");
         }
-        Objects.requireNonNull(lastActivityAt, "lastActivityAt");
+        requireMongoDateCompatible(lastActivityAt);
         if (lastRoomId == null
                 || !ROOM_ID_PATTERN.matcher(lastRoomId).matches()) {
             throw new IllegalArgumentException(
                     "lastRoomId is invalid");
+        }
+    }
+
+    private static void requireMongoDateCompatible(Instant value) {
+        Objects.requireNonNull(value, "lastActivityAt");
+        final long epochMillis;
+        try {
+            epochMillis = value.toEpochMilli();
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException(
+                    "lastActivityAt is outside MongoDB Date range",
+                    exception);
+        }
+        if (!Instant.ofEpochMilli(epochMillis).equals(value)) {
+            throw new IllegalArgumentException(
+                    "lastActivityAt must have millisecond precision");
         }
     }
 

@@ -1772,6 +1772,8 @@ Summary last message는
 
 Room inbox cursor는 전용 v2 payload를 JSON → UTF-8 → URL-safe Base64
 without padding으로 인코딩한다.
+`lastActivityAt`은 MongoDB Date와 동일한 millisecond precision과 표현 범위를
+사용하며, 범위 밖 또는 sub-millisecond timestamp는 `INVALID_CURSOR`다.
 
 ```json
 {
