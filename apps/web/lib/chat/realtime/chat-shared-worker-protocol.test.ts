@@ -48,6 +48,19 @@ describe("chat shared worker protocol", () => {
       isChatSharedWorkerEvent({
         ...snapshotEvent,
         snapshot: {
+          status: "authentication-required",
+          error: {
+            source: "stomp",
+            code: "AUTHENTICATION_REQUIRED",
+            message: "로그인이 필요합니다.",
+          },
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isChatSharedWorkerEvent({
+        ...snapshotEvent,
+        snapshot: {
           status: "reconnecting",
           error: {
             source: "websocket",

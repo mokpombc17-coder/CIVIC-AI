@@ -42,6 +42,11 @@ const CHAT_CONNECTION_PRESENTATIONS = {
     tone: "negative",
     canReconnect: false,
   },
+  "authentication-required": {
+    label: "로그인 필요",
+    tone: "negative",
+    canReconnect: false,
+  },
   error: {
     label: "연결 오류",
     tone: "negative",

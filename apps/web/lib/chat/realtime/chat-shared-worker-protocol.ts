@@ -200,6 +200,7 @@ const CONNECTION_STATUSES = new Set<ChatConnectionSnapshot["status"]>([
   "disconnecting",
   "disconnected",
   "replaced",
+  "authentication-required",
   "error",
 ]);
 
@@ -287,6 +288,7 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
             snapshot.error.source === "websocket" ||
             snapshot.error.source === "worker") &&
           (snapshot.error.code === undefined ||
+            snapshot.error.code === "AUTHENTICATION_REQUIRED" ||
             snapshot.error.code === "CONNECTION_REPLACED" ||
             snapshot.error.code === "ROOM_ACCESS_REVOKED" ||
             snapshot.error.code === "ROOM_CLOSED") &&

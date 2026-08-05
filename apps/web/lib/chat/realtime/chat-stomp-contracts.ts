@@ -17,6 +17,16 @@ const positiveSequenceSchema = z.number().int().positive();
 const nonnegativeSequenceSchema = z.number().int().nonnegative();
 const instantSchema = z.string().datetime({ offset: true });
 
+export const chatStompErrorSchema = z.object({
+  code: z.literal("AUTHENTICATION_REQUIRED"),
+  retryable: z.literal(false),
+});
+
+export type ChatStompErrorFrame = Readonly<{
+  body: string;
+  headers: Readonly<Record<string, string | undefined>>;
+}>;
+
 export const chatRoomSubscriptionSyncRequestSchema = z.object({
   requestId: requestIdSchema,
 });
@@ -347,6 +357,19 @@ export type ChatMessageEvent = z.infer<typeof chatMessageEventSchema>;
 export type ChatRoomEventMemberState = z.infer<typeof chatRoomEventMemberStateSchema>;
 export type ChatRoomEventEnvelope = z.infer<typeof chatRoomEventEnvelopeSchema>;
 export type ChatSystemEvent = z.infer<typeof chatSystemEventSchema>;
+export type ChatStompError = z.infer<typeof chatStompErrorSchema>;
+
+export function parseChatStompError(frame: ChatStompErrorFrame): ChatStompError | null {
+  const message = frame.headers.message?.trim();
+  const contentType = frame.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase();
+
+  if (message !== "AUTHENTICATION_REQUIRED" || contentType !== "application/json") {
+    return null;
+  }
+
+  const error = parseChatStompBody(frame.body, chatStompErrorSchema);
+  return error?.code === message ? error : null;
+}
 
 export function parseChatRoomSubscriptionsReady(body: string): ChatRoomSubscriptionsReady | null {
   return parseChatStompBody(body, chatRoomSubscriptionsReadySchema);

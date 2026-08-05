@@ -11,6 +11,7 @@ import {
   parseChatRoomInboxEvent,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
+  parseChatStompError,
   parseChatSubscriptionRejection,
   parseChatSystemEvent,
 } from "./chat-stomp-contracts";
@@ -37,6 +38,58 @@ const ROOM_INBOX_CREATED_EVENT = {
     previewTruncated: false,
   },
 } as const;
+
+describe("chat STOMP ERROR contract", () => {
+  it("구조화된 인증 실패 ERROR frame을 파싱한다", () => {
+    expect(
+      parseChatStompError({
+        headers: {
+          message: "AUTHENTICATION_REQUIRED",
+          "content-type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify({
+          code: "AUTHENTICATION_REQUIRED",
+          retryable: false,
+        }),
+      }),
+    ).toEqual({
+      code: "AUTHENTICATION_REQUIRED",
+      retryable: false,
+    });
+  });
+
+  it("헤더와 body가 인증 실패 계약에 모두 일치하지 않으면 거절한다", () => {
+    const body = JSON.stringify({
+      code: "AUTHENTICATION_REQUIRED",
+      retryable: false,
+    });
+
+    expect(
+      parseChatStompError({
+        headers: { message: "AUTHENTICATION_REQUIRED", "content-type": "text/plain" },
+        body,
+      }),
+    ).toBeNull();
+    expect(
+      parseChatStompError({
+        headers: { message: "SERVER_ERROR", "content-type": "application/json" },
+        body,
+      }),
+    ).toBeNull();
+    expect(
+      parseChatStompError({
+        headers: { message: "AUTHENTICATION_REQUIRED", "content-type": "application/json" },
+        body: JSON.stringify({ code: "AUTHENTICATION_REQUIRED", retryable: true }),
+      }),
+    ).toBeNull();
+    expect(
+      parseChatStompError({
+        headers: { message: "AUTHENTICATION_REQUIRED", "content-type": "application/json" },
+        body: "not-json",
+      }),
+    ).toBeNull();
+  });
+});
 
 describe("chat STOMP outbound contracts", () => {
   it("구독 준비 sync 요청의 UUID를 검증한다", () => {

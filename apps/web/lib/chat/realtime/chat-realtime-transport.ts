@@ -18,11 +18,12 @@ export type ChatConnectionStatus =
   | "disconnecting"
   | "disconnected"
   | "replaced"
+  | "authentication-required"
   | "error";
 
 export type ChatRealtimeError = Readonly<{
   source: "stomp" | "websocket" | "worker";
-  code?: "CONNECTION_REPLACED" | "ROOM_ACCESS_REVOKED" | "ROOM_CLOSED";
+  code?: "AUTHENTICATION_REQUIRED" | "CONNECTION_REPLACED" | "ROOM_ACCESS_REVOKED" | "ROOM_CLOSED";
   message: string;
 }>;
 
