@@ -95,7 +95,7 @@ public record MongoChatMessageDocument(
                 null);
     }
 
-    ChatMessage toDomain() {
+    public ChatMessage toDomain() {
         if (schemaVersion != CURRENT_SCHEMA_VERSION
                 || state == null
                 || countable == null

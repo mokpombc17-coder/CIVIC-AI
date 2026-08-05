@@ -15,8 +15,6 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
-import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
@@ -58,8 +56,9 @@ public final class MongoRoomInboxSummaryWriter
                 new Document("$lt", List.of(
                         "$lastMessage.roomSequence",
                         message.roomSequence()))));
-        Document replacement = toBson(
-                MongoRoomInboxSummaryDocument.fromDomain(incoming));
+        Document replacement = MongoRoomInboxSummaryDocument
+                .fromDomain(incoming)
+                .toBson();
         Document fields = new Document();
         for (String field : List.of(
                 "schemaVersion",
@@ -153,30 +152,6 @@ public final class MongoRoomInboxSummaryWriter
                 roomId,
                 MongoRoomInboxSummaryDocument.class,
                 MongoRoomInboxSummaryDocument.COLLECTION_NAME);
-    }
-
-    private static Document toBson(
-            MongoRoomInboxSummaryDocument document
-    ) {
-        RoomInboxLastMessage message = document.lastMessage();
-        return new Document(
-                "schemaVersion", document.schemaVersion())
-                .append("lastMessage", new Document(
-                        "messageId", message.messageId())
-                        .append("roomSequence", message.roomSequence())
-                        .append("messageVersion", message.messageVersion())
-                        .append("state", message.state().name())
-                        .append("preview", message.preview())
-                        .append("previewTruncated",
-                                message.previewTruncated())
-                        .append("createdAt", date(message.createdAt())))
-                .append("lastActivityAt",
-                        date(document.lastActivityAt()))
-                .append("updatedAt", date(document.updatedAt()));
-    }
-
-    private static Date date(Instant value) {
-        return Date.from(value);
     }
 
     private static void requireState(

@@ -37,3 +37,10 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.register('roomInboxSummaryMaintenance', JavaExec) {
+	group = 'maintenance'
+	description = 'Backfill or validate Room inbox summaries'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'com.hamcheeze.chat.room.inbox.summary.maintenance.RoomInboxSummaryMaintenanceCommand'
+}

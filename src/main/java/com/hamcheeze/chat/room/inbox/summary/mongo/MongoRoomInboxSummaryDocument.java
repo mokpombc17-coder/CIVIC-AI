@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.mapping.FieldType;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
 import java.time.Instant;
+import java.util.Date;
 
 @Document(collection = MongoRoomInboxSummaryDocument.COLLECTION_NAME)
 public record MongoRoomInboxSummaryDocument(
@@ -53,5 +54,24 @@ public record MongoRoomInboxSummaryDocument(
                 summary.lastMessage(),
                 summary.lastActivityAt(),
                 summary.updatedAt());
+    }
+
+    public org.bson.Document toBson() {
+        return new org.bson.Document("_id", roomId)
+                .append("schemaVersion", schemaVersion)
+                .append("lastMessage", new org.bson.Document(
+                        "messageId", lastMessage.messageId())
+                        .append("roomSequence",
+                                lastMessage.roomSequence())
+                        .append("messageVersion",
+                                lastMessage.messageVersion())
+                        .append("state", lastMessage.state().name())
+                        .append("preview", lastMessage.preview())
+                        .append("previewTruncated",
+                                lastMessage.previewTruncated())
+                        .append("createdAt",
+                                Date.from(lastMessage.createdAt())))
+                .append("lastActivityAt", Date.from(lastActivityAt))
+                .append("updatedAt", Date.from(updatedAt));
     }
 }

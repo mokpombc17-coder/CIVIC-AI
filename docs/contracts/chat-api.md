@@ -1731,6 +1731,38 @@ summary를 조건부 갱신한다.
 point이며 TAB을 공백으로 바꾸고 양끝 공백을 제거한다. 삭제 tombstone은
 `preview=null`, `previewTruncated=false`다.
 
+Summary maintenance는 일반 chat-server lifecycle을 기동하지 않는 독립
+Java main과 `roomInboxSummaryMaintenance` Gradle task로만 명시적으로
+실행한다. MongoDB URI는 `CHAT_MONGODB_URI`를 사용하며 mode 누락 또는
+`dry-run`, `apply`, `validate` 외의 값은 write 전에 거절한다.
+
+```bash
+CHAT_MONGODB_URI='mongodb://localhost:27017/chat_local?replicaSet=rs0' \
+./gradlew roomInboxSummaryMaintenance --args='--mode=dry-run'
+
+CHAT_MONGODB_URI='mongodb://localhost:27017/chat_local?replicaSet=rs0' \
+./gradlew roomInboxSummaryMaintenance --args='--mode=apply'
+
+CHAT_MONGODB_URI='mongodb://localhost:27017/chat_local?replicaSet=rs0' \
+./gradlew roomInboxSummaryMaintenance --args='--mode=validate'
+```
+
+Candidate는 `(roomId, roomSequence)` index를 cursor/batch로 순회하여 Room별
+가장 큰 CREATE sequence의 현재 message snapshot으로 정한다. `countable`,
+Room 또는 Membership 상태는 선정 조건이 아니다. Apply는 관측한 summary
+전체 snapshot에 대한 CAS와 source message 재조회·bounded retry를 사용하고,
+더 큰 sequence나 같은 sequence의 더 큰 version을 뒤로 돌리지 않는다.
+변경 가능한 collection은 `chat_room_inbox_summaries`뿐이다.
+
+Validation은 Message → Summary, Summary → Message, `chat_room_sequences`,
+sparse document count를 함께 검증한다. Orphan summary는 violation으로
+보고하지만 자동 삭제하지 않는다. 운영 순서는 `dry-run` → 결과 검토 →
+`apply` → `validate` → `apply` 재실행 → `validate` 재실행이며,
+`violations=0`을 확인하기 전에는 summary를 read path에서 사용하지 않는다.
+Dry-run은 관측 시점의 예상 action이고 apply는 write 시점의 CAS 조건을 다시
+평가한다. 선택 옵션은 `--room-id`, `--after-room-id`, `--batch-size`,
+`--max-room-retries`다.
+
 ## 개인 Room inbox WebSocket event
 
 연결마다 다음 queue를 한 번 구독한다.
