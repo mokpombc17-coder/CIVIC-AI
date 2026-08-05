@@ -23,7 +23,7 @@ export type ChatRoomSessionView =
       showNotice: false;
     }
   | {
-      kind: "pending" | "replaced" | "error";
+      kind: "authentication-required" | "pending" | "replaced" | "error";
       title: string;
       description: string;
       canDraft: false;
@@ -50,6 +50,22 @@ export function getChatRoomSessionView(
       canReactivate: false,
       canReconnect: false,
       indicatorLabel: "채팅 불가",
+      indicatorTone: "negative",
+      showNotice: true,
+    };
+  }
+
+  if (snapshot.connectionStatus === "authentication-required") {
+    return {
+      kind: "authentication-required",
+      title: "채팅을 계속하려면 로그인이 필요합니다.",
+      description:
+        snapshot.connectionError?.message ??
+        "로그인을 완료하면 실시간 채팅 연결이 자동으로 다시 시작됩니다.",
+      canDraft: false,
+      canReactivate: false,
+      canReconnect: false,
+      indicatorLabel: "로그인 필요",
       indicatorTone: "negative",
       showNotice: true,
     };

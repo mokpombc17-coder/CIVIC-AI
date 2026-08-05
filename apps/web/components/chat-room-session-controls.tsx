@@ -17,11 +17,13 @@ export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControl
   });
   const placeholder = canDraft
     ? "메시지를 입력해 주세요."
-    : view.kind === "pending"
-      ? "채팅 준비가 끝나면 입력할 수 있습니다."
-      : view.kind === "replaced"
-        ? "이 탭에서 계속하기를 선택하면 입력할 수 있습니다."
-        : "채팅을 사용할 수 없습니다.";
+    : view.kind === "authentication-required"
+      ? "로그인 후 메시지를 입력할 수 있습니다."
+      : view.kind === "pending"
+        ? "채팅 준비가 끝나면 입력할 수 있습니다."
+        : view.kind === "replaced"
+          ? "이 탭에서 계속하기를 선택하면 입력할 수 있습니다."
+          : "채팅을 사용할 수 없습니다.";
 
   return (
     <ChatMessageComposer

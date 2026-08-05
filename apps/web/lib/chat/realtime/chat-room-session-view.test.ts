@@ -183,6 +183,39 @@ describe("getChatRoomSessionView", () => {
     });
   });
 
+  it("인증이 필요하면 기다림이 아닌 로그인 필요 상태를 반환한다", () => {
+    const view = getChatRoomSessionView(
+      {
+        status: "active",
+        roomId: "room-01",
+        generation: 3,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: 100,
+        watermarkSequence: 120,
+        error: null,
+        connectionStatus: "authentication-required",
+        connectionError: {
+          source: "stomp",
+          code: "AUTHENTICATION_REQUIRED",
+          message: "채팅 연결 인증이 만료되었습니다. 다시 로그인해 주세요.",
+        },
+      },
+      "room-01",
+    );
+
+    expect(view).toMatchObject({
+      kind: "authentication-required",
+      title: "채팅을 계속하려면 로그인이 필요합니다.",
+      description: "채팅 연결 인증이 만료되었습니다. 다시 로그인해 주세요.",
+      canDraft: false,
+      canReactivate: false,
+      canReconnect: false,
+      indicatorLabel: "로그인 필요",
+      indicatorTone: "negative",
+      showNotice: true,
+    });
+  });
+
   it("연결이 끊기면 헤더에서 다시 연결할 수 있는 오류 상태를 반환한다", () => {
     const view = getChatRoomSessionView(
       {
