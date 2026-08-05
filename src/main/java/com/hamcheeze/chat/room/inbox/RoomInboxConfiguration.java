@@ -10,8 +10,10 @@ import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaIn
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxEventDelivery;
+import com.hamcheeze.chat.room.inbox.notification.RoomInboxCurrentSummaryReader;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxNotificationPipeline;
 import com.hamcheeze.chat.room.inbox.notification.SimpleBrokerRoomInboxEventDelivery;
+import com.hamcheeze.chat.room.inbox.notification.mongo.MongoRoomInboxCurrentSummaryReader;
 import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -115,8 +117,18 @@ public class RoomInboxConfiguration {
     }
 
     @Bean
+    RoomInboxCurrentSummaryReader roomInboxCurrentSummaryReader(
+            MongoOperations mongoOperations,
+            MongoRoomInboxSummarySchemaInitializer schemaInitializer
+    ) {
+        return new MongoRoomInboxCurrentSummaryReader(
+                mongoOperations);
+    }
+
+    @Bean
     RoomInboxNotificationPipeline roomInboxNotificationPipeline(
             RoomQueryReader roomReader,
+            RoomInboxCurrentSummaryReader currentSummaryReader,
             ActiveConnectionRegistry activeConnections,
             RoomInboxEventDelivery delivery,
             RoomInboxProperties properties,
@@ -126,6 +138,7 @@ public class RoomInboxConfiguration {
     ) {
         return new RoomInboxNotificationPipeline(
                 roomReader,
+                currentSummaryReader,
                 activeConnections,
                 delivery,
                 properties,

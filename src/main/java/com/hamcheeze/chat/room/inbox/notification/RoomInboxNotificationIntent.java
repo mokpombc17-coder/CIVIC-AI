@@ -20,10 +20,13 @@ public record RoomInboxNotificationIntent(
                     "sourceOutboxEventId must not be blank");
         }
         if (!ChatMessageOutboxEvent.MESSAGE_CREATED.equals(eventType)
+                && !ChatMessageOutboxEvent.MESSAGE_UPDATED
+                .equals(eventType)
                 && !ChatMessageOutboxEvent.MESSAGE_DELETED
                 .equals(eventType)) {
             throw new IllegalArgumentException(
-                    "Notification intent only supports CREATE/DELETE");
+                    "Notification intent only supports "
+                            + "CREATE/UPDATE/DELETE");
         }
         Objects.requireNonNull(message, "message");
     }

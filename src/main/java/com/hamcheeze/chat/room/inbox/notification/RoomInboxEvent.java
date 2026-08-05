@@ -64,11 +64,33 @@ public record RoomInboxEvent(
                     sourceEventIds,
                     coalescedCreateCount,
                     notificationHint);
+            case MESSAGE_UPDATED -> validateUpdated(
+                    roomNameHint,
+                    sourceEventIds,
+                    coalescedCreateCount,
+                    notificationHint);
             case MESSAGE_DELETED -> validateDeleted(
                     roomNameHint,
                     sourceEventIds,
                     coalescedCreateCount,
                     notificationHint);
+        }
+    }
+
+    private static void validateUpdated(
+            String roomNameHint,
+            List<String> sourceEventIds,
+            Integer coalescedCreateCount,
+            RoomInboxNotificationHint notificationHint
+    ) {
+        if (roomNameHint != null
+                || coalescedCreateCount != null
+                || notificationHint != null
+                || sourceEventIds.stream().anyMatch(value ->
+                !isSource(value, ChatMessageOutboxEvent
+                        .MESSAGE_UPDATED_ID_PREFIX))) {
+            throw new IllegalArgumentException(
+                    "Invalid MESSAGE_UPDATED inbox event");
         }
     }
 
@@ -128,6 +150,7 @@ public record RoomInboxEvent(
 
     public enum Cause {
         MESSAGE_CREATED,
+        MESSAGE_UPDATED,
         MESSAGE_DELETED
     }
 }

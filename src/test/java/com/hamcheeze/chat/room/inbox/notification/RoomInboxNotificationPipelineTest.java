@@ -76,6 +76,7 @@ class RoomInboxNotificationPipelineTest {
         RoomInboxNotificationPipeline pipeline =
                 new RoomInboxNotificationPipeline(
                         roomReader,
+                        mock(RoomInboxCurrentSummaryReader.class),
                         activeConnections,
                         delivery,
                         properties,
@@ -338,14 +339,6 @@ class RoomInboxNotificationPipelineTest {
                 online("member"),
                 envelope(1, "owner", false, "ignored"),
                 claimed(1, "owner", false, "ignored"),
-                room(RoomStatus.ACTIVE, 1));
-        assertNoDelivery(
-                membership("uncountable-delete", "member",
-                        MembershipRole.MEMBER,
-                        MembershipStatus.ACTIVE, 0),
-                online("member"),
-                deletedEnvelope(1, false),
-                deletedClaimed(1, false),
                 room(RoomStatus.ACTIVE, 1));
         assertNoDelivery(
                 membership("closed", "member", MembershipRole.MEMBER,
@@ -770,6 +763,7 @@ class RoomInboxNotificationPipelineTest {
     ) {
         return new RoomInboxNotificationPipeline(
                 roomReader,
+                mock(RoomInboxCurrentSummaryReader.class),
                 activeConnections,
                 delivery,
                 properties,

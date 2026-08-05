@@ -1964,8 +1964,34 @@ CREATE 예:
 }
 ```
 
-DELETE는 `cause=MESSAGE_DELETED`, `notificationHint=null`이며 REST query
-invalidation에만 사용한다. preview는 첫 CRLF/LF/CR 이전, 최대 30 Unicode
+`cause`는 `MESSAGE_CREATED`, `MESSAGE_UPDATED`, `MESSAGE_DELETED`다.
+UPDATE 예:
+
+```json
+{
+  "eventVersion": 1,
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "eventType": "ROOM_INBOX_INVALIDATED",
+  "cause": "MESSAGE_UPDATED",
+  "roomId": "room-01",
+  "roomNameHint": null,
+  "emittedAt": "2026-08-05T08:00:00Z",
+  "sourceEventIds": ["chat-message-updated:message-84:v2"],
+  "coalescedCreateCount": null,
+  "notificationHint": null
+}
+```
+
+정상 summary resolution에서는 summary의 현재 `messageId`, `roomSequence`,
+`messageVersion`과 일치하고 state가 `ACTIVE`인 UPDATE만 발행한다. 과거 message,
+낮은 version, 더 새로운 CREATE 뒤 UPDATE, DELETE 뒤 지연 UPDATE는 생략한다.
+Summary 없음, unsupported/malformed document, storage/runtime 실패로 현재 identity를
+판정할 수 없으면 stale cache false-negative를 피하기 위해 UPDATE invalidation을
+보수적으로 허용한다. 이 fallback도 toast hint를 포함하지 않으며 notification
+실패는 message outbox 성공이나 retry 상태를 바꾸지 않는다.
+
+UPDATE와 DELETE는 `notificationHint=null`이며 REST query invalidation에만
+사용한다. CREATE preview는 첫 CRLF/LF/CR 이전, 최대 30 Unicode
 code point이고 TAB은 공백으로 바꾸며 양끝 공백을 제거한다. 줄바꿈 뒤나
 30 code point 뒤가 생략될 때만 `previewTruncated=true`다. 서버는 말줄임표를
 붙이지 않는다.
@@ -1979,21 +2005,32 @@ debounce invalidate한다. delivery는 비영속 best-effort/at-least-once이다
 
 서버는 room-topic publish 성공 뒤 bounded in-memory queue에 non-blocking
 offer하고, Room별 100ms window에서 recipient 조회와 외부 event를
-coalescing한다. queue full, observer 오류, 개별 전송 오류는 message outbox
+coalescing한다. queue full, observer 오류, summary resolution 오류, 개별 전송
+오류는 message outbox
 성공과 재시도 상태를 바꾸지 않는다. 동일 window의 같은 메시지
-CREATE→DELETE는 CREATE hint를 억제하고 DELETE invalidation만 보낸다.
+CREATE→DELETE는 CREATE hint를 억제하고 DELETE invalidation만 보낸다. 여러
+UPDATE version 중 정상 resolution된 현재 version만 유지하고, UPDATE 뒤 새로운
+CREATE 또는 DELETE가 current summary가 되면 UPDATE invalidation을 생략한다.
 
 Room window 전체에서 먼저 `sourceOutboxEventId`를 중복 제거하고 전체
 `deletedMessageIds`를 계산한 뒤 Room과 ACTIVE Membership을 각각 한 번만
 조회한다. CREATE→DELETE cancellation과 recipient eligibility를 전체 window에
-적용한 다음에만 public event를 분할한다.
+적용한 다음에만 public event를 CREATE, UPDATE, DELETE cause별로 분할한다.
+
+CREATE recipient는 ACTIVE Membership이면서 message sequence가
+`messageVisibleAfterSequence`보다 크고, `countable=true`이며 sender 본인이
+아니어야 한다. UPDATE/DELETE recipient는 ACTIVE Membership과 같은 strict
+sequence boundary만 적용하며 sender와 `countable` 조건을 사용하지 않는다.
+따라서 작성자 본인과 `countable=false` message mutation도 invalidation을 받을
+수 있지만 toast는 표시하지 않는다.
 
 하나의 public event는 `sourceEventIds`를 최소 1개, 최대 100개 포함한다.
 `max-events-per-room-batch`는 한 public event의 source 상한이며 설정 범위도
-1~100이다. eligible source가 더 많으면 CREATE와 DELETE 원인별로 여러 event가
+1~100이다. eligible source가 더 많으면 CREATE, UPDATE, DELETE 원인별로 여러 event가
 전송될 수 있다. CREATE의 `coalescedCreateCount`는 전체 Room window가 아니라
 해당 public event chunk의 source 수이며, hint도 그 chunk에서 가장 큰
-`roomSequence`를 사용한다. DELETE chunk는 Room 이름·count·hint가 모두 null이다.
+`roomSequence`를 사용한다. UPDATE/DELETE chunk는 Room 이름·count·hint가 모두
+null이다.
 같은 window의 source 순서는 outbox queue 관측 순서를 유지하고, 한 원인 안에서
 하나의 source는 정확히 한 chunk에만 포함된다.
 
@@ -2005,8 +2042,10 @@ event만 drop하고 `room.inbox.notification.public_event.oversized`를 기록�
 
 public event는 생성 시 version/type/canonical UUID/Room ID/time/source ID를
 검증한다. CREATE는 Room 이름, 1 이상의 count, 동일 개수의 CREATE source,
-30 code point 이하 hint가 필수다. DELETE는 DELETE source만 허용하고 Room
-이름·count·hint가 모두 null이어야 한다.
+30 code point 이하 hint가 필수다. UPDATE와 DELETE는 각 cause에 맞는 source만
+허용하고 Room 이름·count·hint가 모두 null이어야 한다. 기존 CREATE/DELETE JSON
+shape와 `eventVersion=1`은 유지되며 Backend가 먼저 배포되어도 기존 Frontend는
+알 수 없는 UPDATE cause만 무시할 수 있다.
 
 notification recipient snapshot은 Room 정원 설정과 별개인 안전 상한
 `max-recipient-snapshot-size`(기본 100)를 사용한다. 따라서 정원 설정을 50

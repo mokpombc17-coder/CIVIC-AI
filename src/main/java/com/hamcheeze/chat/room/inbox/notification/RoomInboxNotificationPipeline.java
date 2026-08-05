@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.inbox.notification;
 
 import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
 import com.hamcheeze.chat.delivery.ChatMessagePayload;
+import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxDispatcher;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxEvent;
 import com.hamcheeze.chat.message.outbox.ClaimedChatMessageOutboxEvent;
@@ -34,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -53,6 +55,7 @@ public final class RoomInboxNotificationPipeline
 
     private final BlockingQueue<RoomInboxNotificationIntent> queue;
     private final RoomQueryReader roomReader;
+    private final RoomInboxCurrentSummaryReader currentSummaryReader;
     private final ActiveConnectionRegistry activeConnections;
     private final RoomInboxEventDelivery delivery;
     private final RoomInboxProperties.Notification properties;
@@ -73,11 +76,13 @@ public final class RoomInboxNotificationPipeline
     private final Counter publicEventSplitCounter;
     private final Counter publicEventOversizedCounter;
     private final Counter publicEventSourcesCounter;
+    private final Counter summaryResolutionFailureCounter;
     private final Timer dispatchTimer;
     private volatile Thread worker;
 
     public RoomInboxNotificationPipeline(
             RoomQueryReader roomReader,
+            RoomInboxCurrentSummaryReader currentSummaryReader,
             ActiveConnectionRegistry activeConnections,
             RoomInboxEventDelivery delivery,
             RoomInboxProperties inboxProperties,
@@ -88,6 +93,8 @@ public final class RoomInboxNotificationPipeline
     ) {
         this.roomReader = Objects.requireNonNull(
                 roomReader, "roomReader");
+        this.currentSummaryReader = Objects.requireNonNull(
+                currentSummaryReader, "currentSummaryReader");
         this.activeConnections = Objects.requireNonNull(
                 activeConnections, "activeConnections");
         this.delivery = Objects.requireNonNull(delivery, "delivery");
@@ -126,6 +133,8 @@ public final class RoomInboxNotificationPipeline
                 "room.inbox.notification.public_event.oversized");
         this.publicEventSourcesCounter = meterRegistry.counter(
                 "room.inbox.notification.public_event.sources");
+        this.summaryResolutionFailureCounter = meterRegistry.counter(
+                "room.inbox.notification.summary_resolution.failure");
         this.dispatchTimer = meterRegistry.timer(
                 "room.inbox.notification.dispatch.duration");
         Gauge.builder(
@@ -141,6 +150,8 @@ public final class RoomInboxNotificationPipeline
             ChatMessageEventEnvelope envelope
     ) {
         if (!ChatMessageOutboxEvent.MESSAGE_CREATED.equals(
+                envelope.eventType())
+                && !ChatMessageOutboxEvent.MESSAGE_UPDATED.equals(
                 envelope.eventType())
                 && !ChatMessageOutboxEvent.MESSAGE_DELETED.equals(
                 envelope.eventType())) {
@@ -319,6 +330,13 @@ public final class RoomInboxNotificationPipeline
                     deletedMessageIds.add(intent.messageId());
                 }
             }
+            List<RoomInboxNotificationIntent> currentUpdates =
+                    resolveCurrentUpdates(
+                            roomId, batch, deletedMessageIds);
+            Set<String> currentUpdateSourceIds = currentUpdates.stream()
+                    .map(RoomInboxNotificationIntent
+                            ::sourceOutboxEventId)
+                    .collect(java.util.stream.Collectors.toSet());
             for (Membership membership : slice.items()) {
                 String connectionId = activeConnections
                         .findConnectionIdByUser(membership.userId())
@@ -333,6 +351,7 @@ public final class RoomInboxNotificationPipeline
                         membership,
                         connectionId,
                         batch,
+                        currentUpdateSourceIds,
                         deletedMessageIds)) {
                     BestEffortMetricRecorder.increment(
                             "room.inbox.notification.recipients",
@@ -351,6 +370,85 @@ public final class RoomInboxNotificationPipeline
                     Duration.ofNanos(Math.max(
                             0, System.nanoTime() - started)));
         }
+    }
+
+    private List<RoomInboxNotificationIntent> resolveCurrentUpdates(
+            String roomId,
+            List<RoomInboxNotificationIntent> batch,
+            Set<String> deletedMessageIds
+    ) {
+        List<RoomInboxNotificationIntent> updates = batch.stream()
+                .filter(intent -> ChatMessageOutboxEvent.MESSAGE_UPDATED
+                        .equals(intent.eventType()))
+                .toList();
+        if (updates.isEmpty()) {
+            return List.of();
+        }
+        final Optional<RoomInboxCurrentLastMessage> resolved;
+        try {
+            resolved = currentSummaryReader.findCurrent(roomId);
+        } catch (RuntimeException exception) {
+            recordSummaryResolutionFailure(
+                    roomId,
+                    exception instanceof RoomInboxCurrentSummaryReadException
+                            readException
+                            ? readException.failureKind()
+                            : "runtime-exception",
+                    exception);
+            return withoutDeletedUpdates(updates, deletedMessageIds);
+        }
+        if (resolved.isEmpty()) {
+            recordSummaryResolutionFailure(
+                    roomId, "summary-missing", null);
+            return withoutDeletedUpdates(updates, deletedMessageIds);
+        }
+        RoomInboxCurrentLastMessage current = resolved.orElseThrow();
+        return updates.stream()
+                .filter(intent -> isCurrentUpdate(
+                        intent.message(), current))
+                .filter(intent -> !deletedMessageIds.contains(
+                        intent.messageId()))
+                .toList();
+    }
+
+    private static List<RoomInboxNotificationIntent>
+    withoutDeletedUpdates(
+            List<RoomInboxNotificationIntent> updates,
+            Set<String> deletedMessageIds
+    ) {
+        return updates.stream()
+                .filter(intent -> !deletedMessageIds.contains(
+                        intent.messageId()))
+                .toList();
+    }
+
+    private static boolean isCurrentUpdate(
+            ChatMessagePayload update,
+            RoomInboxCurrentLastMessage current
+    ) {
+        return update.state() == MessageState.ACTIVE
+                && current.state() == MessageState.ACTIVE
+                && current.messageId().equals(update.messageId())
+                && current.roomSequence() == update.roomSequence()
+                && current.messageVersion() == update.messageVersion();
+    }
+
+    private void recordSummaryResolutionFailure(
+            String roomId,
+            String failureKind,
+            RuntimeException exception
+    ) {
+        BestEffortMetricRecorder.increment(
+                "room.inbox.notification.summary_resolution.failure",
+                summaryResolutionFailureCounter);
+        log.warn(
+                "Room inbox notification summary resolution failed; "
+                        + "conservative invalidation enabled: roomId={}, "
+                        + "failureKind={}, exceptionClass={}",
+                roomId,
+                failureKind,
+                exception == null
+                        ? "none" : exception.getClass().getName());
     }
 
     private void rejectRecipientSnapshot(
@@ -391,21 +489,51 @@ public final class RoomInboxNotificationPipeline
             Membership membership,
             String connectionId,
             List<RoomInboxNotificationIntent> batch,
+            Set<String> currentUpdateSourceIds,
             Set<String> deletedMessageIds
     ) {
         List<RoomInboxNotificationIntent> creates = new ArrayList<>();
+        List<RoomInboxNotificationIntent> updates = new ArrayList<>();
         List<RoomInboxNotificationIntent> deletes = new ArrayList<>();
         collectEligibleRecipientEvents(
                 batch,
                 membership,
+                currentUpdateSourceIds,
                 deletedMessageIds,
                 creates,
+                updates,
                 deletes);
         deliverCreatedChunks(
                 room, membership.userId(), connectionId, creates);
+        deliverUpdatedChunks(
+                room, membership.userId(), connectionId, updates);
         deliverDeletedChunks(
                 room, membership.userId(), connectionId, deletes);
-        return !creates.isEmpty() || !deletes.isEmpty();
+        return !creates.isEmpty()
+                || !updates.isEmpty()
+                || !deletes.isEmpty();
+    }
+
+    private void deliverUpdatedChunks(
+            Room room,
+            String userId,
+            String connectionId,
+            List<RoomInboxNotificationIntent> updates
+    ) {
+        forEachPublicEventChunk(updates, chunk -> deliverOne(
+                userId,
+                connectionId,
+                new RoomInboxEvent(
+                        RoomInboxEvent.CURRENT_EVENT_VERSION,
+                        UUID.randomUUID().toString(),
+                        RoomInboxEvent.EVENT_TYPE,
+                        RoomInboxEvent.Cause.MESSAGE_UPDATED,
+                        room.roomId(),
+                        null,
+                        clock.instant(),
+                        sourceEventIds(chunk),
+                        null,
+                        null)));
     }
 
     private void deliverCreatedChunks(
@@ -496,18 +624,34 @@ public final class RoomInboxNotificationPipeline
     private static void collectEligibleRecipientEvents(
             List<RoomInboxNotificationIntent> chunk,
             Membership membership,
+            Set<String> currentUpdateSourceIds,
             Set<String> deletedMessageIds,
             List<RoomInboxNotificationIntent> creates,
+            List<RoomInboxNotificationIntent> updates,
             List<RoomInboxNotificationIntent> deletes
     ) {
         for (RoomInboxNotificationIntent intent : chunk) {
-            if (!eligible(intent.message(), membership)) {
-                continue;
-            }
             if (ChatMessageOutboxEvent.MESSAGE_CREATED.equals(
                     intent.eventType())) {
-                if (!deletedMessageIds.contains(intent.messageId())) {
+                if (isCreateToastEligible(
+                        intent.message(), membership)
+                        && !deletedMessageIds.contains(
+                        intent.messageId())) {
                     creates.add(intent);
+                }
+                continue;
+            }
+            if (!isMutationInvalidationEligible(
+                    intent.message(), membership)) {
+                continue;
+            }
+            if (ChatMessageOutboxEvent.MESSAGE_UPDATED.equals(
+                    intent.eventType())) {
+                if (currentUpdateSourceIds.contains(
+                        intent.sourceOutboxEventId())
+                        && !deletedMessageIds.contains(
+                        intent.messageId())) {
+                    updates.add(intent);
                 }
                 continue;
             }
@@ -518,7 +662,7 @@ public final class RoomInboxNotificationPipeline
         }
     }
 
-    private static boolean eligible(
+    private static boolean isCreateToastEligible(
             ChatMessagePayload message,
             Membership membership
     ) {
@@ -528,6 +672,15 @@ public final class RoomInboxNotificationPipeline
                 > membership.messageVisibleAfterSequence()
                 && !message.senderUserId().equals(
                 membership.userId());
+    }
+
+    private static boolean isMutationInvalidationEligible(
+            ChatMessagePayload message,
+            Membership membership
+    ) {
+        return membership.status() == MembershipStatus.ACTIVE
+                && message.roomSequence()
+                > membership.messageVisibleAfterSequence();
     }
 
     private void deliverOne(

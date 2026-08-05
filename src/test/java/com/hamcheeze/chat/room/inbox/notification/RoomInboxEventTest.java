@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.inbox.notification;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
@@ -20,11 +21,13 @@ class RoomInboxEventTest {
             "550e8400-e29b-41d4-a716-446655440000";
     private static final String CREATED_SOURCE =
             "chat-message-created:message-1";
+    private static final String UPDATED_SOURCE =
+            "chat-message-updated:message-1:v2";
     private static final String DELETED_SOURCE =
             "chat-message-deleted:message-1:v2";
 
     @Test
-    void acceptsValidCreateAndDeleteAndDefensivelyCopiesSources() {
+    void acceptsValidCreateUpdateAndDeleteAndDefensivelyCopiesSources() {
         List<String> mutable = new ArrayList<>(List.of(CREATED_SOURCE));
         RoomInboxEvent created = created(
                 1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
@@ -37,6 +40,32 @@ class RoomInboxEventTest {
         assertThat(deleted(
                 null, null, null, List.of(DELETED_SOURCE)).cause())
                 .isEqualTo(RoomInboxEvent.Cause.MESSAGE_DELETED);
+        assertThat(updated(
+                null, null, null, List.of(UPDATED_SOURCE)).cause())
+                .isEqualTo(RoomInboxEvent.Cause.MESSAGE_UPDATED);
+    }
+
+    @Test
+    void serializesUpdateAsInvalidationOnlyVersionOneShape()
+            throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode json = objectMapper.readTree(
+                objectMapper.writeValueAsBytes(updated(
+                        null,
+                        null,
+                        null,
+                        List.of(UPDATED_SOURCE))));
+
+        assertThat(json.get("eventVersion").asInt()).isEqualTo(1);
+        assertThat(json.get("eventType").asText())
+                .isEqualTo(RoomInboxEvent.EVENT_TYPE);
+        assertThat(json.get("cause").asText())
+                .isEqualTo("MESSAGE_UPDATED");
+        assertThat(json.get("sourceEventIds").get(0).asText())
+                .isEqualTo(UPDATED_SOURCE);
+        assertThat(json.get("roomNameHint").isNull()).isTrue();
+        assertThat(json.get("coalescedCreateCount").isNull()).isTrue();
+        assertThat(json.get("notificationHint").isNull()).isTrue();
     }
 
     @Test
@@ -130,6 +159,40 @@ class RoomInboxEventTest {
                 null, null, hint(), List.of(DELETED_SOURCE)));
         assertInvalid(() -> deleted(
                 null, null, null, List.of(CREATED_SOURCE)));
+    }
+
+    @Test
+    void rejectsMalformedUpdateFieldsAndSourceSets() {
+        List<String> maximum = java.util.stream.IntStream.range(
+                        0, RoomInboxEvent.MAX_SOURCE_EVENT_IDS)
+                .mapToObj(value -> "chat-message-updated:message-"
+                        + value + ":v2")
+                .toList();
+        assertThat(updated(
+                null, null, null, maximum).sourceEventIds())
+                .hasSize(RoomInboxEvent.MAX_SOURCE_EVENT_IDS);
+        assertInvalid(() -> updated(
+                "Room", null, null, List.of(UPDATED_SOURCE)));
+        assertInvalid(() -> updated(
+                null, 1, null, List.of(UPDATED_SOURCE)));
+        assertInvalid(() -> updated(
+                null, null, hint(), List.of(UPDATED_SOURCE)));
+        assertInvalid(() -> updated(
+                null, null, null, List.of(CREATED_SOURCE)));
+        assertInvalid(() -> updated(
+                null, null, null, List.of(DELETED_SOURCE)));
+        assertInvalid(() -> updated(
+                null, null, null, List.of()));
+        assertInvalid(() -> updated(
+                null, null, null,
+                List.of(UPDATED_SOURCE, UPDATED_SOURCE)));
+        List<String> oversized = java.util.stream.IntStream.rangeClosed(
+                        0, RoomInboxEvent.MAX_SOURCE_EVENT_IDS)
+                .mapToObj(value -> "chat-message-updated:message-"
+                        + value + ":v2")
+                .toList();
+        assertInvalid(() -> updated(
+                null, null, null, oversized));
     }
 
     @Test
@@ -228,6 +291,25 @@ class RoomInboxEventTest {
                 EVENT_ID,
                 RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_DELETED,
+                "room-1",
+                roomName,
+                NOW,
+                sources,
+                count,
+                hint);
+    }
+
+    private RoomInboxEvent updated(
+            String roomName,
+            Integer count,
+            RoomInboxNotificationHint hint,
+            List<String> sources
+    ) {
+        return new RoomInboxEvent(
+                1,
+                EVENT_ID,
+                RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.Cause.MESSAGE_UPDATED,
                 "room-1",
                 roomName,
                 NOW,
