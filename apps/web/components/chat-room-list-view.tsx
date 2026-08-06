@@ -12,6 +12,7 @@ import { JoinChatRoomControl } from "@/components/join-chat-room-control";
 import { PublicRoomSearchForm } from "@/components/public-room-search-form";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
+import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
 const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
@@ -130,6 +131,7 @@ export function ChatRoomListView({
 
         <QueryFailure
           error={publicRooms.error}
+          errorMessage={getPublicRoomListErrorMessage(publicRooms.error)}
           onRetry={publicRooms.retry}
           title="공개 방을 불러오지 못했습니다."
           visible={publicRooms.isError}
@@ -287,11 +289,13 @@ function RoomSummary({ children, room }: { children: ReactNode; room: PublicRoom
 
 function QueryFailure({
   error,
+  errorMessage,
   onRetry,
   title,
   visible,
 }: {
   error: unknown;
+  errorMessage?: string;
   onRetry: () => void;
   title: string;
   visible: boolean;
@@ -303,7 +307,7 @@ function QueryFailure({
   return (
     <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950" role="alert">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mt-1 text-xs opacity-80">{toErrorMessage(error)}</p>
+      <p className="mt-1 text-xs opacity-80">{errorMessage ?? toErrorMessage(error)}</p>
       <button className="secondary-button mt-3" onClick={onRetry} type="button">
         다시 불러오기
       </button>

@@ -3,6 +3,7 @@ import { ChatApiError } from "./chat-fetch";
 import {
   getCreateRoomErrorMessage,
   getJoinRoomErrorMessage,
+  shouldRefreshPublicRoomListAfterJoinError,
 } from "./chat-room-command-error-presentation";
 
 const USER_QUOTA_MESSAGE =
@@ -54,6 +55,27 @@ describe("getJoinRoomErrorMessage", () => {
     },
   );
 
+  it.each([
+    ["ROOM_CLOSED", "종료된 채팅방에는 참여할 수 없습니다."],
+    ["JOIN_POLICY_NOT_OPEN", "현재 직접 참여할 수 없는 채팅방입니다."],
+    ["MEMBERSHIP_BANNED", "이 채팅방에서 차단되어 참여할 수 없습니다."],
+  ] as const)("%s 오류를 참여 상황에 맞게 안내한다", (code, message) => {
+    expect(getJoinRoomErrorMessage(createJoinError(code))).toBe(message);
+  });
+
+  it("목록에서 제거될 수 있는 종료·정책 변경 오류만 공개 목록을 갱신한다", () => {
+    expect(shouldRefreshPublicRoomListAfterJoinError(createJoinError("ROOM_CLOSED"))).toBe(true);
+    expect(shouldRefreshPublicRoomListAfterJoinError(createJoinError("JOIN_POLICY_NOT_OPEN"))).toBe(
+      true,
+    );
+    expect(shouldRefreshPublicRoomListAfterJoinError(createJoinError("MEMBERSHIP_BANNED"))).toBe(
+      false,
+    );
+    expect(shouldRefreshPublicRoomListAfterJoinError(createUserActiveRoomLimitError(false))).toBe(
+      false,
+    );
+  });
+
   it("그 밖의 Error는 기존 메시지를 유지한다", () => {
     expect(getJoinRoomErrorMessage(new Error("기존 오류"))).toBe("기존 오류");
     expect(getJoinRoomErrorMessage(null)).toBe("알 수 없는 오류가 발생했습니다.");
@@ -72,4 +94,22 @@ function createUserActiveRoomLimitError(replayed: boolean): ChatApiError {
     replayed,
     retryable: false,
   });
+}
+
+function createJoinError(code: string): ChatApiError {
+  return new ChatApiError(
+    code === "MEMBERSHIP_BANNED" ? 403 : 409,
+    "Request rejected",
+    "http://localhost:8082/api/v1/rooms/room-01/commands/join",
+    {
+      type: "urn:hamcheeze:problem:test",
+      title: "Room command rejected",
+      status: code === "MEMBERSHIP_BANNED" ? 403 : 409,
+      detail: "Room command rejected.",
+      instance: "/api/v1/rooms/room-01/commands/join",
+      code,
+      replayed: false,
+      retryable: false,
+    },
+  );
 }

@@ -11,10 +11,12 @@ import {
   myRoomMembershipQueryOptions,
   myRoomsInfiniteQueryOptions,
   publicRoomsInfiniteQueryOptions,
+  recoverPublicRoomInvalidCursorOnce,
   roomDetailsQueryOptions,
   roomInboxInfiniteQueryOptions,
   roomMessageHistoryInfiniteQueryOptions,
   roomMembershipsInfiniteQueryOptions,
+  shouldRetryPublicRoomRequest,
   shouldRetryRoomInboxRequest,
 } from "./chat-room-queries";
 import type { MessageHistoryResponse } from "./chat-room-contracts";
@@ -112,6 +114,111 @@ describe("chat room query options", () => {
     );
 
     unsubscribe();
+  });
+
+  it("공개 방 다음 page 실패 시 기존 page를 유지한다", async () => {
+    const listPublicRooms = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [PUBLIC_ROOM_ITEM],
+        nextCursor: "opaque cursor",
+        hasNext: true,
+      })
+      .mockRejectedValue(createPublicListError("INTERNAL_ERROR", false, 500));
+    const observer = new InfiniteQueryObserver(
+      createQueryClient(),
+      publicRoomsInfiniteQueryOptions({}, { listPublicRooms }),
+    );
+    const unsubscribe = observer.subscribe(() => {});
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().hasNextPage).toBe(true));
+    await observer.fetchNextPage();
+
+    expect(observer.getCurrentResult().data?.pages).toEqual([
+      {
+        items: [PUBLIC_ROOM_ITEM],
+        nextCursor: "opaque cursor",
+        hasNext: true,
+      },
+    ]);
+    expect(observer.getCurrentResult().isFetchNextPageError).toBe(true);
+
+    unsubscribe();
+  });
+
+  it("INVALID_CURSOR는 같은 검색 조건에서 page chain을 한 번만 reset한다", async () => {
+    const queryClient = createQueryClient();
+    let generation: "old" | "new" = "old";
+    const listPublicRooms = vi.fn(async (params: { cursor?: string } = {}) => {
+      if (generation === "new") {
+        return {
+          items: [{ ...PUBLIC_ROOM_ITEM, roomId: "room-new" }],
+          nextCursor: "cursor-new",
+          hasNext: true,
+        };
+      }
+
+      return params.cursor
+        ? {
+            items: [{ ...PUBLIC_ROOM_ITEM, roomId: "room-02" }],
+            nextCursor: null,
+            hasNext: false,
+          }
+        : {
+            items: [PUBLIC_ROOM_ITEM],
+            nextCursor: "cursor-old",
+            hasNext: true,
+          };
+    });
+    const options = publicRoomsInfiniteQueryOptions({}, { listPublicRooms });
+    const queryKey = options.queryKey;
+    const observer = new InfiniteQueryObserver(queryClient, options);
+    const unsubscribe = observer.subscribe(() => {});
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const recovery = { attempted: false };
+    const error = createPublicListError("INVALID_CURSOR", false, 400);
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().hasNextPage).toBe(true));
+    await observer.fetchNextPage();
+    expect(observer.getCurrentResult().data?.pageParams).toEqual([null, "cursor-old"]);
+
+    generation = "new";
+    await expect(
+      recoverPublicRoomInvalidCursorOnce(queryClient, queryKey, error, recovery),
+    ).resolves.toBe(true);
+    await expect(
+      recoverPublicRoomInvalidCursorOnce(queryClient, queryKey, error, recovery),
+    ).resolves.toBe(false);
+
+    expect(resetQueries).toHaveBeenCalledTimes(1);
+    expect(resetQueries).toHaveBeenCalledWith({ queryKey, exact: true }, { cancelRefetch: true });
+    expect(observer.getCurrentResult().data).toMatchObject({
+      pages: [{ items: [{ roomId: "room-new" }] }],
+      pageParams: [null],
+    });
+    expect(listPublicRooms).toHaveBeenLastCalledWith(
+      {
+        joinPolicy: "OPEN",
+        limit: 20,
+      },
+      expect.any(AbortSignal),
+    );
+
+    unsubscribe();
+  });
+
+  it("공개 방 목록은 network와 retryable 오류만 한 번 재시도한다", () => {
+    expect(shouldRetryPublicRoomRequest(0, new Error("network"))).toBe(true);
+    expect(shouldRetryPublicRoomRequest(1, new Error("network"))).toBe(false);
+    expect(shouldRetryPublicRoomRequest(0, createPublicListError("SERVER_BUSY", true, 503))).toBe(
+      true,
+    );
+    expect(
+      shouldRetryPublicRoomRequest(0, createPublicListError("INVALID_REQUEST", false, 400)),
+    ).toBe(false);
+    expect(
+      shouldRetryPublicRoomRequest(0, createPublicListError("INVALID_CURSOR", false, 400)),
+    ).toBe(false);
   });
 
   it("내 방 목록은 기본 limit 20을 사용한다", async () => {
@@ -362,6 +469,33 @@ function createChatApiError(retryable: boolean): ChatApiError {
     retryable,
   });
 }
+
+function createPublicListError(code: string, retryable: boolean, status: number): ChatApiError {
+  return new ChatApiError(status, "Request failed", "http://localhost/api/v1/rooms", {
+    type: `urn:hamcheeze:problem:${code.toLowerCase().replaceAll("_", "-")}`,
+    title: "Public Room list request failed",
+    status,
+    detail: "Public Room list request failed.",
+    instance: "/api/v1/rooms",
+    code,
+    replayed: false,
+    retryable,
+  });
+}
+
+const PUBLIC_ROOM_ITEM = {
+  roomId: "room-01",
+  name: "공개 채팅방",
+  description: "설명",
+  categories: ["POLICY" as const],
+  ownerUserId: "user-owner",
+  status: "ACTIVE" as const,
+  visibility: "LISTED" as const,
+  joinPolicy: "OPEN" as const,
+  activeMemberCount: 1,
+  createdAt: "2026-08-06T00:00:00Z",
+  version: 1,
+};
 
 const EMPTY_PAGE = {
   items: [],

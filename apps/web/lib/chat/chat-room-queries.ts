@@ -4,8 +4,10 @@ import { useMemo } from "react";
 import {
   infiniteQueryOptions,
   queryOptions,
+  type QueryClient,
   useInfiniteQuery,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { mergePresortedChatMessages } from "./chat-message-merge";
 import { ChatApiError } from "./chat-fetch";
@@ -47,6 +49,10 @@ export type PublicRoomListCriteria = Readonly<{
   joinPolicy: "OPEN";
   limit: number;
 }>;
+
+export type PublicRoomInvalidCursorRecoveryState = {
+  attempted: boolean;
+};
 
 export type ChatRoomMembershipListQueryParams = Readonly<{
   enabled?: boolean;
@@ -107,6 +113,7 @@ export function publicRoomsInfiniteQueryOptions(
         signal,
       ),
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.nextCursor : null),
+    retry: shouldRetryPublicRoomRequest,
   });
 }
 
@@ -252,14 +259,30 @@ export function flattenRoomMessageHistoryPages(
 }
 
 export function usePublicRoomsQuery(params: PublicRoomListQueryParams = {}) {
-  const query = useInfiniteQuery(publicRoomsInfiniteQueryOptions(params));
+  const queryClient = useQueryClient();
+  const options = publicRoomsInfiniteQueryOptions(params);
+  const query = useInfiniteQuery(options);
+  const recoveryKey = JSON.stringify(options.queryKey);
+  const recovery = useMemo<PublicRoomInvalidCursorRecoveryState>(
+    () => ({ attempted: false }),
+    [recoveryKey],
+  );
+
   const rooms = useMemo(
     () => flattenRoomListPages<PublicRoomListItem>(query.data?.pages),
     [query.data?.pages],
   );
+  const fetchNextPage: typeof query.fetchNextPage = async (fetchOptions) => {
+    const result = await query.fetchNextPage(fetchOptions);
+
+    await recoverPublicRoomInvalidCursorOnce(queryClient, options.queryKey, result.error, recovery);
+
+    return result;
+  };
 
   return {
     ...query,
+    fetchNextPage,
     rooms,
   };
 }
@@ -341,6 +364,37 @@ export function flattenRoomListPages<TItem>(
   }
 
   return pages.flatMap((page) => page.items);
+}
+
+export async function recoverPublicRoomInvalidCursorOnce(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+  error: unknown,
+  state: PublicRoomInvalidCursorRecoveryState,
+): Promise<boolean> {
+  if (state.attempted || !(error instanceof ChatApiError) || error.code !== "INVALID_CURSOR") {
+    return false;
+  }
+
+  state.attempted = true;
+  await queryClient.resetQueries(
+    {
+      queryKey,
+      exact: true,
+    },
+    {
+      cancelRefetch: true,
+    },
+  );
+  return true;
+}
+
+export function shouldRetryPublicRoomRequest(failureCount: number, error: Error): boolean {
+  if (failureCount >= 1) {
+    return false;
+  }
+
+  return !(error instanceof ChatApiError) || error.retryable;
 }
 
 export function getNextRoomInboxPageParam(

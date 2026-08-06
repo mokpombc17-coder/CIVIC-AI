@@ -1,6 +1,8 @@
 import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { ChatApiError } from "./chat-fetch";
 import {
+  invalidatePublicRoomListsAfterJoinError,
   invalidateRoomLists,
   invalidateRoomSettingsState,
   invalidateRoomState,
@@ -71,6 +73,34 @@ describe("chat room cache effects", () => {
     await resetRoomInboxQueries(queryClient);
 
     expectRoomInboxReset(resetQueries);
+  });
+
+  it.each(["ROOM_CLOSED", "JOIN_POLICY_NOT_OPEN"])(
+    "JOIN %s 오류는 stale 공개 목록만 무효화한다",
+    async (code) => {
+      const { invalidateQueries, queryClient, resetQueries } = createObservedQueryClient();
+
+      await expect(
+        invalidatePublicRoomListsAfterJoinError(queryClient, createJoinError(code)),
+      ).resolves.toBe(true);
+
+      expectInvalidationOrder(invalidateQueries, [chatRoomQueryKeys.publicLists()]);
+      expect(resetQueries).not.toHaveBeenCalled();
+    },
+  );
+
+  it("quota 등 상태 변경 없는 JOIN 거절은 cache를 무효화하지 않는다", async () => {
+    const { invalidateQueries, queryClient, resetQueries } = createObservedQueryClient();
+
+    await expect(
+      invalidatePublicRoomListsAfterJoinError(
+        queryClient,
+        createJoinError("USER_ACTIVE_ROOM_LIMIT_EXCEEDED"),
+      ),
+    ).resolves.toBe(false);
+
+    expect(invalidateQueries).not.toHaveBeenCalled();
+    expect(resetQueries).not.toHaveBeenCalled();
   });
 
   it("active Room inbox의 기존 pages와 pageParams를 버리고 첫 페이지부터 재조회한다", async () => {
@@ -171,6 +201,19 @@ function createObservedQueryClient() {
   const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
   const resetQueries = vi.spyOn(queryClient, "resetQueries");
   return { invalidateQueries, queryClient, resetQueries };
+}
+
+function createJoinError(code: string): ChatApiError {
+  return new ChatApiError(409, "Conflict", "http://localhost/api/v1/rooms/room-01/commands/join", {
+    type: "urn:hamcheeze:problem:test",
+    title: "Room command rejected",
+    status: 409,
+    detail: "Room command rejected.",
+    instance: "/api/v1/rooms/room-01/commands/join",
+    code,
+    replayed: false,
+    retryable: false,
+  });
 }
 
 function expectRoomInboxReset(

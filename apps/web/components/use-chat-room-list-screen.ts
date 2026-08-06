@@ -59,7 +59,10 @@ export function useChatRoomListScreen() {
       isFetchingNextPage: publicRooms.isFetchingNextPage,
       isPending: publicRooms.isPending,
       loadMore: () => void publicRooms.fetchNextPage(),
-      retry: () => void publicRooms.refetch(),
+      retry: () =>
+        void (publicRooms.isFetchNextPageError
+          ? publicRooms.fetchNextPage()
+          : publicRooms.refetch()),
       rooms: discoverableRooms,
     },
     publicRoomSearch,

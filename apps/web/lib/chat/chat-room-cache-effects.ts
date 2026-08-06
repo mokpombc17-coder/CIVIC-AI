@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { shouldRefreshPublicRoomListAfterJoinError } from "./chat-room-command-error-presentation";
 import { chatRoomQueryKeys } from "./chat-room-queries";
 
 export async function resetRoomInboxQueries(queryClient: QueryClient): Promise<void> {
@@ -22,6 +23,20 @@ export async function invalidateRoomLists(queryClient: QueryClient): Promise<voi
     }),
     resetRoomInboxQueries(queryClient),
   ]);
+}
+
+export async function invalidatePublicRoomListsAfterJoinError(
+  queryClient: QueryClient,
+  error: unknown,
+): Promise<boolean> {
+  if (!shouldRefreshPublicRoomListAfterJoinError(error)) {
+    return false;
+  }
+
+  await queryClient.invalidateQueries({
+    queryKey: chatRoomQueryKeys.publicLists(),
+  });
+  return true;
 }
 
 export async function invalidateRoomSettingsState(

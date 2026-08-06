@@ -2,14 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
 import { getJoinRoomErrorMessage } from "@/lib/chat/chat-room-command-error-presentation";
+import { invalidatePublicRoomListsAfterJoinError } from "@/lib/chat/chat-room-cache-effects";
 import type { PublicRoomListItem } from "@/lib/chat/chat-room-contracts";
 import { useJoinRoomMutation } from "@/lib/chat/chat-room-mutations";
 import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
 export function useJoinChatRoom(room: PublicRoomListItem) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const joinRoom = useJoinRoomMutation();
   const [retryCommand, setRetryCommand] = useState<IdempotentCommand<undefined> | null>(null);
 
@@ -20,7 +23,9 @@ export function useJoinChatRoom(room: PublicRoomListItem) {
         command,
       })
       .then(() => router.push(`/chat/${room.roomId}`))
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        void invalidatePublicRoomListsAfterJoinError(queryClient, error).catch(() => undefined);
+      });
   }
 
   function join() {
