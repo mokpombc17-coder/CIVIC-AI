@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -22,11 +23,19 @@ public final class MongoRoomQueryReader
         implements RoomQueryReader {
 
     private final MongoOperations mongoOperations;
+    private final Duration listedRoomPageQueryMaxTime;
 
-    public MongoRoomQueryReader(MongoOperations mongoOperations) {
+    public MongoRoomQueryReader(
+            MongoOperations mongoOperations,
+            Duration listedRoomPageQueryMaxTime
+    ) {
         this.mongoOperations = Objects.requireNonNull(
                 mongoOperations,
                 "mongoOperations");
+        this.listedRoomPageQueryMaxTime =
+                Objects.requireNonNull(
+                        listedRoomPageQueryMaxTime,
+                        "listedRoomPageQueryMaxTime");
     }
 
     @Override
@@ -148,7 +157,9 @@ public final class MongoRoomQueryReader
                                 .with(Sort.by(
                                         Sort.Direction.ASC,
                                         "_id"))
-                                .limit(limit + 1),
+                                .limit(limit + 1)
+                                .maxTime(
+                                        listedRoomPageQueryMaxTime),
                         MongoRoomDocument.class)
                 .stream()
                 .map(MongoRoomDocument::toDomain)

@@ -27,6 +27,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +66,9 @@ class MongoRoomStoresIntegrationTest {
         membershipStore = new MongoMembershipStore(mongoTemplate);
         receiptStore =
                 new MongoRoomCommandReceiptStore(mongoTemplate);
-        queryReader = new MongoRoomQueryReader(mongoTemplate);
+        queryReader = new MongoRoomQueryReader(
+                mongoTemplate,
+                Duration.ofSeconds(1));
     }
 
     @AfterAll

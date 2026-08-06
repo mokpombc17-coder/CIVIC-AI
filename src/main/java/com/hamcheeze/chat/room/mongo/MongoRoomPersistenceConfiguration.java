@@ -7,12 +7,15 @@ import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import com.hamcheeze.chat.room.authorization.RoomAuthorizationProperties;
+import com.hamcheeze.chat.room.query.RoomQueryProperties;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.core.MongoOperations;
 
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(RoomQueryProperties.class)
 public class MongoRoomPersistenceConfiguration {
 
     @Bean(initMethod = "initialize")
@@ -61,9 +64,12 @@ public class MongoRoomPersistenceConfiguration {
     @Bean
     RoomQueryReader roomQueryReader(
             MongoOperations mongoOperations,
-            MongoRoomSchemaInitializer schemaInitializer
+            MongoRoomSchemaInitializer schemaInitializer,
+            RoomQueryProperties properties
     ) {
-        return new MongoRoomQueryReader(mongoOperations);
+        return new MongoRoomQueryReader(
+                mongoOperations,
+                properties.listedRoomPageQueryMaxTime());
     }
 
     @Bean

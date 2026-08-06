@@ -17,6 +17,9 @@ chat:
     authorization:
       max-consistency-attempts: 3
 
+  room-query:
+    listed-room-page-query-max-time: ${CHAT_LISTED_ROOM_PAGE_QUERY_MAX_TIME:1s}
+
   message-pipeline:
     queue-capacity: ${CHAT_MESSAGE_PIPELINE_QUEUE_CAPACITY:100}
     shutdown-drain-timeout-ms: ${CHAT_MESSAGE_PIPELINE_SHUTDOWN_DRAIN_TIMEOUT_MS:10000}
