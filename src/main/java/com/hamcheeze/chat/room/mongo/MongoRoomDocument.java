@@ -2,6 +2,8 @@ package com.hamcheeze.chat.room.mongo;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomCategories;
+import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import org.springframework.data.annotation.PersistenceCreator;
@@ -10,6 +12,7 @@ import org.springframework.data.mongodb.core.mapping.FieldType;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 @Document(collection = MongoRoomDocument.COLLECTION_NAME)
@@ -19,6 +22,7 @@ public record MongoRoomDocument(
         int schemaVersion,
         String name,
         String description,
+        List<RoomCategory> categories,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -30,7 +34,7 @@ public record MongoRoomDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_rooms";
-    public static final int CURRENT_SCHEMA_VERSION = 3;
+    public static final int CURRENT_SCHEMA_VERSION = 4;
     static final int LEGACY_SCHEMA_VERSION = 1;
     static final int PREVIOUS_SCHEMA_VERSION = 2;
 
@@ -53,6 +57,9 @@ public record MongoRoomDocument(
         }
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(description, "description");
+        if (schemaVersion == CURRENT_SCHEMA_VERSION) {
+            categories = RoomCategories.requireValid(categories);
+        }
         Objects.requireNonNull(ownerUserId, "ownerUserId");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(visibility, "visibility");
@@ -78,6 +85,7 @@ public record MongoRoomDocument(
                 schemaVersion,
                 name,
                 null,
+                null,
                 ownerUserId,
                 status,
                 visibility,
@@ -95,6 +103,7 @@ public record MongoRoomDocument(
                 CURRENT_SCHEMA_VERSION,
                 room.name(),
                 room.description(),
+                room.categories(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),
@@ -111,6 +120,7 @@ public record MongoRoomDocument(
                 roomId,
                 name,
                 description,
+                categories,
                 ownerUserId,
                 status,
                 visibility,
@@ -122,9 +132,7 @@ public record MongoRoomDocument(
     }
 
     private void requireCurrentSchema() {
-        if (schemaVersion != LEGACY_SCHEMA_VERSION
-                && schemaVersion != PREVIOUS_SCHEMA_VERSION
-                && schemaVersion != CURRENT_SCHEMA_VERSION) {
+        if (schemaVersion != CURRENT_SCHEMA_VERSION) {
             throw new IllegalStateException(
                     "Unsupported schemaVersion "
                             + schemaVersion

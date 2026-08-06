@@ -541,6 +541,7 @@ def run_websocket_flow(
             body={
                 "name": updated_room_name,
                 "description": updated_description,
+                "categories": ["ENVIRONMENT"],
                 "visibility": "UNLISTED",
                 "joinPolicy": "INVITE_ONLY",
             },
@@ -552,6 +553,7 @@ def run_websocket_flow(
             or settings_result.get("replayed") is not False
             or settings_result.get("name") != updated_room_name
             or settings_result.get("description") != updated_description
+            or settings_result.get("categories") != ["ENVIRONMENT"]
             or settings_result.get("visibility") != "UNLISTED"
             or settings_result.get("joinPolicy") != "INVITE_ONLY"
         ):
@@ -579,6 +581,7 @@ def run_websocket_flow(
         if (
             settings_payload.get("name") != updated_room_name
             or settings_payload.get("description") != updated_description
+            or settings_payload.get("categories") != ["ENVIRONMENT"]
             or settings_payload.get("visibility") != "UNLISTED"
             or settings_payload.get("joinPolicy") != "INVITE_ONLY"
             or settings_payload.get("roomVersion")
@@ -594,6 +597,7 @@ def run_websocket_flow(
             body={
                 "name": updated_room_name,
                 "description": updated_description,
+                "categories": ["ENVIRONMENT"],
                 "visibility": "UNLISTED",
                 "joinPolicy": "INVITE_ONLY",
             },
@@ -1103,7 +1107,7 @@ def main() -> int:
     client.request("GET", "/api/v1/me/rooms")
     client.request("GET", "/api/v1/rooms")
 
-    print("[5/15] description 포함 LISTED/OPEN 방 생성")
+    print("[5/15] description/categories 포함 LISTED/OPEN 방 생성")
     room_name = f"frontend-smoke-{uuid.uuid4().hex[:8]}"
     room_description = "frontend local smoke description"
     _, _, create_result = client.request(
@@ -1112,6 +1116,7 @@ def main() -> int:
         body={
             "name": room_name,
             "description": room_description,
+            "categories": ["POLICY"],
             "visibility": "LISTED",
             "joinPolicy": "OPEN",
         },
@@ -1122,18 +1127,20 @@ def main() -> int:
         raise AssertionError("방 생성 응답이 JSON 객체가 아닙니다.")
     room_id = create_result["roomId"]
 
-    print("[6/15] 방 상세·공개 방 목록 description 반영 확인")
+    print("[6/15] 방 상세·공개 방 목록 description/categories 반영 확인")
     _, _, room_detail = client.request("GET", f"/api/v1/rooms/{room_id}")
     if (
         not isinstance(room_detail, dict)
         or room_detail.get("name") != room_name
         or room_detail.get("description") != room_description
+        or room_detail.get("categories") != ["POLICY"]
     ):
         raise AssertionError("방 상세 응답의 settings가 생성 요청과 다릅니다.")
     listed_room = find_public_room(client, room_id)
     if (
         listed_room is None
         or listed_room.get("description") != room_description
+        or listed_room.get("categories") != ["POLICY"]
     ):
         raise AssertionError("생성한 LISTED 방이 공개 방 목록에 없습니다.")
 
@@ -1163,6 +1170,7 @@ def main() -> int:
     if (
         updated_detail.get("visibility") != "UNLISTED"
         or updated_detail.get("joinPolicy") != "INVITE_ONLY"
+        or updated_detail.get("categories") != ["ENVIRONMENT"]
         or updated_detail.get("description")
         != "frontend local smoke updated description"
     ):

@@ -43,6 +43,8 @@ class RoomCommandInputAndFingerprintTest {
                 " ",
                 REQUEST_ID,
                 "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -83,6 +85,8 @@ class RoomCommandInputAndFingerprintTest {
                 "user-1",
                 REQUEST_ID,
                 "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 null,
                 JoinPolicy.OPEN))
                 .isInstanceOf(NullPointerException.class);
@@ -94,6 +98,8 @@ class RoomCommandInputAndFingerprintTest {
                 "user-1",
                 REQUEST_ID,
                 "  Test room  ",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN);
 
@@ -102,6 +108,8 @@ class RoomCommandInputAndFingerprintTest {
                 "user-1",
                 REQUEST_ID,
                 " ",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -109,6 +117,8 @@ class RoomCommandInputAndFingerprintTest {
                 "user-1",
                 REQUEST_ID,
                 "a".repeat(101),
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -157,12 +167,16 @@ class RoomCommandInputAndFingerprintTest {
                 "user-1",
                 REQUEST_ID,
                 "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN));
         String unlisted = fingerprints.create(new CreateRoomCommand(
                 "user-1",
                 REQUEST_ID,
                 "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.UNLISTED,
                 JoinPolicy.INVITE_ONLY));
         String anotherName = fingerprints.create(
@@ -170,6 +184,18 @@ class RoomCommandInputAndFingerprintTest {
                         "user-1",
                         REQUEST_ID,
                         "Another room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN));
+        String anotherCategory = fingerprints.create(
+                new CreateRoomCommand(
+                        "user-1",
+                        REQUEST_ID,
+                        "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory
+                                        .ENVIRONMENT),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN));
 
@@ -181,15 +207,18 @@ class RoomCommandInputAndFingerprintTest {
                 transferUser3,
                 listed,
                 unlisted,
-                anotherName)).doesNotHaveDuplicates();
+                anotherName,
+                anotherCategory)).doesNotHaveDuplicates();
     }
 
     @Test
-    void createFingerprintKeepsLegacyEmptyDescriptionContract() {
+    void createFingerprintKeepsEmptyDescriptionContract() {
         CreateRoomCommand legacy = new CreateRoomCommand(
                 "user-1",
                 REQUEST_ID,
                 "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN);
         CreateRoomCommand explicitEmpty = new CreateRoomCommand(
@@ -197,6 +226,8 @@ class RoomCommandInputAndFingerprintTest {
                 REQUEST_ID,
                 "Test room",
                 "",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN);
         CreateRoomCommand described = new CreateRoomCommand(
@@ -204,13 +235,15 @@ class RoomCommandInputAndFingerprintTest {
                 REQUEST_ID,
                 "Test room",
                 "Description",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN);
 
         assertThat(fingerprints.create(legacy))
                 .isEqualTo(
-                        "sha256:8b8d986678f7687893c3125d6e378fd1"
-                                + "10c4892927277796471f8936cb1be961")
+                        "sha256:099589aa653a52f740749bae420fb5bf"
+                                + "03ac07055b0d3cf92978d127cdaf6ab1")
                 .isEqualTo(fingerprints.create(explicitEmpty))
                 .isNotEqualTo(fingerprints.create(described));
     }
@@ -236,13 +269,19 @@ class RoomCommandInputAndFingerprintTest {
                         null,
                         false,
                         null);
+        UpdateRoomSettingsCommand policy = categoryUpdate(
+                com.hamcheeze.chat.room.RoomCategory.POLICY);
+        UpdateRoomSettingsCommand environment = categoryUpdate(
+                com.hamcheeze.chat.room.RoomCategory.ENVIRONMENT);
 
         assertThat(fingerprints.create(padded))
                 .isEqualTo(fingerprints.create(canonical));
         assertThat(List.of(
                 fingerprints.create(canonical),
                 fingerprints.create(removeDescription),
-                fingerprints.create(nameAndDescription)))
+                fingerprints.create(nameAndDescription),
+                fingerprints.create(policy),
+                fingerprints.create(environment)))
                 .doesNotHaveDuplicates();
     }
 
@@ -263,6 +302,22 @@ class RoomCommandInputAndFingerprintTest {
                 "unexpected",
                 true,
                 "")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new UpdateRoomSettingsCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                false,
+                null,
+                false,
+                null,
+                true,
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY,
+                        com.hamcheeze.chat.room.RoomCategory.ENVIRONMENT),
+                false,
+                null,
+                false,
+                null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -282,6 +337,8 @@ class RoomCommandInputAndFingerprintTest {
                                 REQUEST_ID,
                                 "Room",
                                 description,
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                                 RoomVisibility.LISTED,
                                 JoinPolicy.OPEN))
                         .as(
@@ -313,6 +370,8 @@ class RoomCommandInputAndFingerprintTest {
                     REQUEST_ID,
                     "Room",
                     description,
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                     RoomVisibility.LISTED,
                     JoinPolicy.OPEN).description())
                     .isEqualTo(description);
@@ -328,6 +387,8 @@ class RoomCommandInputAndFingerprintTest {
                 REQUEST_ID,
                 "Room",
                 "\tdescription\n",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN).description())
                 .isEqualTo("description");
@@ -339,6 +400,8 @@ class RoomCommandInputAndFingerprintTest {
                         "user-1",
                         requestId,
                         "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN),
                 new JoinRoomCommand(
@@ -396,6 +459,25 @@ class RoomCommandInputAndFingerprintTest {
                 name,
                 descriptionPresent,
                 description,
+                false,
+                null,
+                false,
+                null);
+    }
+
+    private UpdateRoomSettingsCommand categoryUpdate(
+            com.hamcheeze.chat.room.RoomCategory category
+    ) {
+        return new UpdateRoomSettingsCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                false,
+                null,
+                false,
+                null,
+                true,
+                java.util.List.of(category),
                 false,
                 null,
                 false,

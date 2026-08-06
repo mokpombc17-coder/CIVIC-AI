@@ -29,6 +29,9 @@ class MongoRoomDocumentMappingTest {
         Room room = Room.restore(
                 "room-1",
                 "Active room",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -41,9 +44,12 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(3);
+        assertThat(document.schemaVersion()).isEqualTo(4);
         assertThat(document.name()).isEqualTo("Active room");
         assertThat(document.description()).isEmpty();
+        assertThat(document.categories())
+                .containsExactly(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY);
         assertThat(document.toDomain()).isEqualTo(room);
     }
 
@@ -52,6 +58,9 @@ class MongoRoomDocumentMappingTest {
         Room room = Room.restore(
                 "room-1",
                 "Closed room",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.CLOSED,
                 RoomVisibility.UNLISTED,
@@ -64,14 +73,14 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(3);
+        assertThat(document.schemaVersion()).isEqualTo(4);
         assertThat(document.name()).isEqualTo("Closed room");
         assertThat(document.description()).isEmpty();
         assertThat(document.toDomain()).isEqualTo(room);
     }
 
     @Test
-    void legacyRoomWithoutNameUsesRoomIdAsFallback() {
+    void legacyRoomWithoutCategoryIsRejected() {
         MongoRoomDocument legacy = new MongoRoomDocument(
                 "legacy-room",
                 1,
@@ -85,13 +94,12 @@ class MongoRoomDocumentMappingTest {
                 null,
                 0);
 
-        assertThat(legacy.toDomain().name())
-                .isEqualTo("legacy-room");
-        assertThat(legacy.toDomain().description()).isEmpty();
+        assertThatThrownBy(legacy::toDomain)
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void previousSchemaUsesEmptyDescriptionAndCurrentRequiresIt() {
+    void previousSchemaIsRejectedAndCurrentRequiresDescription() {
         MongoRoomDocument previous = new MongoRoomDocument(
                 "room-2",
                 2,
@@ -105,11 +113,28 @@ class MongoRoomDocumentMappingTest {
                 null,
                 2);
 
-        assertThat(previous.toDomain().description()).isEmpty();
+        assertThatThrownBy(previous::toDomain)
+                .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> new MongoRoomDocument(
                 "room-3",
                 MongoRoomDocument.CURRENT_SCHEMA_VERSION,
                 "Current room",
+                null,
+                List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                CREATED_AT,
+                null,
+                3)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new MongoRoomDocument(
+                "room-4",
+                MongoRoomDocument.CURRENT_SCHEMA_VERSION,
+                "Current room",
+                "",
                 null,
                 "owner-1",
                 RoomStatus.ACTIVE,
@@ -240,7 +265,7 @@ class MongoRoomDocumentMappingTest {
     void unsupportedSchemaVersionsFailExplicitly() {
         MongoRoomDocument roomDocument = new MongoRoomDocument(
                 "room-1",
-                4,
+                5,
                 "Test room",
                 "owner-1",
                 RoomStatus.ACTIVE,
@@ -281,7 +306,7 @@ class MongoRoomDocumentMappingTest {
         assertUnsupportedSchema(
                 roomDocument::toDomain,
                 MongoRoomDocument.COLLECTION_NAME,
-                4);
+                5);
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,

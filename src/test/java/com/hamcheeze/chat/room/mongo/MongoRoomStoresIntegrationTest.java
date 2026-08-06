@@ -110,6 +110,14 @@ class MongoRoomStoresIntegrationTest {
         assertThat(roomStore.findById(closed.roomId()))
                 .contains(closed);
         assertThat(roomStore.findById("missing-room")).isEmpty();
+        Document raw = mongoTemplate.getCollection(
+                        MongoRoomDocument.COLLECTION_NAME)
+                .find(new Document("_id", active.roomId()))
+                .first();
+        assertThat(raw).isNotNull();
+        assertThat(raw.getInteger("schemaVersion")).isEqualTo(4);
+        assertThat(raw.getList("categories", String.class))
+                .containsExactly("POLICY");
     }
 
     @Test
@@ -147,6 +155,10 @@ class MongoRoomStoresIntegrationTest {
                 3);
         Room replacement = Room.restore(
                 "room-1",
+                "room-1",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-2",
                 RoomStatus.ACTIVE,
                 RoomVisibility.UNLISTED,
@@ -672,6 +684,10 @@ class MongoRoomStoresIntegrationTest {
     ) {
         return Room.restore(
                 roomId,
+                roomId,
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,

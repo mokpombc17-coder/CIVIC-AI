@@ -147,6 +147,7 @@ public final class RoomInboxService {
                 entry.room().roomId(),
                 entry.room().name(),
                 entry.room().description(),
+                entry.room().categories(),
                 entry.room().ownerUserId(),
                 entry.room().status(),
                 entry.room().visibility(),

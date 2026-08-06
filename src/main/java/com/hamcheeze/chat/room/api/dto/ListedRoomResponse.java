@@ -2,15 +2,18 @@ package com.hamcheeze.chat.room.api.dto;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.model.ListedRoomView;
 
 import java.time.Instant;
+import java.util.List;
 
 public record ListedRoomResponse(
         String roomId,
         String name,
         String description,
+        List<RoomCategory> categories,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -25,6 +28,7 @@ public record ListedRoomResponse(
                 view.roomId(),
                 view.name(),
                 view.description(),
+                view.categories(),
                 view.ownerUserId(),
                 view.status(),
                 view.visibility(),

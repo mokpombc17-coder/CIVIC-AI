@@ -23,6 +23,9 @@ class RoomSettingsUpdateTest {
         Room withoutDescription = Room.restore(
                 "room-2",
                 "Room",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -66,6 +69,35 @@ class RoomSettingsUpdateTest {
                 .isEqualTo(original.createdAt());
         assertThat(transition.room().activeMemberCount())
                 .isEqualTo(original.activeMemberCount());
+    }
+
+    @Test
+    void categoryReplacementIncrementsVersionAndSameValueIsUnchanged() {
+        Room original = room("", RoomStatus.ACTIVE, 7);
+
+        RoomSettingsUpdateTransition updated = original.updateSettings(
+                original.name(),
+                original.description(),
+                java.util.List.of(RoomCategory.ENVIRONMENT),
+                original.visibility(),
+                original.joinPolicy());
+
+        assertThat(updated.outcome())
+                .isEqualTo(RoomSettingsUpdateOutcome.UPDATED);
+        assertThat(updated.room().categories())
+                .containsExactly(RoomCategory.ENVIRONMENT);
+        assertThat(updated.room().version()).isEqualTo(8);
+
+        RoomSettingsUpdateTransition unchanged =
+                updated.room().updateSettings(
+                        updated.room().name(),
+                        updated.room().description(),
+                        java.util.List.of(RoomCategory.ENVIRONMENT),
+                        updated.room().visibility(),
+                        updated.room().joinPolicy());
+        assertThat(unchanged.outcome())
+                .isEqualTo(RoomSettingsUpdateOutcome.UNCHANGED);
+        assertThat(unchanged.room()).isSameAs(updated.room());
     }
 
     @Test
@@ -177,6 +209,7 @@ class RoomSettingsUpdateTest {
         assertThatThrownBy(() -> new RoomSettingsSnapshot(
                 "Room",
                 "\u000bdescription",
+                java.util.List.of(RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -187,6 +220,7 @@ class RoomSettingsUpdateTest {
                         RoomStatus.ACTIVE,
                         "Room",
                         "description\u000c",
+                        java.util.List.of(RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -241,6 +275,8 @@ class RoomSettingsUpdateTest {
                 "room-1",
                 "Room",
                 description,
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,

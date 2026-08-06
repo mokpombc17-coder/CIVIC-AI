@@ -135,6 +135,7 @@ class RoomApiFailureIntegrationTest
                         .content("""
                                 {
                                   "name":"Test room",
+                                  "categories":["POLICY"],
                                   "visibility":"LISTED",
                                   "joinPolicy":"OPEN"
                                 }

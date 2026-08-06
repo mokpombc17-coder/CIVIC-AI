@@ -188,6 +188,7 @@ public final class RoomCommandService {
                             candidateRoomId,
                             command.name(),
                             command.description(),
+                            command.categories(),
                             candidateOwnerMembershipId,
                             command.requesterUserId(),
                             command.visibility(),
@@ -681,6 +682,9 @@ public final class RoomCommandService {
                         command.descriptionPresent()
                                 ? command.description()
                                 : room.description(),
+                        command.categoriesPresent()
+                                ? command.categories()
+                                : room.categories(),
                         command.visibilityPresent()
                                 ? command.visibility()
                                 : room.visibility(),

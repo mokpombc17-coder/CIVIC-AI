@@ -86,6 +86,7 @@ public final class RoomCommandHttpMapper {
                             result.roomId(),
                             result.roomSettings().name(),
                             result.roomSettings().description(),
+                            result.roomSettings().categories(),
                             result.roomSettings().visibility(),
                             result.roomSettings().joinPolicy(),
                             result.roomVersion());

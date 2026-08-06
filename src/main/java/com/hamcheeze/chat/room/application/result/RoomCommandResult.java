@@ -269,6 +269,7 @@ public record RoomCommandResult(
                 new RoomSettingsSnapshot(
                         room.name(),
                         room.description(),
+                        room.categories(),
                         room.visibility(),
                         room.joinPolicy()));
     }

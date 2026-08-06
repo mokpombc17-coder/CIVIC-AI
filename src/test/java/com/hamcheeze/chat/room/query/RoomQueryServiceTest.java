@@ -146,6 +146,10 @@ class RoomQueryServiceTest {
     private Room room(String roomId, RoomStatus status) {
         return Room.restore(
                 roomId,
+                roomId,
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,

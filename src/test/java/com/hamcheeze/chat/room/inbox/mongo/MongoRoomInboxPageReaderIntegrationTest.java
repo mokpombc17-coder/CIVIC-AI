@@ -98,6 +98,9 @@ class MongoRoomInboxPageReaderIntegrationTest {
                 USER_ID, null, 20).items();
 
         RoomInboxPageEntry visible = entry(entries, "room-visible");
+        assertThat(visible.room().categories())
+                .containsExactly(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY);
         assertThat(visible.lastMessage()).isNotNull();
         assertThat(visible.lastActivityAt())
                 .isEqualTo(BASE.plusSeconds(300));
@@ -447,6 +450,8 @@ class MongoRoomInboxPageReaderIntegrationTest {
                 roomId,
                 roomId,
                 "description",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,

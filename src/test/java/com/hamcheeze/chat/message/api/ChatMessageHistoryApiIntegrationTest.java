@@ -334,6 +334,8 @@ class ChatMessageHistoryApiIntegrationTest
                                 ownerUserId,
                                 UUID.randomUUID().toString(),
                                 "History room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                                 RoomVisibility.LISTED,
                                 JoinPolicy.OPEN))
                 .result()

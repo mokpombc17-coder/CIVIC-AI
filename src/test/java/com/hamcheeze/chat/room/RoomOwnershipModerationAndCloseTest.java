@@ -648,6 +648,10 @@ class RoomOwnershipModerationAndCloseTest {
     ) {
         return Room.restore(
                 "room-1",
+                "room-1",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 ownerUserId,
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -661,6 +665,10 @@ class RoomOwnershipModerationAndCloseTest {
     private Room closedRoom() {
         return Room.restore(
                 "room-1",
+                "room-1",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.CLOSED,
                 RoomVisibility.LISTED,

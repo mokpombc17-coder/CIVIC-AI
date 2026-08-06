@@ -258,6 +258,8 @@ class RoomAccessAuthorizationRaceIntegrationTest
                                 ownerUserId,
                                 uuid(),
                                 "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                                 RoomVisibility.LISTED,
                                 JoinPolicy.OPEN))
                 .result()

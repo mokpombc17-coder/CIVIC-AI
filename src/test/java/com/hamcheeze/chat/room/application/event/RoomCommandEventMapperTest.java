@@ -193,6 +193,9 @@ class RoomCommandEventMapperTest {
         assertThat(payload.name()).isEqualTo("Updated room");
         assertThat(payload.description())
                 .isEqualTo("Updated description");
+        assertThat(payload.categories())
+                .containsExactly(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY);
         assertThat(payload.visibility())
                 .isEqualTo(RoomVisibility.UNLISTED);
         assertThat(payload.joinPolicy())
@@ -209,6 +212,8 @@ class RoomCommandEventMapperTest {
                         "room-1",
                         "Updated room",
                         "Updated description",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                         "owner-1",
                         RoomStatus.ACTIVE,
                         RoomVisibility.UNLISTED,

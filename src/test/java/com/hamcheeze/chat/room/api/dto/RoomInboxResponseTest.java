@@ -43,6 +43,9 @@ class RoomInboxResponseTest {
                 .isEqualTo("edited");
         assertThat(activeResponse.lastMessage().messageVersion())
                 .isEqualTo(2);
+        assertThat(activeResponse.categories())
+                .containsExactly(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY);
         assertThat(deletedResponse.lastMessage().state())
                 .isEqualTo(MessageState.DELETED_BY_AUTHOR);
         assertThat(deletedResponse.lastMessage().preview()).isNull();
@@ -60,6 +63,8 @@ class RoomInboxResponseTest {
                 "room-1",
                 "Room",
                 "description",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,

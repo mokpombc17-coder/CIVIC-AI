@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.application.idempotency;
 
+import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.application.command.BanMemberCommand;
 import com.hamcheeze.chat.room.application.command.CloseRoomCommand;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
@@ -14,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public final class RoomCommandFingerprintFactory {
 
@@ -25,6 +28,10 @@ public final class RoomCommandFingerprintFactory {
         append(canonical, "requesterUserId", command.requesterUserId());
         if (command instanceof CreateRoomCommand createRoom) {
             append(canonical, "name", createRoom.name());
+            append(
+                    canonical,
+                    "categories",
+                    categoryNames(createRoom.categories()));
             append(canonical, "visibility", createRoom.visibility().name());
             append(canonical, "joinPolicy", createRoom.joinPolicy().name());
             if (!createRoom.description().isEmpty()) {
@@ -67,6 +74,13 @@ public final class RoomCommandFingerprintFactory {
                     update.description());
             appendPatch(
                     canonical,
+                    "categories",
+                    update.categoriesPresent(),
+                    update.categories() == null
+                            ? null
+                            : categoryNames(update.categories()));
+            appendPatch(
+                    canonical,
                     "visibility",
                     update.visibilityPresent(),
                     update.visibility() == null
@@ -100,6 +114,14 @@ public final class RoomCommandFingerprintFactory {
         if (present) {
             append(target, field + ".value", value);
         }
+    }
+
+    private static String categoryNames(
+            List<RoomCategory> categories
+    ) {
+        return categories.stream()
+                .map(Enum::name)
+                .collect(Collectors.joining(","));
     }
 
     private static void append(

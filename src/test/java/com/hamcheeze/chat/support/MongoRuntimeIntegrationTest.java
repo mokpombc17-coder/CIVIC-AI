@@ -4,6 +4,7 @@ import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
 import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomCreationResult;
+import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomMembershipTransitions;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
@@ -70,6 +71,10 @@ public abstract class MongoRuntimeIntegrationTest {
         RoomCreationResult creation =
                 RoomMembershipTransitions.createRoom(
                         roomId,
+                roomId,
+                "",
+                java.util.List.of(
+                        RoomCategory.POLICY),
                         "membership-" + roomId + "-" + ownerUserId,
                         ownerUserId,
                         RoomVisibility.LISTED,

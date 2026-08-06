@@ -91,6 +91,9 @@ class ListedRoomQueryServiceTest {
         return Room.restore(
                 roomId,
                 name,
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,

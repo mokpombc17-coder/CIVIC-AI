@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 public final class Room {
@@ -11,6 +12,7 @@ public final class Room {
     private final String roomId;
     private final String name;
     private final String description;
+    private final List<RoomCategory> categories;
     private final String ownerUserId;
     private final RoomStatus status;
     private final RoomVisibility visibility;
@@ -24,6 +26,7 @@ public final class Room {
             String roomId,
             String name,
             String description,
+            List<RoomCategory> categories,
             String ownerUserId,
             RoomStatus status,
             RoomVisibility visibility,
@@ -37,6 +40,7 @@ public final class Room {
         this.name = RoomDomainValidation.requireRoomName(name);
         this.description =
                 RoomDomainValidation.requireRoomDescription(description);
+        this.categories = RoomCategories.requireValid(categories);
         this.ownerUserId =
                 RoomDomainValidation.requireUserId(ownerUserId);
         this.status = RoomDomainValidation.requireStateValue(status);
@@ -60,6 +64,7 @@ public final class Room {
             String roomId,
             String name,
             String description,
+            List<RoomCategory> categories,
             String ownerUserId,
             RoomStatus status,
             RoomVisibility visibility,
@@ -73,57 +78,7 @@ public final class Room {
                 roomId,
                 name,
                 description,
-                ownerUserId,
-                status,
-                visibility,
-                joinPolicy,
-                activeMemberCount,
-                createdAt,
-                closedAt,
-                version);
-    }
-
-    public static Room restore(
-            String roomId,
-            String name,
-            String ownerUserId,
-            RoomStatus status,
-            RoomVisibility visibility,
-            JoinPolicy joinPolicy,
-            int activeMemberCount,
-            Instant createdAt,
-            Instant closedAt,
-            long version
-    ) {
-        return restore(
-                roomId,
-                name,
-                "",
-                ownerUserId,
-                status,
-                visibility,
-                joinPolicy,
-                activeMemberCount,
-                createdAt,
-                closedAt,
-                version);
-    }
-
-    public static Room restore(
-            String roomId,
-            String ownerUserId,
-            RoomStatus status,
-            RoomVisibility visibility,
-            JoinPolicy joinPolicy,
-            int activeMemberCount,
-            Instant createdAt,
-            Instant closedAt,
-            long version
-    ) {
-        return restore(
-                roomId,
-                roomId,
-                "",
+                categories,
                 ownerUserId,
                 status,
                 visibility,
@@ -138,6 +93,7 @@ public final class Room {
             String roomId,
             String name,
             String description,
+            List<RoomCategory> categories,
             String ownerUserId,
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
@@ -147,6 +103,7 @@ public final class Room {
                 roomId,
                 name,
                 description,
+                categories,
                 ownerUserId,
                 RoomStatus.ACTIVE,
                 visibility,
@@ -155,24 +112,6 @@ public final class Room {
                 createdAt,
                 null,
                 0);
-    }
-
-    static Room create(
-            String roomId,
-            String name,
-            String ownerUserId,
-            RoomVisibility visibility,
-            JoinPolicy joinPolicy,
-            Instant createdAt
-    ) {
-        return create(
-                roomId,
-                name,
-                "",
-                ownerUserId,
-                visibility,
-                joinPolicy,
-                createdAt);
     }
 
     Room memberJoined() {
@@ -244,6 +183,7 @@ public final class Room {
                 roomId,
                 name,
                 description,
+                categories,
                 nextOwnerUserId,
                 nextStatus,
                 visibility,
@@ -257,6 +197,7 @@ public final class Room {
     public RoomSettingsUpdateTransition updateSettings(
             String nextName,
             String nextDescription,
+            List<RoomCategory> nextCategories,
             RoomVisibility nextVisibility,
             JoinPolicy nextJoinPolicy
     ) {
@@ -269,12 +210,15 @@ public final class Room {
         String canonicalDescription =
                 RoomDomainValidation.requireRoomDescription(
                         nextDescription);
+        List<RoomCategory> canonicalCategories =
+                RoomCategories.requireValid(nextCategories);
         RoomVisibility canonicalVisibility =
                 RoomDomainValidation.requireStateValue(nextVisibility);
         JoinPolicy canonicalJoinPolicy =
                 RoomDomainValidation.requireStateValue(nextJoinPolicy);
         if (name.equals(canonicalName)
                 && description.equals(canonicalDescription)
+                && categories.equals(canonicalCategories)
                 && visibility == canonicalVisibility
                 && joinPolicy == canonicalJoinPolicy) {
             return new RoomSettingsUpdateTransition(
@@ -285,6 +229,7 @@ public final class Room {
                 roomId,
                 canonicalName,
                 canonicalDescription,
+                canonicalCategories,
                 ownerUserId,
                 status,
                 canonicalVisibility,
@@ -296,6 +241,20 @@ public final class Room {
         return new RoomSettingsUpdateTransition(
                 RoomSettingsUpdateOutcome.UPDATED,
                 updated);
+    }
+
+    public RoomSettingsUpdateTransition updateSettings(
+            String nextName,
+            String nextDescription,
+            RoomVisibility nextVisibility,
+            JoinPolicy nextJoinPolicy
+    ) {
+        return updateSettings(
+                nextName,
+                nextDescription,
+                categories,
+                nextVisibility,
+                nextJoinPolicy);
     }
 
     private static void validateState(
@@ -336,6 +295,10 @@ public final class Room {
 
     public String description() {
         return description;
+    }
+
+    public List<RoomCategory> categories() {
+        return categories;
     }
 
     public String ownerUserId() {
@@ -383,6 +346,7 @@ public final class Room {
                 && roomId.equals(room.roomId)
                 && name.equals(room.name)
                 && description.equals(room.description)
+                && categories.equals(room.categories)
                 && ownerUserId.equals(room.ownerUserId)
                 && status == room.status
                 && visibility == room.visibility
@@ -397,6 +361,7 @@ public final class Room {
                 roomId,
                 name,
                 description,
+                categories,
                 ownerUserId,
                 status,
                 visibility,
@@ -412,6 +377,7 @@ public final class Room {
         return "Room[roomId=" + roomId
                 + ", name=" + name
                 + ", description=" + description
+                + ", categories=" + categories
                 + ", ownerUserId=" + ownerUserId
                 + ", status=" + status
                 + ", visibility=" + visibility

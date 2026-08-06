@@ -428,6 +428,10 @@ class RoomJoinLeaveTest {
     ) {
         return Room.restore(
                 "room-1",
+                "room-1",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -441,6 +445,10 @@ class RoomJoinLeaveTest {
     private Room closedRoom() {
         return Room.restore(
                 "room-1",
+                "room-1",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.CLOSED,
                 RoomVisibility.LISTED,

@@ -160,6 +160,7 @@ public final class RoomCommandEventMapper {
                             RoomStatus.ACTIVE,
                             result.roomSettings().name(),
                             result.roomSettings().description(),
+                            result.roomSettings().categories(),
                             result.roomSettings().visibility(),
                             result.roomSettings().joinPolicy());
             default -> throw new IllegalArgumentException(

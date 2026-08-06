@@ -344,6 +344,8 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                 .andExpect(header().string(
                         HttpHeaders.CACHE_CONTROL, "no-store"))
                 .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items[0].categories[0]")
+                        .value("POLICY"))
                 .andExpect(jsonPath("$.items[0]")
                         .value(hasKey("lastMessage")))
                 .andExpect(jsonPath("$.items[0].lastMessage")
@@ -454,6 +456,7 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
         return """
                 {
                   "name":"Test room",
+                  "categories":["POLICY"],
                   "visibility":"LISTED",
                   "joinPolicy":"OPEN"
                 }

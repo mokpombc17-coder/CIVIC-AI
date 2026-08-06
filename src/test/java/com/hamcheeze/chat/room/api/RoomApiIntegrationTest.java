@@ -121,6 +121,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 .content("""
                                 {
                                   "name":"  Test room  ",
+                                  "categories":["POLICY"],
                                   "visibility":"LISTED",
                                   "joinPolicy":"OPEN",
                                   "requesterUserId":"forged-user"
@@ -199,6 +200,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 {
                                   "name":"Settings room",
                                   "description":" Initial description ",
+                                  "categories":["POLICY"],
                                   "visibility":"LISTED",
                                   "joinPolicy":"OPEN"
                                 }
@@ -212,25 +214,43 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-settings"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.description")
-                        .value("Initial description"));
+                        .value("Initial description"))
+                .andExpect(jsonPath("$.categories[0]")
+                        .value("POLICY"));
         mockMvc.perform(get("/api/v1/me/rooms")
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("owner-settings"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].description")
-                        .value("Initial description"));
+                        .value("Initial description"))
+                .andExpect(jsonPath("$.items[0].categories[0]")
+                        .value("POLICY"));
         mockMvc.perform(get("/api/v1/rooms")
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("owner-settings"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].description")
-                        .value("Initial description"));
+                        .value("Initial description"))
+                .andExpect(jsonPath("$.items[0].categories[0]")
+                        .value("POLICY"));
+        MvcResult inboxBeforeUpdate = mockMvc.perform(
+                        get("/api/v1/me/room-inbox")
+                                .with(jwt().jwt(jwt -> jwt.subject(
+                                        "owner-settings"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].categories[0]")
+                        .value("POLICY"))
+                .andReturn();
+        String lastActivityBeforeUpdate = jsonString(
+                inboxBeforeUpdate,
+                "lastActivityAt");
 
         String updateKey = requestId();
         String updateBody = """
                 {
                   "name":"  Updated room  ",
                   "description":"Updated description",
+                  "categories":["ENVIRONMENT"],
                   "visibility":"UNLISTED",
                   "joinPolicy":"INVITE_ONLY"
                 }
@@ -250,6 +270,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Updated room"))
                 .andExpect(jsonPath("$.description")
                         .value("Updated description"))
+                .andExpect(jsonPath("$.categories[0]")
+                        .value("ENVIRONMENT"))
                 .andExpect(jsonPath("$.visibility")
                         .value("UNLISTED"))
                 .andExpect(jsonPath("$.joinPolicy")
@@ -290,11 +312,21 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Updated room"))
                 .andExpect(jsonPath("$.description")
                         .value("Updated description"))
+                .andExpect(jsonPath("$.categories[0]")
+                        .value("ENVIRONMENT"))
                 .andExpect(jsonPath("$.visibility")
                         .value("UNLISTED"))
                 .andExpect(jsonPath("$.joinPolicy")
                         .value("INVITE_ONLY"))
                 .andExpect(jsonPath("$.version").value(1));
+        mockMvc.perform(get("/api/v1/me/room-inbox")
+                        .with(jwt().jwt(jwt -> jwt.subject(
+                                "owner-settings"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].categories[0]")
+                        .value("ENVIRONMENT"))
+                .andExpect(jsonPath("$.items[0].lastActivityAt")
+                        .value(lastActivityBeforeUpdate));
         mockMvc.perform(get("/api/v1/rooms")
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("owner-settings"))))
@@ -488,6 +520,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .content("""
                                 {
                                   "name":"Test room",
+                                  "categories":["POLICY"],
                                   "joinPolicy":"OPEN"
                                 }
                                 """))
@@ -505,6 +538,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .content("""
                                 {
                                   "name":" ",
+                                  "categories":["POLICY"],
                                   "visibility":"LISTED",
                                   "joinPolicy":"OPEN"
                                 }
@@ -514,6 +548,24 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.fieldErrors[0].field")
                         .value("name"));
+
+        mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-1")))
+                        .header("Idempotency-Key", requestId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"Test room",
+                                  "visibility":"LISTED",
+                                  "joinPolicy":"OPEN"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.fieldErrors[0].field")
+                        .value("categories"));
 
         assertThat(count(MongoRoomDocument.COLLECTION_NAME)).isZero();
         assertThat(count(MongoMembershipDocument.COLLECTION_NAME))
@@ -954,6 +1006,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 "owner-1",
                                 requestId(),
                                 "Unlisted room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                                 RoomVisibility.UNLISTED,
                                 JoinPolicy.OPEN))
                 .result()
@@ -1051,6 +1105,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         owner,
                         requestId(),
                         "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         joinPolicy))
                 .result()
@@ -1107,6 +1163,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
         return """
                 {
                   "name":"Test room",
+                  "categories":["POLICY"],
                   "visibility":"LISTED",
                   "joinPolicy":"%s"
                 }

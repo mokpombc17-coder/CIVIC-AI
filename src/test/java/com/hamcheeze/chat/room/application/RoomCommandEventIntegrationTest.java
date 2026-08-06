@@ -97,6 +97,8 @@ class RoomCommandEventIntegrationTest
                         "owner-1",
                         ownerRequestId,
                         "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN));
 
@@ -203,6 +205,10 @@ class RoomCommandEventIntegrationTest
                         true,
                         "Updated description",
                         true,
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory
+                                        .ENVIRONMENT),
+                        true,
                         RoomVisibility.UNLISTED,
                         true,
                         JoinPolicy.INVITE_ONLY);
@@ -222,6 +228,10 @@ class RoomCommandEventIntegrationTest
                                 "Updated room",
                                 true,
                                 "Updated description",
+                                true,
+                                java.util.List.of(
+                                        com.hamcheeze.chat.room.RoomCategory
+                                                .ENVIRONMENT),
                                 true,
                                 RoomVisibility.UNLISTED,
                                 true,
@@ -247,6 +257,9 @@ class RoomCommandEventIntegrationTest
         assertThat(payload.name()).isEqualTo("Updated room");
         assertThat(payload.description())
                 .isEqualTo("Updated description");
+        assertThat(payload.categories())
+                .containsExactly(
+                        com.hamcheeze.chat.room.RoomCategory.ENVIRONMENT);
         verify(revocationPort, never())
                 .revokeUserRoomAccess(any(), any(), any());
     }
@@ -292,6 +305,8 @@ class RoomCommandEventIntegrationTest
                         ownerUserId,
                         uuid(),
                         "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .result()

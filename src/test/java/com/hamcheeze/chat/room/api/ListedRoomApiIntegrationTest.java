@@ -83,6 +83,8 @@ class ListedRoomApiIntegrationTest
                         .value("Alpha"))
                 .andExpect(jsonPath("$.items[0].description")
                         .value("Description room-a"))
+                .andExpect(jsonPath("$.items[0].categories[0]")
+                        .value("POLICY"))
                 .andExpect(jsonPath("$.items[0].status")
                         .value("ACTIVE"))
                 .andExpect(jsonPath("$.items[0].visibility")
@@ -139,6 +141,8 @@ class ListedRoomApiIntegrationTest
                 roomId,
                 name,
                 "Description " + roomId,
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-" + roomId,
                 status,
                 visibility,

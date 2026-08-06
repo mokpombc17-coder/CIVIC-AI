@@ -119,6 +119,8 @@ class RoomCommandServiceIntegrationTest
                         "owner-1",
                         requestId,
                         "Different room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.UNLISTED,
                         JoinPolicy.INVITE_ONLY));
 
@@ -1133,6 +1135,8 @@ class RoomCommandServiceIntegrationTest
                         requestId(),
                         "Initial room",
                         "Initial description",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN));
         String roomId = created.result().roomId();
@@ -1234,7 +1238,7 @@ class RoomCommandServiceIntegrationTest
     }
 
     @Test
-    void legacyRoomSettingsUpdatePromotesSchemaAndKeepsFallbackDescription() {
+    void legacyRoomWithoutRequiredCategoryIsRejectedFailClosed() {
         String roomId = "legacy-settings-room";
         mongoOperations.insert(new MongoRoomDocument(
                 roomId,
@@ -1260,7 +1264,7 @@ class RoomCommandServiceIntegrationTest
                 0,
                 0));
 
-        RoomCommandExecution execution =
+        assertThatThrownBy(() ->
                 service.updateRoomSettings(updateSettings(
                         "owner-legacy",
                         requestId(),
@@ -1272,17 +1276,14 @@ class RoomCommandServiceIntegrationTest
                         true,
                         RoomVisibility.UNLISTED,
                         false,
-                        null));
-
-        assertThat(execution.result().code()).isEqualTo(
-                RoomCommandResultCode.ROOM_SETTINGS_UPDATED);
+                        null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unsupported schemaVersion");
         MongoRoomDocument stored = mongoOperations.findById(
                 roomId,
                 MongoRoomDocument.class);
-        assertThat(stored.schemaVersion()).isEqualTo(3);
-        assertThat(stored.name()).isEqualTo(roomId);
-        assertThat(stored.description()).isEmpty();
-        assertThat(stored.version()).isEqualTo(5);
+        assertThat(stored.schemaVersion()).isEqualTo(1);
+        assertThat(stored.version()).isEqualTo(4);
     }
 
     @Test
@@ -1476,6 +1477,8 @@ class RoomCommandServiceIntegrationTest
                 ownerUserId,
                 requestId,
                 "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 joinPolicy);
     }

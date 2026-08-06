@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room;
 
 import java.time.Instant;
+import java.util.List;
 
 public final class RoomMembershipTransitions {
 
@@ -11,6 +12,7 @@ public final class RoomMembershipTransitions {
             String roomId,
             String name,
             String description,
+            List<RoomCategory> categories,
             String ownerMembershipId,
             String ownerUserId,
             RoomVisibility visibility,
@@ -23,6 +25,7 @@ public final class RoomMembershipTransitions {
                 roomId,
                 name,
                 description,
+                categories,
                 ownerUserId,
                 visibility,
                 joinPolicy,
@@ -36,45 +39,6 @@ public final class RoomMembershipTransitions {
                 RoomCreationResult.Outcome.CREATED,
                 room,
                 ownerMembership);
-    }
-
-    public static RoomCreationResult createRoom(
-            String roomId,
-            String name,
-            String ownerMembershipId,
-            String ownerUserId,
-            RoomVisibility visibility,
-            JoinPolicy joinPolicy,
-            Instant createdAt
-    ) {
-        return createRoom(
-                roomId,
-                name,
-                "",
-                ownerMembershipId,
-                ownerUserId,
-                visibility,
-                joinPolicy,
-                createdAt);
-    }
-
-    public static RoomCreationResult createRoom(
-            String roomId,
-            String ownerMembershipId,
-            String ownerUserId,
-            RoomVisibility visibility,
-            JoinPolicy joinPolicy,
-            Instant createdAt
-    ) {
-        return createRoom(
-                roomId,
-                roomId,
-                "",
-                ownerMembershipId,
-                ownerUserId,
-                visibility,
-                joinPolicy,
-                createdAt);
     }
 
     public static JoinRoomTransition joinRoom(

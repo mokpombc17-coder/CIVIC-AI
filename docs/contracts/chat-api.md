@@ -154,6 +154,7 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | --- | --- |
 | `RoomVisibility` | `LISTED`, `UNLISTED` |
 | `JoinPolicy` | `OPEN`, `INVITE_ONLY` |
+| `RoomCategory` | `POLICY`, `ENVIRONMENT`, `LOCAL_ISSUE` |
 | `RoomStatus` | `ACTIVE`, `CLOSED` |
 | `MembershipRole` | `OWNER`, `MEMBER` |
 | `MembershipStatus` | `ACTIVE`, `LEFT`, `BANNED` |
@@ -202,12 +203,13 @@ Idempotency-Key: <uuid>
 {
   "name": "시민 AI 토론방",
   "description": "AI 정책과 시민 참여 방식을 논의합니다.",
+  "categories": ["POLICY"],
   "visibility": "LISTED",
   "joinPolicy": "OPEN"
 }
 ```
 
-`name`, `visibility`, `joinPolicy`는 필수다. `description`은 선택
+`name`, `categories`, `visibility`, `joinPolicy`는 필수다. `description`은 선택
 사항이며 누락하거나 `null` 또는 빈 문자열로 보내면 `""`로 저장된다.
 `name`은 앞뒤 공백을 제거한 뒤 빈 문자열일 수 없으며 최대 100자까지
 허용한다.
@@ -216,6 +218,11 @@ Idempotency-Key: <uuid>
 줄바꿈은 보존한다. 최대 500 Unicode code point이며 TAB, LF, CR을 제외한
 C0 제어문자는 허용하지 않는다. Markdown 또는 HTML 렌더링 의미는 제공하지
 않는다.
+
+`categories`는 중복 없는 `RoomCategory` 배열이다. 현재 계약에서는 정확히
+1개를 요구한다. 배열 형태를 사용해 향후 최대 3개까지 확장할 수 있도록 하되,
+현재 2개 이상을 보내면 `400 INVALID_REQUEST`다. 표시 문구는 프론트에서
+`POLICY=정책`, `ENVIRONMENT=환경`, `LOCAL_ISSUE=지역 현안`으로 현지화한다.
 
 응답 `201 Created`:
 
@@ -253,6 +260,7 @@ Idempotency-Key: <uuid>
 {
   "name": "지역 교통 정책 토론방",
   "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
+  "categories": ["LOCAL_ISSUE"],
   "visibility": "UNLISTED",
   "joinPolicy": "OPEN"
 }
@@ -262,6 +270,7 @@ Idempotency-Key: <uuid>
 - 명시적인 `null`은 `400 INVALID_REQUEST`다.
 - 빈 object `{}`도 `400 INVALID_REQUEST`다.
 - 설명을 제거하려면 `"description": ""`을 보낸다.
+- 카테고리는 `categories` 전체 배열 교체 방식이며 현재 정확히 1개여야 한다.
 - 정규화된 요청값 전체가 현재 설정과 같으면 version을 올리지 않는다.
 - 한 요청에서 여러 필드가 바뀌어도 `roomVersion`은 정확히 1 증가한다.
 
@@ -275,6 +284,7 @@ Idempotency-Key: <uuid>
   "roomId": "room-01",
   "name": "지역 교통 정책 토론방",
   "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
+  "categories": ["LOCAL_ISSUE"],
   "visibility": "UNLISTED",
   "joinPolicy": "OPEN",
   "roomVersion": 8
@@ -519,6 +529,7 @@ GET /api/v1/rooms?cursor={cursor}&limit=20
       "roomId": "room-01",
       "name": "시민 AI 토론방",
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
+      "categories": ["POLICY"],
       "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -548,6 +559,7 @@ GET /api/v1/rooms/{roomId}
   "roomId": "room-01",
   "name": "시민 AI 토론방",
   "description": "AI 정책과 시민 참여 방식을 논의합니다.",
+  "categories": ["POLICY"],
   "ownerUserId": "local-user-1",
   "status": "ACTIVE",
   "visibility": "LISTED",
@@ -615,6 +627,7 @@ GET /api/v1/me/rooms?cursor={cursor}&limit=20
       "roomId": "room-01",
       "name": "시민 AI 토론방",
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
+      "categories": ["POLICY"],
       "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -1480,7 +1493,7 @@ payload 형태:
 | `ROOM_MEMBER_JOINED`, `ROOM_MEMBER_REJOINED`, `ROOM_MEMBER_LEFT`, `ROOM_MEMBER_BANNED`, `ROOM_MEMBER_UNBANNED` | `member` |
 | `ROOM_OWNERSHIP_TRANSFERRED` | `previousOwner`, `newOwner` |
 | `ROOM_CLOSED` | `owner` |
-| `ROOM_SETTINGS_UPDATED` | `name`, `description`, `visibility`, `joinPolicy` 전체 settings snapshot |
+| `ROOM_SETTINGS_UPDATED` | `name`, `description`, `categories`, `visibility`, `joinPolicy` 전체 settings snapshot |
 
 모든 `member`, `owner`, `previousOwner`, `newOwner` 상태 객체에는 플랫폼 사용자 식별자인
 `userId`와 방 멤버십 식별자인 `membershipId`가 함께 포함됩니다.
@@ -1499,6 +1512,7 @@ payload 형태:
     "roomStatus": "ACTIVE",
     "name": "지역 교통 정책 토론방",
     "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
+    "categories": ["LOCAL_ISSUE"],
     "visibility": "UNLISTED",
     "joinPolicy": "OPEN"
   }
@@ -1556,9 +1570,11 @@ ROOM_AUTHORIZATION_UNAVAILABLE
 
 Docker Compose로 서버와 MongoDB를 실행한 뒤 프론트 연동 계약 전체를 한 번에 확인할 수 있다.
 
-Room schema v1/v2 문서는 `description`을 `""`로 해석하고 다음 실제
-저장 때 schema v3로 전환한다. Room schema v1/v2만 남아 있는 경우에는
-description 추가 때문에 기존 MongoDB volume을 삭제할 필요가 없다.
+Room category 도입 후 `chat_rooms`의 현재 schema는 v4이며 `categories`가
+필수다. v1~v3 문서에 임의 기본 카테고리를 부여하지 않고 fail-closed로
+거절한다. 이번 로컬 개발 전환에서는 기존 데이터를 보존하지 않으므로 서버를
+기동하기 전에 전용 로컬 chat MongoDB database/volume 전체를 초기화한다.
+운영 데이터에는 별도 migration 정책 없이 이 초기화 절차를 적용하지 않는다.
 
 Membership는 `schemaVersion=2`와 `messageVisibleAfterSequence`를
 요구한다. Membership schema v1 또는 경계 필드가 누락된 문서는 경계를
@@ -1580,8 +1596,8 @@ python3 scripts/frontend-local-smoke.py
    동일한 `AUTHENTICATION_REQUIRED` ERROR를 반환하고, 유효한 쿠키로 명시적
    재연결하면 `CONNECTED`가 반환되는지 확인
 4. `civic_ai_access_token` 쿠키 JWT로 내 방 목록과 공개 방 목록 조회
-5. description을 포함한 `LISTED`, `OPEN` 방 생성
-6. 방 상세와 cursor 기반 전체 공개 목록에서 description 반영 확인
+5. description과 categories를 포함한 `LISTED`, `OPEN` 방 생성
+6. 방 상세와 cursor 기반 전체 공개 목록에서 description/categories 반영 확인
 7. 구독 유지 상태의 설정 변경, `ROOM_SETTINGS_UPDATED`, replay/no-op 확인
 8. `UNLISTED` 공개 목록 제외와 `INVITE_ONLY` join 차단 확인
 9. 메시지 CREATE/UPDATE/DELETE event와 command result 확인
@@ -1749,6 +1765,7 @@ Summary last message는
 
 ```json
 {
+  "categories": ["POLICY"],
   "readThroughSequence": 123,
   "unreadCount": 200,
   "unreadCountCapped": true,

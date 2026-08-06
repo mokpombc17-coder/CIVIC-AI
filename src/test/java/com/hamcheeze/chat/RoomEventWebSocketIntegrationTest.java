@@ -79,6 +79,8 @@ class RoomEventWebSocketIntegrationTest
                         "owner-1",
                         uuid(),
                         "Test room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN));
         String roomId = created.result().roomId();
@@ -174,6 +176,8 @@ class RoomEventWebSocketIntegrationTest
                         "owner-1",
                         uuid(),
                         "First room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .result()
@@ -183,6 +187,8 @@ class RoomEventWebSocketIntegrationTest
                         "owner-1",
                         uuid(),
                         "Second room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .result()
@@ -314,6 +320,8 @@ class RoomEventWebSocketIntegrationTest
                         "owner-1",
                         uuid(),
                         "Subscription sync room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .result()

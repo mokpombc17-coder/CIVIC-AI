@@ -270,6 +270,8 @@ class RoomInboxServiceTest {
                 roomId,
                 roomId,
                 "description",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,

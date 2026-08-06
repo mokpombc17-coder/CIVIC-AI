@@ -2,13 +2,17 @@ package com.hamcheeze.chat.room.application.result;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomCategories;
+import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 
+import java.util.List;
 import java.util.Objects;
 
 public record RoomSettingsSnapshot(
         String name,
         String description,
+        List<RoomCategory> categories,
         RoomVisibility visibility,
         JoinPolicy joinPolicy
 ) {
@@ -22,6 +26,7 @@ public record RoomSettingsSnapshot(
                     "name is not canonical");
         }
         requireCanonicalDescription(description);
+        categories = RoomCategories.requireValid(categories);
         Objects.requireNonNull(visibility, "visibility");
         Objects.requireNonNull(joinPolicy, "joinPolicy");
     }

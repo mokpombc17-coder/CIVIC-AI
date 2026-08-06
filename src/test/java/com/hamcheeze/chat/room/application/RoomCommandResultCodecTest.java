@@ -250,6 +250,9 @@ class RoomCommandResultCodecTest {
                     new RoomSettingsSnapshot(
                             "Room name",
                             "Room description",
+                            java.util.List.of(
+                                    com.hamcheeze.chat.room.RoomCategory
+                                            .POLICY),
                             RoomVisibility.UNLISTED,
                             JoinPolicy.INVITE_ONLY));
         }

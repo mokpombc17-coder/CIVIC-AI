@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,6 +19,9 @@ class RoomCreationAndRestoreTest {
                 RoomMembershipTransitions.createRoom(
                         "room-1",
                         "  Test room  ",
+                "",
+                java.util.List.of(
+                        RoomCategory.POLICY),
                         "membership-owner",
                         "owner-1",
                         RoomVisibility.LISTED,
@@ -28,6 +32,8 @@ class RoomCreationAndRestoreTest {
                 .isEqualTo(RoomCreationResult.Outcome.CREATED);
         assertThat(result.room().roomId()).isEqualTo("room-1");
         assertThat(result.room().name()).isEqualTo("Test room");
+        assertThat(result.room().categories())
+                .containsExactly(RoomCategory.POLICY);
         assertThat(result.room().ownerUserId())
                 .isEqualTo("owner-1");
         assertThat(result.room().status())
@@ -50,6 +56,23 @@ class RoomCreationAndRestoreTest {
         assertThat(owner.bannedAt()).isNull();
         assertThat(owner.messageVisibleAfterSequence()).isZero();
         assertThat(owner.version()).isZero();
+    }
+
+    @Test
+    void categoriesAreRequiredAndCurrentlyLimitedToOne() {
+        assertThatThrownBy(() -> RoomCategories.requireValid(List.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RoomCategories.requireValid(List.of(
+                RoomCategory.POLICY,
+                RoomCategory.ENVIRONMENT)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> RoomCategories.requireValid(List.of(
+                RoomCategory.POLICY,
+                RoomCategory.POLICY)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(RoomCategories.requireValid(List.of(
+                RoomCategory.LOCAL_ISSUE)))
+                .containsExactly(RoomCategory.LOCAL_ISSUE);
     }
 
     @Test
@@ -77,6 +100,9 @@ class RoomCreationAndRestoreTest {
                 () -> RoomMembershipTransitions.createRoom(
                         "room-1",
                         " ",
+                "",
+                java.util.List.of(
+                        RoomCategory.POLICY),
                         "owner",
                         "owner-1",
                         RoomVisibility.LISTED,
@@ -87,6 +113,9 @@ class RoomCreationAndRestoreTest {
                 () -> RoomMembershipTransitions.createRoom(
                         "room-1",
                         "a".repeat(Room.MAX_NAME_LENGTH + 1),
+                "",
+                java.util.List.of(
+                        RoomCategory.POLICY),
                         "owner",
                         "owner-1",
                         RoomVisibility.LISTED,
@@ -397,6 +426,10 @@ class RoomCreationAndRestoreTest {
     ) {
         return RoomMembershipTransitions.createRoom(
                 roomId,
+                roomId,
+                "",
+                java.util.List.of(
+                        RoomCategory.POLICY),
                 ownerMembershipId,
                 ownerUserId,
                 visibility,
@@ -412,6 +445,10 @@ class RoomCreationAndRestoreTest {
     ) {
         return Room.restore(
                 "room-1",
+                "room-1",
+                "",
+                java.util.List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,

@@ -13,7 +13,7 @@ public final class RoomCommandResultCodec {
 
     public static final String RESULT_TYPE = "ROOM_COMMAND_RESULT";
     public static final int RESULT_SCHEMA_VERSION = 1;
-    public static final int SETTINGS_RESULT_SCHEMA_VERSION = 2;
+    public static final int SETTINGS_RESULT_SCHEMA_VERSION = 3;
 
     private final ObjectWriter legacyWriter;
     private final ObjectReader legacyReader;
