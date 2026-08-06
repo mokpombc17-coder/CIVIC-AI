@@ -1,5 +1,6 @@
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { ChatApiError } from "./chat-fetch";
 import {
   createRoomMutationOptions,
   joinRoomMutationOptions,
@@ -202,6 +203,33 @@ describe("chat room mutation options", () => {
     );
   });
 
+  it.each([false, true])(
+    "사용자 ACTIVE Room quota 거절은 JOIN/REJOIN 성공 cache effect를 실행하지 않는다 (replayed=%s)",
+    async (replayed) => {
+      const queryClient = createQueryClient();
+      seedRoomQueries(queryClient);
+      seedMessageHistories(queryClient);
+      const error = createUserActiveRoomLimitError(replayed);
+      const joinRoom = vi.fn(async () => Promise.reject(error));
+      const options = joinRoomMutationOptions(queryClient, { joinRoom });
+      const observer = new MutationObserver(queryClient, options);
+
+      await expect(observer.mutate(createJoinVariables())).rejects.toBe(error);
+
+      expect(options.retry).toBe(false);
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(false);
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(false);
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(false);
+      expect(isInvalidated(queryClient, chatRoomQueryKeys.myMembership("room-01"))).toBe(false);
+      expect(
+        isInvalidated(queryClient, chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20)),
+      ).toBe(false);
+      expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50))).toBe(
+        "room-01-50",
+      );
+    },
+  );
+
   it("mutation 자동 재시도를 끄고 기존 IdempotentCommand를 그대로 전달한다", async () => {
     const queryClient = createQueryClient();
     const transferRoomOwnership = vi.fn(async () => TRANSFER_OWNERSHIP_RESPONSE);
@@ -288,6 +316,25 @@ function createJoinVariables() {
 
 function isInvalidated(queryClient: QueryClient, queryKey: readonly unknown[]): boolean {
   return queryClient.getQueryState(queryKey)?.isInvalidated ?? false;
+}
+
+function createUserActiveRoomLimitError(replayed: boolean): ChatApiError {
+  return new ChatApiError(
+    409,
+    "Conflict",
+    "http://localhost:8082/api/v1/rooms/room-01/commands/join",
+    {
+      type: "urn:hamcheeze:problem:user-active-room-limit-exceeded",
+      title: "Room command rejected",
+      status: 409,
+      detail: "The user has reached the active room limit.",
+      instance: "/api/v1/rooms/room-01/commands/join",
+      code: "USER_ACTIVE_ROOM_LIMIT_EXCEEDED",
+      clientRequestId: IDEMPOTENCY_KEY,
+      replayed,
+      retryable: false,
+    },
+  );
 }
 
 const CREATE_ROOM_RESPONSE = {
