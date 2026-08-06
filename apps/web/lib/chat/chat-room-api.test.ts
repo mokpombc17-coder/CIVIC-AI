@@ -31,11 +31,18 @@ describe("chatRoomApi queries", () => {
       },
     );
     const api = createChatRoomApi(request);
+    const publicRoomsAbortController = new AbortController();
 
-    await api.listPublicRooms({
-      cursor: "public cursor",
-      limit: 20,
-    });
+    await api.listPublicRooms(
+      {
+        query: "  교통 & 환경  ",
+        category: "LOCAL_ISSUE",
+        joinPolicy: "OPEN",
+        cursor: "public cursor",
+        limit: 20,
+      },
+      publicRoomsAbortController.signal,
+    );
     await api.listMyRooms({ limit: 100 });
     await api.listRoomInbox({
       cursor: "inbox cursor",
@@ -50,14 +57,15 @@ describe("chatRoomApi queries", () => {
     });
 
     expect(calls.map(({ path }) => path)).toEqual([
-      "/rooms?cursor=public+cursor&limit=20",
+      "/rooms?joinPolicy=OPEN&query=%EA%B5%90%ED%86%B5+%26+%ED%99%98%EA%B2%BD&category=LOCAL_ISSUE&cursor=public+cursor&limit=20",
       "/me/rooms?limit=100",
       "/me/room-inbox?cursor=inbox+cursor&limit=20",
       "/rooms/room-01",
       "/rooms/room-01/memberships/me",
       "/rooms/room-01/memberships?status=BANNED&cursor=member+cursor&limit=10",
     ]);
-    expect(calls.every(({ init }) => init === undefined)).toBe(true);
+    expect(calls[0]?.init?.signal).toBe(publicRoomsAbortController.signal);
+    expect(calls.slice(1).every(({ init }) => init === undefined)).toBe(true);
   });
 
   it("응답이 계약과 다르면 endpoint 문맥을 가진 오류를 반환한다", async () => {
@@ -81,6 +89,9 @@ describe("chatRoomApi queries", () => {
     const api = createChatRoomApi(request);
 
     await expect(api.listPublicRooms({ limit: 101 })).rejects.toThrow();
+    await expect(api.listPublicRooms({ query: "😀".repeat(101) })).rejects.toThrow();
+    await expect(api.listPublicRooms({ query: "교통\n정책" })).rejects.toThrow();
+    await expect(api.listPublicRooms({ category: "UNKNOWN" as never })).rejects.toThrow();
     await expect(api.listRoomInbox({ limit: 21 })).rejects.toThrow();
     await expect(api.getRoom("invalid room")).rejects.toThrow("roomId 형식이 올바르지 않습니다.");
     expect(calls).toHaveLength(0);

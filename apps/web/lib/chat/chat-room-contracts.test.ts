@@ -9,6 +9,7 @@ import {
   myRoomListResponseSchema,
   normalizeChatMessageContent,
   normalizeRoomDescription,
+  publicRoomListParamsSchema,
   publicRoomListResponseSchema,
   roomCategoriesSchema,
   roomCategorySchema,
@@ -253,6 +254,47 @@ describe("chat room REST contracts", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("공개 방 검색 조건을 정규화하고 enum을 검증한다", () => {
+    expect(
+      publicRoomListParamsSchema.parse({
+        query: "  교통 정책  ",
+        category: "LOCAL_ISSUE",
+        joinPolicy: "OPEN",
+        cursor: "opaque cursor",
+        limit: 20,
+      }),
+    ).toEqual({
+      query: "교통 정책",
+      category: "LOCAL_ISSUE",
+      joinPolicy: "OPEN",
+      cursor: "opaque cursor",
+      limit: 20,
+    });
+    expect(publicRoomListParamsSchema.parse({ query: "   " }).query).toBeUndefined();
+    expect(publicRoomListParamsSchema.safeParse({ category: "UNKNOWN" }).success).toBe(false);
+  });
+
+  it("공개 방 검색어를 Unicode code point 100자로 제한하고 제어 문자를 거절한다", () => {
+    expect(publicRoomListParamsSchema.safeParse({ query: "😀".repeat(100) }).success).toBe(true);
+    expect(publicRoomListParamsSchema.safeParse({ query: "😀".repeat(101) }).success).toBe(false);
+    expect(publicRoomListParamsSchema.safeParse({ query: "교통\n정책" }).success).toBe(false);
+  });
+
+  it("마지막 cursor page에서 생략된 nextCursor를 null로 정규화한다", () => {
+    expect(
+      publicRoomListResponseSchema.parse({
+        items: [],
+        hasNext: false,
+      }).nextCursor,
+    ).toBeNull();
+    expect(
+      publicRoomListResponseSchema.safeParse({
+        items: [],
+        hasNext: true,
+      }).success,
+    ).toBe(false);
   });
 
   it("Room inbox unread projection과 최대 limit 20을 검증한다", () => {

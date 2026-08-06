@@ -15,6 +15,7 @@ import {
   membershipStatusSchema,
   messageHistoryRequestSchema,
   myRoomListResponseSchema,
+  publicRoomListParamsSchema,
   publicRoomListResponseSchema,
   roomDetailsSchema,
   roomIdSchema,
@@ -40,7 +41,10 @@ import {
   type MessageHistoryRequest,
   type MessageHistoryResponse,
   type MyRoomListResponse,
+  type JoinPolicy,
   type PublicRoomListResponse,
+  type PublicRoomListParams,
+  type RoomCategory,
   type RoomDetails,
   type RoomInboxListParams,
   type RoomInboxListResponse,
@@ -91,7 +95,10 @@ export type ChatRoomApi = Readonly<{
     command: IdempotentCommand<TargetUserRequest>,
   ): Promise<UnbanRoomMemberResponse>;
   closeRoom(roomId: string, command: IdempotentCommand<undefined>): Promise<CloseRoomResponse>;
-  listPublicRooms(params?: CursorPaginationParams): Promise<PublicRoomListResponse>;
+  listPublicRooms(
+    params?: PublicRoomListParams,
+    signal?: AbortSignal,
+  ): Promise<PublicRoomListResponse>;
   getRoom(roomId: string): Promise<RoomDetails>;
   getMyMembership(roomId: string): Promise<RoomMembership>;
   listMyRooms(params?: CursorPaginationParams): Promise<MyRoomListResponse>;
@@ -222,12 +229,13 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
       );
     },
 
-    async listPublicRooms(params = {}) {
+    async listPublicRooms(params = {}, signal) {
       return requestAndParse(
         request,
         "공개 방 목록 응답",
         publicRoomListResponseSchema,
-        createListPath("/rooms", cursorPaginationParamsSchema.parse(params)),
+        createListPath("/rooms", publicRoomListParamsSchema.parse(params)),
+        signal ? { signal } : undefined,
       );
     },
 
@@ -361,11 +369,26 @@ function createListPath(
   path: string,
   params: {
     cursor?: string | undefined;
+    category?: RoomCategory | undefined;
+    joinPolicy?: JoinPolicy | undefined;
     limit?: number | undefined;
+    query?: string | undefined;
     status?: z.infer<typeof membershipStatusSchema> | undefined;
   },
 ): string {
   const searchParams = new URLSearchParams();
+
+  if (params.joinPolicy !== undefined) {
+    searchParams.set("joinPolicy", params.joinPolicy);
+  }
+
+  if (params.query !== undefined) {
+    searchParams.set("query", params.query);
+  }
+
+  if (params.category !== undefined) {
+    searchParams.set("category", params.category);
+  }
 
   if (params.status !== undefined) {
     searchParams.set("status", params.status);

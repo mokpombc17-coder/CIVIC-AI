@@ -10,6 +10,7 @@ const nonnegativeSequenceSchema = z.number().int().nonnegative();
 const positiveMessageVersionSchema = z.number().int().positive();
 const messageHistoryLimitSchema = z.number().int().min(1).max(100);
 const forbiddenC0ControlCharacterPattern = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
+const isoControlCharacterPattern = /[\u0000-\u001F\u007F-\u009F]/u;
 const javaStringStripWhitespacePattern =
   /^[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+|[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+$/gu;
 
@@ -95,6 +96,19 @@ export const roomParticipationStatusSchema = z.enum([
   "NOT_JOINED",
   "ROOM_CLOSED",
 ]);
+
+export const publicRoomSearchQuerySchema = z
+  .string()
+  .refine(
+    (query) => !isoControlCharacterPattern.test(query),
+    "공개 방 검색어에 제어 문자를 포함할 수 없습니다.",
+  )
+  .transform((query) => query.replace(javaStringStripWhitespacePattern, ""))
+  .refine(
+    (query) => Array.from(query).length <= 100,
+    "공개 방 검색어는 Unicode code point 100자를 초과할 수 없습니다.",
+  )
+  .transform((query) => query || undefined);
 
 export const roomMembershipSchema = z.object({
   membershipId: opaqueIdSchema,
@@ -379,6 +393,12 @@ export const cursorPaginationParamsSchema = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
 
+export const publicRoomListParamsSchema = cursorPaginationParamsSchema.extend({
+  query: publicRoomSearchQuerySchema.optional(),
+  category: roomCategorySchema.optional(),
+  joinPolicy: joinPolicySchema.optional(),
+});
+
 export const roomInboxListParamsSchema = z.object({
   cursor: cursorSchema.optional(),
   limit: z.number().int().min(1).max(20).optional(),
@@ -437,6 +457,7 @@ export type MessageHistoryMode = z.infer<typeof messageHistoryModeSchema>;
 export type MessageHistoryRequest = z.input<typeof messageHistoryRequestSchema>;
 export type MessageHistoryResponse = z.infer<typeof messageHistoryResponseBaseSchema>;
 export type CursorPaginationParams = z.input<typeof cursorPaginationParamsSchema>;
+export type PublicRoomListParams = z.input<typeof publicRoomListParamsSchema>;
 export type RoomInboxListParams = z.input<typeof roomInboxListParamsSchema>;
 export type RoomMembershipListParams = z.input<typeof roomMembershipListParamsSchema>;
 export type UpdateRoomReadStateRequest = z.input<typeof updateRoomReadStateRequestSchema>;
@@ -517,7 +538,7 @@ function createCursorPageSchema<TItem extends z.ZodType>(itemSchema: TItem) {
   return z
     .object({
       items: z.array(itemSchema),
-      nextCursor: cursorSchema.nullable(),
+      nextCursor: cursorSchema.nullish().transform((cursor) => cursor ?? null),
       hasNext: z.boolean(),
     })
     .superRefine((page, context) => {
