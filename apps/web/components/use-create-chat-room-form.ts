@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { parseCreateChatRoomFormData } from "@/components/create-chat-room-form-model";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
+import { getCreateRoomErrorMessage } from "@/lib/chat/chat-room-command-error-presentation";
 import type { CreateRoomRequest, RoomCategory } from "@/lib/chat/chat-room-contracts";
 import { useCreateRoomMutation } from "@/lib/chat/chat-room-mutations";
 import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
@@ -58,7 +59,7 @@ export function useCreateChatRoomForm() {
     canRetry,
     canSubmit: selectedCategory !== null && !createRoom.isPending,
     clearFailedAttempt,
-    errorMessage: createRoom.isError ? toErrorMessage(createRoom.error) : null,
+    errorMessage: createRoom.isError ? getCreateRoomErrorMessage(createRoom.error) : null,
     handleSubmit,
     isPending: createRoom.isPending,
     selectedCategory,
@@ -70,8 +71,4 @@ export function useCreateChatRoomForm() {
     },
     validationError,
   };
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
 }
