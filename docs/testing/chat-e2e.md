@@ -201,6 +201,18 @@ OWNER가 공개 방 생성
 → 기존 Room 하나 종료 후 새 key의 JOIN 성공
 ```
 
+공개 방 검색·필터는 고유한 제목을 공유하는 OPEN Room 21개를 실제 API로 만든 뒤, 브라우저
+검색 UI와 cursor pagination이 같은 조건을 유지하는지 검증한다.
+
+```text
+검색어 입력 후 검색 버튼 제출
+→ query trim, joinPolicy=OPEN, category 생략과 cursor 없는 첫 page 확인
+→ 공개 방 더 보기에서 같은 조건과 서버 nextCursor 전달 확인
+→ REST 응답과 DOM의 21개 Room ID가 중복·누락 없이 일치하는지 확인
+→ 카테고리 변경만으로 cursor 없는 첫 page 즉시 재조회
+→ 공백 검색어 제출 시 query를 생략하고 선택 category 유지
+```
+
 ## 사전 조건
 
 Chat Resource Server와 MongoDB가 로컬 `http://localhost:8082`에서 실행 중이어야 한다.
@@ -236,6 +248,12 @@ pnpm test:e2e:debug
 
 ```bash
 pnpm exec playwright test e2e/chat-user-active-room-limit.spec.ts
+```
+
+공개 방 검색·필터만 실행하려면 다음 명령을 사용한다.
+
+```bash
+pnpm exec playwright test e2e/chat-public-room-search.spec.ts
 ```
 
 Next.js 개발 서버는 Playwright가 자동으로 실행한다. 이미 `localhost:3000`에서 실행 중이면 로컬

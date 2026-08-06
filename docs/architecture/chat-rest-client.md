@@ -127,12 +127,21 @@ message-history/{roomId}
 ```
 
 목록과 메시지 이력의 `limit`, 멤버 목록의 `status`는 결과 집합을 바꾸므로 query key에
+포함한다. 공개 방 목록은 정규화한 `query`, `category`, 고정 `joinPolicy=OPEN`도 query key에
 포함한다. cursor와 `beforeSequence`는 동일한 목록의 다음 page를 가리키므로 query key에 넣지
 않고 infinite query의 `pageParam`으로 관리한다.
 
 ### Query
 
 - 공개 방 목록, 내 방 목록과 멤버 목록은 `useInfiniteQuery`를 사용한다.
+- 공개 방 제목 검색은 검색 버튼을 눌러 적용하며, 카테고리는 선택 즉시 적용한다. 검색 입력의
+  debounce 상수와 적용 경계는 준비되어 있지만 초기 정책에서는 timer를 실행하지 않는다.
+- 공개 방 탐색 요청은 `joinPolicy=OPEN`을 항상 포함한다. 공백 검색어와 전체 카테고리는 각각
+  `query`, `category` parameter를 생략한다.
+- 공개 방 검색 조건이 바뀌면 새 query key의 첫 page부터 조회하고, 다음 page에는 서버 cursor와
+  동일한 검색 조건을 전달한다. cursor는 해석하거나 저장하지 않는다.
+- 다음 page의 `INVALID_CURSOR`는 같은 조건의 page chain을 한 번만 reset해 첫 page부터 복구한다.
+  그 밖의 다음 page 오류는 기존 항목을 유지하고 사용자가 해당 page를 다시 요청할 수 있게 한다.
 - 방 상세와 내 멤버십은 roomId별 `useQuery`를 사용한다.
 - cursor가 `null`인 첫 page에서는 query parameter를 보내지 않는다.
 - 서버가 반환한 `nextCursor`를 해석하지 않고 다음 page parameter로 전달한다.

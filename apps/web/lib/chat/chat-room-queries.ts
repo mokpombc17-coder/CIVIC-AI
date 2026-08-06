@@ -265,6 +265,8 @@ export function usePublicRoomsQuery(params: PublicRoomListQueryParams = {}) {
   const recoveryKey = JSON.stringify(options.queryKey);
   const recovery = useMemo<PublicRoomInvalidCursorRecoveryState>(
     () => ({ attempted: false }),
+    // recoveryKey가 바뀌면 새 검색 조건이므로 one-shot cursor 복구 상태도 초기화한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [recoveryKey],
   );
 
