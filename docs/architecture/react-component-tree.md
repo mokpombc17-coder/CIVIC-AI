@@ -78,6 +78,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
                             │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
                             │           ├── ChatConnectionStatus [Client] [Feature] (apps/web/components/chat-connection-status.tsx)
+                            │           ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
                             │           ├── CreateChatRoomForm [Client] [Feature] [conditional] (apps/web/components/create-chat-room-form.tsx)
                             │           │   └── ChatRoomCategorySelector [Client] [Feature] (apps/web/components/chat-room-category-selector.tsx)
                             │           ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
@@ -115,10 +116,12 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 렌더링한다. 패널이 열린 동안 SharedWorker 또는 direct transport의 구조화 진단 snapshot을
 주기적으로 조회하며, 초기화와 전체 JSON 다운로드 기능을 제공한다.
 
-`ChatRoomListScreen`은 목록 Query, 공개 방 필터링, 생성 폼 disclosure를 담당하는 hook과
-`ChatRoomListView`를 연결한다. View 이하의 생성 폼과 참여 control은 각각 동작 hook을 호출하되,
-validation, mutation, 멱등성 key 재시도와 라우팅 구현은 JSX 밖에 둔다. 방 card, unread badge,
-avatar, notice와 pagination button은 이 책임 경계를 바꾸지 않는 순수 표현 요소라 생략한다.
+`ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외와 생성 폼 disclosure를
+담당하는 hook을 `ChatRoomListView`에 연결한다. `PublicRoomSearchForm`은 검색어 draft와 카테고리
+선택을 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query 조건은 container hook에 둔다.
+View 이하의 생성 폼과 참여 control은 각각 동작 hook을 호출하되, validation, mutation, 멱등성 key
+재시도와 라우팅 구현은 JSX 밖에 둔다. 방 card, unread badge, avatar, notice와 pagination button은
+이 책임 경계를 바꾸지 않는 순수 표현 요소라 생략한다.
 `ChatRoomCategorySelector`는 생성·설정 UI가 공유하는 controlled 단일 선택 표현을 담당하고,
 Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
@@ -186,6 +189,7 @@ flowchart TD
     ChatPage["ChatPage [Server] [Route]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomListScreen["ChatRoomListScreen [Client] [Container]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat-room-list-view.tsx"]
+    PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/public-room-search-form.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional]<br/>apps/web/components/create-chat-room-form.tsx"]
     ChatRoomCategorySelector["ChatRoomCategorySelector [Client] [Feature]<br/>apps/web/components/chat-room-category-selector.tsx"]
     ChatRoomCategoryBadges["ChatRoomCategoryBadges [Server-compatible] [View]<br/>apps/web/components/chat-room-category-badges.tsx"]
@@ -230,6 +234,7 @@ flowchart TD
     ChatPage --> ChatRoomListScreen
     ChatRoomListScreen --> ChatRoomListView
     ChatRoomListView --> ChatConnectionStatus
+    ChatRoomListView --> PublicRoomSearchForm
     ChatRoomListView -->|"conditional create form"| CreateChatRoomForm
     CreateChatRoomForm --> ChatRoomCategorySelector
     ChatRoomListView -->|"room cards"| ChatRoomCategoryBadges
@@ -257,6 +262,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

@@ -9,6 +9,8 @@ import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activit
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
 import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
 import { JoinChatRoomControl } from "@/components/join-chat-room-control";
+import { PublicRoomSearchForm } from "@/components/public-room-search-form";
+import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
 
 const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
@@ -35,6 +37,7 @@ type ChatRoomListViewProps = Readonly<{
   isCreateRoomOpen: boolean;
   now?: Date;
   participatingRooms: RoomListState<RoomInboxListItem>;
+  publicRoomSearch: PublicRoomSearchController;
   publicRooms: RoomListState<PublicRoomListItem>;
   toggleCreateRoomForm: () => void;
 }>;
@@ -45,6 +48,7 @@ export function ChatRoomListView({
   isCreateRoomOpen,
   now,
   participatingRooms,
+  publicRoomSearch,
   publicRooms,
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
@@ -119,9 +123,10 @@ export function ChatRoomListView({
 
       <RoomListSection eyebrow="Discover" title="공개 방 탐색">
         <p className="-mt-3 mb-5 text-sm text-slate-500">
-          이미 불러온 참여 방은 이 목록에서 제외합니다. OPEN 방은 바로 참여할 수 있고 초대 전용 방은
-          목록만 확인할 수 있습니다.
+          이미 불러온 참여 방은 이 목록에서 제외하며, 직접 참여할 수 있는 OPEN 방만 표시합니다.
         </p>
+
+        <PublicRoomSearchForm controller={publicRoomSearch} />
 
         <QueryFailure
           error={publicRooms.error}
@@ -133,7 +138,13 @@ export function ChatRoomListView({
         {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
           <RoomListNotice message="공개 방을 불러오고 있습니다." />
         ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
-          <RoomListNotice message="현재 새로 참여할 수 있는 공개 방이 없습니다." />
+          <RoomListNotice
+            message={
+              publicRoomSearch.appliedQuery || publicRoomSearch.category
+                ? "검색 조건에 맞는 공개 방이 없습니다."
+                : "현재 새로 참여할 수 있는 공개 방이 없습니다."
+            }
+          />
         ) : publicRooms.rooms.length > 0 ? (
           <ul aria-label="공개 채팅방" className={SCROLLABLE_ROOM_LIST_CLASS_NAME} tabIndex={0}>
             {publicRooms.rooms.map((room) => (

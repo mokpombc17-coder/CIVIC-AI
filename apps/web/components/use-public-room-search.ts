@@ -21,6 +21,15 @@ export type PublicRoomSearchAction =
   | Readonly<{ type: "composition-ended" }>
   | Readonly<{ type: "submitted" }>;
 
+export type PublicRoomSearchController = PublicRoomSearchState &
+  Readonly<{
+    applySearch: () => void;
+    endComposition: () => void;
+    setCategory: (value?: RoomCategory) => void;
+    setDraftQuery: (value: string) => void;
+    startComposition: () => void;
+  }>;
+
 export const INITIAL_PUBLIC_ROOM_SEARCH_STATE: PublicRoomSearchState = {
   appliedQuery: undefined,
   category: undefined,
@@ -79,7 +88,7 @@ export function reducePublicRoomSearchState(
   }
 }
 
-export function usePublicRoomSearch() {
+export function usePublicRoomSearch(): PublicRoomSearchController {
   const [state, dispatch] = useReducer(
     reducePublicRoomSearchState,
     INITIAL_PUBLIC_ROOM_SEARCH_STATE,
