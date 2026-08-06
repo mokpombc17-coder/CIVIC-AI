@@ -10,6 +10,7 @@ export type ChatProblemDetails = Readonly<{
   detail: string;
   instance: string;
   code: string;
+  clientRequestId?: string;
   replayed: boolean;
   retryable: boolean;
   fieldErrors?: readonly ChatFieldError[];
@@ -30,6 +31,7 @@ export function isChatProblemDetails(value: unknown): value is ChatProblemDetail
     typeof value.detail === "string" &&
     typeof value.instance === "string" &&
     typeof value.code === "string" &&
+    (value.clientRequestId === undefined || typeof value.clientRequestId === "string") &&
     typeof value.replayed === "boolean" &&
     typeof value.retryable === "boolean" &&
     (fieldErrors === undefined ||

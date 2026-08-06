@@ -17,6 +17,22 @@ describe("isChatProblemDetails", () => {
     expect(isChatProblemDetails(baseProblem)).toBe(true);
   });
 
+  it("Room command의 clientRequestId를 보존하고 잘못된 타입은 거절한다", () => {
+    const problem = {
+      ...baseProblem,
+      clientRequestId: "07af9111-3e20-43e5-ae80-78d1bf547647",
+    };
+
+    expect(isChatProblemDetails(problem)).toBe(true);
+
+    if (!isChatProblemDetails(problem)) {
+      throw new Error("Problem Details 계약을 만족해야 합니다.");
+    }
+
+    expect(problem.clientRequestId).toBe("07af9111-3e20-43e5-ae80-78d1bf547647");
+    expect(isChatProblemDetails({ ...problem, clientRequestId: 123 })).toBe(false);
+  });
+
   it("body validation의 fieldErrors를 판별한다", () => {
     expect(
       isChatProblemDetails({
