@@ -1,13 +1,20 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { usePublicRoomSearch } from "@/components/use-public-room-search";
 import { usePublicRoomsQuery, useRoomInboxQuery } from "@/lib/chat/chat-room-queries";
 
 export function useChatRoomListScreen() {
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const createRoomTriggerRef = useRef<HTMLButtonElement>(null);
+  const publicRoomSearch = usePublicRoomSearch();
   const roomInbox = useRoomInboxQuery();
-  const publicRooms = usePublicRoomsQuery();
+  const publicRooms = usePublicRoomsQuery({
+    ...(publicRoomSearch.appliedQuery === undefined
+      ? {}
+      : { query: publicRoomSearch.appliedQuery }),
+    ...(publicRoomSearch.category === undefined ? {} : { category: publicRoomSearch.category }),
+  });
   const participatingRoomIds = useMemo(
     () => new Set(roomInbox.rooms.map((room) => room.roomId)),
     [roomInbox.rooms],
@@ -55,6 +62,7 @@ export function useChatRoomListScreen() {
       retry: () => void publicRooms.refetch(),
       rooms: discoverableRooms,
     },
+    publicRoomSearch,
     toggleCreateRoomForm,
   };
 }
