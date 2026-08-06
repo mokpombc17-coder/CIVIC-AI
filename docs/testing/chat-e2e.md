@@ -187,6 +187,20 @@ OWNER가 공개 방 생성
 → 사용자가 참여 버튼을 다시 누르면 새로운 Idempotency-Key 사용 확인
 ```
 
+사용자별 ACTIVE Room quota는 한 사용자의 실제 Room을 quota까지 생성한 뒤 CREATE와 JOIN 흐름을
+함께 검증한다.
+
+```text
+사용자 M이 ACTIVE Room quota까지 Room 생성
+→ 추가 CREATE가 USER_ACTIVE_ROOM_LIMIT_EXCEEDED로 거절
+→ form 유지, 한국어 안내, pending 해제와 재시도 버튼 미노출 확인
+→ 같은 Idempotency-Key 재전송은 replayed=true 확인
+→ 기존 Room 하나 종료 후 새 key의 CREATE 성공
+→ 다시 quota가 찬 상태에서 공개 Room JOIN 거절
+→ 같은 Idempotency-Key 재전송은 replayed=true 확인
+→ 기존 Room 하나 종료 후 새 key의 JOIN 성공
+```
+
 ## 사전 조건
 
 Chat Resource Server와 MongoDB가 로컬 `http://localhost:8082`에서 실행 중이어야 한다.
@@ -218,6 +232,12 @@ pnpm test:e2e:headed
 pnpm test:e2e:debug
 ```
 
+사용자별 ACTIVE Room quota만 실행하려면 다음 명령을 사용한다.
+
+```bash
+pnpm exec playwright test e2e/chat-user-active-room-limit.spec.ts
+```
+
 Next.js 개발 서버는 Playwright가 자동으로 실행한다. 이미 `localhost:3000`에서 실행 중이면 로컬
 테스트에서는 기존 서버를 재사용한다.
 
@@ -238,4 +258,12 @@ pnpm exec playwright show-report e2e/.artifacts/report
 CHAT_E2E_WEB_BASE_URL=http://localhost:3000 \
 CHAT_E2E_RESOURCE_SERVER_URL=http://localhost:8082 \
 pnpm test:e2e
+```
+
+백엔드의 사용자별 ACTIVE Room quota를 기본값과 다르게 실행했다면 E2E fixture 수도 같은 값으로
+맞춘다. 이 환경 변수는 테스트 fixture 구성에만 사용되며 제품 UI 계약은 아니다.
+
+```bash
+CHAT_E2E_USER_ACTIVE_ROOM_LIMIT=20 \
+pnpm exec playwright test e2e/chat-user-active-room-limit.spec.ts
 ```
