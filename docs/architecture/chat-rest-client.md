@@ -7,7 +7,8 @@
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면
   연결, 방 생성·공개 방 참여·나가기·방장 위임·차단·종료 관리 화면 연결,
-  `afterSequence` 기반 재연결·누락 자동 복구, 연결·동기화 오류 UX
+  `afterSequence` 기반 재연결·누락 자동 복구, 연결·동기화 오류 UX,
+  사용자별 ACTIVE 참여 Room quota 오류 UX
 - 후속 범위: 로컬 통합·E2E 스모크 테스트
 
 ## 계층
@@ -71,6 +72,22 @@ Room metadata의 `categories`는 배열을 유지하지만 현재 계약에서�
 카테고리 변경은 Room metadata 변경일 뿐 메시지 activity, unread, read-state 또는 Room inbox
 정렬 위치를 바꾸지 않는다.
 
+### 사용자별 ACTIVE 참여 Room quota
+
+Room 생성과 신규 참여·재참여에서 서버가 `409 USER_ACTIVE_ROOM_LIMIT_EXCEEDED`를 반환할 수
+있다. 프론트는 이 결과를 authoritative하게 사용하며 현재 참여 Room 수로 quota를 계산하거나
+명령을 미리 차단하지 않는다.
+
+- 현재 서버 기본값 `20`은 배포 설정이므로 사용자 문구와 validation에 하드코딩하지 않는다.
+- `ROOM_MEMBER_LIMIT_EXCEEDED`는 해당 Room의 참여 정원이고,
+  `USER_ACTIVE_ROOM_LIMIT_EXCEEDED`는 현재 사용자의 참여 Room quota이므로 서로 다른 문구로
+  안내한다.
+- 사용자 quota 오류에는 다른 참여 방에서 나간 뒤 다시 시도하도록 안내한다.
+- `retryable=false`이므로 자동 재시도와 같은 요청 재시도 버튼을 제공하지 않는다.
+- 거절된 명령은 Room·Membership을 변경하지 않으므로 성공 cache effect, Room inbox reset 또는
+  WebSocket room claim을 실행하지 않는다.
+- `replayed=true`인 같은 거절 receipt도 동일한 실패로 표시한다.
+
 ## Idempotency 정책
 
 Command API 함수는 UUID를 내부에서 생성하지 않고 `IdempotentCommand`를 입력으로 받는다.
@@ -84,6 +101,10 @@ Command API 함수는 UUID를 내부에서 생성하지 않고 `IdempotentComman
 retryable 오류 또는 네트워크 재시도
   → 기존 IdempotentCommand 재사용
     → 같은 Idempotency-Key와 같은 body 전송
+
+사용자가 quota 상태를 해결한 뒤 새로 제출
+  → createIdempotentCommand(body) 다시 실행
+    → 새로운 Idempotency-Key 전송
 ```
 
 API 함수 내부에서 재시도마다 key를 새로 만들면 서버가 기존 요청과 같은 작업으로 식별할 수
