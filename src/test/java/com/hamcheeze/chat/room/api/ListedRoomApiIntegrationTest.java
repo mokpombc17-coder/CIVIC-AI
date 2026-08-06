@@ -17,11 +17,19 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,6 +48,8 @@ class ListedRoomApiIntegrationTest
 
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void listsOnlyActiveListedRoomsWithCursor()
@@ -176,6 +186,161 @@ class ListedRoomApiIntegrationTest
     }
 
     @Test
+    void supportsEveryOptionalCriteriaCombination()
+            throws Exception {
+        insert(
+                "matrix-a",
+                "Matrix Needle Alpha",
+                RoomCategory.LOCAL_ISSUE,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "matrix-b",
+                "Matrix Needle Invite",
+                RoomCategory.LOCAL_ISSUE,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.INVITE_ONLY);
+        insert(
+                "matrix-c",
+                "Matrix Needle Environment",
+                RoomCategory.ENVIRONMENT,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "matrix-d",
+                "Different Title",
+                RoomCategory.LOCAL_ISSUE,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+
+        assertRooms(
+                List.of("matrix-a", "matrix-b", "matrix-c"),
+                "query", "matrix needle");
+        assertRooms(
+                List.of("matrix-a", "matrix-b", "matrix-d"),
+                "category", "LOCAL_ISSUE");
+        assertRooms(
+                List.of("matrix-a", "matrix-c", "matrix-d"),
+                "joinPolicy", "OPEN");
+        assertRooms(
+                List.of("matrix-a", "matrix-b"),
+                "query", "matrix needle",
+                "category", "LOCAL_ISSUE");
+        assertRooms(
+                List.of("matrix-a", "matrix-c"),
+                "query", "matrix needle",
+                "joinPolicy", "OPEN");
+        assertRooms(
+                List.of("matrix-a", "matrix-d"),
+                "category", "LOCAL_ISSUE",
+                "joinPolicy", "OPEN");
+        assertRooms(
+                List.of("matrix-a"),
+                "query", "matrix needle",
+                "category", "LOCAL_ISSUE",
+                "joinPolicy", "OPEN");
+    }
+
+    @Test
+    void searchesNameAtEveryPositionAndSupportsOneCharacter()
+            throws Exception {
+        insert(
+                "search-a",
+                "정책",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "search-b",
+                "정책 토론",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "search-c",
+                "지역 정책 토론",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "search-d",
+                "지역 정책",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "search-e",
+                "Policy Discussion",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+
+        List<String> koreanMatches = List.of(
+                "search-a",
+                "search-b",
+                "search-c",
+                "search-d");
+        assertRooms(koreanMatches, "query", "정책");
+        assertRooms(koreanMatches, "query", "책");
+        assertRooms(List.of("search-e"), "query", "policy");
+        assertRooms(List.of(), "query", "검색결과없음");
+    }
+
+    @Test
+    void paginatesFilteredResultsWithoutDuplicatesOrGaps()
+            throws Exception {
+        for (int index = 0; index < 45; index++) {
+            insert(
+                    "page-room-%02d".formatted(index),
+                    "Pagination Needle " + index,
+                    RoomCategory.LOCAL_ISSUE,
+                    RoomStatus.ACTIVE,
+                    RoomVisibility.LISTED,
+                    JoinPolicy.OPEN);
+        }
+        insert(
+                "page-excluded-category",
+                "Pagination Needle Category",
+                RoomCategory.POLICY,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "page-excluded-policy",
+                "Pagination Needle Invite",
+                RoomCategory.LOCAL_ISSUE,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.INVITE_ONLY);
+
+        MvcResult first = performFilteredPage(null)
+                .andExpect(jsonPath("$.items.length()").value(20))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andReturn();
+        assertThat(roomIds(first))
+                .containsExactlyElementsOf(pageRoomIds(0, 20));
+
+        MvcResult second = performFilteredPage(nextCursor(first))
+                .andExpect(jsonPath("$.items.length()").value(20))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andReturn();
+        assertThat(roomIds(second))
+                .containsExactlyElementsOf(pageRoomIds(20, 40));
+
+        MvcResult third = performFilteredPage(nextCursor(second))
+                .andExpect(jsonPath("$.items.length()").value(5))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist())
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andReturn();
+        assertThat(roomIds(third))
+                .containsExactlyElementsOf(pageRoomIds(40, 45));
+    }
+
+    @Test
     void treatsRegexMetacharactersAsLiteralText()
             throws Exception {
         insert(
@@ -298,6 +463,68 @@ class ListedRoomApiIntegrationTest
                 .jwt(jwt -> jwt.subject("user-1"))
                 .authorities(new SimpleGrantedAuthority(
                         ChatScopes.authority(scope)));
+    }
+
+    private void assertRooms(
+            List<String> expectedRoomIds,
+            String... parameters
+    ) throws Exception {
+        MockHttpServletRequestBuilder request =
+                get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ));
+        for (int index = 0;
+                index < parameters.length;
+                index += 2) {
+            request.queryParam(
+                    parameters[index],
+                    parameters[index + 1]);
+        }
+        MvcResult result = mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andReturn();
+        assertThat(roomIds(result))
+                .containsExactlyElementsOf(expectedRoomIds);
+    }
+
+    private ResultActions performFilteredPage(String cursor)
+            throws Exception {
+        MockHttpServletRequestBuilder request =
+                get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam(
+                                "query",
+                                "  PAGINATION NEEDLE  ")
+                        .queryParam("category", "LOCAL_ISSUE")
+                        .queryParam("joinPolicy", "OPEN")
+                        .queryParam("limit", "20");
+        if (cursor != null) {
+            request.queryParam("cursor", cursor);
+        }
+        return mockMvc.perform(request)
+                .andExpect(status().isOk());
+    }
+
+    private List<String> roomIds(MvcResult result)
+            throws Exception {
+        JsonNode items = objectMapper.readTree(
+                result.getResponse().getContentAsByteArray())
+                .path("items");
+        List<String> roomIds = new ArrayList<>();
+        for (JsonNode item : items) {
+            roomIds.add(item.path("roomId").asText());
+        }
+        return roomIds;
+    }
+
+    private List<String> pageRoomIds(
+            int startInclusive,
+            int endExclusive
+    ) {
+        return IntStream.range(startInclusive, endExclusive)
+                .mapToObj(index ->
+                        "page-room-%02d".formatted(index))
+                .toList();
     }
 
     private String nextCursor(MvcResult result) throws Exception {

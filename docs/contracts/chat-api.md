@@ -190,7 +190,7 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | `POST` | `/api/v1/rooms/{roomId}/commands/ban-member` | 멤버 차단 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/unban-member` | 멤버 차단 해제 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/close` | 방 종료 | `200` |
-| `GET` | `/api/v1/rooms` | 공개 방 목록 | `200` |
+| `GET` | `/api/v1/rooms` | 공개 방 목록 검색·필터 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}` | 방 상세 조회 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/memberships/me` | 내 멤버십 조회 | `200` |
 | `GET` | `/api/v1/me/rooms` | 내 활성 방 목록 | `200` |
@@ -568,15 +568,47 @@ Cache-Control: no-store
 ### 공개 방 목록
 
 ```http
-GET /api/v1/rooms?cursor={cursor}&limit=20
+GET /api/v1/rooms?query=교통&category=LOCAL_ISSUE&joinPolicy=OPEN&cursor={cursor}&limit=20
 ```
 
-- `status=ACTIVE`, `visibility=LISTED`인 방만 반환한다.
+- 요청과 관계없이 `status=ACTIVE`, `visibility=LISTED`인 방만 반환한다.
+- 검색·필터 파라미터를 생략한 기존 요청은 `OPEN`과 `INVITE_ONLY` 방을
+  모두 반환한다.
+- `query`: 선택 사항. 앞뒤 공백을 제거한 뒤 `Room.name`에서 영문
+  대소문자를 구분하지 않는 literal 부분일치를 수행한다. 빈 문자열이나
+  공백만 있는 값은 검색 조건을 적용하지 않는다. 1~100 Unicode code point를
+  허용하며 제어문자가 있거나 100자를 초과하면 `400 INVALID_REQUEST`다.
+  정규식 metacharacter도 일반 문자로 처리한다.
+- `category`: 선택 사항. `POLICY`, `ENVIRONMENT`, `LOCAL_ISSUE` 중 하나이며
+  `Room.categories`에 해당 값이 포함된 방만 반환한다.
+- `joinPolicy`: 선택 사항. `OPEN` 또는 `INVITE_ONLY`인 방만 반환한다.
 - `cursor`: 선택 사항. 서버가 반환한 `nextCursor`를 그대로 사용한다.
+  현재 공개 방 목록 cursor는 검색 조건을 포함하는 v2 token만 지원한다.
+  검색·필터 조건을 변경한 요청에 이전 cursor를 사용하면
+  `400 INVALID_CURSOR`다. 예전 v1 cursor도 지원하지 않는다.
 - `limit`: 선택 사항. 기본값 `20`, 허용 범위 `1~100`.
+- 동일한 `query`, `category`, `joinPolicy` 파라미터를 반복하면
+  `400 INVALID_REQUEST`다.
 - `chat:rooms:read` scope가 필요하며, 목록 조회 자체에는 방 멤버십이 필요하지 않다.
-- `joinPolicy=OPEN`인 방은 기존 방 참여 API로 참여할 수 있다.
+- 모든 선택 조건은 AND로 결합하고 Mongo 조회와 pagination 전에 적용한다.
+- `joinPolicy=OPEN`은 공개 join을 시도할 수 있다는 뜻이며 참여 성공을
+  보장하지 않는다. 정원, BANNED 상태, 사용자별 ACTIVE Room 한도 및 조회
+  이후 상태 변경은 기존 join command가 최종 판정한다.
 - `joinPolicy=INVITE_ONLY`인 방도 목록에는 보이지만 현재 직접 참여할 수 없다.
+
+참여 가능한 공개 방 탐색 화면에서는 항상 `joinPolicy=OPEN`을 전달한다.
+
+```http
+GET /api/v1/rooms?joinPolicy=OPEN
+GET /api/v1/rooms?joinPolicy=OPEN&query=법
+GET /api/v1/rooms?joinPolicy=OPEN&category=POLICY
+GET /api/v1/rooms?joinPolicy=OPEN&query=교통&category=LOCAL_ISSUE
+```
+
+프론트는 한글 IME composition 완료 후 250~300ms debounce하여 요청하고,
+새 검색 요청을 시작하면 진행 중인 이전 요청을 취소하는 방식을 권장한다.
+`query`, `category`, `joinPolicy` 중 하나라도 바뀌면 `cursor`를 제거하고 첫
+페이지부터 조회한다. cursor 내부 payload를 해석하거나 생성하지 않는다.
 
 응답:
 
@@ -602,7 +634,10 @@ GET /api/v1/rooms?cursor={cursor}&limit=20
 }
 ```
 
-`hasNext`가 `true`이면 다음 요청의 `cursor`에 `nextCursor`를 전달한다.
+`hasNext`가 `true`이면 동일한 검색·필터 조건과 함께 다음 요청의 `cursor`에
+`nextCursor`를 전달한다. 정렬은 검색 관련도가 아니라 기존 `roomId ASC`를
+유지한다. Mongo 조회 실패나 timeout은 빈 목록으로 변환하지 않고 요청
+실패로 처리한다.
 
 ### 방 상세 조회
 
@@ -1674,7 +1709,8 @@ python3 scripts/frontend-local-smoke.py
 
 1. Next.js 임시 로그인을 실행한다.
 2. `GET /api/v1/me/rooms`로 REST 쿠키 인증을 확인한다.
-3. `GET /api/v1/rooms`로 공개 방 목록을 확인한다.
+3. `GET /api/v1/rooms?joinPolicy=OPEN`으로 참여를 시도할 수 있는 공개 방
+   목록을 확인하고, 검색 조건 변경 시 cursor를 초기화한다.
 4. `POST /api/v1/rooms`로 방을 생성한다.
 5. `GET /api/v1/rooms/{roomId}`로 생성된 방을 확인한다.
 6. `ws://localhost:8082/ws`에 연결한다.
