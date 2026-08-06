@@ -7,6 +7,8 @@ Room inbox의 최종 상태는 `GET /api/v1/me/room-inbox`가 소유한다. 개�
 ## REST 계약과 표시
 
 각 Room inbox item은 unread projection과 함께 `lastMessage`, `lastActivityAt`을 제공한다.
+Room metadata의 `categories`도 함께 검증하며 사용자에게는 `정책`, `환경`, `지역 현안` badge로
+표시한다.
 
 - `lastMessage.state=ACTIVE`: 서버 preview를 표시하고 `previewTruncated=true`일 때만 `…`를
   한 번 붙인다.
@@ -18,6 +20,8 @@ Room inbox의 최종 상태는 `GET /api/v1/me/room-inbox`가 소유한다. 개�
 
 `lastMessage.createdAt`과 `lastActivityAt`은 같은 시각이어야 한다. 수정·삭제는 최신 메시지의
 원래 생성 시각과 정렬 위치를 바꾸지 않는다.
+카테고리 변경 역시 message activity가 아니므로 `lastActivityAt`, unread와 latest-first 순서를
+바꾸지 않는다.
 
 ## latest-first infinite query reset
 

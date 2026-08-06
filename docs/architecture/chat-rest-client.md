@@ -2,7 +2,7 @@
 
 ## 문서 상태
 
-- 작성일: 2026-07-30
+- 작성일: 2026-08-06
 - 적용 대상: `apps/web`
 - 서버 prefix: `http://localhost:8082/api/v1`
 - 구현 범위: 방 Command 및 Query 계약, 메시지 이력 REST 계약, 방 목록·상세·최신 이력 화면
@@ -48,6 +48,28 @@ TanStack Query hook
 
 서버가 반환하는 `Instant`는 timezone offset이 있는 ISO-8601 문자열로 검증한다. cursor는
 해석하지 않는 opaque 문자열이며 다음 요청에 URL encoding하여 그대로 전달한다.
+
+### Room category 계약
+
+Room metadata의 `categories`는 배열을 유지하지만 현재 계약에서는 정확히 하나가 필수다.
+
+| API 값        | 사용자 표시 |
+| ------------- | ----------- |
+| `POLICY`      | 정책        |
+| `ENVIRONMENT` | 환경        |
+| `LOCAL_ISSUE` | 지역 현안   |
+
+- Room 생성 요청은 `categories: [selectedCategory]`를 반드시 전송한다.
+- 설정 변경에서 `categories`를 생략하면 기존 값을 유지하고, 포함하면 배열 전체를 교체한다.
+- 공개 목록, 내 방 목록, Room inbox, 방 상세와 설정 변경 snapshot은 `categories`를 필수로
+  검증한다.
+- 생성·설정 UI는 현재 radio 방식의 단일 선택만 제공한다. Backend 계약이 확장되기 전에는 다중
+  선택을 열지 않는다.
+- card와 방 상세는 공용 label map과 `ChatRoomCategoryBadges`를 사용하며 API enum을 직접 노출하지
+  않는다.
+
+카테고리 변경은 Room metadata 변경일 뿐 메시지 activity, unread, read-state 또는 Room inbox
+정렬 위치를 바꾸지 않는다.
 
 ## Idempotency 정책
 
