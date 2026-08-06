@@ -1,6 +1,13 @@
 import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 const AUTH_COOKIE_NAME = "civic_ai_access_token";
+const ROOM_CATEGORY_LABEL = {
+  POLICY: "정책",
+  ENVIRONMENT: "환경",
+  LOCAL_ISSUE: "지역 현안",
+} as const;
+
+type E2ERoomCategory = keyof typeof ROOM_CATEGORY_LABEL;
 
 export async function authenticateDevUser(page: Page, context: BrowserContext): Promise<void> {
   await page.goto("/");
@@ -44,7 +51,7 @@ export async function authenticateDevUserAs(
 export async function createRoomAndEnter(
   page: Page,
   roomName: string,
-  { description }: { description?: string } = {},
+  { category = "POLICY", description }: { category?: E2ERoomCategory; description?: string } = {},
 ): Promise<string> {
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "채팅방", exact: true })).toBeVisible();
@@ -56,7 +63,10 @@ export async function createRoomAndEnter(
     await page.getByRole("textbox", { name: "방 설명" }).fill(description);
   }
 
-  await page.locator("#create-room-form").getByText("정책", { exact: true }).click();
+  await page
+    .locator("#create-room-form")
+    .getByText(ROOM_CATEGORY_LABEL[category], { exact: true })
+    .click();
   await page.getByRole("button", { name: "채팅방 만들기" }).click();
 
   await expect(page).toHaveURL(/\/chat\/[A-Za-z0-9_-]+$/);

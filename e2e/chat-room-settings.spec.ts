@@ -22,6 +22,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
     await test.step("방장이 설명이 있는 공개 채팅방을 만든다", async () => {
       await authenticateDevUserAs(ownerPage, ownerContext, `e2e-settings-owner-${uniqueId}`);
       await createRoomAndEnter(ownerPage, initialName, {
+        category: "LOCAL_ISSUE",
         description: initialDescription,
       });
 
@@ -31,7 +32,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       const membershipDialog = ownerPage.getByRole("dialog", { name: "방 정보와 멤버십" });
       await expect(membershipDialog).toBeVisible();
       await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
-      await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("정책");
+      await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("지역 현안");
       await expect(
         membershipDialog.getByRole("button", { name: "방 설정", exact: true }),
       ).toBeVisible();
@@ -52,7 +53,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
 
       const publicRoomCard = await findPublicRoomCard(memberPage, initialName);
 
-      await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("정책");
+      await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("지역 현안");
       await joinPublicRoomAndEnter(memberPage, roomId!, initialName, { navigate: false });
 
       await memberPage.getByRole("button", { name: "방 정보", exact: true }).click();
@@ -78,7 +79,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       await expect(dialog.getByRole("textbox", { name: "방 설명" })).toHaveValue(
         initialDescription,
       );
-      await expect(dialog.getByRole("radio", { name: "정책", exact: true })).toBeChecked();
+      await expect(dialog.getByRole("radio", { name: "지역 현안", exact: true })).toBeChecked();
 
       await dialog.getByRole("textbox", { name: "방 이름" }).fill(updatedName);
       await dialog.getByRole("textbox", { name: "방 설명" }).fill(updatedDescription);
