@@ -7,6 +7,10 @@ import { chatRoomQueryKeys } from "@/lib/chat/chat-room-queries";
 import { createIdempotentCommand } from "@/lib/chat/idempotent-command";
 
 const IDEMPOTENCY_KEY = "550e8400-e29b-41d4-a716-446655440000";
+const PUBLIC_LIST_KEY = chatRoomQueryKeys.publicList({
+  joinPolicy: "OPEN",
+  limit: 20,
+});
 
 describe("room settings form patch", () => {
   it("서버 canonical 값과 같아지는 공백 차이는 변경으로 보내지 않는다", () => {
@@ -175,7 +179,7 @@ describe("room settings form to mutation integration", () => {
       },
     });
     expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(true);
-    expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(true);
+    expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myMembership("room-01"))).toBe(false);
     expect(
@@ -197,7 +201,7 @@ function createSeededQueryClient(): QueryClient {
   });
 
   queryClient.setQueryData(chatRoomQueryKeys.detail("room-01"), "detail");
-  queryClient.setQueryData(chatRoomQueryKeys.publicList(20), "public");
+  queryClient.setQueryData(PUBLIC_LIST_KEY, "public");
   queryClient.setQueryData(chatRoomQueryKeys.myList(20), "my");
   queryClient.setQueryData(chatRoomQueryKeys.myMembership("room-01"), "membership");
   queryClient.setQueryData(chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20), "members");

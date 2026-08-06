@@ -20,15 +20,37 @@ import {
 import type { MessageHistoryResponse } from "./chat-room-contracts";
 
 describe("chat room query options", () => {
-  it("공개 방 cursor를 page parameter로 전달하고 query key에서는 제외한다", async () => {
+  it("공개 방 검색 조건을 정규화해 key와 첫 요청에 고정한다", async () => {
     const listPublicRooms = vi.fn(async () => EMPTY_PAGE);
-    const options = publicRoomsInfiniteQueryOptions({ limit: 30 }, { listPublicRooms });
+    const options = publicRoomsInfiniteQueryOptions(
+      {
+        query: "  교통  ",
+        category: "LOCAL_ISSUE",
+        limit: 30,
+      },
+      { listPublicRooms },
+    );
     const queryClient = createQueryClient();
 
     await queryClient.fetchInfiniteQuery(options);
 
-    expect(options.queryKey).toEqual(chatRoomQueryKeys.publicList(30));
-    expect(listPublicRooms).toHaveBeenCalledWith({ limit: 30 });
+    expect(options.queryKey).toEqual(
+      chatRoomQueryKeys.publicList({
+        query: "교통",
+        category: "LOCAL_ISSUE",
+        joinPolicy: "OPEN",
+        limit: 30,
+      }),
+    );
+    expect(listPublicRooms).toHaveBeenCalledWith(
+      {
+        query: "교통",
+        category: "LOCAL_ISSUE",
+        joinPolicy: "OPEN",
+        limit: 30,
+      },
+      expect.any(AbortSignal),
+    );
     expect(
       options.getNextPageParam?.(
         {
@@ -41,6 +63,55 @@ describe("chat room query options", () => {
         [],
       ),
     ).toBe("opaque cursor");
+  });
+
+  it("공개 방 검색 조건별 cache를 분리하고 공백 차이는 같은 key로 정규화한다", () => {
+    const trimmed = publicRoomsInfiniteQueryOptions({ query: "환경" });
+    const padded = publicRoomsInfiniteQueryOptions({ query: "  환경  " });
+    const categorized = publicRoomsInfiniteQueryOptions({
+      query: "환경",
+      category: "ENVIRONMENT",
+    });
+
+    expect(trimmed.queryKey).toEqual(padded.queryKey);
+    expect(trimmed.queryKey).not.toEqual(categorized.queryKey);
+  });
+
+  it("공개 방 다음 page에도 같은 검색 조건과 서버 cursor를 전달한다", async () => {
+    const listPublicRooms = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [],
+        nextCursor: "opaque cursor",
+        hasNext: true,
+      })
+      .mockResolvedValueOnce(EMPTY_PAGE);
+    const options = publicRoomsInfiniteQueryOptions(
+      {
+        query: "정책",
+        category: "POLICY",
+      },
+      { listPublicRooms },
+    );
+    const observer = new InfiniteQueryObserver(createQueryClient(), options);
+    const unsubscribe = observer.subscribe(() => {});
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().hasNextPage).toBe(true));
+    await observer.fetchNextPage();
+
+    expect(listPublicRooms).toHaveBeenNthCalledWith(
+      2,
+      {
+        query: "정책",
+        category: "POLICY",
+        joinPolicy: "OPEN",
+        limit: 20,
+        cursor: "opaque cursor",
+      },
+      expect.any(AbortSignal),
+    );
+
+    unsubscribe();
   });
 
   it("내 방 목록은 기본 limit 20을 사용한다", async () => {

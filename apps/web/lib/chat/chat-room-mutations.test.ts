@@ -11,6 +11,10 @@ import {
 import { chatRoomQueryKeys } from "./chat-room-queries";
 
 const IDEMPOTENCY_KEY = "07af9111-3e20-43e5-ae80-78d1bf547647";
+const PUBLIC_LIST_KEY = chatRoomQueryKeys.publicList({
+  joinPolicy: "OPEN",
+  limit: 20,
+});
 
 describe("chat room mutation options", () => {
   it("방 생성 성공 시 공개 방과 내 방 목록만 무효화한다", async () => {
@@ -34,7 +38,7 @@ describe("chat room mutation options", () => {
     await observer.mutate(command);
 
     expect(createRoom).toHaveBeenCalledWith(command);
-    expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(true);
+    expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(false);
   });
@@ -93,7 +97,7 @@ describe("chat room mutation options", () => {
       expect(updateRoomSettings).toHaveBeenCalledWith("room-01", variables.command);
       expect(queryClient.getQueryData(chatRoomQueryKeys.detail("room-01"))).toBe("detail");
       expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(true);
-      expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(true);
+      expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(true);
       expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(true);
       expect(isInvalidated(queryClient, chatRoomQueryKeys.myMembership("room-01"))).toBe(false);
       expect(
@@ -125,7 +129,7 @@ describe("chat room mutation options", () => {
     await observer.mutate(variables);
 
     expect(joinRoom).toHaveBeenCalledWith("room-01", variables.command);
-    expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(true);
+    expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myMembership("room-01"))).toBe(true);
@@ -217,7 +221,7 @@ describe("chat room mutation options", () => {
       await expect(observer.mutate(createJoinVariables())).rejects.toBe(error);
 
       expect(options.retry).toBe(false);
-      expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(false);
+      expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(false);
       expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(false);
       expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(false);
       expect(isInvalidated(queryClient, chatRoomQueryKeys.myMembership("room-01"))).toBe(false);
@@ -273,7 +277,7 @@ describe("chat room mutation options", () => {
 
     expect(updateRoomReadState).toHaveBeenCalledWith("room-01", variables.request);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.roomInbox(20))).toBe(true);
-    expect(isInvalidated(queryClient, chatRoomQueryKeys.publicList(20))).toBe(false);
+    expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(false);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(false);
     expect(options.retry).toBeTypeOf("function");
     expect(options.retryDelay).toBeTypeOf("function");
@@ -291,7 +295,7 @@ function createQueryClient(): QueryClient {
 }
 
 function seedRoomQueries(queryClient: QueryClient): void {
-  queryClient.setQueryData(chatRoomQueryKeys.publicList(20), "public");
+  queryClient.setQueryData(PUBLIC_LIST_KEY, "public");
   queryClient.setQueryData(chatRoomQueryKeys.myList(20), "my");
   queryClient.setQueryData(chatRoomQueryKeys.detail("room-01"), "detail");
   queryClient.setQueryData(chatRoomQueryKeys.myMembership("room-01"), "membership");

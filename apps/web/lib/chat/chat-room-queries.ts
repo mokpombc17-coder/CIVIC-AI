@@ -10,12 +10,14 @@ import {
 import { mergePresortedChatMessages } from "./chat-message-merge";
 import { ChatApiError } from "./chat-fetch";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
+import { publicRoomListParamsSchema } from "./chat-room-contracts";
 import type {
   ChatMessage,
   MembershipStatus,
   MessageHistoryResponse,
   MyRoomListItem,
   PublicRoomListItem,
+  RoomCategory,
   RoomInboxListItem,
   RoomInboxListResponse,
   RoomMembershipListItem,
@@ -31,6 +33,19 @@ const EMPTY_ROOM_LIST_ITEMS: readonly never[] = [];
 
 export type ChatRoomListQueryParams = Readonly<{
   limit?: number;
+}>;
+
+export type PublicRoomListQueryParams = Readonly<{
+  query?: string;
+  category?: RoomCategory;
+  limit?: number;
+}>;
+
+export type PublicRoomListCriteria = Readonly<{
+  query?: string;
+  category?: RoomCategory;
+  joinPolicy: "OPEN";
+  limit: number;
 }>;
 
 export type ChatRoomMembershipListQueryParams = Readonly<{
@@ -51,7 +66,8 @@ export type ChatMessageHistoryQueryParams = Readonly<{
 export const chatRoomQueryKeys = {
   all: ["chat", "rooms"] as const,
   publicLists: () => [...chatRoomQueryKeys.all, "public-list"] as const,
-  publicList: (limit: number) => [...chatRoomQueryKeys.publicLists(), { limit }] as const,
+  publicList: (criteria: PublicRoomListCriteria) =>
+    [...chatRoomQueryKeys.publicLists(), criteria] as const,
   myLists: () => [...chatRoomQueryKeys.all, "my-list"] as const,
   myList: (limit: number) => [...chatRoomQueryKeys.myLists(), { limit }] as const,
   roomInboxes: () => [...chatRoomQueryKeys.all, "room-inbox"] as const,
@@ -74,19 +90,44 @@ export const chatRoomQueryKeys = {
 };
 
 export function publicRoomsInfiniteQueryOptions(
-  { limit = DEFAULT_LIST_LIMIT }: ChatRoomListQueryParams = {},
+  params: PublicRoomListQueryParams = {},
   api: Pick<ChatRoomApi, "listPublicRooms"> = chatRoomApi,
 ) {
+  const criteria = normalizePublicRoomListCriteria(params);
+
   return infiniteQueryOptions({
-    queryKey: chatRoomQueryKeys.publicList(limit),
+    queryKey: chatRoomQueryKeys.publicList(criteria),
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      api.listPublicRooms({
-        limit,
-        ...(pageParam === null ? {} : { cursor: pageParam }),
-      }),
+    queryFn: ({ pageParam, signal }) =>
+      api.listPublicRooms(
+        {
+          ...criteria,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+        },
+        signal,
+      ),
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.nextCursor : null),
   });
+}
+
+export function normalizePublicRoomListCriteria({
+  query,
+  category,
+  limit = DEFAULT_LIST_LIMIT,
+}: PublicRoomListQueryParams = {}): PublicRoomListCriteria {
+  const parsed = publicRoomListParamsSchema.parse({
+    query,
+    category,
+    joinPolicy: "OPEN",
+    limit,
+  });
+
+  return {
+    ...(parsed.query === undefined ? {} : { query: parsed.query }),
+    ...(parsed.category === undefined ? {} : { category: parsed.category }),
+    joinPolicy: "OPEN",
+    limit: parsed.limit ?? DEFAULT_LIST_LIMIT,
+  };
 }
 
 export function myRoomsInfiniteQueryOptions(
@@ -210,7 +251,7 @@ export function flattenRoomMessageHistoryPages(
   }).messages;
 }
 
-export function usePublicRoomsQuery(params: ChatRoomListQueryParams = {}) {
+export function usePublicRoomsQuery(params: PublicRoomListQueryParams = {}) {
   const query = useInfiniteQuery(publicRoomsInfiniteQueryOptions(params));
   const rooms = useMemo(
     () => flattenRoomListPages<PublicRoomListItem>(query.data?.pages),
