@@ -52,8 +52,14 @@ class ListedRoomQueryServiceTest {
         assertThat(first.nextCursor()).isNotBlank();
 
         ListedRoomQueryCursor cursor =
-                cursorCodec.decode(first.nextCursor());
+                cursorCodec.decode(
+                        first.nextCursor(),
+                        new ListedRoomQueryCriteria(
+                                null,
+                                null,
+                                null));
         assertThat(cursor.lastRoomId()).isEqualTo("room-b");
+        assertThat(cursor.version()).isEqualTo(2);
         verify(reader).findRoomsByStatusAndVisibility(
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -66,6 +72,11 @@ class ListedRoomQueryServiceTest {
         ListedRoomQueryCursor cursor =
                 new ListedRoomQueryCursor(
                         ListedRoomQueryCursor.CURRENT_VERSION,
+                        ListedRoomQueryCursor.Scope.LISTED_ROOMS,
+                        new ListedRoomQueryCriteria(
+                                null,
+                                null,
+                                null),
                         "room-a");
         String token = cursorCodec.encode(cursor);
         when(reader.findRoomsByStatusAndVisibility(

@@ -10,6 +10,9 @@ import java.util.Objects;
 
 public final class ListedRoomQueryService {
 
+    private static final ListedRoomQueryCriteria UNFILTERED =
+            new ListedRoomQueryCriteria(null, null, null);
+
     private final RoomQueryReader reader;
     private final ListedRoomQueryCursorCodec cursorCodec;
 
@@ -30,7 +33,9 @@ public final class ListedRoomQueryService {
             throw new IllegalArgumentException(
                     "limit must be between 1 and 100");
         }
-        ListedRoomQueryCursor decoded = cursorCodec.decode(cursor);
+        ListedRoomQueryCursor decoded = cursorCodec.decode(
+                cursor,
+                UNFILTERED);
         CursorSlice<Room> rooms = reader.findRoomsByStatusAndVisibility(
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -45,6 +50,8 @@ public final class ListedRoomQueryService {
             nextCursor = cursorCodec.encode(
                     new ListedRoomQueryCursor(
                             ListedRoomQueryCursor.CURRENT_VERSION,
+                            ListedRoomQueryCursor.Scope.LISTED_ROOMS,
+                            UNFILTERED,
                             last.roomId()));
         }
         return new CursorPage<>(
