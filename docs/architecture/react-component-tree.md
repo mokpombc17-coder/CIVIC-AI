@@ -93,6 +93,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                         └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
                                             └── ChatRoomSettingsControl [Client] [Feature] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
+                                                └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
                         │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
@@ -239,6 +240,7 @@ flowchart TD
     ChatRoomScreen -->|"room info disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel -->|"active OWNER only"| ChatRoomSettingsControl
+    ChatRoomSettingsControl -->|"conditional settings dialog"| ChatRoomCategorySelector
 
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage

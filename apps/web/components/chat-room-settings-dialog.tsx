@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { ChatRoomCategorySelector } from "@/components/chat-room-category-selector";
 import { createRoomSettingsPatch } from "@/components/chat-room-settings-form";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
-import type { RoomDetails, UpdateRoomSettingsRequest } from "@/lib/chat/chat-room-contracts";
+import type {
+  RoomCategory,
+  RoomDetails,
+  UpdateRoomSettingsRequest,
+} from "@/lib/chat/chat-room-contracts";
 import { useUpdateRoomSettingsMutation } from "@/lib/chat/chat-room-mutations";
 import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
@@ -50,6 +55,9 @@ function ChatRoomSettingsDialog({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const updateSettings = useUpdateRoomSettingsMutation();
+  const [selectedCategory, setSelectedCategory] = useState<RoomCategory | null>(
+    room.categories[0] ?? null,
+  );
   const [validationError, setValidationError] = useState<string | null>(null);
   const [retryCommand, setRetryCommand] =
     useState<IdempotentCommand<UpdateRoomSettingsRequest> | null>(null);
@@ -106,6 +114,7 @@ function ChatRoomSettingsDialog({
     const result = createRoomSettingsPatch(room, {
       name: formData.get("name"),
       description: formData.get("description"),
+      categories: selectedCategory ? [selectedCategory] : [],
       visibility: formData.get("visibility"),
       joinPolicy: formData.get("joinPolicy"),
     });
@@ -199,6 +208,12 @@ function ChatRoomSettingsDialog({
               빈 값으로 저장하면 설명을 제거합니다. 최대 500자의 일반 텍스트입니다.
             </span>
           </div>
+
+          <ChatRoomCategorySelector
+            disabled={updateSettings.isPending}
+            onSelect={setSelectedCategory}
+            selectedCategory={selectedCategory}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium text-slate-700">

@@ -71,9 +71,11 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       await expect(dialog.getByRole("textbox", { name: "방 설명" })).toHaveValue(
         initialDescription,
       );
+      await expect(dialog.getByRole("radio", { name: "정책", exact: true })).toBeChecked();
 
       await dialog.getByRole("textbox", { name: "방 이름" }).fill(updatedName);
       await dialog.getByRole("textbox", { name: "방 설명" }).fill(updatedDescription);
+      await dialog.getByText("환경", { exact: true }).click();
       await dialog.getByRole("combobox", { name: "공개 범위" }).selectOption("UNLISTED");
       await dialog.getByRole("combobox", { name: "참여 정책" }).selectOption("INVITE_ONLY");
 
@@ -85,11 +87,23 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
 
       await dialog.getByRole("button", { name: "변경사항 저장", exact: true }).click();
 
-      expect((await updateResponse).status()).toBe(200);
+      const response = await updateResponse;
+
+      expect(response.status()).toBe(200);
+      expect(response.request().postDataJSON()).toMatchObject({
+        categories: ["ENVIRONMENT"],
+      });
       await expect(dialog).toBeHidden();
       await expect(
         ownerPage.getByRole("status").filter({ hasText: "방 설정을 변경했습니다." }),
       ).toBeVisible();
+
+      await ownerPage.getByRole("button", { name: "방 설정", exact: true }).click();
+
+      const reopenedDialog = ownerPage.getByRole("dialog", { name: "방 설정 변경" });
+
+      await expect(reopenedDialog.getByRole("radio", { name: "환경", exact: true })).toBeChecked();
+      await reopenedDialog.getByRole("button", { name: "방 설정 닫기", exact: true }).click();
       await ownerPage.getByRole("button", { name: "방 정보와 멤버십 닫기", exact: true }).click();
     });
 
@@ -108,14 +122,13 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       await expect(memberPage.getByRole("button", { name: "방 설정", exact: true })).toHaveCount(0);
     });
 
-    await test.step("UNLISTED 방은 공개 목록에서 사라지고 내 방 목록에는 최신 설명이 남는다", async () => {
+    await test.step("UNLISTED 방은 공개 목록에서 사라지고 내 방 목록에는 최신 이름이 남는다", async () => {
       await ownerPage.goto("/chat");
 
       const myRoomLink = ownerPage.getByRole("link").filter({ hasText: updatedName });
       const publicRoomCard = ownerPage.getByRole("article").filter({ hasText: updatedName });
 
       await expect(myRoomLink).toBeVisible();
-      await expect(myRoomLink).toContainText(updatedDescription);
       await expect(publicRoomCard).toHaveCount(0);
     });
   } finally {

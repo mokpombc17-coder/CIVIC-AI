@@ -106,6 +106,7 @@ describe("chat room event cache projector", () => {
       roomVersion: 2,
       name: "새 방 이름",
       description: "새 방 설명",
+      categories: ["ENVIRONMENT"],
       visibility: "UNLISTED",
       joinPolicy: "INVITE_ONLY",
     });
@@ -122,6 +123,7 @@ describe("chat room event cache projector", () => {
     ).toMatchObject({
       name: "새 방 이름",
       description: "새 방 설명",
+      categories: ["ENVIRONMENT"],
       visibility: "UNLISTED",
       joinPolicy: "INVITE_ONLY",
       version: 2,

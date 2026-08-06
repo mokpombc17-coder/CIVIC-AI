@@ -42,6 +42,35 @@ describe("room settings form patch", () => {
     });
   });
 
+  it("카테고리가 바뀌면 선택한 하나를 전체 replacement 배열로 포함한다", () => {
+    expect(
+      createRoomSettingsPatch(CURRENT_SETTINGS, {
+        ...CURRENT_SETTINGS,
+        categories: ["ENVIRONMENT"],
+      }),
+    ).toEqual({
+      success: true,
+      patch: {
+        categories: ["ENVIRONMENT"],
+      },
+    });
+  });
+
+  it("카테고리가 없거나 두 개 이상이면 validation에서 거절한다", () => {
+    expect(
+      createRoomSettingsPatch(CURRENT_SETTINGS, {
+        ...CURRENT_SETTINGS,
+        categories: [],
+      }),
+    ).toMatchObject({ success: false });
+    expect(
+      createRoomSettingsPatch(CURRENT_SETTINGS, {
+        ...CURRENT_SETTINGS,
+        categories: ["POLICY", "ENVIRONMENT"],
+      }),
+    ).toMatchObject({ success: false });
+  });
+
   it("공백뿐인 description은 빈 문자열로 정규화해 설명 제거 patch를 만든다", () => {
     expect(
       createRoomSettingsPatch(CURRENT_SETTINGS, {
