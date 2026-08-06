@@ -6,6 +6,7 @@ import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.CursorSlice;
+import com.hamcheeze.chat.room.query.ListedRoomQueryCriteria;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoOperations;
@@ -15,6 +16,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 public final class MongoRoomQueryReader
         implements RoomQueryReader {
@@ -109,27 +111,37 @@ public final class MongoRoomQueryReader
     }
 
     @Override
-    public CursorSlice<Room> findRoomsByStatusAndVisibility(
-            RoomStatus status,
-            RoomVisibility visibility,
+    public CursorSlice<Room> findListedRooms(
+            ListedRoomQueryCriteria listedCriteria,
             String afterRoomId,
             int limit
     ) {
-        Objects.requireNonNull(status, "status");
-        Objects.requireNonNull(visibility, "visibility");
+        Objects.requireNonNull(listedCriteria, "listedCriteria");
         if (limit < 1) {
             throw new IllegalArgumentException(
                     "limit must be positive");
         }
         Criteria criteria = Criteria.where("status")
-                .is(status)
+                .is(RoomStatus.ACTIVE)
                 .and("visibility")
-                .is(visibility);
+                .is(RoomVisibility.LISTED);
+        if (listedCriteria.joinPolicy() != null) {
+            criteria = criteria.and("joinPolicy")
+                    .is(listedCriteria.joinPolicy());
+        }
+        if (listedCriteria.category() != null) {
+            criteria = criteria.and("categories")
+                    .is(listedCriteria.category());
+        }
+        if (listedCriteria.nameContains() != null) {
+            criteria = criteria.and("name").regex(Pattern.compile(
+                    Pattern.quote(listedCriteria.nameContains()),
+                    Pattern.CASE_INSENSITIVE
+                            | Pattern.UNICODE_CASE));
+        }
         if (afterRoomId != null) {
             requireText(afterRoomId, "afterRoomId");
-            criteria = new Criteria().andOperator(
-                    criteria,
-                    Criteria.where("_id").gt(afterRoomId));
+            criteria = criteria.and("_id").gt(afterRoomId);
         }
         List<Room> found = mongoOperations.find(
                         Query.query(criteria)

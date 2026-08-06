@@ -18,6 +18,9 @@ import static org.mockito.Mockito.when;
 
 class ListedRoomQueryServiceTest {
 
+    private static final ListedRoomQueryCriteria UNFILTERED =
+            new ListedRoomQueryCriteria(null, null, null);
+
     private final RoomQueryReader reader =
             mock(RoomQueryReader.class);
     private final ListedRoomQueryCursorCodec cursorCodec =
@@ -28,9 +31,8 @@ class ListedRoomQueryServiceTest {
 
     @Test
     void returnsListedActiveRoomsWithOpaqueNextCursor() {
-        when(reader.findRoomsByStatusAndVisibility(
-                RoomStatus.ACTIVE,
-                RoomVisibility.LISTED,
+        when(reader.findListedRooms(
+                UNFILTERED,
                 null,
                 2))
                 .thenReturn(new CursorSlice<>(
@@ -40,7 +42,7 @@ class ListedRoomQueryServiceTest {
                         true));
 
         CursorPage<ListedRoomView> first =
-                service.listedRooms(null, 2);
+                service.listedRooms(UNFILTERED, null, 2);
 
         assertThat(first.items())
                 .extracting(ListedRoomView::roomId)
@@ -54,15 +56,11 @@ class ListedRoomQueryServiceTest {
         ListedRoomQueryCursor cursor =
                 cursorCodec.decode(
                         first.nextCursor(),
-                        new ListedRoomQueryCriteria(
-                                null,
-                                null,
-                                null));
+                        UNFILTERED);
         assertThat(cursor.lastRoomId()).isEqualTo("room-b");
         assertThat(cursor.version()).isEqualTo(2);
-        verify(reader).findRoomsByStatusAndVisibility(
-                RoomStatus.ACTIVE,
-                RoomVisibility.LISTED,
+        verify(reader).findListedRooms(
+                UNFILTERED,
                 null,
                 2);
     }
@@ -73,15 +71,11 @@ class ListedRoomQueryServiceTest {
                 new ListedRoomQueryCursor(
                         ListedRoomQueryCursor.CURRENT_VERSION,
                         ListedRoomQueryCursor.Scope.LISTED_ROOMS,
-                        new ListedRoomQueryCriteria(
-                                null,
-                                null,
-                                null),
+                        UNFILTERED,
                         "room-a");
         String token = cursorCodec.encode(cursor);
-        when(reader.findRoomsByStatusAndVisibility(
-                RoomStatus.ACTIVE,
-                RoomVisibility.LISTED,
+        when(reader.findListedRooms(
+                UNFILTERED,
                 "room-a",
                 20))
                 .thenReturn(new CursorSlice<>(
@@ -89,7 +83,7 @@ class ListedRoomQueryServiceTest {
                         false));
 
         CursorPage<ListedRoomView> page =
-                service.listedRooms(token, 20);
+                service.listedRooms(UNFILTERED, token, 20);
 
         assertThat(page.items())
                 .extracting(ListedRoomView::roomId)

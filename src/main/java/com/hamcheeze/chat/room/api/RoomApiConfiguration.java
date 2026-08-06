@@ -30,6 +30,12 @@ public class RoomApiConfiguration {
     }
 
     @Bean
+    ListedRoomQueryCriteriaResolver
+    listedRoomQueryCriteriaResolver() {
+        return new ListedRoomQueryCriteriaResolver();
+    }
+
+    @Bean
     RoomCommandHttpMapper roomCommandHttpMapper() {
         return new RoomCommandHttpMapper();
     }

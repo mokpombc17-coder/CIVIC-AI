@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.security.ChatScopes;
@@ -130,9 +131,147 @@ class ListedRoomApiIntegrationTest
                         .value("INVALID_CURSOR"));
     }
 
+    @Test
+    void filtersByCanonicalNameCategoryAndJoinPolicy()
+            throws Exception {
+        insert(
+                "filter-a",
+                "Policy Transit Forum",
+                RoomCategory.LOCAL_ISSUE,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "filter-b",
+                "Policy Transit Invite",
+                RoomCategory.LOCAL_ISSUE,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.INVITE_ONLY);
+        insert(
+                "filter-c",
+                "Policy Environment Forum",
+                RoomCategory.ENVIRONMENT,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "filter-d",
+                "Transit Only",
+                RoomCategory.LOCAL_ISSUE,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam("query", "  POLICY  ")
+                        .queryParam("category", "LOCAL_ISSUE")
+                        .queryParam("joinPolicy", "OPEN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].roomId")
+                        .value("filter-a"))
+                .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void treatsRegexMetacharactersAsLiteralText()
+            throws Exception {
+        insert(
+                "literal-a",
+                ".* Discussion",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "literal-b",
+                "General Discussion",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam("query", ".*"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].roomId")
+                        .value("literal-a"));
+    }
+
+    @Test
+    void rejectsInvalidRepeatedAndCursorMismatchedCriteria()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam("category", "UNKNOWN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam("joinPolicy", "open"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam("query", "one", "two"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+
+        insert(
+                "cursor-a",
+                "Policy One",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        insert(
+                "cursor-b",
+                "Policy Two",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        MvcResult first = mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam("query", "policy")
+                        .queryParam("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andReturn();
+
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .queryParam("query", "environment")
+                        .queryParam("cursor", nextCursor(first))
+                        .queryParam("limit", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_CURSOR"));
+    }
+
     private void insert(
             String roomId,
             String name,
+            RoomStatus status,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy
+    ) {
+        insert(
+                roomId,
+                name,
+                RoomCategory.POLICY,
+                status,
+                visibility,
+                joinPolicy);
+    }
+
+    private void insert(
+            String roomId,
+            String name,
+            RoomCategory category,
             RoomStatus status,
             RoomVisibility visibility,
             JoinPolicy joinPolicy
@@ -141,8 +280,7 @@ class ListedRoomApiIntegrationTest
                 roomId,
                 name,
                 "Description " + roomId,
-                java.util.List.of(
-                        com.hamcheeze.chat.room.RoomCategory.POLICY),
+                java.util.List.of(category),
                 "owner-" + roomId,
                 status,
                 visibility,

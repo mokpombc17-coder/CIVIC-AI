@@ -1,17 +1,12 @@
 package com.hamcheeze.chat.room.query;
 
 import com.hamcheeze.chat.room.Room;
-import com.hamcheeze.chat.room.RoomStatus;
-import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.model.ListedRoomView;
 
 import java.util.List;
 import java.util.Objects;
 
 public final class ListedRoomQueryService {
-
-    private static final ListedRoomQueryCriteria UNFILTERED =
-            new ListedRoomQueryCriteria(null, null, null);
 
     private final RoomQueryReader reader;
     private final ListedRoomQueryCursorCodec cursorCodec;
@@ -26,19 +21,20 @@ public final class ListedRoomQueryService {
     }
 
     public CursorPage<ListedRoomView> listedRooms(
+            ListedRoomQueryCriteria criteria,
             String cursor,
             int limit
     ) {
+        Objects.requireNonNull(criteria, "criteria");
         if (limit < 1 || limit > 100) {
             throw new IllegalArgumentException(
                     "limit must be between 1 and 100");
         }
         ListedRoomQueryCursor decoded = cursorCodec.decode(
                 cursor,
-                UNFILTERED);
-        CursorSlice<Room> rooms = reader.findRoomsByStatusAndVisibility(
-                RoomStatus.ACTIVE,
-                RoomVisibility.LISTED,
+                criteria);
+        CursorSlice<Room> rooms = reader.findListedRooms(
+                criteria,
                 decoded == null ? null : decoded.lastRoomId(),
                 limit);
         List<ListedRoomView> views = rooms.items().stream()
@@ -51,7 +47,7 @@ public final class ListedRoomQueryService {
                     new ListedRoomQueryCursor(
                             ListedRoomQueryCursor.CURRENT_VERSION,
                             ListedRoomQueryCursor.Scope.LISTED_ROOMS,
-                            UNFILTERED,
+                            criteria,
                             last.roomId()));
         }
         return new CursorPage<>(
