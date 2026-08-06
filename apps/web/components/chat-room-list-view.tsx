@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode, Ref } from "react";
+import { useSyncExternalStore, type ReactNode, type Ref } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
+import { getRoomInboxPreviewPresentation } from "@/components/chat-room-inbox-preview";
+import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
 import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
 import { JoinChatRoomControl } from "@/components/join-chat-room-control";
@@ -30,6 +32,7 @@ type ChatRoomListViewProps = Readonly<{
   closeCreateRoomForm: () => void;
   createRoomTriggerRef: Ref<HTMLButtonElement>;
   isCreateRoomOpen: boolean;
+  now?: Date;
   participatingRooms: RoomListState<RoomInboxListItem>;
   publicRooms: RoomListState<PublicRoomListItem>;
   toggleCreateRoomForm: () => void;
@@ -39,10 +42,13 @@ export function ChatRoomListView({
   closeCreateRoomForm,
   createRoomTriggerRef,
   isCreateRoomOpen,
+  now,
   participatingRooms,
   publicRooms,
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
+  const currentTime = useHydratedNow(now);
+
   return (
     <div className="chat-room-list page-stack">
       <section className="hero hero-compact">
@@ -96,7 +102,7 @@ export function ChatRoomListView({
           >
             {participatingRooms.rooms.map((room) => (
               <li key={room.roomId}>
-                <MyRoomCard room={room} />
+                <MyRoomCard now={currentTime} room={room} />
               </li>
             ))}
           </ul>
@@ -170,19 +176,38 @@ function RoomListSection({ action, children, eyebrow, title }: RoomListSectionPr
   );
 }
 
-function MyRoomCard({ room }: { room: RoomInboxListItem }) {
+export function MyRoomCard({ now, room }: { now: Date | null; room: RoomInboxListItem }) {
+  const preview = getRoomInboxPreviewPresentation(room.lastMessage);
+  const previewToneClassName =
+    preview.tone === "normal"
+      ? "text-slate-600"
+      : preview.tone === "deleted"
+        ? "text-slate-500 italic"
+        : "text-slate-500";
+
   return (
     <Link
-      className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50"
+      className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
       href={`/chat/${room.roomId}`}
     >
       <RoomAvatar name={room.name} />
-      <RoomSummary room={room}>
-        <RoomUnreadBadge room={room} />
-        <span className="status">
-          {room.membershipRole} · {room.membershipStatus}
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center justify-between gap-3">
+          <strong className="truncate text-slate-950">{room.name}</strong>
+          <time className="shrink-0 text-xs text-slate-500" dateTime={room.lastActivityAt}>
+            {now ? formatRoomInboxActivityTime(room.lastActivityAt, now) : null}
+          </time>
         </span>
-      </RoomSummary>
+        <span className="mt-1 flex items-center gap-3">
+          <span className={`min-w-0 flex-1 truncate text-sm ${previewToneClassName}`}>
+            {preview.text}
+          </span>
+          <RoomUnreadBadge room={room} />
+        </span>
+        <span className="mt-2 block text-xs text-slate-500">
+          {room.membershipRole} · 참여자 {room.activeMemberCount}명
+        </span>
+      </span>
     </Link>
   );
 }
@@ -204,7 +229,7 @@ function RoomUnreadBadge({ room }: { room: RoomInboxListItem }) {
   );
 }
 
-function PublicRoomCard({ room }: { room: PublicRoomListItem }) {
+export function PublicRoomCard({ room }: { room: PublicRoomListItem }) {
   const isOpen = room.joinPolicy === "OPEN";
 
   return (
@@ -308,6 +333,15 @@ function formatRoomDate(createdAt: string): string {
   const timestamp = Date.parse(createdAt);
   return Number.isNaN(timestamp) ? createdAt : ROOM_DATE_FORMATTER.format(timestamp);
 }
+
+function useHydratedNow(providedNow: Date | undefined): Date | null {
+  const isHydrated = useSyncExternalStore(subscribeToHydration, getHydrated, getServerHydrated);
+  return providedNow ?? (isHydrated ? new Date() : null);
+}
+
+const subscribeToHydration = () => () => {};
+const getHydrated = () => true;
+const getServerHydrated = () => false;
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";

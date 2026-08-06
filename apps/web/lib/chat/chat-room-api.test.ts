@@ -470,6 +470,16 @@ const ROOM_INBOX_ITEM = {
   readThroughSequence: 123,
   unreadCount: 200,
   unreadCountCapped: false,
+  lastMessage: {
+    messageId: "message-101",
+    roomSequence: 101,
+    messageVersion: 2,
+    state: "ACTIVE",
+    preview: "수정된 메시지",
+    previewTruncated: false,
+    createdAt: "2026-08-04T08:30:00Z",
+  },
+  lastActivityAt: "2026-08-04T08:30:00Z",
 };
 
 const MEMBERSHIP_LIST_ITEM = {

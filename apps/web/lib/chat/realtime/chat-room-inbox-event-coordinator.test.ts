@@ -15,7 +15,7 @@ const CREATED_EVENT: Extract<ChatRoomInboxEvent, { cause: "MESSAGE_CREATED" }> =
   roomId: "room-01",
   roomNameHint: "토론방",
   emittedAt: "2026-08-04T01:10:00Z",
-  sourceEventIds: ["source-1"],
+  sourceEventIds: ["chat-message-created:message-01"],
   coalescedCreateCount: 1,
   notificationHint: {
     messageId: "message-01",
@@ -56,7 +56,30 @@ describe("ChatRoomInboxEventCoordinator", () => {
       eventId: "550e8400-e29b-41d4-a716-446655440002",
       cause: "MESSAGE_DELETED",
       roomNameHint: null,
-      sourceEventIds: ["source-delete-1"],
+      sourceEventIds: ["chat-message-deleted:message-01:v2"],
+      coalescedCreateCount: null,
+      notificationHint: null,
+    });
+    vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
+
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(onInvalidate).toHaveBeenCalledOnce();
+    coordinator.dispose();
+    vi.useRealTimers();
+  });
+
+  it("UPDATE는 toast 없이 invalidation만 예약한다", () => {
+    vi.useFakeTimers();
+    const onCreate = vi.fn();
+    const onInvalidate = vi.fn();
+    const coordinator = new ChatRoomInboxEventCoordinator({ onCreate, onInvalidate });
+
+    coordinator.handle({
+      ...CREATED_EVENT,
+      eventId: "550e8400-e29b-41d4-a716-446655440003",
+      cause: "MESSAGE_UPDATED",
+      roomNameHint: null,
+      sourceEventIds: ["chat-message-updated:message-01:v2"],
       coalescedCreateCount: null,
       notificationHint: null,
     });

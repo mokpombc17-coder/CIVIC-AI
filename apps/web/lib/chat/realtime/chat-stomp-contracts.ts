@@ -121,17 +121,57 @@ const chatRoomInboxCreatedEventSchema = chatRoomInboxEventBaseSchema
   .refine((event) => event.coalescedCreateCount === event.sourceEventIds.length, {
     message: "coalescedCreateCount는 sourceEventIds 개수와 같아야 합니다.",
     path: ["coalescedCreateCount"],
-  });
+  })
+  .refine(
+    (event) =>
+      event.sourceEventIds.every((sourceEventId) =>
+        sourceEventId.startsWith("chat-message-created:"),
+      ),
+    {
+      message: "MESSAGE_CREATED sourceEventIds prefix가 올바르지 않습니다.",
+      path: ["sourceEventIds"],
+    },
+  );
 
-const chatRoomInboxDeletedEventSchema = chatRoomInboxEventBaseSchema.extend({
-  cause: z.literal("MESSAGE_DELETED"),
-  roomNameHint: z.null(),
-  coalescedCreateCount: z.null(),
-  notificationHint: z.null(),
-});
+const chatRoomInboxUpdatedEventSchema = chatRoomInboxEventBaseSchema
+  .extend({
+    cause: z.literal("MESSAGE_UPDATED"),
+    roomNameHint: z.null(),
+    coalescedCreateCount: z.null(),
+    notificationHint: z.null(),
+  })
+  .refine(
+    (event) =>
+      event.sourceEventIds.every((sourceEventId) =>
+        sourceEventId.startsWith("chat-message-updated:"),
+      ),
+    {
+      message: "MESSAGE_UPDATED sourceEventIds prefix가 올바르지 않습니다.",
+      path: ["sourceEventIds"],
+    },
+  );
+
+const chatRoomInboxDeletedEventSchema = chatRoomInboxEventBaseSchema
+  .extend({
+    cause: z.literal("MESSAGE_DELETED"),
+    roomNameHint: z.null(),
+    coalescedCreateCount: z.null(),
+    notificationHint: z.null(),
+  })
+  .refine(
+    (event) =>
+      event.sourceEventIds.every((sourceEventId) =>
+        sourceEventId.startsWith("chat-message-deleted:"),
+      ),
+    {
+      message: "MESSAGE_DELETED sourceEventIds prefix가 올바르지 않습니다.",
+      path: ["sourceEventIds"],
+    },
+  );
 
 export const chatRoomInboxEventSchema = z.union([
   chatRoomInboxCreatedEventSchema,
+  chatRoomInboxUpdatedEventSchema,
   chatRoomInboxDeletedEventSchema,
 ]);
 

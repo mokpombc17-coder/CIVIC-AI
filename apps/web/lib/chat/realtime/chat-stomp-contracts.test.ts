@@ -541,14 +541,25 @@ describe("chat realtime payload contracts", () => {
 });
 
 describe("room inbox event contracts", () => {
-  it("CREATE와 DELETE 이벤트의 nullability 계약을 검증한다", () => {
+  it("CREATE, UPDATE, DELETE 이벤트의 nullability 계약을 검증한다", () => {
     expect(parseChatRoomInboxEvent(JSON.stringify(ROOM_INBOX_CREATED_EVENT))).toEqual(
       ROOM_INBOX_CREATED_EVENT,
     );
 
-    const deletedEvent = {
+    const updatedEvent = {
       ...ROOM_INBOX_CREATED_EVENT,
       eventId: "550e8400-e29b-41d4-a716-446655440001",
+      cause: "MESSAGE_UPDATED",
+      roomNameHint: null,
+      sourceEventIds: ["chat-message-updated:message-84:v2"],
+      coalescedCreateCount: null,
+      notificationHint: null,
+    };
+    expect(parseChatRoomInboxEvent(JSON.stringify(updatedEvent))).toEqual(updatedEvent);
+
+    const deletedEvent = {
+      ...ROOM_INBOX_CREATED_EVENT,
+      eventId: "550e8400-e29b-41d4-a716-446655440002",
       cause: "MESSAGE_DELETED",
       roomNameHint: null,
       sourceEventIds: ["chat-message-deleted:message-84:v2"],
@@ -559,12 +570,52 @@ describe("room inbox event contracts", () => {
     expect(parseChatRoomInboxEvent(JSON.stringify(deletedEvent))).toEqual(deletedEvent);
   });
 
-  it("sourceEventIds 중복과 CREATE count 불일치를 거절한다", () => {
+  it("cause별 nullable 필드 위반을 거절한다", () => {
+    const updatedEvent = {
+      ...ROOM_INBOX_CREATED_EVENT,
+      cause: "MESSAGE_UPDATED",
+      roomNameHint: null,
+      sourceEventIds: ["chat-message-updated:message-84:v2"],
+      coalescedCreateCount: null,
+      notificationHint: null,
+    };
+
+    for (const patch of [
+      { roomNameHint: "토론방" },
+      { coalescedCreateCount: 1 },
+      { notificationHint: ROOM_INBOX_CREATED_EVENT.notificationHint },
+    ]) {
+      expect(parseChatRoomInboxEvent(JSON.stringify({ ...updatedEvent, ...patch }))).toBeNull();
+    }
+  });
+
+  it("sourceEventIds 크기, 중복과 CREATE count 불일치를 거절한다", () => {
     expect(
       parseChatRoomInboxEvent(
         JSON.stringify({
           ...ROOM_INBOX_CREATED_EVENT,
-          sourceEventIds: ["source-1", "source-1"],
+          sourceEventIds: [],
+          coalescedCreateCount: 0,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatRoomInboxEvent(
+        JSON.stringify({
+          ...ROOM_INBOX_CREATED_EVENT,
+          sourceEventIds: Array.from(
+            { length: 101 },
+            (_, index) => `chat-message-created:message-${index}`,
+          ),
+          coalescedCreateCount: 101,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatRoomInboxEvent(
+        JSON.stringify({
+          ...ROOM_INBOX_CREATED_EVENT,
+          sourceEventIds: ["chat-message-created:message-84", "chat-message-created:message-84"],
           coalescedCreateCount: 2,
         }),
       ),
@@ -574,6 +625,26 @@ describe("room inbox event contracts", () => {
         JSON.stringify({
           ...ROOM_INBOX_CREATED_EVENT,
           coalescedCreateCount: 2,
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    ["MESSAGE_CREATED", "chat-message-updated:message-84:v2"],
+    ["MESSAGE_UPDATED", "chat-message-deleted:message-84:v2"],
+    ["MESSAGE_DELETED", "chat-message-created:message-84"],
+  ])("%s event의 source prefix 불일치를 거절한다", (cause, sourceEventId) => {
+    const isCreated = cause === "MESSAGE_CREATED";
+    expect(
+      parseChatRoomInboxEvent(
+        JSON.stringify({
+          ...ROOM_INBOX_CREATED_EVENT,
+          cause,
+          roomNameHint: isCreated ? "토론방" : null,
+          sourceEventIds: [sourceEventId],
+          coalescedCreateCount: isCreated ? 1 : null,
+          notificationHint: isCreated ? ROOM_INBOX_CREATED_EVENT.notificationHint : null,
         }),
       ),
     ).toBeNull();

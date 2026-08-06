@@ -4,9 +4,15 @@ import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/r
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomInboxListResponse } from "@/lib/chat/chat-room-contracts";
+import { resetRoomInboxQueries } from "@/lib/chat/chat-room-cache-effects";
 import { chatRoomQueryKeys } from "@/lib/chat/chat-room-queries";
 import { ChatRoomInboxEventCoordinator } from "@/lib/chat/realtime/chat-room-inbox-event-coordinator";
-import type { ChatRealtimeTransport } from "@/lib/chat/realtime/chat-realtime-transport";
+import type {
+  ChatMessageCommandEvent,
+  ChatMessageMutationEvent,
+  ChatRealtimeTransport,
+  ChatRoomSessionSnapshot,
+} from "@/lib/chat/realtime/chat-realtime-transport";
 import type { ChatRoomInboxEvent } from "@/lib/chat/realtime/chat-stomp-contracts";
 
 const ROOM_INBOX_TOAST_GROUPING_MS = 3_000;
@@ -14,6 +20,11 @@ const ROOM_INBOX_TOAST_DURATION_MS = 6_000;
 const ROOM_INBOX_TOAST_LIMIT = 3;
 
 type RoomInboxCreatedEvent = Extract<ChatRoomInboxEvent, { cause: "MESSAGE_CREATED" }>;
+
+type ChatRoomInboxRuntimeTarget = Readonly<{
+  addEventListener(type: "focus" | "online", listener: () => void): void;
+  removeEventListener(type: "focus" | "online", listener: () => void): void;
+}>;
 
 export type RoomInboxToast = Readonly<{
   count: number;
@@ -42,13 +53,9 @@ export function useChatRoomInboxRuntime(transport: ChatRealtimeTransport) {
 
   const showCreateToast = useCallback(
     (event: RoomInboxCreatedEvent, unseenCount: number) => {
-      if (document.visibilityState !== "visible" || !document.hasFocus()) {
-        return;
-      }
-
       const roomSnapshot = transport.getRoomSnapshot();
 
-      if (roomSnapshot.status === "active" && roomSnapshot.roomId === event.roomId) {
+      if (!canShowRoomInboxCreateToast(document, roomSnapshot, event.roomId)) {
         return;
       }
 
@@ -91,39 +98,16 @@ export function useChatRoomInboxRuntime(transport: ChatRealtimeTransport) {
     [dismissToast, queryClient, transport],
   );
 
-  useEffect(() => {
-    const coordinator = new ChatRoomInboxEventCoordinator({
-      onCreate: showCreateToast,
-      onInvalidate: () => {
-        void queryClient
-          .invalidateQueries({ queryKey: chatRoomQueryKeys.roomInboxes() })
-          .catch(() => undefined);
-      },
-    });
-    let previousConnectionStatus = transport.getSnapshot().status;
-    const stopInboxEvents = transport.observeRoomInboxEvent((event) => coordinator.handle(event));
-    const stopConnection = transport.observe(() => {
-      const connectionStatus = transport.getSnapshot().status;
-
-      if (connectionStatus === "connected" && previousConnectionStatus !== "connected") {
-        coordinator.requestInvalidation();
-      }
-
-      previousConnectionStatus = connectionStatus;
-    });
-    const requestInvalidation = () => coordinator.requestInvalidation();
-
-    window.addEventListener("focus", requestInvalidation);
-    window.addEventListener("online", requestInvalidation);
-
-    return () => {
-      stopConnection();
-      stopInboxEvents();
-      window.removeEventListener("focus", requestInvalidation);
-      window.removeEventListener("online", requestInvalidation);
-      coordinator.dispose();
-    };
-  }, [queryClient, showCreateToast, transport]);
+  useEffect(
+    () =>
+      attachChatRoomInboxRuntime({
+        onCreate: showCreateToast,
+        onReset: () => resetRoomInboxQueries(queryClient),
+        target: window,
+        transport,
+      }),
+    [queryClient, showCreateToast, transport],
+  );
 
   useEffect(
     () => () => {
@@ -142,6 +126,99 @@ export function useChatRoomInboxRuntime(transport: ChatRealtimeTransport) {
   );
 
   return { selectToast, toasts };
+}
+
+export function attachChatRoomInboxRuntime({
+  onCreate,
+  onReset,
+  target,
+  transport,
+}: Readonly<{
+  onCreate: (event: RoomInboxCreatedEvent, unseenCount: number) => void;
+  onReset: () => Promise<void> | void;
+  target: ChatRoomInboxRuntimeTarget;
+  transport: Pick<
+    ChatRealtimeTransport,
+    | "getSnapshot"
+    | "observe"
+    | "observeMessageCommandEvent"
+    | "observeMessageMutationEvent"
+    | "observeRoomInboxEvent"
+  >;
+}>): () => void {
+  const coordinator = new ChatRoomInboxEventCoordinator({
+    onCreate,
+    onInvalidate: () => {
+      try {
+        void Promise.resolve(onReset()).catch(() => undefined);
+      } catch {
+        // REST reset 실패는 다음 focus/online/reconnect 신호에서 다시 복구한다.
+      }
+    },
+  });
+  let previousConnectionStatus = transport.getSnapshot().status;
+  const stopInboxEvents = transport.observeRoomInboxEvent((event) => coordinator.handle(event));
+  const stopConnection = transport.observe(() => {
+    const connectionStatus = transport.getSnapshot().status;
+
+    if (connectionStatus === "connected" && previousConnectionStatus !== "connected") {
+      coordinator.requestInvalidation();
+    }
+
+    previousConnectionStatus = connectionStatus;
+  });
+  const stopMessageCommands = transport.observeMessageCommandEvent((event) => {
+    if (shouldResetRoomInboxForMessageCommand(event)) {
+      coordinator.requestInvalidation();
+    }
+  });
+  const stopMessageMutations = transport.observeMessageMutationEvent((event) => {
+    if (shouldResetRoomInboxForMessageMutation(event)) {
+      coordinator.requestInvalidation();
+    }
+  });
+  const requestReset = () => coordinator.requestInvalidation();
+
+  target.addEventListener("focus", requestReset);
+  target.addEventListener("online", requestReset);
+
+  return () => {
+    stopMessageMutations();
+    stopMessageCommands();
+    stopConnection();
+    stopInboxEvents();
+    target.removeEventListener("focus", requestReset);
+    target.removeEventListener("online", requestReset);
+    coordinator.dispose();
+  };
+}
+
+export function shouldResetRoomInboxForMessageCommand(event: ChatMessageCommandEvent): boolean {
+  return (
+    event.kind === "result" &&
+    (event.result.status === "ACCEPTED" || event.result.status === "DUPLICATE")
+  );
+}
+
+export function shouldResetRoomInboxForMessageMutation(event: ChatMessageMutationEvent): boolean {
+  return (
+    event.kind === "result" &&
+    (event.result.status === "UPDATED" ||
+      event.result.status === "DELETED" ||
+      event.result.status === "ALREADY_DELETED")
+  );
+}
+
+export function canShowRoomInboxCreateToast(
+  target: Pick<Document, "hasFocus" | "visibilityState">,
+  roomSnapshot: ChatRoomSessionSnapshot,
+  eventRoomId: string,
+): boolean {
+  return (
+    target.visibilityState === "visible" &&
+    target.hasFocus() &&
+    !(roomSnapshot.status === "active" && roomSnapshot.roomId === eventRoomId)
+  );
 }
 
 export function getCachedRoomName(queryClient: QueryClient, roomId: string): string | null {

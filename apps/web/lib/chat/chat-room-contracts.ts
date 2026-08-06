@@ -134,11 +134,55 @@ export const myRoomListItemSchema = publicRoomListItemSchema.extend({
   membershipVersion: versionSchema,
 });
 
-export const roomInboxListItemSchema = myRoomListItemSchema.extend({
-  readThroughSequence: nonnegativeSequenceSchema,
-  unreadCount: z.number().int().nonnegative(),
-  unreadCountCapped: z.boolean(),
+const roomInboxLastMessageBaseSchema = z.object({
+  messageId: opaqueIdSchema,
+  roomSequence: positiveSequenceSchema,
+  messageVersion: positiveMessageVersionSchema,
+  createdAt: instantSchema,
 });
+
+const activeRoomInboxLastMessageSchema = roomInboxLastMessageBaseSchema.extend({
+  state: z.literal("ACTIVE"),
+  preview: z
+    .string()
+    .refine(
+      (preview) => Array.from(preview).length <= 60,
+      "Room inbox preview는 Unicode code point 60자를 초과할 수 없습니다.",
+    ),
+  previewTruncated: z.boolean(),
+});
+
+const deletedRoomInboxLastMessageSchema = roomInboxLastMessageBaseSchema.extend({
+  state: z.literal("DELETED_BY_AUTHOR"),
+  preview: z.null(),
+  previewTruncated: z.literal(false),
+});
+
+export const roomInboxLastMessageSchema = z.discriminatedUnion("state", [
+  activeRoomInboxLastMessageSchema,
+  deletedRoomInboxLastMessageSchema,
+]);
+
+export const roomInboxListItemSchema = myRoomListItemSchema
+  .extend({
+    readThroughSequence: nonnegativeSequenceSchema,
+    unreadCount: z.number().int().nonnegative(),
+    unreadCountCapped: z.boolean(),
+    lastMessage: roomInboxLastMessageSchema.nullable(),
+    lastActivityAt: instantSchema,
+  })
+  .superRefine((room, context) => {
+    if (
+      room.lastMessage !== null &&
+      Date.parse(room.lastMessage.createdAt) !== Date.parse(room.lastActivityAt)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["lastActivityAt"],
+        message: "lastMessage.createdAt과 lastActivityAt은 같은 시각이어야 합니다.",
+      });
+    }
+  });
 
 export const roomMembershipListItemSchema = z.object({
   membershipId: opaqueIdSchema,
@@ -360,6 +404,7 @@ export type RoomMembership = z.infer<typeof roomMembershipSchema>;
 export type PublicRoomListItem = z.infer<typeof publicRoomListItemSchema>;
 export type RoomDetails = z.infer<typeof roomDetailsSchema>;
 export type MyRoomListItem = z.infer<typeof myRoomListItemSchema>;
+export type RoomInboxLastMessage = z.infer<typeof roomInboxLastMessageSchema>;
 export type RoomInboxListItem = z.infer<typeof roomInboxListItemSchema>;
 export type RoomMembershipListItem = z.infer<typeof roomMembershipListItemSchema>;
 export type PublicRoomListResponse = z.infer<typeof publicRoomListResponseSchema>;

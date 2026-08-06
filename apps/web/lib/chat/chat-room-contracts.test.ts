@@ -184,28 +184,7 @@ describe("chat room REST contracts", () => {
 
   it("Room inbox unread projection과 최대 limit 20을 검증한다", () => {
     const page = roomInboxListResponseSchema.parse({
-      items: [
-        {
-          roomId: "room-01",
-          name: "시민 AI 토론방",
-          description: "",
-          ownerUserId: "local-user-1",
-          status: "ACTIVE",
-          visibility: "LISTED",
-          joinPolicy: "OPEN",
-          activeMemberCount: 2,
-          createdAt: "2026-07-29T04:30:00Z",
-          version: 2,
-          membershipId: "membership-01",
-          membershipRole: "OWNER",
-          membershipStatus: "ACTIVE",
-          joinedAt: "2026-07-29T04:30:00Z",
-          membershipVersion: 1,
-          readThroughSequence: 123,
-          unreadCount: 200,
-          unreadCountCapped: false,
-        },
-      ],
+      items: [createRoomInboxItem()],
       nextCursor: "membership-01",
       hasNext: true,
     });
@@ -214,6 +193,11 @@ describe("chat room REST contracts", () => {
       readThroughSequence: 123,
       unreadCount: 200,
       unreadCountCapped: false,
+      lastActivityAt: "2026-08-04T08:30:00Z",
+      lastMessage: {
+        state: "ACTIVE",
+        preview: "수정된 메시지",
+      },
     });
     expect(roomInboxListParamsSchema.safeParse({ limit: 20 }).success).toBe(true);
     expect(roomInboxListParamsSchema.safeParse({ limit: 21 }).success).toBe(false);
@@ -223,6 +207,78 @@ describe("chat room REST contracts", () => {
         items: [{ ...page.items[0], unreadCount: -1 }],
       }).success,
     ).toBe(false);
+  });
+
+  it("Room inbox ACTIVE, 삭제, 노출 메시지 없음 계약을 검증한다", () => {
+    expect(roomInboxListResponseSchema.safeParse(createRoomInboxPage()).success).toBe(true);
+    expect(
+      roomInboxListResponseSchema.safeParse(
+        createRoomInboxPage({
+          lastMessage: {
+            ...createRoomInboxItem().lastMessage,
+            state: "DELETED_BY_AUTHOR",
+            preview: null,
+            previewTruncated: false,
+          },
+        }),
+      ).success,
+    ).toBe(true);
+    expect(
+      roomInboxListResponseSchema.safeParse(
+        createRoomInboxPage({
+          lastMessage: null,
+          lastActivityAt: "2026-08-04T09:00:00Z",
+        }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it.each([
+    ["lastMessage 누락", { lastMessage: undefined }],
+    ["lastActivityAt 누락", { lastActivityAt: undefined }],
+    ["lastActivityAt null", { lastActivityAt: null }],
+    [
+      "ACTIVE preview null",
+      { lastMessage: { ...createRoomInboxItem().lastMessage, preview: null } },
+    ],
+    [
+      "ACTIVE preview 60 code point 초과",
+      { lastMessage: { ...createRoomInboxItem().lastMessage, preview: "😀".repeat(61) } },
+    ],
+    [
+      "삭제 preview 문자열",
+      {
+        lastMessage: {
+          ...createRoomInboxItem().lastMessage,
+          state: "DELETED_BY_AUTHOR",
+          preview: "삭제 전 메시지",
+          previewTruncated: false,
+        },
+      },
+    ],
+    [
+      "삭제 previewTruncated true",
+      {
+        lastMessage: {
+          ...createRoomInboxItem().lastMessage,
+          state: "DELETED_BY_AUTHOR",
+          preview: null,
+          previewTruncated: true,
+        },
+      },
+    ],
+    ["roomSequence 0", { lastMessage: { ...createRoomInboxItem().lastMessage, roomSequence: 0 } }],
+    [
+      "messageVersion 0",
+      { lastMessage: { ...createRoomInboxItem().lastMessage, messageVersion: 0 } },
+    ],
+    [
+      "알 수 없는 state",
+      { lastMessage: { ...createRoomInboxItem().lastMessage, state: "UNKNOWN" } },
+    ],
+    ["createdAt/activityAt 불일치", { lastActivityAt: "2026-08-04T08:31:00Z" }],
+  ])("Room inbox의 잘못된 %s 응답을 거절한다", (_label, patch) => {
+    expect(roomInboxListResponseSchema.safeParse(createRoomInboxPage(patch)).success).toBe(false);
   });
 
   it("read-state 요청과 monotonic 응답 계약을 검증한다", () => {
@@ -355,6 +411,47 @@ function createMessage(roomSequence: number) {
     messageVersion: 1,
     state: "ACTIVE" as const,
     updatedAt: "2026-07-29T04:40:00Z",
+  };
+}
+
+function createRoomInboxItem() {
+  return {
+    roomId: "room-01",
+    name: "시민 AI 토론방",
+    description: "",
+    ownerUserId: "local-user-1",
+    status: "ACTIVE" as const,
+    visibility: "LISTED" as const,
+    joinPolicy: "OPEN" as const,
+    activeMemberCount: 2,
+    createdAt: "2026-07-29T04:30:00Z",
+    version: 2,
+    membershipId: "membership-01",
+    membershipRole: "OWNER" as const,
+    membershipStatus: "ACTIVE" as const,
+    joinedAt: "2026-07-29T04:30:00Z",
+    membershipVersion: 1,
+    readThroughSequence: 123,
+    unreadCount: 200,
+    unreadCountCapped: false,
+    lastMessage: {
+      messageId: "message-101",
+      roomSequence: 101,
+      messageVersion: 2,
+      state: "ACTIVE" as const,
+      preview: "수정된 메시지",
+      previewTruncated: false,
+      createdAt: "2026-08-04T08:30:00Z",
+    },
+    lastActivityAt: "2026-08-04T08:30:00Z",
+  };
+}
+
+function createRoomInboxPage(patch: Record<string, unknown> = {}) {
+  return {
+    items: [{ ...createRoomInboxItem(), ...patch }],
+    nextCursor: null,
+    hasNext: false,
   };
 }
 

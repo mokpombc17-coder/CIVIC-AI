@@ -1,6 +1,17 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { chatRoomQueryKeys } from "./chat-room-queries";
 
+export async function resetRoomInboxQueries(queryClient: QueryClient): Promise<void> {
+  await queryClient.resetQueries(
+    {
+      queryKey: chatRoomQueryKeys.roomInboxes(),
+    },
+    {
+      cancelRefetch: true,
+    },
+  );
+}
+
 export async function invalidateRoomLists(queryClient: QueryClient): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({
@@ -9,9 +20,7 @@ export async function invalidateRoomLists(queryClient: QueryClient): Promise<voi
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myLists(),
     }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.roomInboxes(),
-    }),
+    resetRoomInboxQueries(queryClient),
   ]);
 }
 
@@ -62,8 +71,6 @@ export async function refreshAuthoritativeRoomQueries(
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myLists(),
     }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.roomInboxes(),
-    }),
+    resetRoomInboxQueries(queryClient),
   ]);
 }
