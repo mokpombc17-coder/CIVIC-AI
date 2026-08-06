@@ -79,6 +79,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
                             │           ├── ChatConnectionStatus [Client] [Feature] (apps/web/components/chat-connection-status.tsx)
                             │           ├── CreateChatRoomForm [Client] [Feature] [conditional] (apps/web/components/create-chat-room-form.tsx)
+                            │           │   └── ChatRoomCategorySelector [Client] [Feature] (apps/web/components/chat-room-category-selector.tsx)
                             │           └── JoinChatRoomControl [Client] [Feature] [repeated] (apps/web/components/join-chat-room-control.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
@@ -115,6 +116,8 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 `ChatRoomListView`를 연결한다. View 이하의 생성 폼과 참여 control은 각각 동작 hook을 호출하되,
 validation, mutation, 멱등성 key 재시도와 라우팅 구현은 JSX 밖에 둔다. 방 card, unread badge,
 avatar, notice와 pagination button은 이 책임 경계를 바꾸지 않는 순수 표현 요소라 생략한다.
+`ChatRoomCategorySelector`는 생성·설정 UI가 공유하는 controlled 단일 선택 표현을 담당하고,
+Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
@@ -180,6 +183,7 @@ flowchart TD
     ChatRoomListScreen["ChatRoomListScreen [Client] [Container]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat-room-list-view.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional]<br/>apps/web/components/create-chat-room-form.tsx"]
+    ChatRoomCategorySelector["ChatRoomCategorySelector [Client] [Feature]<br/>apps/web/components/chat-room-category-selector.tsx"]
     JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client] [Feature]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRoomPage["ChatRoomPage [Server] [Route]<br/>apps/web/app/chat/[roomId]/page.tsx"]
@@ -222,6 +226,7 @@ flowchart TD
     ChatRoomListScreen --> ChatRoomListView
     ChatRoomListView --> ChatConnectionStatus
     ChatRoomListView -->|"conditional create form"| CreateChatRoomForm
+    CreateChatRoomForm --> ChatRoomCategorySelector
     ChatRoomListView -->|"public room action"| JoinChatRoomControl
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView
@@ -244,6 +249,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,CreateChatRoomForm,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

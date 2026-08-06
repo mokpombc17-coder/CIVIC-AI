@@ -1,6 +1,7 @@
 "use client";
 
 import { useCreateChatRoomForm } from "@/components/use-create-chat-room-form";
+import { ChatRoomCategorySelector } from "@/components/chat-room-category-selector";
 
 export const CREATE_CHAT_ROOM_FORM_ID = "create-room-form";
 
@@ -45,6 +46,12 @@ export function CreateChatRoomForm({ onCancel }: { onCancel: () => void }) {
             앞뒤 공백을 제외한 최대 500자이며, 일반 텍스트로 저장됩니다.
           </span>
         </div>
+
+        <ChatRoomCategorySelector
+          disabled={form.isPending}
+          onSelect={form.selectCategory}
+          selectedCategory={form.selectedCategory}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1 text-sm font-medium text-slate-700">
@@ -99,7 +106,7 @@ export function CreateChatRoomForm({ onCancel }: { onCancel: () => void }) {
           >
             취소
           </button>
-          <button className="primary-button" disabled={form.isPending} type="submit">
+          <button className="primary-button" disabled={!form.canSubmit} type="submit">
             {form.isPending ? "생성 중…" : "채팅방 만들기"}
           </button>
         </div>

@@ -2,14 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { parseCreateChatRoomFormData } from "@/components/create-chat-room-form-model";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
-import { createRoomRequestSchema, type CreateRoomRequest } from "@/lib/chat/chat-room-contracts";
+import type { CreateRoomRequest, RoomCategory } from "@/lib/chat/chat-room-contracts";
 import { useCreateRoomMutation } from "@/lib/chat/chat-room-mutations";
 import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
 export function useCreateChatRoomForm() {
   const router = useRouter();
   const createRoom = useCreateRoomMutation();
+  const [selectedCategory, setSelectedCategory] = useState<RoomCategory | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [retryCommand, setRetryCommand] = useState<IdempotentCommand<CreateRoomRequest> | null>(
     null,
@@ -34,13 +36,7 @@ export function useCreateChatRoomForm() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
-    const request = createRoomRequestSchema.safeParse({
-      name: formData.get("name"),
-      description: formData.get("description"),
-      visibility: formData.get("visibility"),
-      joinPolicy: formData.get("joinPolicy"),
-    });
+    const request = parseCreateChatRoomFormData(new FormData(event.currentTarget));
 
     if (!request.success) {
       setValidationError(request.error.issues[0]?.message ?? "방 생성 정보를 확인해 주세요.");
@@ -60,10 +56,13 @@ export function useCreateChatRoomForm() {
 
   return {
     canRetry,
+    canSubmit: selectedCategory !== null && !createRoom.isPending,
     clearFailedAttempt,
     errorMessage: createRoom.isError ? toErrorMessage(createRoom.error) : null,
     handleSubmit,
     isPending: createRoom.isPending,
+    selectedCategory,
+    selectCategory: setSelectedCategory,
     retry: () => {
       if (retryCommand) {
         execute(retryCommand);
