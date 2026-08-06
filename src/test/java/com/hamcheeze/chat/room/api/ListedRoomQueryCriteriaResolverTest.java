@@ -9,6 +9,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -40,6 +42,12 @@ class ListedRoomQueryCriteriaResolverTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addParameter("query", "   ");
         assertThat(resolver.resolve(request).unfiltered()).isTrue();
+
+        MockHttpServletRequest unicodeWhitespace =
+                new MockHttpServletRequest();
+        unicodeWhitespace.addParameter("query", "\u2003");
+        assertThat(resolver.resolve(unicodeWhitespace).unfiltered())
+                .isTrue();
     }
 
     @ParameterizedTest
@@ -65,11 +73,21 @@ class ListedRoomQueryCriteriaResolverTest {
     }
 
     @Test
-    void mapsInvalidNameQueryToInvalidRequest() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addParameter("query", "x".repeat(101));
+    void mapsInvalidNameQueriesToInvalidRequest() {
+        List<String> queries = List.of(
+                "x".repeat(101),
+                "\t",
+                "\npolicy",
+                "policy\r",
+                "policy" + '\0' + "room");
 
-        assertInvalidRequest(() -> resolver.resolve(request));
+        for (String query : queries) {
+            MockHttpServletRequest request =
+                    new MockHttpServletRequest();
+            request.addParameter("query", query);
+
+            assertInvalidRequest(() -> resolver.resolve(request));
+        }
     }
 
     private void assertInvalidRequest(Runnable action) {

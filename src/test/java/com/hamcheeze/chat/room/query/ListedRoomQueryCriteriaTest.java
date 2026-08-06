@@ -4,6 +4,8 @@ import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomCategory;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -32,9 +34,21 @@ class ListedRoomQueryCriteriaTest {
                 null,
                 null).unfiltered()).isTrue();
         assertThat(new ListedRoomQueryCriteria(
-                "  \t ",
+                "   ",
                 null,
                 null).nameContains()).isNull();
+        assertThat(new ListedRoomQueryCriteria(
+                "\u2003",
+                null,
+                null).nameContains()).isNull();
+    }
+
+    @Test
+    void acceptsOneCodePointNameQuery() {
+        assertThat(new ListedRoomQueryCriteria(
+                "법",
+                null,
+                null).nameContains()).isEqualTo("법");
     }
 
     @Test
@@ -60,11 +74,23 @@ class ListedRoomQueryCriteriaTest {
     }
 
     @Test
-    void rejectsControlCharacters() {
-        assertThatThrownBy(() -> new ListedRoomQueryCriteria(
-                "policy\nroom",
-                null,
-                null))
-                .isInstanceOf(IllegalArgumentException.class);
+    void rejectsRawControlCharactersBeforeStripping() {
+        List<String> queries = List.of(
+                "\t",
+                "\npolicy",
+                "policy\r",
+                "policy" + '\0' + "room");
+
+        for (String query : queries) {
+            assertThatThrownBy(() ->
+                    new ListedRoomQueryCriteria(
+                            query,
+                            null,
+                            null))
+                    .as("query code points: %s",
+                            query.codePoints().boxed().toList())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("control characters");
+        }
     }
 }

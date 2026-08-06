@@ -102,11 +102,15 @@ class HttpClient:
 def find_public_room(
     client: HttpClient,
     room_id: str,
+    *,
+    query_parameters: dict[str, str] | None = None,
 ) -> dict | None:
     cursor = None
     seen_cursors: set[str] = set()
+    parameters = dict(query_parameters or {})
+    parameters["limit"] = "100"
     while True:
-        query = {"limit": "100"}
+        query = dict(parameters)
         if cursor is not None:
             query["cursor"] = cursor
         path = "/api/v1/rooms?" + urllib.parse.urlencode(query)
@@ -1103,9 +1107,13 @@ def main() -> int:
         client.cookie,
     )
 
-    print("[4/15] HttpOnly 쿠키 JWT로 내 방·공개 방 목록 확인")
+    print("[4/15] HttpOnly 쿠키 JWT로 내 방·참여 가능한 공개 방 목록 확인")
     client.request("GET", "/api/v1/me/rooms")
-    client.request("GET", "/api/v1/rooms")
+    client.request(
+        "GET",
+        "/api/v1/rooms?"
+        + urllib.parse.urlencode({"joinPolicy": "OPEN"}),
+    )
 
     print("[5/15] description/categories 포함 LISTED/OPEN 방 생성")
     room_name = f"frontend-smoke-{uuid.uuid4().hex[:8]}"
@@ -1127,7 +1135,7 @@ def main() -> int:
         raise AssertionError("방 생성 응답이 JSON 객체가 아닙니다.")
     room_id = create_result["roomId"]
 
-    print("[6/15] 방 상세·공개 방 목록 description/categories 반영 확인")
+    print("[6/15] 방 상세·검색/필터 공개 목록 settings 반영 확인")
     _, _, room_detail = client.request("GET", f"/api/v1/rooms/{room_id}")
     if (
         not isinstance(room_detail, dict)
@@ -1136,13 +1144,26 @@ def main() -> int:
         or room_detail.get("categories") != ["POLICY"]
     ):
         raise AssertionError("방 상세 응답의 settings가 생성 요청과 다릅니다.")
-    listed_room = find_public_room(client, room_id)
+    listed_room = find_public_room(
+        client,
+        room_id,
+        query_parameters={
+            "query": room_name.upper(),
+            "category": "POLICY",
+            "joinPolicy": "OPEN",
+        },
+    )
     if (
         listed_room is None
+        or listed_room.get("name") != room_name
         or listed_room.get("description") != room_description
         or listed_room.get("categories") != ["POLICY"]
+        or listed_room.get("joinPolicy") != "OPEN"
+        or listed_room.get("visibility") != "LISTED"
     ):
-        raise AssertionError("생성한 LISTED 방이 공개 방 목록에 없습니다.")
+        raise AssertionError(
+            "생성한 Room이 query/category/joinPolicy 검색 결과와 다릅니다."
+        )
 
     print(
         "[7/15] 구독 유지 상태에서 Room settings update/event/replay/no-op 확인"

@@ -27,6 +27,11 @@ public record ListedRoomQueryCriteria(
         if (query == null) {
             return null;
         }
+        if (query.codePoints().anyMatch(
+                Character::isISOControl)) {
+            throw new IllegalArgumentException(
+                    "name query must not contain control characters");
+        }
         String canonical = query.strip();
         if (canonical.isEmpty()) {
             return null;
@@ -35,11 +40,6 @@ public record ListedRoomQueryCriteria(
                 > MAX_NAME_QUERY_CODE_POINTS) {
             throw new IllegalArgumentException(
                     "name query must not exceed 100 code points");
-        }
-        if (canonical.codePoints().anyMatch(
-                Character::isISOControl)) {
-            throw new IllegalArgumentException(
-                    "name query must not contain control characters");
         }
         return canonical.toLowerCase(Locale.ROOT);
     }
