@@ -1,5 +1,7 @@
 package com.hamcheeze.chat.room.mongo;
 
+import com.hamcheeze.chat.room.application.ActiveRoomMembershipQuotaGuard;
+import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
@@ -34,6 +36,18 @@ public class MongoRoomPersistenceConfiguration {
             MongoRoomSchemaInitializer schemaInitializer
     ) {
         return new MongoMembershipStore(mongoOperations);
+    }
+
+    @Bean
+    ActiveRoomMembershipQuotaGuard
+    activeRoomMembershipQuotaGuard(
+            MongoOperations mongoOperations,
+            MongoRoomSchemaInitializer schemaInitializer,
+            RoomMembershipProperties properties
+    ) {
+        return new MongoActiveRoomMembershipQuotaGuard(
+                mongoOperations,
+                properties.activeRoomCountQueryMaxTime());
     }
 
     @Bean

@@ -85,6 +85,8 @@ public class RoomCommandApplicationConfiguration {
             RoomCommandIdGenerator idGenerator,
             RoomCommandProperties properties,
             RoomMembershipProperties membershipProperties,
+            ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
             RoomCommandPostCommitCoordinator postCommitCoordinator
     ) {
         return new RoomCommandService(
@@ -97,7 +99,17 @@ public class RoomCommandApplicationConfiguration {
                 Clock.systemUTC(),
                 properties,
                 membershipProperties,
+                membershipQuotaGuard,
+                membershipQuotaMetrics,
                 postCommitCoordinator);
+    }
+
+    @Bean
+    ActiveRoomMembershipQuotaMetrics
+    activeRoomMembershipQuotaMetrics(
+            MeterRegistry meterRegistry
+    ) {
+        return new ActiveRoomMembershipQuotaMetrics(meterRegistry);
     }
 
     @Bean

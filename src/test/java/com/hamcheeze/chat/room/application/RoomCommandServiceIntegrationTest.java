@@ -23,9 +23,12 @@ import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
+import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
+import com.hamcheeze.chat.room.application.transaction.RoomOptimisticConflictException;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
+import com.hamcheeze.chat.room.mongo.MongoUserActiveRoomQuotaLockDocument;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
@@ -37,6 +40,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -52,9 +56,13 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -78,6 +86,9 @@ class RoomCommandServiceIntegrationTest
 
     @MockitoSpyBean
     private MembershipStore membershipStore;
+
+    @MockitoSpyBean
+    private ActiveRoomMembershipQuotaGuard membershipQuotaGuard;
 
     @Test
     void createRoomCommitsOwnerAndReceiptAndReplays() {
@@ -176,6 +187,306 @@ class RoomCommandServiceIntegrationTest
         assertThat(count(MongoRoomDocument.COLLECTION_NAME)).isZero();
         assertThat(count(MongoMembershipDocument.COLLECTION_NAME))
                 .isZero();
+        assertThat(count(
+                MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isZero();
+        assertThat(count(
+                MongoUserActiveRoomQuotaLockDocument.COLLECTION_NAME))
+                .isZero();
+    }
+
+    @Test
+    void createEnforcesUserActiveRoomLimitReplaysAndAllowsExemption() {
+        seedActiveRooms("quota-user", 19, "owned-");
+        RoomCommandExecution twentieth = service.createRoom(
+                createCommand(
+                        "quota-user",
+                        requestId(),
+                        JoinPolicy.OPEN));
+        String rejectedRequestId = requestId();
+        CreateRoomCommand rejectedCommand = createCommand(
+                "quota-user",
+                rejectedRequestId,
+                JoinPolicy.OPEN);
+
+        RoomCommandExecution rejected =
+                service.createRoom(rejectedCommand);
+        RoomCommandExecution replay = service.createRoom(
+                rejectedCommand,
+                ActiveRoomMembershipLimitMode.EXEMPT);
+        RoomCommandExecution exempted = service.createRoom(
+                createCommand(
+                        "quota-user",
+                        requestId(),
+                        JoinPolicy.OPEN),
+                ActiveRoomMembershipLimitMode.EXEMPT);
+
+        assertThat(twentieth.result().code())
+                .isEqualTo(RoomCommandResultCode.ROOM_CREATED);
+        assertThat(rejected.result().code()).isEqualTo(
+                RoomCommandResultCode
+                        .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+        assertThat(rejected.replayed()).isFalse();
+        assertThat(replay.result()).isEqualTo(rejected.result());
+        assertThat(replay.replayed()).isTrue();
+        assertThat(roomStore.findById(rejected.result().roomId()))
+                .isEmpty();
+        assertThat(exempted.result().code())
+                .isEqualTo(RoomCommandResultCode.ROOM_CREATED);
+        assertThat(activeMembershipCount("quota-user"))
+                .isEqualTo(21);
+        assertThat(quotaLock("quota-user").getLong("revision"))
+                .isEqualTo(2L);
+    }
+
+    @Test
+    void joinAndRejoinUseSlotsWhileAlreadyActiveDoesNotCheckAgain() {
+        seedActiveRooms("quota-user", 19, "owned-");
+        String firstTarget = createOpenRoom("owner-a");
+        String secondTarget = createOpenRoom("owner-b");
+        String thirdTarget = createOpenRoom("owner-c");
+
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "quota-user",
+                requestId(),
+                firstTarget)).result().code())
+                .isEqualTo(RoomCommandResultCode.JOINED);
+        long revisionAtLimit = quotaLock("quota-user")
+                .getLong("revision");
+
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "quota-user",
+                requestId(),
+                firstTarget)).result().code())
+                .isEqualTo(RoomCommandResultCode.ALREADY_ACTIVE);
+        assertThat(quotaLock("quota-user").getLong("revision"))
+                .isEqualTo(revisionAtLimit);
+
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "quota-user",
+                requestId(),
+                secondTarget)).result().code())
+                .isEqualTo(RoomCommandResultCode
+                        .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+        assertThat(membershipStore.findByRoomIdAndUserId(
+                secondTarget,
+                "quota-user")).isEmpty();
+        assertThat(mongoOperations.findById(
+                secondTarget,
+                MongoRoomSequenceDocument.class)).isNull();
+
+        service.leaveRoom(new LeaveRoomCommand(
+                "quota-user",
+                requestId(),
+                firstTarget));
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "quota-user",
+                requestId(),
+                secondTarget)).result().code())
+                .isEqualTo(RoomCommandResultCode.JOINED);
+        service.leaveRoom(new LeaveRoomCommand(
+                "quota-user",
+                requestId(),
+                secondTarget));
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "quota-user",
+                requestId(),
+                secondTarget)).result().code())
+                .isEqualTo(RoomCommandResultCode.REJOINED);
+        assertThat(service.banMember(new BanMemberCommand(
+                "owner-b",
+                requestId(),
+                secondTarget,
+                "quota-user")).result().code())
+                .isEqualTo(RoomCommandResultCode.BANNED);
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "quota-user",
+                requestId(),
+                thirdTarget)).result().code())
+                .isEqualTo(RoomCommandResultCode.JOINED);
+        assertThat(service.unbanMember(new UnbanMemberCommand(
+                "owner-b",
+                requestId(),
+                secondTarget,
+                "quota-user")).result().code())
+                .isEqualTo(RoomCommandResultCode.UNBANNED);
+        assertThat(membership(secondTarget, "quota-user").status())
+                .isEqualTo(MembershipStatus.LEFT);
+        assertThat(activeMembershipCount("quota-user"))
+                .isEqualTo(20);
+    }
+
+    @Test
+    void overLimitUserKeepsExistingMembershipsAndCanReuseSlot() {
+        seedActiveRooms("quota-user", 21, "over-limit-");
+        String existingRoom = "over-limit-0";
+
+        assertThat(service.joinRoom(new JoinRoomCommand(
+                "quota-user",
+                requestId(),
+                existingRoom)).result().code())
+                .isEqualTo(RoomCommandResultCode.ALREADY_ACTIVE);
+        assertThat(service.createRoom(createCommand(
+                "quota-user",
+                requestId(),
+                JoinPolicy.OPEN)).result().code())
+                .isEqualTo(RoomCommandResultCode
+                        .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+
+        service.closeRoom(new CloseRoomCommand(
+                "quota-user",
+                requestId(),
+                existingRoom));
+        assertThat(activeMembershipCount("quota-user"))
+                .isEqualTo(20);
+        assertThat(service.createRoom(createCommand(
+                "quota-user",
+                requestId(),
+                JoinPolicy.OPEN)).result().code())
+                .isEqualTo(RoomCommandResultCode
+                        .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+
+        service.closeRoom(new CloseRoomCommand(
+                "quota-user",
+                requestId(),
+                "over-limit-1"));
+        assertThat(service.createRoom(createCommand(
+                "quota-user",
+                requestId(),
+                JoinPolicy.OPEN)).result().code())
+                .isEqualTo(RoomCommandResultCode.ROOM_CREATED);
+        assertThat(activeMembershipCount("quota-user"))
+                .isEqualTo(20);
+    }
+
+    @Test
+    void roomMemberLimitWinsBeforeUserQuotaAndDoesNotTouchLock() {
+        String roomId = createOpenRoom("owner-1");
+        joinMembers(roomId, "member-", 1, 49);
+        seedActiveRooms("quota-user", 20, "owned-");
+
+        RoomCommandExecution execution = service.joinRoom(
+                new JoinRoomCommand(
+                        "quota-user",
+                        requestId(),
+                        roomId));
+
+        assertThat(execution.result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_MEMBER_LIMIT_EXCEEDED);
+        assertThat(quotaLock("quota-user")).isNull();
+        assertThat(service.joinRoom(
+                new JoinRoomCommand(
+                        "exempt-user",
+                        requestId(),
+                        roomId),
+                ActiveRoomMembershipLimitMode.EXEMPT)
+                .result().code()).isEqualTo(
+                RoomCommandResultCode.ROOM_MEMBER_LIMIT_EXCEEDED);
+    }
+
+    @Test
+    void concurrentJoinsAcrossRoomsSerializeLastUserSlot()
+            throws Exception {
+        seedActiveRooms("quota-user", 19, "owned-");
+        String roomA = createOpenRoom("owner-a");
+        String roomB = createOpenRoom("owner-b");
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "quota-user", requestId(), roomA)),
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "quota-user", requestId(), roomB)));
+
+        assertThat(executions)
+                .extracting(execution -> execution.result().code())
+                .containsExactlyInAnyOrder(
+                        RoomCommandResultCode.JOINED,
+                        RoomCommandResultCode
+                                .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+        assertThat(activeMembershipCount("quota-user"))
+                .isEqualTo(20);
+    }
+
+    @Test
+    void concurrentCreateAndJoinSerializeLastUserSlot()
+            throws Exception {
+        seedActiveRooms("quota-user", 19, "owned-");
+        String targetRoom = createOpenRoom("owner-a");
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.createRoom(createCommand(
+                        "quota-user",
+                        requestId(),
+                        JoinPolicy.OPEN)),
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "quota-user",
+                        requestId(),
+                        targetRoom)));
+
+        assertThat(executions)
+                .extracting(execution -> execution.result().code())
+                .contains(RoomCommandResultCode
+                        .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+        assertThat(executions.stream()
+                .filter(execution -> execution.result().code()
+                        == RoomCommandResultCode.ROOM_CREATED
+                        || execution.result().code()
+                        == RoomCommandResultCode.JOINED))
+                .hasSize(1);
+        assertThat(activeMembershipCount("quota-user"))
+                .isEqualTo(20);
+    }
+
+    @Test
+    void concurrentCreatesSerializeLastUserSlot()
+            throws Exception {
+        seedActiveRooms("quota-user", 19, "owned-");
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.createRoom(createCommand(
+                        "quota-user",
+                        requestId(),
+                        JoinPolicy.OPEN)),
+                () -> service.createRoom(createCommand(
+                        "quota-user",
+                        requestId(),
+                        JoinPolicy.OPEN)));
+
+        assertThat(executions)
+                .extracting(execution -> execution.result().code())
+                .containsExactlyInAnyOrder(
+                        RoomCommandResultCode.ROOM_CREATED,
+                        RoomCommandResultCode
+                                .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+        assertThat(activeMembershipCount("quota-user"))
+                .isEqualTo(20);
+    }
+
+    @Test
+    void quotaLockConflictExhaustionUsesConcurrencyFailureContract() {
+        doThrow(new RoomOptimisticConflictException(
+                "forced quota conflict"))
+                .when(membershipQuotaGuard)
+                .checkBeforeIncrease(
+                        anyString(),
+                        anyInt(),
+                        any(Instant.class));
+
+        assertThatThrownBy(() -> service.createRoom(createCommand(
+                "quota-user",
+                requestId(),
+                JoinPolicy.OPEN)))
+                .isInstanceOfSatisfying(
+                        RoomCommandExecutionException.class,
+                        exception -> assertThat(exception.kind())
+                                .isEqualTo(RoomCommandFailureKind
+                                        .CONCURRENCY_RETRY_EXHAUSTED));
+        verify(membershipQuotaGuard, times(3))
+                .checkBeforeIncrease(
+                        anyString(),
+                        anyInt(),
+                        any(Instant.class));
+        assertThat(count(MongoRoomDocument.COLLECTION_NAME)).isZero();
         assertThat(count(
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME))
                 .isZero();
@@ -1428,6 +1739,32 @@ class RoomCommandServiceIntegrationTest
 
     private String createOpenRoom(String ownerUserId) {
         return createRoom(ownerUserId, JoinPolicy.OPEN);
+    }
+
+    private void seedActiveRooms(
+            String userId,
+            int count,
+            String roomPrefix
+    ) {
+        for (int index = 0; index < count; index++) {
+            seedActiveRoom(roomPrefix + index, userId);
+        }
+    }
+
+    private long activeMembershipCount(String userId) {
+        return count(Query.query(Criteria.where("userId")
+                        .is(userId)
+                        .and("status")
+                        .is(MembershipStatus.ACTIVE)),
+                MongoMembershipDocument.COLLECTION_NAME);
+    }
+
+    private org.bson.Document quotaLock(String userId) {
+        return mongoOperations.getCollection(
+                        MongoUserActiveRoomQuotaLockDocument
+                                .COLLECTION_NAME)
+                .find(new org.bson.Document("_id", userId))
+                .first();
     }
 
     private String roomWithActiveMember() {

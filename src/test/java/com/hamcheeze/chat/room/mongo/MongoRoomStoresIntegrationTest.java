@@ -84,6 +84,9 @@ class MongoRoomStoresIntegrationTest {
         mongoTemplate.remove(
                 new Query(),
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME);
+        mongoTemplate.remove(
+                new Query(),
+                MongoUserActiveRoomQuotaLockDocument.COLLECTION_NAME);
         schemaInitializer.initialize();
     }
 

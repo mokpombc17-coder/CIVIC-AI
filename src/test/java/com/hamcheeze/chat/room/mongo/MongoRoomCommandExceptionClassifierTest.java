@@ -62,6 +62,10 @@ class MongoRoomCommandExceptionClassifierTest {
                 "{_id:1}",
                 "chat_room_sequences")))
                 .contains(DuplicateKeyKind.ROOM_SEQUENCE);
+        assertThat(classifier.duplicateKeyKind(duplicate(
+                "{_id:1}",
+                "chat_user_active_room_quota_locks")))
+                .contains(DuplicateKeyKind.QUOTA_LOCK);
     }
 
     @Test

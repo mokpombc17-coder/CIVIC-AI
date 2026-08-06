@@ -20,6 +20,7 @@ import com.hamcheeze.chat.room.mongo.MongoMembershipStore;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptStore;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
+import com.hamcheeze.chat.room.mongo.MongoUserActiveRoomQuotaLockDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.mongo.MongoRoomStore;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
@@ -380,6 +381,9 @@ class LocalProfileApplicationTests
                 MongoMembershipDocument.COLLECTION_NAME)).isTrue();
         assertThat(mongoOperations.collectionExists(
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isTrue();
+        assertThat(mongoOperations.collectionExists(
+                MongoUserActiveRoomQuotaLockDocument.COLLECTION_NAME))
                 .isTrue();
         assertThat(mongoOperations.indexOps(
                 MongoMembershipDocument.COLLECTION_NAME)

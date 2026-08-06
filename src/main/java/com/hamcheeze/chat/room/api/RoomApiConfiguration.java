@@ -24,6 +24,12 @@ public class RoomApiConfiguration {
     }
 
     @Bean
+    RoomMembershipLimitModeResolver
+    roomMembershipLimitModeResolver() {
+        return new RoomMembershipLimitModeResolver();
+    }
+
+    @Bean
     RoomCommandHttpMapper roomCommandHttpMapper() {
         return new RoomCommandHttpMapper();
     }

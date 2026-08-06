@@ -22,6 +22,7 @@ public enum RoomCommandResultCode {
     ROOM_CLOSED(true),
     JOIN_POLICY_NOT_OPEN(true),
     ROOM_MEMBER_LIMIT_EXCEEDED(true),
+    USER_ACTIVE_ROOM_LIMIT_EXCEEDED(true),
     NOT_ROOM_OWNER(true),
     ROOM_HAS_OTHER_ACTIVE_MEMBERS(true),
     OWNER_CANNOT_LEAVE(true),

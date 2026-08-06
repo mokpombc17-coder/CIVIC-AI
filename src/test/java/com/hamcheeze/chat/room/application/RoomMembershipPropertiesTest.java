@@ -15,7 +15,7 @@ class RoomMembershipPropertiesTest {
                             MembershipPropertiesConfiguration.class);
 
     @Test
-    void defaultsToFiftyAndDoesNotDependOnSubscriberLimit() {
+    void defaultsToFiftyMembersAndTwentyRooms() {
         contextRunner
                 .withPropertyValues(
                         "chat.websocket.subscription."
@@ -26,6 +26,10 @@ class RoomMembershipPropertiesTest {
                             RoomMembershipProperties.class)
                             .maxActiveMembersPerRoom())
                             .isEqualTo(50);
+                    assertThat(context.getBean(
+                            RoomMembershipProperties.class)
+                            .maxActiveRoomsPerUser())
+                            .isEqualTo(20);
                 });
     }
 
@@ -50,6 +54,48 @@ class RoomMembershipPropertiesTest {
         assertInvalid("-1");
     }
 
+    @Test
+    void acceptsOneAsMinimumActiveRoomLimit() {
+        contextRunner
+                .withPropertyValues(
+                        "chat.room.membership."
+                                + "max-active-rooms-per-user=1")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(
+                            RoomMembershipProperties.class)
+                            .maxActiveRoomsPerUser())
+                            .isEqualTo(1);
+                });
+    }
+
+    @Test
+    void rejectsInvalidActiveRoomLimitsDuringStartupBinding() {
+        assertInvalidActiveRoomLimit("0");
+        assertInvalidActiveRoomLimit("-1");
+    }
+
+    @Test
+    void bindsActiveRoomLimitAndCountTimeoutOverrides() {
+        contextRunner
+                .withPropertyValues(
+                        "chat.room.membership."
+                                + "max-active-rooms-per-user=37",
+                        "chat.room.membership."
+                                + "active-room-count-query-max-time=2s")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    RoomMembershipProperties properties =
+                            context.getBean(
+                                    RoomMembershipProperties.class);
+                    assertThat(properties.maxActiveRoomsPerUser())
+                            .isEqualTo(37);
+                    assertThat(properties
+                            .activeRoomCountQueryMaxTime())
+                            .isEqualTo(java.time.Duration.ofSeconds(2));
+                });
+    }
+
     private void assertInvalid(String value) {
         contextRunner
                 .withPropertyValues(
@@ -64,6 +110,21 @@ class RoomMembershipPropertiesTest {
                             .isInstanceOf(IllegalArgumentException.class)
                             .hasMessageContaining(
                                     "maxActiveMembersPerRoom");
+                });
+    }
+
+    private void assertInvalidActiveRoomLimit(String value) {
+        contextRunner
+                .withPropertyValues(
+                        "chat.room.membership."
+                                + "max-active-rooms-per-user="
+                                + value)
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(rootCause(context.getStartupFailure()))
+                            .isInstanceOf(IllegalArgumentException.class)
+                            .hasMessageContaining(
+                                    "maxActiveRoomsPerUser");
                 });
     }
 

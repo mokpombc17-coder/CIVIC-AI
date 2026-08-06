@@ -101,6 +101,15 @@ class RoomCommandEventMapperTest {
                 EVENT_ID,
                 EMITTED_AT)).isEmpty();
         assertThat(mapper.map(
+                execution(RoomCommandResult.rejection(
+                        RoomCommandType.CREATE_ROOM,
+                        RoomCommandResultCode
+                                .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
+                        "room-candidate",
+                        null), false),
+                EVENT_ID,
+                EMITTED_AT)).isEmpty();
+        assertThat(mapper.map(
                 execution(result(RoomCommandResultCode.JOINED), true),
                 EVENT_ID,
                 EMITTED_AT)).isEmpty();

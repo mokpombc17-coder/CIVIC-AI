@@ -234,6 +234,43 @@ class IdempotentRoomCommandExecutorTest {
     }
 
     @Test
+    void unknownCommitRecoversQuotaRejectionReceipt() {
+        AtomicInteger transactionCalls = new AtomicInteger();
+        AtomicInteger actionCalls = new AtomicInteger();
+        TransactionOperations operations = new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> callback) {
+                T value = callback.doInTransaction(null);
+                transactionCalls.incrementAndGet();
+                MongoException unknown =
+                        new MongoException("unknown commit");
+                unknown.addLabel(
+                        MongoRoomCommandExceptionClassifier
+                                .UNKNOWN_TRANSACTION_COMMIT_RESULT);
+                throw unknown;
+            }
+        };
+
+        RoomCommandExecution execution = executor(operations)
+                .execute(prepared("quota-rejection"), () -> {
+                    actionCalls.incrementAndGet();
+                    return RoomCommandResult.rejection(
+                            RoomCommandType.JOIN_ROOM,
+                            RoomCommandResultCode
+                                    .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
+                            "room-1",
+                            null);
+                });
+
+        assertThat(execution.result().code()).isEqualTo(
+                RoomCommandResultCode
+                        .USER_ACTIVE_ROOM_LIMIT_EXCEEDED);
+        assertThat(execution.replayed()).isTrue();
+        assertThat(actionCalls).hasValue(1);
+        assertThat(transactionCalls).hasValue(1);
+    }
+
+    @Test
     void transientTransactionFailureRetriesThenSucceeds() {
         AtomicInteger transactionCalls = new AtomicInteger();
         TransactionOperations operations = new TransactionOperations() {

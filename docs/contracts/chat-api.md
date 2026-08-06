@@ -131,6 +131,18 @@ chat:read-state:write
 | 채팅 메시지 전송 | `chat:messages:write` |
 | 개인 Room 읽음 위치 갱신 | `chat:read-state:write` |
 
+운영용 quota 면제 capability는 다음 scope를 사용한다.
+
+```text
+chat:rooms:membership-limit:exempt
+```
+
+이 scope는 사용자별 ACTIVE Room 제한만 면제한다. Room command에는 기존
+`chat:rooms:write`가 계속 필요하며, Room당 ACTIVE member 제한, CLOSED 상태,
+join policy, BANNED 상태와 owner 전용 권한을 우회하지 않는다. 플랫폼 인증
+서버가 관리자 또는 운영용 JWT에 이 scope를 명시적으로 포함해야 면제가
+적용된다. 일반화된 ADMIN role이나 사용자 ID 목록은 사용하지 않는다.
+
 ### Idempotency-Key
 
 모든 방 생성·변경 `POST` API에는 다음 헤더가 필요하다.
@@ -329,6 +341,52 @@ MEMBER ban으로 자리가 생기면 다시 join/rejoin할 수 있고, unban은 
 이 영속 Membership 제한은 WebSocket의 동시 Room topic 구독 제한인
 `chat.websocket.subscription.max-subscribers-per-room`과 서로 다른 설정이다.
 두 값은 독립적으로 변경할 수 있다.
+
+### 사용자별 ACTIVE Room 제한
+
+일반 사용자의 `ACTIVE` Membership은 기본 최대 20개다. OWNER와 MEMBER를
+구분하지 않고 각각 1개로 계산하며, Room 생성도 OWNER Membership 하나를
+추가하므로 quota를 소비한다. `LEFT`와 `BANNED` Membership은 계산하지 않는다.
+20은 `CHAT_ROOM_MAX_ACTIVE_ROOMS_PER_USER`로 변경 가능한 서버 설정이므로
+클라이언트가 숫자를 고정 계약으로 사용해서는 안 된다.
+
+제한은 ACTIVE Membership 수를 증가시키는 다음 경우에만 적용된다.
+
+```text
+Room CREATE
+신규 JOIN
+LEFT -> ACTIVE REJOIN
+```
+
+`ALREADY_ACTIVE`, LEAVE, BAN, UNBAN, CLOSE, ownership transfer와 settings
+update에는 적용하지 않는다. UNBAN은 `BANNED -> LEFT`이며 자동 재참여가
+아니다. Room당 member 제한과 사용자별 제한을 모두 초과하면 기존
+`ROOM_MEMBER_LIMIT_EXCEEDED`를 우선한다.
+
+한도에 도달한 신규 증가 요청은 다음 결과를 반환한다.
+
+```text
+HTTP 409 Conflict
+code = USER_ACTIVE_ROOM_LIMIT_EXCEEDED
+retryable = false
+detail = The user has reached the active room limit.
+```
+
+detail에는 설정값 20을 포함하지 않는다. 거절 결과도 기존 idempotency receipt에
+저장되므로 같은 `Idempotency-Key`의 재호출은 같은 결과를
+`replayed=true`로 반환한다. 호출 사이에 면제 scope가 추가되더라도 기존 key는
+기존 결과를 replay하며, 새 권한으로 다시 시도하려면 새 key를 사용한다.
+
+배포 시 이미 한도를 넘은 Membership을 강제로 종료하지 않는다. 해당 사용자는
+기존 ACTIVE Room 유지, `ALREADY_ACTIVE`, 감소 operation을 계속 수행할 수 있지만
+ACTIVE 수가 limit 미만이 될 때까지 신규 CREATE/JOIN/REJOIN은 거절된다.
+
+동시 CREATE/JOIN/REJOIN은 `chat_user_active_room_quota_locks`의 사용자별
+문서를 같은 Mongo transaction 안에서 touch하여 직렬화한다. 이 문서는 실제
+count projection이 아니며 `activeRoomCount`를 저장하지 않는다. 실제 판정은
+`chat_memberships`의 `userId + ACTIVE`를
+`ix_chat_membership_user_status` hint와 bounded count로 조회한다. 따라서 counter
+backfill이나 감소 operation의 counter 갱신은 필요 없다.
 
 최초 참여가 확정될 때 서버는 참여 직전까지 확정된 방의 최신
 `roomSequence`를 Membership의 `messageVisibleAfterSequence`로 저장한다.

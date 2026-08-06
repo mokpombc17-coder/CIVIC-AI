@@ -110,6 +110,106 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
+    void activeRoomLimitReturnsConflictAndReplaysWithoutLimitValue()
+            throws Exception {
+        seedActiveRooms("limited-user", 20);
+        String createRequestId = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt -> jwt.subject(
+                                        "limited-user"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .ROOMS_WRITE))))
+                        .header(
+                                RoomIdempotencyKeyResolver.HEADER_NAME,
+                                createRequestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(
+                        "USER_ACTIVE_ROOM_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.retryable").value(false))
+                .andExpect(jsonPath("$.replayed").value(false))
+                .andExpect(jsonPath("$.detail").value(
+                        "The user has reached the active room limit."));
+
+        mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt -> jwt.subject(
+                                        "limited-user"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .ROOMS_WRITE))))
+                        .header(
+                                RoomIdempotencyKeyResolver.HEADER_NAME,
+                                createRequestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(
+                        "USER_ACTIVE_ROOM_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.replayed").value(true));
+
+        String targetRoom = "quota-join-target";
+        seedActiveRoom(targetRoom, "target-owner");
+        mockMvc.perform(post(
+                        "/api/v1/rooms/{roomId}/commands/join",
+                        targetRoom)
+                        .with(jwt().jwt(jwt -> jwt.subject(
+                                        "limited-user"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .ROOMS_WRITE))))
+                        .header(
+                                RoomIdempotencyKeyResolver.HEADER_NAME,
+                                UUID.randomUUID().toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(
+                        "USER_ACTIVE_ROOM_LIMIT_EXCEEDED"));
+    }
+
+    @Test
+    void exemptionScopeBypassesOnlyUserLimit() throws Exception {
+        seedActiveRooms("exempt-user", 20);
+
+        mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt -> jwt.subject(
+                                        "exempt-user"))
+                                .authorities(
+                                        new SimpleGrantedAuthority(
+                                                ChatScopes.authority(
+                                                        ChatScopes
+                                                                .ROOMS_WRITE)),
+                                        new SimpleGrantedAuthority(
+                                                ChatScopes.authority(
+                                                        ChatScopes
+                                                                .ROOM_MEMBERSHIP_LIMIT_EXEMPT))))
+                        .header(
+                                RoomIdempotencyKeyResolver.HEADER_NAME,
+                                UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/rooms")
+                        .with(jwt().jwt(jwt -> jwt.subject(
+                                        "scope-only-user"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .ROOM_MEMBERSHIP_LIMIT_EXEMPT))))
+                        .header(
+                                RoomIdempotencyKeyResolver.HEADER_NAME,
+                                UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void authenticatesSignedLocalJwtFromHttpOnlyCookie()
             throws Exception {
         String token = token(
@@ -461,6 +561,12 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                   "joinPolicy":"OPEN"
                 }
                 """;
+    }
+
+    private void seedActiveRooms(String userId, int count) {
+        for (int index = 0; index < count; index++) {
+            seedActiveRoom("quota-room-" + index, userId);
+        }
     }
 
     private static String roomInboxCursorToken(String payload) {

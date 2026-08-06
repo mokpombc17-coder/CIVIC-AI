@@ -26,8 +26,6 @@ import com.hamcheeze.chat.room.application.command.RoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
 import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
-import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
-import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.idempotency.PreparedRoomCommand;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
@@ -57,6 +55,8 @@ public final class RoomCommandService {
     private final Clock clock;
     private final RoomCommandProperties properties;
     private final RoomMembershipProperties membershipProperties;
+    private final ActiveRoomMembershipQuotaGuard membershipQuotaGuard;
+    private final ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics;
     private final RoomCommandPostCommitCoordinator
             postCommitCoordinator;
 
@@ -68,82 +68,10 @@ public final class RoomCommandService {
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
             Clock clock,
-            RoomCommandProperties properties
-    ) {
-        this(
-                roomStore,
-                membershipStore,
-                messageBoundaryPort,
-                executor,
-                fingerprintFactory,
-                idGenerator,
-                clock,
-                properties,
-                new RoomMembershipProperties(),
-                RoomCommandPostCommitCoordinator.disabled());
-    }
-
-    public RoomCommandService(
-            RoomStore roomStore,
-            MembershipStore membershipStore,
-            RoomMessageBoundaryPort messageBoundaryPort,
-            IdempotentRoomCommandExecutor executor,
-            RoomCommandFingerprintFactory fingerprintFactory,
-            RoomCommandIdGenerator idGenerator,
-            Clock clock,
-            RoomCommandProperties properties,
-            RoomCommandAccessRevocationCoordinator
-                    accessRevocationCoordinator
-    ) {
-        this(
-                roomStore,
-                membershipStore,
-                messageBoundaryPort,
-                executor,
-                fingerprintFactory,
-                idGenerator,
-                clock,
-                properties,
-                new RoomMembershipProperties(),
-                new RoomCommandPostCommitCoordinator(
-                        RoomCommandEventPropagationCoordinator.disabled(),
-                        accessRevocationCoordinator));
-    }
-
-    public RoomCommandService(
-            RoomStore roomStore,
-            MembershipStore membershipStore,
-            RoomMessageBoundaryPort messageBoundaryPort,
-            IdempotentRoomCommandExecutor executor,
-            RoomCommandFingerprintFactory fingerprintFactory,
-            RoomCommandIdGenerator idGenerator,
-            Clock clock,
-            RoomCommandProperties properties,
-            RoomCommandPostCommitCoordinator postCommitCoordinator
-    ) {
-        this(
-                roomStore,
-                membershipStore,
-                messageBoundaryPort,
-                executor,
-                fingerprintFactory,
-                idGenerator,
-                clock,
-                properties,
-                new RoomMembershipProperties(),
-                postCommitCoordinator);
-    }
-
-    public RoomCommandService(
-            RoomStore roomStore,
-            MembershipStore membershipStore,
-            RoomMessageBoundaryPort messageBoundaryPort,
-            IdempotentRoomCommandExecutor executor,
-            RoomCommandFingerprintFactory fingerprintFactory,
-            RoomCommandIdGenerator idGenerator,
-            Clock clock,
             RoomCommandProperties properties,
             RoomMembershipProperties membershipProperties,
+            ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
             RoomCommandPostCommitCoordinator postCommitCoordinator
     ) {
         this.roomStore = Objects.requireNonNull(roomStore, "roomStore");
@@ -165,6 +93,12 @@ public final class RoomCommandService {
         this.membershipProperties = Objects.requireNonNull(
                 membershipProperties,
                 "membershipProperties");
+        this.membershipQuotaGuard = Objects.requireNonNull(
+                membershipQuotaGuard,
+                "membershipQuotaGuard");
+        this.membershipQuotaMetrics = Objects.requireNonNull(
+                membershipQuotaMetrics,
+                "membershipQuotaMetrics");
         this.postCommitCoordinator = Objects.requireNonNull(
                 postCommitCoordinator,
                 "postCommitCoordinator");
@@ -173,6 +107,17 @@ public final class RoomCommandService {
     public RoomCommandExecution createRoom(
             CreateRoomCommand command
     ) {
+        return createRoom(
+                command,
+                ActiveRoomMembershipLimitMode.ENFORCED);
+    }
+
+    public RoomCommandExecution createRoom(
+            CreateRoomCommand command,
+            ActiveRoomMembershipLimitMode limitMode
+    ) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(limitMode, "limitMode");
         String candidateRoomId = idGenerator.newRoomId();
         String candidateOwnerMembershipId =
                 idGenerator.newMembershipId();
@@ -183,6 +128,20 @@ public final class RoomCommandService {
                 candidateRoomId,
                 null);
         return complete(executor.execute(prepared, () -> {
+            if (checkQuotaBeforeIncrease(
+                    command.requesterUserId(),
+                    command.commandType(),
+                    limitMode,
+                    transitionTime)
+                    == ActiveRoomMembershipQuotaDecision
+                    .LIMIT_REACHED) {
+                return rejection(
+                        command.commandType(),
+                        RoomCommandResultCode
+                                .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
+                        candidateRoomId,
+                        null);
+            }
             RoomCreationResult creation =
                     RoomMembershipTransitions.createRoom(
                             candidateRoomId,
@@ -203,6 +162,17 @@ public final class RoomCommandService {
     }
 
     public RoomCommandExecution joinRoom(JoinRoomCommand command) {
+        return joinRoom(
+                command,
+                ActiveRoomMembershipLimitMode.ENFORCED);
+    }
+
+    public RoomCommandExecution joinRoom(
+            JoinRoomCommand command,
+            ActiveRoomMembershipLimitMode limitMode
+    ) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(limitMode, "limitMode");
         String candidateMembershipId =
                 idGenerator.newMembershipId();
         Instant transitionTime = clock.instant();
@@ -218,7 +188,8 @@ public final class RoomCommandService {
                 () -> joinRoomInTransaction(
                         command,
                         candidateMembershipId,
-                        transitionTime))));
+                        transitionTime,
+                        limitMode))));
     }
 
     public RoomCommandExecution leaveRoom(LeaveRoomCommand command) {
@@ -335,7 +306,8 @@ public final class RoomCommandService {
     private RoomCommandResult joinRoomInTransaction(
             JoinRoomCommand command,
             String candidateMembershipId,
-            Instant transitionTime
+            Instant transitionTime,
+            ActiveRoomMembershipLimitMode limitMode
     ) {
         Room room = roomStore.findById(command.roomId())
                 .orElse(null);
@@ -371,6 +343,22 @@ public final class RoomCommandService {
                     command.roomId(),
                     null);
         }
+        if ((outcome == JoinRoomTransition.Outcome.JOINED
+                || outcome == JoinRoomTransition.Outcome.REJOINED)
+                && checkQuotaBeforeIncrease(
+                        command.requesterUserId(),
+                        command.commandType(),
+                        limitMode,
+                        transitionTime)
+                == ActiveRoomMembershipQuotaDecision
+                .LIMIT_REACHED) {
+            return rejection(
+                    command.commandType(),
+                    RoomCommandResultCode
+                            .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
+                    command.roomId(),
+                    null);
+        }
         long messageVisibleAfterSequence =
                 outcome == JoinRoomTransition.Outcome.ALREADY_ACTIVE
                         ? existing.messageVisibleAfterSequence()
@@ -401,6 +389,26 @@ public final class RoomCommandService {
                         transition.outcome().name()),
                 transition.room(),
                 transition.membership());
+    }
+
+    private ActiveRoomMembershipQuotaDecision
+    checkQuotaBeforeIncrease(
+            String userId,
+            RoomCommandType operation,
+            ActiveRoomMembershipLimitMode limitMode,
+            Instant transitionTime
+    ) {
+        if (limitMode == ActiveRoomMembershipLimitMode.EXEMPT) {
+            membershipQuotaMetrics.recordExempted(operation);
+            return ActiveRoomMembershipQuotaDecision.ALLOWED;
+        }
+        return membershipQuotaMetrics.recordCheck(
+                operation,
+                () -> membershipQuotaGuard.checkBeforeIncrease(
+                        userId,
+                        membershipProperties
+                                .maxActiveRoomsPerUser(),
+                        transitionTime));
     }
 
     private RoomCommandResult leaveRoomInTransaction(

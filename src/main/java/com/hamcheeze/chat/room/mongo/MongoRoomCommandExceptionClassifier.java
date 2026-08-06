@@ -137,6 +137,12 @@ public final class MongoRoomCommandExceptionClassifier {
                 return DuplicateKeyKind.MEMBERSHIP_ID;
             }
             if (message != null
+                    && message.contains(
+                    MongoUserActiveRoomQuotaLockDocument
+                            .COLLECTION_NAME)) {
+                return DuplicateKeyKind.QUOTA_LOCK;
+            }
+            if (message != null
                     && message.contains("chat_room_sequences")) {
                 return DuplicateKeyKind.ROOM_SEQUENCE;
             }
@@ -188,6 +194,7 @@ public final class MongoRoomCommandExceptionClassifier {
         MEMBERSHIP_ID,
         MEMBERSHIP_RELATION,
         MEMBERSHIP_OWNER,
+        QUOTA_LOCK,
         ROOM_SEQUENCE,
         UNKNOWN
     }

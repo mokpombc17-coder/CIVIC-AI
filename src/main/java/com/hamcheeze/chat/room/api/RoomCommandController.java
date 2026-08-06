@@ -36,17 +36,23 @@ public class RoomCommandController {
 
     private final RoomCommandService commandService;
     private final AuthenticatedUserIdResolver userIdResolver;
+    private final RoomMembershipLimitModeResolver
+            membershipLimitModeResolver;
     private final RoomIdempotencyKeyResolver idempotencyKeyResolver;
     private final RoomCommandHttpMapper httpMapper;
 
     public RoomCommandController(
             RoomCommandService commandService,
             AuthenticatedUserIdResolver userIdResolver,
+            RoomMembershipLimitModeResolver
+                    membershipLimitModeResolver,
             RoomIdempotencyKeyResolver idempotencyKeyResolver,
             RoomCommandHttpMapper httpMapper
     ) {
         this.commandService = commandService;
         this.userIdResolver = userIdResolver;
+        this.membershipLimitModeResolver =
+                membershipLimitModeResolver;
         this.idempotencyKeyResolver = idempotencyKeyResolver;
         this.httpMapper = httpMapper;
     }
@@ -63,14 +69,17 @@ public class RoomCommandController {
         String requester = userIdResolver.resolve(authentication);
         String requestId =
                 idempotencyKeyResolver.resolve(idempotencyKey);
-        return map(commandService.createRoom(new CreateRoomCommand(
-                requester,
-                requestId,
-                request.name(),
-                request.description(),
-                request.categories(),
-                request.visibility(),
-                request.joinPolicy())));
+        return map(commandService.createRoom(
+                new CreateRoomCommand(
+                        requester,
+                        requestId,
+                        request.name(),
+                        request.description(),
+                        request.categories(),
+                        request.visibility(),
+                        request.joinPolicy()),
+                membershipLimitModeResolver.resolve(
+                        authentication)));
     }
 
     @PostMapping("/{roomId}/commands/join")
@@ -82,10 +91,14 @@ public class RoomCommandController {
             String idempotencyKey,
             @PathVariable String roomId
     ) {
-        return map(commandService.joinRoom(new JoinRoomCommand(
-                userIdResolver.resolve(authentication),
-                idempotencyKeyResolver.resolve(idempotencyKey),
-                RoomApiValidation.roomId(roomId))));
+        return map(commandService.joinRoom(
+                new JoinRoomCommand(
+                        userIdResolver.resolve(authentication),
+                        idempotencyKeyResolver.resolve(
+                                idempotencyKey),
+                        RoomApiValidation.roomId(roomId)),
+                membershipLimitModeResolver.resolve(
+                        authentication)));
     }
 
     @PostMapping("/{roomId}/commands/leave")

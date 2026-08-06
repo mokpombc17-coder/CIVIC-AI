@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.ActiveRoomMembershipLimitMode;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
@@ -123,7 +124,9 @@ class RoomApiFailureIntegrationTest
                 "chat_rooms MongoException secret internal detail",
                 new IllegalStateException("internal stack")))
                 .when(commandService)
-                .createRoom(any(CreateRoomCommand.class));
+                .createRoom(
+                        any(CreateRoomCommand.class),
+                        any(ActiveRoomMembershipLimitMode.class));
 
         var result = mockMvc.perform(post("/api/v1/rooms")
                         .with(jwt().jwt(jwt ->

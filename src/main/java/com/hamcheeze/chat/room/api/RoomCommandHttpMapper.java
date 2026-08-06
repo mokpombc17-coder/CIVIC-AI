@@ -154,6 +154,7 @@ public final class RoomCommandHttpMapper {
                     HttpStatus.FORBIDDEN;
             case ROOM_CLOSED, JOIN_POLICY_NOT_OPEN,
                     ROOM_MEMBER_LIMIT_EXCEEDED,
+                    USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
                     ROOM_HAS_OTHER_ACTIVE_MEMBERS,
                     OWNER_CANNOT_LEAVE,
                     OWNER_CANNOT_BE_BANNED,
@@ -185,6 +186,8 @@ public final class RoomCommandHttpMapper {
                     "The room does not accept open joins.";
             case ROOM_MEMBER_LIMIT_EXCEEDED ->
                     "The room has reached its active member limit.";
+            case USER_ACTIVE_ROOM_LIMIT_EXCEEDED ->
+                    "The user has reached the active room limit.";
             case ROOM_HAS_OTHER_ACTIVE_MEMBERS ->
                     "The room still has other active members.";
             case OWNER_CANNOT_LEAVE ->

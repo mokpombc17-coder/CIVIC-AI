@@ -47,6 +47,8 @@ public final class MongoRoomSchemaInitializer {
         ensureCollection(MongoMembershipDocument.COLLECTION_NAME);
         ensureCollection(
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME);
+        ensureCollection(
+                MongoUserActiveRoomQuotaLockDocument.COLLECTION_NAME);
 
         mongoOperations
                 .indexOps(MongoRoomDocument.COLLECTION_NAME)
