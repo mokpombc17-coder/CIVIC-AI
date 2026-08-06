@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSyncExternalStore, type ReactNode, type Ref } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
+import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { getRoomInboxPreviewPresentation } from "@/components/chat-room-inbox-preview";
 import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
@@ -198,6 +199,7 @@ export function MyRoomCard({ now, room }: { now: Date | null; room: RoomInboxLis
             {now ? formatRoomInboxActivityTime(room.lastActivityAt, now) : null}
           </time>
         </span>
+        <ChatRoomCategoryBadges categories={room.categories} className="mt-1" />
         <span className="mt-1 flex items-center gap-3">
           <span className={`min-w-0 flex-1 truncate text-sm ${previewToneClassName}`}>
             {preview.text}
@@ -258,6 +260,7 @@ function RoomSummary({ children, room }: { children: ReactNode; room: PublicRoom
         <strong className="truncate text-slate-950">{room.name}</strong>
         {children}
       </span>
+      <ChatRoomCategoryBadges categories={room.categories} className="mt-1" />
       {room.description ? (
         <span className="mt-1 line-clamp-2 block whitespace-pre-line break-words text-sm text-slate-600">
           {room.description}

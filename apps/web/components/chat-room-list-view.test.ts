@@ -19,6 +19,7 @@ describe("chat room list cards", () => {
     );
 
     expect(html).toContain("프로젝트 회의방");
+    expect(html).toContain("지역 현안");
     expect(html).toContain("다음 회의는 월요일입니다.");
     expect(html).toContain("오후 5:30");
     expect(html).toContain('dateTime="2026-08-04T08:30:00Z"');
@@ -72,6 +73,7 @@ describe("chat room list cards", () => {
     );
 
     expect(html).toContain("공개 채팅방 설명");
+    expect(html).toContain("정책");
     expect(html).toContain("방 ID: room-public");
     expect(html).toContain("참여자 3명");
     expect(html).toContain("생성");

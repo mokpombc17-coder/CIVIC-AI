@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
 import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
 import type {
@@ -296,6 +297,10 @@ function RoomDetailsCard({ room }: { room: RoomDetails }) {
       <dl className="mt-3 grid gap-2 text-sm">
         <DetailRow label="방 이름" value={room.name} />
         <DetailRow label="방 설명" value={room.description || "설명 없음"} />
+        <DetailRow
+          label="카테고리"
+          value={<ChatRoomCategoryBadges categories={room.categories} />}
+        />
         <DetailRow label="방 ID" value={room.roomId} />
         <DetailRow label="공개 범위" value={room.visibility} />
         <DetailRow label="참여 정책" value={room.joinPolicy} />
@@ -486,7 +491,7 @@ function OwnerMembershipList({
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
       <dt className="text-slate-500">{label}</dt>

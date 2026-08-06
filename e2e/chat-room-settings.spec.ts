@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   authenticateDevUserAs,
   createRoomAndEnter,
+  findPublicRoomCard,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
 
@@ -30,6 +31,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       const membershipDialog = ownerPage.getByRole("dialog", { name: "방 정보와 멤버십" });
       await expect(membershipDialog).toBeVisible();
       await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
+      await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("정책");
       await expect(
         membershipDialog.getByRole("button", { name: "방 설정", exact: true }),
       ).toBeVisible();
@@ -46,7 +48,12 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
 
     await test.step("일반 참여자는 방에 들어와도 설정 버튼을 볼 수 없다", async () => {
       await authenticateDevUserAs(memberPage, memberContext, `e2e-settings-member-${uniqueId}`);
-      await joinPublicRoomAndEnter(memberPage, roomId!, initialName);
+      await memberPage.goto("/chat");
+
+      const publicRoomCard = await findPublicRoomCard(memberPage, initialName);
+
+      await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("정책");
+      await joinPublicRoomAndEnter(memberPage, roomId!, initialName, { navigate: false });
 
       await memberPage.getByRole("button", { name: "방 정보", exact: true }).click();
 
@@ -114,6 +121,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
 
         const membershipDialog = page.getByRole("dialog", { name: "방 정보와 멤버십" });
         await expect(membershipDialog.getByText(updatedDescription, { exact: true })).toBeVisible();
+        await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("환경");
         await membershipDialog
           .getByRole("button", { name: "방 정보와 멤버십 닫기", exact: true })
           .click();
@@ -129,6 +137,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
       const publicRoomCard = ownerPage.getByRole("article").filter({ hasText: updatedName });
 
       await expect(myRoomLink).toBeVisible();
+      await expect(myRoomLink.getByLabel("방 카테고리")).toContainText("환경");
       await expect(publicRoomCard).toHaveCount(0);
     });
   } finally {

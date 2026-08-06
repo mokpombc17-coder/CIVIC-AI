@@ -80,6 +80,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │           ├── ChatConnectionStatus [Client] [Feature] (apps/web/components/chat-connection-status.tsx)
                             │           ├── CreateChatRoomForm [Client] [Feature] [conditional] (apps/web/components/create-chat-room-form.tsx)
                             │           │   └── ChatRoomCategorySelector [Client] [Feature] (apps/web/components/chat-room-category-selector.tsx)
+                            │           ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
                             │           └── JoinChatRoomControl [Client] [Feature] [repeated] (apps/web/components/join-chat-room-control.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
@@ -92,6 +93,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
                                     └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                         └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
+                                            ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
                                             └── ChatRoomSettingsControl [Client] [Feature] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
                                                 └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
@@ -119,6 +121,7 @@ validation, mutation, 멱등성 key 재시도와 라우팅 구현은 JSX 밖에 
 avatar, notice와 pagination button은 이 책임 경계를 바꾸지 않는 순수 표현 요소라 생략한다.
 `ChatRoomCategorySelector`는 생성·설정 UI가 공유하는 controlled 단일 선택 표현을 담당하고,
 Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
+`ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
@@ -185,6 +188,7 @@ flowchart TD
     ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat-room-list-view.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional]<br/>apps/web/components/create-chat-room-form.tsx"]
     ChatRoomCategorySelector["ChatRoomCategorySelector [Client] [Feature]<br/>apps/web/components/chat-room-category-selector.tsx"]
+    ChatRoomCategoryBadges["ChatRoomCategoryBadges [Server-compatible] [View]<br/>apps/web/components/chat-room-category-badges.tsx"]
     JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client] [Feature]<br/>apps/web/components/chat-connection-status.tsx"]
     ChatRoomPage["ChatRoomPage [Server] [Route]<br/>apps/web/app/chat/[roomId]/page.tsx"]
@@ -228,6 +232,7 @@ flowchart TD
     ChatRoomListView --> ChatConnectionStatus
     ChatRoomListView -->|"conditional create form"| CreateChatRoomForm
     CreateChatRoomForm --> ChatRoomCategorySelector
+    ChatRoomListView -->|"room cards"| ChatRoomCategoryBadges
     ChatRoomListView -->|"public room action"| JoinChatRoomControl
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView
@@ -239,6 +244,7 @@ flowchart TD
     ChatRoomScreen -->|"one selected message"| ChatMessageActionsBottomSheet
     ChatRoomScreen -->|"room info disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
+    ChatRoomMembershipPanel --> ChatRoomCategoryBadges
     ChatRoomMembershipPanel -->|"active OWNER only"| ChatRoomSettingsControl
     ChatRoomSettingsControl -->|"conditional settings dialog"| ChatRoomCategorySelector
 

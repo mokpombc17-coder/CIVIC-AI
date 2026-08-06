@@ -56,7 +56,7 @@ export async function createRoomAndEnter(
     await page.getByRole("textbox", { name: "방 설명" }).fill(description);
   }
 
-  await page.getByText("정책", { exact: true }).click();
+  await page.locator("#create-room-form").getByText("정책", { exact: true }).click();
   await page.getByRole("button", { name: "채팅방 만들기" }).click();
 
   await expect(page).toHaveURL(/\/chat\/[A-Za-z0-9_-]+$/);
