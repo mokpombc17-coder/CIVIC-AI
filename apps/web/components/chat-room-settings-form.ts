@@ -7,6 +7,7 @@ import {
 export type RoomSettingsDraft = Readonly<{
   name: unknown;
   description: unknown;
+  categories?: unknown;
   visibility: unknown;
   joinPolicy: unknown;
 }>;
@@ -44,6 +45,13 @@ export function createRoomSettingsPatch(
     patch.description = parsed.data.description;
   }
 
+  if (
+    parsed.data.categories !== undefined &&
+    !haveSameCategories(parsed.data.categories, current.categories)
+  ) {
+    patch.categories = parsed.data.categories;
+  }
+
   if (parsed.data.visibility !== current.visibility) {
     patch.visibility = parsed.data.visibility;
   }
@@ -56,4 +64,10 @@ export function createRoomSettingsPatch(
     success: true,
     patch: Object.keys(patch).length === 0 ? null : patch,
   };
+}
+
+function haveSameCategories(next: readonly string[], current: readonly string[]): boolean {
+  return (
+    next.length === current.length && next.every((category, index) => category === current[index])
+  );
 }

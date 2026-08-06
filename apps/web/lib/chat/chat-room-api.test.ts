@@ -321,6 +321,7 @@ describe("chatRoomApi commands", () => {
       idempotencyKey: IDEMPOTENCY_KEY,
       body: {
         name: "  시민 AI 토론방  ",
+        categories: ["POLICY"],
         visibility: "LISTED",
         joinPolicy: "OPEN",
       },
@@ -368,6 +369,7 @@ describe("chatRoomApi commands", () => {
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       name: "시민 AI 토론방",
       description: "",
+      categories: ["POLICY"],
       visibility: "LISTED",
       joinPolicy: "OPEN",
     });
@@ -428,6 +430,7 @@ const PUBLIC_ROOM = {
   roomId: "room-01",
   name: "시민 AI 토론방",
   description: "",
+  categories: ["POLICY"],
   ownerUserId: "local-user-1",
   status: "ACTIVE",
   visibility: "LISTED",
@@ -511,6 +514,7 @@ const UPDATE_ROOM_SETTINGS_RESPONSE = {
   roomId: "room-01",
   name: "새로운 방 이름",
   description: "새로운 설명\n두 번째 줄",
+  categories: ["ENVIRONMENT"],
   visibility: "UNLISTED",
   joinPolicy: "OPEN",
   roomVersion: 8,

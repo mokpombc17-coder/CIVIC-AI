@@ -24,6 +24,7 @@ describe("chat room mutation options", () => {
       idempotencyKey: IDEMPOTENCY_KEY,
       body: {
         name: "시민 AI 토론방",
+        categories: ["POLICY" as const],
         visibility: "LISTED" as const,
         joinPolicy: "OPEN" as const,
       },
@@ -306,6 +307,7 @@ const UPDATE_ROOM_SETTINGS_RESPONSE = {
   roomId: "room-01",
   name: "새로운 방 이름",
   description: "새로운 설명",
+  categories: ["POLICY" as const],
   visibility: "UNLISTED" as const,
   joinPolicy: "OPEN" as const,
   roomVersion: 8,

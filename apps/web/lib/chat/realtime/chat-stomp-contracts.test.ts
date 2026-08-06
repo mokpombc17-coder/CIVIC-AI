@@ -504,6 +504,7 @@ describe("chat realtime payload contracts", () => {
     const event = createRoomEvent("ROOM_SETTINGS_UPDATED", {
       name: "새 방 이름",
       description: "새 방 설명",
+      categories: ["ENVIRONMENT"],
       visibility: "UNLISTED",
       joinPolicy: "INVITE_ONLY",
     });

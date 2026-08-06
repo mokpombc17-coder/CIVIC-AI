@@ -294,6 +294,7 @@ function createSettingsUpdatedEvent({
   roomVersion,
   name = "시민 AI 토론방",
   description = "",
+  categories = ["POLICY"],
   visibility = "LISTED",
   joinPolicy = "OPEN",
 }: {
@@ -301,6 +302,7 @@ function createSettingsUpdatedEvent({
   roomVersion: number;
   name?: string;
   description?: string;
+  categories?: ("POLICY" | "ENVIRONMENT" | "LOCAL_ISSUE")[];
   visibility?: "LISTED" | "UNLISTED";
   joinPolicy?: "OPEN" | "INVITE_ONLY";
 }): ChatRoomEventEnvelope {
@@ -315,6 +317,7 @@ function createSettingsUpdatedEvent({
       roomStatus: "ACTIVE",
       name,
       description,
+      categories,
       visibility,
       joinPolicy,
     },
@@ -337,6 +340,7 @@ const ROOM_DETAILS = {
   roomId: "room-01",
   name: "시민 AI 토론방",
   description: "",
+  categories: ["POLICY"],
   ownerUserId: "local-user-1",
   status: "ACTIVE",
   visibility: "LISTED",

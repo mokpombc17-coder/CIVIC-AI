@@ -14,6 +14,7 @@ describe("room settings form patch", () => {
       createRoomSettingsPatch(CURRENT_SETTINGS, {
         name: " 시민 AI 토론방 ",
         description: "\tAI 정책을 논의합니다.\n",
+        categories: ["POLICY"],
         visibility: "LISTED",
         joinPolicy: "OPEN",
       }),
@@ -28,6 +29,7 @@ describe("room settings form patch", () => {
       createRoomSettingsPatch(CURRENT_SETTINGS, {
         name: CURRENT_SETTINGS.name,
         description: " 새 설명 ",
+        categories: CURRENT_SETTINGS.categories,
         visibility: "UNLISTED",
         joinPolicy: CURRENT_SETTINGS.joinPolicy,
       }),
@@ -118,6 +120,7 @@ describe("room settings form to mutation integration", () => {
       roomId: "room-01",
       name: CURRENT_SETTINGS.name,
       description: "변경된 설명",
+      categories: CURRENT_SETTINGS.categories,
       visibility: "UNLISTED" as const,
       joinPolicy: CURRENT_SETTINGS.joinPolicy,
       roomVersion: 2,
@@ -179,6 +182,7 @@ function isInvalidated(queryClient: QueryClient, queryKey: readonly unknown[]): 
 const CURRENT_SETTINGS = {
   name: "시민 AI 토론방",
   description: "AI 정책을 논의합니다.",
+  categories: ["POLICY"],
   visibility: "LISTED",
   joinPolicy: "OPEN",
 } satisfies RoomSettings;

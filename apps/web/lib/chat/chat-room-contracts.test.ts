@@ -6,9 +6,12 @@ import {
   createMessageHistoryResponseSchema,
   createRoomRequestSchema,
   messageHistoryRequestSchema,
+  myRoomListResponseSchema,
   normalizeChatMessageContent,
   normalizeRoomDescription,
   publicRoomListResponseSchema,
+  roomCategoriesSchema,
+  roomCategorySchema,
   roomDescriptionSchema,
   roomDetailsSchema,
   roomIdSchema,
@@ -25,12 +28,14 @@ describe("chat room REST contracts", () => {
     expect(
       createRoomRequestSchema.parse({
         name: "  시민 AI 토론방  ",
+        categories: ["POLICY"],
         visibility: "LISTED",
         joinPolicy: "OPEN",
       }),
     ).toEqual({
       name: "시민 AI 토론방",
       description: "",
+      categories: ["POLICY"],
       visibility: "LISTED",
       joinPolicy: "OPEN",
     });
@@ -39,6 +44,7 @@ describe("chat room REST contracts", () => {
   it("방 생성 설명의 누락과 null을 빈 canonical 문자열로 정규화한다", () => {
     const request = {
       name: "시민 AI 토론방",
+      categories: ["POLICY"] as const,
       visibility: "LISTED" as const,
       joinPolicy: "OPEN" as const,
     };
@@ -106,6 +112,7 @@ describe("chat room REST contracts", () => {
       roomId: "room-01",
       name: "시민 AI 토론방",
       description: "AI 정책을 논의합니다.",
+      categories: ["POLICY"] as const,
       visibility: "LISTED" as const,
       joinPolicy: "OPEN" as const,
       roomVersion: 8,
@@ -146,8 +153,73 @@ describe("chat room REST contracts", () => {
     expect(
       createRoomRequestSchema.safeParse({
         name: "테스트방",
+        categories: ["POLICY"],
         visibility: "PUBLIC",
         joinPolicy: "OPEN",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("Room category enum과 정확히 하나인 배열 계약을 검증한다", () => {
+    for (const category of ["POLICY", "ENVIRONMENT", "LOCAL_ISSUE"] as const) {
+      expect(roomCategorySchema.safeParse(category).success).toBe(true);
+      expect(roomCategoriesSchema.parse([category])).toEqual([category]);
+    }
+
+    expect(roomCategorySchema.safeParse("UNKNOWN").success).toBe(false);
+    expect(roomCategoriesSchema.safeParse([]).success).toBe(false);
+    expect(roomCategoriesSchema.safeParse(["POLICY", "ENVIRONMENT"]).success).toBe(false);
+    expect(roomCategoriesSchema.safeParse(null).success).toBe(false);
+    expect(
+      createRoomRequestSchema.safeParse({
+        name: "카테고리 없는 방",
+        visibility: "LISTED",
+        joinPolicy: "OPEN",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("Room category를 public, my rooms, inbox, detail 응답에서 공통 검증한다", () => {
+    const publicRoom = {
+      roomId: "room-01",
+      name: "시민 AI 토론방",
+      description: "",
+      categories: ["LOCAL_ISSUE"] as const,
+      ownerUserId: "local-user-1",
+      status: "ACTIVE" as const,
+      visibility: "LISTED" as const,
+      joinPolicy: "OPEN" as const,
+      activeMemberCount: 2,
+      createdAt: "2026-07-29T04:30:00Z",
+      version: 2,
+    };
+    const membershipFields = {
+      membershipId: "membership-01",
+      membershipRole: "MEMBER" as const,
+      membershipStatus: "ACTIVE" as const,
+      joinedAt: "2026-07-29T04:31:00Z",
+      membershipVersion: 1,
+    };
+
+    expect(
+      publicRoomListResponseSchema.parse({ items: [publicRoom], nextCursor: null, hasNext: false })
+        .items[0]?.categories,
+    ).toEqual(["LOCAL_ISSUE"]);
+    expect(
+      myRoomListResponseSchema.parse({
+        items: [{ ...publicRoom, ...membershipFields }],
+        nextCursor: null,
+        hasNext: false,
+      }).items[0]?.categories,
+    ).toEqual(["LOCAL_ISSUE"]);
+    expect(roomInboxListResponseSchema.parse(createRoomInboxPage()).items[0]?.categories).toEqual([
+      "POLICY",
+    ]);
+    expect(
+      publicRoomListResponseSchema.safeParse({
+        items: [{ ...publicRoom, categories: undefined }],
+        nextCursor: null,
+        hasNext: false,
       }).success,
     ).toBe(false);
   });
@@ -157,6 +229,7 @@ describe("chat room REST contracts", () => {
       roomId: "room-01",
       name: "시민 AI 토론방",
       description: "",
+      categories: ["ENVIRONMENT"],
       ownerUserId: "local-user-1",
       status: "ACTIVE",
       visibility: "LISTED",
@@ -419,6 +492,7 @@ function createRoomInboxItem() {
     roomId: "room-01",
     name: "시민 AI 토론방",
     description: "",
+    categories: ["POLICY"] as const,
     ownerUserId: "local-user-1",
     status: "ACTIVE" as const,
     visibility: "LISTED" as const,
@@ -459,6 +533,7 @@ function createRoomRequest(description: string) {
   return {
     name: "시민 AI 토론방",
     description,
+    categories: ["POLICY"],
     visibility: "LISTED",
     joinPolicy: "OPEN",
   };

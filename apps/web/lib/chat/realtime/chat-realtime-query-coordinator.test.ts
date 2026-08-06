@@ -475,6 +475,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
       roomId: "room-01",
       name: "테스트 방",
       description: "",
+      categories: ["POLICY"],
       ownerUserId: "local-owner",
       status: "ACTIVE",
       visibility: "LISTED",
