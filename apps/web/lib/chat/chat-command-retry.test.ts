@@ -31,6 +31,35 @@ describe("isRetryableChatCommandError", () => {
     expect(isRetryableChatCommandError(null)).toBe(false);
   });
 
+  it.each([false, true])(
+    "사용자 ACTIVE Room quota 거절은 replay 여부와 관계없이 같은 key 재시도 대상으로 보지 않는다 (replayed=%s)",
+    (replayed) => {
+      const command = createIdempotentCommand(
+        undefined,
+        () => "07af9111-3e20-43e5-ae80-78d1bf547647",
+      );
+      const error = new ChatApiError(
+        409,
+        "Conflict",
+        "http://localhost:8082/api/v1/rooms/room-01/commands/join",
+        {
+          type: "urn:hamcheeze:problem:user-active-room-limit-exceeded",
+          title: "Room command rejected",
+          status: 409,
+          detail: "The user has reached the active room limit.",
+          instance: "/api/v1/rooms/room-01/commands/join",
+          code: "USER_ACTIVE_ROOM_LIMIT_EXCEEDED",
+          clientRequestId: command.idempotencyKey,
+          replayed,
+          retryable: false,
+        },
+      );
+
+      expect(isRetryableChatCommandError(error)).toBe(false);
+      expect(selectRetryableChatCommand(command, error)).toBeNull();
+    },
+  );
+
   it("ACCESS_REVOCATION_FAILED 재시도는 최초 Command와 Idempotency-Key를 보존한다", () => {
     const idempotencyKey = "07af9111-3e20-43e5-ae80-78d1bf547647";
     const failedCommand = {
