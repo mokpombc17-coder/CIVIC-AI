@@ -23,6 +23,7 @@ export type ChatMessageDeliveryViewStatus =
   "queued" | "sending" | "retry-waiting" | "accepted" | "failed" | "cancelled";
 
 export type ChatMessageItemViewModel = Readonly<{
+  canOpenActions: boolean;
   canMutate: boolean;
   clientMessageId: string;
   content: string;
@@ -122,6 +123,7 @@ function createChatMessageItemViewModel(
     const failed = item.message.status === "failed" || item.message.status === "cancelled";
 
     return {
+      canOpenActions: false,
       canMutate: false,
       clientMessageId: item.message.clientMessageId,
       content: item.message.content,
@@ -143,6 +145,7 @@ function createChatMessageItemViewModel(
   const isMine = item.message.senderUserId === currentUserId;
 
   return {
+    canOpenActions: item.message.state === "ACTIVE" && item.message.content !== null,
     canMutate: isMine && item.message.state === "ACTIVE" && item.message.content !== null,
     clientMessageId: item.message.clientMessageId,
     content: item.message.content ?? "삭제된 메시지입니다.",

@@ -44,7 +44,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
             {item.isMine ? (
               <span className="text-[0.7rem] text-slate-400">{item.timeLabel}</span>
             ) : null}
-            {item.canMutate && item.messageId ? (
+            {item.canOpenActions && item.messageId ? (
               <button
                 aria-haspopup="dialog"
                 className={`${bubbleClassName} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300`}

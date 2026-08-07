@@ -39,6 +39,7 @@ function createMessage(
   overrides: Partial<ChatMessageItemViewModel> = {},
 ): ChatMessageItemViewModel {
   return {
+    canOpenActions: false,
     canMutate: false,
     clientMessageId: crypto.randomUUID(),
     content: "메시지",

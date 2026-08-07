@@ -5,12 +5,15 @@ import {
   isChatMessageMutationPending,
   type ChatMessageMutationStartResult,
 } from "@/components/chat-message-mutation-state";
+import { copyChatMessageContent } from "@/components/chat-message-copy";
 import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model";
 
 export type ChatMessageActionsMode = "menu" | "edit" | "delete";
 
 export type ChatMessageActionsBottomSheetViewModel = Readonly<{
+  canMutate: boolean;
   content: string;
+  copyStatus: "idle" | "copying" | "copied";
   draft: string;
   error: string | null;
   isPending: boolean;
@@ -19,6 +22,7 @@ export type ChatMessageActionsBottomSheetViewModel = Readonly<{
   onBackdropClick: () => void;
   onClose: () => void;
   onConfirmDelete: () => void;
+  onCopy: () => void;
   onDraftChange: (draft: string) => void;
   onEditSubmit: () => void;
   onModeChange: (mode: ChatMessageActionsMode) => void;
@@ -46,6 +50,7 @@ export function useChatMessageActionsBottomSheet({
   const [mode, setMode] = useState<ChatMessageActionsMode>("menu");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied">("idle");
   const [activeMutationId, setActiveMutationId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const selectedItem = useMemo(
@@ -79,12 +84,13 @@ export function useChatMessageActionsBottomSheet({
     setMode("menu");
     setDraft("");
     setError(null);
+    setCopyStatus("idle");
     setActiveMutationId(null);
     restoreFocus();
   }, [restoreFocus]);
 
   useEffect(() => {
-    if (!target || (!completed && selectedItem?.canMutate && selectedItem.messageId)) {
+    if (!target || (!completed && selectedItem?.canOpenActions && selectedItem.messageId)) {
       return;
     }
 
@@ -93,7 +99,7 @@ export function useChatMessageActionsBottomSheet({
 
   const openMessageActions = useCallback(
     (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => {
-      if (!item.canMutate || !item.messageId) {
+      if (!item.canOpenActions || !item.messageId) {
         return;
       }
 
@@ -105,6 +111,7 @@ export function useChatMessageActionsBottomSheet({
       setMode("menu");
       setDraft(item.content);
       setError(null);
+      setCopyStatus("idle");
       setActiveMutationId(null);
     },
     [viewportKey],
@@ -122,9 +129,11 @@ export function useChatMessageActionsBottomSheet({
 
   const selectedMessageId = selectedItem?.messageId ?? null;
   const sheet: ChatMessageActionsBottomSheetViewModel | null =
-    target && selectedItem?.canMutate && selectedMessageId && !completed
+    target && selectedItem?.canOpenActions && selectedMessageId && !completed
       ? {
+          canMutate: selectedItem.canMutate,
           content: selectedItem.content,
+          copyStatus,
           draft,
           error: error ?? mutationError,
           isPending,
@@ -137,6 +146,18 @@ export function useChatMessageActionsBottomSheet({
           },
           onClose: close,
           onConfirmDelete: () => start(onDeleteMessage(selectedMessageId)),
+          onCopy: () => {
+            setCopyStatus("copying");
+            setError(null);
+
+            void copyChatMessageContent(selectedItem.content).then(
+              () => setCopyStatus("copied"),
+              () => {
+                setCopyStatus("idle");
+                setError("메시지를 복사하지 못했습니다. 다시 시도해 주세요.");
+              },
+            );
+          },
           onDraftChange: (nextDraft) => {
             setDraft(nextDraft);
             setError(null);
@@ -145,6 +166,7 @@ export function useChatMessageActionsBottomSheet({
           onModeChange: (nextMode) => {
             setMode(nextMode);
             setError(null);
+            setCopyStatus("idle");
 
             if (nextMode === "edit") {
               setDraft(selectedItem.content);

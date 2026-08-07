@@ -82,26 +82,50 @@ export function ChatMessageActionsBottomSheet({
             <p className="line-clamp-1 whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
               {sheet.content}
             </p>
-            <div className="grid grid-cols-2 gap-2 sm:min-w-52">
+            <div
+              className={`grid gap-2 ${sheet.canMutate ? "grid-cols-3 sm:min-w-80" : "grid-cols-1 sm:min-w-28"}`}
+            >
               <button
                 autoFocus
                 className="secondary-button"
-                disabled={sheet.isPending}
-                onClick={() => sheet.onModeChange("edit")}
+                disabled={sheet.isPending || sheet.copyStatus === "copying"}
+                onClick={sheet.onCopy}
                 type="button"
               >
-                수정
+                {sheet.copyStatus === "copying"
+                  ? "복사 중…"
+                  : sheet.copyStatus === "copied"
+                    ? "복사됨"
+                    : "복사"}
               </button>
-              <button
-                className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={sheet.isPending}
-                onClick={() => sheet.onModeChange("delete")}
-                type="button"
-              >
-                삭제
-              </button>
+              {sheet.canMutate ? (
+                <>
+                  <button
+                    className="secondary-button"
+                    disabled={sheet.isPending || sheet.copyStatus === "copying"}
+                    onClick={() => sheet.onModeChange("edit")}
+                    type="button"
+                  >
+                    수정
+                  </button>
+                  <button
+                    className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={sheet.isPending || sheet.copyStatus === "copying"}
+                    onClick={() => sheet.onModeChange("delete")}
+                    type="button"
+                  >
+                    삭제
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
+        ) : null}
+
+        {sheet.copyStatus === "copied" ? (
+          <p className="mt-3 text-xs text-emerald-700" role="status">
+            메시지를 클립보드에 복사했습니다.
+          </p>
         ) : null}
 
         {sheet.mode !== "menu" ? (

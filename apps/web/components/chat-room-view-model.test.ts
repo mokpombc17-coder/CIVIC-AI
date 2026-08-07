@@ -65,6 +65,7 @@ describe("chat room view model", () => {
     const items = createChatMessageItemViewModels(timeline, "local-user-1");
 
     expect(items[0]).toMatchObject({
+      canOpenActions: true,
       canMutate: false,
       clientMessageId: "550e8400-e29b-41d4-a716-446655440001",
       deliveryLabel: null,
@@ -76,6 +77,7 @@ describe("chat room view model", () => {
       senderLabel: "local-user-2",
     });
     expect(items[1]).toMatchObject({
+      canOpenActions: false,
       canMutate: false,
       clientMessageId: "550e8400-e29b-41d4-a716-446655440002",
       deliveryLabel: "전송 대기 중",
@@ -208,6 +210,7 @@ describe("chat room view model", () => {
     );
 
     expect(deleted).toMatchObject({
+      canOpenActions: false,
       canMutate: false,
       content: "삭제된 메시지입니다.",
       isDeleted: true,
@@ -252,6 +255,7 @@ describe("chat room view model", () => {
     );
 
     expect(message).toMatchObject({
+      canOpenActions: true,
       canMutate: true,
       isDeleted: false,
       isEdited: true,
