@@ -90,6 +90,46 @@ describe("ChatRoomReadStateProvider", () => {
     expect(mocks.transport.confirmRoomReadState).toHaveBeenCalledWith("room-1", 13);
   });
 
+  it("updated=false도 서버의 effective sequence까지 정상 확인한다", async () => {
+    mocks.mutateAsync.mockResolvedValue({
+      readThroughSequence: 130,
+      roomId: "room-1",
+      updated: false,
+    });
+    let scheduleReadState: ((throughSequence: number) => void) | undefined;
+
+    function Probe() {
+      scheduleReadState = useChatRoomReadState("room-1", {
+        activeGeneration: 1,
+        terminalReason: null,
+      });
+      return null;
+    }
+
+    renderToStaticMarkup(
+      <ChatRoomReadStateProvider>
+        <Probe />
+      </ChatRoomReadStateProvider>,
+    );
+
+    if (!scheduleReadState) {
+      throw new Error("테스트 Probe가 read-state callback을 제공하지 않았습니다.");
+    }
+
+    scheduleReadState(120);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(mocks.mutateAsync).toHaveBeenCalledOnce();
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      request: { throughSequence: 120 },
+      roomId: "room-1",
+    });
+    expect(mocks.transport.confirmRoomReadState).toHaveBeenCalledWith("room-1", 130);
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["chat", "rooms", "room-inbox"],
+    });
+  });
+
   it("로그인 세대 변경 전 요청의 늦은 성공은 현재 cache를 무효화하지 않는다", async () => {
     const submission = createDeferred<{
       readThroughSequence: number;

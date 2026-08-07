@@ -18,6 +18,7 @@ export function classifyChatRoomReadStateFailure(
       case "UNAUTHENTICATED":
       case "READ_SEQUENCE_AHEAD":
       case "READ_STATE_INCONSISTENT":
+      case "INTERNAL_ERROR":
         return "blocked";
       default:
         return error.retryable ? "retryable" : "blocked";

@@ -15,7 +15,7 @@ describe("classifyChatRoomReadStateFailure", () => {
     expect(classifyChatRoomReadStateFailure(new TypeError("Failed to fetch"))).toBe("retryable");
   });
 
-  it.each(["UNAUTHENTICATED", "READ_SEQUENCE_AHEAD", "READ_STATE_INCONSISTENT"])(
+  it.each(["UNAUTHENTICATED", "READ_SEQUENCE_AHEAD", "READ_STATE_INCONSISTENT", "INTERNAL_ERROR"])(
     "%s는 자동 lifecycle 재시도를 막는 blocked 상태다",
     (code) => {
       expect(classifyChatRoomReadStateFailure(createApiError(409, code, false))).toBe("blocked");
@@ -50,14 +50,16 @@ describe("canResumeChatRoomReadStateAfterSynchronization", () => {
     },
   );
 
-  it.each(["UNAUTHENTICATED", "READ_STATE_NOT_AVAILABLE", "READ_STATE_INCONSISTENT"])(
-    "%s는 Room synchronization만으로 해제하지 않는다",
-    (code) => {
-      expect(canResumeChatRoomReadStateAfterSynchronization(createApiError(409, code, false))).toBe(
-        false,
-      );
-    },
-  );
+  it.each([
+    "UNAUTHENTICATED",
+    "READ_STATE_NOT_AVAILABLE",
+    "READ_STATE_INCONSISTENT",
+    "INTERNAL_ERROR",
+  ])("%s는 Room synchronization만으로 해제하지 않는다", (code) => {
+    expect(canResumeChatRoomReadStateAfterSynchronization(createApiError(409, code, false))).toBe(
+      false,
+    );
+  });
 
   it("재참여 가능한 local terminal은 새 Room synchronization 후 해제할 수 있다", () => {
     expect(

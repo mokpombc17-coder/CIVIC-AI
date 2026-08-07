@@ -120,6 +120,69 @@ describe("ChatRoomReadStateCoordinator", () => {
     });
   });
 
+  it("서버가 요청보다 큰 authoritative sequence를 반환하면 그 값까지 pending을 확인한다", async () => {
+    const submission = createDeferred<number>();
+    const submit = vi.fn(() => submission.promise);
+    const onConfirmed = vi.fn();
+    const coordinator = new ChatRoomReadStateCoordinator({ onConfirmed, submit });
+
+    coordinator.schedule("room-a", 120);
+    await vi.advanceTimersByTimeAsync(400);
+    coordinator.schedule("room-a", 125);
+
+    submission.resolve(130);
+    await flushMicrotasks();
+
+    expect(submit).toHaveBeenCalledOnce();
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 130,
+      inFlightSequence: null,
+      pendingSequence: null,
+      status: "idle",
+    });
+    expect(onConfirmed).toHaveBeenCalledWith({
+      readThroughSequence: 130,
+      roomId: "room-a",
+      submittedSequence: 120,
+    });
+  });
+
+  it("authoritative sequence보다 큰 pending은 유지하고 다음 요청으로 전송한다", async () => {
+    const firstSubmission = createDeferred<number>();
+    const secondSubmission = createDeferred<number>();
+    const submit = vi
+      .fn<(roomId: string, throughSequence: number) => Promise<number>>()
+      .mockReturnValueOnce(firstSubmission.promise)
+      .mockReturnValueOnce(secondSubmission.promise);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+
+    coordinator.schedule("room-a", 120);
+    await vi.advanceTimersByTimeAsync(400);
+    coordinator.schedule("room-a", 135);
+
+    firstSubmission.resolve(130);
+    await flushMicrotasks();
+
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit).toHaveBeenLastCalledWith("room-a", 135);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 130,
+      inFlightSequence: 135,
+      pendingSequence: null,
+      status: "submitting",
+    });
+
+    secondSubmission.resolve(135);
+    await flushMicrotasks();
+
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 135,
+      inFlightSequence: null,
+      pendingSequence: null,
+      status: "idle",
+    });
+  });
+
   it("최종 실패한 sequence를 pending으로 복원하고 lifecycle retry에서 다시 전송한다", async () => {
     const submit = vi
       .fn<(roomId: string, throughSequence: number) => Promise<number>>()
