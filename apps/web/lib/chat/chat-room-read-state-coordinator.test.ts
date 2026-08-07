@@ -120,31 +120,61 @@ describe("ChatRoomReadStateCoordinator", () => {
     });
   });
 
-  it("서버가 요청보다 큰 authoritative sequence를 반환하면 그 값까지 pending을 확인한다", async () => {
-    const submission = createDeferred<number>();
-    const submit = vi.fn(() => submission.promise);
+  it("서버가 제출값보다 높은 cursor를 반환하면 pending을 정리하고 그보다 높은 값만 다시 전송한다", async () => {
+    const firstSubmission = createDeferred<number>();
     const onConfirmed = vi.fn();
+    const submit = vi
+      .fn<(roomId: string, throughSequence: number) => Promise<number>>()
+      .mockReturnValueOnce(firstSubmission.promise)
+      .mockImplementation(async (_roomId, throughSequence) => throughSequence);
     const coordinator = new ChatRoomReadStateCoordinator({ onConfirmed, submit });
 
-    coordinator.schedule("room-a", 120);
+    coordinator.schedule("room-a", 150);
     await vi.advanceTimersByTimeAsync(400);
-    coordinator.schedule("room-a", 125);
 
-    submission.resolve(130);
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenLastCalledWith("room-a", 150);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      inFlightSequence: 150,
+      pendingSequence: null,
+      status: "submitting",
+    });
+
+    coordinator.schedule("room-a", 180);
+
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      inFlightSequence: 150,
+      pendingSequence: 180,
+    });
+
+    firstSubmission.resolve(200);
     await flushMicrotasks();
 
     expect(submit).toHaveBeenCalledOnce();
     expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
-      confirmedSequence: 130,
+      confirmedSequence: 200,
       inFlightSequence: null,
       pendingSequence: null,
       status: "idle",
     });
+    expect(onConfirmed).toHaveBeenCalledOnce();
     expect(onConfirmed).toHaveBeenCalledWith({
-      readThroughSequence: 130,
+      readThroughSequence: 200,
       roomId: "room-a",
-      submittedSequence: 120,
+      submittedSequence: 150,
     });
+
+    coordinator.schedule("room-a", 199);
+    coordinator.schedule("room-a", 200);
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    expect(submit).toHaveBeenCalledOnce();
+
+    coordinator.schedule("room-a", 201);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit).toHaveBeenLastCalledWith("room-a", 201);
   });
 
   it("authoritative sequence보다 큰 pending은 유지하고 다음 요청으로 전송한다", async () => {
