@@ -18,13 +18,16 @@ import {
   ChatRoomSessionNotice,
 } from "@/components/chat-room-session-status";
 import {
-  createChatMessageItemViewModels,
+  createChatMessageViewportItemViewModels,
   createChatRoomHeaderViewModel,
 } from "@/components/chat-room-view-model";
 import { ChatRoomView, type ChatMessageHistoryFeedback } from "@/components/chat-room-view";
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
-import { createChatMessageTimeline } from "@/lib/chat/chat-message-timeline";
+import {
+  createChatMessageTimeline,
+  createChatMessageTimelineRows,
+} from "@/lib/chat/chat-message-timeline";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
@@ -84,14 +87,19 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     () => createChatMessageTimeline(messageHistory.messages, outgoingMessages),
     [messageHistory.messages, outgoingMessages],
   );
-  const messageItems = useMemo(
+  const timelineRows = useMemo(() => createChatMessageTimelineRows(timeline), [timeline]);
+  const viewportItems = useMemo(
     () =>
-      createChatMessageItemViewModels(
-        timeline,
+      createChatMessageViewportItemViewModels(
+        timelineRows,
         room?.myMembership?.userId ?? null,
         messageMutations.states,
       ),
-    [messageMutations.states, room?.myMembership?.userId, timeline],
+    [messageMutations.states, room?.myMembership?.userId, timelineRows],
+  );
+  const messageItems = useMemo(
+    () => viewportItems.flatMap((item) => (item.kind === "message" ? [item.item] : [])),
+    [viewportItems],
   );
   const viewportKey = `${roomId}:${session.generation}`;
   const messageActions = useChatMessageActionsBottomSheet({
@@ -158,7 +166,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         canLoadOlder: messageHistory.hasNextPage,
         feedback,
         isLoadingOlder: messageHistory.isFetchingNextPage,
-        items: messageItems,
+        items: viewportItems,
         latestConfirmedSequence,
         onLoadOlder: async () => {
           const result = await messageHistory.fetchNextPage();

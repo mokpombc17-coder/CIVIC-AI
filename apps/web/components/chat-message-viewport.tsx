@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat-message-arrival-announcement";
+import { ChatMessageDateSeparator } from "@/components/chat-message-date-separator";
 import { canReportChatMessageReadState } from "@/components/chat-message-read-state-policy";
 import { ChatMessageItem } from "@/components/chat-message-item";
 import {
@@ -12,9 +13,13 @@ import {
   reduceChatMessageViewportState,
   shouldFollowLatestMessages,
 } from "@/components/chat-message-viewport-state";
-import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model";
+import type {
+  ChatMessageItemViewModel,
+  ChatMessageViewportItemViewModel,
+} from "@/components/chat-room-view-model";
 
 const AT_END_THRESHOLD = 96;
+const ESTIMATED_DATE_SEPARATOR_HEIGHT = 24;
 const ESTIMATED_MESSAGE_HEIGHT = 76;
 const MESSAGE_GAP = 20;
 const MESSAGE_OVERSCAN = 10;
@@ -36,7 +41,7 @@ export type ChatMessageViewportViewModel = Readonly<{
   canLoadOlder: boolean;
   feedback: ChatMessageViewportFeedback | null;
   isLoadingOlder: boolean;
-  items: readonly ChatMessageItemViewModel[];
+  items: readonly ChatMessageViewportItemViewModel[];
   latestConfirmedSequence: number | null;
   onLoadOlder: () => Promise<ChatMessageViewportLoadOlderResult>;
   onOpenMessageActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
@@ -86,7 +91,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: history.items.length,
-    estimateSize: () => ESTIMATED_MESSAGE_HEIGHT,
+    estimateSize: (index) =>
+      history.items[index]?.kind === "date-separator"
+        ? ESTIMATED_DATE_SEPARATOR_HEIGHT
+        : ESTIMATED_MESSAGE_HEIGHT,
     gap: MESSAGE_GAP,
     getItemKey: (index) => history.items[index]?.renderKey ?? index,
     getScrollElement: () => scrollElementRef.current,
@@ -332,7 +340,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       !isNewViewport && previousLatestIndex >= 0 && previousLatestIndex < history.items.length - 1
         ? history.items.slice(previousLatestIndex + 1)
         : [];
-    const appendSource: ChatMessageAppendSource = appendedItems.some(
+    const appendedMessages = appendedItems.flatMap((item) =>
+      item.kind === "message" ? [item.item] : [],
+    );
+    const appendSource: ChatMessageAppendSource = appendedMessages.some(
       (item) => item.isMine && item.deliveryTone !== null,
     )
       ? "current-user"
@@ -340,7 +351,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     const shouldFollowLatest =
       isNewViewport ||
       isFirstPopulatedSnapshot ||
-      (appendedItems.length > 0 &&
+      (appendedMessages.length > 0 &&
         shouldFollowLatestMessages(viewportPositionRef.current, appendSource));
 
     if (isNewViewport) {
@@ -351,8 +362,8 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       });
     }
 
-    if (appendedItems.length > 0) {
-      const announcedItems = appendedItems.filter((item) => item.deliveryTone === null);
+    if (appendedMessages.length > 0) {
+      const announcedItems = appendedMessages.filter((item) => item.deliveryTone === null);
       const announcement = createChatMessageArrivalAnnouncement(announcedItems);
 
       if (announcement) {
@@ -369,7 +380,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
 
       dispatch({
         type: "messages-appended",
-        count: appendedItems.length,
+        count: appendedMessages.length,
         source: appendSource,
       });
     }
@@ -554,19 +565,34 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
                 return null;
               }
 
+              const style = {
+                left: 0,
+                position: "absolute" as const,
+                top: 0,
+                transform: `translateY(${virtualItem.start}px)`,
+                width: "100%",
+              };
+
+              if (item.kind === "date-separator") {
+                return (
+                  <ChatMessageDateSeparator
+                    date={item.date}
+                    key={virtualItem.key}
+                    ref={virtualizer.measureElement}
+                    renderKey={item.renderKey}
+                    style={style}
+                    virtualIndex={virtualItem.index}
+                  />
+                );
+              }
+
               return (
                 <ChatMessageItem
-                  item={item}
+                  item={item.item}
                   key={virtualItem.key}
                   onOpenActions={history.onOpenMessageActions}
                   ref={virtualizer.measureElement}
-                  style={{
-                    left: 0,
-                    position: "absolute",
-                    top: 0,
-                    transform: `translateY(${virtualItem.start}px)`,
-                    width: "100%",
-                  }}
+                  style={style}
                   virtualIndex={virtualItem.index}
                 />
               );
@@ -601,7 +627,7 @@ type ChatMessageViewportAnchor = Readonly<{
 }>;
 
 function createItemsSnapshot(
-  items: readonly ChatMessageItemViewModel[],
+  items: readonly ChatMessageViewportItemViewModel[],
   viewportKey: string,
 ): ChatMessageViewportItemsSnapshot {
   return {

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   createChatMessageItemViewModels,
+  createChatMessageViewportItemViewModels,
   createChatRoomHeaderViewModel,
 } from "./chat-room-view-model";
-import type { ChatMessageTimelineItem } from "@/lib/chat/chat-message-timeline";
+import type {
+  ChatMessageTimelineItem,
+  ChatMessageTimelineRow,
+} from "@/lib/chat/chat-message-timeline";
 
 describe("chat room view model", () => {
   it("방의 서버 상태를 퍼블리싱용 header 문자열로 변환한다", () => {
@@ -82,6 +86,54 @@ describe("chat room view model", () => {
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440002",
       roomSequence: null,
     });
+  });
+
+  it("날짜 구분선과 메시지 행을 viewport 전용 모델로 순서대로 변환한다", () => {
+    const message: ChatMessageTimelineItem = {
+      kind: "confirmed",
+      message: {
+        clientMessageId: "550e8400-e29b-41d4-a716-446655440020",
+        content: "날짜가 있는 메시지",
+        countable: true,
+        createdAt: "2026-08-06T15:00:00Z",
+        deletedAt: null,
+        messageId: "message-20",
+        messageVersion: 1,
+        roomId: "room-01",
+        roomSequence: 20,
+        senderUserId: "local-user-2",
+        state: "ACTIVE",
+        updatedAt: "2026-08-06T15:00:00Z",
+      },
+    };
+    const rows: readonly ChatMessageTimelineRow[] = [
+      {
+        date: { day: 7, key: "2026-08-07", month: 8, year: 2026 },
+        kind: "date-separator",
+        renderKey: "date-separator-2026-08-07",
+      },
+      {
+        item: message,
+        kind: "message",
+      },
+    ];
+
+    expect(createChatMessageViewportItemViewModels(rows, "local-user-1")).toMatchObject([
+      {
+        date: { key: "2026-08-07" },
+        kind: "date-separator",
+        renderKey: "date-separator-2026-08-07",
+      },
+      {
+        item: {
+          content: "날짜가 있는 메시지",
+          messageId: "message-20",
+          roomSequence: 20,
+        },
+        kind: "message",
+        renderKey: "client-message-550e8400-e29b-41d4-a716-446655440020",
+      },
+    ]);
   });
 
   it("optimistic 메시지와 확정 메시지에 동일한 render key를 부여한다", () => {

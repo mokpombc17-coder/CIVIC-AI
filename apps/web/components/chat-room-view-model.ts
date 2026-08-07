@@ -1,4 +1,7 @@
-import type { ChatMessageTimelineItem } from "@/lib/chat/chat-message-timeline";
+import type {
+  ChatMessageTimelineItem,
+  ChatMessageTimelineRow,
+} from "@/lib/chat/chat-message-timeline";
 import type {
   ChatMessageMutationStates,
   ChatMessageMutationViewState,
@@ -37,6 +40,18 @@ export type ChatMessageItemViewModel = Readonly<{
   timeLabel: string;
 }>;
 
+export type ChatMessageViewportItemViewModel =
+  | Readonly<{
+      date: Extract<ChatMessageTimelineRow, { kind: "date-separator" }>["date"];
+      kind: "date-separator";
+      renderKey: string;
+    }>
+  | Readonly<{
+      item: ChatMessageItemViewModel;
+      kind: "message";
+      renderKey: string;
+    }>;
+
 type CreateChatRoomHeaderViewModelInput = Readonly<{
   memberCount: number | undefined;
   name: string | undefined;
@@ -70,49 +85,80 @@ export function createChatMessageItemViewModels(
   currentUserId: string | null,
   mutationStates: ChatMessageMutationStates = new Map(),
 ): readonly ChatMessageItemViewModel[] {
-  return timeline.map((item) => {
-    if (item.kind === "outgoing") {
-      const failed = item.message.status === "failed" || item.message.status === "cancelled";
+  return timeline.map((item) =>
+    createChatMessageItemViewModel(item, currentUserId, mutationStates),
+  );
+}
 
+export function createChatMessageViewportItemViewModels(
+  rows: readonly ChatMessageTimelineRow[],
+  currentUserId: string | null,
+  mutationStates: ChatMessageMutationStates = new Map(),
+): readonly ChatMessageViewportItemViewModel[] {
+  return rows.map((row) => {
+    if (row.kind === "date-separator") {
       return {
-        canMutate: false,
-        clientMessageId: item.message.clientMessageId,
-        content: item.message.content,
-        deliveryLabel: getOutgoingMessageStatusLabel(item.message),
-        deliveryStatus: item.message.status,
-        deliveryTone: failed ? "error" : "pending",
-        isDeleted: false,
-        isEdited: false,
-        isMine: true,
-        messageId: null,
-        mutation: null,
-        renderKey: createChatMessageRenderKey(item.message.clientMessageId),
-        roomSequence: null,
-        senderLabel: null,
-        timeLabel: formatMessageTime(item.message.enqueuedAt),
+        date: row.date,
+        kind: "date-separator",
+        renderKey: row.renderKey,
       };
     }
 
-    const isMine = item.message.senderUserId === currentUserId;
-
+    const item = createChatMessageItemViewModel(row.item, currentUserId, mutationStates);
     return {
-      canMutate: isMine && item.message.state === "ACTIVE" && item.message.content !== null,
-      clientMessageId: item.message.clientMessageId,
-      content: item.message.content ?? "삭제된 메시지입니다.",
-      deliveryLabel: null,
-      deliveryStatus: null,
-      deliveryTone: null,
-      isDeleted: item.message.state === "DELETED_BY_AUTHOR",
-      isEdited: item.message.state === "ACTIVE" && item.message.messageVersion > 1,
-      isMine,
-      messageId: item.message.messageId,
-      mutation: mutationStates.get(item.message.messageId) ?? null,
-      renderKey: createChatMessageRenderKey(item.message.clientMessageId),
-      roomSequence: item.message.roomSequence,
-      senderLabel: isMine ? null : item.message.senderUserId,
-      timeLabel: formatMessageTime(item.message.createdAt),
+      item,
+      kind: "message",
+      renderKey: item.renderKey,
     };
   });
+}
+
+function createChatMessageItemViewModel(
+  item: ChatMessageTimelineItem,
+  currentUserId: string | null,
+  mutationStates: ChatMessageMutationStates,
+): ChatMessageItemViewModel {
+  if (item.kind === "outgoing") {
+    const failed = item.message.status === "failed" || item.message.status === "cancelled";
+
+    return {
+      canMutate: false,
+      clientMessageId: item.message.clientMessageId,
+      content: item.message.content,
+      deliveryLabel: getOutgoingMessageStatusLabel(item.message),
+      deliveryStatus: item.message.status,
+      deliveryTone: failed ? "error" : "pending",
+      isDeleted: false,
+      isEdited: false,
+      isMine: true,
+      messageId: null,
+      mutation: null,
+      renderKey: createChatMessageRenderKey(item.message.clientMessageId),
+      roomSequence: null,
+      senderLabel: null,
+      timeLabel: formatMessageTime(item.message.enqueuedAt),
+    };
+  }
+
+  const isMine = item.message.senderUserId === currentUserId;
+
+  return {
+    canMutate: isMine && item.message.state === "ACTIVE" && item.message.content !== null,
+    clientMessageId: item.message.clientMessageId,
+    content: item.message.content ?? "삭제된 메시지입니다.",
+    deliveryLabel: null,
+    deliveryStatus: null,
+    deliveryTone: null,
+    isDeleted: item.message.state === "DELETED_BY_AUTHOR",
+    isEdited: item.message.state === "ACTIVE" && item.message.messageVersion > 1,
+    isMine,
+    messageId: item.message.messageId,
+    mutation: mutationStates.get(item.message.messageId) ?? null,
+    renderKey: createChatMessageRenderKey(item.message.clientMessageId),
+    roomSequence: item.message.roomSequence,
+    senderLabel: isMine ? null : item.message.senderUserId,
+    timeLabel: formatMessageTime(item.message.createdAt),
+  };
 }
 
 function createChatMessageRenderKey(clientMessageId: string): string {
