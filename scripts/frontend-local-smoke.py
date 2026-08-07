@@ -1149,7 +1149,12 @@ def main() -> int:
         or room_detail.get("categories") != ["POLICY"]
     ):
         raise AssertionError("방 상세 응답의 settings가 생성 요청과 다릅니다.")
-    self_membership_id = room_detail.get("membershipId")
+    my_membership = room_detail.get("myMembership")
+    self_membership_id = (
+        my_membership.get("membershipId")
+        if isinstance(my_membership, dict)
+        else None
+    )
     if not isinstance(self_membership_id, str) or not self_membership_id:
         raise AssertionError("방 상세 응답에 membershipId가 없습니다.")
     listed_room = find_public_room(
