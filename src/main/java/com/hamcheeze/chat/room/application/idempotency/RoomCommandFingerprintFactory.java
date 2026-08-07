@@ -47,16 +47,22 @@ public final class RoomCommandFingerprintFactory {
         } else if (command
                 instanceof TransferOwnershipCommand transfer) {
             append(canonical, "roomId", transfer.roomId());
-            append(canonical, "targetUserId", transfer.targetUserId());
+            appendTargetIdentity(
+                    canonical,
+                    transfer.targetUserId(),
+                    transfer.targetMembershipId());
         } else if (command instanceof BanMemberCommand banMember) {
             append(canonical, "roomId", banMember.roomId());
-            append(canonical, "targetUserId", banMember.targetUserId());
+            appendTargetIdentity(
+                    canonical,
+                    banMember.targetUserId(),
+                    banMember.targetMembershipId());
         } else if (command instanceof UnbanMemberCommand unbanMember) {
             append(canonical, "roomId", unbanMember.roomId());
-            append(
+            appendTargetIdentity(
                     canonical,
-                    "targetUserId",
-                    unbanMember.targetUserId());
+                    unbanMember.targetUserId(),
+                    unbanMember.targetMembershipId());
         } else if (command instanceof CloseRoomCommand closeRoom) {
             append(canonical, "roomId", closeRoom.roomId());
         } else if (command
@@ -114,6 +120,21 @@ public final class RoomCommandFingerprintFactory {
         if (present) {
             append(target, field + ".value", value);
         }
+    }
+
+    private static void appendTargetIdentity(
+            StringBuilder canonical,
+            String targetUserId,
+            String targetMembershipId
+    ) {
+        if (targetMembershipId != null) {
+            append(
+                    canonical,
+                    "targetMembershipId",
+                    targetMembershipId);
+            return;
+        }
+        append(canonical, "targetUserId", targetUserId);
     }
 
     private static String categoryNames(

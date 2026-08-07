@@ -486,11 +486,10 @@ public final class RoomCommandService {
         if (precondition != null) {
             return precondition;
         }
-        Membership target = membershipStore
-                .findByRoomIdAndUserId(
-                        room.roomId(),
-                        command.targetUserId())
-                .orElse(null);
+        Membership target = findTargetMembership(
+                room.roomId(),
+                command.targetUserId(),
+                command.targetMembershipId());
         if (target == null) {
             return rejection(
                     command.commandType(),
@@ -539,11 +538,10 @@ public final class RoomCommandService {
         if (precondition != null) {
             return precondition;
         }
-        Membership target = membershipStore
-                .findByRoomIdAndUserId(
-                        room.roomId(),
-                        command.targetUserId())
-                .orElse(null);
+        Membership target = findTargetMembership(
+                room.roomId(),
+                command.targetUserId(),
+                command.targetMembershipId());
         if (target == null) {
             return rejection(
                     command.commandType(),
@@ -594,11 +592,10 @@ public final class RoomCommandService {
         if (precondition != null) {
             return precondition;
         }
-        Membership target = membershipStore
-                .findByRoomIdAndUserId(
-                        room.roomId(),
-                        command.targetUserId())
-                .orElse(null);
+        Membership target = findTargetMembership(
+                room.roomId(),
+                command.targetUserId(),
+                command.targetMembershipId());
         if (target == null) {
             return rejection(
                     command.commandType(),
@@ -733,9 +730,7 @@ public final class RoomCommandService {
 
     private Membership requireOwnerInvariant(Room room) {
         Membership owner = membershipStore
-                .findByRoomIdAndUserId(
-                        room.roomId(),
-                        room.ownerUserId())
+                .findById(room.ownerMembershipId())
                 .orElseThrow(() -> dataIntegrity(
                         "Room owner membership is missing"));
         MembershipStatus requiredStatus =
@@ -743,6 +738,8 @@ public final class RoomCommandService {
                         ? MembershipStatus.ACTIVE
                         : MembershipStatus.LEFT;
         if (!owner.roomId().equals(room.roomId())
+                || !owner.membershipId().equals(
+                        room.ownerMembershipId())
                 || !owner.userId().equals(room.ownerUserId())
                 || owner.role() != MembershipRole.OWNER
                 || owner.status() != requiredStatus) {
@@ -750,6 +747,26 @@ public final class RoomCommandService {
                     "Room owner membership invariant is broken");
         }
         return owner;
+    }
+
+    private Membership findTargetMembership(
+            String roomId,
+            String targetUserId,
+            String targetMembershipId
+    ) {
+        if (targetMembershipId == null) {
+            return membershipStore.findByRoomIdAndUserId(
+                            roomId,
+                            targetUserId)
+                    .orElse(null);
+        }
+        Membership target = membershipStore
+                .findById(targetMembershipId)
+                .orElse(null);
+        if (target == null || !target.roomId().equals(roomId)) {
+            return null;
+        }
+        return target;
     }
 
     private RoomCommandResult ownerCommandRejection(

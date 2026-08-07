@@ -590,13 +590,17 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     void joinLeaveModerationAndCloseExposeStableHttpContracts()
             throws Exception {
         String roomId = createRoom("owner-1", JoinPolicy.OPEN);
-        mockMvc.perform(post("/api/v1/rooms/{roomId}/commands/join",
+        MvcResult joined = mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/join",
                                 roomId)
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("user-2")))
                         .header("Idempotency-Key", requestId()))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.code").value("JOINED"));
+                .andExpect(jsonPath("$.code").value("JOINED"))
+                .andReturn();
+        String targetMembershipId =
+                jsonString(joined, "membershipId");
         mockMvc.perform(post("/api/v1/rooms/{roomId}/commands/join",
                                 roomId)
                         .with(jwt().jwt(jwt ->
@@ -613,7 +617,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"user-2\"}"))
+                        .content("{\"targetMembershipId\":\""
+                                + targetMembershipId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("BANNED"));
         mockMvc.perform(post(
@@ -624,7 +629,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"user-2\"}"))
+                        .content("{\"targetMembershipId\":\""
+                                + targetMembershipId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code")
                         .value("ALREADY_BANNED"));
@@ -644,7 +650,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"user-2\"}"))
+                        .content("{\"targetMembershipId\":\""
+                                + targetMembershipId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("UNBANNED"));
         mockMvc.perform(post(
@@ -655,7 +662,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"user-2\"}"))
+                        .content("{\"targetMembershipId\":\""
+                                + targetMembershipId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code")
                         .value("ALREADY_UNBANNED"));
@@ -707,13 +715,50 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
+    void targetCommandsRequireExactlyOneNonBlankTargetIdentity()
+            throws Exception {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+        for (String command : new String[]{
+                "transfer-ownership",
+                "ban-member",
+                "unban-member"}) {
+            for (String body : new String[]{
+                    "{}",
+                    "{\"targetMembershipId\":\" \"}",
+                    "{\"targetUserId\":\"user-2\","
+                            + "\"targetMembershipId\":"
+                            + "\"membership-2\"}"}) {
+                mockMvc.perform(post(
+                                        "/api/v1/rooms/{roomId}"
+                                                + "/commands/{command}",
+                                        roomId,
+                                        command)
+                                .with(jwt().jwt(jwt ->
+                                        jwt.subject("owner-1")))
+                                .header(
+                                        "Idempotency-Key",
+                                        requestId())
+                                .contentType(
+                                        MediaType.APPLICATION_JSON)
+                                .content(body))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.code")
+                                .value("INVALID_REQUEST"));
+            }
+        }
+    }
+
+    @Test
     void transferAndOwnerOnlyRejectionsUseHttpContract()
             throws Exception {
         String roomId = createRoom("owner-1", JoinPolicy.OPEN);
-        commandService.joinRoom(new JoinRoomCommand(
+        String targetMembershipId = commandService.joinRoom(
+                        new JoinRoomCommand(
                 "user-2",
                 requestId(),
-                roomId));
+                roomId))
+                .result()
+                .membershipId();
 
         mockMvc.perform(post(
                                 "/api/v1/rooms/{roomId}"
@@ -723,12 +768,15 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"user-2\"}"))
+                        .content("{\"targetMembershipId\":\""
+                                + targetMembershipId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code")
                         .value("OWNERSHIP_TRANSFERRED"))
                 .andExpect(jsonPath("$.newOwnerUserId")
-                        .value("user-2"));
+                        .value("user-2"))
+                .andExpect(jsonPath("$.newOwnerMembershipId")
+                        .value(targetMembershipId));
         mockMvc.perform(post(
                                 "/api/v1/rooms/{roomId}"
                                         + "/commands/transfer-ownership",

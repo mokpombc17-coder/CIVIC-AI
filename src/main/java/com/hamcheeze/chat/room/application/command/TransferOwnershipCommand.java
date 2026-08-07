@@ -6,8 +6,23 @@ public record TransferOwnershipCommand(
         String requesterUserId,
         String clientRequestId,
         String roomId,
-        String targetUserId
+        String targetUserId,
+        String targetMembershipId
 ) implements RoomCommand {
+
+    public TransferOwnershipCommand(
+            String requesterUserId,
+            String clientRequestId,
+            String roomId,
+            String targetUserId
+    ) {
+        this(
+                requesterUserId,
+                clientRequestId,
+                roomId,
+                targetUserId,
+                null);
+    }
 
     public TransferOwnershipCommand {
         requesterUserId = RoomCommandValidation.requireNonBlank(
@@ -18,9 +33,9 @@ public record TransferOwnershipCommand(
         roomId = RoomCommandValidation.requireNonBlank(
                 roomId,
                 "roomId");
-        targetUserId = RoomCommandValidation.requireNonBlank(
+        RoomCommandValidation.requireExactlyOneTargetIdentity(
                 targetUserId,
-                "targetUserId");
+                targetMembershipId);
     }
 
     @Override

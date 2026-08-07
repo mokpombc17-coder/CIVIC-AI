@@ -455,11 +455,16 @@ Idempotency-Key: <uuid>
 
 ```json
 {
-  "targetUserId": "local-user-2"
+  "targetMembershipId": "membership-02"
 }
 ```
 
-`targetUserId`는 공백이 아닌 필수 문자열이다.
+Room 명령 대상 identity의 additive 전환 기간에는
+`targetMembershipId`와 기존 `targetUserId` 중 정확히 하나를 공백이 아닌
+문자열로 전달한다. 둘 다 누락하거나 동시에 전달하면
+`400 INVALID_REQUEST`다. 신규 클라이언트는 `targetMembershipId`를 사용한다.
+서버는 Membership에서 내부 `userId`를 해석하며 다른 Room의
+`targetMembershipId`는 `TARGET_MEMBERSHIP_NOT_FOUND`로 처리한다.
 
 응답 `200 OK`:
 
@@ -491,7 +496,7 @@ Idempotency-Key: <uuid>
 
 ```json
 {
-  "targetUserId": "local-user-2"
+  "targetMembershipId": "membership-02"
 }
 ```
 
@@ -524,7 +529,7 @@ Idempotency-Key: <uuid>
 
 ```json
 {
-  "targetUserId": "local-user-2"
+  "targetMembershipId": "membership-02"
 }
 ```
 

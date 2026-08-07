@@ -132,7 +132,8 @@ public class RoomCommandController {
                         idempotencyKeyResolver.resolve(
                                 idempotencyKey),
                         RoomApiValidation.roomId(roomId),
-                        request.targetUserId())));
+                        request.targetUserId(),
+                        request.targetMembershipId())));
     }
 
     @PostMapping("/{roomId}/commands/ban-member")
@@ -149,7 +150,8 @@ public class RoomCommandController {
                 userIdResolver.resolve(authentication),
                 idempotencyKeyResolver.resolve(idempotencyKey),
                 RoomApiValidation.roomId(roomId),
-                request.targetUserId())));
+                request.targetUserId(),
+                request.targetMembershipId())));
     }
 
     @PostMapping("/{roomId}/commands/unban-member")
@@ -168,7 +170,8 @@ public class RoomCommandController {
                         idempotencyKeyResolver.resolve(
                                 idempotencyKey),
                         RoomApiValidation.roomId(roomId),
-                        request.targetUserId())));
+                        request.targetUserId(),
+                        request.targetMembershipId())));
     }
 
     @PostMapping("/{roomId}/commands/close")

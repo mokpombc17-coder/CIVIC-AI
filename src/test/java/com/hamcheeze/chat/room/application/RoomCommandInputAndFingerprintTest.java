@@ -93,6 +93,51 @@ class RoomCommandInputAndFingerprintTest {
     }
 
     @Test
+    void targetCommandsRequireExactlyOneTargetIdentity() {
+        assertThatThrownBy(() -> new TransferOwnershipCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                null,
+                null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new BanMemberCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                "user-2",
+                "membership-2"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new UnbanMemberCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                null,
+                " ")).isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(new TransferOwnershipCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                null,
+                "membership-2").targetMembershipId())
+                .isEqualTo("membership-2");
+        assertThat(new BanMemberCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                null,
+                "membership-2").targetMembershipId())
+                .isEqualTo("membership-2");
+        assertThat(new UnbanMemberCommand(
+                "user-1",
+                REQUEST_ID,
+                "room-1",
+                null,
+                "membership-2").targetMembershipId())
+                .isEqualTo("membership-2");
+    }
+
+    @Test
     void canonicalizesAndValidatesRoomName() {
         CreateRoomCommand command = new CreateRoomCommand(
                 "user-1",
@@ -163,6 +208,13 @@ class RoomCommandInputAndFingerprintTest {
                         REQUEST_ID,
                         "room-1",
                         "user-3"));
+        String transferMembership2 = fingerprints.create(
+                new TransferOwnershipCommand(
+                        "user-1",
+                        REQUEST_ID,
+                        "room-1",
+                        null,
+                        "membership-2"));
         String listed = fingerprints.create(new CreateRoomCommand(
                 "user-1",
                 REQUEST_ID,
@@ -205,6 +257,7 @@ class RoomCommandInputAndFingerprintTest {
                 anotherRoom,
                 transferUser2,
                 transferUser3,
+                transferMembership2,
                 listed,
                 unlisted,
                 anotherName,

@@ -821,6 +821,78 @@ class RoomCommandServiceIntegrationTest
     }
 
     @Test
+    void membershipIdTargetsDriveModerationAndOwnershipCommands() {
+        String roomId = createOpenRoom("owner-1");
+        RoomCommandExecution joined = service.joinRoom(
+                new JoinRoomCommand(
+                        "user-2",
+                        requestId(),
+                        roomId));
+        String targetMembershipId =
+                joined.result().membershipId();
+
+        RoomCommandExecution banned = service.banMember(
+                new BanMemberCommand(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        null,
+                        targetMembershipId));
+        RoomCommandExecution unbanned = service.unbanMember(
+                new UnbanMemberCommand(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        null,
+                        targetMembershipId));
+        service.joinRoom(new JoinRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        RoomCommandExecution transferred =
+                service.transferOwnership(
+                        new TransferOwnershipCommand(
+                                "owner-1",
+                                requestId(),
+                                roomId,
+                                null,
+                                targetMembershipId));
+
+        assertThat(banned.result().targetMembershipId())
+                .isEqualTo(targetMembershipId);
+        assertThat(banned.result().targetUserId())
+                .isEqualTo("user-2");
+        assertThat(unbanned.result().targetMembershipId())
+                .isEqualTo(targetMembershipId);
+        assertThat(transferred.result().newOwnerMembershipId())
+                .isEqualTo(targetMembershipId);
+        assertThat(roomStore.findById(roomId).orElseThrow()
+                .ownerMembershipId()).isEqualTo(targetMembershipId);
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void membershipIdTargetFromAnotherRoomIsNotResolved() {
+        String roomId = roomWithActiveMember();
+        String anotherRoomId = roomWithActiveMember();
+        String anotherMembershipId =
+                membership(anotherRoomId, "user-2").membershipId();
+
+        RoomCommandExecution execution = service.banMember(
+                new BanMemberCommand(
+                        "owner-1",
+                        requestId(),
+                        roomId,
+                        null,
+                        anotherMembershipId));
+
+        assertThat(execution.result().code()).isEqualTo(
+                RoomCommandResultCode.TARGET_MEMBERSHIP_NOT_FOUND);
+        assertThat(membership(roomId, "user-2").status())
+                .isEqualTo(MembershipStatus.ACTIVE);
+    }
+
+    @Test
     void transferPrioritizesRoomStateAndRequesterBeforeTargetLookup() {
         String activeRoom = roomWithActiveMember();
         String missingRequestId = requestId();
