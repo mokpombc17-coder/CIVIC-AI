@@ -118,12 +118,12 @@ class MongoChatMessageStoreTest {
         assertThat(outbox).isNotNull();
         assertThat(outbox.get("_id"))
                 .isEqualTo("chat-message-created:message-1");
-        assertThat(outbox.getInteger("schemaVersion")).isEqualTo(3);
+        assertThat(outbox.getInteger("schemaVersion")).isEqualTo(4);
         assertThat(outbox.getString("aggregateType"))
                 .isEqualTo("CHAT_MESSAGE");
         assertThat(outbox.getString("eventType"))
                 .isEqualTo("CHAT_MESSAGE_CREATED");
-        assertThat(outbox.getInteger("eventVersion")).isEqualTo(1);
+        assertThat(outbox.getInteger("eventVersion")).isEqualTo(2);
         assertThat(outbox.getLong("roomSequence")).isEqualTo(1L);
         assertThat(outbox.getLong("attemptCount")).isZero();
         Document payload = outbox.get("payload", Document.class);
@@ -132,6 +132,7 @@ class MongoChatMessageStoreTest {
                 .isEqualTo("message-1");
         assertThat(payload.getString("senderMembershipId"))
                 .isEqualTo("membership-user-1");
+        assertThat(payload.containsKey("senderUserId")).isFalse();
         assertThat(payload.getString("content"))
                 .isEqualTo("normalized content");
         assertThat(payload.getDate("createdAt").toInstant())

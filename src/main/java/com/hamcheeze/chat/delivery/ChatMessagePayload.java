@@ -10,7 +10,6 @@ public record ChatMessagePayload(
         String messageId,
         String roomId,
         long roomSequence,
-        String senderUserId,
         String senderMembershipId,
         String clientMessageId,
         String content,
@@ -23,27 +22,54 @@ public record ChatMessagePayload(
 ) {
 
     public ChatMessagePayload {
-        new ChatMessage(
-                messageId,
-                roomId,
-                roomSequence,
-                senderUserId,
-                senderMembershipId,
-                clientMessageId,
-                content,
-                state,
-                countable,
-                messageVersion,
-                createdAt,
-                updatedAt,
-                deletedAt);
+        requireText(messageId, "messageId");
+        requireText(roomId, "roomId");
+        requireText(senderMembershipId, "senderMembershipId");
+        requireText(clientMessageId, "clientMessageId");
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(createdAt, "createdAt");
+        Objects.requireNonNull(updatedAt, "updatedAt");
+        if (roomSequence < 1) {
+            throw new IllegalArgumentException(
+                    "roomSequence must be at least 1");
+        }
+        if (messageVersion < 1) {
+            throw new IllegalArgumentException(
+                    "messageVersion must be at least 1");
+        }
+        if (updatedAt.isBefore(createdAt)) {
+            throw new IllegalArgumentException(
+                    "updatedAt must not precede createdAt");
+        }
+        if (state == MessageState.ACTIVE) {
+            if (content == null || content.isBlank()) {
+                throw new IllegalArgumentException(
+                        "ACTIVE message content must not be blank");
+            }
+            if (deletedAt != null) {
+                throw new IllegalArgumentException(
+                        "ACTIVE message deletedAt must be null");
+            }
+        } else {
+            if (content != null) {
+                throw new IllegalArgumentException(
+                        "Deleted message content must be null");
+            }
+            if (deletedAt == null || !updatedAt.equals(deletedAt)) {
+                throw new IllegalArgumentException(
+                        "Deleted message timestamps must match");
+            }
+            if (messageVersion < 2) {
+                throw new IllegalArgumentException(
+                        "Deleted messageVersion must be at least 2");
+            }
+        }
     }
 
     public ChatMessagePayload(
             String messageId,
             String roomId,
             long roomSequence,
-            String senderUserId,
             String senderMembershipId,
             String clientMessageId,
             String content,
@@ -57,7 +83,6 @@ public record ChatMessagePayload(
                 messageId,
                 roomId,
                 roomSequence,
-                senderUserId,
                 senderMembershipId,
                 clientMessageId,
                 content,
@@ -73,7 +98,6 @@ public record ChatMessagePayload(
             String messageId,
             String roomId,
             long roomSequence,
-            String senderUserId,
             String senderMembershipId,
             String clientMessageId,
             String content,
@@ -83,7 +107,6 @@ public record ChatMessagePayload(
                 messageId,
                 roomId,
                 roomSequence,
-                senderUserId,
                 senderMembershipId,
                 clientMessageId,
                 content,
@@ -101,7 +124,6 @@ public record ChatMessagePayload(
                 message.messageId(),
                 message.roomId(),
                 message.roomSequence(),
-                message.senderUserId(),
                 message.senderMembershipId(),
                 message.clientMessageId(),
                 message.content(),
@@ -111,5 +133,12 @@ public record ChatMessagePayload(
                 message.createdAt(),
                 message.updatedAt(),
                 message.deletedAt());
+    }
+
+    private static void requireText(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(
+                    fieldName + " must not be blank");
+        }
     }
 }

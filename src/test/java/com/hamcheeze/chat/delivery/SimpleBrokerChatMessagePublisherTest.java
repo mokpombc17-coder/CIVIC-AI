@@ -117,22 +117,25 @@ class SimpleBrokerChatMessagePublisherTest {
     }
 
     @Test
-    void externalPayloadIncludesSenderUserId() throws Exception {
+    void externalPayloadExposesOnlySenderMembershipId()
+            throws Exception {
         ChatMessage internalMessage = message();
         ChatMessageEventEnvelope event =
                 ChatMessageEventEnvelope.messageCreated(internalMessage);
 
         assertThat(internalMessage.senderUserId())
                 .isEqualTo("user-1");
-        assertThat(event.payload().senderUserId())
-                .isEqualTo("user-1");
+        assertThat(event.payload().senderMembershipId())
+                .isEqualTo("membership-1");
         assertThat(event.payload().getClass().getRecordComponents())
                 .extracting(component -> component.getName())
-                .contains("senderUserId");
+                .contains("senderMembershipId")
+                .doesNotContain("senderUserId");
         assertThat(JsonMapper.builder()
                 .build()
                 .writeValueAsString(event))
-                .contains("\"senderUserId\":\"user-1\"");
+                .contains("\"senderMembershipId\":\"membership-1\"")
+                .doesNotContain("senderUserId");
     }
 
     private ChatMessage message() {

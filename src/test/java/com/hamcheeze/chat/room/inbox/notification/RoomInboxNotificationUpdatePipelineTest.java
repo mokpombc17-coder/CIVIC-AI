@@ -57,7 +57,7 @@ class RoomInboxNotificationUpdatePipelineTest {
                         "author", false));
 
         assertThat(result.events()).hasSize(2).allSatisfy(event -> {
-            assertThat(event.eventVersion()).isEqualTo(1);
+            assertThat(event.eventVersion()).isEqualTo(2);
             assertThat(event.cause())
                     .isEqualTo(RoomInboxEvent.Cause.MESSAGE_UPDATED);
             assertThat(event.roomNameHint()).isNull();
@@ -571,7 +571,6 @@ class RoomInboxNotificationUpdatePipelineTest {
                                 messageId,
                                 roomId,
                                 sequence,
-                                sender,
                                 "membership-" + sender,
                                 "client-" + messageId,
                                 content,
@@ -590,7 +589,6 @@ class RoomInboxNotificationUpdatePipelineTest {
                                 messageId,
                                 roomId,
                                 sequence,
-                                sender,
                                 "membership-" + sender,
                                 "client-" + messageId,
                                 content,

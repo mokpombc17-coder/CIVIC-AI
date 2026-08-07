@@ -109,7 +109,7 @@ class ChatMessageHistoryApiIntegrationTest
                 .andExpect(jsonPath("$.items[49].roomSequence")
                         .value(120))
                 .andExpect(jsonPath("$.items[49].senderUserId")
-                        .value("owner-1"))
+                        .doesNotExist())
                 .andExpect(jsonPath(
                         "$.items[49].senderMembershipId")
                         .value("membership-owner-1"))

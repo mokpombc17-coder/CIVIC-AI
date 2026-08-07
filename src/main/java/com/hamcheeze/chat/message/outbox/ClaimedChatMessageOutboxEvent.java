@@ -24,7 +24,6 @@ public record ClaimedChatMessageOutboxEvent(
             String messageId,
             String roomId,
             Long roomSequence,
-            String senderUserId,
             String senderMembershipId,
             String clientMessageId,
             String content,
@@ -58,7 +57,6 @@ public record ClaimedChatMessageOutboxEvent(
                 || isBlank(payload.roomId())
                 || payload.roomSequence() == null
                 || payload.roomSequence() < 1
-                || isBlank(payload.senderUserId())
                 || isBlank(payload.senderMembershipId())
                 || isBlank(payload.clientMessageId())
                 || payload.createdAt() == null
@@ -73,7 +71,6 @@ public record ClaimedChatMessageOutboxEvent(
                 payload.messageId(),
                 payload.roomId(),
                 payload.roomSequence(),
-                payload.senderUserId(),
                 payload.senderMembershipId(),
                 payload.clientMessageId(),
                 payload.content(),

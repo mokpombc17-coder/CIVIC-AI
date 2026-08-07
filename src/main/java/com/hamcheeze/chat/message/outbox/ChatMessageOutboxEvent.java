@@ -22,9 +22,10 @@ public record ChatMessageOutboxEvent(
         Instant occurredAt
 ) {
 
-    public static final int CURRENT_SCHEMA_VERSION = 3;
+    public static final int CURRENT_SCHEMA_VERSION = 4;
     public static final String AGGREGATE_TYPE = "CHAT_MESSAGE";
-    public static final int CURRENT_EVENT_VERSION = 1;
+    public static final int CURRENT_EVENT_VERSION =
+            ChatMessageEventEnvelope.CURRENT_VERSION;
     public static final String MESSAGE_CREATED = "CHAT_MESSAGE_CREATED";
     public static final String MESSAGE_UPDATED = "CHAT_MESSAGE_UPDATED";
     public static final String MESSAGE_DELETED = "CHAT_MESSAGE_DELETED";

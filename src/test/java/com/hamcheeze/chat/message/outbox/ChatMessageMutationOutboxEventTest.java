@@ -54,8 +54,8 @@ class ChatMessageMutationOutboxEventTest {
                 .isEqualTo("chat-message-updated:message-1:v2");
         assertThat(update.eventType())
                 .isEqualTo("CHAT_MESSAGE_UPDATED");
-        assertThat(update.schemaVersion()).isEqualTo(3);
-        assertThat(update.eventVersion()).isEqualTo(1);
+        assertThat(update.schemaVersion()).isEqualTo(4);
+        assertThat(update.eventVersion()).isEqualTo(2);
         assertThat(update.payload().countable()).isTrue();
         assertThat(update.payload().senderMembershipId())
                 .isEqualTo("membership-1");
@@ -65,8 +65,8 @@ class ChatMessageMutationOutboxEventTest {
                 .isEqualTo("chat-message-deleted:message-1:v3");
         assertThat(delete.eventType())
                 .isEqualTo("CHAT_MESSAGE_DELETED");
-        assertThat(delete.schemaVersion()).isEqualTo(3);
-        assertThat(delete.eventVersion()).isEqualTo(1);
+        assertThat(delete.schemaVersion()).isEqualTo(4);
+        assertThat(delete.eventVersion()).isEqualTo(2);
         assertThat(delete.payload().countable()).isTrue();
         assertThat(delete.payload().senderMembershipId())
                 .isEqualTo("membership-1");
@@ -91,7 +91,6 @@ class ChatMessageMutationOutboxEventTest {
                                 "message-1",
                                 "room-1",
                                 10L,
-                                "user-1",
                                 "membership-1",
                                 "client-1",
                                 "hello",
@@ -125,7 +124,6 @@ class ChatMessageMutationOutboxEventTest {
                                 "message-1",
                                 "room-1",
                                 10L,
-                                "user-1",
                                 "membership-1",
                                 "client-1",
                                 "edited",
@@ -158,7 +156,6 @@ class ChatMessageMutationOutboxEventTest {
                                 "message-1",
                                 "room-1",
                                 10L,
-                                "user-1",
                                 "membership-1",
                                 "client-1",
                                 "edited",
@@ -184,7 +181,6 @@ class ChatMessageMutationOutboxEventTest {
                                 "message-1",
                                 "room-1",
                                 10L,
-                                "user-1",
                                 "membership-1",
                                 "client-1",
                                 "still visible",

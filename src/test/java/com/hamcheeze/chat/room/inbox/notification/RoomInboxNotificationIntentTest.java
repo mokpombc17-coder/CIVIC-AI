@@ -47,7 +47,6 @@ class RoomInboxNotificationIntentTest {
                         "message-1",
                         "room-1",
                         1,
-                        "sender-1",
                         "membership-sender-1",
                         "client-1",
                         "content",

@@ -5,7 +5,6 @@ import java.time.Instant;
 public record RoomInboxNotificationHint(
         String messageId,
         long messageVersion,
-        String senderUserId,
         String senderMembershipId,
         Instant messageCreatedAt,
         String preview,
@@ -18,7 +17,6 @@ public record RoomInboxNotificationHint(
             throw new IllegalArgumentException(
                     "messageVersion must be at least 1");
         }
-        requireText(senderUserId, "senderUserId");
         requireText(senderMembershipId, "senderMembershipId");
         if (messageCreatedAt == null) {
             throw new IllegalArgumentException(

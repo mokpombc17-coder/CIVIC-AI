@@ -34,7 +34,7 @@ class ClaimedChatMessageOutboxEventTest {
 
         var envelope = claimed.decodeEnvelope();
 
-        assertThat(envelope.eventVersion()).isEqualTo(1);
+        assertThat(envelope.eventVersion()).isEqualTo(2);
         assertThat(envelope.eventType())
                 .isEqualTo("CHAT_MESSAGE_CREATED");
         assertThat(envelope.payload().messageId())
@@ -185,20 +185,6 @@ class ClaimedChatMessageOutboxEventTest {
                                         "client-1",
                                         "hello"))),
                 Arguments.of(
-                        "blank senderUserId",
-                        event(
-                                validEventId(),
-                                "message-1",
-                                "room-1",
-                                1L,
-                                payload(
-                                        "message-1",
-                                        "room-1",
-                                        1L,
-                                        " ",
-                                        "client-1",
-                                        "hello"))),
-                Arguments.of(
                         "blank senderMembershipId",
                         event(
                                 validEventId(),
@@ -209,7 +195,6 @@ class ClaimedChatMessageOutboxEventTest {
                                         "message-1",
                                         "room-1",
                                         1L,
-                                        "user-1",
                                         " ",
                                         "client-1",
                                         "hello",
@@ -278,7 +263,7 @@ class ClaimedChatMessageOutboxEventTest {
                 ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION,
                 "CHAT_MESSAGE",
                 aggregateId,
-                1,
+                ChatMessageOutboxEvent.CURRENT_EVENT_VERSION,
                 "CHAT_MESSAGE_CREATED",
                 roomId,
                 roomSequence,
@@ -298,7 +283,6 @@ class ClaimedChatMessageOutboxEventTest {
                 messageId,
                 roomId,
                 roomSequence,
-                senderUserId,
                 "membership-" + senderUserId,
                 clientMessageId,
                 content,

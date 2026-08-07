@@ -61,7 +61,9 @@ class MongoChatMessageOutboxStoreTest {
         assertThat(claimed.eventId())
                 .isEqualTo("chat-message-created:message-1");
         assertThat(claimed.claimedAttemptCount()).isEqualTo(1L);
-        assertThat(claimed.decodeEnvelope().payload().messageId())
+        var envelope = claimed.decodeEnvelope();
+        assertThat(envelope.eventVersion()).isEqualTo(2);
+        assertThat(envelope.payload().messageId())
                 .isEqualTo("message-1");
 
         Document claimedDocument = events().find(
@@ -70,6 +72,10 @@ class MongoChatMessageOutboxStoreTest {
                                 "chat-message-created:message-1"))
                 .first();
         assertThat(claimedDocument).isNotNull();
+        Document payload = claimedDocument.get("payload", Document.class);
+        assertThat(payload.getString("senderMembershipId"))
+                .isEqualTo("membership-1");
+        assertThat(payload.containsKey("senderUserId")).isFalse();
         assertThat(claimedDocument.getLong("attemptCount"))
                 .isEqualTo(1L);
         assertThat(claimedDocument.getDate("lastAttemptAt").toInstant())
@@ -236,7 +242,8 @@ class MongoChatMessageOutboxStoreTest {
                 .append("schemaVersion", 1)
                 .append("aggregateType", "CHAT_MESSAGE")
                 .append("eventType", "CHAT_MESSAGE_CREATED")
-                .append("eventVersion", 1)
+                .append("eventVersion",
+                        ChatMessageOutboxEvent.CURRENT_EVENT_VERSION)
                 .append("occurredAt",
                         java.util.Date.from(NOW.minusSeconds(10)))
                 .append("nextAttemptAt", java.util.Date.from(NOW))
@@ -254,7 +261,8 @@ class MongoChatMessageOutboxStoreTest {
                 .append("aggregateType", "CHAT_MESSAGE")
                 .append("aggregateId", "message-1")
                 .append("eventType", "CHAT_MESSAGE_CREATED")
-                .append("eventVersion", 1)
+                .append("eventVersion",
+                        ChatMessageOutboxEvent.CURRENT_EVENT_VERSION)
                 .append("roomId", "room-1")
                 .append("roomSequence", 1L)
                 .append("payload", payload)
@@ -269,7 +277,6 @@ class MongoChatMessageOutboxStoreTest {
         return new Document("messageId", "message-1")
                 .append("roomId", "room-1")
                 .append("roomSequence", 1L)
-                .append("senderUserId", "user-1")
                 .append("senderMembershipId", "membership-1")
                 .append("clientMessageId", "client-1")
                 .append("content", "hello")

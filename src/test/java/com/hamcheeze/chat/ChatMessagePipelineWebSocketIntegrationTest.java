@@ -241,23 +241,20 @@ class ChatMessagePipelineWebSocketIntegrationTest
 
             assertThat(rawRoomMessage).isNotNull();
             assertThat(roomMessage).isNotNull();
-            assertThat(roomMessage.eventVersion()).isEqualTo(1);
+            assertThat(roomMessage.eventVersion()).isEqualTo(2);
             assertThat(roomMessage.eventType())
                     .isEqualTo("CHAT_MESSAGE_CREATED");
             assertThat(roomMessage.payload().content())
                     .isEqualTo("hello");
             assertThat(roomMessage.payload().roomSequence())
                     .isEqualTo(1);
-            assertThat(roomMessage.payload().senderUserId())
-                    .isEqualTo("local-user-1");
             assertThat(roomMessage.payload().senderMembershipId())
                     .isEqualTo(
                             "membership-test-room-local-user-1");
             assertThat(new String(
                     rawRoomMessage,
                     StandardCharsets.UTF_8))
-                    .contains(
-                            "\"senderUserId\":\"local-user-1\"")
+                    .doesNotContain("senderUserId")
                     .contains(
                             "\"senderMembershipId\":"
                                     + "\"membership-test-room-local-user-1\"");
@@ -353,8 +350,6 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(secondAccepted.messageId());
             assertThat(secondRoomMessage.payload().roomSequence())
                     .isEqualTo(secondAccepted.roomSequence());
-            assertThat(secondRoomMessage.payload().senderUserId())
-                    .isEqualTo("local-user-1");
             assertThat(secondRoomMessage.payload().senderMembershipId())
                     .isEqualTo(
                             "membership-test-room-local-user-1");

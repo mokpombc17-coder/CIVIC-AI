@@ -10,7 +10,7 @@ public record ChatMessageEventEnvelope(
         ChatMessagePayload payload
 ) {
 
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 2;
     public static final String MESSAGE_CREATED =
             "CHAT_MESSAGE_CREATED";
     public static final String MESSAGE_UPDATED =

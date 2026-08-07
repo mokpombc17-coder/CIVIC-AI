@@ -878,7 +878,6 @@ class RoomInboxNotificationPipelineTest {
                         messageId,
                         "room-1",
                         sequence,
-                        senderUserId,
                         "membership-" + senderUserId,
                         "client-" + sequence,
                         content,
@@ -905,13 +904,12 @@ class RoomInboxNotificationPipelineTest {
             String content
     ) {
         return new ChatMessageEventEnvelope(
-                1,
+                ChatMessageEventEnvelope.CURRENT_VERSION,
                 ChatMessageOutboxEvent.MESSAGE_CREATED,
                 new ChatMessagePayload(
                         "message-" + sequence,
                         "room-1",
                         sequence,
-                        senderUserId,
                         "membership-" + senderUserId,
                         "client-" + sequence,
                         content,
@@ -947,7 +945,6 @@ class RoomInboxNotificationPipelineTest {
                         messageId,
                         "room-1",
                         sequence,
-                        "owner",
                         "membership-owner",
                         "client-" + sequence,
                         null,
@@ -969,13 +966,12 @@ class RoomInboxNotificationPipelineTest {
             boolean countable
     ) {
         return new ChatMessageEventEnvelope(
-                1,
+                ChatMessageEventEnvelope.CURRENT_VERSION,
                 ChatMessageOutboxEvent.MESSAGE_DELETED,
                 new ChatMessagePayload(
                         "message-" + sequence,
                         "room-1",
                         sequence,
-                        "owner",
                         "membership-owner",
                         "client-" + sequence,
                         null,

@@ -21,7 +21,7 @@ public record RoomInboxEvent(
         RoomInboxNotificationHint notificationHint
 ) {
 
-    public static final int CURRENT_EVENT_VERSION = 1;
+    public static final int CURRENT_EVENT_VERSION = 2;
     public static final String EVENT_TYPE = "ROOM_INBOX_INVALIDATED";
     public static final int MAX_SOURCE_EVENT_IDS = 100;
     private static final Pattern ROOM_ID =

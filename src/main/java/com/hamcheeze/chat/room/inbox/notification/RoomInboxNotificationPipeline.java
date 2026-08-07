@@ -565,7 +565,6 @@ public final class RoomInboxNotificationPipeline
                             new RoomInboxNotificationHint(
                                     latest.message().messageId(),
                                     latest.message().messageVersion(),
-                                    latest.message().senderUserId(),
                                     latest.message()
                                             .senderMembershipId(),
                                     latest.message().createdAt(),

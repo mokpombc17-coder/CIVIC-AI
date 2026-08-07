@@ -137,8 +137,9 @@ class ChatMessageReconnectRecoveryIntegrationTest
             ChatMessageEventEnvelope firstEvent =
                     firstRoomEvents.poll(5, TimeUnit.SECONDS);
             assertThat(firstEvent).isNotNull();
-            assertThat(firstEvent.payload().senderUserId())
-                    .isEqualTo("local-user-1");
+            assertThat(firstEvent.payload().senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(firstResultSendEntered.await(
                     5, TimeUnit.SECONDS)).isTrue();
             assertThat(mongoOperations.findById(
@@ -299,8 +300,9 @@ class ChatMessageReconnectRecoveryIntegrationTest
             ChatMessageEventEnvelope firstEvent =
                     firstRoomEvents.poll(5, TimeUnit.SECONDS);
             assertThat(firstEvent).isNotNull();
-            assertThat(firstEvent.payload().senderUserId())
-                    .isEqualTo("local-user-1");
+            assertThat(firstEvent.payload().senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(firstAcceptedSendEntered.await(
                     5, TimeUnit.SECONDS)).isTrue();
             assertThat(originalResultConnection)

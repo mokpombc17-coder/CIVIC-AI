@@ -685,8 +685,12 @@ def run_websocket_flow(
             raise AssertionError("CHAT_MESSAGE_CREATED 이벤트를 받지 못했습니다.")
 
         payload = message_event["payload"]
-        if payload.get("senderUserId") != subject:
-            raise AssertionError("메시지 이벤트 senderUserId가 JWT subject와 다릅니다.")
+        if "senderUserId" in payload:
+            raise AssertionError("메시지 이벤트에 senderUserId가 노출됐습니다.")
+        if message_event.get("eventVersion") != 2:
+            raise AssertionError(
+                f"메시지 이벤트 버전이 올바르지 않습니다: {message_event}"
+            )
         if payload.get("senderMembershipId") != self_membership_id:
             raise AssertionError(
                 "메시지 이벤트 senderMembershipId가 현재 Membership과 다릅니다."
@@ -939,6 +943,13 @@ def run_room_inbox_flow(
     member_client: HttpClient,
     room_id: str,
 ) -> None:
+    _, _, member_membership = member_client.request(
+        "GET", f"/api/v1/rooms/{room_id}/memberships/me"
+    )
+    member_membership_id = member_membership.get("membershipId")
+    if not isinstance(member_membership_id, str) or not member_membership_id:
+        raise AssertionError("inbox smoke member membershipId가 없습니다.")
+
     owner_ws = WebSocketClient(ws_url, origin, owner_client.cookie)
     member_ws = WebSocketClient(ws_url, origin, member_client.cookie)
     connect_stomp(owner_ws)
@@ -995,11 +1006,21 @@ def run_room_inbox_flow(
             )
             if (
                 "payload" in inbox_event
+                or inbox_event.get("eventVersion") != 2
                 or inbox_event.get("coalescedCreateCount") != 1
                 or not inbox_event.get("sourceEventIds")
             ):
                 raise AssertionError(
                     f"개인 inbox event가 cache payload처럼 보입니다: {inbox_event}"
+                )
+            notification_hint = inbox_event["notificationHint"]
+            if "senderUserId" in notification_hint:
+                raise AssertionError(
+                    "개인 inbox notificationHint에 senderUserId가 노출됐습니다."
+                )
+            if notification_hint.get("senderMembershipId") != member_membership_id:
+                raise AssertionError(
+                    "개인 inbox notificationHint senderMembershipId가 다릅니다."
                 )
             return result["messageId"], int(result["roomSequence"]), inbox_event
 
@@ -1248,8 +1269,8 @@ def main() -> int:
     if len(matching_messages) != 1:
         raise AssertionError("WebSocket으로 보낸 메시지를 REST 이력에서 찾지 못했습니다.")
     tombstone = matching_messages[0]
-    if tombstone.get("senderUserId") != args.subject:
-        raise AssertionError("메시지 이력 senderUserId가 JWT subject와 다릅니다.")
+    if "senderUserId" in tombstone:
+        raise AssertionError("메시지 이력에 senderUserId가 노출됐습니다.")
     if tombstone.get("senderMembershipId") != self_membership_id:
         raise AssertionError(
             "메시지 이력 senderMembershipId가 현재 Membership과 다릅니다."

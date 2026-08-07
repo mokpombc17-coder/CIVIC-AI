@@ -30,7 +30,9 @@ class RoomInboxEventTest {
     void acceptsValidCreateUpdateAndDeleteAndDefensivelyCopiesSources() {
         List<String> mutable = new ArrayList<>(List.of(CREATED_SOURCE));
         RoomInboxEvent created = created(
-                1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID,
+                RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_CREATED,
                 "room-1", "Room", NOW, mutable, 1, hint());
         mutable.clear();
@@ -48,7 +50,7 @@ class RoomInboxEventTest {
     }
 
     @Test
-    void serializesUpdateAsInvalidationOnlyVersionOneShape()
+    void serializesUpdateAsInvalidationOnlyVersionTwoShape()
             throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode json = objectMapper.readTree(
@@ -58,7 +60,7 @@ class RoomInboxEventTest {
                         null,
                         List.of(UPDATED_SOURCE))));
 
-        assertThat(json.get("eventVersion").asInt()).isEqualTo(1);
+        assertThat(json.get("eventVersion").asInt()).isEqualTo(2);
         assertThat(json.get("eventType").asText())
                 .isEqualTo(RoomInboxEvent.EVENT_TYPE);
         assertThat(json.get("cause").asText())
@@ -71,48 +73,74 @@ class RoomInboxEventTest {
     }
 
     @Test
+    void serializesCreateWithMembershipSenderOnly()
+            throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode json = objectMapper.readTree(
+                objectMapper.writeValueAsBytes(createdWith(
+                        "Room",
+                        1,
+                        hint(),
+                        List.of(CREATED_SOURCE))));
+
+        JsonNode notificationHint = json.get("notificationHint");
+        assertThat(json.get("eventVersion").asInt()).isEqualTo(2);
+        assertThat(notificationHint.get("senderMembershipId").asText())
+                .isEqualTo("membership-sender-1");
+        assertThat(notificationHint.has("senderUserId")).isFalse();
+    }
+
+    @Test
     void rejectsMalformedCommonFields() {
         assertInvalid(() -> created(
-                2, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
-                RoomInboxEvent.Cause.MESSAGE_CREATED,
-                "room-1", "Room", NOW,
-                List.of(CREATED_SOURCE), 1, hint()));
-        assertInvalid(() -> created(
-                1, "not-a-uuid", RoomInboxEvent.EVENT_TYPE,
-                RoomInboxEvent.Cause.MESSAGE_CREATED,
-                "room-1", "Room", NOW,
-                List.of(CREATED_SOURCE), 1, hint()));
-        assertInvalid(() -> created(
-                1, EVENT_ID, "WRONG",
-                RoomInboxEvent.Cause.MESSAGE_CREATED,
-                "room-1", "Room", NOW,
-                List.of(CREATED_SOURCE), 1, hint()));
-        assertInvalid(() -> created(
                 1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.Cause.MESSAGE_CREATED,
+                "room-1", "Room", NOW,
+                List.of(CREATED_SOURCE), 1, hint()));
+        assertInvalid(() -> created(
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                "not-a-uuid", RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.Cause.MESSAGE_CREATED,
+                "room-1", "Room", NOW,
+                List.of(CREATED_SOURCE), 1, hint()));
+        assertInvalid(() -> created(
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID, "WRONG",
+                RoomInboxEvent.Cause.MESSAGE_CREATED,
+                "room-1", "Room", NOW,
+                List.of(CREATED_SOURCE), 1, hint()));
+        assertInvalid(() -> created(
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID, RoomInboxEvent.EVENT_TYPE,
                 null, "room-1", "Room", NOW,
                 List.of(CREATED_SOURCE), 1, hint()));
         assertInvalid(() -> created(
-                1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID, RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_CREATED,
                 " ", "Room", NOW,
                 List.of(CREATED_SOURCE), 1, hint()));
         assertInvalid(() -> created(
-                1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID, RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_CREATED,
                 "room-1", "Room", null,
                 List.of(CREATED_SOURCE), 1, hint()));
         assertInvalid(() -> created(
-                1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID, RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_CREATED,
                 "room-1", "Room", NOW,
                 List.of(), 1, hint()));
         assertInvalid(() -> created(
-                1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID, RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_CREATED,
                 "room-1", "Room", NOW,
                 List.of(" "), 1, hint()));
         assertInvalid(() -> created(
-                1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID, RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_CREATED,
                 "room-1", "Room", NOW,
                 List.of(CREATED_SOURCE, CREATED_SOURCE), 2, hint()));
@@ -240,7 +268,6 @@ class RoomInboxEventTest {
                 new RoomInboxNotificationHint(
                         "m".repeat(64),
                         Long.MAX_VALUE,
-                        "s".repeat(64),
                         "membership-1",
                         NOW,
                         "😀".repeat(30),
@@ -261,7 +288,9 @@ class RoomInboxEventTest {
             List<String> sources
     ) {
         return created(
-                1, EVENT_ID, RoomInboxEvent.EVENT_TYPE,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
+                EVENT_ID,
+                RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_CREATED,
                 "room-1", roomName, NOW, sources, count, hint);
     }
@@ -290,7 +319,7 @@ class RoomInboxEventTest {
             List<String> sources
     ) {
         return new RoomInboxEvent(
-                1,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
                 EVENT_ID,
                 RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_DELETED,
@@ -309,7 +338,7 @@ class RoomInboxEventTest {
             List<String> sources
     ) {
         return new RoomInboxEvent(
-                1,
+                RoomInboxEvent.CURRENT_EVENT_VERSION,
                 EVENT_ID,
                 RoomInboxEvent.EVENT_TYPE,
                 RoomInboxEvent.Cause.MESSAGE_UPDATED,
@@ -325,7 +354,6 @@ class RoomInboxEventTest {
         return new RoomInboxNotificationHint(
                 "message-1",
                 1,
-                "sender-1",
                 "membership-sender-1",
                 NOW,
                 "preview",
@@ -335,15 +363,14 @@ class RoomInboxEventTest {
     private void assertHintInvalid(
             String messageId,
             long version,
-            String sender,
+            String senderMembershipId,
             Instant createdAt,
             String preview
     ) {
         assertInvalid(() -> new RoomInboxNotificationHint(
                 messageId,
                 version,
-                sender,
-                "membership-sender-1",
+                senderMembershipId,
                 createdAt,
                 preview,
                 false));
