@@ -176,6 +176,24 @@ event, REST snapshot을 함께 검증한다. 메시지 행의 불변 `clientMess
 → DELETE 토스트 없이 Room inbox 재조회로 badge 제거와 tombstone preview 확인
 ```
 
+Read-state 신뢰성은 `/chat` provider 수명, 실제 viewport 판정과 같은 브라우저의 탭 간
+confirmation을 실제 SharedWorker 경로로 검증한다.
+
+```text
+탭 A는 Room inbox, 탭 B는 같은 사용자의 채팅방 화면 유지
+→ 탭 B가 focus를 잃은 동안 새 메시지가 도착해 탭 A unread badge 표시
+→ 탭 B focus와 최신 메시지 확인 뒤 PUT 성공
+→ SharedWorker confirmation으로 탭 A가 Room inbox를 재조회해 badge 제거
+
+read-state PUT을 retryable 503으로 bounded retry까지 실패
+→ Next.js 링크로 방 화면을 unmount하고 /chat 목록으로 이동
+→ focus lifecycle에서 provider가 보존한 sequence 재전송
+
+방 정보 overlay open 상태에서 새 메시지 렌더링
+→ overlay 동안 PUT 없음
+→ overlay close 뒤 viewport 재평가와 PUT 성공
+```
+
 채팅방 참여 정원은 OWNER를 포함한 서로 다른 사용자로 실제 ACTIVE 인원을 채운 뒤 검증한다.
 
 ```text
