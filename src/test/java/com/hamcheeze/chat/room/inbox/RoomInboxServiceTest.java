@@ -83,6 +83,19 @@ class RoomInboxServiceTest {
     }
 
     @Test
+    void readStateIdentityMismatchFailsEntireInboxPage() {
+        assertReadStateIdentityMismatch(new RoomReadState(
+                "membership-other", "room-1", "user-1", 10,
+                Instant.parse("2026-08-03T01:00:00Z")));
+        assertReadStateIdentityMismatch(new RoomReadState(
+                "membership-1", "room-other", "user-1", 10,
+                Instant.parse("2026-08-03T01:00:00Z")));
+        assertReadStateIdentityMismatch(new RoomReadState(
+                "membership-1", "room-1", "user-other", 10,
+                Instant.parse("2026-08-03T01:00:00Z")));
+    }
+
+    @Test
     void nextCursorUsesLastReturnedEffectiveActivityAndRoomId() {
         RoomInboxPageEntry entry = entry(
                 "room-a", "membership-a", 0,
@@ -236,6 +249,32 @@ class RoomInboxServiceTest {
                 mock(RoomReadStateStore.class),
                 mock(UnreadCountReader.class),
                 codec);
+    }
+
+    private void assertReadStateIdentityMismatch(RoomReadState state) {
+        RoomInboxPageEntry entry = entry(
+                "room-1",
+                "membership-1",
+                0,
+                Instant.parse("2026-08-03T01:00:00Z"));
+        RoomInboxPageReader reader = mock(RoomInboxPageReader.class);
+        RoomReadStateStore store = mock(RoomReadStateStore.class);
+        UnreadCountReader unread = mock(UnreadCountReader.class);
+        RoomInboxCursorCodec codec = mock(RoomInboxCursorCodec.class);
+        when(codec.decode(null)).thenReturn(null);
+        when(reader.findPage("user-1", null, 20))
+                .thenReturn(new CursorSlice<>(List.of(entry), false));
+        when(store.findByMembershipIds(List.of("membership-1")))
+                .thenReturn(Map.of("membership-1", state));
+
+        assertThatThrownBy(() -> service(
+                reader, store, unread, codec)
+                .inbox("user-1", null, 20))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(RoomInboxException.class)
+                .hasMessage(
+                        "Room read state identity does not match membership");
+        verifyNoInteractions(unread);
     }
 
     private static RoomInboxService service(

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MongoRoomReadStateStoreTest {
 
@@ -188,6 +190,63 @@ class MongoRoomReadStateStoreTest {
         assertThat(index.get("key", Document.class))
                 .isEqualTo(new Document("userId", 1)
                         .append("roomId", 1));
+    }
+
+    @Test
+    void concurrentAdvancesConvergeToMaximumStoredCursor()
+            throws Exception {
+        store.advance(
+                "membership-1", "room-1", "user-1", 100, FIRST);
+        List<Long> requestedSequences = List.of(
+                101L, 110L, 105L, 130L, 120L);
+        ExecutorService executor = Executors.newFixedThreadPool(
+                requestedSequences.size());
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<RoomReadStateAdvance>> futures =
+                    new ArrayList<>();
+            for (long requestedSequence : requestedSequences) {
+                futures.add(executor.submit(() -> {
+                    await(start);
+                    return store.advance(
+                            "membership-1",
+                            "room-1",
+                            "user-1",
+                            requestedSequence,
+                            SECOND);
+                }));
+            }
+
+            start.countDown();
+            for (int index = 0; index < futures.size(); index++) {
+                RoomReadStateAdvance result = futures.get(index).get();
+                assertThat(result.state().lastReadSequence())
+                        .isGreaterThanOrEqualTo(
+                                requestedSequences.get(index));
+            }
+
+            RoomReadState persisted = store.findByMembershipId(
+                    "membership-1").orElseThrow();
+            assertThat(persisted.lastReadSequence()).isEqualTo(130);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void uniqueUserRoomIdentityDoesNotMergeDifferentMemberships() {
+        store.advance(
+                "membership-1", "room-1", "user-1", 10, FIRST);
+
+        assertThatThrownBy(() -> store.advance(
+                "membership-2", "room-1", "user-1", 20, SECOND))
+                .isInstanceOf(DuplicateKeyException.class);
+
+        assertThat(store.findByMembershipId("membership-1"))
+                .get()
+                .extracting(RoomReadState::lastReadSequence)
+                .isEqualTo(10L);
+        assertThat(store.findByMembershipId("membership-2")).isEmpty();
     }
 
     private static void await(CountDownLatch latch) {

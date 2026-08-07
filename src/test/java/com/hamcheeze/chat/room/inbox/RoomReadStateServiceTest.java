@@ -88,6 +88,24 @@ class RoomReadStateServiceTest {
     }
 
     @Test
+    void requestAtEffectiveCursorIsNoop() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+
+        ReadStateResult result = service.update(
+                "user-1", "room-1", 50);
+
+        assertThat(result.readThroughSequence()).isEqualTo(50);
+        assertThat(result.updated()).isFalse();
+        verify(store, never()).advance(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void advancesMonotonicallyAndReturnsEffectiveCursor() {
         when(store.findByMembershipId("membership-1"))
                 .thenReturn(Optional.empty());
