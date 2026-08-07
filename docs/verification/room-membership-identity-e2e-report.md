@@ -72,6 +72,36 @@
 
 검증 과정에서 만든 Room은 모두 종료하여 ACTIVE Room quota를 남기지 않았다.
 
+## Frontend Membership 전환 E2E
+
+Frontend 전환 커밋:
+
+- `c955cff feat(web): use membership identity in room state`
+- `6f1bb6f feat(web): target room members by membership id`
+
+추가한 Playwright 시나리오:
+
+- `e2e/chat-room-membership-identity.spec.ts`
+- 서로 다른 두 사용자의 Room 생성 및 참여
+- `senderMembershipId` 기반 자기 메시지 수정 권한 판정
+- 다른 참여자에게 수정·삭제 action을 노출하지 않음
+- 멤버 관리 화면에서 public `userId`를 표시하지 않음
+- ban/unban/ownership 요청 body가 `targetMembershipId` 하나만 포함하는지 검증
+- command 응답의 Membership ID와 요청 target 일치 검증
+- ownership transfer 후 새 방장에게 owner control 이동 확인
+
+실행 결과:
+
+```text
+pnpm exec playwright test e2e/chat-room-membership-identity.spec.ts
+→ 1 passed
+
+pnpm exec playwright test e2e/chat-message-mutations.spec.ts
+→ 1 passed
+```
+
+테스트 fixture Room은 새 방장이 이전 방장을 차단한 뒤 종료하여 정리했다.
+
 ## 실패 및 원인 분류
 
 현재 Backend 결함으로 분류된 실패는 없다.
@@ -81,6 +111,8 @@
 | ownership transfer 후 즉시 close가 `409 ROOM_HAS_OTHER_ACTIVE_MEMBERS` | Fixture 순서 오류    | 이전 owner가 ACTIVE였다. 새 owner가 이전 owner를 먼저 ban한 뒤 close하여 통과했다.                                                   |
 | Raw STOMP probe가 `INVALID_HEARTBEAT_POLICY`                           | Probe 계약 오류      | `heart-beat:0,0`을 사용했다. 계약값 `10000,10000`으로 변경 후 REST/WS sender 검증이 통과했다.                                        |
 | 개인 inbox SUBSCRIBE receipt 대기 timeout                              | Probe 준비 신호 오류 | Native receipt를 구독 준비 계약으로 가정했다. Room topic 구독 후 `ROOM_SUBSCRIPTIONS_READY`를 사용하자 notification 검증이 통과했다. |
+| E2E 메시지 전송 버튼 timeout                                           | E2E locator 오류     | 실제 접근성 이름은 `전송`이었으나 `보내기`로 찾았다. 실제 이름으로 수정 후 통과했다.                                                 |
+| E2E 참여자 row locator timeout                                         | E2E locator 오류     | dialog locator를 각 row의 자식 조건으로 중첩했다. dialog 범위의 고유 role locator로 수정 후 통과했다.                                |
 
 ## Backend 전달 대상
 
