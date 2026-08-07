@@ -290,6 +290,97 @@ describe("ChatRoomReadStateCoordinator", () => {
     expect(onConfirmed).not.toHaveBeenCalled();
   });
 
+  it("Membership lifecycle을 동기화하면 새 접근 경계를 confirmed 하한으로 채택한다", async () => {
+    const submit = vi.fn(async (_roomId: string, throughSequence: number) => throughSequence);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+    const lifecycle = createMembershipLifecycle({ messageVisibleAfterSequence: 100 });
+
+    expect(coordinator.synchronizeRoomMembershipLifecycle("room-a", lifecycle)).toBe(true);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 100,
+      inFlightSequence: null,
+      pendingSequence: null,
+      status: "idle",
+    });
+
+    coordinator.schedule("room-a", 100, lifecycle);
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("동일한 Membership lifecycle 재동기화는 기존 pending을 유지한다", async () => {
+    const submit = vi.fn(async (_roomId: string, throughSequence: number) => throughSequence);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+    const lifecycle = createMembershipLifecycle({ messageVisibleAfterSequence: 100 });
+
+    coordinator.synchronizeRoomMembershipLifecycle("room-a", lifecycle);
+    coordinator.schedule("room-a", 110, lifecycle);
+
+    expect(coordinator.synchronizeRoomMembershipLifecycle("room-a", { ...lifecycle })).toBe(false);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 100,
+      pendingSequence: 110,
+      status: "pending",
+    });
+
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledWith("room-a", 110);
+  });
+
+  it("Membership lifecycle 변경은 이전 요청과 stale schedule을 격리한다", async () => {
+    const oldSubmission = createDeferred<number>();
+    const submit = vi
+      .fn<(roomId: string, throughSequence: number) => Promise<number>>()
+      .mockReturnValueOnce(oldSubmission.promise)
+      .mockImplementation(async (_roomId, throughSequence) => throughSequence);
+    const onConfirmed = vi.fn();
+    const coordinator = new ChatRoomReadStateCoordinator({ onConfirmed, submit });
+    const previousLifecycle = createMembershipLifecycle({
+      membershipVersion: 1,
+      messageVisibleAfterSequence: 100,
+    });
+    const nextLifecycle = createMembershipLifecycle({
+      membershipVersion: 2,
+      messageVisibleAfterSequence: 120,
+    });
+
+    coordinator.synchronizeRoomMembershipLifecycle("room-a", previousLifecycle);
+    coordinator.schedule("room-a", 110, previousLifecycle);
+    await vi.advanceTimersByTimeAsync(400);
+    coordinator.schedule("room-a", 115, previousLifecycle);
+
+    expect(coordinator.synchronizeRoomMembershipLifecycle("room-a", nextLifecycle)).toBe(true);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 120,
+      inFlightSequence: null,
+      pendingSequence: null,
+      status: "idle",
+    });
+
+    oldSubmission.resolve(110);
+    await flushMicrotasks();
+    coordinator.schedule("room-a", 121, previousLifecycle);
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    expect(submit).toHaveBeenCalledOnce();
+    expect(onConfirmed).not.toHaveBeenCalled();
+    expect(coordinator.getRoomSnapshot("room-a")?.confirmedSequence).toBe(120);
+
+    coordinator.schedule("room-a", 121, nextLifecycle);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit).toHaveBeenLastCalledWith("room-a", 121);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 121,
+      pendingSequence: null,
+      status: "idle",
+    });
+  });
+
   it("Room terminal 전환 시 pending을 제거하고 늦은 성공을 무시한다", async () => {
     const submission = createDeferred<number>();
     const onConfirmed = vi.fn();
@@ -418,4 +509,19 @@ function createDeferred<T>(): {
 async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function createMembershipLifecycle(
+  patch: Partial<{
+    membershipVersion: number;
+    messageVisibleAfterSequence: number;
+    userId: string;
+  }> = {},
+) {
+  return {
+    membershipVersion: 1,
+    messageVisibleAfterSequence: 0,
+    userId: "user-a",
+    ...patch,
+  };
 }

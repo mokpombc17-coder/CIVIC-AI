@@ -20,6 +20,12 @@ export type ChatRoomReadStateEntrySnapshot = Readonly<{
   status: ChatRoomReadStateStatus;
 }>;
 
+export type ChatRoomReadStateMembershipLifecycle = Readonly<{
+  membershipVersion: number;
+  messageVisibleAfterSequence: number;
+  userId: string;
+}>;
+
 export type ChatRoomReadStateConfirmedEvent = Readonly<{
   readThroughSequence: number;
   roomId: string;
@@ -35,6 +41,7 @@ type MutableRoomReadStateEntry = {
   inFlightSequence: number | null;
   lastError: unknown | null;
   maxWaitTimer: TimerHandle | null;
+  membershipLifecycle: ChatRoomReadStateMembershipLifecycle | null;
   pendingSequence: number | null;
   retryAttempt: number;
   status: ChatRoomReadStateStatus;
@@ -119,10 +126,22 @@ export class ChatRoomReadStateCoordinator {
     this.submit = submit;
   }
 
-  schedule(roomIdInput: string, throughSequence: number): void {
+  schedule(
+    roomIdInput: string,
+    throughSequence: number,
+    membershipLifecycleInput?: ChatRoomReadStateMembershipLifecycle,
+  ): void {
     const roomId = roomIdSchema.parse(roomIdInput);
     assertSequence(throughSequence, "throughSequence");
     const entry = this.getOrCreateEntry(roomId);
+    const membershipLifecycle =
+      membershipLifecycleInput === undefined
+        ? null
+        : parseMembershipLifecycle(membershipLifecycleInput);
+
+    if (!isCurrentMembershipLifecycle(entry.membershipLifecycle, membershipLifecycle)) {
+      return;
+    }
 
     if (entry.status === "blocked" || entry.status === "terminal") {
       return;
@@ -216,6 +235,31 @@ export class ChatRoomReadStateCoordinator {
     return true;
   }
 
+  synchronizeRoomMembershipLifecycle(
+    roomIdInput: string,
+    membershipLifecycleInput: ChatRoomReadStateMembershipLifecycle,
+  ): boolean {
+    const roomId = roomIdSchema.parse(roomIdInput);
+    const membershipLifecycle = parseMembershipLifecycle(membershipLifecycleInput);
+    const entry = this.getOrCreateEntry(roomId);
+
+    if (isSameMembershipLifecycle(entry.membershipLifecycle, membershipLifecycle)) {
+      return false;
+    }
+
+    this.clearTimers(entry);
+    entry.generation += 1;
+    entry.confirmedSequence = membershipLifecycle.messageVisibleAfterSequence;
+    entry.inFlightSequence = null;
+    entry.lastError = null;
+    entry.membershipLifecycle = membershipLifecycle;
+    entry.pendingSequence = null;
+    entry.retryAttempt = 0;
+    entry.status = "idle";
+    this.emit(roomId, entry);
+    return true;
+  }
+
   cancelRoom(roomIdInput: string, reason: ChatRoomReadStateCancellationReason): void {
     const roomId = roomIdSchema.parse(roomIdInput);
     const entry = this.getOrCreateEntry(roomId);
@@ -281,6 +325,7 @@ export class ChatRoomReadStateCoordinator {
       inFlightSequence: null,
       lastError: null,
       maxWaitTimer: null,
+      membershipLifecycle: null,
       pendingSequence: null,
       retryAttempt: 0,
       status: "idle",
@@ -451,6 +496,48 @@ function assertSequence(sequence: number, field: string): void {
   if (!Number.isSafeInteger(sequence) || sequence < 0) {
     throw new RangeError(`${field}는 0 이상의 안전한 정수여야 합니다.`);
   }
+}
+
+function parseMembershipLifecycle(
+  input: ChatRoomReadStateMembershipLifecycle,
+): ChatRoomReadStateMembershipLifecycle {
+  if (typeof input.userId !== "string" || input.userId.trim().length === 0) {
+    throw new TypeError("userId는 공백이 아닌 문자열이어야 합니다.");
+  }
+
+  if (!Number.isSafeInteger(input.membershipVersion) || input.membershipVersion < 1) {
+    throw new RangeError("membershipVersion은 1 이상의 안전한 정수여야 합니다.");
+  }
+
+  assertSequence(input.messageVisibleAfterSequence, "messageVisibleAfterSequence");
+  return Object.freeze({
+    membershipVersion: input.membershipVersion,
+    messageVisibleAfterSequence: input.messageVisibleAfterSequence,
+    userId: input.userId,
+  });
+}
+
+function isCurrentMembershipLifecycle(
+  current: ChatRoomReadStateMembershipLifecycle | null,
+  incoming: ChatRoomReadStateMembershipLifecycle | null,
+): boolean {
+  if (current === null || incoming === null) {
+    return current === incoming;
+  }
+
+  return isSameMembershipLifecycle(current, incoming);
+}
+
+function isSameMembershipLifecycle(
+  current: ChatRoomReadStateMembershipLifecycle | null,
+  incoming: ChatRoomReadStateMembershipLifecycle,
+): boolean {
+  return (
+    current !== null &&
+    current.userId === incoming.userId &&
+    current.membershipVersion === incoming.membershipVersion &&
+    current.messageVisibleAfterSequence === incoming.messageVisibleAfterSequence
+  );
 }
 
 function assertDelay(delayMs: number, field: string): void {
