@@ -25,6 +25,10 @@ import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.application.transaction.RoomOptimisticConflictException;
+import com.hamcheeze.chat.room.inbox.RoomReadPosition;
+import com.hamcheeze.chat.room.inbox.RoomReadPositionResolver;
+import com.hamcheeze.chat.room.inbox.RoomReadState;
+import com.hamcheeze.chat.room.inbox.RoomReadStateStore;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
@@ -83,6 +87,12 @@ class RoomCommandServiceIntegrationTest
 
     @Autowired
     private RoomMembershipProperties membershipProperties;
+
+    @Autowired
+    private RoomReadStateStore readStateStore;
+
+    @Autowired
+    private RoomReadPositionResolver readPositionResolver;
 
     @MockitoSpyBean
     private MembershipStore membershipStore;
@@ -559,6 +569,93 @@ class RoomCommandServiceIntegrationTest
                 .messageVisibleAfterSequence()).isEqualTo(6);
         assertThat(boundaryRevision(roomId)).isEqualTo(2);
         assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void rejoinPreservesStoredCursorAndUsesNewVisibilityBoundary() {
+        String roomId = createOpenRoom("owner-1");
+        service.joinRoom(new JoinRoomCommand(
+                "user-2", requestId(), roomId));
+        Membership joined = membership(roomId, "user-2");
+        appendMessages(roomId, "owner-1", 3);
+        readStateStore.advance(
+                joined.membershipId(),
+                roomId,
+                "user-2",
+                2,
+                Instant.parse("2026-08-07T01:00:00Z"));
+
+        service.leaveRoom(new LeaveRoomCommand(
+                "user-2", requestId(), roomId));
+        appendMessages(roomId, "owner-1", 3);
+        service.joinRoom(new JoinRoomCommand(
+                "user-2", requestId(), roomId));
+
+        Membership rejoined = membership(roomId, "user-2");
+        RoomReadState stored = readStateStore.findByMembershipId(
+                rejoined.membershipId()).orElseThrow();
+        RoomReadPosition position = readPositionResolver.resolve(
+                rejoined, stored);
+
+        assertThat(rejoined.membershipId())
+                .isEqualTo(joined.membershipId());
+        assertThat(rejoined.version()).isGreaterThan(joined.version());
+        assertThat(rejoined.messageVisibleAfterSequence()).isEqualTo(6);
+        assertThat(stored.lastReadSequence()).isEqualTo(2);
+        assertThat(position.storedLastReadSequence()).isEqualTo(2);
+        assertThat(position.effectiveReadThroughSequence()).isEqualTo(6);
+    }
+
+    @Test
+    void delayedReadStateWriteDoesNotRestoreLeftMembership() {
+        String roomId = createOpenRoom("owner-1");
+        service.joinRoom(new JoinRoomCommand(
+                "user-2", requestId(), roomId));
+        Membership active = membership(roomId, "user-2");
+        appendMessages(roomId, "owner-1", 1);
+        service.leaveRoom(new LeaveRoomCommand(
+                "user-2", requestId(), roomId));
+        Membership left = membership(roomId, "user-2");
+
+        readStateStore.advance(
+                active.membershipId(),
+                roomId,
+                "user-2",
+                1,
+                Instant.parse("2026-08-07T01:00:00Z"));
+
+        Membership afterWrite = membership(roomId, "user-2");
+        assertThat(afterWrite).isEqualTo(left);
+        assertThat(afterWrite.status()).isEqualTo(MembershipStatus.LEFT);
+        assertThat(readStateStore.findByMembershipId(
+                active.membershipId()).orElseThrow().lastReadSequence())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void delayedReadStateWriteDoesNotRestoreBannedMembership() {
+        String roomId = createOpenRoom("owner-1");
+        service.joinRoom(new JoinRoomCommand(
+                "user-2", requestId(), roomId));
+        Membership active = membership(roomId, "user-2");
+        appendMessages(roomId, "owner-1", 1);
+        service.banMember(new BanMemberCommand(
+                "owner-1", requestId(), roomId, "user-2"));
+        Membership banned = membership(roomId, "user-2");
+
+        readStateStore.advance(
+                active.membershipId(),
+                roomId,
+                "user-2",
+                1,
+                Instant.parse("2026-08-07T01:00:00Z"));
+
+        Membership afterWrite = membership(roomId, "user-2");
+        assertThat(afterWrite).isEqualTo(banned);
+        assertThat(afterWrite.status()).isEqualTo(MembershipStatus.BANNED);
+        assertThat(readStateStore.findByMembershipId(
+                active.membershipId()).orElseThrow().lastReadSequence())
+                .isEqualTo(1);
     }
 
     @Test
