@@ -392,6 +392,7 @@ class RoomCommandRevocationIntegrationTest
         messageStore.append(new NewChatMessage(
                 roomId,
                 "owner-1",
+                "membership-owner-1",
                 uuid(),
                 "while left"));
         String rejoinRequestId = uuid();
@@ -477,6 +478,7 @@ class RoomCommandRevocationIntegrationTest
         messageStore.append(new NewChatMessage(
                 roomId,
                 "owner-1",
+                "membership-owner-1",
                 uuid(),
                 "while left"));
         doThrow(new IllegalStateException("access snapshot unavailable"))

@@ -39,6 +39,7 @@ public final class RoomCommandAccessRevocationCoordinator {
                         roomId,
                         RoomStatus.ACTIVE,
                         0,
+                        "disabled-membership",
                         MembershipStatus.ACTIVE,
                         0L,
                         0L,

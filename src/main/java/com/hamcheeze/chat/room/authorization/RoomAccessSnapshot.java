@@ -9,6 +9,7 @@ public record RoomAccessSnapshot(
         String roomId,
         RoomStatus roomStatus,
         long roomVersion,
+        String membershipId,
         MembershipStatus membershipStatus,
         Long membershipVersion,
         Long messageVisibleAfterSequence,
@@ -28,6 +29,7 @@ public record RoomAccessSnapshot(
                 null,
                 null,
                 null,
+                null,
                 RoomAccessState.ROOM_NOT_FOUND);
     }
 
@@ -36,18 +38,21 @@ public record RoomAccessSnapshot(
             case ROOM_NOT_FOUND ->
                     roomStatus == null
                             && roomVersion == -1
+                            && membershipId == null
                             && membershipStatus == null
                             && membershipVersion == null
                             && messageVisibleAfterSequence == null;
             case ROOM_CLOSED ->
                     roomStatus == RoomStatus.CLOSED
                             && roomVersion >= 0
+                            && membershipId == null
                             && membershipStatus == null
                             && membershipVersion == null
                             && messageVisibleAfterSequence == null;
             case MEMBERSHIP_NOT_FOUND ->
                     roomStatus == RoomStatus.ACTIVE
                             && roomVersion >= 0
+                            && membershipId == null
                             && membershipStatus == null
                             && membershipVersion == null
                             && messageVisibleAfterSequence == null;
@@ -69,6 +74,8 @@ public record RoomAccessSnapshot(
     ) {
         return roomStatus == expectedRoomStatus
                 && roomVersion >= 0
+                && membershipId != null
+                && !membershipId.isBlank()
                 && membershipStatus == expectedMembershipStatus
                 && membershipVersion != null
                 && membershipVersion >= 0

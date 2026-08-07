@@ -191,6 +191,7 @@ class ChatMessagePipelineContextShutdownIntegrationTest {
     private AdmittedChatCommand command(String clientMessageId) {
         return new AdmittedChatCommand(
                 "user-1",
+                "membership-1",
                 "connection-1",
                 roomId,
                 clientMessageId,

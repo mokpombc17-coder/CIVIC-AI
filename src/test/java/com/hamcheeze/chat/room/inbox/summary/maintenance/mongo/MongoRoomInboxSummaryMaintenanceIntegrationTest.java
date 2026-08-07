@@ -627,9 +627,15 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
         assertMalformedMessage(raw ->
                 raw.put("messageVersion", "2"));
         assertMalformedMessage(raw ->
-                raw.put("schemaVersion", 3L));
+                raw.put("schemaVersion", (long)
+                        MongoChatMessageDocument
+                                .CURRENT_SCHEMA_VERSION));
         assertMalformedMessage(raw ->
                 raw.put("countable", "true"));
+        assertMalformedMessage(raw ->
+                raw.remove("senderMembershipId"));
+        assertMalformedMessage(raw ->
+                raw.put("senderMembershipId", 1));
     }
 
     @Test
@@ -1072,6 +1078,7 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
                 message.roomId(),
                 message.roomSequence(),
                 message.senderUserId(),
+                message.senderMembershipId(),
                 message.clientMessageId(),
                 message.content(),
                 "test-fingerprint",
@@ -1145,6 +1152,7 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
                 roomId,
                 sequence,
                 "user-1",
+                "membership-1",
                 roomId + "-client-" + sequence,
                 content,
                 MessageState.ACTIVE,
@@ -1167,6 +1175,7 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
                 roomId,
                 sequence,
                 "user-1",
+                "membership-1",
                 roomId + "-client-" + sequence,
                 null,
                 MessageState.DELETED_BY_AUTHOR,

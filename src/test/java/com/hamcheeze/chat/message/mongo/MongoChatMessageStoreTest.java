@@ -94,11 +94,13 @@ class MongoChatMessageStoreTest {
         Document document = messages().find().first();
         assertThat(document).isNotNull();
         assertThat(document.get("_id")).isEqualTo("message-1");
-        assertThat(document.getInteger("schemaVersion")).isEqualTo(3);
+        assertThat(document.getInteger("schemaVersion")).isEqualTo(4);
         assertThat(document.getBoolean("countable")).isTrue();
         assertThat(document.getLong("roomSequence")).isEqualTo(1L);
         assertThat(document.getString("senderUserId"))
                 .isEqualTo("user-1");
+        assertThat(document.getString("senderMembershipId"))
+                .isEqualTo("membership-user-1");
         assertThat(document.getString("content"))
                 .isEqualTo("normalized content");
         assertThat(document.getString(
@@ -116,7 +118,7 @@ class MongoChatMessageStoreTest {
         assertThat(outbox).isNotNull();
         assertThat(outbox.get("_id"))
                 .isEqualTo("chat-message-created:message-1");
-        assertThat(outbox.getInteger("schemaVersion")).isEqualTo(2);
+        assertThat(outbox.getInteger("schemaVersion")).isEqualTo(3);
         assertThat(outbox.getString("aggregateType"))
                 .isEqualTo("CHAT_MESSAGE");
         assertThat(outbox.getString("eventType"))
@@ -128,6 +130,8 @@ class MongoChatMessageStoreTest {
         assertThat(payload.getBoolean("countable")).isTrue();
         assertThat(payload.getString("messageId"))
                 .isEqualTo("message-1");
+        assertThat(payload.getString("senderMembershipId"))
+                .isEqualTo("membership-user-1");
         assertThat(payload.getString("content"))
                 .isEqualTo("normalized content");
         assertThat(payload.getDate("createdAt").toInstant())
@@ -216,6 +220,26 @@ class MongoChatMessageStoreTest {
         assertThat(next.message().roomSequence()).isEqualTo(2L);
         assertThat(messages().countDocuments()).isEqualTo(2L);
         assertThat(outboxEvents().countDocuments()).isEqualTo(2L);
+    }
+
+    @Test
+    void sameIdempotencyKeyWithDifferentMembershipFailsClosed() {
+        store.append(message(
+                "room-1", "user-1", "client-1", "hello"));
+
+        assertThatThrownBy(() -> store.append(
+                new NewChatMessage(
+                        "room-1",
+                        "user-1",
+                        "different-membership",
+                        "client-1",
+                        "hello")))
+                .isInstanceOf(ChatMessageStoreException.class)
+                .satisfies(exception -> assertThat(
+                        ((ChatMessageStoreException) exception).kind())
+                        .isEqualTo(
+                                ChatMessageStoreFailureKind.PERMANENT));
+        assertThat(messages().countDocuments()).isEqualTo(1L);
     }
 
     @Test
@@ -631,6 +655,7 @@ class MongoChatMessageStoreTest {
         return new NewChatMessage(
                 roomId,
                 senderUserId,
+                "membership-" + senderUserId,
                 clientMessageId,
                 content);
     }

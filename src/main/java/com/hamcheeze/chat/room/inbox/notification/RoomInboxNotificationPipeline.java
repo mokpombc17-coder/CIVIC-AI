@@ -566,6 +566,8 @@ public final class RoomInboxNotificationPipeline
                                     latest.message().messageId(),
                                     latest.message().messageVersion(),
                                     latest.message().senderUserId(),
+                                    latest.message()
+                                            .senderMembershipId(),
                                     latest.message().createdAt(),
                                     preview.value(),
                                     preview.truncated())));
@@ -670,8 +672,8 @@ public final class RoomInboxNotificationPipeline
                 && message.countable()
                 && message.roomSequence()
                 > membership.messageVisibleAfterSequence()
-                && !message.senderUserId().equals(
-                membership.userId());
+                && !message.senderMembershipId().equals(
+                membership.membershipId());
     }
 
     private static boolean isMutationInvalidationEligible(

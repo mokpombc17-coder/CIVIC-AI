@@ -397,6 +397,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                         newMessage.roomId(),
                         roomSequence,
                         newMessage.senderUserId(),
+                        newMessage.senderMembershipId(),
                         newMessage.clientMessageId(),
                         newMessage.content(),
                         ChatMessageContentFingerprint.of(
@@ -510,6 +511,13 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             ExistingMessageResolutionContext resolutionContext
     ) {
         ChatMessage message = existing.toDomain();
+        if (!message.senderMembershipId().equals(
+                newMessage.senderMembershipId())) {
+            throw failure(
+                    ChatMessageStoreFailureKind.PERMANENT,
+                    "Existing message sender membership mismatch",
+                    null);
+        }
         if (!existing.hasSameCreationContent(
                 newMessage.content())) {
             return new ConflictingChatMessage(message);

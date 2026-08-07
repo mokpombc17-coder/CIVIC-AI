@@ -283,6 +283,7 @@ class ChatMessageOutboxMetricsSamplingLifecycleTest {
                         "room-1",
                         1L,
                         "user-1",
+                        "membership-1",
                         "client-1",
                         "hello",
                         com.hamcheeze.chat.message.MessageState.ACTIVE,

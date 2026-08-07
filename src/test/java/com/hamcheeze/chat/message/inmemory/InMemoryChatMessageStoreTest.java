@@ -281,6 +281,7 @@ class InMemoryChatMessageStoreTest {
         return new NewChatMessage(
                 roomId,
                 userId,
+                "membership-" + userId,
                 clientMessageId,
                 content);
     }

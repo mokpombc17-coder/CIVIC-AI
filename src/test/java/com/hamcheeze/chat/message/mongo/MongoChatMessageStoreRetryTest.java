@@ -626,6 +626,7 @@ class MongoChatMessageStoreRetryTest {
         return new NewChatMessage(
                 "room-1",
                 "user-1",
+                "membership-1",
                 "client-1",
                 "hello");
     }
@@ -637,6 +638,7 @@ class MongoChatMessageStoreRetryTest {
                         "room-1",
                         1L,
                         "user-1",
+                        "membership-1",
                         "client-1",
                         "hello",
                         NOW));
@@ -664,6 +666,9 @@ class MongoChatMessageStoreRetryTest {
                 roomId,
                 1L,
                 senderUserId,
+                "user-1".equals(senderUserId)
+                        ? "membership-1"
+                        : "membership-" + senderUserId,
                 clientMessageId,
                 content,
                 NOW);

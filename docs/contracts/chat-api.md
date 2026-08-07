@@ -850,6 +850,7 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
       "roomId": "room-01",
       "roomSequence": 119,
       "senderUserId": "local-user-1",
+      "senderMembershipId": "membership-01",
       "clientMessageId": "ed7d2fe8-996d-4660-822f-e84af1218743",
       "content": "안녕하세요.",
       "state": "ACTIVE",
@@ -863,6 +864,7 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
       "roomId": "room-01",
       "roomSequence": 120,
       "senderUserId": "local-user-2",
+      "senderMembershipId": "membership-02",
       "clientMessageId": "a42cc7c9-354c-4a67-b6b7-2f660942b21d",
       "content": "반갑습니다.",
       "state": "ACTIVE",
@@ -1482,6 +1484,7 @@ payload:
     "roomId": "room-01",
     "roomSequence": 1,
     "senderUserId": "local-user-1",
+    "senderMembershipId": "membership-01",
     "clientMessageId": "ed7d2fe8-996d-4660-822f-e84af1218743",
     "content": "안녕하세요.",
     "state": "ACTIVE",
@@ -1750,19 +1753,28 @@ python3 scripts/frontend-local-smoke.py
 
 ## Room inbox unread와 ReadState
 
-메시지 schema v3는 불변 boolean `countable`을 필수로 저장한다. 현재 USER
-메시지는 항상 `true`이며 UPDATE와 DELETE 뒤에도 값이 유지된다. REST 메시지
-이력과 `CHAT_MESSAGE_CREATED`, `CHAT_MESSAGE_UPDATED`,
-`CHAT_MESSAGE_DELETED` payload에도 이 값이 포함된다. 향후 SYSTEM 메시지는
-`false`로 생성할 수 있지만 이번 버전은 SYSTEM 메시지와 `MessageType`을
-제공하지 않는다.
+메시지 schema v4는 불변 `senderMembershipId`와 boolean `countable`을 필수로
+저장한다. `senderMembershipId`는 메시지 전송 인가에서 사용한 ACTIVE
+Membership snapshot으로부터 얻으며, 메시지 저장을 위한 추가 Membership
+조회는 수행하지 않는다. UPDATE와 DELETE 뒤에도 최초
+`senderMembershipId`가 유지된다. 현재 USER 메시지의 `countable`은 항상
+`true`이며 UPDATE와 DELETE 뒤에도 값이 유지된다. REST 메시지 이력과
+`CHAT_MESSAGE_CREATED`, `CHAT_MESSAGE_UPDATED`, `CHAT_MESSAGE_DELETED`
+payload에도 두 값이 포함된다.
 
-이 변경은 기존 message schema v1/v2, `countable`이 없는 outbox payload,
-mutation fixture의 보존이나 backfill을 지원하지 않는다. message outbox의
-storage `schemaVersion`은 `2`이고 `countable`이 필수다. 외부
-`CHAT_MESSAGE_*`의 `eventVersion`은 기존 `1`을 유지한다. outbox storage
-schema v1은 claim하지 않고 unsupported backlog로 관찰하며, schema v2에서
-`countable`이 누락되면 supported malformed payload로 fail-closed 처리한다.
+Membership 기반 Room 계약의 additive 전환 기간에는 `senderUserId`와
+`senderMembershipId`를 함께 제공한다. 신규 프론트 코드는 Room 안의 sender
+식별에 `senderMembershipId`를 사용해야 하며, 전체 전환 완료 뒤
+`senderUserId`를 public payload에서 제거한다. 내부 idempotency, mutation
+작성자 검증과 unread self exclusion은 계속 `senderUserId`를 사용한다.
+
+이 변경은 기존 message schema v1/v2/v3, `senderMembershipId`가 없는 outbox
+payload, mutation fixture의 보존이나 backfill을 지원하지 않는다. message
+outbox의 storage `schemaVersion`은 `3`이고 `senderMembershipId`와
+`countable`이 필수다. 외부 `CHAT_MESSAGE_*`의 `eventVersion`은 additive
+전환이므로 기존 `1`을 유지한다. 지원하지 않는 outbox storage schema는
+claim하지 않고 unsupported backlog로 관찰하며, schema v3에서 필수 필드가
+누락되면 supported malformed payload로 fail-closed 처리한다.
 
 애플리케이션 startup은 운영 데이터를 자동으로 삭제하거나 sequence를
 수정하지 않는다. message collection을 초기화할 때는 다음 중 하나를 선택한다.
@@ -2164,6 +2176,7 @@ CREATE 예:
     "messageId": "message-84",
     "messageVersion": 1,
     "senderUserId": "user-2",
+    "senderMembershipId": "membership-02",
     "messageCreatedAt": "2026-08-03T01:09:59Z",
     "preview": "다음 회의는 월요일입니다.",
     "previewTruncated": false

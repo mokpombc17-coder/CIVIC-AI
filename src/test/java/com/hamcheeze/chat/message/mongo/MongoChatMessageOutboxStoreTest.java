@@ -2,6 +2,7 @@ package com.hamcheeze.chat.message.mongo;
 
 import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxBacklogSnapshot;
+import com.hamcheeze.chat.message.outbox.ChatMessageOutboxEvent;
 import com.hamcheeze.chat.message.outbox.ClaimedChatMessageOutboxEvent;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxSchemaInitializer;
@@ -248,7 +249,8 @@ class MongoChatMessageOutboxStoreTest {
             Document payload
     ) {
         return new Document("_id", eventId)
-                .append("schemaVersion", 2)
+                .append("schemaVersion",
+                        ChatMessageOutboxEvent.CURRENT_SCHEMA_VERSION)
                 .append("aggregateType", "CHAT_MESSAGE")
                 .append("aggregateId", "message-1")
                 .append("eventType", "CHAT_MESSAGE_CREATED")
@@ -268,6 +270,7 @@ class MongoChatMessageOutboxStoreTest {
                 .append("roomId", "room-1")
                 .append("roomSequence", 1L)
                 .append("senderUserId", "user-1")
+                .append("senderMembershipId", "membership-1")
                 .append("clientMessageId", "client-1")
                 .append("content", "hello")
                 .append("state", "ACTIVE")
@@ -288,6 +291,7 @@ class MongoChatMessageOutboxStoreTest {
                 "room-1",
                 sequence,
                 "user-1",
+                "membership-1",
                 "client-" + sequence,
                 "hello",
                 createdAt);

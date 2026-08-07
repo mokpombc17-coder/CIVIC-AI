@@ -442,6 +442,7 @@ def run_websocket_flow(
     http_client: HttpClient,
     room_id: str,
     subject: str,
+    self_membership_id: str,
 ) -> tuple[str, str, int, str, int]:
     client = WebSocketClient(ws_url, origin, cookie)
     client.connect()
@@ -686,6 +687,10 @@ def run_websocket_flow(
         payload = message_event["payload"]
         if payload.get("senderUserId") != subject:
             raise AssertionError("메시지 이벤트 senderUserId가 JWT subject와 다릅니다.")
+        if payload.get("senderMembershipId") != self_membership_id:
+            raise AssertionError(
+                "메시지 이벤트 senderMembershipId가 현재 Membership과 다릅니다."
+            )
         message_id = payload["messageId"]
         room_sequence = int(payload["roomSequence"])
         if payload.get("state") != "ACTIVE" or payload.get("messageVersion") != 1:
@@ -1144,6 +1149,9 @@ def main() -> int:
         or room_detail.get("categories") != ["POLICY"]
     ):
         raise AssertionError("방 상세 응답의 settings가 생성 요청과 다릅니다.")
+    self_membership_id = room_detail.get("membershipId")
+    if not isinstance(self_membership_id, str) or not self_membership_id:
+        raise AssertionError("방 상세 응답에 membershipId가 없습니다.")
     listed_room = find_public_room(
         client,
         room_id,
@@ -1181,6 +1189,7 @@ def main() -> int:
         client,
         room_id,
         args.subject,
+        self_membership_id,
     )
 
     print("[8/15] settings detail, 공개 목록 제외, INVITE_ONLY 확인")
@@ -1236,6 +1245,10 @@ def main() -> int:
     tombstone = matching_messages[0]
     if tombstone.get("senderUserId") != args.subject:
         raise AssertionError("메시지 이력 senderUserId가 JWT subject와 다릅니다.")
+    if tombstone.get("senderMembershipId") != self_membership_id:
+        raise AssertionError(
+            "메시지 이력 senderMembershipId가 현재 Membership과 다릅니다."
+        )
     if (
         tombstone.get("messageId") != message_id
         or tombstone.get("roomSequence") != room_sequence

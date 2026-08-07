@@ -250,11 +250,17 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(1);
             assertThat(roomMessage.payload().senderUserId())
                     .isEqualTo("local-user-1");
+            assertThat(roomMessage.payload().senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(new String(
                     rawRoomMessage,
                     StandardCharsets.UTF_8))
                     .contains(
-                            "\"senderUserId\":\"local-user-1\"");
+                            "\"senderUserId\":\"local-user-1\"")
+                    .contains(
+                            "\"senderMembershipId\":"
+                                    + "\"membership-test-room-local-user-1\"");
             assertThat(accepted).isNotNull();
             assertThat(accepted.status()).isEqualTo("ACCEPTED");
             assertThat(accepted.clientMessageId())
@@ -273,11 +279,14 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo("test-room");
             assertThat(storedDocument.senderUserId())
                     .isEqualTo("local-user-1");
+            assertThat(storedDocument.senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(storedDocument.clientMessageId())
                     .isEqualTo(CLIENT_MESSAGE_ID);
             assertThat(storedDocument.content()).isEqualTo("hello");
             assertThat(storedDocument.roomSequence()).isEqualTo(1);
-            assertThat(storedDocument.schemaVersion()).isEqualTo(3);
+            assertThat(storedDocument.schemaVersion()).isEqualTo(4);
             assertThat(storedDocument.countable()).isTrue();
             assertThat(storedDocument.messageVersion()).isEqualTo(1);
             assertThat(storedDocument.state().name())
@@ -346,6 +355,9 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(secondAccepted.roomSequence());
             assertThat(secondRoomMessage.payload().senderUserId())
                     .isEqualTo("local-user-1");
+            assertThat(secondRoomMessage.payload().senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(secondRoomMessage.payload().clientMessageId())
                     .isEqualTo(
                             secondAccepted.clientMessageId());
@@ -374,6 +386,9 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(2);
             assertThat(updatedEvent.payload().messageVersion())
                     .isEqualTo(2);
+            assertThat(updatedEvent.payload().senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(updatedResult).isNotNull();
             assertThat(updatedResult.commandType())
                     .isEqualTo("EDIT_MESSAGE");
@@ -437,6 +452,9 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(2);
             assertThat(deletedEvent.payload().messageVersion())
                     .isEqualTo(3);
+            assertThat(deletedEvent.payload().senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(deletedResult).isNotNull();
             assertThat(deletedResult.status()).isEqualTo("DELETED");
             assertThat(deletedResult.messageVersion()).isEqualTo(3);
@@ -449,6 +467,9 @@ class ChatMessagePipelineWebSocketIntegrationTest
             assertThat(tombstone.state().name())
                     .isEqualTo("DELETED_BY_AUTHOR");
             assertThat(tombstone.roomSequence()).isEqualTo(2);
+            assertThat(tombstone.senderMembershipId())
+                    .isEqualTo(
+                            "membership-test-room-local-user-1");
             assertThat(lastRoomSequence()).isEqualTo(2);
 
             doThrow(new ChatMessageStoreException(
@@ -647,6 +668,7 @@ class ChatMessagePipelineWebSocketIntegrationTest
                         "test-room",
                         sequence,
                         "local-user-1",
+                        "local-membership-1",
                         "550e8400-e29b-41d4-a716-44665544%04d"
                                 .formatted(sequence),
                         "message " + sequence,
@@ -665,6 +687,7 @@ class ChatMessagePipelineWebSocketIntegrationTest
                         "test-room",
                         sequence,
                         "local-user-1",
+                        "local-membership-1",
                         "550e8400-e29b-41d4-a716-44665544%04d"
                                 .formatted(sequence),
                         "updated " + sequence,
@@ -687,6 +710,7 @@ class ChatMessagePipelineWebSocketIntegrationTest
                         "test-room",
                         sequence,
                         "local-user-1",
+                        "local-membership-1",
                         "550e8400-e29b-41d4-a716-44665544%04d"
                                 .formatted(sequence),
                         null,

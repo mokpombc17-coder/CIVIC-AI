@@ -37,6 +37,8 @@ class RoomInboxEventTest {
 
         assertThat(created.sourceEventIds())
                 .containsExactly(CREATED_SOURCE);
+        assertThat(created.notificationHint().senderMembershipId())
+                .isEqualTo("membership-sender-1");
         assertThat(deleted(
                 null, null, null, List.of(DELETED_SOURCE)).cause())
                 .isEqualTo(RoomInboxEvent.Cause.MESSAGE_DELETED);
@@ -239,6 +241,7 @@ class RoomInboxEventTest {
                         "m".repeat(64),
                         Long.MAX_VALUE,
                         "s".repeat(64),
+                        "membership-1",
                         NOW,
                         "😀".repeat(30),
                         true));
@@ -320,7 +323,13 @@ class RoomInboxEventTest {
 
     private RoomInboxNotificationHint hint() {
         return new RoomInboxNotificationHint(
-                "message-1", 1, "sender-1", NOW, "preview", false);
+                "message-1",
+                1,
+                "sender-1",
+                "membership-sender-1",
+                NOW,
+                "preview",
+                false);
     }
 
     private void assertHintInvalid(
@@ -334,6 +343,7 @@ class RoomInboxEventTest {
                 messageId,
                 version,
                 sender,
+                "membership-sender-1",
                 createdAt,
                 preview,
                 false));

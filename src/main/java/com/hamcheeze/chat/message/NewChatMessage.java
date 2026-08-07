@@ -7,6 +7,7 @@ import java.util.Objects;
 public record NewChatMessage(
         String roomId,
         String senderUserId,
+        String senderMembershipId,
         String clientMessageId,
         String content
 ) {
@@ -14,6 +15,11 @@ public record NewChatMessage(
     public NewChatMessage {
         Objects.requireNonNull(roomId, "roomId");
         Objects.requireNonNull(senderUserId, "senderUserId");
+        if (senderMembershipId == null
+                || senderMembershipId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "senderMembershipId must not be blank");
+        }
         Objects.requireNonNull(clientMessageId, "clientMessageId");
         Objects.requireNonNull(content, "content");
     }
@@ -23,6 +29,7 @@ public record NewChatMessage(
         return new NewChatMessage(
                 command.roomId(),
                 command.userId(),
+                command.senderMembershipId(),
                 command.clientMessageId(),
                 command.content());
     }

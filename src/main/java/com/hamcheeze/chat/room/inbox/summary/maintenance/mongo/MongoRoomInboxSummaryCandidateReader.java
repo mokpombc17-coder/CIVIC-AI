@@ -151,6 +151,7 @@ public final class MongoRoomInboxSummaryCandidateReader {
                 && document.get("roomId") instanceof String
                 && document.get("roomSequence") instanceof Long
                 && document.get("senderUserId") instanceof String
+                && document.get("senderMembershipId") instanceof String
                 && document.get("clientMessageId") instanceof String
                 && (content == null || content instanceof String)
                 && document.get("creationContentFingerprint")

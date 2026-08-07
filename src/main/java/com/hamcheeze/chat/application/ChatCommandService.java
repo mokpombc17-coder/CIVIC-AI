@@ -76,13 +76,6 @@ public final class ChatCommandService {
             }
 
             int tokenCost = tokenCostPolicy.calculate(content.codePointCount());
-            AdmittedChatCommand admittedCommand = new AdmittedChatCommand(
-                    userId,
-                    connectionId,
-                    roomId,
-                    clientMessageId,
-                    content.normalizedContent());
-
             try (AdmissionReservation reservation =
                          limiter.tryReserve(userId, tokenCost)) {
                 if (!reservation.granted()) {
@@ -101,11 +94,12 @@ public final class ChatCommandService {
                     return;
                 }
 
-                RoomAuthorizationDecision authorization =
-                        roomAuthorizationService.authorizeMessageSend(
+                RoomMessageSendAuthorization authorization =
+                        roomAuthorizationService
+                                .authorizeMessageSendWithContext(
                                 userId,
                                 roomId);
-                if (authorization
+                if (authorization.decision()
                         == RoomAuthorizationDecision.FORBIDDEN) {
                     reject(
                             userId, connectionId, clientMessageId,
@@ -113,7 +107,7 @@ public final class ChatCommandService {
                             false, null);
                     return;
                 }
-                if (authorization
+                if (authorization.decision()
                         == RoomAuthorizationDecision.UNAVAILABLE) {
                     fail(
                             userId, connectionId, clientMessageId,
@@ -123,6 +117,14 @@ public final class ChatCommandService {
                     return;
                 }
 
+                AdmittedChatCommand admittedCommand =
+                        new AdmittedChatCommand(
+                                userId,
+                                authorization.membershipId(),
+                                connectionId,
+                                roomId,
+                                clientMessageId,
+                                content.normalizedContent());
                 PipelineAcceptance acceptance =
                         pipeline.tryAccept(admittedCommand);
                 if (acceptance == PipelineAcceptance.ACCEPTED_FOR_PROCESSING) {

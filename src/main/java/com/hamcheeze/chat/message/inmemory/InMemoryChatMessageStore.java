@@ -72,7 +72,9 @@ public final class InMemoryChatMessageStore
             ChatMessage existing = messagesByKey.get(
                     newMessage.idempotencyKey());
             if (existing != null) {
-                if (existing.content().equals(newMessage.content())) {
+                if (existing.content().equals(newMessage.content())
+                        && existing.senderMembershipId().equals(
+                        newMessage.senderMembershipId())) {
                     BestEffortMetricRecorder.increment(
                             "chat.message.store.duplicate",
                             duplicateCounter);
@@ -101,6 +103,7 @@ public final class InMemoryChatMessageStore
                     newMessage.roomId(),
                     roomSequence,
                     newMessage.senderUserId(),
+                    newMessage.senderMembershipId(),
                     newMessage.clientMessageId(),
                     newMessage.content(),
                     clock.instant());

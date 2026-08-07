@@ -7,10 +7,18 @@ public interface RoomAuthorizationService {
             String roomId
     );
 
-    RoomAuthorizationDecision authorizeMessageSend(
+    RoomMessageSendAuthorization authorizeMessageSendWithContext(
             String userId,
             String roomId
     );
+
+    default RoomAuthorizationDecision authorizeMessageSend(
+            String userId,
+            String roomId
+    ) {
+        return authorizeMessageSendWithContext(userId, roomId)
+                .decision();
+    }
 
     default RoomAuthorizationDecision authorizeMessageHistory(
             String userId,

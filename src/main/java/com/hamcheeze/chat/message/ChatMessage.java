@@ -8,6 +8,7 @@ public record ChatMessage(
         String roomId,
         long roomSequence,
         String senderUserId,
+        String senderMembershipId,
         String clientMessageId,
         String content,
         MessageState state,
@@ -22,6 +23,11 @@ public record ChatMessage(
         Objects.requireNonNull(messageId, "messageId");
         Objects.requireNonNull(roomId, "roomId");
         Objects.requireNonNull(senderUserId, "senderUserId");
+        if (senderMembershipId == null
+                || senderMembershipId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "senderMembershipId must not be blank");
+        }
         Objects.requireNonNull(clientMessageId, "clientMessageId");
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(createdAt, "createdAt");
@@ -68,6 +74,7 @@ public record ChatMessage(
             String roomId,
             long roomSequence,
             String senderUserId,
+            String senderMembershipId,
             String clientMessageId,
             String content,
             MessageState state,
@@ -81,6 +88,7 @@ public record ChatMessage(
                 roomId,
                 roomSequence,
                 senderUserId,
+                senderMembershipId,
                 clientMessageId,
                 content,
                 state,
@@ -96,6 +104,7 @@ public record ChatMessage(
             String roomId,
             long roomSequence,
             String senderUserId,
+            String senderMembershipId,
             String clientMessageId,
             String content,
             Instant createdAt
@@ -105,6 +114,7 @@ public record ChatMessage(
                 roomId,
                 roomSequence,
                 senderUserId,
+                senderMembershipId,
                 clientMessageId,
                 content,
                 MessageState.ACTIVE,

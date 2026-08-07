@@ -61,6 +61,13 @@ class ChatCommandServiceTest {
                 resultSender);
         when(activeConnections.isActive("user-1", "connection-1"))
                 .thenReturn(true);
+        when(authorization.authorizeMessageSendWithContext(
+                "user-1",
+                "room-1"))
+                .thenReturn(RoomMessageSendAuthorization.allowed(
+                        "membership-1",
+                        1,
+                        0));
     }
 
     @Test
@@ -88,8 +95,11 @@ class ChatCommandServiceTest {
     @Test
     void finalRoomAuthorizationUnavailableRollsBackReservation() {
         AdmissionReservation reservation = grantedReservation();
-        when(authorization.authorizeMessageSend("user-1", "room-1"))
-                .thenReturn(RoomAuthorizationDecision.UNAVAILABLE);
+        when(authorization.authorizeMessageSendWithContext(
+                "user-1",
+                "room-1"))
+                .thenReturn(RoomMessageSendAuthorization.rejected(
+                        RoomAuthorizationDecision.UNAVAILABLE));
         when(pipeline.availability())
                 .thenReturn(PipelineAvailability.AVAILABLE);
         when(limiter.tryReserve("user-1", 1))
@@ -134,6 +144,8 @@ class ChatCommandServiceTest {
         assertThat(command.getValue().content()).isEqualTo("hello");
         assertThat(command.getValue().clientMessageId())
                 .isEqualTo(CLIENT_MESSAGE_ID);
+        assertThat(command.getValue().senderMembershipId())
+                .isEqualTo("membership-1");
         verify(reservation).commit();
         verify(reservation).close();
         verifyNoInteractions(resultSender);

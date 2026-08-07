@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.authorization;
 
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
+import com.hamcheeze.chat.application.RoomMessageSendAuthorization;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -57,11 +58,23 @@ public final class MembershipRoomAuthorizationService
     }
 
     @Override
-    public RoomAuthorizationDecision authorizeMessageSend(
+    public RoomMessageSendAuthorization authorizeMessageSendWithContext(
             String userId,
             String roomId
     ) {
-        return authorize(Operation.SEND, userId, roomId);
+        AuthorizationOutcome outcome = authorizeWithSnapshot(
+                Operation.SEND,
+                userId,
+                roomId);
+        if (outcome.decision() != RoomAuthorizationDecision.ALLOWED) {
+            return RoomMessageSendAuthorization.rejected(
+                    outcome.decision());
+        }
+        RoomAccessSnapshot snapshot = outcome.snapshot();
+        return RoomMessageSendAuthorization.allowed(
+                snapshot.membershipId(),
+                snapshot.membershipVersion(),
+                snapshot.messageVisibleAfterSequence());
     }
 
     @Override
@@ -77,13 +90,22 @@ public final class MembershipRoomAuthorizationService
             String userId,
             String roomId
     ) {
+        return authorizeWithSnapshot(operation, userId, roomId)
+                .decision();
+    }
+
+    private AuthorizationOutcome authorizeWithSnapshot(
+            Operation operation,
+            String userId,
+            String roomId
+    ) {
         RoomAuthorizationDecision decision;
+        RoomAccessSnapshot snapshot = null;
         if (invalid(userId) || invalidRoomId(roomId)) {
             decision = RoomAuthorizationDecision.FORBIDDEN;
         } else {
             try {
-                RoomAccessSnapshot snapshot =
-                        accessReader.readAccess(userId, roomId);
+                snapshot = accessReader.readAccess(userId, roomId);
                 decision = snapshot.semanticallyValid()
                         ? map(snapshot.state())
                         : RoomAuthorizationDecision.UNAVAILABLE;
@@ -99,7 +121,7 @@ public final class MembershipRoomAuthorizationService
         BestEffortMetricRecorder.increment(
                 METRIC_NAME,
                 counters.get(operation).get(decision));
-        return decision;
+        return new AuthorizationOutcome(decision, snapshot);
     }
 
     private static RoomAuthorizationDecision map(
@@ -128,5 +150,11 @@ public final class MembershipRoomAuthorizationService
         Operation(String tag) {
             this.tag = tag;
         }
+    }
+
+    private record AuthorizationOutcome(
+            RoomAuthorizationDecision decision,
+            RoomAccessSnapshot snapshot
+    ) {
     }
 }

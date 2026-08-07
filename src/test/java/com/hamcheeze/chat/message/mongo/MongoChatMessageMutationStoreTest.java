@@ -98,7 +98,11 @@ class MongoChatMessageMutationStoreTest {
                 .isEqualTo(MessageState.ACTIVE);
         assertThat(message().content()).isEqualTo("edited");
         assertThat(message().roomSequence()).isEqualTo(1);
-        assertThat(message().schemaVersion()).isEqualTo(3);
+        assertThat(message().senderMembershipId())
+                .isEqualTo("membership-1");
+        assertThat(message().schemaVersion()).isEqualTo(4);
+        assertThat(message().senderMembershipId())
+                .isEqualTo("membership-1");
         assertThat(message().countable()).isTrue();
         assertThat(outboxCount()).isEqualTo(1);
         assertThat(outboxId())
@@ -165,12 +169,14 @@ class MongoChatMessageMutationStoreTest {
         assertThat(messageStore.append(new NewChatMessage(
                 "room-1",
                 "user-1",
+                "membership-1",
                 "message-client-1",
                 "original")))
                 .isInstanceOf(DuplicateChatMessage.class);
         assertThat(messageStore.append(new NewChatMessage(
                 "room-1",
                 "user-1",
+                "membership-1",
                 "message-client-1",
                 "different original")))
                 .isInstanceOf(ConflictingChatMessage.class);
@@ -186,6 +192,7 @@ class MongoChatMessageMutationStoreTest {
                 nextMessageStore.append(new NewChatMessage(
                         "room-1",
                         "user-1",
+                        "membership-1",
                         "message-client-2",
                         "next"));
         assertThat(next.message().roomSequence()).isEqualTo(2);
@@ -274,6 +281,7 @@ class MongoChatMessageMutationStoreTest {
                 "room-1",
                 7,
                 "user-1",
+                "membership-1",
                 "legacy-client",
                 "legacy",
                 CREATED_AT))
@@ -476,6 +484,7 @@ class MongoChatMessageMutationStoreTest {
                 new NewChatMessage(
                         "room-1",
                         "user-1",
+                        "membership-1",
                         clientMessageId,
                         "original"))).message();
     }

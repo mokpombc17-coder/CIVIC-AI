@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room.authorization;
 
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
+import com.hamcheeze.chat.application.RoomMessageSendAuthorization;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomStatus;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -37,6 +38,27 @@ class MembershipRoomAuthorizationServiceTest {
     }
 
     @Test
+    void messageSendReturnsMembershipContextFromOneAccessSnapshot() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(snapshot(
+                        MembershipStatus.ACTIVE,
+                        RoomAccessState.ACTIVE_MEMBER));
+
+        RoomMessageSendAuthorization authorization =
+                service.authorizeMessageSendWithContext(
+                        "user-1", "room-1");
+
+        assertThat(authorization.decision())
+                .isEqualTo(RoomAuthorizationDecision.ALLOWED);
+        assertThat(authorization.membershipId())
+                .isEqualTo("membership-1");
+        assertThat(authorization.membershipVersion()).isEqualTo(2);
+        assertThat(authorization.messageVisibleAfterSequence())
+                .isEqualTo(10);
+        verify(reader).readAccess("user-1", "room-1");
+    }
+
+    @Test
     void normalDeniedStatesAreForbidden() {
         for (RoomAccessSnapshot snapshot : new RoomAccessSnapshot[]{
                 RoomAccessSnapshot.roomNotFound("room-1"),
@@ -47,11 +69,13 @@ class MembershipRoomAuthorizationServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         RoomAccessState.ROOM_CLOSED),
                 new RoomAccessSnapshot(
                         "room-1",
                         RoomStatus.ACTIVE,
                         2,
+                        null,
                         null,
                         null,
                         null,
@@ -69,6 +93,25 @@ class MembershipRoomAuthorizationServiceTest {
                     "room-1"))
                     .isEqualTo(RoomAuthorizationDecision.FORBIDDEN);
         }
+    }
+
+    @Test
+    void rejectedMessageSendDoesNotExposeMembershipContext() {
+        when(reader.readAccess("user-1", "room-1"))
+                .thenReturn(snapshot(
+                        MembershipStatus.LEFT,
+                        RoomAccessState.MEMBERSHIP_LEFT));
+
+        RoomMessageSendAuthorization authorization =
+                service.authorizeMessageSendWithContext(
+                        "user-1", "room-1");
+
+        assertThat(authorization.decision())
+                .isEqualTo(RoomAuthorizationDecision.FORBIDDEN);
+        assertThat(authorization.membershipId()).isNull();
+        assertThat(authorization.membershipVersion()).isNull();
+        assertThat(authorization.messageVisibleAfterSequence())
+                .isNull();
     }
 
     @Test
@@ -95,6 +138,7 @@ class MembershipRoomAuthorizationServiceTest {
                         "room-1",
                         RoomStatus.ACTIVE,
                         1,
+                        "membership-1",
                         MembershipStatus.LEFT,
                         1L,
                         10L,
@@ -122,6 +166,7 @@ class MembershipRoomAuthorizationServiceTest {
                 "room-1",
                 RoomStatus.ACTIVE,
                 3,
+                "membership-1",
                 membershipStatus,
                 2L,
                 10L,

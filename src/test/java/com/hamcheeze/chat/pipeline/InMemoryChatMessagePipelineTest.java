@@ -497,6 +497,7 @@ class InMemoryChatMessagePipelineTest {
     private AdmittedChatCommand command(String clientMessageId) {
         return new AdmittedChatCommand(
                 "user-1",
+                "membership-1",
                 "connection-1",
                 "room-1",
                 clientMessageId,

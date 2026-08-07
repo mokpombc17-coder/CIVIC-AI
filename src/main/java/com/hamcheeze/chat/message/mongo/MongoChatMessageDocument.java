@@ -18,6 +18,7 @@ public record MongoChatMessageDocument(
         String roomId,
         long roomSequence,
         String senderUserId,
+        String senderMembershipId,
         String clientMessageId,
         String content,
         String creationContentFingerprint,
@@ -30,13 +31,16 @@ public record MongoChatMessageDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_messages";
-    public static final int CURRENT_SCHEMA_VERSION = 3;
+    public static final int CURRENT_SCHEMA_VERSION = 4;
 
     @PersistenceCreator
     public MongoChatMessageDocument {
         Objects.requireNonNull(messageId, "messageId");
         Objects.requireNonNull(roomId, "roomId");
         Objects.requireNonNull(senderUserId, "senderUserId");
+        Objects.requireNonNull(
+                senderMembershipId,
+                "senderMembershipId");
         Objects.requireNonNull(clientMessageId, "clientMessageId");
         Objects.requireNonNull(createdAt, "createdAt");
         if (roomSequence < 1) {
@@ -58,6 +62,7 @@ public record MongoChatMessageDocument(
                 roomId,
                 roomSequence,
                 senderUserId,
+                senderMembershipId,
                 clientMessageId,
                 content,
                 state,
@@ -74,6 +79,7 @@ public record MongoChatMessageDocument(
             String roomId,
             long roomSequence,
             String senderUserId,
+            String senderMembershipId,
             String clientMessageId,
             String content,
             Instant createdAt
@@ -84,6 +90,7 @@ public record MongoChatMessageDocument(
                 roomId,
                 roomSequence,
                 senderUserId,
+                senderMembershipId,
                 clientMessageId,
                 content,
                 ChatMessageContentFingerprint.of(content),
@@ -109,6 +116,7 @@ public record MongoChatMessageDocument(
                 roomId,
                 roomSequence,
                 senderUserId,
+                senderMembershipId,
                 clientMessageId,
                 content,
                 state,
@@ -133,6 +141,7 @@ public record MongoChatMessageDocument(
                 message.roomId(),
                 message.roomSequence(),
                 message.senderUserId(),
+                message.senderMembershipId(),
                 message.clientMessageId(),
                 message.content(),
                 creationContentFingerprint,

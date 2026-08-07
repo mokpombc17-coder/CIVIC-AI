@@ -33,6 +33,8 @@ class MongoRoomAccessReaderTest {
         var snapshot = reader.readAccess("user-1", "room-1");
         assertThat(snapshot.state())
                 .isEqualTo(RoomAccessState.ACTIVE_MEMBER);
+        assertThat(snapshot.membershipId())
+                .isEqualTo("membership-1");
         assertThat(snapshot.messageVisibleAfterSequence())
                 .isEqualTo(100);
     }
@@ -109,6 +111,19 @@ class MongoRoomAccessReaderTest {
     }
 
     @Test
+    void rejectsMembershipIdentityMismatch() {
+        whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
+        Document mismatched = membership("ACTIVE", 1);
+        mismatched.put("roomId", "other-room");
+        whenMembership(mismatched);
+
+        assertThatThrownBy(() ->
+                reader.readAccess("user-1", "room-1"))
+                .isInstanceOf(RoomAccessReadException.class)
+                .hasMessageContaining("identity mismatch");
+    }
+
+    @Test
     void membershipBoundaryIsFailClosedWhenMissingNegativeOrLegacy() {
         whenRoom(
                 room("ACTIVE", 1),
@@ -175,7 +190,8 @@ class MongoRoomAccessReaderTest {
     }
 
     private static Document membership(String status, long version) {
-        return new Document("schemaVersion", 2)
+        return new Document("_id", "membership-1")
+                .append("schemaVersion", 2)
                 .append("roomId", "room-1")
                 .append("userId", "user-1")
                 .append("status", status)

@@ -351,6 +351,7 @@ class ChatMessageProcessorTest {
         return new QueuedChatCommand(
                 new AdmittedChatCommand(
                         "user-1",
+                        "membership-1",
                         "connection-1",
                         "room-1",
                         clientMessageId(suffix),
@@ -369,6 +370,7 @@ class ChatMessageProcessorTest {
                 "room-1",
                 sequence,
                 "user-1",
+                "membership-1",
                 clientMessageId(suffix),
                 "hello",
                 Instant.parse("2026-07-24T00:00:01Z"));

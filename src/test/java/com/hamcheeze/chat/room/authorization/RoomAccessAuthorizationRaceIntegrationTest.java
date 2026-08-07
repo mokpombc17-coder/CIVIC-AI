@@ -9,6 +9,7 @@ import com.hamcheeze.chat.application.ChatCommandValidator;
 import com.hamcheeze.chat.application.ChatSendCommand;
 import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
+import com.hamcheeze.chat.application.RoomMessageSendAuthorization;
 import com.hamcheeze.chat.pipeline.ChatMessagePipeline;
 import com.hamcheeze.chat.pipeline.PipelineAcceptance;
 import com.hamcheeze.chat.pipeline.PipelineAvailability;
@@ -431,13 +432,16 @@ class RoomAccessAuthorizationRaceIntegrationTest
         }
 
         @Override
-        public RoomAuthorizationDecision authorizeMessageSend(
+        public RoomMessageSendAuthorization
+        authorizeMessageSendWithContext(
                 String userId,
                 String roomId
         ) {
             sendAuthorization.countDown();
             await(release);
-            return delegate.authorizeMessageSend(userId, roomId);
+            return delegate.authorizeMessageSendWithContext(
+                    userId,
+                    roomId);
         }
 
         private boolean awaitSendAuthorization() {

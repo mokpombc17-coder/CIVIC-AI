@@ -697,6 +697,7 @@ class RoomCommandServiceIntegrationTest
                 () -> messageStore.append(new NewChatMessage(
                         roomId,
                         "owner-1",
+                        "membership-owner-1",
                         requestId(),
                         "first")),
                 () -> service.joinRoom(new JoinRoomCommand(
@@ -2034,6 +2035,7 @@ class RoomCommandServiceIntegrationTest
             messageStore.append(new NewChatMessage(
                     roomId,
                     senderUserId,
+                    "membership-" + senderUserId,
                     requestId(),
                     "message " + index));
         }

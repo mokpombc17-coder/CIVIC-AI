@@ -274,6 +274,7 @@ class MongoRoomReadStateStoreTest {
                         "room-1",
                         sequence,
                         sender,
+                        "membership-" + sender,
                         "client-" + sequence,
                         state == MessageState.ACTIVE
                                 ? "message " + sequence : null,

@@ -21,6 +21,7 @@ class ChatMessageMutationDomainTest {
                 "room-1",
                 10,
                 "user-1",
+                "membership-1",
                 "client-1",
                 "hello",
                 CREATED_AT);
@@ -32,12 +33,28 @@ class ChatMessageMutationDomainTest {
     }
 
     @Test
+    void senderMembershipIdIsRequired() {
+        assertThatThrownBy(() -> new ChatMessage(
+                "message-1",
+                "room-1",
+                10,
+                "user-1",
+                " ",
+                "client-1",
+                "hello",
+                CREATED_AT))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("senderMembershipId");
+    }
+
+    @Test
     void deletedSnapshotRequiresTombstoneInvariants() {
         ChatMessage deleted = new ChatMessage(
                 "message-1",
                 "room-1",
                 10,
                 "user-1",
+                "membership-1",
                 "client-1",
                 null,
                 MessageState.DELETED_BY_AUTHOR,
@@ -55,6 +72,7 @@ class ChatMessageMutationDomainTest {
                 "room-1",
                 10,
                 "user-1",
+                "membership-1",
                 "client-1",
                 "leaked content",
                 MessageState.DELETED_BY_AUTHOR,

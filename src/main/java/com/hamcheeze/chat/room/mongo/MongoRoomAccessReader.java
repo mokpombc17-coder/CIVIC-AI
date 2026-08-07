@@ -48,6 +48,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                             null,
                             null,
                             null,
+                            null,
                             RoomAccessState.ROOM_CLOSED);
                 }
 
@@ -67,6 +68,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                             null,
                             null,
                             null,
+                            null,
                             RoomAccessState.ROOM_CLOSED);
                 }
                 if (membership == null) {
@@ -77,12 +79,14 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                             null,
                             null,
                             null,
+                            null,
                             RoomAccessState.MEMBERSHIP_NOT_FOUND);
                 }
                 return new RoomAccessSnapshot(
                         roomId,
                         second.status(),
                         second.version(),
+                        membership.membershipId(),
                         membership.status(),
                         membership.version(),
                         membership.messageVisibleAfterSequence(),
@@ -132,6 +136,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                 where("roomId").is(roomId)
                         .and("userId").is(userId));
         query.fields()
+                .include("_id")
                 .include("schemaVersion")
                 .include("roomId")
                 .include("userId")
@@ -155,6 +160,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                     "Membership identity mismatch");
         }
         return new MembershipProjection(
+                requiredText(document, "_id"),
                 enumValue(
                         document,
                         "status",
@@ -214,6 +220,18 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
         return value.longValue();
     }
 
+    private static String requiredText(
+            Document document,
+            String field
+    ) {
+        String value = document.getString(field);
+        if (value == null || value.isBlank()) {
+            throw new RoomAccessReadException(
+                    "Missing " + field + " in access snapshot");
+        }
+        return value;
+    }
+
     private static <T extends Enum<T>> T enumValue(
             Document document,
             String field,
@@ -240,6 +258,7 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
     }
 
     private record MembershipProjection(
+            String membershipId,
             MembershipStatus status,
             long messageVisibleAfterSequence,
             long version

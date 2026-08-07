@@ -41,6 +41,8 @@ class ClaimedChatMessageOutboxEventTest {
                 .isEqualTo("message-1");
         assertThat(envelope.payload().roomSequence())
                 .isEqualTo(1L);
+        assertThat(envelope.payload().senderMembershipId())
+                .isEqualTo("membership-user-1");
     }
 
     @ParameterizedTest(name = "{0}")
@@ -197,6 +199,27 @@ class ClaimedChatMessageOutboxEventTest {
                                         "client-1",
                                         "hello"))),
                 Arguments.of(
+                        "blank senderMembershipId",
+                        event(
+                                validEventId(),
+                                "message-1",
+                                "room-1",
+                                1L,
+                                new ClaimedChatMessageOutboxEvent.Payload(
+                                        "message-1",
+                                        "room-1",
+                                        1L,
+                                        "user-1",
+                                        " ",
+                                        "client-1",
+                                        "hello",
+                                        MessageState.ACTIVE,
+                                        true,
+                                        1L,
+                                        NOW,
+                                        NOW,
+                                        null))),
+                Arguments.of(
                         "blank clientMessageId",
                         event(
                                 validEventId(),
@@ -276,6 +299,7 @@ class ClaimedChatMessageOutboxEventTest {
                 roomId,
                 roomSequence,
                 senderUserId,
+                "membership-" + senderUserId,
                 clientMessageId,
                 content,
                 MessageState.ACTIVE,

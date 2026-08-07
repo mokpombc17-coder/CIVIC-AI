@@ -141,6 +141,7 @@ class SimpleBrokerChatMessagePublisherTest {
                 "room-1",
                 1,
                 "user-1",
+                "membership-1",
                 "550e8400-e29b-41d4-a716-446655440000",
                 "hello",
                 Instant.parse("2026-07-24T00:00:00Z"));

@@ -200,6 +200,7 @@ class ChatMessageHistoryServiceTest {
                 "room-1",
                 sequence,
                 "user-1",
+                "membership-1",
                 "550e8400-e29b-41d4-a716-44665544%04d"
                         .formatted(sequence),
                 "message " + sequence,

@@ -58,6 +58,7 @@ class ChatMessageHistoryApiIntegrationTest
                 messageStore.append(new NewChatMessage(
                         roomId,
                         "owner-1",
+                        "membership-owner-1",
                         UUID.randomUUID().toString(),
                         "delete me"));
         mutationStore.delete(new DeleteChatMessageMutation(
@@ -109,6 +110,9 @@ class ChatMessageHistoryApiIntegrationTest
                         .value(120))
                 .andExpect(jsonPath("$.items[49].senderUserId")
                         .value("owner-1"))
+                .andExpect(jsonPath(
+                        "$.items[49].senderMembershipId")
+                        .value("membership-owner-1"))
                 .andExpect(jsonPath("$.nextBeforeSequence")
                         .value(71))
                 .andExpect(jsonPath("$.nextAfterSequence")
@@ -363,6 +367,7 @@ class ChatMessageHistoryApiIntegrationTest
         messageStore.append(new NewChatMessage(
                 roomId,
                 senderUserId,
+                "membership-" + senderUserId,
                 UUID.randomUUID().toString(),
                 content));
     }

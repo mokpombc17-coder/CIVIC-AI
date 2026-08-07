@@ -425,6 +425,7 @@ class LocalProfileApplicationTests
         PipelineAcceptance acceptance = pipeline.tryAccept(
                 new AdmittedChatCommand(
                         "local-user-1",
+                        "local-membership-1",
                         "local-connection-1",
                         "test-room",
                         "550e8400-e29b-41d4-a716-446655440000",
@@ -445,7 +446,7 @@ class LocalProfileApplicationTests
                 .isEqualTo("local-user-1");
         assertThat(storedDocument.content()).isEqualTo("hello");
         assertThat(storedDocument.roomSequence()).isEqualTo(1);
-        assertThat(storedDocument.schemaVersion()).isEqualTo(3);
+        assertThat(storedDocument.schemaVersion()).isEqualTo(4);
         assertThat(storedDocument.countable()).isTrue();
         assertThat(storedDocument.messageVersion()).isEqualTo(1);
         assertThat(storedDocument.state().name())
