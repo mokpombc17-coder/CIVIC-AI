@@ -56,7 +56,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 ## Route `/chat`와 `/chat/[roomId]`
 
 `ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
-그 안에 `ChatRealtimeProvider`를 배치한다. 실시간 Provider는 STOMP Client를 직접 노출하지
+그 안에 `ChatRealtimeProvider`와 `ChatRoomReadStateProvider`를 배치한다. Read-state Provider는
+방별 pending·in-flight·confirmed sequence를 route segment 수명 동안 유지하므로 방 화면이
+unmount되어도 `/chat` 안의 route 이동에서는 예약된 보고가 유실되지 않는다. 실시간 Provider는 STOMP Client를 직접 노출하지
 않고 교체 가능한 transport를 제공한다. SharedWorker 지원 브라우저에서는 Worker가 STOMP Client를
 소유하고, 미지원 단일 WebView에서는 Direct transport를 사용한다. 두 환경 모두 하위 채팅
 컴포넌트의 사용 계약은 같다. 목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가 Provider의
@@ -73,7 +75,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
             └── ChatLayout [Server] [Route] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] [Provider] (apps/web/components/chat-query-provider.tsx)
                     └── ChatRealtimeProvider [Client] [Provider] (apps/web/components/chat-realtime-provider.tsx)
-                        ├── children [slot: nested page를 제공]
+                        ├── ChatRoomReadStateProvider [Client] [Provider] (apps/web/components/chat-room-read-state-provider.tsx)
+                        │   └── children [slot: nested page를 제공]
                             ├── route /chat: ChatPage [Server] [Route] (apps/web/app/chat/page.tsx)
                             │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
                             │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
@@ -182,6 +185,7 @@ flowchart TD
     ChatLayout["ChatLayout [Server] [Route]<br/>apps/web/app/chat/layout.tsx"]
     ChatQueryProvider["ChatQueryProvider [Client] [Provider]<br/>apps/web/components/chat-query-provider.tsx"]
     ChatRealtimeProvider["ChatRealtimeProvider [Client] [Provider]<br/>apps/web/components/chat-realtime-provider.tsx"]
+    ChatRoomReadStateProvider["ChatRoomReadStateProvider [Client] [Provider]<br/>apps/web/components/chat-room-read-state-provider.tsx"]
     ChatRealtimeDiagnosticsPanel["ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development]<br/>apps/web/components/chat-realtime-diagnostics-panel.tsx"]
     ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [Runtime]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
     ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [View] [conditional]<br/>apps/web/components/chat-room-inbox-toast-list.tsx"]
@@ -225,7 +229,8 @@ flowchart TD
     ChildrenSlot -. "route /chat" .-> ChatLayout
     ChatLayout --> ChatQueryProvider
     ChatQueryProvider --> ChatRealtimeProvider
-    ChatRealtimeProvider --> ChatChildrenSlot
+    ChatRealtimeProvider --> ChatRoomReadStateProvider
+    ChatRoomReadStateProvider --> ChatChildrenSlot
     ChatRealtimeProvider --> ChatRoomInboxRuntime
     ChatRealtimeProvider -->|"development only"| ChatRealtimeDiagnosticsPanel
     ChatRoomInboxRuntime -->|"conditional toast"| ChatRoomInboxToastList
@@ -262,6 +267,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```
