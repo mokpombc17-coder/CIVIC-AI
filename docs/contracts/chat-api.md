@@ -1787,16 +1787,53 @@ docker compose -f compose.local.yaml exec -T mongodb \
 운영 데이터가 생긴 뒤에는 별도 migration 없이 같은 초기화 방식을 다시 사용할
 수 없다.
 
-사용자별 raw 읽음 cursor는 Membership가 아니라
-`chat_room_read_states`에 lazy 생성된다. 외부에 노출하는 값은 항상 다음
-effective cursor다.
+읽음 위치는 다음 세 값을 구분한다.
 
 ```text
-readThroughSequence = max(
-  membership.messageVisibleAfterSequence,
+storedLastReadSequence =
   RoomReadState.lastReadSequence 또는 0
+
+messageVisibleAfterSequence =
+  Membership.messageVisibleAfterSequence
+
+effectiveReadThroughSequence = max(
+  messageVisibleAfterSequence,
+  storedLastReadSequence
 )
 ```
+
+`storedLastReadSequence`는 사용자가 서버에 읽은 위치로 보고하여
+`chat_room_read_states`에 저장된 cursor다. ReadState document는 Membership별로
+lazy 생성되므로 document가 없으면 이 값은 `0`이다.
+
+`messageVisibleAfterSequence`는 현재 참여 구간에서 사용자가 볼 수 없는 마지막
+과거 message sequence다. 현재 참여 구간에서 접근할 수 있는 메시지는
+`roomSequence > messageVisibleAfterSequence`인 메시지뿐이다.
+
+`effectiveReadThroughSequence`는 Room inbox unread 계산과 read-state API
+acknowledgement에 사용하는 처리 경계다. 이 값이 높다는 사실만으로 사용자가 그
+sequence까지 실제로 메시지를 읽었다고 판단하지 않는다. visibility boundary
+때문에 과거 메시지가 unread 대상이 아닌 경우도 포함하기 때문이다.
+
+기능별 사용 값은 다음과 같다.
+
+```text
+Room inbox unread 계산
+→ effectiveReadThroughSequence
+
+Read-state API 응답
+→ effectiveReadThroughSequence
+
+향후 실제 Read Receipt 판정
+→ visibility boundary와 stored cursor를 분리하여 사용
+```
+
+Read Receipt API와 participant·sender 판정 정책은 현재 구현하지 않는다.
+effective cursor를 실제 읽음의 단독 증거로 사용하는 것도 현재 계약이 아니다.
+
+`RoomReadState.updatedAt`은 cursor를 실제로 증가시킨 write들이 제출한 관측 시각
+중 저장된 최댓값이다. 감소하지 않으며, 특정 메시지를 읽은 정확한 시각이나
+메시지별 `readAt`을 의미하지 않는다.
 
 ### 읽음 위치 갱신
 
@@ -1818,12 +1855,50 @@ Content-Type: application/json
 }
 ```
 
-- 요청이 현재 참여 경계보다 낮거나 effective cursor 이하이면 `200`,
-  `updated=false`이며 cursor와 `updatedAt`은 감소하거나 변경되지 않는다.
+`readThroughSequence`는 서버가 승인한 effective acknowledgement다. 이 값은
+영속된 Membership visibility boundary, RoomReadState stored cursor 또는 두 값
+모두에 의해 구성된다. 정상 응답은
+`readThroughSequence >= request.throughSequence`를 만족하며, 동시 요청으로
+저장 cursor가 먼저 증가했다면 응답값이 요청값보다 클 수 있다.
+
+`updated`의 의미는 다음과 같다.
+
+```text
+updated=true
+→ 이 호출이 RoomReadState insert 또는 cursor 증가 write를 수행함
+
+updated=false
+→ 이 호출은 RoomReadState write를 수행하지 않음
+```
+
+`updated=false`는 정상적인 `200` 성공이다. Service가 요청을 이미 effective
+cursor 이하로 판단했거나, `advance()` 시점에 동시 요청이 같거나 더 큰 stored
+cursor를 먼저 저장한 경우 발생할 수 있다. 두 경우 모두 재시도할 필요가 없다.
+
+예를 들어 visibility boundary가 `100`이고 RoomReadState가 없는 상태에서
+`throughSequence=90`을 요청하면 다음 응답이 정상이다.
+
+```json
+{
+  "roomId": "room-01",
+  "readThroughSequence": 100,
+  "updated": false
+}
+```
+
+이 응답은 `RoomReadState.lastReadSequence=100`이 저장됐다는 뜻이 아니다.
+Membership에 영속된 visibility boundary가 effective acknowledgement를
+뒷받침한다.
+
+- 요청이 현재 참여 경계보다 낮거나 effective cursor 이하이면 cursor와
+  `updatedAt`을 변경하지 않는다.
 - 현재 `chat_room_sequences.lastSequence`보다 크면
   `409 READ_SEQUENCE_AHEAD`다. sequence 문서가 없으면 현재 값은 `0`이다.
 - Membership 접근 경계나 저장된 ReadState가 current sequence보다 크면
   서버 데이터 오류인 `500 READ_STATE_INCONSISTENT`, `retryable=false`다.
+- Store가 요청보다 낮은 cursor를 반환하거나 Membership과 다른 identity를
+  반환하면 저장 계약 위반이다. `ROOM_INBOX_UNAVAILABLE`로 변환하지 않고
+  `500 INTERNAL_ERROR`, `retryable=false`로 fail-closed 처리한다.
 - Room/Membership/ReadState/sequence Mongo 조회나 ReadState 갱신 중 발생한
   timeout, connection/socket, recoverable resource failure와 MongoDB의
   transient transaction label만 내부 원인을 노출하지 않고
@@ -1835,6 +1910,12 @@ Content-Type: application/json
   `409 READ_STATE_NOT_AVAILABLE`다.
 - ACTIVE 확인 직후 leave/ban이 commit되면 마지막 monotonic 개인 cursor
   write가 남을 수 있으나 접근 권한이나 Membership 상태를 복원하지 않는다.
+- REJOIN은 기존 membership ID와 RoomReadState를 유지하고, 재참여 시점의 현재
+  Room sequence를 새 visibility boundary로 저장한다. 정상 클라이언트가 이전
+  참여 구간에서 실제 관측한 유효 cursor는 Room sequence의 단조 증가 때문에
+  이 새 boundary 이하가 된다. 현재 요청에는 membership version이나 참여 epoch가
+  없으므로 임의 요청의 참여 구간을 서버가 식별하거나 강한 epoch 격리를
+  보장하지 않는다.
 - 별도 `Idempotency-Key`는 필요하지 않다.
 
 ### Room inbox 목록
