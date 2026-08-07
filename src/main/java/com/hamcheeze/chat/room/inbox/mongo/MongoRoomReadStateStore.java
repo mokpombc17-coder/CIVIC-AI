@@ -93,7 +93,7 @@ public final class MongoRoomReadStateStore
                             new Update()
                                     .set("lastReadSequence",
                                             throughSequence)
-                                    .set("updatedAt", updatedAt),
+                                    .max("updatedAt", updatedAt),
                             MongoRoomReadStateDocument.COLLECTION_NAME)
                     .getModifiedCount();
             if (modified == 1) {

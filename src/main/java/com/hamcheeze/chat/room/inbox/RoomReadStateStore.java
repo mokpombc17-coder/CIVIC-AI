@@ -31,6 +31,9 @@ public interface RoomReadStateStore {
      *     write because the persisted cursor was already equal to or greater
      *     than {@code throughSequence}, including due to a concurrent
      *     advance.</li>
+     *     <li>A cursor-increasing write never decreases the stored
+     *     {@code updatedAt}; it stores the greater of the existing and
+     *     requested observation times.</li>
      * </ul>
      *
      * <p>The returned state confirms a persisted cursor at least as high as
@@ -42,7 +45,8 @@ public interface RoomReadStateStore {
      * @param userId user identity to preserve
      * @param throughSequence requested cursor lower bound
      * @param updatedAt observation time for an insert or cursor-increasing
-     *                  write; a no-op must not change the stored timestamp
+     *                  write; a no-op must not change the stored timestamp,
+     *                  and an increase must not move it backward
      * @return the persisted state observed for this request and whether this
      *         invocation performed a write
      */

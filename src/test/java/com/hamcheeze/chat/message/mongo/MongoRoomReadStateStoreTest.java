@@ -107,6 +107,26 @@ class MongoRoomReadStateStoreTest {
     }
 
     @Test
+    void higherCursorDoesNotRegressStoredTimestamp() {
+        RoomReadStateAdvance first = store.advance(
+                "membership-1", "room-1", "user-1", 120, SECOND);
+        RoomReadStateAdvance higherWithOlderTimestamp = store.advance(
+                "membership-1", "room-1", "user-1", 130, FIRST);
+
+        assertThat(first.updated()).isTrue();
+        assertThat(higherWithOlderTimestamp.updated()).isTrue();
+        assertThat(higherWithOlderTimestamp.state().lastReadSequence())
+                .isEqualTo(130);
+        assertThat(higherWithOlderTimestamp.state().updatedAt())
+                .isEqualTo(SECOND);
+
+        RoomReadState persisted = store.findByMembershipId(
+                "membership-1").orElseThrow();
+        assertThat(persisted.lastReadSequence()).isEqualTo(130);
+        assertThat(persisted.updatedAt()).isEqualTo(SECOND);
+    }
+
+    @Test
     void concurrentInitialAdvancesConvergeToMaximum() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
