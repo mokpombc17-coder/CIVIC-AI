@@ -2,7 +2,7 @@ import { roomIdSchema } from "./chat-room-contracts";
 import {
   ROOM_READ_STATE_DEBOUNCE_MS,
   ROOM_READ_STATE_MAX_WAIT_MS,
-} from "./chat-room-read-state-scheduler";
+} from "./chat-room-read-state-timing";
 
 export type ChatRoomReadStateStatus = "idle" | "pending" | "submitting" | "blocked" | "terminal";
 

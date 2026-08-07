@@ -22,7 +22,10 @@ describe("ChatRoomReadStateCoordinator", () => {
     coordinator.schedule("room-a", 13);
     coordinator.schedule("room-a", 12);
 
-    await vi.advanceTimersByTimeAsync(400);
+    await vi.advanceTimersByTimeAsync(399);
+    expect(submit).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
 
     expect(submit).toHaveBeenCalledTimes(1);
     expect(submit).toHaveBeenCalledWith("room-a", 13);
@@ -32,6 +35,51 @@ describe("ChatRoomReadStateCoordinator", () => {
       pendingSequence: null,
       status: "idle",
     });
+  });
+
+  it("지속 입력도 max-wait 이후 전송하고 in-flight 중 더 큰 값만 이어서 전송한다", async () => {
+    const firstSubmission = createDeferred<number>();
+    const submit = vi
+      .fn<(roomId: string, throughSequence: number) => Promise<number>>()
+      .mockReturnValueOnce(firstSubmission.promise)
+      .mockImplementation(async (_roomId, throughSequence) => throughSequence);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+
+    coordinator.schedule("room-a", 130);
+    await vi.advanceTimersByTimeAsync(300);
+    coordinator.schedule("room-a", 131);
+    await vi.advanceTimersByTimeAsync(300);
+    coordinator.schedule("room-a", 132);
+    await vi.advanceTimersByTimeAsync(300);
+    coordinator.schedule("room-a", 133);
+    await vi.advanceTimersByTimeAsync(300);
+    coordinator.schedule("room-a", 134);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenLastCalledWith("room-a", 134);
+
+    coordinator.schedule("room-a", 135);
+    coordinator.schedule("room-a", 136);
+    firstSubmission.resolve(134);
+    await flushMicrotasks();
+
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit).toHaveBeenLastCalledWith("room-a", 136);
+  });
+
+  it("유효하지 않은 sequence와 timer 설정을 거절한다", () => {
+    expect(
+      () =>
+        new ChatRoomReadStateCoordinator({
+          debounceMs: 500,
+          maxWaitMs: 400,
+          submit: vi.fn(),
+        }),
+    ).toThrow(RangeError);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit: vi.fn() });
+
+    expect(() => coordinator.schedule("room-a", -1)).toThrow(RangeError);
   });
 
   it("요청 중 더 높은 sequence가 예약되면 현재 요청 성공 후 순서대로 전송한다", async () => {

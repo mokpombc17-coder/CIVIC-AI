@@ -1,0 +1,2 @@
+export const ROOM_READ_STATE_DEBOUNCE_MS = 400;
+export const ROOM_READ_STATE_MAX_WAIT_MS = 1_500;
