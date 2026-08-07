@@ -62,6 +62,7 @@ public final class ListedRoomQueryService {
                 room.name(),
                 room.description(),
                 room.categories(),
+                room.ownerMembershipId(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),

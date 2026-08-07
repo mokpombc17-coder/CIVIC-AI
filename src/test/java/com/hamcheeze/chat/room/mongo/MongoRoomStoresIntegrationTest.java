@@ -121,7 +121,9 @@ class MongoRoomStoresIntegrationTest {
                 .find(new Document("_id", active.roomId()))
                 .first();
         assertThat(raw).isNotNull();
-        assertThat(raw.getInteger("schemaVersion")).isEqualTo(4);
+        assertThat(raw.getInteger("schemaVersion")).isEqualTo(5);
+        assertThat(raw.getString("ownerMembershipId"))
+                .isEqualTo(active.ownerMembershipId());
         assertThat(raw.getList("categories", String.class))
                 .containsExactly("POLICY");
     }
@@ -165,6 +167,7 @@ class MongoRoomStoresIntegrationTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner-2",
                 "owner-2",
                 RoomStatus.ACTIVE,
                 RoomVisibility.UNLISTED,
@@ -694,6 +697,7 @@ class MongoRoomStoresIntegrationTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,

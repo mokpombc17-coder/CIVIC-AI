@@ -38,10 +38,12 @@ for (let offset = 0; offset < roomCount; offset += batchSize) {
             insertOne: {
                 document: {
                     _id: `${roomIdPrefix}${suffix}`,
-                    schemaVersion: 4,
+                    schemaVersion: 5,
                     name,
                     description: `Listed Room query fixture ${suffix}`,
                     categories: [categories[index % categories.length]],
+                    ownerMembershipId:
+                        `performance-owner-membership-${suffix}`,
                     ownerUserId: `performance-owner-${suffix}`,
                     status: "ACTIVE",
                     visibility: "LISTED",

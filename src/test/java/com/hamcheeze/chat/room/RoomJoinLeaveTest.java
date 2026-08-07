@@ -432,6 +432,7 @@ class RoomJoinLeaveTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -449,6 +450,7 @@ class RoomJoinLeaveTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.CLOSED,
                 RoomVisibility.LISTED,

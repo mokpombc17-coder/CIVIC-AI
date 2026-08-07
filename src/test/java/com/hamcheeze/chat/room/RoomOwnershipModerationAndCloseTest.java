@@ -31,6 +31,8 @@ class RoomOwnershipModerationAndCloseTest {
         assertThat(result.outcome()).isEqualTo(
                 OwnershipTransferTransition.Outcome
                         .OWNERSHIP_TRANSFERRED);
+        assertThat(result.room().ownerMembershipId())
+                .isEqualTo("membership-user-2");
         assertThat(result.room().ownerUserId()).isEqualTo("user-2");
         assertThat(result.room().activeMemberCount()).isEqualTo(2);
         assertThat(result.room().version()).isEqualTo(4);
@@ -154,6 +156,30 @@ class RoomOwnershipModerationAndCloseTest {
         assertThat(mismatchedOwner.version()).isEqualTo(2);
         assertThat(target.role()).isEqualTo(MembershipRole.MEMBER);
         assertThat(target.version()).isEqualTo(3);
+    }
+
+    @Test
+    void ownerMembershipIdMismatchFailsEvenWhenOwnerUserMatches() {
+        Room room = activeRoom("owner-1", 2, 7);
+        Membership mismatchedOwner = Membership.restore(
+                "membership-wrong-owner",
+                "room-1",
+                "owner-1",
+                MembershipRole.OWNER,
+                MembershipStatus.ACTIVE,
+                CREATED_AT,
+                null,
+                null,
+                10,
+                2);
+
+        assertFailure(
+                () -> RoomMembershipTransitions.transferOwnership(
+                        room,
+                        mismatchedOwner,
+                        member("user-2", MembershipStatus.ACTIVE, 3),
+                        "owner-1"),
+                RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
     }
 
     @Test
@@ -652,6 +678,7 @@ class RoomOwnershipModerationAndCloseTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-" + ownerUserId,
                 ownerUserId,
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -669,6 +696,7 @@ class RoomOwnershipModerationAndCloseTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner-1",
                 "owner-1",
                 RoomStatus.CLOSED,
                 RoomVisibility.LISTED,

@@ -208,6 +208,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String roomId = roomId(created);
+        String ownerMembershipId = jsonString(
+                created,
+                "ownerMembershipId");
 
         mockMvc.perform(get("/api/v1/rooms/{roomId}", roomId)
                         .with(jwt().jwt(jwt ->
@@ -215,6 +218,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.description")
                         .value("Initial description"))
+                .andExpect(jsonPath("$.ownerMembershipId")
+                        .value(ownerMembershipId))
                 .andExpect(jsonPath("$.categories[0]")
                         .value("POLICY"));
         mockMvc.perform(get("/api/v1/me/rooms")
@@ -223,6 +228,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].description")
                         .value("Initial description"))
+                .andExpect(jsonPath("$.items[0].ownerMembershipId")
+                        .value(ownerMembershipId))
                 .andExpect(jsonPath("$.items[0].categories[0]")
                         .value("POLICY"));
         mockMvc.perform(get("/api/v1/rooms")
@@ -231,6 +238,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].description")
                         .value("Initial description"))
+                .andExpect(jsonPath("$.items[0].ownerMembershipId")
+                        .value(ownerMembershipId))
                 .andExpect(jsonPath("$.items[0].categories[0]")
                         .value("POLICY"));
         MvcResult inboxBeforeUpdate = mockMvc.perform(
@@ -238,6 +247,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 .with(jwt().jwt(jwt -> jwt.subject(
                                         "owner-settings"))))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].ownerMembershipId")
+                        .value(ownerMembershipId))
                 .andExpect(jsonPath("$.items[0].categories[0]")
                         .value("POLICY"))
                 .andReturn();

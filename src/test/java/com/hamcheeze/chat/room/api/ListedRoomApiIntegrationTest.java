@@ -92,6 +92,8 @@ class ListedRoomApiIntegrationTest
                         .value("room-a"))
                 .andExpect(jsonPath("$.items[0].name")
                         .value("Alpha"))
+                .andExpect(jsonPath("$.items[0].ownerMembershipId")
+                        .value("membership-owner-room-a"))
                 .andExpect(jsonPath("$.items[0].description")
                         .value("Description room-a"))
                 .andExpect(jsonPath("$.items[0].categories[0]")
@@ -446,6 +448,7 @@ class ListedRoomApiIntegrationTest
                 name,
                 "Description " + roomId,
                 java.util.List.of(category),
+                "membership-owner-" + roomId,
                 "owner-" + roomId,
                 status,
                 visibility,

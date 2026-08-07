@@ -610,6 +610,11 @@ GET /api/v1/rooms?joinPolicy=OPEN&query=교통&category=LOCAL_ISSUE
 `query`, `category`, `joinPolicy` 중 하나라도 바뀌면 `cursor`를 제거하고 첫
 페이지부터 조회한다. cursor 내부 payload를 해석하거나 생성하지 않는다.
 
+Room owner 식별자를 membership 기반으로 전환하는 동안 조회 응답은
+Room 범위 식별자인 `ownerMembershipId`를 additive하게 제공하고 기존
+`ownerUserId`도 함께 유지한다. 신규 클라이언트 코드는
+`ownerMembershipId`를 owner 식별 key로 사용한다.
+
 응답:
 
 ```json
@@ -620,6 +625,7 @@ GET /api/v1/rooms?joinPolicy=OPEN&query=교통&category=LOCAL_ISSUE
       "name": "시민 AI 토론방",
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
       "categories": ["POLICY"],
+      "ownerMembershipId": "membership-01",
       "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -653,6 +659,7 @@ GET /api/v1/rooms/{roomId}
   "name": "시민 AI 토론방",
   "description": "AI 정책과 시민 참여 방식을 논의합니다.",
   "categories": ["POLICY"],
+  "ownerMembershipId": "membership-01",
   "ownerUserId": "local-user-1",
   "status": "ACTIVE",
   "visibility": "LISTED",
@@ -721,6 +728,7 @@ GET /api/v1/me/rooms?cursor={cursor}&limit=20
       "name": "시민 AI 토론방",
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
       "categories": ["POLICY"],
+      "ownerMembershipId": "membership-01",
       "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -1941,6 +1949,8 @@ Summary last message는
 ```json
 {
   "categories": ["POLICY"],
+  "ownerMembershipId": "membership-01",
+  "ownerUserId": "local-user-1",
   "readThroughSequence": 123,
   "unreadCount": 200,
   "unreadCountCapped": true,

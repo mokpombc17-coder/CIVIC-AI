@@ -23,6 +23,7 @@ public record MongoRoomDocument(
         String name,
         String description,
         List<RoomCategory> categories,
+        String ownerMembershipId,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -34,7 +35,7 @@ public record MongoRoomDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_rooms";
-    public static final int CURRENT_SCHEMA_VERSION = 4;
+    public static final int CURRENT_SCHEMA_VERSION = 5;
     static final int LEGACY_SCHEMA_VERSION = 1;
     static final int PREVIOUS_SCHEMA_VERSION = 2;
 
@@ -59,6 +60,9 @@ public record MongoRoomDocument(
         Objects.requireNonNull(description, "description");
         if (schemaVersion == CURRENT_SCHEMA_VERSION) {
             categories = RoomCategories.requireValid(categories);
+            Objects.requireNonNull(
+                    ownerMembershipId,
+                    "ownerMembershipId");
         }
         Objects.requireNonNull(ownerUserId, "ownerUserId");
         Objects.requireNonNull(status, "status");
@@ -86,6 +90,7 @@ public record MongoRoomDocument(
                 name,
                 null,
                 null,
+                null,
                 ownerUserId,
                 status,
                 visibility,
@@ -104,6 +109,7 @@ public record MongoRoomDocument(
                 room.name(),
                 room.description(),
                 room.categories(),
+                room.ownerMembershipId(),
                 room.ownerUserId(),
                 room.status(),
                 room.visibility(),
@@ -121,6 +127,7 @@ public record MongoRoomDocument(
                 name,
                 description,
                 categories,
+                ownerMembershipId,
                 ownerUserId,
                 status,
                 visibility,

@@ -46,6 +46,8 @@ class RoomInboxResponseTest {
         assertThat(activeResponse.categories())
                 .containsExactly(
                         com.hamcheeze.chat.room.RoomCategory.POLICY);
+        assertThat(activeResponse.ownerMembershipId())
+                .isEqualTo("membership-owner");
         assertThat(deletedResponse.lastMessage().state())
                 .isEqualTo(MessageState.DELETED_BY_AUTHOR);
         assertThat(deletedResponse.lastMessage().preview()).isNull();
@@ -65,6 +67,7 @@ class RoomInboxResponseTest {
                 "description",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,

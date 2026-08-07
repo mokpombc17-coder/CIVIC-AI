@@ -34,6 +34,8 @@ class RoomCreationAndRestoreTest {
         assertThat(result.room().name()).isEqualTo("Test room");
         assertThat(result.room().categories())
                 .containsExactly(RoomCategory.POLICY);
+        assertThat(result.room().ownerMembershipId())
+                .isEqualTo("membership-owner");
         assertThat(result.room().ownerUserId())
                 .isEqualTo("owner-1");
         assertThat(result.room().status())
@@ -46,6 +48,8 @@ class RoomCreationAndRestoreTest {
         Membership owner = result.ownerMembership();
         assertThat(owner.membershipId())
                 .isEqualTo("membership-owner");
+        assertThat(owner.membershipId())
+                .isEqualTo(result.room().ownerMembershipId());
         assertThat(owner.roomId()).isEqualTo(result.room().roomId());
         assertThat(owner.userId())
                 .isEqualTo(result.room().ownerUserId());
@@ -449,6 +453,7 @@ class RoomCreationAndRestoreTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,

@@ -50,6 +50,9 @@ class ListedRoomQueryServiceTest {
         assertThat(first.items())
                 .extracting(ListedRoomView::name)
                 .containsExactly("Alpha", "Beta");
+        assertThat(first.items())
+                .extracting(ListedRoomView::ownerMembershipId)
+                .containsOnly("membership-owner");
         assertThat(first.hasNext()).isTrue();
         assertThat(first.nextCursor()).isNotBlank();
 
@@ -99,6 +102,7 @@ class ListedRoomQueryServiceTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,

@@ -26,6 +26,7 @@ public final class RoomMembershipTransitions {
                 name,
                 description,
                 categories,
+                ownerMembershipId,
                 ownerUserId,
                 visibility,
                 joinPolicy,
@@ -196,7 +197,9 @@ public final class RoomMembershipTransitions {
         }
 
         Room transferredRoom =
-                room.transferOwnershipTo(target.userId());
+                room.transferOwnershipTo(
+                        target.membershipId(),
+                        target.userId());
         Membership previousOwner =
                 currentOwner.demoteToMember();
         Membership newOwner =
@@ -369,11 +372,17 @@ public final class RoomMembershipTransitions {
             Room room,
             Membership membership
     ) {
-        boolean representsRoomOwner =
+        boolean matchesOwnerUser =
                 membership.userId().equals(room.ownerUserId());
+        boolean matchesOwnerMembership =
+                membership.membershipId().equals(
+                        room.ownerMembershipId());
+        boolean representsRoomOwner =
+                matchesOwnerUser && matchesOwnerMembership;
         boolean hasOwnerRole =
                 membership.role() == MembershipRole.OWNER;
-        if (representsRoomOwner != hasOwnerRole) {
+        if (matchesOwnerUser != matchesOwnerMembership
+                || representsRoomOwner != hasOwnerRole) {
             throw failure(
                     RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
         }
@@ -384,6 +393,8 @@ public final class RoomMembershipTransitions {
             Membership ownerMembership
     ) {
         if (!room.roomId().equals(ownerMembership.roomId())
+                || !room.ownerMembershipId().equals(
+                        ownerMembership.membershipId())
                 || !room.ownerUserId().equals(
                         ownerMembership.userId())
                 || ownerMembership.role() != MembershipRole.OWNER
@@ -399,6 +410,8 @@ public final class RoomMembershipTransitions {
             Membership ownerMembership
     ) {
         if (!room.roomId().equals(ownerMembership.roomId())
+                || !room.ownerMembershipId().equals(
+                        ownerMembership.membershipId())
                 || !room.ownerUserId().equals(
                         ownerMembership.userId())
                 || ownerMembership.role() != MembershipRole.OWNER

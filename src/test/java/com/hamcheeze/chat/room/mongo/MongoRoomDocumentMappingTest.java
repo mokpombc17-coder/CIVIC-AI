@@ -32,6 +32,7 @@ class MongoRoomDocumentMappingTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -44,7 +45,9 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(4);
+        assertThat(document.schemaVersion()).isEqualTo(5);
+        assertThat(document.ownerMembershipId())
+                .isEqualTo("membership-owner");
         assertThat(document.name()).isEqualTo("Active room");
         assertThat(document.description()).isEmpty();
         assertThat(document.categories())
@@ -61,6 +64,7 @@ class MongoRoomDocumentMappingTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.CLOSED,
                 RoomVisibility.UNLISTED,
@@ -73,7 +77,9 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(4);
+        assertThat(document.schemaVersion()).isEqualTo(5);
+        assertThat(document.ownerMembershipId())
+                .isEqualTo("membership-owner");
         assertThat(document.name()).isEqualTo("Closed room");
         assertThat(document.description()).isEmpty();
         assertThat(document.toDomain()).isEqualTo(room);
@@ -122,6 +128,7 @@ class MongoRoomDocumentMappingTest {
                 null,
                 List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -135,6 +142,23 @@ class MongoRoomDocumentMappingTest {
                 MongoRoomDocument.CURRENT_SCHEMA_VERSION,
                 "Current room",
                 "",
+                null,
+                "membership-owner",
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                CREATED_AT,
+                null,
+                3)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new MongoRoomDocument(
+                "room-5",
+                MongoRoomDocument.CURRENT_SCHEMA_VERSION,
+                "Current room",
+                "Current description",
+                List.of(
+                        com.hamcheeze.chat.room.RoomCategory.POLICY),
                 null,
                 "owner-1",
                 RoomStatus.ACTIVE,
@@ -265,7 +289,7 @@ class MongoRoomDocumentMappingTest {
     void unsupportedSchemaVersionsFailExplicitly() {
         MongoRoomDocument roomDocument = new MongoRoomDocument(
                 "room-1",
-                5,
+                6,
                 "Test room",
                 "owner-1",
                 RoomStatus.ACTIVE,
@@ -306,7 +330,7 @@ class MongoRoomDocumentMappingTest {
         assertUnsupportedSchema(
                 roomDocument::toDomain,
                 MongoRoomDocument.COLLECTION_NAME,
-                5);
+                6);
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,

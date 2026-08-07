@@ -16,6 +16,7 @@ public record RoomInboxView(
         String name,
         String description,
         List<RoomCategory> categories,
+        String ownerMembershipId,
         String ownerUserId,
         RoomStatus status,
         RoomVisibility visibility,

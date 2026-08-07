@@ -26,6 +26,7 @@ class RoomSettingsUpdateTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
@@ -252,7 +253,9 @@ class RoomSettingsUpdateTest {
                 7);
 
         Room joined = original.memberJoined();
-        Room transferred = joined.transferOwnershipTo("owner-2");
+        Room transferred = joined.transferOwnershipTo(
+                "membership-owner-2",
+                "owner-2");
         Room closed = transferred.closeAt(
                 CREATED_AT.plusSeconds(60));
 
@@ -277,6 +280,7 @@ class RoomSettingsUpdateTest {
                 description,
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,

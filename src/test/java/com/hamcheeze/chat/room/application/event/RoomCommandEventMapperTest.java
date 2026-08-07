@@ -223,7 +223,8 @@ class RoomCommandEventMapperTest {
                         "Updated description",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
-                        "owner-1",
+                "owner-membership",
+                "owner-1",
                         RoomStatus.ACTIVE,
                         RoomVisibility.UNLISTED,
                         JoinPolicy.INVITE_ONLY,

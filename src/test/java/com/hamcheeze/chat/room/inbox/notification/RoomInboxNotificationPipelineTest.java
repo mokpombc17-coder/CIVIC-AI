@@ -1026,6 +1026,7 @@ class RoomInboxNotificationPipelineTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner",
                 status,
                 RoomVisibility.LISTED,

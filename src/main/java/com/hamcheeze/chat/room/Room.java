@@ -13,6 +13,7 @@ public final class Room {
     private final String name;
     private final String description;
     private final List<RoomCategory> categories;
+    private final String ownerMembershipId;
     private final String ownerUserId;
     private final RoomStatus status;
     private final RoomVisibility visibility;
@@ -27,6 +28,7 @@ public final class Room {
             String name,
             String description,
             List<RoomCategory> categories,
+            String ownerMembershipId,
             String ownerUserId,
             RoomStatus status,
             RoomVisibility visibility,
@@ -41,6 +43,8 @@ public final class Room {
         this.description =
                 RoomDomainValidation.requireRoomDescription(description);
         this.categories = RoomCategories.requireValid(categories);
+        this.ownerMembershipId =
+                RoomDomainValidation.requireMembershipId(ownerMembershipId);
         this.ownerUserId =
                 RoomDomainValidation.requireUserId(ownerUserId);
         this.status = RoomDomainValidation.requireStateValue(status);
@@ -65,6 +69,7 @@ public final class Room {
             String name,
             String description,
             List<RoomCategory> categories,
+            String ownerMembershipId,
             String ownerUserId,
             RoomStatus status,
             RoomVisibility visibility,
@@ -79,6 +84,7 @@ public final class Room {
                 name,
                 description,
                 categories,
+                ownerMembershipId,
                 ownerUserId,
                 status,
                 visibility,
@@ -94,6 +100,7 @@ public final class Room {
             String name,
             String description,
             List<RoomCategory> categories,
+            String ownerMembershipId,
             String ownerUserId,
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
@@ -104,6 +111,7 @@ public final class Room {
                 name,
                 description,
                 categories,
+                ownerMembershipId,
                 ownerUserId,
                 RoomStatus.ACTIVE,
                 visibility,
@@ -121,6 +129,7 @@ public final class Room {
                             .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
         }
         return copy(
+                ownerMembershipId,
                 ownerUserId,
                 status,
                 activeMemberCount + 1,
@@ -135,6 +144,7 @@ public final class Room {
                             .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
         }
         return copy(
+                ownerMembershipId,
                 ownerUserId,
                 status,
                 activeMemberCount - 1,
@@ -144,6 +154,7 @@ public final class Room {
 
     Room memberStateChangedWithoutCountChange() {
         return copy(
+                ownerMembershipId,
                 ownerUserId,
                 status,
                 activeMemberCount,
@@ -151,8 +162,13 @@ public final class Room {
                 RoomDomainValidation.nextVersion(version));
     }
 
-    Room transferOwnershipTo(String newOwnerUserId) {
+    Room transferOwnershipTo(
+            String newOwnerMembershipId,
+            String newOwnerUserId
+    ) {
         return copy(
+                RoomDomainValidation.requireMembershipId(
+                        newOwnerMembershipId),
                 RoomDomainValidation.requireUserId(newOwnerUserId),
                 status,
                 activeMemberCount,
@@ -165,6 +181,7 @@ public final class Room {
                 RoomDomainValidation.requireTransitionTime(transitionTime);
         RoomDomainValidation.requireNotBefore(closed, createdAt);
         return copy(
+                ownerMembershipId,
                 ownerUserId,
                 RoomStatus.CLOSED,
                 0,
@@ -173,6 +190,7 @@ public final class Room {
     }
 
     private Room copy(
+            String nextOwnerMembershipId,
             String nextOwnerUserId,
             RoomStatus nextStatus,
             int nextActiveMemberCount,
@@ -184,6 +202,7 @@ public final class Room {
                 name,
                 description,
                 categories,
+                nextOwnerMembershipId,
                 nextOwnerUserId,
                 nextStatus,
                 visibility,
@@ -230,6 +249,7 @@ public final class Room {
                 canonicalName,
                 canonicalDescription,
                 canonicalCategories,
+                ownerMembershipId,
                 ownerUserId,
                 status,
                 canonicalVisibility,
@@ -305,6 +325,10 @@ public final class Room {
         return ownerUserId;
     }
 
+    public String ownerMembershipId() {
+        return ownerMembershipId;
+    }
+
     public RoomStatus status() {
         return status;
     }
@@ -347,6 +371,7 @@ public final class Room {
                 && name.equals(room.name)
                 && description.equals(room.description)
                 && categories.equals(room.categories)
+                && ownerMembershipId.equals(room.ownerMembershipId)
                 && ownerUserId.equals(room.ownerUserId)
                 && status == room.status
                 && visibility == room.visibility
@@ -362,6 +387,7 @@ public final class Room {
                 name,
                 description,
                 categories,
+                ownerMembershipId,
                 ownerUserId,
                 status,
                 visibility,
@@ -378,6 +404,7 @@ public final class Room {
                 + ", name=" + name
                 + ", description=" + description
                 + ", categories=" + categories
+                + ", ownerMembershipId=" + ownerMembershipId
                 + ", ownerUserId=" + ownerUserId
                 + ", status=" + status
                 + ", visibility=" + visibility

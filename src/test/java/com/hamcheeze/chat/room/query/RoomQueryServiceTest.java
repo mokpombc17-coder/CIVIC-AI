@@ -134,6 +134,9 @@ class RoomQueryServiceTest {
         assertThat(page.items())
                 .extracting(ActiveRoomView::name)
                 .containsExactly("room-1");
+        assertThat(page.items())
+                .extracting(ActiveRoomView::ownerMembershipId)
+                .containsExactly("membership-owner");
         verify(reader).findMembershipsByUserAndStatus(
                 "user-1",
                 MembershipStatus.ACTIVE,
@@ -150,6 +153,7 @@ class RoomQueryServiceTest {
                 "",
                 java.util.List.of(
                         com.hamcheeze.chat.room.RoomCategory.POLICY),
+                "membership-owner",
                 "owner-1",
                 status,
                 RoomVisibility.LISTED,
