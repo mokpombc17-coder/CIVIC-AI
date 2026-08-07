@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createChatMessageTimeline } from "./chat-message-timeline";
+import { createChatMessageTimeline, createChatMessageTimelineRows } from "./chat-message-timeline";
 import type { ChatMessage } from "./chat-room-contracts";
 import type { ChatOutgoingMessage } from "./realtime/chat-message-outbox";
 
@@ -26,7 +26,102 @@ describe("createChatMessageTimeline", () => {
   });
 });
 
-function createConfirmed(clientMessageId: string): ChatMessage {
+describe("createChatMessageTimelineRows", () => {
+  it("Asia/Seoul 달력 날짜가 바뀌는 첫 메시지 앞에 날짜 구분선을 넣는다", () => {
+    const timeline = createChatMessageTimeline(
+      [
+        createConfirmed("before-midnight", "2026-08-06T14:59:59Z"),
+        createConfirmed("after-midnight", "2026-08-06T15:00:00Z"),
+      ],
+      [],
+    );
+
+    const rows = createChatMessageTimelineRows(timeline);
+
+    expect(rows.map(({ kind }) => kind)).toEqual([
+      "date-separator",
+      "message",
+      "date-separator",
+      "message",
+    ]);
+    expect(rows.filter((row) => row.kind === "date-separator")).toEqual([
+      {
+        date: { day: 6, key: "2026-08-06", month: 8, year: 2026 },
+        kind: "date-separator",
+        renderKey: "date-separator-2026-08-06",
+      },
+      {
+        date: { day: 7, key: "2026-08-07", month: 8, year: 2026 },
+        kind: "date-separator",
+        renderKey: "date-separator-2026-08-07",
+      },
+    ]);
+  });
+
+  it("과거 페이지가 같은 날짜에 합쳐져도 날짜 구분선을 중복 생성하지 않는다", () => {
+    const timeline = createChatMessageTimeline(
+      [
+        createConfirmed("older", "2026-08-06T01:00:00Z"),
+        createConfirmed("newer", "2026-08-06T14:59:59Z"),
+      ],
+      [],
+    );
+
+    const rows = createChatMessageTimelineRows(timeline);
+
+    expect(rows.filter((row) => row.kind === "date-separator")).toHaveLength(1);
+    expect(rows.map(({ kind }) => kind)).toEqual(["date-separator", "message", "message"]);
+  });
+
+  it("optimistic 메시지는 enqueuedAt의 날짜로 기존 메시지 뒤에 그룹화한다", () => {
+    const timeline = createChatMessageTimeline(
+      [createConfirmed("confirmed", "2026-08-06T14:00:00Z")],
+      [
+        createOutgoing("same-day", "queued", Date.parse("2026-08-06T14:30:00Z")),
+        createOutgoing("next-day", "sending", Date.parse("2026-08-06T15:00:00Z")),
+      ],
+    );
+
+    const rows = createChatMessageTimelineRows(timeline);
+
+    expect(rows.filter((row) => row.kind === "date-separator").map((row) => row.date.key)).toEqual([
+      "2026-08-06",
+      "2026-08-07",
+    ]);
+    expect(rows.map(({ kind }) => kind)).toEqual([
+      "date-separator",
+      "message",
+      "message",
+      "date-separator",
+      "message",
+    ]);
+  });
+
+  it("삭제된 메시지도 updatedAt이 아닌 원래 createdAt 날짜를 유지한다", () => {
+    const timeline = createChatMessageTimeline(
+      [createDeletedConfirmed("deleted", "2026-08-05T15:00:00Z", "2026-08-07T15:00:00Z")],
+      [],
+    );
+
+    const rows = createChatMessageTimelineRows(timeline);
+
+    expect(rows[0]).toMatchObject({
+      date: { key: "2026-08-06" },
+      kind: "date-separator",
+    });
+  });
+
+  it("유효하지 않은 내부 timestamp는 조용히 잘못된 날짜로 표시하지 않는다", () => {
+    const timeline = createChatMessageTimeline(
+      [],
+      [createOutgoing("invalid-date", "queued", Number.NaN)],
+    );
+
+    expect(() => createChatMessageTimelineRows(timeline)).toThrowError(RangeError);
+  });
+});
+
+function createConfirmed(clientMessageId: string, createdAt = "2026-07-31T00:00:00Z"): ChatMessage {
   return {
     messageId: "message-01",
     roomId: "room-01",
@@ -35,23 +130,45 @@ function createConfirmed(clientMessageId: string): ChatMessage {
     senderUserId: "local-user-1",
     clientMessageId,
     content: "확정 메시지",
-    createdAt: "2026-07-31T00:00:00Z",
+    createdAt,
     deletedAt: null,
     messageVersion: 1,
     state: "ACTIVE",
-    updatedAt: "2026-07-31T00:00:00Z",
+    updatedAt: createdAt,
+  };
+}
+
+function createDeletedConfirmed(
+  clientMessageId: string,
+  createdAt: string,
+  updatedAt: string,
+): ChatMessage {
+  return {
+    messageId: "message-deleted",
+    roomId: "room-01",
+    roomSequence: 2,
+    countable: true,
+    senderUserId: "local-user-1",
+    clientMessageId,
+    content: null,
+    createdAt,
+    deletedAt: updatedAt,
+    messageVersion: 2,
+    state: "DELETED_BY_AUTHOR",
+    updatedAt,
   };
 }
 
 function createOutgoing(
   clientMessageId: string,
   status: ChatOutgoingMessage["status"],
+  enqueuedAt = 1_000,
 ): ChatOutgoingMessage {
   return {
     attempt: status === "queued" ? 0 : 1,
     clientMessageId,
     content: "optimistic 메시지",
-    enqueuedAt: 1_000,
+    enqueuedAt,
     generation: 3,
     message: null,
     retryAt: null,
