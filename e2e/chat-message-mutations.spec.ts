@@ -18,7 +18,10 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
   const originalMessage = `수정 전 메시지 ${uniqueId}`;
   const editedMessage = `수정 후 메시지 ${uniqueId}`;
   const ownerContext = await browser.newContext({ baseURL });
-  const memberContext = await browser.newContext({ baseURL });
+  const memberContext = await browser.newContext({
+    baseURL,
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   const ownerPage = await ownerContext.newPage();
   const memberPage = await memberContext.newPage();
 
@@ -47,6 +50,8 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
         await sendMessage(ownerPage, originalMessage);
         await expectConfirmedMessage(ownerMessageLog, originalMessage);
         await expect(memberMessageLog.getByText(originalMessage, { exact: true })).toBeVisible();
+        await expect(ownerMessageLog.getByRole("separator", { name: "오늘" })).toBeVisible();
+        await expect(memberMessageLog.getByRole("separator", { name: "오늘" })).toBeVisible();
 
         const messageRow = ownerMessageLog.locator("li").filter({ hasText: originalMessage });
         const id = await messageRow.getAttribute("data-client-message-id");
@@ -57,10 +62,41 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
             name: originalMessage,
             exact: true,
           }),
-        ).toHaveCount(0);
+        ).toBeVisible();
 
         return id!;
       });
+
+    await test.step("참여자가 다른 사용자의 메시지를 원문 그대로 복사한다", async () => {
+      await memberMessageLog
+        .getByRole("button", {
+          name: originalMessage,
+          exact: true,
+        })
+        .click();
+
+      const messageActionsDialog = memberPage.getByRole("dialog", { name: "메시지 작업" });
+      await expect(
+        messageActionsDialog.getByRole("button", { name: "복사", exact: true }),
+      ).toBeVisible();
+      await expect(
+        messageActionsDialog.getByRole("button", { name: "수정", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        messageActionsDialog.getByRole("button", { name: "삭제", exact: true }),
+      ).toHaveCount(0);
+
+      await messageActionsDialog.getByRole("button", { name: "복사", exact: true }).click();
+      await expect(messageActionsDialog.getByRole("status")).toHaveText(
+        "메시지를 클립보드에 복사했습니다.",
+      );
+      await expect
+        .poll(() => memberPage.evaluate(() => navigator.clipboard.readText()))
+        .toBe(originalMessage);
+
+      await messageActionsDialog.getByRole("button", { name: "메시지 작업 닫기" }).click();
+      await expect(messageActionsDialog).toHaveCount(0);
+    });
 
     await test.step("공용 Bottom Sheet를 닫아도 composer draft와 trigger focus를 보존한다", async () => {
       const messageInput = ownerPage.locator('textarea[enterkeyhint="send"]');
@@ -76,6 +112,7 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
       const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
       const messageActionsSheet = ownerPage.locator('[data-chat-message-actions-sheet="true"]');
       await expect(messageActionsSheet).toHaveCount(1);
+      await expect(mutationDialog.getByRole("button", { name: "복사", exact: true })).toBeVisible();
       await expect(messageInput).toHaveValue(draftMessage);
 
       const [chatRoomBounds, composerBounds, sheetBounds] = await Promise.all([
@@ -131,7 +168,7 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
           name: editedMessage,
           exact: true,
         }),
-      ).toHaveCount(0);
+      ).toBeVisible();
     });
 
     await test.step("동일 내용 수정은 room event 없이 command result로 pending을 종료한다", async () => {
