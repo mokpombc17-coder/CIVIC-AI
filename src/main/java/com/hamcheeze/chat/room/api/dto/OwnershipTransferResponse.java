@@ -7,8 +7,6 @@ public record OwnershipTransferResponse(
         RoomCommandResultCode code,
         boolean replayed,
         String roomId,
-        String previousOwnerUserId,
-        String newOwnerUserId,
         String previousOwnerMembershipId,
         String newOwnerMembershipId,
         long roomVersion,

@@ -307,7 +307,8 @@ class RoomCommandServiceIntegrationTest
                 "owner-b",
                 requestId(),
                 secondTarget,
-                "quota-user")).result().code())
+                membership(secondTarget, "quota-user")
+                        .membershipId())).result().code())
                 .isEqualTo(RoomCommandResultCode.BANNED);
         assertThat(service.joinRoom(new JoinRoomCommand(
                 "quota-user",
@@ -318,7 +319,8 @@ class RoomCommandServiceIntegrationTest
                 "owner-b",
                 requestId(),
                 secondTarget,
-                "quota-user")).result().code())
+                membership(secondTarget, "quota-user")
+                        .membershipId())).result().code())
                 .isEqualTo(RoomCommandResultCode.UNBANNED);
         assertThat(membership(secondTarget, "quota-user").status())
                 .isEqualTo(MembershipStatus.LEFT);
@@ -640,7 +642,10 @@ class RoomCommandServiceIntegrationTest
         Membership active = membership(roomId, "user-2");
         appendMessages(roomId, "owner-1", 1);
         service.banMember(new BanMemberCommand(
-                "owner-1", requestId(), roomId, "user-2"));
+                "owner-1",
+                requestId(),
+                roomId,
+                active.membershipId()));
         Membership banned = membership(roomId, "user-2");
 
         readStateStore.advance(
@@ -735,31 +740,33 @@ class RoomCommandServiceIntegrationTest
                 "user-2",
                 requestId(),
                 roomId));
+        String targetMembershipId =
+                membership(roomId, "user-2").membershipId();
 
         RoomCommandExecution banned = service.banMember(
                 new BanMemberCommand(
                         "owner-1",
                         requestId(),
                         roomId,
-                        "user-2"));
+                        targetMembershipId));
         RoomCommandExecution alreadyBanned = service.banMember(
                 new BanMemberCommand(
                         "owner-1",
                         requestId(),
                         roomId,
-                        "user-2"));
+                        targetMembershipId));
         RoomCommandExecution unbanned = service.unbanMember(
                 new UnbanMemberCommand(
                         "owner-1",
                         requestId(),
                         roomId,
-                        "user-2"));
+                        targetMembershipId));
         RoomCommandExecution alreadyUnbanned = service.unbanMember(
                 new UnbanMemberCommand(
                         "owner-1",
                         requestId(),
                         roomId,
-                        "user-2"));
+                        targetMembershipId));
 
         assertThat(banned.result().code())
                 .isEqualTo(RoomCommandResultCode.BANNED);
@@ -781,6 +788,8 @@ class RoomCommandServiceIntegrationTest
                 "user-2",
                 requestId(),
                 roomId));
+        String targetMembershipId =
+                membership(roomId, "user-2").membershipId();
 
         RoomCommandExecution transferred =
                 service.transferOwnership(
@@ -788,7 +797,7 @@ class RoomCommandServiceIntegrationTest
                                 "owner-1",
                                 requestId(),
                                 roomId,
-                                "user-2"));
+                                targetMembershipId));
         service.leaveRoom(new LeaveRoomCommand(
                 "owner-1",
                 requestId(),
@@ -837,14 +846,12 @@ class RoomCommandServiceIntegrationTest
                         "owner-1",
                         requestId(),
                         roomId,
-                        null,
                         targetMembershipId));
         RoomCommandExecution unbanned = service.unbanMember(
                 new UnbanMemberCommand(
                         "owner-1",
                         requestId(),
                         roomId,
-                        null,
                         targetMembershipId));
         service.joinRoom(new JoinRoomCommand(
                 "user-2",
@@ -856,7 +863,6 @@ class RoomCommandServiceIntegrationTest
                                 "owner-1",
                                 requestId(),
                                 roomId,
-                                null,
                                 targetMembershipId));
 
         assertThat(banned.result().targetMembershipId())
@@ -884,7 +890,6 @@ class RoomCommandServiceIntegrationTest
                         "owner-1",
                         requestId(),
                         roomId,
-                        null,
                         anotherMembershipId));
 
         assertThat(execution.result().code()).isEqualTo(
@@ -896,6 +901,8 @@ class RoomCommandServiceIntegrationTest
     @Test
     void transferPrioritizesRoomStateAndRequesterBeforeTargetLookup() {
         String activeRoom = roomWithActiveMember();
+        String activeMembershipId =
+                membership(activeRoom, "user-2").membershipId();
         String missingRequestId = requestId();
         assertRejectionReplay(
                 activeRoom,
@@ -905,7 +912,7 @@ class RoomCommandServiceIntegrationTest
                                 "non-owner",
                                 missingRequestId,
                                 activeRoom,
-                                "missing-user")));
+                                "missing-membership")));
         String existingRequestId = requestId();
         assertRejectionReplay(
                 activeRoom,
@@ -915,9 +922,11 @@ class RoomCommandServiceIntegrationTest
                                 "non-owner",
                                 existingRequestId,
                                 activeRoom,
-                                "user-2")));
+                                activeMembershipId)));
 
         String closedRoom = closedRoomWithFormerMember();
+        String closedMembershipId =
+                membership(closedRoom, "user-2").membershipId();
         String closedMissingRequestId = requestId();
         assertRejectionReplay(
                 closedRoom,
@@ -927,7 +936,7 @@ class RoomCommandServiceIntegrationTest
                                 "owner-2",
                                 closedMissingRequestId,
                                 closedRoom,
-                                "missing-user")));
+                                "missing-membership")));
         String closedExistingRequestId = requestId();
         assertRejectionReplay(
                 closedRoom,
@@ -937,12 +946,14 @@ class RoomCommandServiceIntegrationTest
                                 "owner-2",
                                 closedExistingRequestId,
                                 closedRoom,
-                                "user-2")));
+                                closedMembershipId)));
     }
 
     @Test
     void banPrioritizesRoomStateAndRequesterBeforeTargetLookup() {
         String activeRoom = roomWithActiveMember();
+        String activeMembershipId =
+                membership(activeRoom, "user-2").membershipId();
         String missingRequestId = requestId();
         assertRejectionReplay(
                 activeRoom,
@@ -951,7 +962,7 @@ class RoomCommandServiceIntegrationTest
                         "non-owner",
                         missingRequestId,
                         activeRoom,
-                        "missing-user")));
+                        "missing-membership")));
         String existingRequestId = requestId();
         assertRejectionReplay(
                 activeRoom,
@@ -960,9 +971,11 @@ class RoomCommandServiceIntegrationTest
                         "non-owner",
                         existingRequestId,
                         activeRoom,
-                        "user-2")));
+                        activeMembershipId)));
 
         String closedRoom = closedRoomWithFormerMember();
+        String closedMembershipId =
+                membership(closedRoom, "user-2").membershipId();
         String closedMissingRequestId = requestId();
         assertRejectionReplay(
                 closedRoom,
@@ -971,7 +984,7 @@ class RoomCommandServiceIntegrationTest
                         "owner-2",
                         closedMissingRequestId,
                         closedRoom,
-                        "missing-user")));
+                        "missing-membership")));
         String closedExistingRequestId = requestId();
         assertRejectionReplay(
                 closedRoom,
@@ -980,12 +993,14 @@ class RoomCommandServiceIntegrationTest
                         "owner-2",
                         closedExistingRequestId,
                         closedRoom,
-                        "user-2")));
+                        closedMembershipId)));
     }
 
     @Test
     void unbanPrioritizesRoomStateAndRequesterBeforeTargetLookup() {
         String activeRoom = roomWithActiveMember();
+        String activeMembershipId =
+                membership(activeRoom, "user-2").membershipId();
         String missingRequestId = requestId();
         assertRejectionReplay(
                 activeRoom,
@@ -994,7 +1009,7 @@ class RoomCommandServiceIntegrationTest
                         "non-owner",
                         missingRequestId,
                         activeRoom,
-                        "missing-user")));
+                        "missing-membership")));
         String existingRequestId = requestId();
         assertRejectionReplay(
                 activeRoom,
@@ -1003,9 +1018,11 @@ class RoomCommandServiceIntegrationTest
                         "non-owner",
                         existingRequestId,
                         activeRoom,
-                        "user-2")));
+                        activeMembershipId)));
 
         String closedRoom = closedRoomWithFormerMember();
+        String closedMembershipId =
+                membership(closedRoom, "user-2").membershipId();
         String closedMissingRequestId = requestId();
         assertRejectionReplay(
                 closedRoom,
@@ -1014,7 +1031,7 @@ class RoomCommandServiceIntegrationTest
                         "owner-2",
                         closedMissingRequestId,
                         closedRoom,
-                        "missing-user")));
+                        "missing-membership")));
         String closedExistingRequestId = requestId();
         assertRejectionReplay(
                 closedRoom,
@@ -1023,7 +1040,7 @@ class RoomCommandServiceIntegrationTest
                         "owner-2",
                         closedExistingRequestId,
                         closedRoom,
-                        "user-2")));
+                        closedMembershipId)));
     }
 
     @Test
@@ -1201,7 +1218,7 @@ class RoomCommandServiceIntegrationTest
                 "owner-1",
                 requestId(),
                 roomId,
-                "member-2"));
+                membership(roomId, "member-2").membershipId()));
         assertThat(roomStore.findById(roomId).orElseThrow()
                 .activeMemberCount()).isEqualTo(49);
         assertThat(service.joinRoom(new JoinRoomCommand(
@@ -1219,7 +1236,7 @@ class RoomCommandServiceIntegrationTest
                 "owner-1",
                 requestId(),
                 roomId,
-                "member-2"));
+                membership(roomId, "member-2").membershipId()));
         assertThat(roomStore.findById(roomId).orElseThrow()
                 .activeMemberCount()).isEqualTo(50);
         assertThat(membership(roomId, "member-2").status())
@@ -1378,7 +1395,8 @@ class RoomCommandServiceIntegrationTest
                     "owner-1",
                     requestId(),
                     roomId,
-                    "member-2"));
+                    membership(roomId, "member-2")
+                            .membershipId()));
             assertThat(roomStore.findById(roomId).orElseThrow()
                     .activeMemberCount()).isEqualTo(3);
             assertThat(service.joinRoom(new JoinRoomCommand(
@@ -1461,6 +1479,10 @@ class RoomCommandServiceIntegrationTest
                 "user-3",
                 requestId(),
                 roomId));
+        String user2MembershipId =
+                membership(roomId, "user-2").membershipId();
+        String user3MembershipId =
+                membership(roomId, "user-3").membershipId();
 
         concurrently(
                 () -> service.transferOwnership(
@@ -1468,13 +1490,13 @@ class RoomCommandServiceIntegrationTest
                                 "owner-1",
                                 requestId(),
                                 roomId,
-                                "user-2")),
+                                user2MembershipId)),
                 () -> service.transferOwnership(
                         new TransferOwnershipCommand(
                                 "owner-1",
                                 requestId(),
                                 roomId,
-                                "user-3")));
+                                user3MembershipId)));
         assertRoomInvariants(roomId);
 
         Room room = roomStore.findById(roomId).orElseThrow();
@@ -1482,12 +1504,14 @@ class RoomCommandServiceIntegrationTest
         String target = owner.equals("user-2")
                 ? "user-3"
                 : "user-2";
+        String targetMembershipId =
+                membership(roomId, target).membershipId();
         concurrently(
                 () -> service.banMember(new BanMemberCommand(
                         owner,
                         requestId(),
                         roomId,
-                        target)),
+                        targetMembershipId)),
                 () -> service.leaveRoom(new LeaveRoomCommand(
                         target,
                         requestId(),
@@ -1548,13 +1572,15 @@ class RoomCommandServiceIntegrationTest
                 "user-2",
                 requestId(),
                 leaveRoom));
+        String leaveTargetMembershipId =
+                membership(leaveRoom, "user-2").membershipId();
         concurrently(
                 () -> service.transferOwnership(
                         new TransferOwnershipCommand(
                                 "owner-1",
                                 requestId(),
                                 leaveRoom,
-                                "user-2")),
+                                leaveTargetMembershipId)),
                 () -> service.leaveRoom(new LeaveRoomCommand(
                         "user-2",
                         requestId(),
@@ -1566,18 +1592,20 @@ class RoomCommandServiceIntegrationTest
                 "user-4",
                 requestId(),
                 banRoom));
+        String banTargetMembershipId =
+                membership(banRoom, "user-4").membershipId();
         concurrently(
                 () -> service.transferOwnership(
                         new TransferOwnershipCommand(
                                 "owner-3",
                                 requestId(),
                                 banRoom,
-                                "user-4")),
+                                banTargetMembershipId)),
                 () -> service.banMember(new BanMemberCommand(
                         "owner-3",
                         requestId(),
                         banRoom,
-                        "user-4")));
+                        banTargetMembershipId)));
         assertRoomInvariants(banRoom);
     }
 
@@ -1593,13 +1621,15 @@ class RoomCommandServiceIntegrationTest
                 "user-2",
                 requestId(),
                 roomId));
+        String targetMembershipId =
+                membership(roomId, "user-2").membershipId();
 
         concurrently(
                 () -> service.banMember(new BanMemberCommand(
                         "owner-1",
                         requestId(),
                         roomId,
-                        "user-2")),
+                        targetMembershipId)),
                 () -> service.joinRoom(new JoinRoomCommand(
                         "user-2",
                         requestId(),

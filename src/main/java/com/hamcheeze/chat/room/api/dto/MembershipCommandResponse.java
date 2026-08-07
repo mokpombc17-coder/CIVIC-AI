@@ -8,7 +8,6 @@ public record MembershipCommandResponse(
         boolean replayed,
         String roomId,
         String membershipId,
-        String membershipUserId,
         long roomVersion,
         long membershipVersion
 ) {

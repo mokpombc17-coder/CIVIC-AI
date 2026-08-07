@@ -266,14 +266,25 @@ class RoomAccessAuthorizationRaceIntegrationTest
                 .result()
                 .roomId();
         if (change == AccessChange.CLOSE) {
-            return new RaceContext(roomId, ownerUserId, ownerUserId);
+            return new RaceContext(
+                    roomId,
+                    ownerUserId,
+                    ownerUserId,
+                    null);
         }
         String memberUserId = "member-" + UUID.randomUUID();
-        commandService.joinRoom(new JoinRoomCommand(
+        String memberMembershipId = commandService.joinRoom(
+                        new JoinRoomCommand(
+                                memberUserId,
+                                uuid(),
+                                roomId))
+                .result()
+                .membershipId();
+        return new RaceContext(
+                roomId,
+                ownerUserId,
                 memberUserId,
-                uuid(),
-                roomId));
-        return new RaceContext(roomId, ownerUserId, memberUserId);
+                memberMembershipId);
     }
 
     private void applyChange(
@@ -291,7 +302,7 @@ class RoomAccessAuthorizationRaceIntegrationTest
                             context.ownerUserId(),
                             uuid(),
                             context.roomId(),
-                            context.userId()));
+                            context.membershipId()));
             case CLOSE -> commandService.closeRoom(
                     new CloseRoomCommand(
                             context.ownerUserId(),
@@ -364,7 +375,8 @@ class RoomAccessAuthorizationRaceIntegrationTest
     private record RaceContext(
             String roomId,
             String ownerUserId,
-            String userId
+            String userId,
+            String membershipId
     ) {
     }
 

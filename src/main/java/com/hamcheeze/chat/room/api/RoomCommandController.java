@@ -132,7 +132,6 @@ public class RoomCommandController {
                         idempotencyKeyResolver.resolve(
                                 idempotencyKey),
                         RoomApiValidation.roomId(roomId),
-                        request.targetUserId(),
                         request.targetMembershipId())));
     }
 
@@ -150,7 +149,6 @@ public class RoomCommandController {
                 userIdResolver.resolve(authentication),
                 idempotencyKeyResolver.resolve(idempotencyKey),
                 RoomApiValidation.roomId(roomId),
-                request.targetUserId(),
                 request.targetMembershipId())));
     }
 
@@ -170,7 +168,6 @@ public class RoomCommandController {
                         idempotencyKeyResolver.resolve(
                                 idempotencyKey),
                         RoomApiValidation.roomId(roomId),
-                        request.targetUserId(),
                         request.targetMembershipId())));
     }
 

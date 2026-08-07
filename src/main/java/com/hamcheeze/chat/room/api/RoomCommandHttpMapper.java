@@ -33,7 +33,6 @@ public final class RoomCommandHttpMapper {
                     execution.replayed(),
                     result.roomId(),
                     result.ownerMembershipId(),
-                    result.ownerUserId(),
                     result.roomVersion(),
                     result.ownerMembershipVersion());
             case JOIN_ROOM, LEAVE_ROOM ->
@@ -43,7 +42,6 @@ public final class RoomCommandHttpMapper {
                             execution.replayed(),
                             result.roomId(),
                             result.membershipId(),
-                            result.membershipUserId(),
                             result.roomVersion(),
                             result.membershipVersion());
             case TRANSFER_OWNERSHIP ->
@@ -52,8 +50,6 @@ public final class RoomCommandHttpMapper {
                             result.code(),
                             execution.replayed(),
                             result.roomId(),
-                            result.previousOwnerUserId(),
-                            result.newOwnerUserId(),
                             result.previousOwnerMembershipId(),
                             result.newOwnerMembershipId(),
                             result.roomVersion(),
@@ -65,7 +61,6 @@ public final class RoomCommandHttpMapper {
                             result.code(),
                             execution.replayed(),
                             result.roomId(),
-                            result.targetUserId(),
                             result.targetMembershipId(),
                             result.roomVersion(),
                             result.membershipVersion());
@@ -75,7 +70,6 @@ public final class RoomCommandHttpMapper {
                     execution.replayed(),
                     result.roomId(),
                     result.ownerMembershipId(),
-                    result.ownerUserId(),
                     result.roomVersion(),
                     result.ownerMembershipVersion());
             case UPDATE_ROOM_SETTINGS ->

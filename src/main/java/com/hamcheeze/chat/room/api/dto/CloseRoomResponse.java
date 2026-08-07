@@ -8,7 +8,6 @@ public record CloseRoomResponse(
         boolean replayed,
         String roomId,
         String ownerMembershipId,
-        String ownerUserId,
         long roomVersion,
         long ownerMembershipVersion
 ) {

@@ -134,8 +134,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 "/api/v1/rooms/")))
                 .andExpect(jsonPath("$.code")
                         .value("ROOM_CREATED"))
-                .andExpect(jsonPath("$.ownerUserId")
-                        .value("owner-1"))
+                .andExpect(jsonPath("$.ownerMembershipId").isString())
+                .andExpect(jsonPath("$.ownerUserId").doesNotExist())
                 .andExpect(jsonPath("$.clientRequestId")
                         .value(uppercaseKey.toLowerCase(Locale.ROOT)))
                 .andExpect(jsonPath("$.replayed").value(false))
@@ -220,6 +220,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value("Initial description"))
                 .andExpect(jsonPath("$.ownerMembershipId")
                         .value(ownerMembershipId))
+                .andExpect(jsonPath("$.ownerUserId").doesNotExist())
+                .andExpect(jsonPath("$.myMembership.userId")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.categories[0]")
                         .value("POLICY"));
         mockMvc.perform(get("/api/v1/me/rooms")
@@ -230,6 +233,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value("Initial description"))
                 .andExpect(jsonPath("$.items[0].ownerMembershipId")
                         .value(ownerMembershipId))
+                .andExpect(jsonPath("$.items[0].ownerUserId")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.items[0].categories[0]")
                         .value("POLICY"));
         mockMvc.perform(get("/api/v1/rooms")
@@ -240,6 +245,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value("Initial description"))
                 .andExpect(jsonPath("$.items[0].ownerMembershipId")
                         .value(ownerMembershipId))
+                .andExpect(jsonPath("$.items[0].ownerUserId")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.items[0].categories[0]")
                         .value("POLICY"));
         MvcResult inboxBeforeUpdate = mockMvc.perform(
@@ -249,6 +256,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].ownerMembershipId")
                         .value(ownerMembershipId))
+                .andExpect(jsonPath("$.items[0].ownerUserId")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.items[0].categories[0]")
                         .value("POLICY"))
                 .andReturn();
@@ -598,6 +607,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .header("Idempotency-Key", requestId()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value("JOINED"))
+                .andExpect(jsonPath("$.membershipUserId")
+                        .doesNotExist())
                 .andReturn();
         String targetMembershipId =
                 jsonString(joined, "membershipId");
@@ -620,7 +631,11 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .content("{\"targetMembershipId\":\""
                                 + targetMembershipId + "\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value("BANNED"));
+                .andExpect(jsonPath("$.code").value("BANNED"))
+                .andExpect(jsonPath("$.targetMembershipId")
+                        .value(targetMembershipId))
+                .andExpect(jsonPath("$.targetUserId")
+                        .doesNotExist());
         mockMvc.perform(post(
                                 "/api/v1/rooms/{roomId}"
                                         + "/commands/ban-member",
@@ -703,7 +718,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value("CLOSED"));
+                .andExpect(jsonPath("$.code").value("CLOSED"))
+                .andExpect(jsonPath("$.ownerUserId").doesNotExist());
         mockMvc.perform(post("/api/v1/rooms/{roomId}/commands/close",
                                 roomId)
                         .with(jwt().jwt(jwt ->
@@ -715,7 +731,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
-    void targetCommandsRequireExactlyOneNonBlankTargetIdentity()
+    void targetCommandsRequireNonBlankMembershipId()
             throws Exception {
         String roomId = createRoom("owner-1", JoinPolicy.OPEN);
         for (String command : new String[]{
@@ -725,9 +741,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
             for (String body : new String[]{
                     "{}",
                     "{\"targetMembershipId\":\" \"}",
-                    "{\"targetUserId\":\"user-2\","
-                            + "\"targetMembershipId\":"
-                            + "\"membership-2\"}"}) {
+                    "{\"targetUserId\":\"user-2\"}"}) {
                 mockMvc.perform(post(
                                         "/api/v1/rooms/{roomId}"
                                                 + "/commands/{command}",
@@ -773,10 +787,12 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code")
                         .value("OWNERSHIP_TRANSFERRED"))
-                .andExpect(jsonPath("$.newOwnerUserId")
-                        .value("user-2"))
                 .andExpect(jsonPath("$.newOwnerMembershipId")
-                        .value(targetMembershipId));
+                        .value(targetMembershipId))
+                .andExpect(jsonPath("$.previousOwnerUserId")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.newOwnerUserId")
+                        .doesNotExist());
         mockMvc.perform(post(
                                 "/api/v1/rooms/{roomId}"
                                         + "/commands/transfer-ownership",
@@ -786,9 +802,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetUserId\":\"user-2\"}"))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code")
-                        .value("NOT_ROOM_OWNER"));
+                        .value("INVALID_REQUEST"));
         mockMvc.perform(post(
                                 "/api/v1/rooms/{roomId}"
                                         + "/commands/transfer-ownership",
@@ -797,7 +813,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("user-2")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"missing\"}"))
+                        .content("{\"targetMembershipId\":"
+                                + "\"missing\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code")
                         .value("TARGET_MEMBERSHIP_NOT_FOUND"));
@@ -809,7 +826,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"missing\"}"))
+                        .content("{\"targetMembershipId\":"
+                                + "\"missing\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code")
                         .value("NOT_ROOM_OWNER"));
@@ -821,7 +839,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("user-2")))
                         .header("Idempotency-Key", requestId())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"targetUserId\":\"missing\"}"))
+                        .content("{\"targetMembershipId\":"
+                                + "\"missing\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code")
                         .value("TARGET_MEMBERSHIP_NOT_FOUND"));
@@ -957,15 +976,16 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 "user-2",
                 requestId(),
                 roomId));
-        commandService.joinRoom(new JoinRoomCommand(
+        String user3MembershipId = commandService.joinRoom(
+                new JoinRoomCommand(
                 "user-3",
                 requestId(),
-                roomId));
+                roomId)).result().membershipId();
         commandService.banMember(new BanMemberCommand(
                 "owner-1",
                 requestId(),
                 roomId,
-                "user-3"));
+                user3MembershipId));
 
         mockMvc.perform(get("/api/v1/rooms/{roomId}", roomId)
                         .with(jwt().jwt(jwt ->
@@ -979,8 +999,10 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value("ACTIVE"))
                 .andExpect(jsonPath("$.name")
                         .value("Test room"))
+                .andExpect(jsonPath("$.myMembership.membershipId")
+                        .isString())
                 .andExpect(jsonPath("$.myMembership.userId")
-                        .value("user-2"));
+                        .doesNotExist());
         mockMvc.perform(get(
                                 "/api/v1/rooms/{roomId}/memberships/me",
                                 roomId)
@@ -1046,8 +1068,10 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("owner-1")))
                         .queryParam("status", "BANNED"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].membershipId")
+                        .value(user3MembershipId))
                 .andExpect(jsonPath("$.items[0].userId")
-                        .value("user-3"));
+                        .doesNotExist());
         mockMvc.perform(get("/api/v1/me/rooms")
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("user-2")))
@@ -1119,16 +1143,17 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
         String leftRoom = createRoom("owner-b", JoinPolicy.OPEN);
         String bannedRoom = createRoom("owner-c", JoinPolicy.OPEN);
         String closedRoom = createRoom("owner-d", JoinPolicy.OPEN);
-        for (String roomId : new String[]{
-                activeRoom,
-                leftRoom,
-                bannedRoom,
-                closedRoom}) {
-            commandService.joinRoom(new JoinRoomCommand(
-                    "user-1",
-                    requestId(),
-                    roomId));
-        }
+        commandService.joinRoom(new JoinRoomCommand(
+                "user-1", requestId(), activeRoom));
+        commandService.joinRoom(new JoinRoomCommand(
+                "user-1", requestId(), leftRoom));
+        String bannedMembershipId = commandService.joinRoom(
+                new JoinRoomCommand(
+                        "user-1",
+                        requestId(),
+                        bannedRoom)).result().membershipId();
+        commandService.joinRoom(new JoinRoomCommand(
+                "user-1", requestId(), closedRoom));
         commandService.leaveRoom(new LeaveRoomCommand(
                 "user-1",
                 requestId(),
@@ -1137,7 +1162,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 "owner-c",
                 requestId(),
                 bannedRoom,
-                "user-1"));
+                bannedMembershipId));
         commandService.leaveRoom(new LeaveRoomCommand(
                 "user-1",
                 requestId(),

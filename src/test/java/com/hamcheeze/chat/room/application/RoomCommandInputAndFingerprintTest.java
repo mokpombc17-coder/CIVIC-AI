@@ -62,7 +62,7 @@ class RoomCommandInputAndFingerprintTest {
                 "user-1",
                 REQUEST_ID,
                 " ",
-                "user-2"))
+                "membership-2"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new BanMemberCommand(
                 "user-1",
@@ -74,7 +74,7 @@ class RoomCommandInputAndFingerprintTest {
                 null,
                 REQUEST_ID,
                 "room-1",
-                "user-2"))
+                "membership-2"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new CloseRoomCommand(
                 "user-1",
@@ -93,46 +93,40 @@ class RoomCommandInputAndFingerprintTest {
     }
 
     @Test
-    void targetCommandsRequireExactlyOneTargetIdentity() {
+    void targetCommandsRequireMembershipId() {
         assertThatThrownBy(() -> new TransferOwnershipCommand(
                 "user-1",
                 REQUEST_ID,
                 "room-1",
-                null,
                 null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new BanMemberCommand(
                 "user-1",
                 REQUEST_ID,
                 "room-1",
-                "user-2",
-                "membership-2"))
+                " "))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new UnbanMemberCommand(
                 "user-1",
                 REQUEST_ID,
                 "room-1",
-                null,
                 " ")).isInstanceOf(IllegalArgumentException.class);
 
         assertThat(new TransferOwnershipCommand(
                 "user-1",
                 REQUEST_ID,
                 "room-1",
-                null,
                 "membership-2").targetMembershipId())
                 .isEqualTo("membership-2");
         assertThat(new BanMemberCommand(
                 "user-1",
                 REQUEST_ID,
                 "room-1",
-                null,
                 "membership-2").targetMembershipId())
                 .isEqualTo("membership-2");
         assertThat(new UnbanMemberCommand(
                 "user-1",
                 REQUEST_ID,
                 "room-1",
-                null,
                 "membership-2").targetMembershipId())
                 .isEqualTo("membership-2");
     }
@@ -196,25 +190,18 @@ class RoomCommandInputAndFingerprintTest {
                 "user-1",
                 REQUEST_ID,
                 "room-2"));
-        String transferUser2 = fingerprints.create(
-                new TransferOwnershipCommand(
-                        "user-1",
-                        REQUEST_ID,
-                        "room-1",
-                        "user-2"));
-        String transferUser3 = fingerprints.create(
-                new TransferOwnershipCommand(
-                        "user-1",
-                        REQUEST_ID,
-                        "room-1",
-                        "user-3"));
         String transferMembership2 = fingerprints.create(
                 new TransferOwnershipCommand(
                         "user-1",
                         REQUEST_ID,
                         "room-1",
-                        null,
                         "membership-2"));
+        String transferMembership3 = fingerprints.create(
+                new TransferOwnershipCommand(
+                        "user-1",
+                        REQUEST_ID,
+                        "room-1",
+                        "membership-3"));
         String listed = fingerprints.create(new CreateRoomCommand(
                 "user-1",
                 REQUEST_ID,
@@ -255,9 +242,8 @@ class RoomCommandInputAndFingerprintTest {
                 join,
                 leave,
                 anotherRoom,
-                transferUser2,
-                transferUser3,
                 transferMembership2,
+                transferMembership3,
                 listed,
                 unlisted,
                 anotherName,
@@ -469,17 +455,17 @@ class RoomCommandInputAndFingerprintTest {
                         "user-1",
                         requestId,
                         "room-1",
-                        "user-2"),
+                        "membership-2"),
                 new BanMemberCommand(
                         "user-1",
                         requestId,
                         "room-1",
-                        "user-2"),
+                        "membership-2"),
                 new UnbanMemberCommand(
                         "user-1",
                         requestId,
                         "room-1",
-                        "user-2"),
+                        "membership-2"),
                 new CloseRoomCommand(
                         "user-1",
                         requestId,

@@ -165,13 +165,17 @@ class RoomCommandRevocationIntegrationTest
     void banFailureReplaysReceiptAndRetriesRevocation() {
         String roomId = createRoom("owner-1");
         join(roomId, "user-2");
+        String targetMembershipId = memberships
+                .findByRoomIdAndUserId(roomId, "user-2")
+                .orElseThrow()
+                .membershipId();
         clearInvocations(eventDeliveryPort);
         String requestId = uuid();
         BanMemberCommand command = new BanMemberCommand(
                 "owner-1",
                 requestId,
                 roomId,
-                "user-2");
+                targetMembershipId);
         failThenSucceedUser(
                 "user-2",
                 roomId,
@@ -311,6 +315,10 @@ class RoomCommandRevocationIntegrationTest
             throws Exception {
         String roomId = createRoom("owner-1");
         join(roomId, "user-2");
+        String targetMembershipId = memberships
+                .findByRoomIdAndUserId(roomId, "user-2")
+                .orElseThrow()
+                .membershipId();
         String staleConnectionId = "stale-" + uuid();
         String currentConnectionId = "current-" + uuid();
         WebSocketSession staleSession = failingThenSucceedingSession(
@@ -330,7 +338,7 @@ class RoomCommandRevocationIntegrationTest
                 "owner-1",
                 requestId,
                 roomId,
-                "user-2");
+                targetMembershipId);
         doThrow(new IllegalStateException("access snapshot unavailable"))
                 .when(accessReader)
                 .readAccess("user-2", roomId);

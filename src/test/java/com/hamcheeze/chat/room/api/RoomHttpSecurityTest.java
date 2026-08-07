@@ -77,8 +77,8 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody()))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ownerUserId")
-                        .value("jwt-user"));
+                .andExpect(jsonPath("$.ownerMembershipId").isString())
+                .andExpect(jsonPath("$.ownerUserId").doesNotExist());
 
         mockMvc.perform(post("/api/v1/rooms")
                         .with(jwt().jwt(jwt ->
@@ -226,8 +226,8 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody()))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ownerUserId")
-                        .value("local-user-1"));
+                .andExpect(jsonPath("$.ownerMembershipId").isString())
+                .andExpect(jsonPath("$.ownerUserId").doesNotExist());
     }
 
     @Test

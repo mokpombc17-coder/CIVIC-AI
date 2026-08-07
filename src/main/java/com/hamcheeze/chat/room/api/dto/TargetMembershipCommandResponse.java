@@ -7,7 +7,6 @@ public record TargetMembershipCommandResponse(
         RoomCommandResultCode code,
         boolean replayed,
         String roomId,
-        String targetUserId,
         String targetMembershipId,
         long roomVersion,
         long membershipVersion

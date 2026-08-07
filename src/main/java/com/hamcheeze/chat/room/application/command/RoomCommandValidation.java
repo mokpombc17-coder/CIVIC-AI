@@ -23,26 +23,6 @@ final class RoomCommandValidation {
         return RoomClientRequestId.canonicalize(value);
     }
 
-    static void requireExactlyOneTargetIdentity(
-            String targetUserId,
-            String targetMembershipId
-    ) {
-        if (targetUserId != null && targetUserId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "targetUserId must not be blank");
-        }
-        if (targetMembershipId != null
-                && targetMembershipId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "targetMembershipId must not be blank");
-        }
-        if ((targetUserId != null) == (targetMembershipId != null)) {
-            throw new IllegalArgumentException(
-                    "exactly one of targetUserId or "
-                            + "targetMembershipId must be provided");
-        }
-    }
-
     static String roomName(String value) {
         String canonical = requireNonBlank(value, "name").trim();
         if (canonical.length() > Room.MAX_NAME_LENGTH) {

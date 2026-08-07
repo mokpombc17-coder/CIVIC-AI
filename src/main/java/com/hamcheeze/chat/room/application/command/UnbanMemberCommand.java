@@ -6,24 +6,8 @@ public record UnbanMemberCommand(
         String requesterUserId,
         String clientRequestId,
         String roomId,
-        String targetUserId,
         String targetMembershipId
 ) implements RoomCommand {
-
-    public UnbanMemberCommand(
-            String requesterUserId,
-            String clientRequestId,
-            String roomId,
-            String targetUserId
-    ) {
-        this(
-                requesterUserId,
-                clientRequestId,
-                roomId,
-                targetUserId,
-                null);
-    }
-
     public UnbanMemberCommand {
         requesterUserId = RoomCommandValidation.requireNonBlank(
                 requesterUserId,
@@ -33,9 +17,9 @@ public record UnbanMemberCommand(
         roomId = RoomCommandValidation.requireNonBlank(
                 roomId,
                 "roomId");
-        RoomCommandValidation.requireExactlyOneTargetIdentity(
-                targetUserId,
-                targetMembershipId);
+        targetMembershipId = RoomCommandValidation.requireNonBlank(
+                targetMembershipId,
+                "targetMembershipId");
     }
 
     @Override

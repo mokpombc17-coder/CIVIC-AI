@@ -8,7 +8,6 @@ import java.time.Instant;
 
 public record RoomMemberResponse(
         String membershipId,
-        String userId,
         MembershipRole role,
         MembershipStatus status,
         Instant joinedAt,
@@ -20,7 +19,6 @@ public record RoomMemberResponse(
     public static RoomMemberResponse from(RoomMemberView view) {
         return new RoomMemberResponse(
                 view.membershipId(),
-                view.userId(),
                 view.role(),
                 view.status(),
                 view.joinedAt(),

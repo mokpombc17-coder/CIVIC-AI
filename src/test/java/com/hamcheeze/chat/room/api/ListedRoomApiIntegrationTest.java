@@ -94,6 +94,8 @@ class ListedRoomApiIntegrationTest
                         .value("Alpha"))
                 .andExpect(jsonPath("$.items[0].ownerMembershipId")
                         .value("membership-owner-room-a"))
+                .andExpect(jsonPath("$.items[0].ownerUserId")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.items[0].description")
                         .value("Description room-a"))
                 .andExpect(jsonPath("$.items[0].categories[0]")

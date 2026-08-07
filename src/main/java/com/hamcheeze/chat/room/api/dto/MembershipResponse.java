@@ -9,7 +9,6 @@ import java.time.Instant;
 public record MembershipResponse(
         String membershipId,
         String roomId,
-        String userId,
         MembershipRole role,
         MembershipStatus status,
         Instant joinedAt,
@@ -22,7 +21,6 @@ public record MembershipResponse(
         return new MembershipResponse(
                 view.membershipId(),
                 view.roomId(),
-                view.userId(),
                 view.role(),
                 view.status(),
                 view.joinedAt(),

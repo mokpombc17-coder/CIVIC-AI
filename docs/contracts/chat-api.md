@@ -245,7 +245,6 @@ C0 제어문자는 허용하지 않는다. Markdown 또는 HTML 렌더링 의미
   "replayed": false,
   "roomId": "room-01",
   "ownerMembershipId": "membership-01",
-  "ownerUserId": "local-user-1",
   "roomVersion": 1,
   "ownerMembershipVersion": 1
 }
@@ -402,7 +401,6 @@ backfill이나 감소 operation의 counter 갱신은 필요 없다.
   "replayed": false,
   "roomId": "room-01",
   "membershipId": "membership-02",
-  "membershipUserId": "local-user-2",
   "roomVersion": 2,
   "membershipVersion": 1
 }
@@ -459,11 +457,9 @@ Idempotency-Key: <uuid>
 }
 ```
 
-Room 명령 대상 identity의 additive 전환 기간에는
-`targetMembershipId`와 기존 `targetUserId` 중 정확히 하나를 공백이 아닌
-문자열로 전달한다. 둘 다 누락하거나 동시에 전달하면
-`400 INVALID_REQUEST`다. 신규 클라이언트는 `targetMembershipId`를 사용한다.
-서버는 Membership에서 내부 `userId`를 해석하며 다른 Room의
+`targetMembershipId`는 공백이 아닌 필수 문자열이다. `targetUserId`는 더 이상
+Room 명령 대상 계약으로 지원하지 않으며 `targetMembershipId`가 누락된 요청은
+`400 INVALID_REQUEST`다. 서버는 Membership에서 내부 `userId`를 해석하며 다른 Room의
 `targetMembershipId`는 `TARGET_MEMBERSHIP_NOT_FOUND`로 처리한다.
 
 응답 `200 OK`:
@@ -474,8 +470,6 @@ Room 명령 대상 identity의 additive 전환 기간에는
   "code": "OWNERSHIP_TRANSFERRED",
   "replayed": false,
   "roomId": "room-01",
-  "previousOwnerUserId": "local-user-1",
-  "newOwnerUserId": "local-user-2",
   "previousOwnerMembershipId": "membership-01",
   "newOwnerMembershipId": "membership-02",
   "roomVersion": 3,
@@ -508,7 +502,6 @@ Idempotency-Key: <uuid>
   "code": "BANNED",
   "replayed": false,
   "roomId": "room-01",
-  "targetUserId": "local-user-2",
   "targetMembershipId": "membership-02",
   "roomVersion": 4,
   "membershipVersion": 3
@@ -554,7 +547,6 @@ Idempotency-Key: <uuid>
   "replayed": false,
   "roomId": "room-01",
   "ownerMembershipId": "membership-01",
-  "ownerUserId": "local-user-1",
   "roomVersion": 5,
   "ownerMembershipVersion": 3
 }
@@ -615,10 +607,9 @@ GET /api/v1/rooms?joinPolicy=OPEN&query=교통&category=LOCAL_ISSUE
 `query`, `category`, `joinPolicy` 중 하나라도 바뀌면 `cursor`를 제거하고 첫
 페이지부터 조회한다. cursor 내부 payload를 해석하거나 생성하지 않는다.
 
-Room owner 식별자를 membership 기반으로 전환하는 동안 조회 응답은
-Room 범위 식별자인 `ownerMembershipId`를 additive하게 제공하고 기존
-`ownerUserId`도 함께 유지한다. 신규 클라이언트 코드는
-`ownerMembershipId`를 owner 식별 key로 사용한다.
+Room 조회 응답은 Room 범위 식별자인 `ownerMembershipId`만 owner 식별자로
+제공한다. 서버 내부의 owner 권한 판정은 `userId`를 계속 사용하지만 공개
+Room 계약에는 이를 노출하지 않는다.
 
 응답:
 
@@ -631,7 +622,6 @@ Room 범위 식별자인 `ownerMembershipId`를 additive하게 제공하고 기�
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
       "categories": ["POLICY"],
       "ownerMembershipId": "membership-01",
-      "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
       "joinPolicy": "OPEN",
@@ -665,7 +655,6 @@ GET /api/v1/rooms/{roomId}
   "description": "AI 정책과 시민 참여 방식을 논의합니다.",
   "categories": ["POLICY"],
   "ownerMembershipId": "membership-01",
-  "ownerUserId": "local-user-1",
   "status": "ACTIVE",
   "visibility": "LISTED",
   "joinPolicy": "OPEN",
@@ -677,7 +666,6 @@ GET /api/v1/rooms/{roomId}
   "myMembership": {
     "membershipId": "membership-01",
     "roomId": "room-01",
-    "userId": "local-user-1",
     "role": "OWNER",
     "status": "ACTIVE",
     "joinedAt": "2026-07-29T04:30:00Z",
@@ -702,7 +690,6 @@ GET /api/v1/rooms/{roomId}/memberships/me
 {
   "membershipId": "membership-01",
   "roomId": "room-01",
-  "userId": "local-user-1",
   "role": "OWNER",
   "status": "ACTIVE",
   "joinedAt": "2026-07-29T04:30:00Z",
@@ -734,7 +721,6 @@ GET /api/v1/me/rooms?cursor={cursor}&limit=20
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
       "categories": ["POLICY"],
       "ownerMembershipId": "membership-01",
-      "ownerUserId": "local-user-1",
       "status": "ACTIVE",
       "visibility": "LISTED",
       "joinPolicy": "OPEN",
@@ -774,7 +760,6 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
   "items": [
     {
       "membershipId": "membership-02",
-      "userId": "local-user-2",
       "role": "MEMBER",
       "status": "ACTIVE",
       "joinedAt": "2026-07-29T04:31:00Z",
@@ -1967,7 +1952,6 @@ Summary last message는
 {
   "categories": ["POLICY"],
   "ownerMembershipId": "membership-01",
-  "ownerUserId": "local-user-1",
   "readThroughSequence": 123,
   "unreadCount": 200,
   "unreadCountCapped": true,

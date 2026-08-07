@@ -47,21 +47,15 @@ public final class RoomCommandFingerprintFactory {
         } else if (command
                 instanceof TransferOwnershipCommand transfer) {
             append(canonical, "roomId", transfer.roomId());
-            appendTargetIdentity(
-                    canonical,
-                    transfer.targetUserId(),
+            append(canonical, "targetMembershipId",
                     transfer.targetMembershipId());
         } else if (command instanceof BanMemberCommand banMember) {
             append(canonical, "roomId", banMember.roomId());
-            appendTargetIdentity(
-                    canonical,
-                    banMember.targetUserId(),
+            append(canonical, "targetMembershipId",
                     banMember.targetMembershipId());
         } else if (command instanceof UnbanMemberCommand unbanMember) {
             append(canonical, "roomId", unbanMember.roomId());
-            appendTargetIdentity(
-                    canonical,
-                    unbanMember.targetUserId(),
+            append(canonical, "targetMembershipId",
                     unbanMember.targetMembershipId());
         } else if (command instanceof CloseRoomCommand closeRoom) {
             append(canonical, "roomId", closeRoom.roomId());
@@ -120,21 +114,6 @@ public final class RoomCommandFingerprintFactory {
         if (present) {
             append(target, field + ".value", value);
         }
-    }
-
-    private static void appendTargetIdentity(
-            StringBuilder canonical,
-            String targetUserId,
-            String targetMembershipId
-    ) {
-        if (targetMembershipId != null) {
-            append(
-                    canonical,
-                    "targetMembershipId",
-                    targetMembershipId);
-            return;
-        }
-        append(canonical, "targetUserId", targetUserId);
     }
 
     private static String categoryNames(
