@@ -218,11 +218,7 @@ export class ChatRoomReadStateCoordinator {
 
   cancelRoom(roomIdInput: string, reason: ChatRoomReadStateCancellationReason): void {
     const roomId = roomIdSchema.parse(roomIdInput);
-    const entry = this.entries.get(roomId);
-
-    if (!entry) {
-      return;
-    }
+    const entry = this.getOrCreateEntry(roomId);
 
     this.clearTimers(entry);
     entry.generation += 1;

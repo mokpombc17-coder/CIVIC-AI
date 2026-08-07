@@ -206,6 +206,49 @@ describe("ChatRoomReadStateCoordinator", () => {
     expect(onConfirmed).not.toHaveBeenCalled();
   });
 
+  it("entry가 없는 방도 terminal 상태로 기록하여 이후 schedule을 차단한다", async () => {
+    const submit = vi.fn(async (_roomId: string, throughSequence: number) => throughSequence);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+
+    coordinator.cancelRoom("room-a", "ROOM_CLOSED");
+    coordinator.schedule("room-a", 13);
+
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    expect(submit).not.toHaveBeenCalled();
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 0,
+      inFlightSequence: null,
+      pendingSequence: null,
+      status: "terminal",
+    });
+    expect(coordinator.getRoomSnapshot("room-a")?.lastError).toMatchObject({
+      reason: "ROOM_CLOSED",
+    });
+    expect(coordinator.getRoomSnapshot("room-a")?.lastError).toBeInstanceOf(
+      ChatRoomReadStateTerminatedError,
+    );
+  });
+
+  it("entry가 없던 재개 가능한 Room은 resume 이후 다시 schedule할 수 있다", async () => {
+    const submit = vi.fn(async (_roomId: string, throughSequence: number) => throughSequence);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+
+    coordinator.cancelRoom("room-a", "LEFT");
+    coordinator.resumeRoom("room-a");
+    coordinator.schedule("room-a", 13);
+
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledWith("room-a", 13);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 13,
+      pendingSequence: null,
+      status: "idle",
+    });
+  });
+
   it("재동기화 가능한 blocked Room을 resume하면 보존된 pending을 다시 전송한다", async () => {
     const submit = vi
       .fn<(roomId: string, throughSequence: number) => Promise<number>>()
