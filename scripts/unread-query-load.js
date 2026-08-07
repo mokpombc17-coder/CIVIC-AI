@@ -8,6 +8,7 @@ const targetRoomId = process.env.UNREAD_ROOM_ID || "performance-room";
 const currentUserId = process.env.UNREAD_USER_ID || "performance-user";
 const messageCount = Number(process.env.UNREAD_MESSAGE_COUNT || "1000");
 const roomCount = Number(process.env.UNREAD_ROOM_COUNT || "1");
+const messageSchemaVersion = 4;
 
 if (!Number.isSafeInteger(messageCount)
     || messageCount < 1
@@ -29,6 +30,8 @@ db.chat_messages.deleteMany({roomId: {$in: roomIds}});
 const createdAt = new Date();
 let inserted = 0;
 for (const roomId of roomIds) {
+    const selfMembershipId = `${roomId}-self-membership`;
+    const otherMembershipId = `${roomId}-other-membership`;
     for (let start = 1; start <= messageCount; start += 1000) {
         const documents = [];
         const end = Math.min(start + 999, messageCount);
@@ -37,12 +40,15 @@ for (const roomId of roomIds) {
             const countable = sequence % 20 !== 0;
             documents.push({
                 _id: `${roomId}-message-${sequence}`,
-                schemaVersion: 3,
+                schemaVersion: messageSchemaVersion,
                 roomId,
                 roomSequence: NumberLong(sequence.toString()),
                 senderUserId: sequence % 2 === 0
                     ? currentUserId
                     : "performance-other-user",
+                senderMembershipId: sequence % 2 === 0
+                    ? selfMembershipId
+                    : otherMembershipId,
                 clientMessageId: `${roomId}-client-${sequence}`,
                 content: deleted ? null
                     : `performance message ${sequence}`,
