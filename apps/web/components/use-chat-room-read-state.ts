@@ -1,34 +1,58 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useChatRoomReadStateCoordinator } from "@/components/chat-room-read-state-provider";
-import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
+import type {
+  ChatRoomReadStateCancellationReason,
+  ChatRoomReadStateMembershipLifecycle,
+} from "@/lib/chat/chat-room-read-state-coordinator";
 import { applyChatRoomReadStateRoomLifecycle } from "@/lib/chat/chat-room-read-state-room-lifecycle";
 
 type UseChatRoomReadStateOptions = Readonly<{
   activeGeneration: number | null;
+  membershipLifecycle: ChatRoomReadStateMembershipLifecycle | null;
   terminalReason: ChatRoomReadStateCancellationReason | null;
 }>;
 
 export function useChatRoomReadState(
   roomId: string,
-  { activeGeneration, terminalReason }: UseChatRoomReadStateOptions,
+  {
+    activeGeneration,
+    membershipLifecycle: membershipLifecycleInput,
+    terminalReason,
+  }: UseChatRoomReadStateOptions,
 ): (throughSequence: number) => void {
   const coordinator = useChatRoomReadStateCoordinator();
+  const membershipVersion = membershipLifecycleInput?.membershipVersion ?? null;
+  const messageVisibleAfterSequence = membershipLifecycleInput?.messageVisibleAfterSequence ?? null;
+  const userId = membershipLifecycleInput?.userId ?? null;
+  const membershipLifecycle = useMemo<ChatRoomReadStateMembershipLifecycle | null>(
+    () =>
+      membershipVersion === null || messageVisibleAfterSequence === null || userId === null
+        ? null
+        : Object.freeze({ membershipVersion, messageVisibleAfterSequence, userId }),
+    [membershipVersion, messageVisibleAfterSequence, userId],
+  );
 
   useEffect(() => {
+    if (membershipLifecycle !== null) {
+      coordinator.synchronizeRoomMembershipLifecycle(roomId, membershipLifecycle);
+    }
+
     applyChatRoomReadStateRoomLifecycle({
       coordinator,
-      isSynchronizationReady: activeGeneration !== null,
+      isSynchronizationReady: activeGeneration !== null && membershipLifecycle !== null,
       roomId,
       terminalReason,
     });
-  }, [activeGeneration, coordinator, roomId, terminalReason]);
+  }, [activeGeneration, coordinator, membershipLifecycle, roomId, terminalReason]);
 
   return useCallback(
     (throughSequence: number) => {
-      coordinator.schedule(roomId, throughSequence);
+      if (membershipLifecycle !== null) {
+        coordinator.schedule(roomId, throughSequence, membershipLifecycle);
+      }
     },
-    [coordinator, roomId],
+    [coordinator, membershipLifecycle, roomId],
   );
 }

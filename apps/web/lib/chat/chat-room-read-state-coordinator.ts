@@ -505,8 +505,8 @@ function parseMembershipLifecycle(
     throw new TypeError("userId는 공백이 아닌 문자열이어야 합니다.");
   }
 
-  if (!Number.isSafeInteger(input.membershipVersion) || input.membershipVersion < 1) {
-    throw new RangeError("membershipVersion은 1 이상의 안전한 정수여야 합니다.");
+  if (!Number.isSafeInteger(input.membershipVersion) || input.membershipVersion < 0) {
+    throw new RangeError("membershipVersion은 0 이상의 안전한 정수여야 합니다.");
   }
 
   assertSequence(input.messageVisibleAfterSequence, "messageVisibleAfterSequence");

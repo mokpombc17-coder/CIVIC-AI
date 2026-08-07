@@ -33,6 +33,7 @@ import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
+import { getChatRoomReadStateMembershipLifecycle } from "@/lib/chat/chat-room-read-state-membership-lifecycle";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
@@ -125,6 +126,21 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   });
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
   const readStateEnabled = realtimeReady && session.isActive;
+  const readStateMembershipLifecycle = useMemo(
+    () =>
+      getChatRoomReadStateMembershipLifecycle({
+        enabled: readStateEnabled,
+        membership: room?.myMembership ?? null,
+        messageVisibleAfterSequence: session.messageVisibleAfterSequence,
+      }),
+    [
+      readStateEnabled,
+      room?.myMembership?.status,
+      room?.myMembership?.userId,
+      room?.myMembership?.version,
+      session.messageVisibleAfterSequence,
+    ],
+  );
   const readStateTerminalReason: ChatRoomReadStateCancellationReason | null =
     session.connectionError?.code === "ROOM_ACCESS_REVOKED"
       ? "ACCESS_REVOKED"
@@ -140,6 +156,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
           : null;
   const updateReadThroughSequence = useChatRoomReadState(roomId, {
     activeGeneration: readStateEnabled ? session.generation : null,
+    membershipLifecycle: readStateMembershipLifecycle,
     terminalReason: readStateTerminalReason,
   });
 

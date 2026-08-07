@@ -16,6 +16,12 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+const membershipLifecycle = Object.freeze({
+  membershipVersion: 1,
+  messageVisibleAfterSequence: 0,
+  userId: "user-1",
+});
+
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
@@ -52,11 +58,16 @@ describe("ChatRoomReadStateProvider", () => {
     });
     const captured: {
       scheduleReadState?: (throughSequence: number) => void;
+      synchronizeMembershipLifecycle?: () => void;
     } = {};
 
     function Probe() {
+      const coordinator = useChatRoomReadStateCoordinator();
+      captured.synchronizeMembershipLifecycle = () =>
+        coordinator.synchronizeRoomMembershipLifecycle("room-1", membershipLifecycle);
       captured.scheduleReadState = useChatRoomReadState("room-1", {
         activeGeneration: 1,
+        membershipLifecycle,
         terminalReason: null,
       });
       return null;
@@ -70,10 +81,11 @@ describe("ChatRoomReadStateProvider", () => {
 
     const scheduleReadState = captured.scheduleReadState;
 
-    if (!scheduleReadState) {
+    if (!scheduleReadState || !captured.synchronizeMembershipLifecycle) {
       throw new Error("테스트 Probe가 read-state callback을 제공하지 않았습니다.");
     }
 
+    captured.synchronizeMembershipLifecycle();
     scheduleReadState(10);
     scheduleReadState(13);
     scheduleReadState(12);
@@ -97,10 +109,15 @@ describe("ChatRoomReadStateProvider", () => {
       updated: false,
     });
     let scheduleReadState: ((throughSequence: number) => void) | undefined;
+    let synchronizeMembershipLifecycle: (() => void) | undefined;
 
     function Probe() {
+      const coordinator = useChatRoomReadStateCoordinator();
+      synchronizeMembershipLifecycle = () =>
+        coordinator.synchronizeRoomMembershipLifecycle("room-1", membershipLifecycle);
       scheduleReadState = useChatRoomReadState("room-1", {
         activeGeneration: 1,
+        membershipLifecycle,
         terminalReason: null,
       });
       return null;
@@ -112,10 +129,11 @@ describe("ChatRoomReadStateProvider", () => {
       </ChatRoomReadStateProvider>,
     );
 
-    if (!scheduleReadState) {
+    if (!scheduleReadState || !synchronizeMembershipLifecycle) {
       throw new Error("테스트 Probe가 read-state callback을 제공하지 않았습니다.");
     }
 
+    synchronizeMembershipLifecycle();
     scheduleReadState(120);
     await vi.advanceTimersByTimeAsync(400);
 
@@ -140,13 +158,17 @@ describe("ChatRoomReadStateProvider", () => {
     const captured: {
       resetForPrincipalChange?: () => void;
       scheduleReadState?: (throughSequence: number) => void;
+      synchronizeMembershipLifecycle?: () => void;
     } = {};
 
     function Probe() {
       const coordinator = useChatRoomReadStateCoordinator();
       captured.resetForPrincipalChange = () => coordinator.resetForPrincipalChange();
+      captured.synchronizeMembershipLifecycle = () =>
+        coordinator.synchronizeRoomMembershipLifecycle("room-1", membershipLifecycle);
       captured.scheduleReadState = useChatRoomReadState("room-1", {
         activeGeneration: 1,
+        membershipLifecycle,
         terminalReason: null,
       });
       return null;
@@ -158,10 +180,15 @@ describe("ChatRoomReadStateProvider", () => {
       </ChatRoomReadStateProvider>,
     );
 
-    if (!captured.scheduleReadState || !captured.resetForPrincipalChange) {
+    if (
+      !captured.scheduleReadState ||
+      !captured.resetForPrincipalChange ||
+      !captured.synchronizeMembershipLifecycle
+    ) {
       throw new Error("테스트 Probe가 read-state coordinator를 제공하지 않았습니다.");
     }
 
+    captured.synchronizeMembershipLifecycle();
     captured.scheduleReadState(13);
     await vi.advanceTimersByTimeAsync(400);
     captured.resetForPrincipalChange();
@@ -174,6 +201,61 @@ describe("ChatRoomReadStateProvider", () => {
     await Promise.resolve();
 
     expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("이전 Membership lifecycle을 캡처한 callback은 새 lifecycle에 예약하지 않는다", async () => {
+    mocks.mutateAsync.mockResolvedValue({
+      readThroughSequence: 13,
+      roomId: "room-1",
+      updated: true,
+    });
+    const previousLifecycle = membershipLifecycle;
+    const nextLifecycle = Object.freeze({
+      ...membershipLifecycle,
+      membershipVersion: 2,
+      messageVisibleAfterSequence: 12,
+    });
+    const captured: {
+      coordinator?: ReturnType<typeof useChatRoomReadStateCoordinator>;
+      nextSchedule?: (throughSequence: number) => void;
+      previousSchedule?: (throughSequence: number) => void;
+    } = {};
+
+    function Probe() {
+      captured.coordinator = useChatRoomReadStateCoordinator();
+      captured.previousSchedule = useChatRoomReadState("room-1", {
+        activeGeneration: 1,
+        membershipLifecycle: previousLifecycle,
+        terminalReason: null,
+      });
+      captured.nextSchedule = useChatRoomReadState("room-1", {
+        activeGeneration: 2,
+        membershipLifecycle: nextLifecycle,
+        terminalReason: null,
+      });
+      return null;
+    }
+
+    renderToStaticMarkup(
+      <ChatRoomReadStateProvider>
+        <Probe />
+      </ChatRoomReadStateProvider>,
+    );
+
+    if (!captured.coordinator || !captured.previousSchedule || !captured.nextSchedule) {
+      throw new Error("테스트 Probe가 lifecycle별 read-state callback을 제공하지 않았습니다.");
+    }
+
+    captured.coordinator.synchronizeRoomMembershipLifecycle("room-1", nextLifecycle);
+    captured.previousSchedule(14);
+    captured.nextSchedule(13);
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(mocks.mutateAsync).toHaveBeenCalledOnce();
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      request: { throughSequence: 13 },
+      roomId: "room-1",
+    });
   });
 
   it("provider 밖에서 coordinator를 요청하면 조립 오류를 알린다", () => {

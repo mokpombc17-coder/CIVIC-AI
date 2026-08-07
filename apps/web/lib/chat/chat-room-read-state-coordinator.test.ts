@@ -293,7 +293,10 @@ describe("ChatRoomReadStateCoordinator", () => {
   it("Membership lifecycle을 동기화하면 새 접근 경계를 confirmed 하한으로 채택한다", async () => {
     const submit = vi.fn(async (_roomId: string, throughSequence: number) => throughSequence);
     const coordinator = new ChatRoomReadStateCoordinator({ submit });
-    const lifecycle = createMembershipLifecycle({ messageVisibleAfterSequence: 100 });
+    const lifecycle = createMembershipLifecycle({
+      membershipVersion: 0,
+      messageVisibleAfterSequence: 100,
+    });
 
     expect(coordinator.synchronizeRoomMembershipLifecycle("room-a", lifecycle)).toBe(true);
     expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
