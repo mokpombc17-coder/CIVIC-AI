@@ -21,7 +21,7 @@ export function createChatRoomEventCacheProjection(
   const myMembership = queryClient.getQueryData<RoomMembership>(
     chatRoomQueryKeys.myMembership(roomId),
   );
-  const currentUserId = myMembership?.userId ?? roomDetails?.myMembership?.userId;
+  const currentMembershipId = myMembership?.membershipId ?? roomDetails?.myMembership?.membershipId;
   let nextRoomDetails = roomDetails;
   let nextMyMembership = myMembership;
   let eventsApplied = 0;
@@ -46,8 +46,8 @@ export function createChatRoomEventCacheProjection(
       continue;
     }
 
-    const currentUserState = currentUserId
-      ? getEventMemberStates(event).find((state) => state.userId === currentUserId)
+    const currentUserState = currentMembershipId
+      ? getEventMemberStates(event).find((state) => state.membershipId === currentMembershipId)
       : undefined;
 
     if (nextMyMembership && currentUserState) {
@@ -136,7 +136,10 @@ function projectMembership(
   membership: RoomMembership,
   state: ChatRoomEventMemberState,
 ): RoomMembership {
-  if (state.userId !== membership.userId || state.membershipVersion <= membership.version) {
+  if (
+    state.membershipId !== membership.membershipId ||
+    state.membershipVersion <= membership.version
+  ) {
     return membership;
   }
 

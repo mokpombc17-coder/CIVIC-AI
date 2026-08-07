@@ -27,7 +27,7 @@ describe("chat room view model", () => {
     });
   });
 
-  it("확정 메시지와 optimistic 메시지를 UI 전용 상태로 변환한다", () => {
+  it("membershipId로 확정 메시지의 작성자를 판정하고 참여자 label을 만든다", () => {
     const timeline: readonly ChatMessageTimelineItem[] = [
       {
         kind: "confirmed",
@@ -41,7 +41,7 @@ describe("chat room view model", () => {
           roomId: "room-01",
           roomSequence: 1,
           countable: true,
-          senderUserId: "local-user-2",
+          senderUserId: "local-user-1",
           senderMembershipId: "membership-02",
           state: "ACTIVE",
           updatedAt: "2026-07-31T00:00:00Z",
@@ -63,7 +63,7 @@ describe("chat room view model", () => {
       },
     ];
 
-    const items = createChatMessageItemViewModels(timeline, "local-user-1");
+    const items = createChatMessageItemViewModels(timeline, "membership-01");
 
     expect(items[0]).toMatchObject({
       canOpenActions: true,
@@ -75,7 +75,7 @@ describe("chat room view model", () => {
       messageId: "message-01",
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440001",
       roomSequence: 1,
-      senderLabel: "local-user-2",
+      senderLabel: "참여자 1",
     });
     expect(items[1]).toMatchObject({
       canOpenActions: false,
@@ -122,7 +122,7 @@ describe("chat room view model", () => {
       },
     ];
 
-    expect(createChatMessageViewportItemViewModels(rows, "local-user-1")).toMatchObject([
+    expect(createChatMessageViewportItemViewModels(rows, "membership-01")).toMatchObject([
       {
         date: { key: "2026-08-07" },
         kind: "date-separator",
@@ -159,7 +159,7 @@ describe("chat room view model", () => {
           },
         },
       ],
-      "local-user-1",
+      "membership-01",
     );
     const [confirmed] = createChatMessageItemViewModels(
       [
@@ -182,7 +182,7 @@ describe("chat room view model", () => {
           },
         },
       ],
-      "local-user-1",
+      "membership-01",
     );
 
     expect(outgoing?.renderKey).toBe(confirmed?.renderKey);
@@ -210,7 +210,7 @@ describe("chat room view model", () => {
           },
         },
       ],
-      "local-user-1",
+      "membership-01",
     );
 
     expect(deleted).toMatchObject({
@@ -245,7 +245,7 @@ describe("chat room view model", () => {
           },
         },
       ],
-      "local-user-1",
+      "membership-01",
       new Map([
         [
           "message-06",
@@ -290,7 +290,7 @@ describe("chat room view model", () => {
       },
     ];
 
-    expect(createChatMessageItemViewModels(timeline, "local-user-1")[0]).toMatchObject({
+    expect(createChatMessageItemViewModels(timeline, "membership-01")[0]).toMatchObject({
       deliveryLabel: "메시지 전송 제한을 초과했습니다.",
       deliveryStatus: "failed",
       deliveryTone: "error",

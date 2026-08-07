@@ -85,7 +85,10 @@ export function ChatRoomMembershipPanel({
   });
   const membership = membershipQuery.data ?? room.myMembership;
   const isOwner =
-    room.status === "ACTIVE" && membership?.status === "ACTIVE" && membership.role === "OWNER";
+    room.status === "ACTIVE" &&
+    membership?.status === "ACTIVE" &&
+    membership.role === "OWNER" &&
+    membership.membershipId === room.ownerMembershipId;
   const membershipsQuery = useRoomMembershipsQuery(roomId, {
     enabled: isOwner,
     status: membershipStatus,

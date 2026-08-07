@@ -38,7 +38,7 @@ describe("chat room event cache projector", () => {
     });
   });
 
-  it("방장 위임 이벤트를 방장과 현재 사용자의 두 멤버십 cache에 반영한다", () => {
+  it("membershipId로 방장 위임 이벤트의 현재 멤버십을 찾아 cache에 반영한다", () => {
     const queryClient = createSeededQueryClient();
     const event = createOwnershipTransferredEvent();
 
@@ -256,7 +256,7 @@ function createOwnershipTransferredEvent(): ChatRoomEventEnvelope {
       roomStatus: "ACTIVE",
       previousOwner: {
         membershipId: "membership-01",
-        userId: "local-user-1",
+        userId: "legacy-user-id-that-must-not-be-used",
         role: "MEMBER",
         status: "ACTIVE",
         membershipVersion: 2,

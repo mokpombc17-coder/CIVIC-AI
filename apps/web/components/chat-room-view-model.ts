@@ -83,19 +83,26 @@ export function createChatRoomHeaderViewModel({
 
 export function createChatMessageItemViewModels(
   timeline: readonly ChatMessageTimelineItem[],
-  currentUserId: string | null,
+  selfMembershipId: string | null,
   mutationStates: ChatMessageMutationStates = new Map(),
 ): readonly ChatMessageItemViewModel[] {
+  const participantLabels = createParticipantLabels(timeline, selfMembershipId);
+
   return timeline.map((item) =>
-    createChatMessageItemViewModel(item, currentUserId, mutationStates),
+    createChatMessageItemViewModel(item, selfMembershipId, participantLabels, mutationStates),
   );
 }
 
 export function createChatMessageViewportItemViewModels(
   rows: readonly ChatMessageTimelineRow[],
-  currentUserId: string | null,
+  selfMembershipId: string | null,
   mutationStates: ChatMessageMutationStates = new Map(),
 ): readonly ChatMessageViewportItemViewModel[] {
+  const participantLabels = createParticipantLabels(
+    rows.flatMap((row) => (row.kind === "message" ? [row.item] : [])),
+    selfMembershipId,
+  );
+
   return rows.map((row) => {
     if (row.kind === "date-separator") {
       return {
@@ -105,7 +112,12 @@ export function createChatMessageViewportItemViewModels(
       };
     }
 
-    const item = createChatMessageItemViewModel(row.item, currentUserId, mutationStates);
+    const item = createChatMessageItemViewModel(
+      row.item,
+      selfMembershipId,
+      participantLabels,
+      mutationStates,
+    );
     return {
       item,
       kind: "message",
@@ -116,7 +128,8 @@ export function createChatMessageViewportItemViewModels(
 
 function createChatMessageItemViewModel(
   item: ChatMessageTimelineItem,
-  currentUserId: string | null,
+  selfMembershipId: string | null,
+  participantLabels: ReadonlyMap<string, string>,
   mutationStates: ChatMessageMutationStates,
 ): ChatMessageItemViewModel {
   if (item.kind === "outgoing") {
@@ -142,7 +155,7 @@ function createChatMessageItemViewModel(
     };
   }
 
-  const isMine = item.message.senderUserId === currentUserId;
+  const isMine = item.message.senderMembershipId === selfMembershipId;
 
   return {
     canOpenActions: item.message.state === "ACTIVE" && item.message.content !== null,
@@ -159,9 +172,30 @@ function createChatMessageItemViewModel(
     mutation: mutationStates.get(item.message.messageId) ?? null,
     renderKey: createChatMessageRenderKey(item.message.clientMessageId),
     roomSequence: item.message.roomSequence,
-    senderLabel: isMine ? null : item.message.senderUserId,
+    senderLabel: isMine
+      ? null
+      : (participantLabels.get(item.message.senderMembershipId) ?? "참여자"),
     timeLabel: formatMessageTime(item.message.createdAt),
   };
+}
+
+function createParticipantLabels(
+  timeline: readonly ChatMessageTimelineItem[],
+  selfMembershipId: string | null,
+): ReadonlyMap<string, string> {
+  const labels = new Map<string, string>();
+
+  for (const item of timeline) {
+    if (item.kind !== "confirmed" || item.message.senderMembershipId === selfMembershipId) {
+      continue;
+    }
+
+    if (!labels.has(item.message.senderMembershipId)) {
+      labels.set(item.message.senderMembershipId, `참여자 ${labels.size + 1}`);
+    }
+  }
+
+  return labels;
 }
 
 function createChatMessageRenderKey(clientMessageId: string): string {

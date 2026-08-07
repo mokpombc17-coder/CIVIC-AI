@@ -93,10 +93,10 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     () =>
       createChatMessageViewportItemViewModels(
         timelineRows,
-        room?.myMembership?.userId ?? null,
+        room?.myMembership?.membershipId ?? null,
         messageMutations.states,
       ),
-    [messageMutations.states, room?.myMembership?.userId, timelineRows],
+    [messageMutations.states, room?.myMembership?.membershipId, timelineRows],
   );
   const messageItems = useMemo(
     () => viewportItems.flatMap((item) => (item.kind === "message" ? [item.item] : [])),

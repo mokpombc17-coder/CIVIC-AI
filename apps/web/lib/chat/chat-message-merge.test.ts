@@ -97,6 +97,23 @@ describe("mergeChatMessages", () => {
     );
   });
 
+  it("senderUserId가 달라도 senderMembershipId가 같으면 같은 작성자의 새 snapshot으로 병합한다", () => {
+    const message = createMessage(1);
+    const updatedMessage = {
+      ...message,
+      senderUserId: "legacy-user-id-that-must-not-be-used",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T04:41:00Z",
+    };
+
+    expect(
+      mergeChatMessages({
+        roomId: "room-01",
+        sources: [[message], [updatedMessage]],
+      }).messages,
+    ).toEqual([updatedMessage]);
+  });
+
   it("생성 시 결정된 countable이 이후 snapshot에서 바뀌면 계약 충돌로 처리한다", () => {
     const message = createMessage(1);
 
