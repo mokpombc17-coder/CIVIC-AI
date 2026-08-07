@@ -14,7 +14,7 @@ import { useChatRoomVisualViewportMaxHeight } from "@/components/use-chat-room-v
 const CHAT_ROOM_BOTTOM_GAP = 16;
 
 export type ChatMessageHistoryFeedback = ChatMessageViewportFeedback;
-export type ChatMessageHistoryViewModel = ChatMessageViewportViewModel;
+export type ChatMessageHistoryViewModel = Omit<ChatMessageViewportViewModel, "readStatePaused">;
 
 export type ChatRoomViewProps = Readonly<{
   header: ChatRoomHeaderViewModel;
@@ -67,7 +67,12 @@ export function ChatRoomView({
 
           {roomError ? <ChatRoomError error={roomError} /> : null}
 
-          <ChatMessageViewport history={messageHistory} />
+          <ChatMessageViewport
+            history={{
+              ...messageHistory,
+              readStatePaused: hasOverlay,
+            }}
+          />
 
           <div className="shrink-0">{sessionControls}</div>
         </div>

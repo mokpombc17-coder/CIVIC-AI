@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat-message-arrival-announcement";
+import { canReportChatMessageReadState } from "@/components/chat-message-read-state-policy";
 import { ChatMessageItem } from "@/components/chat-message-item";
 import {
   type ChatMessageAppendSource,
@@ -42,6 +43,7 @@ export type ChatMessageViewportViewModel = Readonly<{
   onReadThroughSequence: (throughSequence: number) => void;
   onRetry: () => void;
   readStateEnabled: boolean;
+  readStatePaused: boolean;
   roomLabel: string;
   viewportKey: string;
 }>;
@@ -58,6 +60,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     onLoadOlder,
     onReadThroughSequence,
     readStateEnabled,
+    readStatePaused,
     viewportKey,
   } = history;
   const scrollElementRef = useRef<HTMLDivElement>(null);
@@ -96,23 +99,28 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   currentViewportKeyRef.current = viewportKey;
 
   const reportVisibleReadSequence = useCallback(() => {
-    if (
-      !readStateEnabled ||
-      latestConfirmedSequence === null ||
-      document.visibilityState !== "visible" ||
-      viewportPositionRef.current !== "pinned"
-    ) {
+    if (latestConfirmedSequence === null) {
       return;
     }
 
     const scrollElement = scrollElementRef.current;
 
-    if (!scrollElement || !isSequenceVisible(scrollElement, latestConfirmedSequence)) {
+    if (
+      !canReportChatMessageReadState({
+        documentHasFocus: document.hasFocus(),
+        documentVisibilityState: document.visibilityState,
+        isLatestSequenceVisible:
+          scrollElement !== null && isSequenceVisible(scrollElement, latestConfirmedSequence),
+        readStateEnabled,
+        readStatePaused,
+        viewportPosition: viewportPositionRef.current,
+      })
+    ) {
       return;
     }
 
     onReadThroughSequence(latestConfirmedSequence);
-  }, [latestConfirmedSequence, onReadThroughSequence, readStateEnabled]);
+  }, [latestConfirmedSequence, onReadThroughSequence, readStateEnabled, readStatePaused]);
 
   const cancelLatestScroll = useCallback(() => {
     const frames = latestScrollFramesRef.current;
@@ -240,9 +248,13 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   }, [cancelLatestScroll, viewportKey]);
 
   useEffect(() => {
-    const handleVisibilityChange = () => reportVisibleReadSequence();
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    const recheckReadState = () => reportVisibleReadSequence();
+    document.addEventListener("visibilitychange", recheckReadState);
+    window.addEventListener("focus", recheckReadState);
+    return () => {
+      document.removeEventListener("visibilitychange", recheckReadState);
+      window.removeEventListener("focus", recheckReadState);
+    };
   }, [reportVisibleReadSequence]);
 
   useEffect(() => {

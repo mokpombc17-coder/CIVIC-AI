@@ -131,9 +131,10 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
-대표 View 경계다. 내부 header, session indicator, membership trigger와 overlay wrapper는 받은
-값을 표시하거나 전달하는 순수 표현 요소라 생략한다. `ChatMessageViewport`는 virtualization,
-scroll anchoring, 이전 이력 조회와 read-state 보고 생명주기를 소유하므로 독립 Feature로 유지하고,
+대표 View 경계이며 overlay 존재 여부를 read-state pause 신호로 viewport에 전달한다. 내부 header,
+session indicator, membership trigger와 overlay wrapper는 받은 값을 표시하거나 전달하는 순수 표현
+요소라 생략한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
+focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 생명주기를 소유하므로 독립 Feature로 유지하고,
 반복되는 개별 message item은 생략한다.
 
 다른 탭 사용이나 연결 오류처럼 조치가 필요한 안내는 `ChatRoomSessionNotice`, snapshot 동기화
