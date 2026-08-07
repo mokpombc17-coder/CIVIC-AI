@@ -8,6 +8,9 @@ export type ChatRoomReadStateStatus = "idle" | "pending" | "submitting" | "block
 
 export type ChatRoomReadStateFailureDisposition = "retryable" | "blocked" | "terminal";
 
+export type ChatRoomReadStateCancellationReason =
+  "ROOM_CLOSED" | "LEFT" | "BANNED" | "NOT_JOINED" | "ACCESS_REVOKED";
+
 export type ChatRoomReadStateEntrySnapshot = Readonly<{
   confirmedSequence: number;
   inFlightSequence: number | null;
@@ -28,6 +31,7 @@ type TimerHandle = ReturnType<typeof globalThis.setTimeout>;
 type MutableRoomReadStateEntry = {
   confirmedSequence: number;
   debounceTimer: TimerHandle | null;
+  generation: number;
   inFlightSequence: number | null;
   lastError: unknown | null;
   maxWaitTimer: TimerHandle | null;
@@ -62,6 +66,17 @@ export class ChatRoomReadStateContractError extends Error {
   }
 }
 
+export class ChatRoomReadStateTerminatedError extends Error {
+  override readonly name = "ChatRoomReadStateTerminatedError";
+
+  constructor(
+    readonly roomId: string,
+    readonly reason: ChatRoomReadStateCancellationReason,
+  ) {
+    super(`Room ${roomId} read-state 처리가 ${reason} 상태로 종료되었습니다.`);
+  }
+}
+
 export class ChatRoomReadStateCoordinator {
   private readonly cancelTimer: (handle: TimerHandle) => void;
   private readonly classifyFailure: (error: unknown) => ChatRoomReadStateFailureDisposition;
@@ -75,6 +90,7 @@ export class ChatRoomReadStateCoordinator {
   ) => void;
   private readonly scheduleTimer: (callback: () => void, delayMs: number) => TimerHandle;
   private readonly submit: (roomId: string, throughSequence: number) => Promise<number>;
+  private principalGeneration = 0;
 
   constructor({
     cancelTimer = (handle) => globalThis.clearTimeout(handle),
@@ -168,6 +184,55 @@ export class ChatRoomReadStateCoordinator {
     }
   }
 
+  cancelRoom(roomIdInput: string, reason: ChatRoomReadStateCancellationReason): void {
+    const roomId = roomIdSchema.parse(roomIdInput);
+    const entry = this.entries.get(roomId);
+
+    if (!entry) {
+      return;
+    }
+
+    this.clearTimers(entry);
+    entry.generation += 1;
+    entry.inFlightSequence = null;
+    entry.lastError = new ChatRoomReadStateTerminatedError(roomId, reason);
+    entry.pendingSequence = null;
+    entry.retryAttempt = 0;
+    entry.status = "terminal";
+    this.emit(roomId, entry);
+  }
+
+  resumeRoom(roomIdInput: string): void {
+    const roomId = roomIdSchema.parse(roomIdInput);
+    const entry = this.entries.get(roomId);
+
+    if (!entry || (entry.status !== "blocked" && entry.status !== "terminal")) {
+      return;
+    }
+
+    this.clearTimers(entry);
+    entry.generation += 1;
+    entry.inFlightSequence = null;
+    entry.lastError = null;
+    entry.retryAttempt = 0;
+    entry.status = entry.pendingSequence === null ? "idle" : "pending";
+    this.emit(roomId, entry);
+
+    if (entry.pendingSequence !== null) {
+      this.scheduleFlush(roomId, entry);
+    }
+  }
+
+  resetForPrincipalChange(): void {
+    this.principalGeneration += 1;
+
+    for (const entry of this.entries.values()) {
+      this.clearTimers(entry);
+    }
+
+    this.entries.clear();
+  }
+
   getRoomSnapshot(roomIdInput: string): ChatRoomReadStateEntrySnapshot | null {
     const roomId = roomIdSchema.parse(roomIdInput);
     const entry = this.entries.get(roomId);
@@ -184,6 +249,7 @@ export class ChatRoomReadStateCoordinator {
     const entry: MutableRoomReadStateEntry = {
       confirmedSequence: 0,
       debounceTimer: null,
+      generation: 0,
       inFlightSequence: null,
       lastError: null,
       maxWaitTimer: null,
@@ -226,43 +292,36 @@ export class ChatRoomReadStateCoordinator {
     entry.inFlightSequence = throughSequence;
     entry.status = "submitting";
     this.emit(roomId, entry);
-    void this.submitEntry(roomId, entry, throughSequence);
+    void this.submitEntry(
+      roomId,
+      entry,
+      throughSequence,
+      entry.generation,
+      this.principalGeneration,
+    );
   }
 
   private async submitEntry(
     roomId: string,
     entry: MutableRoomReadStateEntry,
     submittedSequence: number,
+    entryGeneration: number,
+    principalGeneration: number,
   ): Promise<void> {
+    let readThroughSequence: number;
+
     try {
-      const readThroughSequence = await this.submit(roomId, submittedSequence);
+      readThroughSequence = await this.submit(roomId, submittedSequence);
       assertSequence(readThroughSequence, "readThroughSequence");
 
       if (readThroughSequence < submittedSequence) {
         throw new ChatRoomReadStateContractError(roomId, submittedSequence, readThroughSequence);
       }
-
-      entry.confirmedSequence = Math.max(entry.confirmedSequence, readThroughSequence);
-      entry.inFlightSequence = null;
-      entry.lastError = null;
-      entry.retryAttempt = 0;
-
-      if (entry.pendingSequence !== null && entry.pendingSequence <= entry.confirmedSequence) {
-        entry.pendingSequence = null;
-      }
-
-      entry.status = entry.pendingSequence === null ? "idle" : "pending";
-      this.emit(roomId, entry);
-      this.onConfirmed({
-        readThroughSequence,
-        roomId,
-        submittedSequence,
-      });
-
-      if (entry.pendingSequence !== null) {
-        this.startSubmission(roomId, entry);
-      }
     } catch (error) {
+      if (!this.isCurrentRequest(roomId, entry, entryGeneration, principalGeneration)) {
+        return;
+      }
+
       entry.inFlightSequence = null;
       entry.lastError = error;
       const disposition =
@@ -290,7 +349,46 @@ export class ChatRoomReadStateCoordinator {
       ) {
         this.startSubmission(roomId, entry);
       }
+      return;
     }
+
+    if (!this.isCurrentRequest(roomId, entry, entryGeneration, principalGeneration)) {
+      return;
+    }
+
+    entry.confirmedSequence = Math.max(entry.confirmedSequence, readThroughSequence);
+    entry.inFlightSequence = null;
+    entry.lastError = null;
+    entry.retryAttempt = 0;
+
+    if (entry.pendingSequence !== null && entry.pendingSequence <= entry.confirmedSequence) {
+      entry.pendingSequence = null;
+    }
+
+    entry.status = entry.pendingSequence === null ? "idle" : "pending";
+    this.emit(roomId, entry);
+    this.onConfirmed({
+      readThroughSequence,
+      roomId,
+      submittedSequence,
+    });
+
+    if (entry.pendingSequence !== null) {
+      this.startSubmission(roomId, entry);
+    }
+  }
+
+  private isCurrentRequest(
+    roomId: string,
+    entry: MutableRoomReadStateEntry,
+    entryGeneration: number,
+    principalGeneration: number,
+  ): boolean {
+    return (
+      this.principalGeneration === principalGeneration &&
+      this.entries.get(roomId) === entry &&
+      entry.generation === entryGeneration
+    );
   }
 
   private clearTimers(entry: MutableRoomReadStateEntry): void {

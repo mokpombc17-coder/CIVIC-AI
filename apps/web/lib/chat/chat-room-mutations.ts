@@ -147,7 +147,6 @@ export function closeRoomMutationOptions(
 }
 
 export function updateRoomReadStateMutationOptions(
-  queryClient: QueryClient,
   api: Pick<ChatRoomApi, "updateRoomReadState"> = chatRoomApi,
 ) {
   return mutationOptions({
@@ -156,10 +155,6 @@ export function updateRoomReadStateMutationOptions(
       api.updateRoomReadState(roomId, request),
     retry: shouldRetryRoomInboxRequest,
     retryDelay: (attemptIndex) => getRoomInboxRetryDelay(attemptIndex),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: chatRoomQueryKeys.roomInboxes(),
-      }),
   });
 }
 
@@ -204,6 +199,5 @@ export function useCloseRoomMutation() {
 }
 
 export function useUpdateRoomReadStateMutation() {
-  const queryClient = useQueryClient();
-  return useMutation(updateRoomReadStateMutationOptions(queryClient));
+  return useMutation(updateRoomReadStateMutationOptions());
 }

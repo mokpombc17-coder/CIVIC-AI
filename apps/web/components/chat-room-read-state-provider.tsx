@@ -1,16 +1,31 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useChatRealtimeTransport } from "@/components/chat-realtime-provider";
 import { ChatRoomReadStateCoordinator } from "@/lib/chat/chat-room-read-state-coordinator";
+import { classifyChatRoomReadStateFailure } from "@/lib/chat/chat-room-read-state-error-policy";
+import { attachChatRoomReadStateLifecycle } from "@/lib/chat/chat-room-read-state-lifecycle";
 import { useUpdateRoomReadStateMutation } from "@/lib/chat/chat-room-mutations";
+import { chatRoomQueryKeys } from "@/lib/chat/chat-room-queries";
 
 const ChatRoomReadStateContext = createContext<ChatRoomReadStateCoordinator | null>(null);
 
 export function ChatRoomReadStateProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const transport = useChatRealtimeTransport();
   const { mutateAsync } = useUpdateRoomReadStateMutation();
   const [coordinator] = useState(
     () =>
       new ChatRoomReadStateCoordinator({
+        classifyFailure: classifyChatRoomReadStateFailure,
+        onConfirmed: () => {
+          void queryClient
+            .invalidateQueries({
+              queryKey: chatRoomQueryKeys.roomInboxes(),
+            })
+            .catch(() => undefined);
+        },
         submit: async (roomId, throughSequence) => {
           const response = await mutateAsync({
             request: { throughSequence },
@@ -19,6 +34,16 @@ export function ChatRoomReadStateProvider({ children }: { children: ReactNode })
           return response.readThroughSequence;
         },
       }),
+  );
+
+  useEffect(
+    () =>
+      attachChatRoomReadStateLifecycle({
+        coordinator,
+        target: window,
+        transport,
+      }),
+    [coordinator, transport],
   );
 
   return <ChatRoomReadStateContext value={coordinator}>{children}</ChatRoomReadStateContext>;

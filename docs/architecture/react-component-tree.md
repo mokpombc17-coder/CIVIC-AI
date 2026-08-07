@@ -58,7 +58,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 `ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
 그 안에 `ChatRealtimeProvider`와 `ChatRoomReadStateProvider`를 배치한다. Read-state Provider는
 방별 pending·in-flight·confirmed sequence를 route segment 수명 동안 유지하므로 방 화면이
-unmount되어도 `/chat` 안의 route 이동에서는 예약된 보고가 유실되지 않는다. 실시간 Provider는 STOMP Client를 직접 노출하지
+unmount되어도 `/chat` 안의 route 이동에서는 예약된 보고가 유실되지 않는다. Provider는 짧은
+bounded retry 이후 남은 pending을 focus·online·실시간 연결 복구 시 재개하고, 로그인 성공마다
+인증 세대를 교체해 이전 사용자의 pending과 늦은 응답을 격리한다. 실시간 Provider는 STOMP Client를 직접 노출하지
 않고 교체 가능한 transport를 제공한다. SharedWorker 지원 브라우저에서는 Worker가 STOMP Client를
 소유하고, 미지원 단일 WebView에서는 Direct transport를 사용한다. 두 환경 모두 하위 채팅
 컴포넌트의 사용 계약은 같다. 목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가 Provider의
@@ -130,6 +132,8 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
+Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, 재참여 후 새 실시간 generation이
+준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
 대표 View 경계이며 overlay 존재 여부를 read-state pause 신호로 viewport에 전달한다. 내부 header,
 session indicator, membership trigger와 overlay wrapper는 받은 값을 표시하거나 전달하는 순수 표현

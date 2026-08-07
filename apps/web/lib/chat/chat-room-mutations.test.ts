@@ -257,16 +257,14 @@ describe("chat room mutation options", () => {
     expect(transferRoomOwnership).toHaveBeenCalledWith("room-01", variables.command);
   });
 
-  it("read-state 성공 시 Room inbox만 무효화하고 공통 retry 정책을 사용한다", async () => {
+  it("read-state 요청은 cache effect 없이 공통 bounded retry 정책만 사용한다", async () => {
     const queryClient = createQueryClient();
-    seedRoomQueries(queryClient);
-    queryClient.setQueryData(chatRoomQueryKeys.roomInbox(20), "inbox");
     const updateRoomReadState = vi.fn(async () => ({
       roomId: "room-01",
       readThroughSequence: 123,
       updated: true,
     }));
-    const options = updateRoomReadStateMutationOptions(queryClient, { updateRoomReadState });
+    const options = updateRoomReadStateMutationOptions({ updateRoomReadState });
     const observer = new MutationObserver(queryClient, options);
     const variables = {
       request: { throughSequence: 123 },
@@ -276,9 +274,7 @@ describe("chat room mutation options", () => {
     await observer.mutate(variables);
 
     expect(updateRoomReadState).toHaveBeenCalledWith("room-01", variables.request);
-    expect(isInvalidated(queryClient, chatRoomQueryKeys.roomInbox(20))).toBe(true);
-    expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(false);
-    expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(false);
+    expect(options.onSuccess).toBeUndefined();
     expect(options.retry).toBeTypeOf("function");
     expect(options.retryDelay).toBeTypeOf("function");
   });

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ChatRoomReadStateContractError,
   ChatRoomReadStateCoordinator,
+  ChatRoomReadStateTerminatedError,
 } from "./chat-room-read-state-coordinator";
 
 describe("ChatRoomReadStateCoordinator", () => {
@@ -158,6 +159,73 @@ describe("ChatRoomReadStateCoordinator", () => {
 
     coordinator.retryPending("room-a");
     expect(coordinator.getRoomSnapshot("room-a")?.status).toBe("blocked");
+  });
+
+  it("인증 세대 변경 전 요청의 늦은 성공을 현재 상태에 반영하지 않는다", async () => {
+    const submission = createDeferred<number>();
+    const onConfirmed = vi.fn();
+    const coordinator = new ChatRoomReadStateCoordinator({
+      onConfirmed,
+      submit: vi.fn(() => submission.promise),
+    });
+
+    coordinator.schedule("room-a", 13);
+    await vi.advanceTimersByTimeAsync(400);
+    coordinator.resetForPrincipalChange();
+    submission.resolve(13);
+    await flushMicrotasks();
+
+    expect(coordinator.getRoomSnapshot("room-a")).toBeNull();
+    expect(onConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("Room terminal 전환 시 pending을 제거하고 늦은 성공을 무시한다", async () => {
+    const submission = createDeferred<number>();
+    const onConfirmed = vi.fn();
+    const coordinator = new ChatRoomReadStateCoordinator({
+      onConfirmed,
+      submit: vi.fn(() => submission.promise),
+    });
+
+    coordinator.schedule("room-a", 13);
+    await vi.advanceTimersByTimeAsync(400);
+    coordinator.cancelRoom("room-a", "ROOM_CLOSED");
+
+    const terminalSnapshot = coordinator.getRoomSnapshot("room-a");
+    expect(terminalSnapshot).toMatchObject({
+      inFlightSequence: null,
+      pendingSequence: null,
+      status: "terminal",
+    });
+    expect(terminalSnapshot?.lastError).toBeInstanceOf(ChatRoomReadStateTerminatedError);
+
+    submission.resolve(13);
+    await flushMicrotasks();
+
+    expect(coordinator.getRoomSnapshot("room-a")?.confirmedSequence).toBe(0);
+    expect(onConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("재동기화 가능한 blocked Room을 resume하면 보존된 pending을 다시 전송한다", async () => {
+    const submit = vi
+      .fn<(roomId: string, throughSequence: number) => Promise<number>>()
+      .mockResolvedValueOnce(12)
+      .mockResolvedValueOnce(13);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+
+    coordinator.schedule("room-a", 13);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(coordinator.getRoomSnapshot("room-a")?.status).toBe("blocked");
+
+    coordinator.resumeRoom("room-a");
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 13,
+      pendingSequence: null,
+      status: "idle",
+    });
   });
 });
 

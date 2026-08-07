@@ -29,6 +29,7 @@ import { useChatMessageMutations } from "@/components/use-chat-message-mutations
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
+import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
@@ -42,7 +43,6 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const outgoingMessages = useChatOutgoingMessages(roomId);
   const { reconnect } = useChatRealtimeConnection();
   const session = useChatRealtimeRoom(roomId);
-  const updateReadThroughSequence = useChatRoomReadState(roomId);
   const {
     close: closeMembershipDialog,
     isOpen: isMembershipDialogOpen,
@@ -117,6 +117,23 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   });
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
   const readStateEnabled = realtimeReady && session.isActive;
+  const readStateTerminalReason: ChatRoomReadStateCancellationReason | null =
+    session.connectionError?.code === "ROOM_ACCESS_REVOKED"
+      ? "ACCESS_REVOKED"
+      : session.connectionError?.code === "ROOM_CLOSED" ||
+          session.error?.code === "ROOM_CLOSED" ||
+          room?.status === "CLOSED" ||
+          room?.participationStatus === "ROOM_CLOSED"
+        ? "ROOM_CLOSED"
+        : room?.participationStatus === "LEFT" ||
+            room?.participationStatus === "BANNED" ||
+            room?.participationStatus === "NOT_JOINED"
+          ? room.participationStatus
+          : null;
+  const updateReadThroughSequence = useChatRoomReadState(roomId, {
+    activeGeneration: readStateEnabled ? session.generation : null,
+    terminalReason: readStateTerminalReason,
+  });
 
   useEffect(() => {
     outbox.acknowledgeConfirmed(
