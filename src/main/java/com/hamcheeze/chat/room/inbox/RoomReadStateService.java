@@ -116,6 +116,11 @@ public final class RoomReadStateService {
             RoomReadPosition advancedPosition =
                     readPositionResolver.resolve(
                             membership, advance.state());
+            if (advancedPosition.storedLastReadSequence()
+                    < throughSequence) {
+                throw new IllegalStateException(
+                        "Advanced read state is below requested sequence");
+            }
             long result = advancedPosition
                     .effectiveReadThroughSequence();
             if (advance.updated()) {

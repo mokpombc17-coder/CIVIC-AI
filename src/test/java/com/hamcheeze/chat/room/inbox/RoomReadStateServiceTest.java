@@ -105,6 +105,59 @@ class RoomReadStateServiceTest {
     }
 
     @Test
+    void returnsHigherConcurrentCursorAsMonotonicAcknowledgement() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        RoomReadState state = new RoomReadState(
+                "membership-1", "room-1", "user-1", 60, NOW);
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenReturn(new RoomReadStateAdvance(state, false));
+
+        ReadStateResult result = service.update(
+                "user-1", "room-1", 55);
+
+        assertThat(result.readThroughSequence()).isEqualTo(60);
+        assertThat(result.updated()).isFalse();
+    }
+
+    @Test
+    void advanceBelowRequestRemainsNonRetryableConsistencyFailure() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        RoomReadState state = new RoomReadState(
+                "membership-1", "room-1", "user-1", 54, NOW);
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenReturn(new RoomReadStateAdvance(state, true));
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 55))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(RoomInboxException.class)
+                .hasMessage(
+                        "Advanced read state is below requested sequence");
+    }
+
+    @Test
+    void advanceIdentityMismatchRemainsNonRetryableConsistencyFailure() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        RoomReadState state = new RoomReadState(
+                "membership-2", "room-1", "user-1", 55, NOW);
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenReturn(new RoomReadStateAdvance(state, true));
+
+        assertThatThrownBy(() -> service.update(
+                "user-1", "room-1", 55))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(RoomInboxException.class)
+                .hasMessage(
+                        "Room read state identity does not match membership");
+    }
+
+    @Test
     void rejectsSequenceAheadOfRoom() {
         when(store.findByMembershipId("membership-1"))
                 .thenReturn(Optional.empty());
