@@ -245,7 +245,11 @@ class RoomInboxServiceTest {
             RoomInboxCursorCodec codec
     ) {
         return new RoomInboxService(
-                reader, store, unread, codec,
+                reader,
+                store,
+                new RoomReadPositionResolver(),
+                unread,
+                codec,
                 new SimpleMeterRegistry());
     }
 

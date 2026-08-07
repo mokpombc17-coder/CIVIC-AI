@@ -46,6 +46,7 @@ class RoomReadStateServiceTest {
         service = new RoomReadStateService(
                 roomReader,
                 store,
+                new RoomReadPositionResolver(),
                 sequenceReader,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 new SimpleMeterRegistry());

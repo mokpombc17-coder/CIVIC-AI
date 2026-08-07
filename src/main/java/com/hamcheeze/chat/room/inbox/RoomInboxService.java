@@ -24,6 +24,7 @@ public final class RoomInboxService {
 
     private final RoomInboxPageReader pageReader;
     private final RoomReadStateStore readStateStore;
+    private final RoomReadPositionResolver readPositionResolver;
     private final UnreadCountReader unreadCountReader;
     private final RoomInboxCursorCodec cursorCodec;
     private final RoomInboxStorageExceptionClassifier
@@ -35,6 +36,7 @@ public final class RoomInboxService {
     public RoomInboxService(
             RoomInboxPageReader pageReader,
             RoomReadStateStore readStateStore,
+            RoomReadPositionResolver readPositionResolver,
             UnreadCountReader unreadCountReader,
             RoomInboxCursorCodec cursorCodec,
             MeterRegistry meterRegistry
@@ -43,6 +45,8 @@ public final class RoomInboxService {
                 pageReader, "pageReader");
         this.readStateStore = Objects.requireNonNull(
                 readStateStore, "readStateStore");
+        this.readPositionResolver = Objects.requireNonNull(
+                readPositionResolver, "readPositionResolver");
         this.unreadCountReader = Objects.requireNonNull(
                 unreadCountReader, "unreadCountReader");
         this.cursorCodec = Objects.requireNonNull(
@@ -80,13 +84,11 @@ public final class RoomInboxService {
                 Membership membership = entry.membership();
                 RoomReadState state = states.get(
                         membership.membershipId());
-                if (state != null) {
-                    verifyIdentity(state, membership);
-                }
-                long readThrough = Math.max(
-                        membership.messageVisibleAfterSequence(),
-                        state == null ? 0
-                                : state.lastReadSequence());
+                RoomReadPosition position =
+                        readPositionResolver.resolve(
+                                membership, state);
+                long readThrough = position
+                        .effectiveReadThroughSequence();
                 UnreadCount unread = unreadCountReader.count(
                         entry.room().roomId(), userId, readThrough);
                 views.add(view(entry, readThrough, unread));
@@ -167,14 +169,4 @@ public final class RoomInboxService {
                 entry.lastActivityAt());
     }
 
-    private static void verifyIdentity(
-            RoomReadState state,
-            Membership membership
-    ) {
-        if (!state.roomId().equals(membership.roomId())
-                || !state.userId().equals(membership.userId())) {
-            throw new IllegalStateException(
-                    "Room read state identity does not match membership");
-        }
-    }
 }

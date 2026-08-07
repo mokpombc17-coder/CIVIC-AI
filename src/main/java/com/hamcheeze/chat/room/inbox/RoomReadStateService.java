@@ -16,6 +16,7 @@ public final class RoomReadStateService {
 
     private final RoomQueryReader roomReader;
     private final RoomReadStateStore readStateStore;
+    private final RoomReadPositionResolver readPositionResolver;
     private final RoomSequenceReader sequenceReader;
     private final RoomInboxStorageExceptionClassifier
             storageExceptionClassifier;
@@ -27,6 +28,7 @@ public final class RoomReadStateService {
     public RoomReadStateService(
             RoomQueryReader roomReader,
             RoomReadStateStore readStateStore,
+            RoomReadPositionResolver readPositionResolver,
             RoomSequenceReader sequenceReader,
             Clock clock,
             MeterRegistry meterRegistry
@@ -35,6 +37,8 @@ public final class RoomReadStateService {
                 roomReader, "roomReader");
         this.readStateStore = Objects.requireNonNull(
                 readStateStore, "readStateStore");
+        this.readPositionResolver = Objects.requireNonNull(
+                readPositionResolver, "readPositionResolver");
         this.sequenceReader = Objects.requireNonNull(
                 sequenceReader, "sequenceReader");
         this.storageExceptionClassifier =
@@ -79,23 +83,21 @@ public final class RoomReadStateService {
             RoomReadState existing = readStateStore
                     .findByMembershipId(membership.membershipId())
                     .orElse(null);
-            verifyIdentity(existing, membership);
-            long effective = Math.max(
-                    membership.messageVisibleAfterSequence(),
-                    existing == null ? 0 : existing.lastReadSequence());
+            RoomReadPosition position = readPositionResolver.resolve(
+                    membership, existing);
+            long effective = position.effectiveReadThroughSequence();
             long currentRoomSequence = sequenceReader.currentSequence(
                     roomId);
-            if (membership.messageVisibleAfterSequence()
+            if (position.messageVisibleAfterSequence()
                     > currentRoomSequence
-                    || existing != null
-                    && existing.lastReadSequence()
+                    || position.storedLastReadSequence()
                     > currentRoomSequence) {
                 throw new RoomInboxException(
                         RoomInboxErrorCode.READ_STATE_INCONSISTENT,
                         "Persisted read state exceeds the room sequence");
             }
             if (throughSequence
-                    < membership.messageVisibleAfterSequence()
+                    < position.messageVisibleAfterSequence()
                     || throughSequence <= effective) {
                 recordNoop();
                 return new ReadStateResult(roomId, effective, false);
@@ -111,10 +113,11 @@ public final class RoomReadStateService {
                     userId,
                     throughSequence,
                     clock.instant());
-            verifyIdentity(advance.state(), membership);
-            long result = Math.max(
-                    membership.messageVisibleAfterSequence(),
-                    advance.state().lastReadSequence());
+            RoomReadPosition advancedPosition =
+                    readPositionResolver.resolve(
+                            membership, advance.state());
+            long result = advancedPosition
+                    .effectiveReadThroughSequence();
             if (advance.updated()) {
                 BestEffortMetricRecorder.increment(
                         "room.read_state.updates", updatedCounter);
@@ -147,17 +150,4 @@ public final class RoomReadStateService {
                 "room.read_state.noops", noopCounter);
     }
 
-    private static void verifyIdentity(
-            RoomReadState state,
-            Membership membership
-    ) {
-        if (state != null
-                && (!state.membershipId().equals(
-                        membership.membershipId())
-                || !state.roomId().equals(membership.roomId())
-                || !state.userId().equals(membership.userId()))) {
-            throw new IllegalStateException(
-                    "Room read state identity does not match membership");
-        }
-    }
 }

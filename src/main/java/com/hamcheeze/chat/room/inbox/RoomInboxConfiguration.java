@@ -67,15 +67,22 @@ public class RoomInboxConfiguration {
     }
 
     @Bean
+    RoomReadPositionResolver roomReadPositionResolver() {
+        return new RoomReadPositionResolver();
+    }
+
+    @Bean
     RoomReadStateService roomReadStateService(
             RoomQueryReader roomReader,
             RoomReadStateStore store,
+            RoomReadPositionResolver readPositionResolver,
             RoomSequenceReader sequenceReader,
             MeterRegistry meterRegistry
     ) {
         return new RoomReadStateService(
                 roomReader,
                 store,
+                readPositionResolver,
                 sequenceReader,
                 Clock.systemUTC(),
                 meterRegistry);
@@ -85,6 +92,7 @@ public class RoomInboxConfiguration {
     RoomInboxService roomInboxService(
             RoomInboxPageReader pageReader,
             RoomReadStateStore store,
+            RoomReadPositionResolver readPositionResolver,
             UnreadCountReader unreadCountReader,
             RoomInboxCursorCodec cursorCodec,
             MeterRegistry meterRegistry
@@ -92,6 +100,7 @@ public class RoomInboxConfiguration {
         return new RoomInboxService(
                 pageReader,
                 store,
+                readPositionResolver,
                 unreadCountReader,
                 cursorCodec,
                 meterRegistry);
