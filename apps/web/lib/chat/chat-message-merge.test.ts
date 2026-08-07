@@ -83,6 +83,7 @@ describe("mergeChatMessages", () => {
             {
               ...message,
               senderUserId: "another-user",
+              senderMembershipId: "another-membership",
               messageVersion: 2,
               updatedAt: "2026-07-29T04:41:00Z",
             },
@@ -232,6 +233,7 @@ function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACT
     roomSequence,
     countable: true,
     senderUserId: "local-user-1",
+    senderMembershipId: "membership-01",
     clientMessageId: `00000000-0000-4000-8000-${String(roomSequence).padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,
     createdAt: "2026-07-29T04:40:00Z",

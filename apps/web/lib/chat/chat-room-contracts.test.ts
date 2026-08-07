@@ -18,6 +18,7 @@ import {
   roomIdSchema,
   roomInboxListParamsSchema,
   roomInboxListResponseSchema,
+  targetMembershipRequestSchema,
   updateRoomReadStateRequestSchema,
   updateRoomReadStateResponseSchema,
   updateRoomSettingsRequestSchema,
@@ -186,6 +187,7 @@ describe("chat room REST contracts", () => {
       name: "시민 AI 토론방",
       description: "",
       categories: ["LOCAL_ISSUE"] as const,
+      ownerMembershipId: "membership-01",
       ownerUserId: "local-user-1",
       status: "ACTIVE" as const,
       visibility: "LISTED" as const,
@@ -223,6 +225,13 @@ describe("chat room REST contracts", () => {
         hasNext: false,
       }).success,
     ).toBe(false);
+    expect(
+      publicRoomListResponseSchema.safeParse({
+        items: [{ ...publicRoom, ownerMembershipId: undefined }],
+        nextCursor: null,
+        hasNext: false,
+      }).success,
+    ).toBe(false);
   });
 
   it("방 상세 응답의 nullable 멤버십을 허용한다", () => {
@@ -231,6 +240,7 @@ describe("chat room REST contracts", () => {
       name: "시민 AI 토론방",
       description: "",
       categories: ["ENVIRONMENT"],
+      ownerMembershipId: "membership-01",
       ownerUserId: "local-user-1",
       status: "ACTIVE",
       visibility: "LISTED",
@@ -244,6 +254,21 @@ describe("chat room REST contracts", () => {
     });
 
     expect(result.myMembership).toBeNull();
+  });
+
+  it("Room command 대상은 targetMembershipId 하나만 허용한다", () => {
+    expect(targetMembershipRequestSchema.parse({ targetMembershipId: "membership-02" })).toEqual({
+      targetMembershipId: "membership-02",
+    });
+    expect(targetMembershipRequestSchema.safeParse({ targetUserId: "user-02" }).success).toBe(
+      false,
+    );
+    expect(
+      targetMembershipRequestSchema.safeParse({
+        targetMembershipId: "membership-02",
+        targetUserId: "user-02",
+      }).success,
+    ).toBe(false);
   });
 
   it("다음 페이지가 있으면 opaque nextCursor를 요구한다", () => {
@@ -494,6 +519,9 @@ describe("chat room REST contracts", () => {
 
     expect(chatMessageSchema.parse(activeMessage)).toEqual(activeMessage);
     expect(chatMessageSchema.parse(deletedMessage)).toEqual(deletedMessage);
+    expect(
+      chatMessageSchema.safeParse({ ...activeMessage, senderMembershipId: undefined }).success,
+    ).toBe(false);
     expect(chatMessageSchema.safeParse({ ...activeMessage, countable: undefined }).success).toBe(
       false,
     );
@@ -518,6 +546,7 @@ function createMessage(roomSequence: number) {
     roomId: "room-01",
     roomSequence,
     countable: true,
+    senderMembershipId: "membership-01",
     senderUserId: "local-user-1",
     clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
     content: "안녕하세요.",
@@ -535,6 +564,7 @@ function createRoomInboxItem() {
     name: "시민 AI 토론방",
     description: "",
     categories: ["POLICY"] as const,
+    ownerMembershipId: "membership-01",
     ownerUserId: "local-user-1",
     status: "ACTIVE" as const,
     visibility: "LISTED" as const,

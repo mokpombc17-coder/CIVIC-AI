@@ -31,6 +31,7 @@ describe("chat room event cache projector", () => {
       queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01")),
     ).toMatchObject({
       activeMemberCount: 2,
+      ownerMembershipId: "membership-01",
       ownerUserId: "local-user-1",
       status: "ACTIVE",
       version: 2,
@@ -49,6 +50,7 @@ describe("chat room event cache projector", () => {
     expect(
       queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01")),
     ).toMatchObject({
+      ownerMembershipId: "membership-02",
       ownerUserId: "local-user-2",
       version: 2,
       myMembership: {
@@ -343,6 +345,7 @@ const ROOM_DETAILS = {
   name: "시민 AI 토론방",
   description: "",
   categories: ["POLICY"],
+  ownerMembershipId: "membership-01",
   ownerUserId: "local-user-1",
   status: "ACTIVE",
   visibility: "LISTED",

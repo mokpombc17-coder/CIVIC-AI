@@ -32,6 +32,7 @@ const ROOM_INBOX_CREATED_EVENT = {
   notificationHint: {
     messageId: "message-84",
     messageVersion: 1,
+    senderMembershipId: "membership-02",
     senderUserId: "user-02",
     messageCreatedAt: "2026-08-04T01:09:59Z",
     preview: "다음 회의는 월요일입니다.",
@@ -276,6 +277,7 @@ describe("chat realtime payload contracts", () => {
         roomId: "room-01",
         roomSequence: 1,
         countable: true,
+        senderMembershipId: "membership-01",
         senderUserId: "local-user-1",
         clientMessageId: CLIENT_MESSAGE_ID,
         content: "안녕하세요.",
@@ -312,6 +314,14 @@ describe("chat realtime payload contracts", () => {
     expect(parseChatMessageEvent(JSON.stringify(event))).toEqual(event);
     expect(parseChatMessageEvent(JSON.stringify(updatedEvent))).toEqual(updatedEvent);
     expect(parseChatMessageEvent(JSON.stringify(deletedEvent))).toEqual(deletedEvent);
+    expect(
+      parseChatMessageEvent(
+        JSON.stringify({
+          ...event,
+          payload: { ...event.payload, senderMembershipId: undefined },
+        }),
+      ),
+    ).toBeNull();
   });
 
   it("메시지 이벤트 종류와 맞지 않는 snapshot 상태를 거절한다", () => {
@@ -320,6 +330,7 @@ describe("chat realtime payload contracts", () => {
       roomId: "room-01",
       roomSequence: 1,
       countable: true,
+      senderMembershipId: "membership-01",
       senderUserId: "local-user-1",
       clientMessageId: CLIENT_MESSAGE_ID,
       content: "안녕하세요.",
@@ -546,6 +557,17 @@ describe("room inbox event contracts", () => {
     expect(parseChatRoomInboxEvent(JSON.stringify(ROOM_INBOX_CREATED_EVENT))).toEqual(
       ROOM_INBOX_CREATED_EVENT,
     );
+    expect(
+      parseChatRoomInboxEvent(
+        JSON.stringify({
+          ...ROOM_INBOX_CREATED_EVENT,
+          notificationHint: {
+            ...ROOM_INBOX_CREATED_EVENT.notificationHint,
+            senderMembershipId: undefined,
+          },
+        }),
+      ),
+    ).toBeNull();
 
     const updatedEvent = {
       ...ROOM_INBOX_CREATED_EVENT,

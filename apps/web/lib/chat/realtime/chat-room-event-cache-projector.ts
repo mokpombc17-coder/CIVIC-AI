@@ -97,6 +97,7 @@ function projectRoomDetails(
   let nextRoom: RoomDetails = {
     ...room,
     activeMemberCount: projectActiveMemberCount(room, event),
+    ownerMembershipId: getOwnerMembershipId(event, room.ownerMembershipId),
     ownerUserId: getOwnerUserId(event, room.ownerUserId),
     participationStatus:
       event.payload.roomStatus === "CLOSED" ? "ROOM_CLOSED" : room.participationStatus,
@@ -178,6 +179,21 @@ function getOwnerUserId(event: ChatRoomEventEnvelope, currentOwnerUserId: string
       return event.payload.newOwner.userId;
     default:
       return currentOwnerUserId;
+  }
+}
+
+function getOwnerMembershipId(
+  event: ChatRoomEventEnvelope,
+  currentOwnerMembershipId: string,
+): string {
+  switch (event.eventType) {
+    case "ROOM_CREATED":
+    case "ROOM_CLOSED":
+      return event.payload.owner.membershipId;
+    case "ROOM_OWNERSHIP_TRANSFERRED":
+      return event.payload.newOwner.membershipId;
+    default:
+      return currentOwnerMembershipId;
   }
 }
 

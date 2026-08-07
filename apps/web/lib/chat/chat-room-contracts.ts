@@ -132,6 +132,7 @@ export const roomSettingsSchema = z.object({
 
 export const publicRoomListItemSchema = roomSettingsSchema.extend({
   roomId: roomIdSchema,
+  ownerMembershipId: opaqueIdSchema,
   ownerUserId: opaqueIdSchema,
   status: roomStatusSchema,
   activeMemberCount: z.number().int().nonnegative(),
@@ -252,6 +253,12 @@ export const targetUserRequestSchema = z.object({
   targetUserId: z.string().trim().min(1),
 });
 
+export const targetMembershipRequestSchema = z
+  .object({
+    targetMembershipId: opaqueIdSchema,
+  })
+  .strict();
+
 const commandResponseBaseSchema = z.object({
   clientRequestId: idempotencyKeySchema,
   replayed: z.boolean(),
@@ -330,6 +337,7 @@ const chatMessageSnapshotBaseSchema = z.object({
   roomId: roomIdSchema,
   roomSequence: positiveSequenceSchema,
   countable: z.boolean(),
+  senderMembershipId: opaqueIdSchema,
   senderUserId: opaqueIdSchema,
   clientMessageId: idempotencyKeySchema,
   messageVersion: positiveMessageVersionSchema,
@@ -444,6 +452,7 @@ export type RoomMembershipListResponse = z.infer<typeof roomMembershipListRespon
 export type CreateRoomRequest = z.input<typeof createRoomRequestSchema>;
 export type UpdateRoomSettingsRequest = z.input<typeof updateRoomSettingsRequestSchema>;
 export type TargetUserRequest = z.infer<typeof targetUserRequestSchema>;
+export type TargetMembershipRequest = z.infer<typeof targetMembershipRequestSchema>;
 export type CreateRoomResponse = z.infer<typeof createRoomResponseSchema>;
 export type UpdateRoomSettingsResponse = z.infer<typeof updateRoomSettingsResponseSchema>;
 export type JoinRoomResponse = z.infer<typeof joinRoomResponseSchema>;
