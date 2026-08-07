@@ -198,6 +198,7 @@ class LeaderTabCoordinator {
   private readonly onError: (cause: unknown) => void;
   private readonly onEvent: (event: ChatSharedWorkerEvent) => void;
   private readonly pendingCommands: ChatSharedWorkerCommand[] = [];
+  private principalGeneration = 0;
   private releaseLeadership: (() => void) | null = null;
   private readonly remotePorts = new Map<string, RemoteRuntimePort>();
   private readonly remotePortTimeoutMs: number;
@@ -333,10 +334,11 @@ class LeaderTabCoordinator {
     if (this.leaderId) {
       this.leaderId = null;
       this.leaderSessionId = null;
-      this.onEvent({
+      this.emitEvent({
         type: "CONNECTION_SNAPSHOT",
         workerInstanceId: `leader-tab-${this.id}`,
         attachedPortCount: 1,
+        principalGeneration: this.principalGeneration,
         snapshot: {
           status: "reconnecting",
           error: {
@@ -431,7 +433,7 @@ class LeaderTabCoordinator {
         return;
       case "WORKER_EVENT":
         if (envelope.targetId === this.id && envelope.leaderSessionId === this.leaderSessionId) {
-          this.onEvent(envelope.event);
+          this.emitEvent(envelope.event);
         }
     }
   };
@@ -505,7 +507,7 @@ class LeaderTabCoordinator {
     if (!remote) {
       const bridge = new LeaderRuntimePort((event) => {
         if (senderId === this.id) {
-          this.onEvent(event);
+          this.emitEvent(event);
           return;
         }
 
@@ -578,6 +580,14 @@ class LeaderTabCoordinator {
       envelope.leaderId === this.id &&
       envelope.leaderSessionId === this.leaderSessionId
     );
+  }
+
+  private emitEvent(event: ChatSharedWorkerEvent): void {
+    if (event.type === "CONNECTION_SNAPSHOT") {
+      this.principalGeneration = event.principalGeneration;
+    }
+
+    this.onEvent(event);
   }
 
   private isLeader(): boolean {

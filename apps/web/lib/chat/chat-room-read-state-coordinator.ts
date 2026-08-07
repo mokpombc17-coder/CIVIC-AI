@@ -184,6 +184,38 @@ export class ChatRoomReadStateCoordinator {
     }
   }
 
+  confirmFromPeer(roomIdInput: string, readThroughSequence: number): boolean {
+    const roomId = roomIdSchema.parse(roomIdInput);
+    assertSequence(readThroughSequence, "readThroughSequence");
+    const entry = this.getOrCreateEntry(roomId);
+    const nextConfirmedSequence = Math.max(entry.confirmedSequence, readThroughSequence);
+    const clearsPending =
+      entry.pendingSequence !== null && entry.pendingSequence <= nextConfirmedSequence;
+
+    if (nextConfirmedSequence === entry.confirmedSequence && !clearsPending) {
+      return false;
+    }
+
+    entry.confirmedSequence = nextConfirmedSequence;
+    if (clearsPending) {
+      entry.pendingSequence = null;
+    }
+
+    if (entry.status !== "blocked" && entry.status !== "terminal") {
+      entry.lastError = null;
+      entry.retryAttempt = 0;
+      entry.status =
+        entry.inFlightSequence !== null
+          ? "submitting"
+          : entry.pendingSequence === null
+            ? "idle"
+            : "pending";
+    }
+
+    this.emit(roomId, entry);
+    return true;
+  }
+
   cancelRoom(roomIdInput: string, reason: ChatRoomReadStateCancellationReason): void {
     const roomId = roomIdSchema.parse(roomIdInput);
     const entry = this.entries.get(roomId);

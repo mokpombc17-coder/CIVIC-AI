@@ -86,11 +86,33 @@ describe("chat shared worker protocol", () => {
     ).toBe(false);
   });
 
+  it("read-state confirmation command와 event의 인증 세대·sequence를 검증한다", () => {
+    const command = {
+      type: "CONFIRM_ROOM_READ_STATE",
+      portId: "port-1",
+      principalGeneration: 2,
+      roomId: "room-1",
+      readThroughSequence: 13,
+    };
+    const event = {
+      type: "ROOM_READ_STATE_CONFIRMED",
+      principalGeneration: 2,
+      roomId: "room-1",
+      readThroughSequence: 13,
+    };
+
+    expect(isChatSharedWorkerCommand(command)).toBe(true);
+    expect(isChatSharedWorkerCommand({ ...command, readThroughSequence: 0 })).toBe(false);
+    expect(isChatSharedWorkerEvent(event)).toBe(true);
+    expect(isChatSharedWorkerEvent({ ...event, principalGeneration: -1 })).toBe(false);
+  });
+
   it("서버 close snapshot의 상태와 오류 code를 검증한다", () => {
     const snapshotEvent = {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: "worker-1",
       attachedPortCount: 2,
+      principalGeneration: 0,
       snapshot: {
         status: "replaced",
         error: {

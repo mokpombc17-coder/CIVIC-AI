@@ -17,6 +17,7 @@ import {
   type ChatRealtimeError,
   type ChatRealtimeReconnectReason,
   type ChatRealtimeTransport,
+  type ChatRoomReadStateConfirmation,
   type ChatRoomMessageDeleteCommand,
   type ChatRoomMessageEditCommand,
   type ChatRoomMessageSendCommand,
@@ -100,6 +101,8 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly handshakeTimeoutMs: number;
   private readonly diagnosticRequestTimeoutMs: number;
   private readonly listeners = new Set<() => void>();
+  private principalGeneration = 0;
+  private readonly principalGenerationListeners = new Set<() => void>();
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
   private readonly messageDeliveryLifecycleListeners = new Set<
@@ -115,6 +118,9 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
   private readonly roomInboxEventListeners = new Set<(event: ChatRoomInboxEvent) => void>();
+  private readonly roomReadStateConfirmationListeners = new Set<
+    (confirmation: ChatRoomReadStateConfirmation) => void
+  >();
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
   private readonly onWorkerReady: () => void;
@@ -165,6 +171,8 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
     this.realtimeEventDelivery;
 
+  readonly getPrincipalGeneration = (): number => this.principalGeneration;
+
   readonly getDiagnosticSnapshot = (): Promise<ChatRealtimeDiagnosticSnapshot> =>
     new Promise((resolve, reject) => {
       this.postDiagnosticRequest("snapshot", resolve, reject);
@@ -199,6 +207,18 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     return () => {
       this.roomInboxEventListeners.delete(listener);
     };
+  };
+
+  readonly observePrincipalGeneration = (listener: () => void): (() => void) => {
+    this.principalGenerationListeners.add(listener);
+    return () => this.principalGenerationListeners.delete(listener);
+  };
+
+  readonly observeRoomReadStateConfirmation = (
+    listener: (confirmation: ChatRoomReadStateConfirmation) => void,
+  ): (() => void) => {
+    this.roomReadStateConfirmationListeners.add(listener);
+    return () => this.roomReadStateConfirmationListeners.delete(listener);
   };
 
   readonly observeMessageCommandEvent = (
@@ -421,6 +441,10 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
       return;
     }
 
+    if (reason === "authentication-succeeded") {
+      this.setPrincipalGeneration(this.principalGeneration + 1);
+    }
+
     if (!this.connection || !this.portId) {
       this.openConnection();
       return;
@@ -435,6 +459,24 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     } catch (cause) {
       this.closeConnection(false);
       this.setWorkerError(cause, "SharedWorker에 재연결 명령을 전달하지 못했습니다.");
+    }
+  };
+
+  readonly confirmRoomReadState = (roomId: string, readThroughSequence: number): void => {
+    if (!this.connection || !this.portId) {
+      return;
+    }
+
+    try {
+      this.connection.port.postMessage({
+        type: "CONFIRM_ROOM_READ_STATE",
+        portId: this.portId,
+        principalGeneration: this.principalGeneration,
+        roomId,
+        readThroughSequence,
+      });
+    } catch {
+      // The local PUT already succeeded. Cross-tab confirmation remains best-effort.
     }
   };
 
@@ -504,6 +546,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         this.resolveDiagnosticsCleared(workerEvent.requestId);
         return;
       case "CONNECTION_SNAPSHOT":
+        this.setPrincipalGeneration(workerEvent.principalGeneration);
         this.setSnapshot(workerEvent.snapshot);
 
         if (
@@ -644,6 +687,11 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
         return;
       case "ROOM_INBOX_EVENT":
         this.roomInboxEventListeners.forEach((listener) => listener(workerEvent.event));
+        return;
+      case "ROOM_READ_STATE_CONFIRMED":
+        if (workerEvent.principalGeneration === this.principalGeneration) {
+          this.roomReadStateConfirmationListeners.forEach((listener) => listener(workerEvent));
+        }
         return;
       case "ROOM_MESSAGE_SEND_FAILED":
         this.emitMessageCommandEvent({
@@ -974,6 +1022,15 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
   private setSnapshot(snapshot: ChatConnectionSnapshot): void {
     this.snapshot = snapshot;
     this.listeners.forEach((listener) => listener());
+  }
+
+  private setPrincipalGeneration(principalGeneration: number): void {
+    if (principalGeneration === this.principalGeneration) {
+      return;
+    }
+
+    this.principalGeneration = principalGeneration;
+    this.principalGenerationListeners.forEach((listener) => listener());
   }
 
   private startHandshakeTimer(): void {

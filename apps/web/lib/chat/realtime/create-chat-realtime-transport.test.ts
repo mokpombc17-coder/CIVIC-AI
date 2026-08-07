@@ -211,12 +211,14 @@ function createFakeTransport(): ChatRealtimeTransport & {
     deleteRoomMessage: () => {},
     detach,
     editRoomMessage: () => {},
+    confirmRoomReadState: () => {},
     emitMessageDeliveryLifecycle(event) {
       messageDeliveryLifecycleListeners.forEach((listener) => listener(event));
     },
     getDiagnosticSnapshot: () =>
       Promise.reject(new Error("Diagnostics are not used in this test.")),
     getRealtimeEventDelivery: () => null,
+    getPrincipalGeneration: () => 0,
     getRoomSnapshot: () => roomSnapshot,
     getSnapshot: () => ({ status: "idle", error: null }),
     markRoomSnapshotApplied: () => {},
@@ -228,6 +230,8 @@ function createFakeTransport(): ChatRealtimeTransport & {
     observeMessageMutationLifecycle: () => () => {},
     observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
+    observePrincipalGeneration: () => () => {},
+    observeRoomReadStateConfirmation: () => () => {},
     observeRoom: () => () => {},
     observeRoomInboxEvent: () => () => {},
     observe: () => () => {},

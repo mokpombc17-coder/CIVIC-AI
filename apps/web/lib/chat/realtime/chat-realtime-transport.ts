@@ -59,6 +59,12 @@ export type ChatConnectionSnapshot = Readonly<{
   error: ChatRealtimeError | null;
 }>;
 
+export type ChatRoomReadStateConfirmation = Readonly<{
+  principalGeneration: number;
+  readThroughSequence: number;
+  roomId: string;
+}>;
+
 export type ChatRealtimeReconnectReason = "authentication-succeeded";
 
 export type ChatRoomSessionStatus =
@@ -171,6 +177,7 @@ export type ChatRealtimeTransport = {
   editRoomMessage(command: ChatRoomMessageEditCommand): void;
   getDiagnosticSnapshot(): Promise<ChatRealtimeDiagnosticSnapshot>;
   getRealtimeEventDelivery(): ChatRealtimeEventDelivery | null;
+  getPrincipalGeneration(): number;
   getRoomSnapshot(): ChatRoomSessionSnapshot;
   getSnapshot(): ChatConnectionSnapshot;
   markRoomSnapshotApplied(roomId: string, generation: number): void;
@@ -183,10 +190,15 @@ export type ChatRealtimeTransport = {
   ): () => void;
   observeMessageMutationEvent(listener: (event: ChatMessageMutationEvent) => void): () => void;
   observeRealtimeEventDelivery(listener: () => void): () => void;
+  observePrincipalGeneration(listener: () => void): () => void;
+  observeRoomReadStateConfirmation(
+    listener: (confirmation: ChatRoomReadStateConfirmation) => void,
+  ): () => void;
   observeRoomInboxEvent(listener: (event: ChatRoomInboxEvent) => void): () => void;
   observeRoom(listener: () => void): () => void;
   observe(listener: () => void): () => void;
   reconnect(reason?: ChatRealtimeReconnectReason): void;
+  confirmRoomReadState(roomId: string, readThroughSequence: number): void;
   releaseRoom(roomId: string): void;
   sendRoomMessage(command: ChatRoomMessageSendCommand): void;
 };

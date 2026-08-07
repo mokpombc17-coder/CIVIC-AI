@@ -227,6 +227,23 @@ describe("ChatRoomReadStateCoordinator", () => {
       status: "idle",
     });
   });
+
+  it("peer confirmation을 단조 증가로 반영하고 이미 확인된 pending을 제거한다", () => {
+    const coordinator = new ChatRoomReadStateCoordinator({
+      submit: vi.fn(async (_roomId, throughSequence) => throughSequence),
+    });
+
+    coordinator.schedule("room-a", 13);
+
+    expect(coordinator.confirmFromPeer("room-a", 15)).toBe(true);
+    expect(coordinator.getRoomSnapshot("room-a")).toMatchObject({
+      confirmedSequence: 15,
+      pendingSequence: null,
+      status: "idle",
+    });
+    expect(coordinator.confirmFromPeer("room-a", 12)).toBe(false);
+    expect(coordinator.getRoomSnapshot("room-a")?.confirmedSequence).toBe(15);
+  });
 });
 
 function createDeferred<T>(): {

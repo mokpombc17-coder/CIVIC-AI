@@ -102,6 +102,13 @@ export type ChatSharedWorkerCommand =
       deliveryId: string;
       roomId: string;
       generation: number;
+    }>
+  | Readonly<{
+      type: "CONFIRM_ROOM_READ_STATE";
+      portId: string;
+      principalGeneration: number;
+      roomId: string;
+      readThroughSequence: number;
     }>;
 
 export type ChatSharedWorkerEvent =
@@ -109,6 +116,7 @@ export type ChatSharedWorkerEvent =
       type: "CONNECTION_SNAPSHOT";
       workerInstanceId: string;
       attachedPortCount: number;
+      principalGeneration: number;
       snapshot: ChatConnectionSnapshot;
     }>
   | Readonly<{
@@ -123,6 +131,12 @@ export type ChatSharedWorkerEvent =
   | Readonly<{
       type: "ROOM_INBOX_EVENT";
       event: ChatRoomInboxEvent;
+    }>
+  | Readonly<{
+      type: "ROOM_READ_STATE_CONFIRMED";
+      principalGeneration: number;
+      roomId: string;
+      readThroughSequence: number;
     }>
   | Readonly<{
       type: "ROOM_SYNCING";
@@ -265,6 +279,14 @@ export function isChatSharedWorkerCommand(value: unknown): value is ChatSharedWo
     );
   }
 
+  if (command.type === "CONFIRM_ROOM_READ_STATE") {
+    return (
+      isGeneration(command.principalGeneration) &&
+      typeof command.roomId === "string" &&
+      isPositiveSequence(command.readThroughSequence)
+    );
+  }
+
   if (command.type === "SEND_ROOM_MESSAGE") {
     return (
       typeof command.roomId === "string" &&
@@ -317,6 +339,14 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
     return chatRoomInboxEventSchema.safeParse(event.event).success;
   }
 
+  if (event.type === "ROOM_READ_STATE_CONFIRMED") {
+    return (
+      isGeneration(event.principalGeneration) &&
+      typeof event.roomId === "string" &&
+      isPositiveSequence(event.readThroughSequence)
+    );
+  }
+
   if (event.type === "CONNECTION_SNAPSHOT") {
     const snapshot = event.snapshot as Partial<ChatConnectionSnapshot> | undefined;
 
@@ -324,6 +354,7 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
       typeof event.workerInstanceId === "string" &&
       typeof event.attachedPortCount === "number" &&
       event.attachedPortCount >= 0 &&
+      isGeneration(event.principalGeneration) &&
       !!snapshot &&
       typeof snapshot.status === "string" &&
       CONNECTION_STATUSES.has(snapshot.status as ChatConnectionSnapshot["status"]) &&
@@ -477,6 +508,10 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
 
 function isGeneration(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isPositiveSequence(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
 }
 
 function isChatRealtimeBufferedEvent(value: unknown): value is ChatRealtimeBufferedEvent {

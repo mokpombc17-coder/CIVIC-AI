@@ -131,6 +131,7 @@ class FakeRuntime {
           type: "CONNECTION_SNAPSHOT",
           workerInstanceId: "leader-runtime",
           attachedPortCount: 1,
+          principalGeneration: 0,
           snapshot: {
             status: "connected",
             error: null,

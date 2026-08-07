@@ -196,12 +196,16 @@ describe("DirectStompTransport", () => {
   it("정상 연결에서는 로그인 성공 신호로 불필요한 재연결을 만들지 않는다", () => {
     const client = createFakeClient();
     const transport = new DirectStompTransport(client);
+    const principalListener = vi.fn();
 
+    transport.observePrincipalGeneration(principalListener);
     transport.attach();
     client.onConnect({} as IFrame);
     transport.reconnect("authentication-succeeded");
 
     expect(transport.getSnapshot()).toEqual({ status: "connected", error: null });
+    expect(transport.getPrincipalGeneration()).toBe(1);
+    expect(principalListener).toHaveBeenCalledOnce();
     expect(client.activate).toHaveBeenCalledTimes(1);
     expect(client.forceDisconnect).not.toHaveBeenCalled();
   });

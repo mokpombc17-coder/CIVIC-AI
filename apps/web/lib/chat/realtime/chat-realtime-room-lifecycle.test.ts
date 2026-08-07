@@ -63,10 +63,12 @@ function createFakeTransport(): ChatRealtimeTransport {
     clearDiagnostics: vi.fn(() => Promise.resolve()),
     deleteRoomMessage: vi.fn(),
     editRoomMessage: vi.fn(),
+    confirmRoomReadState: vi.fn(),
     getDiagnosticSnapshot: vi.fn(() =>
       Promise.reject(new Error("Diagnostics are not used in this test.")),
     ),
     getRealtimeEventDelivery: vi.fn(() => null),
+    getPrincipalGeneration: vi.fn(() => 0),
     getRoomSnapshot: vi.fn(() => ({
       status: "idle" as const,
       roomId: null,
@@ -86,6 +88,8 @@ function createFakeTransport(): ChatRealtimeTransport {
     observeMessageMutationLifecycle: vi.fn(() => vi.fn()),
     observeMessageMutationEvent: vi.fn(() => vi.fn()),
     observeRealtimeEventDelivery: vi.fn(() => vi.fn()),
+    observePrincipalGeneration: vi.fn(() => vi.fn()),
+    observeRoomReadStateConfirmation: vi.fn(() => vi.fn()),
     observeRoom: vi.fn(() => vi.fn()),
     observeRoomInboxEvent: vi.fn(() => vi.fn()),
     observe: vi.fn(() => vi.fn()),

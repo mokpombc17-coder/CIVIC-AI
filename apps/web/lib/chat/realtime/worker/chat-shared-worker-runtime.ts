@@ -145,6 +145,7 @@ export class ChatSharedWorkerRuntime {
   private deactivation: Promise<void> | null = null;
   private diagnosticIdSequence = 0;
   private generation = 0;
+  private principalGeneration = 0;
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageMutations: ChatMessageMutationScheduler;
   private pendingRoomActivation: PendingRoomActivation | null = null;
@@ -416,6 +417,12 @@ export class ChatSharedWorkerRuntime {
         if (connectedPort.attached && connectedPort.portId === command.portId) {
           this.acknowledgeRealtimeEvents(connectedPort, command);
         }
+        return;
+      case "CONFIRM_ROOM_READ_STATE":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.confirmRoomReadState(connectedPort, command);
+        }
+        return;
     }
   }
 
@@ -575,6 +582,8 @@ export class ChatSharedWorkerRuntime {
     });
 
     if (reason === "authentication-succeeded") {
+      this.principalGeneration += 1;
+      this.broadcastSnapshot();
       if (this.snapshot.status === "authentication-required") {
         this.startConnection("authentication-succeeded");
       }
@@ -1633,6 +1642,28 @@ export class ChatSharedWorkerRuntime {
     }
   }
 
+  private confirmRoomReadState(
+    sourcePort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "CONFIRM_ROOM_READ_STATE" }>,
+  ): void {
+    if (command.principalGeneration !== this.principalGeneration) {
+      return;
+    }
+
+    for (const connectedPort of this.ports.values()) {
+      if (!connectedPort.attached || connectedPort === sourcePort) {
+        continue;
+      }
+
+      connectedPort.port.postMessage({
+        type: "ROOM_READ_STATE_CONFIRMED",
+        principalGeneration: this.principalGeneration,
+        roomId: command.roomId,
+        readThroughSequence: command.readThroughSequence,
+      });
+    }
+  }
+
   private sendMessageFailure(
     portId: string | null,
     roomId: string,
@@ -1844,6 +1875,7 @@ export class ChatSharedWorkerRuntime {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: this.workerInstanceId,
       attachedPortCount: this.getAttachedPortCount(),
+      principalGeneration: this.principalGeneration,
       snapshot: this.snapshot,
     });
   }

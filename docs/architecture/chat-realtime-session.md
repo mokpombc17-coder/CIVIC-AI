@@ -143,6 +143,7 @@ SharedWorker로 바뀌어도 다음 컴포넌트와 Hook의 사용 계약은 유
 - 외부 transport snapshot을 `useSyncExternalStore`로 React에 제공한다.
 - STOMP Client를 React 컴포넌트에 노출하지 않는다.
 - SharedWorker, leader tab 및 Direct fallback의 차이를 하위 UI에 노출하지 않는다.
+- 로그인 성공을 transport 인증 세대 변경과 명시적 reconnect로 전달한다.
 
 ### FallbackChatRealtimeTransport
 
@@ -156,6 +157,8 @@ SharedWorker로 바뀌어도 다음 컴포넌트와 Hook의 사용 계약은 유
 - SharedWorker를 생성하거나 기존 Worker에 연결한다.
 - `MessagePort`를 열고 탭의 command를 Worker로 전달한다.
 - Worker event를 connection 및 room snapshot으로 변환한다.
+- worker가 관리하는 인증 세대를 탭에 제공하고, 서버가 확정한 read-state를 같은 세대의 다른 탭에만
+  전달한다. read-state confirmation은 로컬 동기화 신호이며 새 WebSocket destination을 만들지 않는다.
 - 첫 유효 event를 초기 handshake 완료로 간주하며 생성 실패와 무응답을 unavailable로 구분한다.
 - Worker가 살아 있을 가능성이 있는 상태에서 Direct WebSocket을 추가로 만들지 않는다.
 

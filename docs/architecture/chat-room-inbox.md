@@ -39,7 +39,9 @@ Room metadata의 `categories`도 함께 검증하며 사용자에게는 `정책`
 ```
 
 read-state PUT은 unread 값만 바꾸고 정렬에는 영향을 주지 않으므로 기존 query invalidation을
-유지한다.
+유지한다. 성공한 탭은 현재 Room inbox query를 invalidate한 뒤 같은 브라우저의 worker protocol에
+현재 인증 세대와 확정 sequence를 전달한다. 다른 탭은 같은 인증 세대의 confirmation만 단조 증가로
+반영하고 Room inbox query를 invalidate하며, 다시 broadcast하지 않는다.
 
 ## Realtime invalidation
 

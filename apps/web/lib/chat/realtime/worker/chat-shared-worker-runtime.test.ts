@@ -385,8 +385,51 @@ describe("ChatSharedWorkerRuntime", () => {
       status: "connected",
       error: null,
     });
+    expect(port.eventsOfType("CONNECTION_SNAPSHOT").at(-1)?.principalGeneration).toBe(1);
     expect(client.activate).toHaveBeenCalledTimes(1);
     expect(client.forceDisconnect).not.toHaveBeenCalled();
+  });
+
+  it("현재 인증 세대의 read-state 성공을 송신 port를 제외한 다른 port에 전달한다", () => {
+    const runtime = new ChatSharedWorkerRuntime(createFakeStompClient());
+    const portA = createFakePort();
+    const portB = createFakePort();
+
+    runtime.connectPort(portA);
+    runtime.connectPort(portB);
+    portA.send({ type: "ATTACH", portId: "port-a" });
+    portB.send({ type: "ATTACH", portId: "port-b" });
+    portA.send({
+      type: "RECONNECT",
+      portId: "port-a",
+      reason: "authentication-succeeded",
+    });
+    portA.send({
+      type: "CONFIRM_ROOM_READ_STATE",
+      portId: "port-a",
+      principalGeneration: 1,
+      roomId: "room-1",
+      readThroughSequence: 13,
+    });
+
+    expect(portA.eventsOfType("ROOM_READ_STATE_CONFIRMED")).toHaveLength(0);
+    expect(portB.eventsOfType("ROOM_READ_STATE_CONFIRMED")).toEqual([
+      {
+        type: "ROOM_READ_STATE_CONFIRMED",
+        principalGeneration: 1,
+        roomId: "room-1",
+        readThroughSequence: 13,
+      },
+    ]);
+
+    portA.send({
+      type: "CONFIRM_ROOM_READ_STATE",
+      portId: "port-a",
+      principalGeneration: 0,
+      roomId: "room-1",
+      readThroughSequence: 14,
+    });
+    expect(portB.eventsOfType("ROOM_READ_STATE_CONFIRMED")).toHaveLength(1);
   });
 
   it("AUTHENTICATION_REQUIRED를 모든 port에 알리고 후속 close와 재연결을 차단한다", () => {

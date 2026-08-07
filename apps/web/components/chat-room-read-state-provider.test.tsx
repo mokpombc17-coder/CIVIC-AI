@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   invalidateQueries: vi.fn(() => Promise.resolve()),
   mutateAsync: vi.fn(),
   transport: {
+    confirmRoomReadState: vi.fn(),
     getSnapshot: vi.fn(() => ({ error: null, status: "connected" as const })),
     observe: vi.fn(() => () => undefined),
   },
@@ -36,6 +37,7 @@ describe("ChatRoomReadStateProvider", () => {
     vi.useFakeTimers();
     mocks.invalidateQueries.mockClear();
     mocks.mutateAsync.mockReset();
+    mocks.transport.confirmRoomReadState.mockClear();
   });
 
   afterEach(() => {
@@ -85,6 +87,7 @@ describe("ChatRoomReadStateProvider", () => {
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["chat", "rooms", "room-inbox"],
     });
+    expect(mocks.transport.confirmRoomReadState).toHaveBeenCalledWith("room-1", 13);
   });
 
   it("로그인 세대 변경 전 요청의 늦은 성공은 현재 cache를 무효화하지 않는다", async () => {

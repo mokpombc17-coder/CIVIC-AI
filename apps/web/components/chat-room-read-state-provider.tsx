@@ -19,7 +19,8 @@ export function ChatRoomReadStateProvider({ children }: { children: ReactNode })
     () =>
       new ChatRoomReadStateCoordinator({
         classifyFailure: classifyChatRoomReadStateFailure,
-        onConfirmed: () => {
+        onConfirmed: ({ readThroughSequence, roomId }) => {
+          transport.confirmRoomReadState(roomId, readThroughSequence);
           void queryClient
             .invalidateQueries({
               queryKey: chatRoomQueryKeys.roomInboxes(),
@@ -40,10 +41,17 @@ export function ChatRoomReadStateProvider({ children }: { children: ReactNode })
     () =>
       attachChatRoomReadStateLifecycle({
         coordinator,
+        onPeerConfirmed: () => {
+          void queryClient
+            .invalidateQueries({
+              queryKey: chatRoomQueryKeys.roomInboxes(),
+            })
+            .catch(() => undefined);
+        },
         target: window,
         transport,
       }),
-    [coordinator, transport],
+    [coordinator, queryClient, transport],
   );
 
   return <ChatRoomReadStateContext value={coordinator}>{children}</ChatRoomReadStateContext>;

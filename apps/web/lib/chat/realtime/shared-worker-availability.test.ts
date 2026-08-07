@@ -64,6 +64,7 @@ describe("SharedWorkerTransport availability", () => {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: "worker-1",
       attachedPortCount: 1,
+      principalGeneration: 0,
       snapshot: {
         status: "connecting",
         error: null,

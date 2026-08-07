@@ -4,6 +4,7 @@ import type {
   ChatMessageMutationEvent,
   ChatRealtimeReconnectReason,
   ChatRealtimeTransport,
+  ChatRoomReadStateConfirmation,
   ChatRoomMessageDeleteCommand,
   ChatRoomMessageEditCommand,
   ChatRoomMessageSendCommand,
@@ -42,8 +43,12 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
     (event: ChatMessageMutationLifecycleEvent) => void
   >();
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
+  private readonly principalGenerationListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
   private readonly roomInboxEventListeners = new Set<(event: ChatRoomInboxEvent) => void>();
+  private readonly roomReadStateConfirmationListeners = new Set<
+    (confirmation: ChatRoomReadStateConfirmation) => void
+  >();
   private switchScheduled = false;
 
   constructor(candidates: readonly ChatRealtimeTransportCandidate[]) {
@@ -87,6 +92,8 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
     this.delegate.getRealtimeEventDelivery();
 
+  readonly getPrincipalGeneration = (): number => this.delegate.getPrincipalGeneration();
+
   readonly getDiagnosticSnapshot = () => this.delegate.getDiagnosticSnapshot();
 
   readonly clearDiagnostics = () => this.delegate.clearDiagnostics();
@@ -106,6 +113,18 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
   ): (() => void) => {
     this.roomInboxEventListeners.add(listener);
     return () => this.roomInboxEventListeners.delete(listener);
+  };
+
+  readonly observePrincipalGeneration = (listener: () => void): (() => void) => {
+    this.principalGenerationListeners.add(listener);
+    return () => this.principalGenerationListeners.delete(listener);
+  };
+
+  readonly observeRoomReadStateConfirmation = (
+    listener: (confirmation: ChatRoomReadStateConfirmation) => void,
+  ): (() => void) => {
+    this.roomReadStateConfirmationListeners.add(listener);
+    return () => this.roomReadStateConfirmationListeners.delete(listener);
   };
 
   readonly observeMessageCommandEvent = (
@@ -156,6 +175,10 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
 
   readonly reconnect = (reason?: ChatRealtimeReconnectReason): void => {
     this.delegate.reconnect(reason);
+  };
+
+  readonly confirmRoomReadState = (roomId: string, readThroughSequence: number): void => {
+    this.delegate.confirmRoomReadState(roomId, readThroughSequence);
   };
 
   readonly markRoomSnapshotApplied = (roomId: string, generation: number): void => {
@@ -215,6 +238,12 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
       }),
       this.delegate.observeRoomInboxEvent((event) => {
         this.roomInboxEventListeners.forEach((listener) => listener(event));
+      }),
+      this.delegate.observePrincipalGeneration(() => {
+        this.principalGenerationListeners.forEach((listener) => listener());
+      }),
+      this.delegate.observeRoomReadStateConfirmation((confirmation) => {
+        this.roomReadStateConfirmationListeners.forEach((listener) => listener(confirmation));
       }),
       this.delegate.observeMessageCommandEvent((event) => {
         this.messageCommandListeners.forEach((listener) => listener(event));
@@ -277,5 +306,6 @@ export class FallbackChatRealtimeTransport implements ChatRealtimeTransport {
     this.listeners.forEach((listener) => listener());
     this.roomListeners.forEach((listener) => listener());
     this.realtimeEventDeliveryListeners.forEach((listener) => listener());
+    this.principalGenerationListeners.forEach((listener) => listener());
   }
 }

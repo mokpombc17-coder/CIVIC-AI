@@ -52,9 +52,11 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     clearDiagnostics: () => Promise.resolve(),
     deleteRoomMessage: () => {},
     editRoomMessage: () => {},
+    confirmRoomReadState: () => {},
     getDiagnosticSnapshot: () =>
       Promise.reject(new Error("Diagnostics are not used in this test.")),
     getRealtimeEventDelivery: () => null,
+    getPrincipalGeneration: () => 0,
     getRoomSnapshot: () => ({
       status: "idle",
       roomId: null,
@@ -71,6 +73,8 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
     observeMessageMutationLifecycle: () => () => {},
     observeMessageMutationEvent: () => () => {},
     observeRealtimeEventDelivery: () => () => {},
+    observePrincipalGeneration: () => () => {},
+    observeRoomReadStateConfirmation: () => () => {},
     observeRoom: () => () => {},
     observeRoomInboxEvent: () => () => {},
     observe: () => () => {},

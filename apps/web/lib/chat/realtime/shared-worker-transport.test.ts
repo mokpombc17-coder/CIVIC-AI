@@ -96,6 +96,7 @@ describe("SharedWorkerTransport", () => {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: "worker-1",
       attachedPortCount: 1,
+      principalGeneration: 0,
       snapshot: {
         status: "connected",
         error: null,
@@ -114,11 +115,59 @@ describe("SharedWorkerTransport", () => {
     });
 
     transport.reconnect("authentication-succeeded");
+    expect(transport.getPrincipalGeneration()).toBe(1);
     expect(worker.port.postMessage).toHaveBeenLastCalledWith({
       type: "RECONNECT",
       portId: "port-1",
       reason: "authentication-succeeded",
     });
+  });
+
+  it("worker 인증 세대에 귀속해 read-state confirmation을 송수신한다", () => {
+    const worker = createFakeWorker();
+    const transport = new SharedWorkerTransport({
+      createId: () => "port-1",
+      createWorker: () => worker,
+    });
+    const generationListener = vi.fn();
+    const confirmationListener = vi.fn();
+
+    transport.observePrincipalGeneration(generationListener);
+    transport.observeRoomReadStateConfirmation(confirmationListener);
+    transport.attach();
+    worker.port.dispatchMessage({
+      type: "CONNECTION_SNAPSHOT",
+      workerInstanceId: "worker-1",
+      attachedPortCount: 1,
+      principalGeneration: 3,
+      snapshot: { status: "connected", error: null },
+    });
+    transport.confirmRoomReadState("room-1", 13);
+
+    expect(transport.getPrincipalGeneration()).toBe(3);
+    expect(generationListener).toHaveBeenCalledOnce();
+    expect(worker.port.postMessage).toHaveBeenLastCalledWith({
+      type: "CONFIRM_ROOM_READ_STATE",
+      portId: "port-1",
+      principalGeneration: 3,
+      roomId: "room-1",
+      readThroughSequence: 13,
+    });
+
+    worker.port.dispatchMessage({
+      type: "ROOM_READ_STATE_CONFIRMED",
+      principalGeneration: 3,
+      roomId: "room-1",
+      readThroughSequence: 13,
+    });
+    worker.port.dispatchMessage({
+      type: "ROOM_READ_STATE_CONFIRMED",
+      principalGeneration: 2,
+      roomId: "room-1",
+      readThroughSequence: 14,
+    });
+
+    expect(confirmationListener).toHaveBeenCalledOnce();
   });
 
   it("React effect가 다시 attach되면 새 port로 안전하게 연결한다", () => {
@@ -640,6 +689,7 @@ describe("SharedWorkerTransport", () => {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: "worker-1",
       attachedPortCount: 1,
+      principalGeneration: 0,
       snapshot: {
         status: "connected",
         error: null,
@@ -743,6 +793,7 @@ describe("SharedWorkerTransport", () => {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: "worker-1",
       attachedPortCount: 1,
+      principalGeneration: 0,
       snapshot: {
         status: "connected",
         error: null,
@@ -855,6 +906,7 @@ describe("SharedWorkerTransport", () => {
       type: "CONNECTION_SNAPSHOT",
       workerInstanceId: "worker-1",
       attachedPortCount: 1,
+      principalGeneration: 0,
       snapshot: {
         status: "connected",
         error: null,

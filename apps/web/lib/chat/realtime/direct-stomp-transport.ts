@@ -60,6 +60,7 @@ import {
   type ChatRealtimeError,
   type ChatRealtimeReconnectReason,
   type ChatRealtimeTransport,
+  type ChatRoomReadStateConfirmation,
   ChatMessageSendError,
   type ChatRoomMessageDeleteCommand,
   type ChatRoomMessageEditCommand,
@@ -125,6 +126,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private connectionRestart: Promise<void> | null = null;
   private diagnosticIdSequence = 0;
   private readonly listeners = new Set<() => void>();
+  private principalGeneration = 0;
+  private readonly principalGenerationListeners = new Set<() => void>();
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
   private readonly messageCommandListeners = new Set<(event: ChatMessageCommandEvent) => void>();
   private readonly messageMutationListeners = new Set<(event: ChatMessageMutationEvent) => void>();
@@ -142,6 +145,9 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   private readonly realtimeEventDeliveryListeners = new Set<() => void>();
   private readonly roomListeners = new Set<() => void>();
   private readonly roomInboxEventListeners = new Set<(event: ChatRoomInboxEvent) => void>();
+  private readonly roomReadStateConfirmationListeners = new Set<
+    (confirmation: ChatRoomReadStateConfirmation) => void
+  >();
   private roomClaimRequestId: string | null = null;
   private roomSnapshot: ChatRoomSessionSnapshot = INITIAL_ROOM_SNAPSHOT;
   private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
@@ -388,6 +394,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   readonly getRealtimeEventDelivery = (): ChatRealtimeEventDelivery | null =>
     this.realtimeEventDelivery;
 
+  readonly getPrincipalGeneration = (): number => this.principalGeneration;
+
   readonly observe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
 
@@ -412,6 +420,18 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     return () => {
       this.roomInboxEventListeners.delete(listener);
     };
+  };
+
+  readonly observePrincipalGeneration = (listener: () => void): (() => void) => {
+    this.principalGenerationListeners.add(listener);
+    return () => this.principalGenerationListeners.delete(listener);
+  };
+
+  readonly observeRoomReadStateConfirmation = (
+    listener: (confirmation: ChatRoomReadStateConfirmation) => void,
+  ): (() => void) => {
+    this.roomReadStateConfirmationListeners.add(listener);
+    return () => this.roomReadStateConfirmationListeners.delete(listener);
   };
 
   readonly observeMessageCommandEvent = (
@@ -722,6 +742,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     });
 
     if (reason === "authentication-succeeded") {
+      this.principalGeneration += 1;
+      this.principalGenerationListeners.forEach((listener) => listener());
       if (this.snapshot.status === "authentication-required" && this.attachmentCount > 0) {
         this.beginConnectionAttempt("authentication-succeeded");
         this.pendingConnectionTrigger = null;
@@ -766,6 +788,10 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.pendingConnectionTrigger = null;
     this.setSnapshot("connecting", null);
     this.client.activate();
+  };
+
+  readonly confirmRoomReadState = (): void => {
+    // Direct transport has no same-browser peer. The local provider already applies success.
   };
 
   private beginConnectionAttempt(trigger: ConnectionAttemptTrigger): void {
