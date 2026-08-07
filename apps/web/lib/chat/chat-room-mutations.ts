@@ -9,7 +9,7 @@ import {
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
 import type {
   CreateRoomRequest,
-  TargetUserRequest,
+  TargetMembershipRequest,
   UpdateRoomReadStateRequest,
   UpdateRoomSettingsRequest,
 } from "./chat-room-contracts";
@@ -100,7 +100,7 @@ export function transferRoomOwnershipMutationOptions(
 ) {
   return mutationOptions({
     mutationKey: [...chatRoomQueryKeys.all, "command", "transfer-ownership"] as const,
-    mutationFn: ({ roomId, command }: RoomCommandVariables<TargetUserRequest>) =>
+    mutationFn: ({ roomId, command }: RoomCommandVariables<TargetMembershipRequest>) =>
       api.transferRoomOwnership(roomId, command),
     retry: false,
     onSuccess: (_response, { roomId }) => invalidateRoomState(queryClient, roomId),
@@ -113,7 +113,7 @@ export function banRoomMemberMutationOptions(
 ) {
   return mutationOptions({
     mutationKey: [...chatRoomQueryKeys.all, "command", "ban-member"] as const,
-    mutationFn: ({ roomId, command }: RoomCommandVariables<TargetUserRequest>) =>
+    mutationFn: ({ roomId, command }: RoomCommandVariables<TargetMembershipRequest>) =>
       api.banRoomMember(roomId, command),
     retry: false,
     onSuccess: (_response, { roomId }) => invalidateRoomState(queryClient, roomId),
@@ -126,7 +126,7 @@ export function unbanRoomMemberMutationOptions(
 ) {
   return mutationOptions({
     mutationKey: [...chatRoomQueryKeys.all, "command", "unban-member"] as const,
-    mutationFn: ({ roomId, command }: RoomCommandVariables<TargetUserRequest>) =>
+    mutationFn: ({ roomId, command }: RoomCommandVariables<TargetMembershipRequest>) =>
       api.unbanRoomMember(roomId, command),
     retry: false,
     onSuccess: (_response, { roomId }) => invalidateRoomState(queryClient, roomId),

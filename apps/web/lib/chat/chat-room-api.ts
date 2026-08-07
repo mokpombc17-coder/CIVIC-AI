@@ -24,7 +24,7 @@ import {
   roomMembershipListParamsSchema,
   roomMembershipListResponseSchema,
   roomMembershipSchema,
-  targetUserRequestSchema,
+  targetMembershipRequestSchema,
   transferRoomOwnershipResponseSchema,
   unbanRoomMemberResponseSchema,
   updateRoomReadStateRequestSchema,
@@ -51,7 +51,7 @@ import {
   type RoomMembership,
   type RoomMembershipListParams,
   type RoomMembershipListResponse,
-  type TargetUserRequest,
+  type TargetMembershipRequest,
   type TransferRoomOwnershipResponse,
   type UnbanRoomMemberResponse,
   type UpdateRoomReadStateRequest,
@@ -84,15 +84,15 @@ export type ChatRoomApi = Readonly<{
   leaveRoom(roomId: string, command: IdempotentCommand<undefined>): Promise<LeaveRoomResponse>;
   transferRoomOwnership(
     roomId: string,
-    command: IdempotentCommand<TargetUserRequest>,
+    command: IdempotentCommand<TargetMembershipRequest>,
   ): Promise<TransferRoomOwnershipResponse>;
   banRoomMember(
     roomId: string,
-    command: IdempotentCommand<TargetUserRequest>,
+    command: IdempotentCommand<TargetMembershipRequest>,
   ): Promise<BanRoomMemberResponse>;
   unbanRoomMember(
     roomId: string,
-    command: IdempotentCommand<TargetUserRequest>,
+    command: IdempotentCommand<TargetMembershipRequest>,
   ): Promise<UnbanRoomMemberResponse>;
   closeRoom(roomId: string, command: IdempotentCommand<undefined>): Promise<CloseRoomResponse>;
   listPublicRooms(
@@ -169,7 +169,7 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
     },
 
     async transferRoomOwnership(roomId, command) {
-      const body = targetUserRequestSchema.parse(command.body);
+      const body = targetMembershipRequestSchema.parse(command.body);
 
       return requestAndParse(
         request,
@@ -185,7 +185,7 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
     },
 
     async banRoomMember(roomId, command) {
-      const body = targetUserRequestSchema.parse(command.body);
+      const body = targetMembershipRequestSchema.parse(command.body);
 
       return requestAndParse(
         request,
@@ -201,7 +201,7 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
     },
 
     async unbanRoomMember(roomId, command) {
-      const body = targetUserRequestSchema.parse(command.body);
+      const body = targetMembershipRequestSchema.parse(command.body);
 
       return requestAndParse(
         request,

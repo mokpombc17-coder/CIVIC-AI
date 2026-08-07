@@ -10,7 +10,7 @@ import type {
   RoomDetails,
   RoomMembership,
   RoomMembershipListItem,
-  TargetUserRequest,
+  TargetMembershipRequest,
 } from "@/lib/chat/chat-room-contracts";
 import {
   useBanRoomMemberMutation,
@@ -41,8 +41,8 @@ type RoomManagementCommand =
     }>
   | Readonly<{
       kind: "transfer" | "ban" | "unban";
-      command: IdempotentCommand<TargetUserRequest>;
-      targetUserId: string;
+      command: IdempotentCommand<TargetMembershipRequest>;
+      targetMembershipId: string;
     }>;
 
 type RoomManagementCommandKind = RoomManagementCommand["kind"];
@@ -168,13 +168,17 @@ export function ChatRoomMembershipPanel({
     });
   }
 
-  function startMemberCommand(kind: "transfer" | "ban" | "unban", targetUserId: string) {
+  function startMemberCommand(
+    kind: "transfer" | "ban" | "unban",
+    targetMembershipId: string,
+    targetLabel: string,
+  ) {
     const prompt =
       kind === "transfer"
-        ? `${targetUserId} 사용자에게 방장을 위임할까요?`
+        ? `${targetLabel}에게 방장을 위임할까요?`
         : kind === "ban"
-          ? `${targetUserId} 사용자를 이 방에서 차단할까요?`
-          : `${targetUserId} 사용자의 차단을 해제할까요?`;
+          ? `${targetLabel}를 이 방에서 차단할까요?`
+          : `${targetLabel}의 차단을 해제할까요?`;
 
     if (!window.confirm(prompt)) {
       return;
@@ -182,8 +186,8 @@ export function ChatRoomMembershipPanel({
 
     void execute({
       kind,
-      targetUserId,
-      command: createIdempotentCommand({ targetUserId }),
+      targetMembershipId,
+      command: createIdempotentCommand({ targetMembershipId }),
     });
   }
 
@@ -308,7 +312,10 @@ function RoomDetailsCard({ room }: { room: RoomDetails }) {
         <DetailRow label="공개 범위" value={room.visibility} />
         <DetailRow label="참여 정책" value={room.joinPolicy} />
         <DetailRow label="방 상태" value={room.status} />
-        <DetailRow label="방장 사용자" value={room.ownerUserId} />
+        <DetailRow
+          label="방장"
+          value={room.ownerMembershipId === room.myMembership?.membershipId ? "나" : "참여자"}
+        />
         <DetailRow label="생성 시각" value={formatDateTime(room.createdAt)} />
         {room.closedAt ? (
           <DetailRow label="종료 시각" value={formatDateTime(room.closedAt)} />
@@ -347,7 +354,7 @@ function MyMembershipCard({
         </div>
       ) : membership ? (
         <dl className="mt-3 grid gap-2 text-sm">
-          <DetailRow label="사용자 ID" value={membership.userId} />
+          <DetailRow label="참여자" value="나" />
           <DetailRow label="역할" value={membership.role} />
           <DetailRow label="상태" value={MEMBERSHIP_STATUS_LABEL[membership.status]} />
           <DetailRow label="참여 시각" value={formatDateTime(membership.joinedAt)} />
@@ -383,7 +390,11 @@ function OwnerMembershipList({
   isPending: boolean;
   memberships: readonly RoomMembershipListItem[];
   onFetchNextPage: () => void;
-  onMemberCommand: (kind: "transfer" | "ban" | "unban", targetUserId: string) => void;
+  onMemberCommand: (
+    kind: "transfer" | "ban" | "unban",
+    targetMembershipId: string,
+    targetLabel: string,
+  ) => void;
   onRetry: () => void;
   onStatusChange: (status: MembershipStatus) => void;
   pendingCommand: RoomManagementCommand | null;
@@ -428,53 +439,63 @@ function OwnerMembershipList({
         <MembershipNotice message={`${MEMBERSHIP_STATUS_LABEL[status]} 상태의 멤버가 없습니다.`} />
       ) : (
         <ul className="mt-4 grid gap-3">
-          {memberships.map((member) => (
-            <li
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
-              key={member.membershipId}
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-950">{member.userId}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {member.role} · {MEMBERSHIP_STATUS_LABEL[member.status]} · version{" "}
-                  {member.version}
-                </p>
-              </div>
-              {member.role === "MEMBER" && member.status === "ACTIVE" ? (
-                <div className="flex flex-wrap gap-2">
+          {memberships.map((member, index) => {
+            const participantLabel = member.role === "OWNER" ? "나" : `참여자 ${index + 1}`;
+
+            return (
+              <li
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
+                key={member.membershipId}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">
+                    {participantLabel}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {member.role} · {MEMBERSHIP_STATUS_LABEL[member.status]} · version{" "}
+                    {member.version}
+                  </p>
+                </div>
+                {member.role === "MEMBER" && member.status === "ACTIVE" ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="secondary-button"
+                      disabled={isCommandPending}
+                      onClick={() =>
+                        onMemberCommand("transfer", member.membershipId, participantLabel)
+                      }
+                      type="button"
+                    >
+                      {isPendingForMember(pendingCommand, "transfer", member.membershipId)
+                        ? "위임 중…"
+                        : "방장 위임"}
+                    </button>
+                    <button
+                      className="secondary-button border-red-300 text-red-700"
+                      disabled={isCommandPending}
+                      onClick={() => onMemberCommand("ban", member.membershipId, participantLabel)}
+                      type="button"
+                    >
+                      {isPendingForMember(pendingCommand, "ban", member.membershipId)
+                        ? "차단 중…"
+                        : "차단"}
+                    </button>
+                  </div>
+                ) : member.status === "BANNED" ? (
                   <button
                     className="secondary-button"
                     disabled={isCommandPending}
-                    onClick={() => onMemberCommand("transfer", member.userId)}
+                    onClick={() => onMemberCommand("unban", member.membershipId, participantLabel)}
                     type="button"
                   >
-                    {isPendingForMember(pendingCommand, "transfer", member.userId)
-                      ? "위임 중…"
-                      : "방장 위임"}
+                    {isPendingForMember(pendingCommand, "unban", member.membershipId)
+                      ? "해제 중…"
+                      : "차단 해제"}
                   </button>
-                  <button
-                    className="secondary-button border-red-300 text-red-700"
-                    disabled={isCommandPending}
-                    onClick={() => onMemberCommand("ban", member.userId)}
-                    type="button"
-                  >
-                    {isPendingForMember(pendingCommand, "ban", member.userId) ? "차단 중…" : "차단"}
-                  </button>
-                </div>
-              ) : member.status === "BANNED" ? (
-                <button
-                  className="secondary-button"
-                  disabled={isCommandPending}
-                  onClick={() => onMemberCommand("unban", member.userId)}
-                  type="button"
-                >
-                  {isPendingForMember(pendingCommand, "unban", member.userId)
-                    ? "해제 중…"
-                    : "차단 해제"}
-                </button>
-              ) : null}
-            </li>
-          ))}
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -516,9 +537,9 @@ function MembershipNotice({ message }: { message: string }) {
 function isPendingForMember(
   command: RoomManagementCommand | null,
   kind: "transfer" | "ban" | "unban",
-  targetUserId: string,
+  targetMembershipId: string,
 ): boolean {
-  return command?.kind === kind && command.targetUserId === targetUserId;
+  return command?.kind === kind && command.targetMembershipId === targetMembershipId;
 }
 
 function formatDateTime(value: string): string {

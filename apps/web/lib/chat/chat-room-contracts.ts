@@ -249,13 +249,9 @@ export const updateRoomSettingsRequestSchema = z
     "변경할 방 설정을 하나 이상 입력해야 합니다.",
   );
 
-export const targetUserRequestSchema = z.object({
-  targetUserId: z.string().trim().min(1),
-});
-
 export const targetMembershipRequestSchema = z
   .object({
-    targetMembershipId: opaqueIdSchema,
+    targetMembershipId: z.string().trim().min(1),
   })
   .strict();
 
@@ -451,7 +447,6 @@ export type RoomInboxListResponse = z.infer<typeof roomInboxListResponseSchema>;
 export type RoomMembershipListResponse = z.infer<typeof roomMembershipListResponseSchema>;
 export type CreateRoomRequest = z.input<typeof createRoomRequestSchema>;
 export type UpdateRoomSettingsRequest = z.input<typeof updateRoomSettingsRequestSchema>;
-export type TargetUserRequest = z.infer<typeof targetUserRequestSchema>;
 export type TargetMembershipRequest = z.infer<typeof targetMembershipRequestSchema>;
 export type CreateRoomResponse = z.infer<typeof createRoomResponseSchema>;
 export type UpdateRoomSettingsResponse = z.infer<typeof updateRoomSettingsResponseSchema>;

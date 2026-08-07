@@ -246,7 +246,7 @@ describe("chat room mutation options", () => {
       command: {
         idempotencyKey: IDEMPOTENCY_KEY,
         body: {
-          targetUserId: "local-user-2",
+          targetMembershipId: "membership-02",
         },
       },
     };

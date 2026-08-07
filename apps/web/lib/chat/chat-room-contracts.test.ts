@@ -257,9 +257,12 @@ describe("chat room REST contracts", () => {
   });
 
   it("Room command 대상은 targetMembershipId 하나만 허용한다", () => {
-    expect(targetMembershipRequestSchema.parse({ targetMembershipId: "membership-02" })).toEqual({
+    expect(targetMembershipRequestSchema.parse({ targetMembershipId: " membership-02 " })).toEqual({
       targetMembershipId: "membership-02",
     });
+    expect(targetMembershipRequestSchema.safeParse({ targetMembershipId: "   " }).success).toBe(
+      false,
+    );
     expect(targetMembershipRequestSchema.safeParse({ targetUserId: "user-02" }).success).toBe(
       false,
     );

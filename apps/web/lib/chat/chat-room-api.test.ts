@@ -347,15 +347,15 @@ describe("chatRoomApi commands", () => {
     });
     await api.transferRoomOwnership("room-01", {
       idempotencyKey: IDEMPOTENCY_KEY,
-      body: { targetUserId: " local-user-2 " },
+      body: { targetMembershipId: " membership-02 " },
     });
     await api.banRoomMember("room-01", {
       idempotencyKey: IDEMPOTENCY_KEY,
-      body: { targetUserId: "local-user-2" },
+      body: { targetMembershipId: "membership-02" },
     });
     await api.unbanRoomMember("room-01", {
       idempotencyKey: IDEMPOTENCY_KEY,
-      body: { targetUserId: "local-user-2" },
+      body: { targetMembershipId: "membership-02" },
     });
     await api.closeRoom("room-01", {
       idempotencyKey: IDEMPOTENCY_KEY,
@@ -387,7 +387,13 @@ describe("chatRoomApi commands", () => {
     expect(calls[1]?.init?.body).toBeUndefined();
     expect(calls[2]?.init?.body).toBeUndefined();
     expect(JSON.parse(String(calls[3]?.init?.body))).toEqual({
-      targetUserId: "local-user-2",
+      targetMembershipId: "membership-02",
+    });
+    expect(JSON.parse(String(calls[4]?.init?.body))).toEqual({
+      targetMembershipId: "membership-02",
+    });
+    expect(JSON.parse(String(calls[5]?.init?.body))).toEqual({
+      targetMembershipId: "membership-02",
     });
     expect(calls[6]?.init?.body).toBeUndefined();
 
