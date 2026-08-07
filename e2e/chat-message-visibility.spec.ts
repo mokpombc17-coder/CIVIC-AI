@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   authenticateDevUserAs,
   createRoomAndEnter,
@@ -166,10 +166,19 @@ test("재참여자는 이전 참여 구간과 퇴장 중 메시지를 볼 수 �
     });
 
     await test.step("재참여 이후 메시지는 다시 실시간으로 수신한다", async () => {
+      await setDocumentFocusState(memberPage, false);
       await ownerPage.getByRole("textbox", { name: "메시지" }).fill(afterRejoinMessage);
       await ownerPage.getByRole("button", { name: "전송", exact: true }).click();
 
       await expect(memberMessageLog.getByText(afterRejoinMessage, { exact: true })).toBeVisible();
+
+      const readStateResponse = waitForReadState(memberPage, roomId);
+      await setDocumentFocusState(memberPage, true);
+
+      expect(
+        (await readStateResponse).ok(),
+        "재참여 lifecycle에서 새 메시지 read-state PUT이 성공해야 합니다.",
+      ).toBe(true);
     });
 
     await test.step("새로고침 후에도 새 참여 구간의 메시지만 복구한다", async () => {
@@ -195,3 +204,22 @@ test("재참여자는 이전 참여 구간과 퇴장 중 메시지를 볼 수 �
     await Promise.all([ownerContext.close(), memberContext.close()]);
   }
 });
+
+async function setDocumentFocusState(page: Page, focused: boolean): Promise<void> {
+  await page.evaluate((nextFocused) => {
+    Object.defineProperty(document, "hasFocus", {
+      configurable: true,
+      value: () => nextFocused,
+    });
+    window.dispatchEvent(new Event(nextFocused ? "focus" : "blur"));
+  }, focused);
+}
+
+function waitForReadState(page: Page, roomId: string) {
+  return page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "PUT" && url.pathname === `/api/v1/rooms/${roomId}/read-state`
+    );
+  });
+}
