@@ -136,3 +136,33 @@ Frontend Membership 전환 중 발생하는 실패는 다음 증거와 함께 �
 
 필수 Membership 필드가 누락되면 participant `userId`로 fallback하지 않고 계약
 오류로 보고한다.
+
+## Frontend public participant `userId` 제거 준비 감사
+
+Production 코드의 Room 참여자 식별 경로를 다시 검색하고 다음과 같이 분류했다.
+
+### Membership ID로 전환된 판단 경로
+
+- 메시지 self/other 판정과 참여자 label key: `senderMembershipId`
+- 방장 판정과 owner control: `ownerMembershipId`
+- Room member cache lookup 및 projection key: `membershipId`
+- ban/unban/ownership 요청 및 retry identity: `targetMembershipId`
+- message snapshot identity 비교: `senderMembershipId`
+
+위 경로에는 participant `userId` 비교, key, 표시 또는 command target fallback이
+남아 있지 않다.
+
+### 의도적으로 유지하는 `userId`
+
+- REST/STOMP Zod schema의 `ownerUserId`, `senderUserId`, `targetUserId` 등은
+  Backend additive v1 응답을 엄격하게 검증하기 위해 유지한다.
+- Room event cache projector는 v1 `ownerUserId` snapshot을 일관되게 보존하지만,
+  이 값을 ownership 판단에는 사용하지 않는다. 제거 의도를 드러내도록 helper를
+  `getCompatibilityOwnerUserId`로 명명했다.
+- Read-state coordinator의 `userId`는 Room participant key가 아니라 로그인
+  principal fencing이다. 다른 사용자의 pending cursor가 재전송되는 것을 막기
+  위해 유지해야 한다.
+
+Backend의 public `userId` 제거 commit을 적용할 때는 additive Zod 필드와
+compatibility projection만 제거하면 된다. 현재 Room 참여자 행동 로직을 다시
+이관하거나 `userId` fallback을 둘 필요는 없다.

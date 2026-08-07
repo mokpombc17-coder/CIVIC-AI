@@ -126,20 +126,15 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   });
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
   const readStateEnabled = realtimeReady && session.isActive;
+  const readStateMembership = room?.myMembership ?? null;
   const readStateMembershipLifecycle = useMemo(
     () =>
       getChatRoomReadStateMembershipLifecycle({
         enabled: readStateEnabled,
-        membership: room?.myMembership ?? null,
+        membership: readStateMembership,
         messageVisibleAfterSequence: session.messageVisibleAfterSequence,
       }),
-    [
-      readStateEnabled,
-      room?.myMembership?.status,
-      room?.myMembership?.userId,
-      room?.myMembership?.version,
-      session.messageVisibleAfterSequence,
-    ],
+    [readStateEnabled, readStateMembership, session.messageVisibleAfterSequence],
   );
   const readStateTerminalReason: ChatRoomReadStateCancellationReason | null =
     session.connectionError?.code === "ROOM_ACCESS_REVOKED"
