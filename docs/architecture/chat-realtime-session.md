@@ -8,9 +8,10 @@
 - 서버: Chat Resource Server
 - 프로토콜: Native WebSocket 위의 STOMP
 - 클라이언트 라이브러리: `@stomp/stompjs`
-- 현재 구현: SharedWorker 또는 leader tab 소유 단일 연결·활성 방 lease·구독 준비
-  barrier·실시간 buffer·Query cache 병합·`afterSequence` 누락 복구·메시지 전송 Command
-- 다음 구현: 로컬 통합 및 E2E 스모크 테스트
+- 현재 구현: SharedWorker 또는 leader tab 소유 단일 연결·활성 방 lease·3-topic 구독 준비
+  barrier·실시간 buffer·Query cache 병합·`afterSequence` 누락 복구·메시지 전송 Command·
+  Read Receipt snapshot/delta projection
+- 검증 상태: 로컬 통합 및 Read Receipt E2E 스모크 테스트 완료
 
 이 문서는 SharedWorker라는 기술 자체를 도입하는 것을 목표로 하지 않는다. 최상위 목표는 한
 브라우저에서 같은 사용자가 Chat Resource Server와 맺는 WebSocket 연결과 활성 채팅방 구독을
@@ -45,6 +46,7 @@
 
 - 이전 방의 STOMP message topic 구독 해제
 - 이전 방의 STOMP room-event topic 구독 해제
+- 이전 방의 STOMP read-receipts topic 구독 해제
 - 이전 탭의 메시지 입력 비활성화
 - 이전 탭에 활성 방 소유권이 교체되었음을 알림
 
@@ -202,6 +204,14 @@ STOMP `CONNECT`에 `Authorization`을 추가하지 않는다. WebSocket handshak
 - Worker가 전달한 서버 event를 현재 탭의 query cache에 반영한다.
 - 연결 소유권이나 STOMP subscription 자체를 관리하지 않는다.
 - 재연결 누락 데이터는 메시지 이력 API와 `roomSequence` 계약에 따라 복구한다.
+- Read Receipt REST snapshot은 `roomId`와 실시간 `generation`별 query cache에 정규화해
+  보관하고, read-receipt delta만 해당 cache에 병합한다.
+- 메시지별 `readCount`를 메시지 cache에 저장하지 않는다. Receipt 상태가 `ready`일 때 ViewModel
+  생성 직전 현재 메시지와 Membership position으로 순수 projection한다.
+- Read Receipt snapshot·event 오류는 Receipt 표시만 stale/error로 전환하며 메시지와 Room event
+  cache 적용 및 delivery ACK를 막지 않는다.
+- read-state PUT의 effective acknowledgement는 raw `storedLastReadSequence`가 아니므로 Receipt
+  cache 갱신에 사용하지 않는다.
 
 ## STOMP subscription 정책
 
@@ -210,23 +220,25 @@ STOMP `CONNECT`에 `Authorization`을 추가하지 않는다. WebSocket handshak
 ```text
 /user/queue/command-results
 /user/queue/system-events
+/user/queue/room-inbox-events
 ```
 
-두 subscription은 연결 성공 시 한 번 만들고 방 전환 중에는 유지한다.
+세 subscription은 연결 성공 시 한 번 만들고 방 전환 중에는 유지한다.
 
 ### 활성 방에서만 유지하는 subscription
 
 ```text
 /topic/rooms/{activeRoomId}/messages
 /topic/rooms/{activeRoomId}/room-events
+/topic/rooms/{activeRoomId}/read-receipts
 ```
 
 동시에 서로 다른 두 방의 topic을 구독하지 않는다.
 
-현재 백엔드 로컬 기본 제한을 기준으로 하면 총 subscription 수는 최대 네 개다.
+현재 백엔드 로컬 기본 제한을 기준으로 하면 총 subscription 수는 최대 여섯 개다.
 
 ```text
-user queue 2개 + active room topic 2개 = 총 4개
+user queue 3개 + active room topic 3개 = 총 6개
 ```
 
 ### 방 전환
@@ -237,14 +249,17 @@ user queue 2개 + active room topic 2개 = 총 4개
 유지:
   /user/queue/command-results
   /user/queue/system-events
+  /user/queue/room-inbox-events
 
 해제:
   /topic/rooms/room-01/messages
   /topic/rooms/room-01/room-events
+  /topic/rooms/room-01/read-receipts
 
 생성:
   /topic/rooms/room-02/messages
   /topic/rooms/room-02/room-events
+  /topic/rooms/room-02/read-receipts
 ```
 
 방을 전환하기 위해 WebSocket을 끊고 다시 연결하지 않는다.
@@ -790,16 +805,17 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
   주지 않는다.
 - `requestId`와 `generation`으로 탭 transport가 늦게 도착한 응답을 무시한다.
 - SharedWorker 미지원 환경의 `DirectStompTransport`도 같은 방 세션 API를 제공한다.
-- 연결 직후 `/user/queue/system-events`, `/user/queue/command-results`를 한 번씩 구독한다.
-- 다른 방 전환은 기존 `/messages`, 기존 `/room-events`, 새 `/messages`, 새 `/room-events`
-  순서로 각각 `UNSUBSCRIBE`, `UNSUBSCRIBE`, `SUBSCRIBE`, `SUBSCRIBE` frame을 보낸다.
+- 연결 직후 `/user/queue/system-events`, `/user/queue/command-results`,
+  `/user/queue/room-inbox-events`를 한 번씩 구독한다.
+- 다른 방 전환은 기존 `/messages`, `/room-events`, `/read-receipts`를 해제하고 새 방의 같은
+  세 topic을 순서대로 구독한다.
 - 같은 방 owner 교체에서는 기존 topic subscription을 재사용한다.
 - WebSocket 재연결 후 공통 queue와 현재 lease의 방 topic만 복구한다.
 - 서버의 구독 거절 system event를 감지하면 방 topic을 정리하고 owner 탭에
   `ROOM_SUBSCRIPTION_FAILED`를 전달한다.
 - 확정된 구독 순서는 `ChatStompSubscriptionManager`에 한 번만 정의하며 SharedWorker와 Expo
   WebView의 Direct fallback이 동일하게 사용한다.
-- STOMP message와 room-event payload 전달은 수정 API 명세 반영 단계에서 연결한다.
+- STOMP message, room-event, read-receipt payload는 하나의 ordered delivery로 전달한다.
 
 ### 4. UX 연결
 
@@ -893,13 +909,16 @@ probe 코드와 query parameter는 2단계 구현으로 대체되어 현재 코�
 ```text
 1. 기존 방 /messages UNSUBSCRIBE
 2. 기존 방 /room-events UNSUBSCRIBE
-3. 새 방 /messages SUBSCRIBE
-4. 새 방 /room-events SUBSCRIBE
+3. 기존 방 /read-receipts UNSUBSCRIBE
+4. 새 방 /messages SUBSCRIBE
+5. 새 방 /room-events SUBSCRIBE
+6. 새 방 /read-receipts SUBSCRIBE
 ```
 
-사용자 공통 `/user/queue/command-results`, `/user/queue/system-events` 구독은 이 전환 중에도
-유지한다. 백엔드는 같은 WebSocket session의 STOMP frame을 수신 순서대로 처리하며, 위 순서에는
-별도 receipt 대기가 필요하지 않음을 최종 확인했다.
+사용자 공통 `/user/queue/command-results`, `/user/queue/system-events`,
+`/user/queue/room-inbox-events` 구독은 이 전환 중에도 유지한다. 백엔드는 같은 WebSocket
+session의 STOMP frame을 수신 순서대로 처리하며, 위 순서에는 별도 receipt 대기가 필요하지
+않음을 최종 확인했다.
 
 구독 준비는 Native STOMP receipt가 아니라 애플리케이션 수준 barrier로 확인한다.
 
@@ -931,6 +950,7 @@ Worker는 방 topic의 `SUBSCRIBE` frame을 보내기 전에 현재 `roomId`와 
 buffer begin
   → /messages SUBSCRIBE
   → /room-events SUBSCRIBE
+  → /read-receipts SUBSCRIBE
   → sync SEND
   → READY
   → REST snapshot 적용 완료 전까지 계속 buffer
@@ -940,8 +960,8 @@ buffer begin
   → ROOM_EVENTS_APPLIED
 ```
 
-- `/topic/rooms/{roomId}/messages`의 `CHAT_MESSAGE_CREATED`와 방 topic의 Room Event를 런타임
-  스키마로 검증한 뒤 하나의 도착 순서로 보관한다.
+- `/topic/rooms/{roomId}/messages`의 Chat Message, Room Event, Read Receipt Event를 각각
+  런타임 스키마로 검증한 뒤 하나의 도착 순서로 보관한다.
 - 사용자 대상 Room Event가 `/user/queue/system-events`로 전달되는 경우에도 같은 버퍼에
   합친다.
 - 각 항목에는 Worker 내부 `bufferSequence`를 부여해 서로 다른 destination에서 도착한 순서를
@@ -955,8 +975,9 @@ buffer begin
   폐기한다. sync 거절에서는 topic과 lease를 유지하므로 버퍼도 유지한다.
 - 기본 최대 500개를 보관한다. 용량을 넘으면 가장 오래된 항목을 제거하고 `overflowed=true`를
   남겨 다음 REST 병합 단계가 누락 복구를 수행할 수 있게 한다.
-- 스키마가 잘못된 방 topic payload는 정상 이벤트로 보관하지 않고 `invalidEventCount`에
-  기록한다.
+- 스키마가 잘못된 message 또는 Room Event는 `invalidEventCount`에 기록해 core recovery를
+  요청한다. 잘못된 Read Receipt Event는 `invalidReadReceiptEventCount`에 따로 기록해 Receipt
+  snapshot만 복구하며 core event 적용을 중단하지 않는다.
 - SharedWorker 미지원 환경의 Direct fallback도 같은 버퍼 구현을 사용한다.
 
 ### Worker–탭 REST 적용 handshake
@@ -977,8 +998,8 @@ Worker → 탭  ROOM_EVENTS_DELIVERED
   `ROOM_SNAPSHOT_APPLIED`를 받는다.
 - 동시에 하나의 delivery만 전송한다. 탭의 확인을 기다리는 동안 들어온 이벤트는 같은 버퍼에
   계속 쌓고 다음 delivery로 보낸다.
-- delivery에는 `deliveryId`, `throughBufferSequence`, `overflowed`, `invalidEventCount`가
-  포함된다.
+- delivery에는 `deliveryId`, `throughBufferSequence`, `overflowed`, `invalidEventCount`,
+  `invalidReadReceiptEventCount`가 포함된다.
 - `ROOM_EVENTS_APPLIED`는 해당 delivery의 `throughBufferSequence`까지만 제거한다. delivery
   이후 도착한 더 큰 sequence의 이벤트는 제거하지 않는다.
 - stale `deliveryId`, 다른 owner port, room 또는 generation의 확인은 무시한다.
@@ -991,22 +1012,50 @@ Worker → 탭  ROOM_EVENTS_DELIVERED
 - Direct fallback도 transport API 수준에서 동일한 snapshot-applied → delivery → acknowledge
   흐름을 제공한다.
 
+### Read Receipt snapshot과 projection
+
+Read Receipt는 core 채팅 동기화와 실패 경계를 공유하지 않는 보조 projection이다.
+
+```text
+GET /api/v1/rooms/{roomId}/read-receipts/state
+  → generation별 normalized Query cache
+  → /read-receipts advancement 병합
+  → 현재 confirmed message와 순수 projection
+  → 양수인 readCount만 메시지 아래 표시
+```
+
+- snapshot은 `membershipId`별 position을 보관하고 같은 Membership version의 delta는
+  `storedLastReadSequence` 최댓값으로 병합한다.
+- 알 수 없는 Membership, 높은 Membership version, invalidation 또는 participant topology 변화는
+  Receipt snapshot 재조회로 복구한다.
+- Receipt snapshot을 읽는 동안 도착한 delta는 Membership별로 합쳐 snapshot 이후 적용한다.
+- Receipt query key는 Room generation을 포함한다. release·generation 교체·principal 변경에서
+  이전 cache와 늦은 fetch 결과를 제거하거나 무시한다.
+- `ROOM_SNAPSHOT_APPLIED`는 계속 core Message History snapshot 준비만 의미한다. Receipt가
+  loading·refreshing·error여도 message/Room event merge와 ACK는 계속한다.
+- ACTIVE이며 서버가 확정한 non-deleted 메시지만 projection 대상이다. 삭제 tombstone과 optimistic
+  outgoing 메시지는 표시하지 않고, 제품 정책상 `readCount=0`도 표시하지 않는다.
+
 다음 계약은 로컬 통합 과정에서 추가 확인이 필요하다.
 
 - `4001 / CONNECTION_REPLACED` 외 WebSocket handshake 인증 실패의 close code와 reason
 - 실제 브라우저에서 command result와 message event의 도착 순서
 - 네트워크 단절 직전 publish된 command의 재연결 후 결과 처리
 
-현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환, 구독 준비
-barrier, 실시간 이벤트 버퍼, Worker–탭 REST snapshot 적용 handshake와 TanStack Query
-coordinator, 메시지 전송 command까지 구현되어 있다. coordinator는 메시지 cache와 Room Event
-journal을 모두 갱신한 뒤에만 delivery를 ACK한다. 다음 단계에서는 실제 Chat Resource Server와
-멀티탭·재연결·메시지 재시도 흐름을 통합 검증한다.
+현재 Worker 생성, 단일 연결, 포트 관리, 단일 활성 방 lease, UX 소유권 전환, 3-topic 구독 준비
+barrier, 실시간 이벤트 버퍼, Worker–탭 REST snapshot 적용 handshake, TanStack Query
+coordinator, 메시지 전송 command와 Read Receipt snapshot/delta projection까지 구현되어 있다.
+coordinator는 core 메시지 cache와 Room Event journal을 먼저 갱신하고 Receipt 실패를 격리한 뒤
+delivery를 ACK한다. 실제 Chat Resource Server에서 멀티탭·재연결·메시지 재시도와 Read Receipt
+복구 E2E를 검증한다.
 
 ## 관련 코드와 문서
 
 - `apps/web/lib/chat/chat-stomp-client.ts`
 - `apps/web/lib/chat/realtime/chat-realtime-event-buffer.ts`
+- `apps/web/lib/chat/realtime/chat-room-read-receipt-coordinator.ts`
+- `apps/web/lib/chat/chat-room-read-receipt-state.ts`
+- `apps/web/lib/chat/chat-message-read-receipt-projector.ts`
 - `apps/web/lib/chat/realtime/chat-realtime-transport.ts`
 - `apps/web/lib/chat/realtime/direct-stomp-transport.ts`
 - `apps/web/lib/chat/realtime/fallback-chat-realtime-transport.ts`

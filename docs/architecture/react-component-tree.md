@@ -65,7 +65,9 @@ read-state PUT을 확정하면 기존 worker/leader-tab protocol을 통해 같�
 confirmation을 전달하고, 각 탭은 Room inbox query만 invalidate한다. 실시간 Provider는 STOMP Client를
 직접 노출하지 않고 교체 가능한 transport를 제공한다. SharedWorker 지원 브라우저에서는 Worker가 STOMP Client를
 소유하고, 미지원 단일 WebView에서는 Direct transport를 사용한다. 두 환경 모두 하위 채팅
-컴포넌트의 사용 계약은 같다. 목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가 Provider의
+컴포넌트의 사용 계약은 같다. 활성 Room의 message, room-event, read-receipt 세 topic은 같은
+generation과 ordered delivery를 공유하고 Receipt 오류는 core message/Room event 적용과 분리한다.
+목록에서는 `ChatPage`, 방 상세에서는 `ChatRoomPage`가 Provider의
 `children` slot으로 전달된다.
 
 ```text
@@ -136,7 +138,8 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
 Read Receipt snapshot은 메시지 이력과 병렬로 조회하고, receipt sync가 ready이며 Room detail의
 현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은 인원 projection을
-적용한다. 이 projection은 message Query cache를 수정하지 않고 ViewModel 생성 직전에 계산한다.
+적용한다. 이 projection은 message Query cache를 수정하지 않고 ViewModel 생성 직전에 계산하며,
+양수인 읽은 인원만 표시한다.
 Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, 재참여 후 새 실시간 generation이
 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
