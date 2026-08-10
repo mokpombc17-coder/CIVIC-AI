@@ -18,6 +18,7 @@ import {
   roomIdSchema,
   roomInboxListParamsSchema,
   roomInboxListResponseSchema,
+  roomReadReceiptStateResponseSchema,
   targetMembershipRequestSchema,
   updateRoomReadStateRequestSchema,
   updateRoomReadStateResponseSchema,
@@ -443,6 +444,87 @@ describe("chat room REST contracts", () => {
     ).toBe(false);
   });
 
+  it("Read Receipt snapshot을 파싱하고 계약에 없는 effective cursor는 노출하지 않는다", () => {
+    const parsed = roomReadReceiptStateResponseSchema.parse(createRoomReadReceiptState());
+
+    expect(parsed).toEqual({
+      roomId: "room-01",
+      roomVersion: 12,
+      selfMembershipId: "membership-a",
+      positions: [
+        {
+          membershipId: "membership-a",
+          membershipVersion: 3,
+          messageVisibleAfterSequence: 0,
+          storedLastReadSequence: 130,
+        },
+        {
+          membershipId: "membership-b",
+          membershipVersion: 2,
+          messageVisibleAfterSequence: 100,
+          storedLastReadSequence: 118,
+        },
+      ],
+      generatedAt: "2026-08-10T03:00:00Z",
+    });
+    expect(parsed).not.toHaveProperty("effectiveReadThroughSequence");
+  });
+
+  it("Read Receipt snapshot의 self 누락, 중복 membership과 unsafe integer를 거절한다", () => {
+    expect(
+      roomReadReceiptStateResponseSchema.safeParse(
+        createRoomReadReceiptState({ selfMembershipId: "membership-missing" }),
+      ).success,
+    ).toBe(false);
+    expect(
+      roomReadReceiptStateResponseSchema.safeParse(
+        createRoomReadReceiptState({
+          positions: [
+            createReadReceiptPosition("membership-a"),
+            createReadReceiptPosition("membership-a"),
+          ],
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      roomReadReceiptStateResponseSchema.safeParse(
+        createRoomReadReceiptState({ roomVersion: Number.MAX_SAFE_INTEGER + 1 }),
+      ).success,
+    ).toBe(false);
+    expect(
+      roomReadReceiptStateResponseSchema.safeParse(
+        createRoomReadReceiptState({
+          positions: Array.from({ length: 101 }, (_, index) =>
+            createReadReceiptPosition(index === 0 ? "membership-a" : `membership-${index}`),
+          ),
+        }),
+      ).success,
+    ).toBe(false);
+  });
+
+  it("Read Receipt positions를 locale 없는 raw string natural order로 검증한다", () => {
+    const ascendingPositions = ["A", "a", "e\u0301", "é", "가"].map((membershipId) =>
+      createReadReceiptPosition(membershipId),
+    );
+
+    expect(
+      roomReadReceiptStateResponseSchema.safeParse(
+        createRoomReadReceiptState({
+          selfMembershipId: "A",
+          positions: ascendingPositions,
+        }),
+      ).success,
+    ).toBe(true);
+    expect(
+      roomReadReceiptStateResponseSchema.safeParse(
+        createRoomReadReceiptState({
+          selfMembershipId: "A",
+          positions: [ascendingPositions[1], ascendingPositions[0]],
+        }),
+      ).success,
+    ).toBe(false);
+  });
+
   it("메시지 이력 조회 방향을 동시에 지정할 수 없게 한다", () => {
     expect(
       messageHistoryRequestSchema.safeParse({
@@ -555,6 +637,38 @@ function createMessage(roomSequence: number) {
     messageVersion: 1,
     state: "ACTIVE" as const,
     updatedAt: "2026-07-29T04:40:00Z",
+  };
+}
+
+function createRoomReadReceiptState(patch: Record<string, unknown> = {}) {
+  return {
+    roomId: "room-01",
+    roomVersion: 12,
+    selfMembershipId: "membership-a",
+    positions: [
+      createReadReceiptPosition("membership-a", {
+        membershipVersion: 3,
+        storedLastReadSequence: 130,
+      }),
+      createReadReceiptPosition("membership-b", {
+        membershipVersion: 2,
+        messageVisibleAfterSequence: 100,
+        storedLastReadSequence: 118,
+      }),
+    ],
+    generatedAt: "2026-08-10T03:00:00Z",
+    effectiveReadThroughSequence: 130,
+    ...patch,
+  };
+}
+
+function createReadReceiptPosition(membershipId: string, patch: Record<string, unknown> = {}) {
+  return {
+    membershipId,
+    membershipVersion: 1,
+    messageVisibleAfterSequence: 0,
+    storedLastReadSequence: 0,
+    ...patch,
   };
 }
 

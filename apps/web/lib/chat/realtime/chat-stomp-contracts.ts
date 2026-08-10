@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isStrictlyAscendingByMembershipId } from "../chat-membership-id-order";
 import {
   activeChatMessageSchema,
   chatMessageSendContentSchema,
@@ -15,6 +16,11 @@ const requestIdSchema = z.string().uuid();
 const versionSchema = z.number().int().nonnegative();
 const positiveSequenceSchema = z.number().int().positive();
 const nonnegativeSequenceSchema = z.number().int().nonnegative();
+const safeNonnegativeIntegerSchema = z
+  .number()
+  .refine((value) => Number.isSafeInteger(value) && value >= 0, {
+    message: "0 이상의 안전한 정수여야 합니다.",
+  });
 const instantSchema = z.string().datetime({ offset: true });
 
 export const chatStompErrorSchema = z.object({
@@ -370,6 +376,68 @@ export const chatRoomEventEnvelopeSchema = z.union([
   chatRoomSettingsUpdatedEventSchema,
 ]);
 
+const roomReadPositionAdvanceSchema = z.object({
+  membershipId: opaqueIdSchema,
+  membershipVersion: safeNonnegativeIntegerSchema,
+  storedLastReadSequence: safeNonnegativeIntegerSchema,
+});
+
+const roomReadPositionsAdvancedEventSchema = z.object({
+  eventVersion: z.literal(1),
+  eventId: requestIdSchema,
+  eventType: z.literal("ROOM_READ_POSITIONS_ADVANCED"),
+  emittedAt: instantSchema,
+  payload: z.object({
+    roomId: roomIdSchema,
+    updates: z.array(roomReadPositionAdvanceSchema).min(1).max(50),
+  }),
+});
+
+const roomReadReceiptStateInvalidatedEventSchema = z.object({
+  eventVersion: z.literal(1),
+  eventId: requestIdSchema,
+  eventType: z.literal("ROOM_READ_RECEIPT_STATE_INVALIDATED"),
+  emittedAt: instantSchema,
+  payload: z.object({
+    roomId: roomIdSchema,
+    cause: z.literal("DELTA_GAP_POSSIBLE"),
+  }),
+});
+
+export const chatRoomReadReceiptEventSchema = z
+  .discriminatedUnion("eventType", [
+    roomReadPositionsAdvancedEventSchema,
+    roomReadReceiptStateInvalidatedEventSchema,
+  ])
+  .superRefine((event, context) => {
+    if (event.eventType !== "ROOM_READ_POSITIONS_ADVANCED") {
+      return;
+    }
+
+    const membershipIds = new Set<string>();
+
+    event.payload.updates.forEach((update, index) => {
+      if (membershipIds.has(update.membershipId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["payload", "updates", index, "membershipId"],
+          message: "Read Receipt update의 membershipId는 중복될 수 없습니다.",
+        });
+      }
+
+      membershipIds.add(update.membershipId);
+    });
+
+    if (!isStrictlyAscendingByMembershipId(event.payload.updates)) {
+      context.addIssue({
+        code: "custom",
+        path: ["payload", "updates"],
+        message:
+          "Read Receipt updates는 membershipId raw string natural order로 오름차순이어야 합니다.",
+      });
+    }
+  });
+
 export const chatSystemEventSchema = z.union([
   chatRoomSubscriptionsReadySchema,
   chatRoomSubscriptionSyncRejectedSchema,
@@ -395,6 +463,7 @@ export type ChatMessageMutationCommandResult = z.infer<
 export type ChatMessageEvent = z.infer<typeof chatMessageEventSchema>;
 export type ChatRoomEventMemberState = z.infer<typeof chatRoomEventMemberStateSchema>;
 export type ChatRoomEventEnvelope = z.infer<typeof chatRoomEventEnvelopeSchema>;
+export type ChatRoomReadReceiptEventEnvelope = z.infer<typeof chatRoomReadReceiptEventSchema>;
 export type ChatSystemEvent = z.infer<typeof chatSystemEventSchema>;
 export type ChatStompError = z.infer<typeof chatStompErrorSchema>;
 
@@ -444,6 +513,12 @@ export function parseChatMessageEvent(body: string): ChatMessageEvent | null {
 
 export function parseChatRoomEventEnvelope(body: string): ChatRoomEventEnvelope | null {
   return parseChatStompBody(body, chatRoomEventEnvelopeSchema);
+}
+
+export function parseChatRoomReadReceiptEvent(
+  body: string,
+): ChatRoomReadReceiptEventEnvelope | null {
+  return parseChatStompBody(body, chatRoomReadReceiptEventSchema);
 }
 
 export function parseChatSystemEvent(body: string): ChatSystemEvent | null {

@@ -13,6 +13,7 @@ import { mergePresortedChatMessages } from "./chat-message-merge";
 import { ChatApiError } from "./chat-fetch";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
 import { publicRoomListParamsSchema } from "./chat-room-contracts";
+import { normalizeRoomReadReceiptState } from "./chat-room-read-receipt-state";
 import type {
   ChatMessage,
   MembershipStatus,
@@ -29,6 +30,7 @@ const DEFAULT_LIST_LIMIT = 20;
 const ROOM_INBOX_RETRY_BASE_DELAY_MS = 500;
 const ROOM_INBOX_RETRY_MAX_DELAY_MS = 2_000;
 const ROOM_INBOX_MAX_RETRIES = 3;
+const ROOM_READ_RECEIPT_STATE_MAX_RETRIES = 3;
 export const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
 const EMPTY_CHAT_MESSAGES: readonly ChatMessage[] = [];
 const EMPTY_ROOM_LIST_ITEMS: readonly never[] = [];
@@ -69,6 +71,11 @@ export type ChatMessageHistoryQueryParams = Readonly<{
   limit?: number;
 }>;
 
+export type ChatRoomReadReceiptStateQueryParams = Readonly<{
+  enabled: boolean;
+  generation: number;
+}>;
+
 export const chatRoomQueryKeys = {
   all: ["chat", "rooms"] as const,
   publicLists: () => [...chatRoomQueryKeys.all, "public-list"] as const,
@@ -93,6 +100,11 @@ export const chatRoomQueryKeys = {
     [...chatRoomQueryKeys.messageHistoriesForRoom(roomId), { limit }] as const,
   roomEventJournals: () => [...chatRoomQueryKeys.all, "room-event-journal"] as const,
   roomEventJournal: (roomId: string) => [...chatRoomQueryKeys.roomEventJournals(), roomId] as const,
+  readReceiptStates: () => [...chatRoomQueryKeys.all, "read-receipt-state"] as const,
+  readReceiptStatesForRoom: (roomId: string) =>
+    [...chatRoomQueryKeys.readReceiptStates(), roomId] as const,
+  readReceiptState: (roomId: string, generation: number) =>
+    [...chatRoomQueryKeys.readReceiptStatesForRoom(roomId), { generation }] as const,
 };
 
 export function publicRoomsInfiniteQueryOptions(
@@ -178,6 +190,23 @@ export function roomDetailsQueryOptions(
   return queryOptions({
     queryKey: chatRoomQueryKeys.detail(roomId),
     queryFn: () => api.getRoom(roomId),
+  });
+}
+
+export function roomReadReceiptStateQueryOptions(
+  roomId: string,
+  { enabled, generation }: ChatRoomReadReceiptStateQueryParams,
+  api: Pick<ChatRoomApi, "getRoomReadReceiptState"> = chatRoomApi,
+) {
+  return queryOptions({
+    queryKey: chatRoomQueryKeys.readReceiptState(roomId, generation),
+    enabled,
+    queryFn: async ({ signal }) =>
+      normalizeRoomReadReceiptState(await api.getRoomReadReceiptState(roomId, signal)),
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    retry: shouldRetryRoomReadReceiptStateRequest,
   });
 }
 
@@ -319,6 +348,13 @@ export function useRoomDetailsQuery(roomId: string) {
   return useQuery(roomDetailsQueryOptions(roomId));
 }
 
+export function useRoomReadReceiptStateQuery(
+  roomId: string,
+  params: ChatRoomReadReceiptStateQueryParams,
+) {
+  return useQuery(roomReadReceiptStateQueryOptions(roomId, params));
+}
+
 export function useMyRoomMembershipQuery(
   roomId: string,
   { enabled = true }: ChatRoomQueryParams = {},
@@ -414,6 +450,17 @@ export function getNextRoomInboxPageParam(
 
 export function shouldRetryRoomInboxRequest(failureCount: number, error: Error): boolean {
   return failureCount < ROOM_INBOX_MAX_RETRIES && error instanceof ChatApiError && error.retryable;
+}
+
+export function shouldRetryRoomReadReceiptStateRequest(
+  failureCount: number,
+  error: Error,
+): boolean {
+  return (
+    failureCount < ROOM_READ_RECEIPT_STATE_MAX_RETRIES &&
+    error instanceof ChatApiError &&
+    error.retryable
+  );
 }
 
 export function getRoomInboxRetryDelay(

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isStrictlyAscendingByMembershipId } from "./chat-membership-id-order";
 
 const opaqueIdSchema = z.string().min(1);
 const versionSchema = z.number().int().nonnegative();
@@ -7,6 +8,11 @@ const nullableInstantSchema = instantSchema.nullable();
 const cursorSchema = z.string().min(1);
 const positiveSequenceSchema = z.number().int().min(1);
 const nonnegativeSequenceSchema = z.number().int().nonnegative();
+const safeNonnegativeIntegerSchema = z
+  .number()
+  .refine((value) => Number.isSafeInteger(value) && value >= 0, {
+    message: "0 이상의 안전한 정수여야 합니다.",
+  });
 const positiveMessageVersionSchema = z.number().int().positive();
 const messageHistoryLimitSchema = z.number().int().min(1).max(100);
 const forbiddenC0ControlCharacterPattern = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
@@ -410,6 +416,54 @@ export const updateRoomReadStateResponseSchema = z.object({
   updated: z.boolean(),
 });
 
+export const roomReadReceiptPositionSchema = z.object({
+  membershipId: opaqueIdSchema,
+  membershipVersion: safeNonnegativeIntegerSchema,
+  messageVisibleAfterSequence: safeNonnegativeIntegerSchema,
+  storedLastReadSequence: safeNonnegativeIntegerSchema,
+});
+
+export const roomReadReceiptStateResponseSchema = z
+  .object({
+    roomId: roomIdSchema,
+    roomVersion: safeNonnegativeIntegerSchema,
+    selfMembershipId: opaqueIdSchema,
+    positions: z.array(roomReadReceiptPositionSchema).max(100),
+    generatedAt: instantSchema,
+  })
+  .superRefine((state, context) => {
+    const membershipIds = new Set<string>();
+
+    state.positions.forEach((position, index) => {
+      if (membershipIds.has(position.membershipId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["positions", index, "membershipId"],
+          message: "Read Receipt position의 membershipId는 중복될 수 없습니다.",
+        });
+      }
+
+      membershipIds.add(position.membershipId);
+    });
+
+    if (!membershipIds.has(state.selfMembershipId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["selfMembershipId"],
+        message: "selfMembershipId는 positions에 포함되어야 합니다.",
+      });
+    }
+
+    if (!isStrictlyAscendingByMembershipId(state.positions)) {
+      context.addIssue({
+        code: "custom",
+        path: ["positions"],
+        message:
+          "Read Receipt positions는 membershipId raw string natural order로 오름차순이어야 합니다.",
+      });
+    }
+  });
+
 export const roomMembershipListParamsSchema = cursorPaginationParamsSchema.extend({
   status: membershipStatusSchema.optional(),
 });
@@ -456,6 +510,8 @@ export type RoomInboxListParams = z.input<typeof roomInboxListParamsSchema>;
 export type RoomMembershipListParams = z.input<typeof roomMembershipListParamsSchema>;
 export type UpdateRoomReadStateRequest = z.input<typeof updateRoomReadStateRequestSchema>;
 export type UpdateRoomReadStateResponse = z.infer<typeof updateRoomReadStateResponseSchema>;
+export type RoomReadReceiptPosition = z.infer<typeof roomReadReceiptPositionSchema>;
+export type RoomReadReceiptStateResponse = z.infer<typeof roomReadReceiptStateResponseSchema>;
 
 export function createMessageHistoryResponseSchema(
   request: MessageHistoryRequest,

@@ -9,6 +9,7 @@ import {
   parseChatMessageMutationCommandResult,
   parseChatRoomEventEnvelope,
   parseChatRoomInboxEvent,
+  parseChatRoomReadReceiptEvent,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
   parseChatStompError,
@@ -673,6 +674,122 @@ describe("room inbox event contracts", () => {
           sourceEventIds: [sourceEventId],
           coalescedCreateCount: isCreated ? 1 : null,
           notificationHint: isCreated ? ROOM_INBOX_CREATED_EVENT.notificationHint : null,
+        }),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("room Read Receipt event contracts", () => {
+  const advancedEvent = {
+    eventVersion: 1,
+    eventId: REQUEST_ID,
+    eventType: "ROOM_READ_POSITIONS_ADVANCED",
+    emittedAt: "2026-08-10T03:00:01Z",
+    payload: {
+      roomId: "room-01",
+      updates: [
+        {
+          membershipId: "membership-b",
+          membershipVersion: 2,
+          storedLastReadSequence: 118,
+        },
+      ],
+    },
+  } as const;
+
+  it("position advancement와 state invalidation을 파싱한다", () => {
+    expect(parseChatRoomReadReceiptEvent(JSON.stringify(advancedEvent))).toEqual(advancedEvent);
+
+    const invalidatedEvent = {
+      eventVersion: 1,
+      eventId: "550e8400-e29b-41d4-a716-446655440001",
+      eventType: "ROOM_READ_RECEIPT_STATE_INVALIDATED",
+      emittedAt: "2026-08-10T03:00:02Z",
+      payload: {
+        roomId: "room-01",
+        cause: "DELTA_GAP_POSSIBLE",
+      },
+    } as const;
+
+    expect(parseChatRoomReadReceiptEvent(JSON.stringify(invalidatedEvent))).toEqual(
+      invalidatedEvent,
+    );
+  });
+
+  it("잘못된 version, update 크기, 중복 membership과 unsafe cursor를 거절한다", () => {
+    expect(
+      parseChatRoomReadReceiptEvent(JSON.stringify({ ...advancedEvent, eventVersion: 2 })),
+    ).toBeNull();
+    expect(
+      parseChatRoomReadReceiptEvent(
+        JSON.stringify({ ...advancedEvent, payload: { ...advancedEvent.payload, updates: [] } }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatRoomReadReceiptEvent(
+        JSON.stringify({
+          ...advancedEvent,
+          payload: {
+            ...advancedEvent.payload,
+            updates: Array.from({ length: 51 }, (_, index) => ({
+              membershipId: `membership-${index}`,
+              membershipVersion: 1,
+              storedLastReadSequence: index,
+            })),
+          },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatRoomReadReceiptEvent(
+        JSON.stringify({
+          ...advancedEvent,
+          payload: {
+            ...advancedEvent.payload,
+            updates: [advancedEvent.payload.updates[0], advancedEvent.payload.updates[0]],
+          },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseChatRoomReadReceiptEvent(
+        JSON.stringify({
+          ...advancedEvent,
+          payload: {
+            ...advancedEvent.payload,
+            updates: [
+              {
+                ...advancedEvent.payload.updates[0],
+                storedLastReadSequence: Number.MAX_SAFE_INTEGER + 1,
+              },
+            ],
+          },
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("position updates를 locale 없는 raw string natural order로 검증한다", () => {
+    const updates = ["A", "a", "e\u0301", "é", "가"].map((membershipId, index) => ({
+      membershipId,
+      membershipVersion: 1,
+      storedLastReadSequence: index,
+    }));
+
+    expect(
+      parseChatRoomReadReceiptEvent(
+        JSON.stringify({
+          ...advancedEvent,
+          payload: { ...advancedEvent.payload, updates },
+        }),
+      ),
+    ).not.toBeNull();
+    expect(
+      parseChatRoomReadReceiptEvent(
+        JSON.stringify({
+          ...advancedEvent,
+          payload: { ...advancedEvent.payload, updates: [updates[1], updates[0]] },
         }),
       ),
     ).toBeNull();

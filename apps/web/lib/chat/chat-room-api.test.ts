@@ -117,6 +117,21 @@ describe("chatRoomApi queries", () => {
     expect(new Headers(calls[0]?.init?.headers).has("Idempotency-Key")).toBe(false);
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ throughSequence: 123 });
   });
+
+  it("Room Read Receipt snapshot을 AbortSignal과 함께 조회하고 응답을 검증한다", async () => {
+    const response = createRoomReadReceiptStateResponse();
+    const { calls, request } = createQueuedChatFetch(response);
+    const api = createChatRoomApi(request);
+    const abortController = new AbortController();
+
+    await expect(api.getRoomReadReceiptState("room-01", abortController.signal)).resolves.toEqual(
+      response,
+    );
+
+    expect(calls[0]?.path).toBe("/rooms/room-01/read-receipts/state");
+    expect(calls[0]?.init?.signal).toBe(abortController.signal);
+    expect(calls[0]?.init?.method).toBeUndefined();
+  });
 });
 
 describe("chatRoomApi message history", () => {
@@ -441,6 +456,23 @@ function createQueuedChatFetch(...responses: unknown[]): {
   };
 
   return { calls, request };
+}
+
+function createRoomReadReceiptStateResponse() {
+  return {
+    roomId: "room-01",
+    roomVersion: 12,
+    selfMembershipId: "membership-01",
+    positions: [
+      {
+        membershipId: "membership-01",
+        membershipVersion: 3,
+        messageVisibleAfterSequence: 0,
+        storedLastReadSequence: 130,
+      },
+    ],
+    generatedAt: "2026-08-10T03:00:00Z",
+  };
 }
 
 const PUBLIC_ROOM = {

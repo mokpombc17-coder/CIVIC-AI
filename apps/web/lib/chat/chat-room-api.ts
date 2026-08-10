@@ -24,6 +24,7 @@ import {
   roomMembershipListParamsSchema,
   roomMembershipListResponseSchema,
   roomMembershipSchema,
+  roomReadReceiptStateResponseSchema,
   targetMembershipRequestSchema,
   transferRoomOwnershipResponseSchema,
   unbanRoomMemberResponseSchema,
@@ -51,6 +52,7 @@ import {
   type RoomMembership,
   type RoomMembershipListParams,
   type RoomMembershipListResponse,
+  type RoomReadReceiptStateResponse,
   type TargetMembershipRequest,
   type TransferRoomOwnershipResponse,
   type UnbanRoomMemberResponse,
@@ -107,6 +109,10 @@ export type ChatRoomApi = Readonly<{
     roomId: string,
     request: UpdateRoomReadStateRequest,
   ): Promise<UpdateRoomReadStateResponse>;
+  getRoomReadReceiptState(
+    roomId: string,
+    signal?: AbortSignal,
+  ): Promise<RoomReadReceiptStateResponse>;
   listRoomMemberships(
     roomId: string,
     params?: RoomMembershipListParams,
@@ -285,6 +291,16 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
           },
           body: JSON.stringify(body),
         },
+      );
+    },
+
+    async getRoomReadReceiptState(roomId, signal) {
+      return requestAndParse(
+        request,
+        "Room Read Receipt State 응답",
+        roomReadReceiptStateResponseSchema,
+        `${createRoomPath(roomId)}/read-receipts/state`,
+        signal ? { signal } : undefined,
       );
     },
 

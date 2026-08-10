@@ -16,8 +16,10 @@ import {
   roomInboxInfiniteQueryOptions,
   roomMessageHistoryInfiniteQueryOptions,
   roomMembershipsInfiniteQueryOptions,
+  roomReadReceiptStateQueryOptions,
   shouldRetryPublicRoomRequest,
   shouldRetryRoomInboxRequest,
+  shouldRetryRoomReadReceiptStateRequest,
 } from "./chat-room-queries";
 import type { MessageHistoryResponse } from "./chat-room-contracts";
 
@@ -269,6 +271,17 @@ describe("chat room query options", () => {
     ]);
   });
 
+  it("Read Receipt snapshot의 retryable API 오류만 최대 3회 재시도한다", () => {
+    const retryableError = createChatApiError(true);
+    const nonRetryableError = createChatApiError(false);
+
+    expect(shouldRetryRoomReadReceiptStateRequest(0, retryableError)).toBe(true);
+    expect(shouldRetryRoomReadReceiptStateRequest(2, retryableError)).toBe(true);
+    expect(shouldRetryRoomReadReceiptStateRequest(3, retryableError)).toBe(false);
+    expect(shouldRetryRoomReadReceiptStateRequest(0, nonRetryableError)).toBe(false);
+    expect(shouldRetryRoomReadReceiptStateRequest(0, new TypeError("network"))).toBe(false);
+  });
+
   it("여러 cursor page의 방을 서버 순서대로 펼친다", () => {
     expect(
       flattenRoomListPages([
@@ -294,6 +307,30 @@ describe("chat room query options", () => {
     expect(getMyMembership).toHaveBeenCalledWith("room-01");
     expect(chatRoomQueryKeys.detail("room-01")).not.toEqual(
       chatRoomQueryKeys.myMembership("room-01"),
+    );
+  });
+
+  it("Read Receipt snapshot을 generation별 cache로 정규화하고 자동 refetch를 끈다", async () => {
+    const getRoomReadReceiptState = vi.fn(async () => READ_RECEIPT_STATE_RESPONSE);
+    const options = roomReadReceiptStateQueryOptions(
+      "room-01",
+      { enabled: true, generation: 7 },
+      { getRoomReadReceiptState },
+    );
+    const queryClient = createQueryClient();
+
+    const state = await queryClient.fetchQuery(options);
+
+    expect(options.queryKey).toEqual(chatRoomQueryKeys.readReceiptState("room-01", 7));
+    expect(options.staleTime).toBe(Number.POSITIVE_INFINITY);
+    expect(options.refetchOnReconnect).toBe(false);
+    expect(options.refetchOnWindowFocus).toBe(false);
+    expect(getRoomReadReceiptState).toHaveBeenCalledWith("room-01", expect.any(AbortSignal));
+    expect(state.positionsByMembershipId).toEqual({
+      "membership-01": READ_RECEIPT_STATE_RESPONSE.positions[0],
+    });
+    expect(chatRoomQueryKeys.readReceiptState("room-01", 7)).not.toEqual(
+      chatRoomQueryKeys.readReceiptState("room-01", 8),
     );
   });
 
@@ -529,6 +566,21 @@ const ROOM_DETAILS = {
   version: 1,
   participationStatus: "ACTIVE" as const,
   myMembership: MEMBERSHIP,
+};
+
+const READ_RECEIPT_STATE_RESPONSE = {
+  roomId: "room-01",
+  roomVersion: 12,
+  selfMembershipId: "membership-01",
+  positions: [
+    {
+      membershipId: "membership-01",
+      membershipVersion: 3,
+      messageVisibleAfterSequence: 0,
+      storedLastReadSequence: 130,
+    },
+  ],
+  generatedAt: "2026-08-10T03:00:00Z",
 };
 
 const LATEST_MESSAGE_PAGE = {
