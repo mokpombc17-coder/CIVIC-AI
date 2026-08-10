@@ -415,6 +415,49 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.readThroughSequence").value(0))
                 .andExpect(jsonPath("$.updated").value(false));
 
+        mockMvc.perform(get("/api/v1/rooms/" + roomId
+                        + "/read-receipts/state")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .ROOMS_READ)))))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(jsonPath("$.roomId").value(roomId))
+                .andExpect(jsonPath("$.roomVersion").isNumber())
+                .andExpect(jsonPath("$.selfMembershipId").isString())
+                .andExpect(jsonPath("$.positions.length()").value(1))
+                .andExpect(jsonPath("$.positions[0].membershipId")
+                        .isString())
+                .andExpect(jsonPath("$.positions[0].membershipVersion")
+                        .isNumber())
+                .andExpect(jsonPath(
+                        "$.positions[0].messageVisibleAfterSequence")
+                        .value(0))
+                .andExpect(jsonPath(
+                        "$.positions[0].storedLastReadSequence")
+                        .value(0))
+                .andExpect(jsonPath("$.positions[0].userId")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.positions[0].displayName")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.positions[0].avatar")
+                        .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.positions[0].effectiveReadThroughSequence")
+                        .doesNotExist());
+
+        mockMvc.perform(get("/api/v1/rooms/" + roomId
+                        + "/read-receipts/state")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .ROOMS_WRITE)))))
+                .andExpect(status().isForbidden());
+
         mockMvc.perform(put("/api/v1/rooms/room-1/read-state")
                         .with(jwt().jwt(jwt -> jwt.subject("user-1"))
                                 .authorities(new SimpleGrantedAuthority(

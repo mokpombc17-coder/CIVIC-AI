@@ -16,6 +16,13 @@ chat:
       active-room-count-query-max-time: ${CHAT_ROOM_ACTIVE_ROOM_COUNT_QUERY_MAX_TIME:1s}
     authorization:
       max-consistency-attempts: 3
+    read-receipt:
+      flush-interval: ${CHAT_ROOM_READ_RECEIPT_FLUSH_INTERVAL:200ms}
+      max-updates-per-event: ${CHAT_ROOM_READ_RECEIPT_MAX_UPDATES_PER_EVENT:50}
+      max-event-bytes: ${CHAT_ROOM_READ_RECEIPT_MAX_EVENT_BYTES:12288}
+      max-pending-rooms: ${CHAT_ROOM_READ_RECEIPT_MAX_PENDING_ROOMS:1000}
+      snapshot-max-consistency-attempts: ${CHAT_ROOM_READ_RECEIPT_SNAPSHOT_MAX_CONSISTENCY_ATTEMPTS:3}
+      snapshot-max-positions: ${CHAT_ROOM_READ_RECEIPT_SNAPSHOT_MAX_POSITIONS:100}
 
   room-query:
     listed-room-page-query-max-time: ${CHAT_LISTED_ROOM_PAGE_QUERY_MAX_TIME:1s}

@@ -21,9 +21,9 @@ import java.util.IdentityHashMap;
 import java.util.Optional;
 import java.util.Set;
 
-final class RoomInboxStorageExceptionClassifier {
+public final class RoomInboxStorageExceptionClassifier {
 
-    Optional<FailureKind> classify(Throwable throwable) {
+    public Optional<FailureKind> classify(Throwable throwable) {
         Set<Throwable> visited = Collections.newSetFromMap(
                 new IdentityHashMap<>());
         Throwable current = throwable;
@@ -82,7 +82,7 @@ final class RoomInboxStorageExceptionClassifier {
                 || throwable instanceof PermissionDeniedDataAccessException;
     }
 
-    enum FailureKind {
+    public enum FailureKind {
         RETRYABLE,
         NON_RETRYABLE
     }
