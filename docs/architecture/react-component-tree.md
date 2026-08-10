@@ -134,6 +134,9 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
+Read Receipt snapshot은 메시지 이력과 병렬로 조회하고, receipt sync가 ready이며 Room detail의
+현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은 인원 projection을
+적용한다. 이 projection은 message Query cache를 수정하지 않고 ViewModel 생성 직전에 계산한다.
 Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, 재참여 후 새 실시간 generation이
 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는

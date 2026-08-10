@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
 import {
   useChatMessageOutbox,
@@ -28,6 +28,7 @@ import {
   createChatMessageTimeline,
   createChatMessageTimelineRows,
 } from "@/lib/chat/chat-message-timeline";
+import { projectChatMessageReadReceipts } from "@/lib/chat/chat-message-read-receipt-projector";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
@@ -38,6 +39,7 @@ import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
   useRoomMessageHistoryQuery,
+  useRoomReadReceiptStateQuery,
 } from "@/lib/chat/chat-room-queries";
 import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
@@ -59,9 +61,14 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     roomId,
   });
   const roomQuery = useRoomDetailsQuery(roomId);
+  const receiptMembershipMismatchRef = useRef<string | null>(null);
   const messageHistory = useRoomMessageHistoryQuery(roomId, {
     enabled: session.isActive,
     limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
+  });
+  const receiptStateQuery = useRoomReadReceiptStateQuery(roomId, {
+    enabled: session.isActive,
+    generation: session.generation,
   });
   const coordinatorEnabled =
     session.messageVisibleAfterSequence !== null &&
@@ -84,6 +91,33 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null;
   const sessionView = getChatRoomSessionView(session, roomId, realtimeReady);
   const room = roomQuery.data;
+  const receiptMembershipMismatchKey =
+    room?.myMembership &&
+    receiptStateQuery.data &&
+    room.myMembership.membershipId !== receiptStateQuery.data.selfMembershipId
+      ? `${session.generation}:${room.myMembership.membershipId}:${receiptStateQuery.data.selfMembershipId}`
+      : null;
+  const readReceiptSummaries = useMemo(() => {
+    if (
+      realtimeQuery.readReceiptStatus !== "ready" ||
+      !receiptStateQuery.data ||
+      !room?.myMembership ||
+      receiptMembershipMismatchKey !== null
+    ) {
+      return new Map();
+    }
+
+    return projectChatMessageReadReceipts(
+      messageHistory.messages,
+      receiptStateQuery.data.positionsByMembershipId,
+    );
+  }, [
+    messageHistory.messages,
+    realtimeQuery.readReceiptStatus,
+    receiptMembershipMismatchKey,
+    receiptStateQuery.data,
+    room?.myMembership,
+  ]);
   const timeline = useMemo(
     () => createChatMessageTimeline(messageHistory.messages, outgoingMessages),
     [messageHistory.messages, outgoingMessages],
@@ -95,8 +129,9 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         timelineRows,
         room?.myMembership?.membershipId ?? null,
         messageMutations.states,
+        readReceiptSummaries,
       ),
-    [messageMutations.states, room?.myMembership?.membershipId, timelineRows],
+    [messageMutations.states, readReceiptSummaries, room?.myMembership?.membershipId, timelineRows],
   );
   const messageItems = useMemo(
     () => viewportItems.flatMap((item) => (item.kind === "message" ? [item.item] : [])),
@@ -161,6 +196,21 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       new Set(messageHistory.messages.map((message) => message.clientMessageId)),
     );
   }, [messageHistory.messages, outbox, roomId]);
+
+  useEffect(() => {
+    if (receiptMembershipMismatchKey === null) {
+      receiptMembershipMismatchRef.current = null;
+      return;
+    }
+
+    if (receiptMembershipMismatchRef.current === receiptMembershipMismatchKey) {
+      return;
+    }
+
+    receiptMembershipMismatchRef.current = receiptMembershipMismatchKey;
+    void roomQuery.refetch();
+    void receiptStateQuery.refetch();
+  }, [receiptMembershipMismatchKey, receiptStateQuery, roomQuery]);
 
   return (
     <ChatRoomView

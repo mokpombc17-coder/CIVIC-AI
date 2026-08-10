@@ -51,6 +51,8 @@ function createMessage(
     isMine: false,
     messageId: null,
     mutation: null,
+    readCount: null,
+    readReceiptLabel: null,
     renderKey: crypto.randomUUID(),
     roomSequence: null,
     senderLabel: "local-user-1",

@@ -63,6 +63,14 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
           {item.isEdited ? (
             <p className="mt-1 px-1 text-[0.7rem] text-slate-400">(수정됨)</p>
           ) : null}
+          {item.readReceiptLabel ? (
+            <p
+              className="mt-1 px-1 text-[0.7rem] text-slate-400"
+              data-read-count={item.readCount ?? undefined}
+            >
+              {item.readReceiptLabel}
+            </p>
+          ) : null}
           {item.deliveryLabel ? (
             <p
               className={`mt-1 px-1 text-[0.7rem] ${failed ? "text-red-700" : "text-slate-500"}`}

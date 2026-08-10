@@ -6,6 +6,7 @@ import type {
   ChatMessageMutationStates,
   ChatMessageMutationViewState,
 } from "@/components/chat-message-mutation-state";
+import type { ChatMessageReadReceiptSummary } from "@/lib/chat/chat-message-read-receipt-projector";
 
 const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   hour: "numeric",
@@ -35,6 +36,8 @@ export type ChatMessageItemViewModel = Readonly<{
   isMine: boolean;
   messageId: string | null;
   mutation: ChatMessageMutationViewState | null;
+  readCount: number | null;
+  readReceiptLabel: string | null;
   renderKey: string;
   roomSequence: number | null;
   senderLabel: string | null;
@@ -85,11 +88,18 @@ export function createChatMessageItemViewModels(
   timeline: readonly ChatMessageTimelineItem[],
   selfMembershipId: string | null,
   mutationStates: ChatMessageMutationStates = new Map(),
+  readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
 ): readonly ChatMessageItemViewModel[] {
   const participantLabels = createParticipantLabels(timeline, selfMembershipId);
 
   return timeline.map((item) =>
-    createChatMessageItemViewModel(item, selfMembershipId, participantLabels, mutationStates),
+    createChatMessageItemViewModel(
+      item,
+      selfMembershipId,
+      participantLabels,
+      mutationStates,
+      readReceiptSummaries,
+    ),
   );
 }
 
@@ -97,6 +107,7 @@ export function createChatMessageViewportItemViewModels(
   rows: readonly ChatMessageTimelineRow[],
   selfMembershipId: string | null,
   mutationStates: ChatMessageMutationStates = new Map(),
+  readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
 ): readonly ChatMessageViewportItemViewModel[] {
   const participantLabels = createParticipantLabels(
     rows.flatMap((row) => (row.kind === "message" ? [row.item] : [])),
@@ -117,6 +128,7 @@ export function createChatMessageViewportItemViewModels(
       selfMembershipId,
       participantLabels,
       mutationStates,
+      readReceiptSummaries,
     );
     return {
       item,
@@ -131,6 +143,7 @@ function createChatMessageItemViewModel(
   selfMembershipId: string | null,
   participantLabels: ReadonlyMap<string, string>,
   mutationStates: ChatMessageMutationStates,
+  readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary>,
 ): ChatMessageItemViewModel {
   if (item.kind === "outgoing") {
     const failed = item.message.status === "failed" || item.message.status === "cancelled";
@@ -148,6 +161,8 @@ function createChatMessageItemViewModel(
       isMine: true,
       messageId: null,
       mutation: null,
+      readCount: null,
+      readReceiptLabel: null,
       renderKey: createChatMessageRenderKey(item.message.clientMessageId),
       roomSequence: null,
       senderLabel: null,
@@ -156,6 +171,8 @@ function createChatMessageItemViewModel(
   }
 
   const isMine = item.message.senderMembershipId === selfMembershipId;
+  const readCount = readReceiptSummaries.get(item.message.messageId)?.readCount ?? 0;
+  const visibleReadCount = item.message.state === "ACTIVE" && readCount > 0 ? readCount : null;
 
   return {
     canOpenActions: item.message.state === "ACTIVE" && item.message.content !== null,
@@ -170,6 +187,8 @@ function createChatMessageItemViewModel(
     isMine,
     messageId: item.message.messageId,
     mutation: mutationStates.get(item.message.messageId) ?? null,
+    readCount: visibleReadCount,
+    readReceiptLabel: visibleReadCount === null ? null : `${visibleReadCount}명 읽음`,
     renderKey: createChatMessageRenderKey(item.message.clientMessageId),
     roomSequence: item.message.roomSequence,
     senderLabel: isMine

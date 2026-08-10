@@ -7,6 +7,7 @@ import {
   type ApplyChatRealtimeDeliveryResult,
 } from "@/lib/chat/realtime/chat-realtime-query-coordinator";
 import { ChatRealtimeSnapshotRefreshPolicy } from "@/lib/chat/realtime/chat-realtime-snapshot-refresh-policy";
+import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-room-read-receipt-coordinator";
 import { useChatRealtimeTransport } from "./chat-realtime-provider";
 
 type UseChatRealtimeQueryCoordinatorParams = Readonly<{
@@ -23,6 +24,8 @@ export type ChatRealtimeQueryCoordinatorState = Readonly<{
   isRecovering: boolean;
   isSynchronized: boolean;
   lastApplied: ApplyChatRealtimeDeliveryResult | null;
+  readReceiptError: Error | null;
+  readReceiptStatus: ChatRoomReadReceiptSyncStatus;
   retry: () => void;
 }>;
 
@@ -42,6 +45,8 @@ export function useChatRealtimeQueryCoordinator({
   const [isRecovering, setIsRecovering] = useState(false);
   const [isSynchronized, setIsSynchronized] = useState(false);
   const [lastApplied, setLastApplied] = useState<ApplyChatRealtimeDeliveryResult | null>(null);
+  const [readReceiptError, setReadReceiptError] = useState<Error | null>(null);
+  const [readReceiptStatus, setReadReceiptStatus] = useState<ChatRoomReadReceiptSyncStatus>("idle");
 
   useEffect(() => {
     if (!enabled) {
@@ -112,6 +117,21 @@ export function useChatRealtimeQueryCoordinator({
           setIsSynchronized(true);
         });
       },
+      readReceipt: {
+        onError(cause) {
+          scheduleStateUpdate(() => {
+            setReadReceiptError(toCoordinatorError(cause));
+          });
+        },
+        onStateChange(snapshot) {
+          scheduleStateUpdate(() => {
+            setReadReceiptError(
+              snapshot.error === null ? null : toCoordinatorError(snapshot.error),
+            );
+            setReadReceiptStatus(snapshot.status);
+          });
+        },
+      },
     });
     coordinatorRef.current = coordinator;
     scheduleStateUpdate(() => {
@@ -119,6 +139,8 @@ export function useChatRealtimeQueryCoordinator({
       setIsRecovering(false);
       setIsSynchronized(false);
       setLastApplied(null);
+      setReadReceiptError(null);
+      setReadReceiptStatus("idle");
     });
     coordinator.start();
 
@@ -155,6 +177,7 @@ export function useChatRealtimeQueryCoordinator({
     }
 
     setError(null);
+    setReadReceiptError(null);
     coordinator.retryPendingDelivery();
   }, []);
 
@@ -163,6 +186,8 @@ export function useChatRealtimeQueryCoordinator({
     isRecovering,
     isSynchronized,
     lastApplied,
+    readReceiptError: enabled ? readReceiptError : null,
+    readReceiptStatus: enabled ? readReceiptStatus : "idle",
     retry,
   };
 }
