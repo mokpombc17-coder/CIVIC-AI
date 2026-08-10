@@ -20,6 +20,9 @@ public final class ChatMessageSearchService {
     private final ChatMessageSearchNormalizer normalizer;
     private final ChatMessageSearchCursorCodec cursorCodec;
     private final ChatMessageSearchProperties properties;
+    private final ChatMessageSearchRateLimiter rateLimiter;
+    private final ChatMessageSearchConcurrencyGuard concurrencyGuard;
+    private final ChatMessageSearchMetrics metrics;
     private final LongSupplier nanoTime;
 
     public ChatMessageSearchService(
@@ -37,6 +40,9 @@ public final class ChatMessageSearchService {
                 normalizer,
                 cursorCodec,
                 properties,
+                ChatMessageSearchRateLimiter.permitAll(),
+                ChatMessageSearchConcurrencyGuard.unlimited(),
+                ChatMessageSearchMetrics.noop(),
                 System::nanoTime);
     }
 
@@ -47,6 +53,31 @@ public final class ChatMessageSearchService {
             ChatMessageSearchNormalizer normalizer,
             ChatMessageSearchCursorCodec cursorCodec,
             ChatMessageSearchProperties properties,
+            LongSupplier nanoTime
+    ) {
+        this(
+                reader,
+                accessResolver,
+                sequenceReader,
+                normalizer,
+                cursorCodec,
+                properties,
+                ChatMessageSearchRateLimiter.permitAll(),
+                ChatMessageSearchConcurrencyGuard.unlimited(),
+                ChatMessageSearchMetrics.noop(),
+                nanoTime);
+    }
+
+    ChatMessageSearchService(
+            ChatMessageSearchReader reader,
+            ChatMessageSearchAccessResolver accessResolver,
+            RoomSequenceReader sequenceReader,
+            ChatMessageSearchNormalizer normalizer,
+            ChatMessageSearchCursorCodec cursorCodec,
+            ChatMessageSearchProperties properties,
+            ChatMessageSearchRateLimiter rateLimiter,
+            ChatMessageSearchConcurrencyGuard concurrencyGuard,
+            ChatMessageSearchMetrics metrics,
             LongSupplier nanoTime
     ) {
         this.reader = Objects.requireNonNull(reader, "reader");
@@ -65,6 +96,13 @@ public final class ChatMessageSearchService {
         this.properties = Objects.requireNonNull(
                 properties,
                 "properties");
+        this.rateLimiter = Objects.requireNonNull(
+                rateLimiter,
+                "rateLimiter");
+        this.concurrencyGuard = Objects.requireNonNull(
+                concurrencyGuard,
+                "concurrencyGuard");
+        this.metrics = Objects.requireNonNull(metrics, "metrics");
         this.nanoTime = Objects.requireNonNull(nanoTime, "nanoTime");
     }
 
@@ -75,6 +113,76 @@ public final class ChatMessageSearchService {
             String cursorToken
     ) {
         Objects.requireNonNull(criteria, "criteria");
+        long startedAt = nanoTime.getAsLong();
+        SearchProgress progress = new SearchProgress();
+        recordMetric(metrics::request);
+        try {
+            ChatMessageSearchRateLimitDecision decision =
+                    rateLimiter.tryAcquire(userId);
+            if (!decision.allowed()) {
+                recordMetric(metrics::rateLimited);
+                throw new ChatMessageSearchException(
+                        ChatMessageSearchErrorCode
+                                .MESSAGE_SEARCH_RATE_LIMITED,
+                        "Message search rate limit was exceeded",
+                        decision.retryAfterMs());
+            }
+            ChatMessageSearchPage page;
+            try (ChatMessageSearchConcurrencyGuard.Permit permit =
+                         concurrencyGuard.tryAcquire()) {
+                if (!permit.acquired()) {
+                    throw unavailable(
+                            "Message search concurrency limit was exceeded");
+                }
+                page = searchAdmitted(
+                        userId,
+                        roomId,
+                        criteria,
+                        cursorToken,
+                        progress);
+            }
+            if (progress.deadlineReached) {
+                recordMetric(metrics::deadlineReached);
+            }
+            Duration duration = elapsedSince(startedAt);
+            recordMetric(() -> metrics.success(
+                    progress.scanned,
+                    progress.matches,
+                    page.searchComplete(),
+                    duration));
+            return page;
+        } catch (ChatMessageSearchException exception) {
+            if (progress.deadlineReached) {
+                recordMetric(metrics::deadlineReached);
+            }
+            Duration duration = elapsedSince(startedAt);
+            recordMetric(() -> metrics.failure(
+                    exception.code(),
+                    progress.scanned,
+                    progress.matches,
+                    duration));
+            throw exception;
+        } catch (RuntimeException exception) {
+            ChatMessageSearchException wrapped = internal(
+                    "Message search execution failed",
+                    exception);
+            Duration duration = elapsedSince(startedAt);
+            recordMetric(() -> metrics.failure(
+                    wrapped.code(),
+                    progress.scanned,
+                    progress.matches,
+                    duration));
+            throw wrapped;
+        }
+    }
+
+    private ChatMessageSearchPage searchAdmitted(
+            String userId,
+            String roomId,
+            ChatMessageSearchCriteria criteria,
+            String cursorToken,
+            SearchProgress progress
+    ) {
         ChatMessageSearchAccess initialAccess = requireAccess(
                 accessResolver.resolve(userId, roomId));
         ChatMessageSearchCursorBinding binding = binding(
@@ -103,19 +211,21 @@ public final class ChatMessageSearchService {
 
         long deadline = deadlineNanos();
         List<ChatMessage> matches = new ArrayList<>();
-        int scanned = 0;
         Long lastScannedSequence = null;
         boolean complete = false;
 
         while (matches.size() < criteria.resultLimit()
-                && scanned < properties.getMaxScannedPerRequest()) {
+                && progress.scanned
+                < properties.getMaxScannedPerRequest()) {
             Duration remaining = remainingDuration(deadline);
             if (remaining == null) {
+                progress.deadlineReached = true;
                 break;
             }
             int chunkLimit = Math.min(
                     properties.getCandidateChunkSize(),
-                    properties.getMaxScannedPerRequest() - scanned);
+                    properties.getMaxScannedPerRequest()
+                            - progress.scanned);
             ChatMessageSearchCandidateSlice slice = readCandidates(
                     roomId,
                     initialAccess.messageVisibleAfterSequence(),
@@ -139,17 +249,19 @@ public final class ChatMessageSearchService {
             boolean consumedSlice = true;
             for (ChatMessage candidate : slice.items()) {
                 if (remainingDuration(deadline) == null) {
+                    progress.deadlineReached = true;
                     consumedSlice = false;
                     break;
                 }
-                scanned++;
+                progress.scanned++;
                 lastScannedSequence = candidate.roomSequence();
                 if (normalizer.normalizeContent(candidate.content())
                         .contains(criteria.normalizedQuery())) {
                     matches.add(candidate);
+                    progress.matches++;
                 }
                 if (matches.size() == criteria.resultLimit()
-                        || scanned
+                        || progress.scanned
                         == properties.getMaxScannedPerRequest()) {
                     consumedSlice = candidate == slice.items().getLast();
                     break;
@@ -162,7 +274,7 @@ public final class ChatMessageSearchService {
             }
             if (!consumedSlice
                     || matches.size() == criteria.resultLimit()
-                    || scanned
+                    || progress.scanned
                     == properties.getMaxScannedPerRequest()) {
                 break;
             }
@@ -335,6 +447,19 @@ public final class ChatMessageSearchService {
         return left.compareTo(right) <= 0 ? left : right;
     }
 
+    private Duration elapsedSince(long startedAt) {
+        long elapsed = Math.max(0, nanoTime.getAsLong() - startedAt);
+        return Duration.ofNanos(elapsed);
+    }
+
+    private void recordMetric(Runnable recording) {
+        try {
+            recording.run();
+        } catch (RuntimeException ignored) {
+            // Observability failures must not affect search processing.
+        }
+    }
+
     private ChatMessageSearchException invalidCursor() {
         return new ChatMessageSearchException(
                 ChatMessageSearchErrorCode.INVALID_CURSOR,
@@ -371,5 +496,12 @@ public final class ChatMessageSearchService {
                 ChatMessageSearchErrorCode.INTERNAL_ERROR,
                 message,
                 cause);
+    }
+
+    private static final class SearchProgress {
+
+        private int scanned;
+        private int matches;
+        private boolean deadlineReached;
     }
 }

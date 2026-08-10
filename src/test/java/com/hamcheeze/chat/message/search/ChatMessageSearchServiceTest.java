@@ -4,6 +4,7 @@ import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.room.inbox.RoomSequenceReader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -254,7 +256,7 @@ class ChatMessageSearchServiceTest {
     @Test
     void deadlineBeforeFirstCandidateIsUnavailable() {
         AtomicInteger calls = new AtomicInteger();
-        LongSupplier nanoTime = () -> calls.getAndIncrement() == 0
+        LongSupplier nanoTime = () -> calls.getAndIncrement() < 2
                 ? 0L
                 : Duration.ofSeconds(1).toNanos();
 
@@ -281,7 +283,7 @@ class ChatMessageSearchServiceTest {
                                 message(9, "other")),
                         true));
         AtomicInteger calls = new AtomicInteger();
-        LongSupplier nanoTime = () -> calls.getAndIncrement() < 3
+        LongSupplier nanoTime = () -> calls.getAndIncrement() < 4
                 ? 0L
                 : Duration.ofSeconds(1).toNanos();
         ChatMessageSearchCriteria criteria = criteria("match", 2);
@@ -316,6 +318,122 @@ class ChatMessageSearchServiceTest {
                 .isEqualTo(ChatMessageSearchErrorCode.INTERNAL_ERROR);
     }
 
+    @Test
+    void rateLimitRejectsBeforeAccessAndProvidesRetryDelay() {
+        ChatMessageSearchRateLimiter limiter =
+                mock(ChatMessageSearchRateLimiter.class);
+        ChatMessageSearchMetrics metrics =
+                mock(ChatMessageSearchMetrics.class);
+        when(limiter.tryAcquire("user-1"))
+                .thenReturn(ChatMessageSearchRateLimitDecision.reject(250));
+
+        assertThatThrownBy(() -> service(
+                limiter,
+                ChatMessageSearchConcurrencyGuard.unlimited(),
+                metrics,
+                () -> 0L).search(
+                "user-1", "room-1", criteria("match", 2), null))
+                .isInstanceOfSatisfying(
+                        ChatMessageSearchException.class,
+                        exception -> {
+                            assertThat(exception.code()).isEqualTo(
+                                    ChatMessageSearchErrorCode
+                                            .MESSAGE_SEARCH_RATE_LIMITED);
+                            assertThat(exception.retryAfterMs())
+                                    .isEqualTo(250);
+                        });
+        verify(accessResolver, never()).resolve(any(), any());
+        verify(metrics).request();
+        verify(metrics).rateLimited();
+        verify(metrics).failure(
+                eq(ChatMessageSearchErrorCode.MESSAGE_SEARCH_RATE_LIMITED),
+                eq(0),
+                eq(0),
+                any(Duration.class));
+    }
+
+    @Test
+    void concurrencyRejectionOccursBeforeStorageAccess() {
+        SemaphoreChatMessageSearchConcurrencyGuard guard =
+                new SemaphoreChatMessageSearchConcurrencyGuard(
+                        1,
+                        new SimpleMeterRegistry());
+        ChatMessageSearchConcurrencyGuard.Permit held =
+                guard.tryAcquire();
+        try {
+            assertThatThrownBy(() -> service(
+                    ignored -> ChatMessageSearchRateLimitDecision.allow(),
+                    guard,
+                    ChatMessageSearchMetrics.noop(),
+                    () -> 0L).search(
+                    "user-1", "room-1", criteria("match", 2), null))
+                    .isInstanceOf(ChatMessageSearchException.class)
+                    .extracting("code")
+                    .isEqualTo(
+                            ChatMessageSearchErrorCode
+                                    .MESSAGE_SEARCH_UNAVAILABLE);
+            verify(accessResolver, never()).resolve(any(), any());
+        } finally {
+            held.close();
+        }
+    }
+
+    @Test
+    void releasesConcurrencyPermitOnSearchFailure() {
+        SemaphoreChatMessageSearchConcurrencyGuard guard =
+                new SemaphoreChatMessageSearchConcurrencyGuard(
+                        1,
+                        new SimpleMeterRegistry());
+        when(reader.findCandidates(
+                any(), anyLong(), anyLong(), nullable(Long.class),
+                anyInt(), any(Duration.class)))
+                .thenThrow(new ChatMessageSearchReaderException(
+                        ChatMessageSearchReaderException.FailureKind
+                                .STORAGE_UNAVAILABLE,
+                        "timeout",
+                        new RuntimeException("mongo timeout")));
+        ChatMessageSearchService service = service(
+                ignored -> ChatMessageSearchRateLimitDecision.allow(),
+                guard,
+                ChatMessageSearchMetrics.noop(),
+                () -> 0L);
+
+        assertThatThrownBy(() -> service.search(
+                "user-1", "room-1", criteria("match", 2), null))
+                .isInstanceOf(ChatMessageSearchException.class);
+
+        ChatMessageSearchConcurrencyGuard.Permit next =
+                guard.tryAcquire();
+        assertThat(next.acquired()).isTrue();
+        next.close();
+    }
+
+    @Test
+    void metricFailureDoesNotChangeSuccessfulResult() {
+        ChatMessageSearchMetrics metrics =
+                mock(ChatMessageSearchMetrics.class);
+        doThrow(new IllegalStateException("metrics down"))
+                .when(metrics).request();
+        doThrow(new IllegalStateException("metrics down"))
+                .when(metrics).success(
+                        anyInt(),
+                        anyInt(),
+                        eq(true),
+                        any(Duration.class));
+        when(sequenceReader.currentSequence("room-1"))
+                .thenReturn(0L);
+
+        ChatMessageSearchPage page = service(
+                ignored -> ChatMessageSearchRateLimitDecision.allow(),
+                ChatMessageSearchConcurrencyGuard.unlimited(),
+                metrics,
+                () -> 0L).search(
+                "user-1", "room-1", criteria("match", 2), null);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.searchComplete()).isTrue();
+    }
+
     private ChatMessageSearchService service() {
         return service(() -> 0L);
     }
@@ -328,6 +446,25 @@ class ChatMessageSearchServiceTest {
                 normalizer,
                 cursorCodec,
                 properties,
+                nanoTime);
+    }
+
+    private ChatMessageSearchService service(
+            ChatMessageSearchRateLimiter rateLimiter,
+            ChatMessageSearchConcurrencyGuard concurrencyGuard,
+            ChatMessageSearchMetrics metrics,
+            LongSupplier nanoTime
+    ) {
+        return new ChatMessageSearchService(
+                reader,
+                accessResolver,
+                sequenceReader,
+                normalizer,
+                cursorCodec,
+                properties,
+                rateLimiter,
+                concurrencyGuard,
+                metrics,
                 nanoTime);
     }
 

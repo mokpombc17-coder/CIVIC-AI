@@ -170,7 +170,7 @@ public class RoomApiExceptionHandler {
         if (exception.code() == ChatMessageSearchErrorCode.INTERNAL_ERROR) {
             log.error("Message search consistency failure", exception);
         }
-        return problem(
+        ResponseEntity<ProblemDetail> response = problem(
                 status,
                 exception.code().name(),
                 "Message search failed",
@@ -178,6 +178,13 @@ public class RoomApiExceptionHandler {
                 request,
                 retryable,
                 null);
+        if (exception.retryAfterMs() != null
+                && response.getBody() != null) {
+            response.getBody().setProperty(
+                    "retryAfterMs",
+                    exception.retryAfterMs());
+        }
+        return response;
     }
 
     @ExceptionHandler(RoomInboxException.class)
