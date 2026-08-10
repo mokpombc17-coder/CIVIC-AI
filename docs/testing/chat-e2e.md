@@ -311,3 +311,50 @@ pnpm test:e2e
 CHAT_E2E_USER_ACTIVE_ROOM_LIMIT=20 \
 pnpm exec playwright test e2e/chat-user-active-room-limit.spec.ts
 ```
+
+## 자동화 확대 결정 기록
+
+2026-08-10 기준 프로젝트는 로컬 개발 단계다. Chat Resource Server와 MongoDB는 별도
+저장소와 로컬 Compose 환경에서 계속 변경되고 있으며, 프론트 저장소의 GitHub Actions가
+두 서비스를 재현 가능하게 기동하는 계약은 아직 없다.
+
+따라서 현재는 다음 검증 방식을 유지한다.
+
+```text
+Backend와 MongoDB를 로컬에서 실행
+→ 기능 handoff와 변경 범위에 맞는 Playwright 시나리오 실행
+→ 주요 연동 완료 시 전체 Playwright 실행
+→ pnpm check와 pnpm build:web 실행
+```
+
+현재 GitHub Actions의 필수 검사는 `pnpm check`와 `pnpm build:web`이다. Playwright는
+로컬에서 명시적으로 실행하며, 다음 자동화는 아직 추가하지 않는다.
+
+```text
+PR마다 실행하는 Playwright smoke
+main push 또는 nightly 전체 Playwright
+production build(next start) 대상 브라우저 smoke
+CI 전용 Backend 이미지 또는 MongoDB fixture
+```
+
+이 항목들은 불필요해서 제외한 것이 아니라, 다음 선행 조건이 마련될 때 다시 검토한다.
+
+```text
+GitHub Actions에서 Backend와 MongoDB를 기동하는 명령 및 readiness 계약 확정
+CI 실행마다 사용할 Backend commit 또는 image 식별 방법 확정
+여러 개발자가 PR 검증을 공유해야 하는 단계 진입
+staging 또는 첫 배포 준비
+production smoke에서 사용할 인증 방식 확정
+Safari 또는 Expo WebView의 공식 지원 범위 확정
+```
+
+자동화 재검토 시 권장 순서는 다음과 같다.
+
+1. `chat-message-smoke.spec.ts` 하나를 PR CI에서 실행하는 최소 실험
+2. 실행 시간과 flaky 비율을 반복 측정
+3. main push 또는 nightly에 전체 E2E 적용 여부 결정
+4. staging 또는 CI 전용 인증으로 production build smoke 추가 여부 결정
+
+GitHub-hosted runner에서 nightly를 실행한다면 개발자 개인 컴퓨터를 켜둘 필요는 없다. 다만
+Backend와 MongoDB를 runner 안에서 준비할 방법이 확정되기 전에는 nightly workflow를 만들지
+않는다.
