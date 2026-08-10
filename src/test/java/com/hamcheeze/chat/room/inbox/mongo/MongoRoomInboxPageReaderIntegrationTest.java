@@ -458,6 +458,7 @@ class MongoRoomInboxPageReaderIntegrationTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 1,
+                Math.max(2L, (long) (1) + 1L),
                 BASE.minusSeconds(100),
                 null,
                 1);

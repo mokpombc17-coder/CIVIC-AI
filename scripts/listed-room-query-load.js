@@ -38,7 +38,7 @@ for (let offset = 0; offset < roomCount; offset += batchSize) {
             insertOne: {
                 document: {
                     _id: `${roomIdPrefix}${suffix}`,
-                    schemaVersion: 5,
+                    schemaVersion: 6,
                     name,
                     description: `Listed Room query fixture ${suffix}`,
                     categories: [categories[index % categories.length]],
@@ -51,6 +51,9 @@ for (let offset = 0; offset < roomCount; offset += batchSize) {
                         ? "OPEN"
                         : "INVITE_ONLY",
                     activeMemberCount: (index % 49) + 1,
+                    nextParticipantNumber: NumberLong(
+                        ((index % 49) + 2).toString()
+                    ),
                     createdAt: new Date(
                         Date.UTC(2026, 0, 1, 0, 0, index % 60)),
                     closedAt: null,

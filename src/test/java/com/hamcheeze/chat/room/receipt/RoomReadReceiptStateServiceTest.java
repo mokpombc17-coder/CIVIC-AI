@@ -283,6 +283,7 @@ class RoomReadReceiptStateServiceTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 activeMemberCount,
+                Math.max(2L, (long) (activeMemberCount) + 1L),
                 NOW.minusSeconds(60),
                 null,
                 version);
@@ -300,6 +301,7 @@ class RoomReadReceiptStateServiceTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 0,
+                Math.max(2L, (long) (0) + 1L),
                 NOW.minusSeconds(120),
                 NOW.minusSeconds(60),
                 13);

@@ -684,6 +684,7 @@ class RoomOwnershipModerationAndCloseTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 activeMemberCount,
+                Math.max(2L, (long) (activeMemberCount) + 1L),
                 CREATED_AT,
                 null,
                 version);
@@ -702,6 +703,7 @@ class RoomOwnershipModerationAndCloseTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 0,
+                Math.max(2L, (long) (0) + 1L),
                 CREATED_AT,
                 CREATED_AT.plusSeconds(30),
                 8);

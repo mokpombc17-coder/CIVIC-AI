@@ -41,6 +41,7 @@ class RoomCreationAndRestoreTest {
         assertThat(result.room().status())
                 .isEqualTo(RoomStatus.ACTIVE);
         assertThat(result.room().activeMemberCount()).isEqualTo(1);
+        assertThat(result.room().nextParticipantNumber()).isEqualTo(2);
         assertThat(result.room().createdAt()).isEqualTo(CREATED_AT);
         assertThat(result.room().closedAt()).isNull();
         assertThat(result.room().version()).isZero();
@@ -206,6 +207,24 @@ class RoomCreationAndRestoreTest {
                 () -> room(RoomStatus.CLOSED, 0,
                         CREATED_AT.minusSeconds(1), 0),
                 RoomDomainErrorCode.INVALID_DOMAIN_STATE);
+        assertFailure(
+                () -> Room.restore(
+                        "room-1",
+                        "room-1",
+                        "",
+                        List.of(RoomCategory.POLICY),
+                        "membership-owner",
+                        "owner-1",
+                        RoomStatus.ACTIVE,
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN,
+                        1,
+                        1,
+                        CREATED_AT,
+                        null,
+                        0),
+                RoomDomainErrorCode
+                        .PARTICIPANT_NUMBER_INVARIANT_VIOLATION);
     }
 
     @Test
@@ -459,6 +478,7 @@ class RoomCreationAndRestoreTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 activeMemberCount,
+                Math.max(2L, (long) (activeMemberCount) + 1L),
                 CREATED_AT,
                 closedAt,
                 version);

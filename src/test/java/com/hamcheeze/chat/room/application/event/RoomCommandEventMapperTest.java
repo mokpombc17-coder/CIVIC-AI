@@ -234,6 +234,7 @@ class RoomCommandEventMapperTest {
                         RoomVisibility.UNLISTED,
                         JoinPolicy.INVITE_ONLY,
                         1,
+                        Math.max(2L, (long) (1) + 1L),
                         EMITTED_AT.minusSeconds(60),
                         null,
                         8));

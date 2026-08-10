@@ -83,7 +83,7 @@ public final class RoomMembershipTransitions {
                 messageVisibleAfterSequence);
         return new JoinRoomTransition(
                 outcome,
-                room.memberJoined(),
+                room.memberRejoined(),
                 membership,
                 false);
     }

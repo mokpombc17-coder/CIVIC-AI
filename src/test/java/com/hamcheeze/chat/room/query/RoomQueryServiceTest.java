@@ -159,6 +159,7 @@ class RoomQueryServiceTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 status == RoomStatus.ACTIVE ? 1 : 0,
+                Math.max(2L, (long) (status == RoomStatus.ACTIVE ? 1 : 0) + 1L),
                 CREATED_AT,
                 status == RoomStatus.CLOSED
                         ? CREATED_AT.plusSeconds(60)

@@ -406,6 +406,7 @@ class RoomReadStateServiceTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 1,
+                Math.max(2L, (long) (1) + 1L),
                 NOW.minusSeconds(120),
                 null,
                 1);

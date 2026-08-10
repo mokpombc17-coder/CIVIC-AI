@@ -321,6 +321,7 @@ class RoomInboxServiceTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 2,
+                Math.max(2L, (long) (2) + 1L),
                 activityAt.minusSeconds(200),
                 null,
                 3);

@@ -108,6 +108,7 @@ class ListedRoomQueryServiceTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 1,
+                Math.max(2L, (long) (1) + 1L),
                 Instant.parse("2026-07-29T00:00:00Z"),
                 null,
                 0);

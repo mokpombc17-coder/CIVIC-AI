@@ -38,6 +38,7 @@ class MongoRoomDocumentMappingTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 3,
+                Math.max(2L, (long) (3) + 1L),
                 CREATED_AT,
                 null,
                 7);
@@ -45,7 +46,8 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(5);
+        assertThat(document.schemaVersion()).isEqualTo(6);
+        assertThat(document.nextParticipantNumber()).isEqualTo(4);
         assertThat(document.ownerMembershipId())
                 .isEqualTo("membership-owner");
         assertThat(document.name()).isEqualTo("Active room");
@@ -70,6 +72,7 @@ class MongoRoomDocumentMappingTest {
                 RoomVisibility.UNLISTED,
                 JoinPolicy.INVITE_ONLY,
                 0,
+                Math.max(2L, (long) (0) + 1L),
                 CREATED_AT,
                 CREATED_AT.plusSeconds(60),
                 8);
@@ -77,7 +80,8 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(5);
+        assertThat(document.schemaVersion()).isEqualTo(6);
+        assertThat(document.nextParticipantNumber()).isEqualTo(2);
         assertThat(document.ownerMembershipId())
                 .isEqualTo("membership-owner");
         assertThat(document.name()).isEqualTo("Closed room");
@@ -134,6 +138,7 @@ class MongoRoomDocumentMappingTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 1,
+                2,
                 CREATED_AT,
                 null,
                 3)).isInstanceOf(NullPointerException.class);
@@ -149,6 +154,7 @@ class MongoRoomDocumentMappingTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 1,
+                2,
                 CREATED_AT,
                 null,
                 3)).isInstanceOf(NullPointerException.class);
@@ -165,6 +171,7 @@ class MongoRoomDocumentMappingTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 1,
+                2,
                 CREATED_AT,
                 null,
                 3)).isInstanceOf(NullPointerException.class);
@@ -289,7 +296,7 @@ class MongoRoomDocumentMappingTest {
     void unsupportedSchemaVersionsFailExplicitly() {
         MongoRoomDocument roomDocument = new MongoRoomDocument(
                 "room-1",
-                6,
+                7,
                 "Test room",
                 "owner-1",
                 RoomStatus.ACTIVE,
@@ -330,7 +337,7 @@ class MongoRoomDocumentMappingTest {
         assertUnsupportedSchema(
                 roomDocument::toDomain,
                 MongoRoomDocument.COLLECTION_NAME,
-                6);
+                7);
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,

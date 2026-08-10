@@ -29,13 +29,14 @@ public record MongoRoomDocument(
         RoomVisibility visibility,
         JoinPolicy joinPolicy,
         int activeMemberCount,
+        long nextParticipantNumber,
         Instant createdAt,
         Instant closedAt,
         long version
 ) {
 
     public static final String COLLECTION_NAME = "chat_rooms";
-    public static final int CURRENT_SCHEMA_VERSION = 5;
+    public static final int CURRENT_SCHEMA_VERSION = 6;
     static final int LEGACY_SCHEMA_VERSION = 1;
     static final int PREVIOUS_SCHEMA_VERSION = 2;
 
@@ -96,6 +97,7 @@ public record MongoRoomDocument(
                 visibility,
                 joinPolicy,
                 activeMemberCount,
+                0,
                 createdAt,
                 closedAt,
                 version);
@@ -115,6 +117,7 @@ public record MongoRoomDocument(
                 room.visibility(),
                 room.joinPolicy(),
                 room.activeMemberCount(),
+                room.nextParticipantNumber(),
                 room.createdAt(),
                 room.closedAt(),
                 room.version());
@@ -133,6 +136,7 @@ public record MongoRoomDocument(
                 visibility,
                 joinPolicy,
                 activeMemberCount,
+                nextParticipantNumber,
                 createdAt,
                 closedAt,
                 version);

@@ -31,6 +31,7 @@ class RoomJoinLeaveTest {
                 .isEqualTo(JoinRoomTransition.Outcome.JOINED);
         assertThat(result.membershipCreated()).isTrue();
         assertThat(result.room().activeMemberCount()).isEqualTo(2);
+        assertThat(result.room().nextParticipantNumber()).isEqualTo(3);
         assertThat(result.room().version()).isEqualTo(4);
         assertThat(result.membership().membershipId())
                 .isEqualTo("membership-2");
@@ -66,6 +67,7 @@ class RoomJoinLeaveTest {
         assertThat(result.room()).isSameAs(room);
         assertThat(result.membership()).isSameAs(membership);
         assertThat(result.room().activeMemberCount()).isEqualTo(2);
+        assertThat(result.room().nextParticipantNumber()).isEqualTo(3);
         assertThat(result.room().version()).isEqualTo(7);
         assertThat(result.membership().version()).isEqualTo(4);
         assertThat(result.membership().joinedAt())
@@ -76,7 +78,7 @@ class RoomJoinLeaveTest {
 
     @Test
     void rejoinsLeftMemberAndResetsMembershipTimes() {
-        Room room = activeRoom(1, 2, JoinPolicy.OPEN);
+        Room room = activeRoom(1, 2, JoinPolicy.OPEN, 8);
         Membership left = leftMember("user-2", 5);
 
         JoinRoomTransition result =
@@ -92,6 +94,7 @@ class RoomJoinLeaveTest {
                 .isEqualTo(JoinRoomTransition.Outcome.REJOINED);
         assertThat(result.membershipCreated()).isFalse();
         assertThat(result.room().activeMemberCount()).isEqualTo(2);
+        assertThat(result.room().nextParticipantNumber()).isEqualTo(8);
         assertThat(result.room().version()).isEqualTo(3);
         assertThat(result.membership().status())
                 .isEqualTo(MembershipStatus.ACTIVE);
@@ -102,6 +105,26 @@ class RoomJoinLeaveTest {
         assertThat(result.membership().messageVisibleAfterSequence())
                 .isEqualTo(200);
         assertThat(result.membership().version()).isEqualTo(6);
+    }
+
+    @Test
+    void rejectsNewMemberWhenParticipantNumbersAreExhausted() {
+        Room room = activeRoom(
+                1,
+                2,
+                JoinPolicy.OPEN,
+                Long.MAX_VALUE);
+
+        assertFailure(
+                () -> RoomMembershipTransitions.joinRoom(
+                        room,
+                        null,
+                        "membership-2",
+                        "user-2",
+                        TRANSITION_AT,
+                        100),
+                RoomDomainErrorCode
+                        .PARTICIPANT_NUMBER_INVARIANT_VIOLATION);
     }
 
     @Test
@@ -426,6 +449,19 @@ class RoomJoinLeaveTest {
             long version,
             JoinPolicy joinPolicy
     ) {
+        return activeRoom(
+                activeMemberCount,
+                version,
+                joinPolicy,
+                Math.max(2L, activeMemberCount + 1L));
+    }
+
+    private Room activeRoom(
+            int activeMemberCount,
+            long version,
+            JoinPolicy joinPolicy,
+            long nextParticipantNumber
+    ) {
         return Room.restore(
                 "room-1",
                 "room-1",
@@ -438,6 +474,7 @@ class RoomJoinLeaveTest {
                 RoomVisibility.LISTED,
                 joinPolicy,
                 activeMemberCount,
+                nextParticipantNumber,
                 CREATED_AT,
                 null,
                 version);
@@ -456,6 +493,7 @@ class RoomJoinLeaveTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 0,
+                Math.max(2L, (long) (0) + 1L),
                 CREATED_AT,
                 CREATED_AT.plusSeconds(30),
                 1);

@@ -121,7 +121,9 @@ class MongoRoomStoresIntegrationTest {
                 .find(new Document("_id", active.roomId()))
                 .first();
         assertThat(raw).isNotNull();
-        assertThat(raw.getInteger("schemaVersion")).isEqualTo(5);
+        assertThat(raw.getInteger("schemaVersion")).isEqualTo(6);
+        assertThat(raw.getLong("nextParticipantNumber"))
+                .isEqualTo(active.nextParticipantNumber());
         assertThat(raw.getString("ownerMembershipId"))
                 .isEqualTo(active.ownerMembershipId());
         assertThat(raw.getList("categories", String.class))
@@ -173,6 +175,7 @@ class MongoRoomStoresIntegrationTest {
                 RoomVisibility.UNLISTED,
                 JoinPolicy.INVITE_ONLY,
                 2,
+                Math.max(2L, (long) (2) + 1L),
                 CREATED_AT,
                 null,
                 4);
@@ -703,6 +706,7 @@ class MongoRoomStoresIntegrationTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 activeMemberCount,
+                Math.max(2L, (long) (activeMemberCount) + 1L),
                 CREATED_AT,
                 closedAt,
                 version);

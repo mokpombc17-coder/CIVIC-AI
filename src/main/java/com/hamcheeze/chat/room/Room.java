@@ -19,6 +19,7 @@ public final class Room {
     private final RoomVisibility visibility;
     private final JoinPolicy joinPolicy;
     private final int activeMemberCount;
+    private final long nextParticipantNumber;
     private final Instant createdAt;
     private final Instant closedAt;
     private final long version;
@@ -34,6 +35,7 @@ public final class Room {
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
             int activeMemberCount,
+            long nextParticipantNumber,
             Instant createdAt,
             Instant closedAt,
             long version
@@ -52,6 +54,8 @@ public final class Room {
                 RoomDomainValidation.requireStateValue(visibility);
         this.joinPolicy =
                 RoomDomainValidation.requireStateValue(joinPolicy);
+        this.nextParticipantNumber =
+                requireNextParticipantNumber(nextParticipantNumber);
         this.createdAt =
                 RoomDomainValidation.requireStateTime(createdAt);
         this.version = RoomDomainValidation.requireVersion(version);
@@ -75,6 +79,7 @@ public final class Room {
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
             int activeMemberCount,
+            long nextParticipantNumber,
             Instant createdAt,
             Instant closedAt,
             long version
@@ -90,6 +95,7 @@ public final class Room {
                 visibility,
                 joinPolicy,
                 activeMemberCount,
+                nextParticipantNumber,
                 createdAt,
                 closedAt,
                 version);
@@ -117,6 +123,7 @@ public final class Room {
                 visibility,
                 joinPolicy,
                 1,
+                2,
                 createdAt,
                 null,
                 0);
@@ -128,11 +135,33 @@ public final class Room {
                     RoomDomainErrorCode
                             .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
         }
+        if (nextParticipantNumber == Long.MAX_VALUE) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode
+                            .PARTICIPANT_NUMBER_INVARIANT_VIOLATION);
+        }
         return copy(
                 ownerMembershipId,
                 ownerUserId,
                 status,
                 activeMemberCount + 1,
+                nextParticipantNumber + 1,
+                closedAt,
+                RoomDomainValidation.nextVersion(version));
+    }
+
+    Room memberRejoined() {
+        if (activeMemberCount == Integer.MAX_VALUE) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode
+                            .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
+        }
+        return copy(
+                ownerMembershipId,
+                ownerUserId,
+                status,
+                activeMemberCount + 1,
+                nextParticipantNumber,
                 closedAt,
                 RoomDomainValidation.nextVersion(version));
     }
@@ -148,6 +177,7 @@ public final class Room {
                 ownerUserId,
                 status,
                 activeMemberCount - 1,
+                nextParticipantNumber,
                 closedAt,
                 RoomDomainValidation.nextVersion(version));
     }
@@ -158,6 +188,7 @@ public final class Room {
                 ownerUserId,
                 status,
                 activeMemberCount,
+                nextParticipantNumber,
                 closedAt,
                 RoomDomainValidation.nextVersion(version));
     }
@@ -172,6 +203,7 @@ public final class Room {
                 RoomDomainValidation.requireUserId(newOwnerUserId),
                 status,
                 activeMemberCount,
+                nextParticipantNumber,
                 closedAt,
                 RoomDomainValidation.nextVersion(version));
     }
@@ -185,6 +217,7 @@ public final class Room {
                 ownerUserId,
                 RoomStatus.CLOSED,
                 0,
+                nextParticipantNumber,
                 closed,
                 RoomDomainValidation.nextVersion(version));
     }
@@ -194,6 +227,7 @@ public final class Room {
             String nextOwnerUserId,
             RoomStatus nextStatus,
             int nextActiveMemberCount,
+            long nextParticipantNumber,
             Instant nextClosedAt,
             long nextVersion
     ) {
@@ -208,6 +242,7 @@ public final class Room {
                 visibility,
                 joinPolicy,
                 nextActiveMemberCount,
+                nextParticipantNumber,
                 createdAt,
                 nextClosedAt,
                 nextVersion);
@@ -255,6 +290,7 @@ public final class Room {
                 canonicalVisibility,
                 canonicalJoinPolicy,
                 activeMemberCount,
+                nextParticipantNumber,
                 createdAt,
                 closedAt,
                 RoomDomainValidation.nextVersion(version));
@@ -305,6 +341,17 @@ public final class Room {
         }
     }
 
+    private static long requireNextParticipantNumber(
+            long nextParticipantNumber
+    ) {
+        if (nextParticipantNumber < 2) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode
+                            .PARTICIPANT_NUMBER_INVARIANT_VIOLATION);
+        }
+        return nextParticipantNumber;
+    }
+
     public String roomId() {
         return roomId;
     }
@@ -345,6 +392,10 @@ public final class Room {
         return activeMemberCount;
     }
 
+    public long nextParticipantNumber() {
+        return nextParticipantNumber;
+    }
+
     public Instant createdAt() {
         return createdAt;
     }
@@ -366,6 +417,7 @@ public final class Room {
             return false;
         }
         return activeMemberCount == room.activeMemberCount
+                && nextParticipantNumber == room.nextParticipantNumber
                 && version == room.version
                 && roomId.equals(room.roomId)
                 && name.equals(room.name)
@@ -393,6 +445,7 @@ public final class Room {
                 visibility,
                 joinPolicy,
                 activeMemberCount,
+                nextParticipantNumber,
                 createdAt,
                 closedAt,
                 version);
@@ -410,6 +463,7 @@ public final class Room {
                 + ", visibility=" + visibility
                 + ", joinPolicy=" + joinPolicy
                 + ", activeMemberCount=" + activeMemberCount
+                + ", nextParticipantNumber=" + nextParticipantNumber
                 + ", createdAt=" + createdAt
                 + ", closedAt=" + closedAt
                 + ", version=" + version

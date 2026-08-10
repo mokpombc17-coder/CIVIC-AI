@@ -458,6 +458,7 @@ class RoomInboxNotificationUpdatePipelineTest {
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 activeMemberCount,
+                Math.max(2L, (long) (activeMemberCount) + 1L),
                 NOW.minusSeconds(120),
                 null,
                 1);
