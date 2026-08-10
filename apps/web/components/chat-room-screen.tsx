@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
 import { createChatMessageReadReceiptPresentation } from "@/components/chat-message-read-receipt-presentation";
 import {
@@ -32,6 +32,7 @@ import {
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
+import { useChatRoomEntryNavigation } from "@/components/use-chat-room-entry-navigation";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
 import { getChatRoomReadStateMembershipLifecycle } from "@/lib/chat/chat-room-read-state-membership-lifecycle";
@@ -41,6 +42,7 @@ import {
 } from "@/lib/chat/chat-room-participant-profiles";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
+  flattenRoomMessageHistoryPages,
   useRoomDetailsQuery,
   useRoomMembershipsQuery,
   useRoomMessageHistoryQuery,
@@ -125,6 +127,44 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null;
   const sessionView = getChatRoomSessionView(session, roomId, realtimeReady);
   const room = roomQuery.data;
+  const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
+  const fetchNextMessageHistoryPage = messageHistory.fetchNextPage;
+  const entryHistory = useMemo(
+    () => ({
+      hasOlderMessages: messageHistory.hasNextPage,
+      messages: messageHistory.messages,
+    }),
+    [messageHistory.hasNextPage, messageHistory.messages],
+  );
+  const loadOlderEntryHistory = useCallback(async () => {
+    const result = await fetchNextMessageHistoryPage();
+
+    if (result.isError) {
+      throw result.error;
+    }
+
+    return {
+      hasOlderMessages: result.hasNextPage,
+      messages: flattenRoomMessageHistoryPages(roomId, result.data?.pages),
+    };
+  }, [fetchNextMessageHistoryPage, roomId]);
+  const entryNavigation = useChatRoomEntryNavigation({
+    enabled: session.isActive,
+    generation: session.generation,
+    history: entryHistory,
+    historyReady: messageHistory.status === "success",
+    latestConfirmedSequence,
+    loadOlder: loadOlderEntryHistory,
+    receiptState: receiptStateQuery.data,
+    receiptStateReady:
+      receiptStateQuery.status === "success" && realtimeQuery.readReceiptStatus === "ready",
+    receiptStateUnavailable:
+      receiptStateQuery.status === "error" ||
+      realtimeQuery.readReceiptStatus === "error" ||
+      realtimeQuery.readReceiptStatus === "terminal",
+    roomId,
+    selfMembershipId: room?.myMembership?.membershipId ?? null,
+  });
   const participantDisplayNames = useMemo(
     () => createRoomParticipantDisplayNames(participantProfiles),
     [participantProfiles],
@@ -152,7 +192,13 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     () => createChatMessageTimeline(messageHistory.messages, outgoingMessages),
     [messageHistory.messages, outgoingMessages],
   );
-  const timelineRows = useMemo(() => createChatMessageTimelineRows(timeline), [timeline]);
+  const timelineRows = useMemo(
+    () =>
+      createChatMessageTimelineRows(timeline, {
+        readBoundaryAfterSequence: entryNavigation.readBoundaryAfterSequence,
+      }),
+    [entryNavigation.readBoundaryAfterSequence, timeline],
+  );
   const viewportItems = useMemo(
     () =>
       createChatMessageViewportItemViewModels(
@@ -196,8 +242,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     isPending: messageHistory.isPending,
     messageCount: messageItems.length,
   });
-  const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
-  const readStateEnabled = realtimeReady && session.isActive;
+  const readStateEnabled = realtimeReady && session.isActive && entryNavigation.canReportReadState;
   const readStateMembership = room?.myMembership ?? null;
   const readStateMembershipLifecycle = useMemo(
     () =>
@@ -264,6 +309,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       messageHistory={{
         canLoadOlder: messageHistory.hasNextPage,
         feedback,
+        initialScrollTarget: entryNavigation.initialScrollTarget,
         isLoadingOlder: messageHistory.isFetchingNextPage,
         items: viewportItems,
         latestConfirmedSequence,

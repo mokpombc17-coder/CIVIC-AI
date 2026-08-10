@@ -4,6 +4,30 @@ export type ChatMessageOlderHistoryState = "idle" | "loading" | "exhausted" | "e
 
 export type ChatMessageAppendSource = "current-user" | "realtime";
 
+export type ChatMessageViewportInitialScrollTarget =
+  | Readonly<{
+      kind: "pending";
+    }>
+  | Readonly<{
+      kind: "latest";
+    }>
+  | Readonly<{
+      kind: "first-message";
+    }>
+  | Readonly<{
+      afterSequence: number;
+      kind: "read-boundary";
+    }>;
+
+type ChatMessageInitialScrollItem =
+  | Readonly<{
+      kind: "date-separator" | "message";
+    }>
+  | Readonly<{
+      afterSequence: number;
+      kind: "read-boundary";
+    }>;
+
 export type ChatMessageViewportState = Readonly<{
   olderHistory: ChatMessageOlderHistoryState;
   position: ChatMessageViewportPosition;
@@ -54,6 +78,28 @@ export function createChatMessageViewportState(
     position: "initializing",
     unseenMessageCount: 0,
   };
+}
+
+export function findChatMessageInitialScrollIndex(
+  items: readonly ChatMessageInitialScrollItem[],
+  target: ChatMessageViewportInitialScrollTarget,
+): number | null {
+  switch (target.kind) {
+    case "pending":
+      return null;
+    case "latest":
+      return items.length === 0 ? null : items.length - 1;
+    case "first-message": {
+      const index = items.findIndex((item) => item.kind === "message");
+      return index < 0 ? null : index;
+    }
+    case "read-boundary": {
+      const index = items.findIndex(
+        (item) => item.kind === "read-boundary" && item.afterSequence === target.afterSequence,
+      );
+      return index < 0 ? null : index;
+    }
+  }
 }
 
 export function reduceChatMessageViewportState(

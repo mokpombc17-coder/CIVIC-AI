@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createChatMessageViewportState,
+  findChatMessageInitialScrollIndex,
   reduceChatMessageViewportState,
   shouldFollowLatestMessages,
 } from "./chat-message-viewport-state";
@@ -13,6 +14,31 @@ describe("chat message viewport state", () => {
       unseenMessageCount: 0,
     });
     expect(createChatMessageViewportState(false).olderHistory).toBe("exhausted");
+  });
+
+  it("진입 목표에 맞는 초기 스크롤 row를 찾는다", () => {
+    const items = [
+      { kind: "date-separator" as const },
+      { kind: "message" as const },
+      { afterSequence: 13, kind: "read-boundary" as const },
+      { kind: "message" as const },
+    ];
+
+    expect(findChatMessageInitialScrollIndex(items, { kind: "pending" })).toBeNull();
+    expect(findChatMessageInitialScrollIndex(items, { kind: "latest" })).toBe(3);
+    expect(findChatMessageInitialScrollIndex(items, { kind: "first-message" })).toBe(1);
+    expect(
+      findChatMessageInitialScrollIndex(items, {
+        afterSequence: 13,
+        kind: "read-boundary",
+      }),
+    ).toBe(2);
+    expect(
+      findChatMessageInitialScrollIndex(items, {
+        afterSequence: 12,
+        kind: "read-boundary",
+      }),
+    ).toBeNull();
   });
 
   it("사용자가 하단에서 벗어나면 실시간 새 메시지 수를 누적한다", () => {

@@ -9,8 +9,10 @@ import { canReportChatMessageReadState } from "@/components/chat-message-read-st
 import { ChatMessageItem } from "@/components/chat-message-item";
 import {
   type ChatMessageAppendSource,
+  type ChatMessageViewportInitialScrollTarget,
   type ChatMessageViewportPosition,
   createChatMessageViewportState,
+  findChatMessageInitialScrollIndex,
   reduceChatMessageViewportState,
   shouldFollowLatestMessages,
 } from "@/components/chat-message-viewport-state";
@@ -42,6 +44,7 @@ export type ChatMessageViewportFeedback =
 export type ChatMessageViewportViewModel = Readonly<{
   canLoadOlder: boolean;
   feedback: ChatMessageViewportFeedback | null;
+  initialScrollTarget: ChatMessageViewportInitialScrollTarget;
   isLoadingOlder: boolean;
   items: readonly ChatMessageViewportItemViewModel[];
   latestConfirmedSequence: number | null;
@@ -62,6 +65,7 @@ export type ChatMessageViewportLoadOlderResult = Readonly<{
 export function ChatMessageViewport({ history }: { history: ChatMessageViewportViewModel }) {
   const {
     canLoadOlder,
+    initialScrollTarget,
     isLoadingOlder: isHistoryLoadingOlder,
     latestConfirmedSequence,
     onLoadOlder,
@@ -74,8 +78,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const previousItemsRef = useRef<ChatMessageViewportItemsSnapshot | null>(null);
   const pendingAnchorRef = useRef<ChatMessageViewportAnchor | null>(null);
   const olderRequestInFlightRef = useRef(false);
+  const canLoadOlderRef = useRef(canLoadOlder);
   const currentViewportKeyRef = useRef(history.viewportKey);
   const viewportPositionRef = useRef<ChatMessageViewportPosition>("initializing");
+  const initialScrollInFlightRef = useRef(false);
   const latestScrollFramesRef = useRef<ChatMessageViewportScrollFrames>({
     scroll: null,
     settle: null,
@@ -115,6 +121,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const virtualizerRef = useRef(virtualizer);
   virtualizerRef.current = virtualizer;
   const virtualItems = virtualizer.getVirtualItems();
+  canLoadOlderRef.current = canLoadOlder;
   currentViewportKeyRef.current = viewportKey;
 
   const reportVisibleReadSequence = useCallback(() => {
@@ -156,6 +163,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       scroll: null,
       settle: null,
     };
+    initialScrollInFlightRef.current = false;
   }, []);
 
   const scrollToLatest = useCallback(() => {
@@ -200,6 +208,85 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       settleAtLatest(LATEST_SCROLL_SETTLE_FRAMES);
     });
   }, [cancelLatestScroll, history.items.length, reportVisibleReadSequence]);
+
+  const scrollToInitialTarget = useCallback(() => {
+    if (viewportPositionRef.current !== "initializing" || initialScrollTarget.kind === "pending") {
+      return;
+    }
+
+    const targetIndex = findChatMessageInitialScrollIndex(history.items, initialScrollTarget);
+
+    if (targetIndex === null) {
+      return;
+    }
+
+    if (initialScrollTarget.kind === "latest") {
+      scrollToLatest();
+      return;
+    }
+
+    const targetRenderKey = history.items[targetIndex]?.renderKey;
+
+    if (!targetRenderKey) {
+      return;
+    }
+
+    cancelLatestScroll();
+    initialScrollInFlightRef.current = true;
+    latestScrollFramesRef.current.scroll = requestAnimationFrame(() => {
+      latestScrollFramesRef.current.scroll = null;
+      virtualizerRef.current.scrollToIndex(targetIndex, {
+        align: "start",
+      });
+
+      const settleAtTarget = (remainingFrames: number) => {
+        latestScrollFramesRef.current.settle = requestAnimationFrame(() => {
+          latestScrollFramesRef.current.settle = null;
+          const scrollElement = scrollElementRef.current;
+
+          if (!scrollElement) {
+            initialScrollInFlightRef.current = false;
+            return;
+          }
+
+          const targetElement = findRenderedAnchorElement(scrollElement, targetRenderKey);
+
+          if (targetElement) {
+            const currentOffset =
+              targetElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
+            scrollElement.scrollTop += currentOffset;
+          }
+
+          if (remainingFrames > 1) {
+            settleAtTarget(remainingFrames - 1);
+            return;
+          }
+
+          const distanceFromEnd =
+            scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
+          const isAtEnd = distanceFromEnd <= AT_END_THRESHOLD;
+          initialScrollInFlightRef.current = false;
+          viewportPositionRef.current = isAtEnd ? "pinned" : "detached";
+          dispatch({
+            type: "viewport-ready",
+            isAtEnd,
+          });
+
+          if (isAtEnd) {
+            reportVisibleReadSequence();
+          }
+        });
+      };
+
+      settleAtTarget(LATEST_SCROLL_SETTLE_FRAMES);
+    });
+  }, [
+    cancelLatestScroll,
+    history.items,
+    initialScrollTarget,
+    reportVisibleReadSequence,
+    scrollToLatest,
+  ]);
 
   const loadOlderMessages = useCallback(async () => {
     if (
@@ -261,9 +348,14 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   useEffect(() => {
     olderRequestInFlightRef.current = false;
     pendingAnchorRef.current = null;
+    viewportPositionRef.current = "initializing";
     setOlderLoadError(null);
     setArrivalAnnouncement(null);
     cancelLatestScroll();
+    dispatch({
+      type: "reset",
+      hasOlderMessages: canLoadOlderRef.current,
+    });
   }, [cancelLatestScroll, viewportKey]);
 
   useEffect(() => {
@@ -323,14 +415,13 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       return;
     }
 
-    if (history.items.length > 0 && viewportPositionRef.current === "initializing") {
-      scrollToLatest();
+    if (viewportPositionRef.current === "initializing") {
       return;
     }
 
     const frame = requestAnimationFrame(reportVisibleReadSequence);
     return () => cancelAnimationFrame(frame);
-  }, [history.items, history.readStateEnabled, reportVisibleReadSequence, scrollToLatest]);
+  }, [history.items, history.readStateEnabled, reportVisibleReadSequence]);
 
   useEffect(() => {
     const previous = previousItemsRef.current;
@@ -342,7 +433,6 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     }
 
     const isNewViewport = previous?.viewportKey !== viewportKey;
-    const isFirstPopulatedSnapshot = previous === null || previous.itemCount === 0;
     const previousLatestIndex =
       previous?.lastRenderKey === null
         ? -1
@@ -359,11 +449,11 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     )
       ? "current-user"
       : "realtime";
+    const isInitializing = isNewViewport || viewportPositionRef.current === "initializing";
     const shouldFollowLatest =
-      isNewViewport ||
-      isFirstPopulatedSnapshot ||
-      (appendedMessages.length > 0 &&
-        shouldFollowLatestMessages(viewportPositionRef.current, appendSource));
+      !isInitializing &&
+      appendedMessages.length > 0 &&
+      shouldFollowLatestMessages(viewportPositionRef.current, appendSource);
 
     if (isNewViewport) {
       viewportPositionRef.current = "initializing";
@@ -385,7 +475,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
         });
       }
 
-      if (appendSource === "current-user") {
+      if (appendSource === "current-user" && !isInitializing) {
         viewportPositionRef.current = "pinned";
       }
 
@@ -404,6 +494,11 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
 
     return cancelLatestScroll;
   }, [canLoadOlder, cancelLatestScroll, history.items, scrollToLatest, viewportKey]);
+
+  useEffect(() => {
+    scrollToInitialTarget();
+    return cancelLatestScroll;
+  }, [cancelLatestScroll, scrollToInitialTarget]);
 
   useEffect(() => {
     const anchor = pendingAnchorRef.current;
@@ -474,7 +569,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       reportVisibleReadSequence();
     }
 
-    if (scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
+    if (!initialScrollInFlightRef.current && scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
       void loadOlderMessages();
     }
   }
