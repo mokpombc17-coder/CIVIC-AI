@@ -6,8 +6,11 @@ import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.command.BanMemberCommand;
 import com.hamcheeze.chat.room.application.command.CloseRoomCommand;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
+import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
+import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -161,6 +164,97 @@ class ChatMessageSearchApiIntegrationTest
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code")
                         .value("MESSAGE_SEARCH_NOT_AVAILABLE"));
+    }
+
+    @Test
+    void bindsSearchToVisibilityBoundaryAndInvalidatesCursorOnRejoin()
+            throws Exception {
+        String roomId = createRoom();
+        append(roomId, "needle before join");
+        roomCommandService.joinRoom(new JoinRoomCommand(
+                "user-2",
+                UUID.randomUUID().toString(),
+                roomId));
+        append(roomId, "needle after join older");
+        append(roomId, "needle after join latest");
+
+        MvcResult first = mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/messages/search",
+                                roomId)
+                        .with(jwt("user-2", ChatScopes.ROOMS_READ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"query":"needle","limit":1}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].roomSequence").value(3))
+                .andExpect(jsonPath("$.searchComplete").value(false))
+                .andReturn();
+        String cursor = objectMapper.readTree(
+                        first.getResponse().getContentAsString())
+                .get("nextCursor")
+                .asText();
+
+        roomCommandService.leaveRoom(new LeaveRoomCommand(
+                "user-2",
+                UUID.randomUUID().toString(),
+                roomId));
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/messages/search",
+                                roomId)
+                        .with(jwt("user-2", ChatScopes.ROOMS_READ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"query":"needle","limit":1}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        roomCommandService.joinRoom(new JoinRoomCommand(
+                "user-2",
+                UUID.randomUUID().toString(),
+                roomId));
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/messages/search",
+                                roomId)
+                        .with(jwt("user-2", ChatScopes.ROOMS_READ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ChatMessageSearchRequest(
+                                        "needle",
+                                        cursor,
+                                        1))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+    }
+
+    @Test
+    void rejectsBannedMembership() throws Exception {
+        String roomId = createRoom();
+        String membershipId = roomCommandService.joinRoom(
+                        new JoinRoomCommand(
+                                "user-3",
+                                UUID.randomUUID().toString(),
+                                roomId))
+                .result()
+                .membershipId();
+        roomCommandService.banMember(new BanMemberCommand(
+                "owner-1",
+                UUID.randomUUID().toString(),
+                roomId,
+                membershipId));
+
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/messages/search",
+                                roomId)
+                        .with(jwt("user-3", ChatScopes.ROOMS_READ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"query":"valid query","limit":20}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
 
     private String createRoom() {

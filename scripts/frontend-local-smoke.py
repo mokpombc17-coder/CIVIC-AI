@@ -140,6 +140,32 @@ def find_public_room(
         cursor = next_cursor
 
 
+def search_room_messages(
+    client: HttpClient,
+    room_id: str,
+    query: str,
+    *,
+    limit: int = 20,
+) -> tuple[dict[str, str], dict]:
+    _, headers, response = client.request(
+        "POST",
+        f"/api/v1/rooms/{room_id}/messages/search",
+        body={"query": query, "limit": limit},
+    )
+    if "no-store" not in headers.get("cache-control", ""):
+        raise AssertionError("메시지 검색 응답이 no-store가 아닙니다.")
+    if not isinstance(response, dict):
+        raise AssertionError("메시지 검색 응답이 JSON 객체가 아닙니다.")
+    if not isinstance(response.get("items"), list):
+        raise AssertionError("메시지 검색 응답 items가 배열이 아닙니다.")
+    if response.get("searchComplete") is True:
+        if response.get("nextCursor") is not None:
+            raise AssertionError("완료된 메시지 검색에 cursor가 있습니다.")
+    elif not isinstance(response.get("nextCursor"), str):
+        raise AssertionError("미완료 메시지 검색에 cursor가 없습니다.")
+    return headers, response
+
+
 class WebSocketClient:
     def __init__(self, url: str, origin: str, cookie: str):
         parsed = urllib.parse.urlparse(url)
@@ -1054,6 +1080,18 @@ def run_room_inbox_flow(
                     f"Read Receipt snapshot에 {forbidden}가 노출됐습니다."
                 )
 
+        _, pre_join_search = search_room_messages(
+            member_client,
+            room_id,
+            "FRONTEND-LOCAL-SMOKE-NEXT",
+        )
+        if pre_join_search.get("items") or not pre_join_search.get(
+            "searchComplete"
+        ):
+            raise AssertionError(
+                "JOIN 이전 메시지가 member 검색 결과에 노출됐습니다."
+            )
+
         def create_member_message(content: str) -> tuple[str, int, dict]:
             client_message_id = str(uuid.uuid4())
             body = json.dumps(
@@ -1110,6 +1148,33 @@ def run_room_inbox_flow(
         first_message_id, first_sequence, _ = create_member_message(
             "frontend inbox unread"
         )
+        _, member_search = search_room_messages(
+            member_client,
+            room_id,
+            "FRONTEND INBOX UNREAD",
+        )
+        member_matches = member_search.get("items", [])
+        if len(member_matches) != 1:
+            raise AssertionError(
+                f"JOIN 이후 메시지 검색 결과가 다릅니다: {member_search}"
+            )
+        searched_message = member_matches[0]
+        if (
+            searched_message.get("messageId") != first_message_id
+            or searched_message.get("roomSequence") != first_sequence
+            or searched_message.get("senderMembershipId")
+            != member_membership_id
+            or searched_message.get("content") != "frontend inbox unread"
+        ):
+            raise AssertionError(
+                f"메시지 검색 payload가 다릅니다: {searched_message}"
+            )
+        raw_search = json.dumps(member_search)
+        for forbidden in ("senderUserId", "displayName", "imageUrl"):
+            if forbidden in raw_search:
+                raise AssertionError(
+                    f"메시지 검색 결과에 {forbidden}가 노출됐습니다."
+                )
         inbox = find_inbox_room(owner_client, room_id)
         if inbox is None or inbox.get("unreadCount") != 1:
             raise AssertionError(f"다른 사용자 메시지 unread가 1이 아닙니다: {inbox}")
@@ -1235,11 +1300,113 @@ def run_room_inbox_flow(
         if find_inbox_room(owner_client, room_id).get("unreadCount") != 0:
             raise AssertionError("읽지 않은 메시지 삭제 후 unreadCount가 0이 아닙니다.")
 
+        _, deleted_search = search_room_messages(
+            owner_client,
+            room_id,
+            "frontend inbox delete",
+        )
+        if deleted_search.get("items") or not deleted_search.get(
+            "searchComplete"
+        ):
+            raise AssertionError("삭제 메시지가 검색 결과에 포함됐습니다.")
+
+        edit_mutation_id = str(uuid.uuid4())
+        edit_body = json.dumps(
+            {
+                "clientMutationId": edit_mutation_id,
+                "messageId": first_message_id,
+                "content": "frontend search edited",
+            }
+        )
+        member_ws.send_text(
+            stomp_frame(
+                "SEND",
+                {
+                    "destination": f"/app/rooms/{room_id}/messages/edit",
+                    "content-type": "application/json",
+                    "content-length": str(len(edit_body.encode("utf-8"))),
+                },
+                edit_body,
+            )
+        )
+        edit_result = receive_json_matching(
+            member_ws,
+            lambda value: value.get("clientMutationId") == edit_mutation_id,
+            "member EDIT command result",
+        )
+        if edit_result.get("status") != "UPDATED":
+            raise AssertionError(f"member EDIT가 실패했습니다: {edit_result}")
+
+        _, edited_search = search_room_messages(
+            owner_client,
+            room_id,
+            "FRONTEND SEARCH EDITED",
+        )
+        edited_matches = edited_search.get("items", [])
+        if (
+            len(edited_matches) != 1
+            or edited_matches[0].get("messageId") != first_message_id
+            or edited_matches[0].get("content") != "frontend search edited"
+        ):
+            raise AssertionError(
+                f"수정된 현재 본문 검색 결과가 다릅니다: {edited_search}"
+            )
+
+        _, context_headers, context = member_client.request(
+            "GET",
+            f"/api/v1/rooms/{room_id}/messages/{first_message_id}/context"
+            "?before=20&after=20",
+        )
+        if "no-store" not in context_headers.get("cache-control", ""):
+            raise AssertionError("메시지 context 응답이 no-store가 아닙니다.")
+        context_items = context.get("items") if isinstance(context, dict) else None
+        if not isinstance(context_items, list):
+            raise AssertionError(f"메시지 context 응답이 다릅니다: {context}")
+        context_sequences = [
+            int(item["roomSequence"]) for item in context_items
+        ]
+        if (
+            context.get("targetMessageId") != first_message_id
+            or sum(
+                item.get("messageId") == first_message_id
+                for item in context_items
+            )
+            != 1
+            or context_sequences != sorted(context_sequences)
+            or not any(
+                item.get("messageId") == second_message_id
+                and item.get("state") == "DELETED_BY_AUTHOR"
+                for item in context_items
+            )
+        ):
+            raise AssertionError(
+                f"검색 결과 context/tombstone 계약이 다릅니다: {context}"
+            )
+        raw_context = json.dumps(context)
+        for forbidden in ("senderUserId", "displayName", "imageUrl"):
+            if forbidden in raw_context:
+                raise AssertionError(
+                    f"메시지 context에 {forbidden}가 노출됐습니다."
+                )
+
         member_client.request(
             "POST",
             f"/api/v1/rooms/{room_id}/commands/leave",
             headers={"Idempotency-Key": str(uuid.uuid4())},
         )
+        _, _, search_denial = member_client.request(
+            "POST",
+            f"/api/v1/rooms/{room_id}/messages/search",
+            body={"query": "frontend search edited", "limit": 20},
+            expected_statuses=(403,),
+        )
+        if (
+            not isinstance(search_denial, dict)
+            or search_denial.get("code") != "ACCESS_DENIED"
+        ):
+            raise AssertionError(
+                f"LEFT 사용자의 메시지 검색 거절이 다릅니다: {search_denial}"
+            )
         if member_ws.socket is None:
             raise AssertionError("member WebSocket 상태를 확인할 수 없습니다.")
         member_ws.socket.settimeout(5)
@@ -1496,7 +1663,7 @@ def main() -> int:
     )
 
     print(
-        "[15/15] unread/read-state, Read Receipt snapshot/delta, "
+        "[15/15] unread/read-state, Read Receipt, 메시지 검색/context, "
         "접근 회수 확인"
     )
     run_room_inbox_flow(
@@ -1512,7 +1679,8 @@ def main() -> int:
         "방 생성/설정 변경/목록·join 정책 → "
         "WebSocket/STOMP 구독 준비 → 생성/수정/삭제 → REST tombstone → "
         "Room inbox unread/read-state/개인 invalidation → "
-        "Read Receipt snapshot/delta/no-op/접근 회수 흐름이 정상입니다."
+        "Read Receipt snapshot/delta/no-op → 메시지 검색/context → "
+        "접근 회수 흐름이 정상입니다."
     )
     return 0
 
