@@ -102,7 +102,8 @@ public class RoomApiExceptionHandler {
         HttpStatus status = switch (exception.code()) {
             case ROOM_NOT_FOUND, MEMBERSHIP_NOT_FOUND ->
                     HttpStatus.NOT_FOUND;
-            case NOT_ROOM_OWNER -> HttpStatus.FORBIDDEN;
+            case ACCESS_DENIED, NOT_ROOM_OWNER ->
+                    HttpStatus.FORBIDDEN;
             case INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
         };
         return problem(
@@ -273,6 +274,8 @@ public class RoomApiExceptionHandler {
             case ROOM_NOT_FOUND -> "The room was not found.";
             case MEMBERSHIP_NOT_FOUND ->
                     "The membership was not found.";
+            case ACCESS_DENIED ->
+                    "An active room membership is required.";
             case NOT_ROOM_OWNER ->
                     "Only the room owner may perform this query.";
             case INVALID_CURSOR -> "The cursor is invalid.";

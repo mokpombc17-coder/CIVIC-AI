@@ -121,10 +121,26 @@ public final class RoomQueryService {
             int limit
     ) {
         Room room = requireRoom(roomId);
-        if (!room.ownerUserId().equals(requesterUserId)) {
+        Membership requesterMembership = reader.findMembership(
+                        roomId,
+                        requesterUserId)
+                .orElse(null);
+        boolean owner = room.ownerUserId().equals(requesterUserId);
+        if (status == MembershipStatus.ACTIVE
+                && (room.status() != RoomStatus.ACTIVE
+                || requesterMembership == null
+                || requesterMembership.status()
+                != MembershipStatus.ACTIVE)) {
+            throw new RoomQueryException(
+                    RoomQueryErrorCode.ACCESS_DENIED,
+                    "An active membership is required to list "
+                            + "active Room participants");
+        }
+        if (status != MembershipStatus.ACTIVE && !owner) {
             throw new RoomQueryException(
                     RoomQueryErrorCode.NOT_ROOM_OWNER,
-                    "Only the room owner can list memberships");
+                    "Only the room owner can list inactive "
+                            + "memberships");
         }
         RoomQueryCursor decoded = cursorCodec.decode(
                 cursor,
@@ -142,6 +158,9 @@ public final class RoomQueryService {
                 .map(membership -> new RoomMemberView(
                         membership.membershipId(),
                         membership.userId(),
+                        membership.profile().displayName(),
+                        membership.profile().imageUrl(),
+                        membership.profile().version(),
                         membership.role(),
                         membership.status(),
                         membership.joinedAt(),

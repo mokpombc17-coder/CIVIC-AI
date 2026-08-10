@@ -8,6 +8,7 @@ import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.model.ActiveRoomView;
+import com.hamcheeze.chat.room.query.model.RoomMemberView;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -147,6 +149,111 @@ class RoomQueryServiceTest {
                 20);
         verify(reader).findRoomsByIds(
                 List.of("room-1", "room-2"));
+    }
+
+    @Test
+    void activeMemberCanListActiveParticipantsWithProfiles() {
+        Room room = room("room-1", RoomStatus.ACTIVE);
+        Membership requester = membership(
+                "m-01",
+                "room-1",
+                "user-1",
+                MembershipStatus.ACTIVE);
+        Membership participant = membership(
+                "m-02",
+                "room-1",
+                "user-2",
+                MembershipStatus.ACTIVE);
+        when(reader.findRoomById("room-1"))
+                .thenReturn(Optional.of(room));
+        when(reader.findMembership("room-1", "user-1"))
+                .thenReturn(Optional.of(requester));
+        when(reader.findMembershipsByRoomAndStatus(
+                "room-1",
+                MembershipStatus.ACTIVE,
+                null,
+                20))
+                .thenReturn(new CursorSlice<>(
+                        List.of(requester, participant),
+                        false));
+
+        CursorPage<RoomMemberView> page = service.roomMembers(
+                "user-1",
+                "room-1",
+                MembershipStatus.ACTIVE,
+                null,
+                20);
+
+        assertThat(page.items())
+                .extracting(RoomMemberView::membershipId)
+                .containsExactly("m-01", "m-02");
+        assertThat(page.items())
+                .extracting(RoomMemberView::displayName)
+                .containsExactly("참여자 2", "참여자 2");
+        assertThat(page.items())
+                .extracting(RoomMemberView::imageUrl)
+                .containsOnlyNulls();
+        assertThat(page.items())
+                .extracting(RoomMemberView::profileVersion)
+                .containsExactly(1L, 1L);
+    }
+
+    @Test
+    void inactiveOrMissingMembershipCannotListActiveParticipants() {
+        when(reader.findRoomById("room-1"))
+                .thenReturn(Optional.of(room(
+                        "room-1",
+                        RoomStatus.ACTIVE)));
+        when(reader.findMembership("room-1", "user-1"))
+                .thenReturn(Optional.of(membership(
+                        "m-01",
+                        "room-1",
+                        "user-1",
+                        MembershipStatus.LEFT)));
+
+        assertThatThrownBy(() -> service.roomMembers(
+                "user-1",
+                "room-1",
+                MembershipStatus.ACTIVE,
+                null,
+                20))
+                .isInstanceOf(RoomQueryException.class)
+                .extracting("code")
+                .isEqualTo(RoomQueryErrorCode.ACCESS_DENIED);
+
+        assertThatThrownBy(() -> service.roomMembers(
+                "missing-user",
+                "room-1",
+                MembershipStatus.ACTIVE,
+                null,
+                20))
+                .isInstanceOf(RoomQueryException.class)
+                .extracting("code")
+                .isEqualTo(RoomQueryErrorCode.ACCESS_DENIED);
+    }
+
+    @Test
+    void nonOwnerCannotListInactiveMemberships() {
+        when(reader.findRoomById("room-1"))
+                .thenReturn(Optional.of(room(
+                        "room-1",
+                        RoomStatus.ACTIVE)));
+        when(reader.findMembership("room-1", "user-1"))
+                .thenReturn(Optional.of(membership(
+                        "m-01",
+                        "room-1",
+                        "user-1",
+                        MembershipStatus.ACTIVE)));
+
+        assertThatThrownBy(() -> service.roomMembers(
+                "user-1",
+                "room-1",
+                MembershipStatus.BANNED,
+                null,
+                20))
+                .isInstanceOf(RoomQueryException.class)
+                .extracting("code")
+                .isEqualTo(RoomQueryErrorCode.NOT_ROOM_OWNER);
     }
 
     private Room room(String roomId, RoomStatus status) {

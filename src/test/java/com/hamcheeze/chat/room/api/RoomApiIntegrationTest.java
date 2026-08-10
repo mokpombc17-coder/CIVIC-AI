@@ -1028,6 +1028,12 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .queryParam("limit", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].displayName")
+                        .isString())
+                .andExpect(jsonPath("$.items[0].imageUrl")
+                        .value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.items[0].profileVersion")
+                        .value(1))
                 .andExpect(jsonPath("$.hasNext").value(true))
                 .andReturn();
         String cursor = jsonString(
@@ -1049,9 +1055,35 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 roomId)
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("user-2"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()")
+                        .value(2))
+                .andExpect(jsonPath("$.items[*].displayName")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                "참여자 1",
+                                "참여자 2")))
+                .andExpect(jsonPath("$.items[*].profileVersion")
+                        .value(org.hamcrest.Matchers.everyItem(
+                                org.hamcrest.Matchers.is(1))))
+                .andExpect(jsonPath("$.items[0].userId")
+                        .doesNotExist());
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}/memberships",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("user-2")))
+                        .queryParam("status", "BANNED"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code")
                         .value("NOT_ROOM_OWNER"));
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}/memberships",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("missing-user"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
         mockMvc.perform(get(
                                 "/api/v1/rooms/{roomId}/memberships",
                                 roomId)

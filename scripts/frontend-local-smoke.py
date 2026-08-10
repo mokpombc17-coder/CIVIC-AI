@@ -964,6 +964,39 @@ def run_room_inbox_flow(
     if not isinstance(member_membership_id, str) or not member_membership_id:
         raise AssertionError("inbox smoke member membershipId가 없습니다.")
 
+    _, participant_headers, participant_page = member_client.request(
+        "GET",
+        f"/api/v1/rooms/{room_id}/memberships?status=ACTIVE&limit=100",
+    )
+    if "no-store" not in participant_headers.get("cache-control", ""):
+        raise AssertionError("일반 참여자 목록 응답이 no-store가 아닙니다.")
+    participants = participant_page.get("items")
+    if not isinstance(participants, list):
+        raise AssertionError("일반 참여자 목록 items가 없습니다.")
+    participants_by_id = {
+        item.get("membershipId"): item
+        for item in participants
+        if isinstance(item, dict)
+    }
+    if set(participants_by_id) != {
+        owner_membership_id,
+        member_membership_id,
+    }:
+        raise AssertionError(
+            f"일반 참여자 ACTIVE 목록이 다릅니다: {participant_page}"
+        )
+    for participant in participants_by_id.values():
+        if (
+            not isinstance(participant.get("displayName"), str)
+            or not participant["displayName"]
+            or participant.get("imageUrl") is not None
+            or participant.get("profileVersion") != 1
+            or "userId" in participant
+        ):
+            raise AssertionError(
+                f"일반 참여자 프로필 계약이 다릅니다: {participant}"
+            )
+
     owner_ws = WebSocketClient(ws_url, origin, owner_client.cookie)
     member_ws = WebSocketClient(ws_url, origin, member_client.cookie)
     connect_stomp(owner_ws)

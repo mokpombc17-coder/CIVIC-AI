@@ -751,7 +751,10 @@ cursor 값을 프론트에서 해석하거나 수정하지 않는다.
 GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
 ```
 
-- 방장만 조회할 수 있다.
+- `status=ACTIVE`는 해당 Room의 ACTIVE 참여자라면 조회할 수 있다.
+- `status=LEFT` 또는 `status=BANNED`는 방장만 조회할 수 있다.
+- ACTIVE 참여자가 아닌 사용자의 `status=ACTIVE` 요청은
+  `403 ACCESS_DENIED`로 거절한다.
 - `status`: 기본값 `ACTIVE`; `ACTIVE`, `LEFT`, `BANNED` 중 하나.
 - `cursor`: 선택 사항.
 - `limit`: 선택 사항. 기본값 `20`, 허용 범위 `1~100`.
@@ -763,6 +766,9 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
   "items": [
     {
       "membershipId": "membership-02",
+      "displayName": "참여자 2",
+      "imageUrl": null,
+      "profileVersion": 1,
       "role": "MEMBER",
       "status": "ACTIVE",
       "joinedAt": "2026-07-29T04:31:00Z",
@@ -775,6 +781,13 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
   "hasNext": false
 }
 ```
+
+`displayName`은 1~50 Unicode code point의 Room 단위 표시 이름이다.
+현재는 최초 참여 순서에 따라 서버가 `참여자 N` 형태로 생성한다.
+`imageUrl`은 프로필 이미지가 없으면 `null`이며, `profileVersion`은
+프로필 변경 병합과 캐시 무효화에 사용하는 단조 증가 버전이다.
+재참여 시 기존 `membershipId`와 프로필을 재사용하므로 표시 이름도
+유지된다. 응답에는 participant의 `userId`를 노출하지 않는다.
 
 ## 메시지 이력 Query API
 
