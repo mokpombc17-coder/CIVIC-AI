@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat-message-arrival-announcement";
 import { ChatMessageDateSeparator } from "@/components/chat-message-date-separator";
+import { ChatMessageReadBoundary } from "@/components/chat-message-read-boundary";
 import { canReportChatMessageReadState } from "@/components/chat-message-read-state-policy";
 import { ChatMessageItem } from "@/components/chat-message-item";
 import {
@@ -20,6 +21,7 @@ import type {
 
 const AT_END_THRESHOLD = 96;
 const ESTIMATED_DATE_SEPARATOR_HEIGHT = 24;
+const ESTIMATED_READ_BOUNDARY_HEIGHT = 28;
 const ESTIMATED_MESSAGE_HEIGHT = 76;
 const MESSAGE_GAP = 20;
 const MESSAGE_OVERSCAN = 10;
@@ -91,10 +93,19 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: history.items.length,
-    estimateSize: (index) =>
-      history.items[index]?.kind === "date-separator"
-        ? ESTIMATED_DATE_SEPARATOR_HEIGHT
-        : ESTIMATED_MESSAGE_HEIGHT,
+    estimateSize: (index) => {
+      const item = history.items[index];
+
+      if (item?.kind === "date-separator") {
+        return ESTIMATED_DATE_SEPARATOR_HEIGHT;
+      }
+
+      if (item?.kind === "read-boundary") {
+        return ESTIMATED_READ_BOUNDARY_HEIGHT;
+      }
+
+      return ESTIMATED_MESSAGE_HEIGHT;
+    },
     gap: MESSAGE_GAP,
     getItemKey: (index) => history.items[index]?.renderKey ?? index,
     getScrollElement: () => scrollElementRef.current,
@@ -577,6 +588,19 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
                 return (
                   <ChatMessageDateSeparator
                     date={item.date}
+                    key={virtualItem.key}
+                    ref={virtualizer.measureElement}
+                    renderKey={item.renderKey}
+                    style={style}
+                    virtualIndex={virtualItem.index}
+                  />
+                );
+              }
+
+              if (item.kind === "read-boundary") {
+                return (
+                  <ChatMessageReadBoundary
+                    afterSequence={item.afterSequence}
                     key={virtualItem.key}
                     ref={virtualizer.measureElement}
                     renderKey={item.renderKey}

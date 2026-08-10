@@ -33,9 +33,18 @@ export type ChatMessageTimelineRow =
       renderKey: string;
     }>
   | Readonly<{
+      afterSequence: number;
+      kind: "read-boundary";
+      renderKey: string;
+    }>
+  | Readonly<{
       item: ChatMessageTimelineItem;
       kind: "message";
     }>;
+
+export type CreateChatMessageTimelineRowsOptions = Readonly<{
+  readBoundaryAfterSequence?: number | null;
+}>;
 
 export function createChatMessageTimeline(
   confirmedMessages: readonly ChatMessage[],
@@ -60,9 +69,18 @@ export function createChatMessageTimeline(
 
 export function createChatMessageTimelineRows(
   timeline: readonly ChatMessageTimelineItem[],
+  { readBoundaryAfterSequence = null }: CreateChatMessageTimelineRowsOptions = {},
 ): readonly ChatMessageTimelineRow[] {
+  if (
+    readBoundaryAfterSequence !== null &&
+    (!Number.isSafeInteger(readBoundaryAfterSequence) || readBoundaryAfterSequence < 0)
+  ) {
+    throw new RangeError("읽음 구분선 sequence는 0 이상의 안전한 정수여야 합니다.");
+  }
+
   const rows: ChatMessageTimelineRow[] = [];
   let previousDateKey: string | null = null;
+  let readBoundaryInserted = false;
 
   for (const item of timeline) {
     const date = getChatMessageTimelineDate(item);
@@ -76,6 +94,22 @@ export function createChatMessageTimelineRows(
         }),
       );
       previousDateKey = date.key;
+    }
+
+    if (
+      !readBoundaryInserted &&
+      readBoundaryAfterSequence !== null &&
+      item.kind === "confirmed" &&
+      item.message.roomSequence > readBoundaryAfterSequence
+    ) {
+      rows.push(
+        Object.freeze({
+          afterSequence: readBoundaryAfterSequence,
+          kind: "read-boundary",
+          renderKey: `read-boundary-${readBoundaryAfterSequence}`,
+        }),
+      );
+      readBoundaryInserted = true;
     }
 
     rows.push(Object.freeze({ item, kind: "message" }));

@@ -127,6 +127,11 @@ describe("chat room view model", () => {
         renderKey: "date-separator-2026-08-07",
       },
       {
+        afterSequence: 19,
+        kind: "read-boundary",
+        renderKey: "read-boundary-19",
+      },
+      {
         item: message,
         kind: "message",
       },
@@ -137,6 +142,11 @@ describe("chat room view model", () => {
         date: { key: "2026-08-07" },
         kind: "date-separator",
         renderKey: "date-separator-2026-08-07",
+      },
+      {
+        afterSequence: 19,
+        kind: "read-boundary",
+        renderKey: "read-boundary-19",
       },
       {
         item: {

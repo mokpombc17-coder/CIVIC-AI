@@ -111,6 +111,78 @@ describe("createChatMessageTimelineRows", () => {
     });
   });
 
+  it("날짜 구분선 뒤이자 첫 안 읽은 확정 메시지 앞에 읽음 경계를 한 번 넣는다", () => {
+    const timeline = createChatMessageTimeline(
+      [
+        { ...createConfirmed("read", "2026-08-06T14:59:59Z"), roomSequence: 130 },
+        { ...createConfirmed("unread", "2026-08-06T15:00:00Z"), roomSequence: 131 },
+        { ...createConfirmed("newer", "2026-08-06T15:01:00Z"), roomSequence: 132 },
+      ],
+      [],
+    );
+
+    const rows = createChatMessageTimelineRows(timeline, {
+      readBoundaryAfterSequence: 130,
+    });
+
+    expect(rows.map(({ kind }) => kind)).toEqual([
+      "date-separator",
+      "message",
+      "date-separator",
+      "read-boundary",
+      "message",
+      "message",
+    ]);
+    expect(rows.filter((row) => row.kind === "read-boundary")).toEqual([
+      {
+        afterSequence: 130,
+        kind: "read-boundary",
+        renderKey: "read-boundary-130",
+      },
+    ]);
+  });
+
+  it("삭제된 확정 메시지도 sequence 기준 첫 안 읽은 메시지로 취급한다", () => {
+    const timeline = createChatMessageTimeline(
+      [
+        { ...createConfirmed("read"), roomSequence: 10 },
+        {
+          ...createDeletedConfirmed("deleted", "2026-07-31T00:01:00Z", "2026-08-01T00:00:00Z"),
+          roomSequence: 11,
+        },
+      ],
+      [],
+    );
+
+    expect(
+      createChatMessageTimelineRows(timeline, { readBoundaryAfterSequence: 10 }).map(
+        ({ kind }) => kind,
+      ),
+    ).toEqual(["date-separator", "message", "read-boundary", "message"]);
+  });
+
+  it("경계 뒤에 optimistic 메시지만 있으면 읽음 경계를 만들지 않는다", () => {
+    const timeline = createChatMessageTimeline(
+      [{ ...createConfirmed("read"), roomSequence: 10 }],
+      [createOutgoing("optimistic", "queued")],
+    );
+
+    expect(
+      createChatMessageTimelineRows(timeline, { readBoundaryAfterSequence: 10 }).some(
+        (row) => row.kind === "read-boundary",
+      ),
+    ).toBe(false);
+  });
+
+  it("유효하지 않은 읽음 경계 sequence를 거절한다", () => {
+    expect(() => createChatMessageTimelineRows([], { readBoundaryAfterSequence: -1 })).toThrowError(
+      RangeError,
+    );
+    expect(() =>
+      createChatMessageTimelineRows([], { readBoundaryAfterSequence: Number.MAX_SAFE_INTEGER + 1 }),
+    ).toThrowError(RangeError);
+  });
+
   it("유효하지 않은 내부 timestamp는 조용히 잘못된 날짜로 표시하지 않는다", () => {
     const timeline = createChatMessageTimeline(
       [],

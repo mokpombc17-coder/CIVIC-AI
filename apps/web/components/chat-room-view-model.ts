@@ -52,6 +52,11 @@ export type ChatMessageViewportItemViewModel =
       renderKey: string;
     }>
   | Readonly<{
+      afterSequence: number;
+      kind: "read-boundary";
+      renderKey: string;
+    }>
+  | Readonly<{
       item: ChatMessageItemViewModel;
       kind: "message";
       renderKey: string;
@@ -115,6 +120,14 @@ export function createChatMessageViewportItemViewModels(
       return {
         date: row.date,
         kind: "date-separator",
+        renderKey: row.renderKey,
+      };
+    }
+
+    if (row.kind === "read-boundary") {
+      return {
+        afterSequence: row.afterSequence,
+        kind: "read-boundary",
         renderKey: row.renderKey,
       };
     }
