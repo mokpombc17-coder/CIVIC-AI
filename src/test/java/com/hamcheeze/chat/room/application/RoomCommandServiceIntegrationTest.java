@@ -420,6 +420,49 @@ class RoomCommandServiceIntegrationTest
     }
 
     @Test
+    void concurrentNewMembersReceiveDistinctParticipantProfiles()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+        Room initialRoom = roomStore.findById(roomId).orElseThrow();
+        Membership owner = membership(roomId, "owner-1");
+        assertThat(owner.profile().participantNumber()).isEqualTo(1);
+        assertThat(owner.profile().displayName()).isEqualTo("참여자 1");
+        assertThat(initialRoom.nextParticipantNumber()).isEqualTo(2);
+
+        List<RoomCommandExecution> executions = concurrently(
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "user-2",
+                        requestId(),
+                        roomId)),
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "user-3",
+                        requestId(),
+                        roomId)));
+
+        assertThat(executions)
+                .extracting(execution -> execution.result().code())
+                .containsExactlyInAnyOrder(
+                        RoomCommandResultCode.JOINED,
+                        RoomCommandResultCode.JOINED);
+        List<Membership> joinedMembers = memberships(roomId).stream()
+                .filter(value -> value.role() == MembershipRole.MEMBER)
+                .toList();
+        assertThat(joinedMembers)
+                .extracting(value ->
+                        value.profile().participantNumber())
+                .containsExactlyInAnyOrder(2L, 3L)
+                .doesNotHaveDuplicates();
+        assertThat(joinedMembers)
+                .extracting(value -> value.profile().displayName())
+                .containsExactlyInAnyOrder("참여자 2", "참여자 3");
+
+        Room finalRoom = roomStore.findById(roomId).orElseThrow();
+        assertThat(finalRoom.activeMemberCount()).isEqualTo(3);
+        assertThat(finalRoom.nextParticipantNumber()).isEqualTo(4);
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
     void concurrentCreateAndJoinSerializeLastUserSlot()
             throws Exception {
         seedActiveRooms("quota-user", 19, "owned-");
