@@ -85,6 +85,14 @@ class ChatMessageSearchPropertiesTest {
                 "mongoQueryMaxTime");
     }
 
+    @Test
+    void rejectsSubMillisecondMongoMaxTime() {
+        assertInvalid(
+                "chat.message.search.request-deadline=1s",
+                "chat.message.search.mongo-query-max-time=999999ns",
+                "mongoQueryMaxTime");
+    }
+
     private void assertInvalid(
             String firstProperty,
             String secondProperty,

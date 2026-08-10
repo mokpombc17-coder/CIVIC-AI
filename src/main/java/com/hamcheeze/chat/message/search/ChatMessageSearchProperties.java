@@ -153,6 +153,10 @@ public class ChatMessageSearchProperties
                     "mongoQueryMaxTime must not exceed "
                             + "requestDeadline");
         }
+        if (mongoQueryMaxTime.toNanos() < 1_000_000) {
+            throw new IllegalArgumentException(
+                    "mongoQueryMaxTime must be at least 1ms");
+        }
     }
 
     private Duration requirePositive(

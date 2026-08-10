@@ -3,6 +3,7 @@ package com.hamcheeze.chat.message.mongo;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageMutationStore;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
+import com.hamcheeze.chat.message.search.ChatMessageSearchReader;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.room.application.RoomMessageBoundaryPort;
 import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
@@ -128,5 +129,13 @@ public class MongoChatMessageStoreConfiguration {
             MongoChatMessageSchemaInitializer schemaInitializer
     ) {
         return new MongoChatMessageHistoryReader(mongoOperations);
+    }
+
+    @Bean
+    ChatMessageSearchReader chatMessageSearchReader(
+            MongoOperations mongoOperations,
+            MongoChatMessageSchemaInitializer schemaInitializer
+    ) {
+        return new MongoChatMessageSearchReader(mongoOperations);
     }
 }

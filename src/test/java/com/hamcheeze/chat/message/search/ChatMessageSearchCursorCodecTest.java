@@ -49,6 +49,26 @@ class ChatMessageSearchCursorCodecTest {
     }
 
     @Test
+    void supportsInitialMembershipVersionZero() {
+        ChatMessageSearchCursorBinding initialMembership =
+                new ChatMessageSearchCursorBinding(
+                        "room-1",
+                        "membership-1",
+                        0,
+                        10,
+                        FINGERPRINT,
+                        20);
+        ChatMessageSearchCursor cursor = codec.issue(
+                initialMembership,
+                100,
+                80);
+
+        assertThat(codec.decode(
+                codec.encode(cursor),
+                initialMembership)).isEqualTo(cursor);
+    }
+
+    @Test
     void rejectsMalformedUnknownMissingAndUnsupportedPayloads() {
         assertInvalid("not-base64", binding());
         assertInvalid(token(payload().replace(

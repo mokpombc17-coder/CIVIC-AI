@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.message.search;
 
+import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,14 @@ public class ChatMessageSearchConfiguration {
     @Bean
     ChatMessageSearchNormalizer chatMessageSearchNormalizer() {
         return new ChatMessageSearchNormalizer();
+    }
+
+    @Bean
+    ChatMessageSearchAccessResolver
+    chatMessageSearchAccessResolver(
+            RoomAccessReader accessReader
+    ) {
+        return new ChatMessageSearchAccessResolver(accessReader);
     }
 
     @Bean

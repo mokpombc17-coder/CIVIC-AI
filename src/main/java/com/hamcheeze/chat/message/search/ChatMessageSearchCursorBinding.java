@@ -21,9 +21,9 @@ public record ChatMessageSearchCursorBinding(
         requireIdentifier(
                 requesterMembershipId,
                 "requesterMembershipId");
-        if (requesterMembershipVersion < 1) {
+        if (requesterMembershipVersion < 0) {
             throw new IllegalArgumentException(
-                    "requesterMembershipVersion must be positive");
+                    "requesterMembershipVersion must not be negative");
         }
         if (messageVisibleAfterSequence < 0) {
             throw new IllegalArgumentException(
