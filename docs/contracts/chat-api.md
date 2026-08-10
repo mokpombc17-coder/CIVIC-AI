@@ -199,6 +199,8 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | `GET` | `/api/v1/me/rooms` | 내 활성 방 목록 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/memberships` | 방 멤버 목록 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/messages` | 채팅 메시지 이력 조회 | `200` |
+| `POST` | `/api/v1/rooms/{roomId}/messages/search` | 접근 가능한 메시지 본문 검색 | `200` |
+| `GET` | `/api/v1/rooms/{roomId}/messages/{messageId}/context` | 검색 결과 주변 문맥 조회 | `200` |
 
 `roomId`는 영문자, 숫자, `_`, `-`로 구성된 1~64자 문자열이다.
 
@@ -916,6 +918,135 @@ REST에서 현재 snapshot을 조회한다.
 복구하는 cursor다. 과거 메시지의 UPDATE/DELETE change feed가 아니며,
 이 cursor만으로 mutation을 증분 복구할 수 있다고 가정하면 안 된다.
 
+## 메시지 본문 검색 API
+
+```http
+POST /api/v1/rooms/{roomId}/messages/search
+Content-Type: application/json
+```
+
+이 POST는 상태를 변경하지 않는다. 검색어를 URL query와 일반 access log에
+직접 노출하지 않기 위해 request body를 사용하며 `Idempotency-Key`는 필요하지
+않다. `chat:rooms:read` scope, ACTIVE Room, 요청자의 ACTIVE Membership이
+필요하고 응답은 `Cache-Control: no-store`다.
+
+요청:
+
+```json
+{
+  "query": "환경 정책",
+  "cursor": null,
+  "limit": 20
+}
+```
+
+- `query`는 필수다. raw ISO control 문자를 거절한 뒤 Unicode whitespace를
+  한 칸으로 합치고, 앞뒤 공백 제거, NFC, `Locale.ROOT` 소문자화를 적용한다.
+  정규화 후 2~100 Unicode code point만 허용한다.
+- 검색은 정규화된 현재 `content`에 대한 literal substring 비교다. 정규식,
+  wildcard, 형태소·유사어·오타 보정, 관련도 점수는 지원하지 않는다.
+- `limit`은 한 페이지에서 반환할 일치 결과 수로 기본 20, 범위 1~50이다.
+- `cursor`는 최초 요청에서 생략하거나 `null`로 보낸다. 다음 요청에서는
+  서버가 발급한 opaque cursor와 같은 `query`, `limit`을 다시 보낸다.
+
+응답:
+
+```json
+{
+  "items": [
+    {
+      "messageId": "message-10",
+      "roomId": "room-1",
+      "roomSequence": 97231,
+      "senderMembershipId": "membership-2",
+      "clientMessageId": "550e8400-e29b-41d4-a716-446655440000",
+      "content": "환경정책에 관해서 이야기합니다.",
+      "state": "ACTIVE",
+      "countable": true,
+      "messageVersion": 1,
+      "createdAt": "2026-08-10T07:00:00Z",
+      "updatedAt": "2026-08-10T07:00:00Z",
+      "deletedAt": null
+    }
+  ],
+  "nextCursor": "opaque-cursor",
+  "searchComplete": false
+}
+```
+
+검색 범위와 비용 계약:
+
+- 현재 Room 한 개에서 `messageVisibleAfterSequence < roomSequence`인 메시지만
+  검색한다. `ACTIVE + countable=true + content 존재` 메시지가 후보이며 삭제
+  tombstone과 non-countable 메시지는 제외한다.
+- 첫 요청 시 Room current sequence를 `searchUpperBoundSequence`로 고정한다.
+  검색 시작 후 생성된 메시지는 같은 cursor session에 포함하지 않는다.
+- 결과는 `roomSequence DESC`다. MongoDB는 기존 Room/sequence index로 최신
+  후보를 가져오고, 본문 정규화와 substring 판정은 애플리케이션에서 수행한다.
+- 한 요청의 결과 limit과 검사 budget은 별개다. 기본 설정은 후보 chunk 500,
+  최대 검사 2,000개, 요청 deadline 1초, Mongo query maxTime 500ms다.
+- cursor는 마지막 일치 결과가 아니라 마지막으로 실제 검사한 sequence 이후의
+  더 오래된 범위를 가리킨다. 따라서 아직 검사하지 않은 후보를 건너뛰지 않는다.
+- `items=[]`이면서 `searchComplete=false`일 수 있다. 이번 검사 구간에는 일치가
+  없지만 더 오래된 검색 공간이 남았다는 뜻이며 `nextCursor`로 계속해야 한다.
+- `searchComplete=true`이면 `nextCursor=null`이고, 처음 고정한 upper bound와
+  visibility boundary 사이 후보를 모두 검사했다는 뜻이다. `totalCount`, score,
+  highlight offset은 제공하지 않는다.
+- cursor는 Room, 현재 `membershipId`와 `membershipVersion`, visibility boundary,
+  정규화 query의 SHA-256 fingerprint, limit, fixed upper bound에 바인딩되고 기본
+  10분 후 만료된다. REJOIN 등으로 Membership context가 바뀌면
+  `400 INVALID_CURSOR`다. cursor는 접근 권한 증명이 아니므로 매 요청마다 현재
+  접근을 다시 확인한다.
+
+수정 메시지는 각 요청 시점의 현재 본문으로 검색한다. continuation 사이에서
+이미 검사한 메시지가 수정되어 새로 일치하더라도 같은 session에서 다시 검사하지
+않으므로 정확한 최신 결과가 필요하면 검색을 다시 시작한다. 검색 후 삭제된
+메시지는 이후 검색에서 제외되며 기존 DELETE event로 화면 결과를 제거한다.
+
+검색 응답은 `senderMembershipId`만 제공하고 profile을 결합하지 않는다. 프론트는
+현재 ACTIVE 참여자 목록과 결합하며 찾을 수 없는 Membership은 `알 수 없는 참여자`로
+표시한다. 검색어, query fingerprint, 메시지 본문은 metric tag나 application log에
+기록하지 않는다.
+
+기본 사용자 제한은 초당 1회, burst 3이며 서버 인스턴스당 동시 검색은 4개다.
+초과 시 각각 `429 MESSAGE_SEARCH_RATE_LIMITED`(`retryAfterMs` 포함) 또는
+`503 MESSAGE_SEARCH_UNAVAILABLE`을 반환한다. Mongo timeout·일시 장애도
+`503 MESSAGE_SEARCH_UNAVAILABLE`이며 같은 cursor로 재시도할 수 있다.
+
+## 검색 결과 Message Context API
+
+```http
+GET /api/v1/rooms/{roomId}/messages/{messageId}/context?before=20&after=20
+```
+
+검색 결과를 timeline의 기존 최신 cache에 직접 삽입하지 않고 주변 문맥과 함께
+이동하기 위한 조회다. `chat:rooms:read` scope, ACTIVE Room과 ACTIVE Membership이
+필요하고 응답은 `Cache-Control: no-store`다. `before`, `after`는 각각 기본 20,
+범위 0~50이다. 이 조회는 sequence index 기반이므로 메시지 검색용 rate limit과
+전역 동시 검색 semaphore를 사용하지 않는다.
+
+```json
+{
+  "targetMessageId": "message-10",
+  "targetRoomSequence": 97231,
+  "items": [],
+  "nextBeforeSequence": 97211,
+  "nextAfterSequence": 97251,
+  "hasOlder": true,
+  "hasNewer": true
+}
+```
+
+실제 `items`는 메시지 이력과 같은 전체 공개 payload이며 `roomSequence ASC`다.
+target은 정확히 한 번 포함된다. 주변 문맥은 timeline이므로 삭제 tombstone과
+non-countable 메시지도 포함할 수 있다. 검색 당시 ACTIVE였던 target이 클릭 전에
+삭제되면 `DELETED_BY_AUTHOR`, `content=null`인 현재 tombstone을 반환한다.
+
+존재하지 않는 messageId, 다른 Room의 messageId, 현재 visibility boundary 이전
+messageId는 존재 여부를 구분하지 않고 모두 `404 MESSAGE_NOT_FOUND`로 처리한다.
+Room이 CLOSED이면 `409 MESSAGE_SEARCH_NOT_AVAILABLE`, 일시적인 Mongo 장애는
+`503 MESSAGE_SEARCH_UNAVAILABLE`이다.
+
 ## REST 오류 응답
 
 REST 오류는 `application/problem+json` 형식을 사용한다.
@@ -961,9 +1092,10 @@ body validation 오류에는 `fieldErrors`가 추가된다.
 | `400` | `INVALID_REQUEST`, `INVALID_ROOM_ID`, `INVALID_CURSOR`, `INVALID_IDEMPOTENCY_KEY` |
 | `401` | `UNAUTHENTICATED` |
 | `403` | `ACCESS_DENIED`, `NOT_ROOM_OWNER`, `MEMBERSHIP_BANNED` |
-| `404` | `ROOM_NOT_FOUND`, `MEMBERSHIP_NOT_FOUND`, `TARGET_MEMBERSHIP_NOT_FOUND` |
-| `409` | `ROOM_CLOSED`, `JOIN_POLICY_NOT_OPEN`, `ROOM_HAS_OTHER_ACTIVE_MEMBERS`, `OWNER_CANNOT_LEAVE`, `OWNER_CANNOT_BE_BANNED`, `TARGET_MEMBERSHIP_NOT_ACTIVE`, `TARGET_MEMBERSHIP_NOT_MEMBER`, `OWNERSHIP_TARGET_MUST_DIFFER`, `IDEMPOTENCY_CONFLICT` |
-| `503` | 재시도 가능한 인프라 오류 |
+| `404` | `ROOM_NOT_FOUND`, `MEMBERSHIP_NOT_FOUND`, `TARGET_MEMBERSHIP_NOT_FOUND`, `MESSAGE_NOT_FOUND` |
+| `409` | `ROOM_CLOSED`, `JOIN_POLICY_NOT_OPEN`, `ROOM_HAS_OTHER_ACTIVE_MEMBERS`, `OWNER_CANNOT_LEAVE`, `OWNER_CANNOT_BE_BANNED`, `TARGET_MEMBERSHIP_NOT_ACTIVE`, `TARGET_MEMBERSHIP_NOT_MEMBER`, `OWNERSHIP_TARGET_MUST_DIFFER`, `IDEMPOTENCY_CONFLICT`, `MESSAGE_SEARCH_NOT_AVAILABLE` |
+| `429` | `MESSAGE_SEARCH_RATE_LIMITED` |
+| `503` | `MESSAGE_SEARCH_UNAVAILABLE` 등 재시도 가능한 인프라 오류 |
 | `500` | `INTERNAL_ERROR` 또는 재시도 불가능한 인프라 오류 |
 
 `retryable`이 `true`인 Command 오류를 재시도할 때는 동일한
