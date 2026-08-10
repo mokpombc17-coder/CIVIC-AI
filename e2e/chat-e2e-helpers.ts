@@ -1,4 +1,5 @@
 import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { registerE2EWindow } from "./chat-e2e-window-layout";
 
 const AUTH_COOKIE_NAME = "civic_ai_access_token";
 const ROOM_CATEGORY_LABEL = {
@@ -10,6 +11,7 @@ const ROOM_CATEGORY_LABEL = {
 type E2ERoomCategory = keyof typeof ROOM_CATEGORY_LABEL;
 
 export async function authenticateDevUser(page: Page, context: BrowserContext): Promise<void> {
+  await registerE2EWindow(page);
   await page.goto("/");
   await page.getByRole("button", { name: "임시 로그인 갱신", exact: true }).click();
 
@@ -26,6 +28,7 @@ export async function authenticateDevUserAs(
   context: BrowserContext,
   subject: string,
 ): Promise<void> {
+  await registerE2EWindow(page);
   await page.goto("/");
 
   const response = await page.request.post("/api/dev/auth/session", {

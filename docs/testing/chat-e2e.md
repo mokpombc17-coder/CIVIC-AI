@@ -256,6 +256,14 @@ pnpm test:e2e
 pnpm test:e2e:headed
 ```
 
+서로 다른 사용자용 Chromium 창을 겹치지 않게 자동 배치하려면 창 타일링을 활성화한다.
+두 창은 좌우로, 세 창은 한 줄에 나란히 배치한다. 이 옵션은 headed 로컬 실행에서만
+사용하며 기본 E2E 및 CI 실행에는 영향을 주지 않는다.
+
+```bash
+CHAT_E2E_TILE_WINDOWS=true pnpm test:e2e:headed
+```
+
 한 단계씩 멈추며 locator와 상태를 확인하려면 디버그 모드를 사용한다.
 
 ```bash
