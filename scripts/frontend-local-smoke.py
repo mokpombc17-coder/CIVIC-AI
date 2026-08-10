@@ -469,6 +469,10 @@ def run_websocket_flow(
             ("room-inbox-events", "/user/queue/room-inbox-events"),
             ("room-messages", f"/topic/rooms/{room_id}/messages"),
             ("room-events", f"/topic/rooms/{room_id}/room-events"),
+            (
+                "room-read-receipts",
+                f"/topic/rooms/{room_id}/read-receipts",
+            ),
         )
         for subscription_id, destination in subscriptions:
             client.send_text(
@@ -947,6 +951,12 @@ def run_room_inbox_flow(
     member_client: HttpClient,
     room_id: str,
 ) -> None:
+    _, _, owner_membership = owner_client.request(
+        "GET", f"/api/v1/rooms/{room_id}/memberships/me"
+    )
+    owner_membership_id = owner_membership.get("membershipId")
+    if not isinstance(owner_membership_id, str) or not owner_membership_id:
+        raise AssertionError("inbox smoke owner membershipId가 없습니다.")
     _, _, member_membership = member_client.request(
         "GET", f"/api/v1/rooms/{room_id}/memberships/me"
     )
@@ -970,10 +980,46 @@ def run_room_inbox_flow(
             f"/topic/rooms/{room_id}/messages",
         )
         subscribe_stomp(
+            owner_ws,
+            "room-read-receipts",
+            f"/topic/rooms/{room_id}/read-receipts",
+        )
+        subscribe_stomp(
             member_ws,
             "command-results",
             "/user/queue/command-results",
         )
+        subscribe_stomp(
+            member_ws,
+            "room-read-receipts",
+            f"/topic/rooms/{room_id}/read-receipts",
+        )
+
+        _, snapshot_headers, snapshot = owner_client.request(
+            "GET", f"/api/v1/rooms/{room_id}/read-receipts/state"
+        )
+        if "no-store" not in snapshot_headers.get("cache-control", ""):
+            raise AssertionError("Read Receipt snapshot이 no-store가 아닙니다.")
+        if snapshot.get("selfMembershipId") != owner_membership_id:
+            raise AssertionError("Read Receipt snapshot selfMembershipId가 다릅니다.")
+        positions = snapshot.get("positions")
+        if not isinstance(positions, list) or {
+            item.get("membershipId") for item in positions
+        } != {owner_membership_id, member_membership_id}:
+            raise AssertionError(
+                f"Read Receipt ACTIVE positions가 다릅니다: {snapshot}"
+            )
+        raw_snapshot = json.dumps(snapshot)
+        for forbidden in (
+            "userId",
+            "displayName",
+            "avatar",
+            "effectiveReadThroughSequence",
+        ):
+            if forbidden in raw_snapshot:
+                raise AssertionError(
+                    f"Read Receipt snapshot에 {forbidden}가 노출됐습니다."
+                )
 
         def create_member_message(content: str) -> tuple[str, int, dict]:
             client_message_id = str(uuid.uuid4())
@@ -1044,6 +1090,73 @@ def run_room_inbox_flow(
             or not read_result.get("updated")
         ):
             raise AssertionError(f"read-state 증가 응답이 다릅니다: {read_result}")
+        receipt_event = receive_json_matching(
+            owner_ws,
+            lambda value: value.get("eventType")
+            == "ROOM_READ_POSITIONS_ADVANCED",
+            "Read Receipt cursor advancement",
+        )
+        receipt_updates = receipt_event.get("payload", {}).get("updates", [])
+        matching_receipt_updates = [
+            item
+            for item in receipt_updates
+            if item.get("membershipId") == owner_membership_id
+        ]
+        if (
+            receipt_event.get("eventVersion") != 1
+            or len(matching_receipt_updates) != 1
+            or matching_receipt_updates[0].get("storedLastReadSequence")
+            != first_sequence
+            or "userId" in json.dumps(receipt_event)
+        ):
+            raise AssertionError(
+                f"Read Receipt advancement event가 다릅니다: {receipt_event}"
+            )
+        _, _, advanced_snapshot = owner_client.request(
+            "GET", f"/api/v1/rooms/{room_id}/read-receipts/state"
+        )
+        owner_position = next(
+            (
+                item
+                for item in advanced_snapshot.get("positions", [])
+                if item.get("membershipId") == owner_membership_id
+            ),
+            None,
+        )
+        if (
+            owner_position is None
+            or owner_position.get("storedLastReadSequence") != first_sequence
+        ):
+            raise AssertionError(
+                "Read Receipt event cursor와 snapshot cursor가 다릅니다."
+            )
+        _, _, no_op_result = owner_client.request(
+            "PUT",
+            f"/api/v1/rooms/{room_id}/read-state",
+            body={"throughSequence": first_sequence},
+        )
+        if no_op_result.get("updated") is not False:
+            raise AssertionError("동일 read-state 요청이 no-op이 아닙니다.")
+        if owner_ws.socket is None:
+            raise AssertionError("owner WebSocket이 예기치 않게 종료됐습니다.")
+        owner_ws.socket.settimeout(1)
+        try:
+            while True:
+                document = json.loads(parse_stomp_frame(
+                    owner_ws.receive_text()
+                )[2])
+                if document.get("eventType") in {
+                    "ROOM_READ_POSITIONS_ADVANCED",
+                    "ROOM_READ_RECEIPT_STATE_INVALIDATED",
+                }:
+                    raise AssertionError(
+                        "read-state no-op에서 Receipt event가 발행됐습니다."
+                    )
+        except socket.timeout:
+            pass
+        finally:
+            if owner_ws.socket is not None:
+                owner_ws.socket.settimeout(10)
         if find_inbox_room(owner_client, room_id).get("unreadCount") != 0:
             raise AssertionError("read-state PUT 이후 unreadCount가 0이 아닙니다.")
 
@@ -1088,6 +1201,27 @@ def run_room_inbox_flow(
             raise AssertionError("DELETE invalidation에 preview가 포함됐습니다.")
         if find_inbox_room(owner_client, room_id).get("unreadCount") != 0:
             raise AssertionError("읽지 않은 메시지 삭제 후 unreadCount가 0이 아닙니다.")
+
+        member_client.request(
+            "POST",
+            f"/api/v1/rooms/{room_id}/commands/leave",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+        )
+        if member_ws.socket is None:
+            raise AssertionError("member WebSocket 상태를 확인할 수 없습니다.")
+        member_ws.socket.settimeout(5)
+        revoked = False
+        try:
+            while True:
+                member_ws.receive_text()
+        except RuntimeError:
+            revoked = True
+        except socket.timeout:
+            pass
+        if not revoked:
+            raise AssertionError(
+                "LEAVE 이후 read-receipts topic 접근이 회수되지 않았습니다."
+            )
     finally:
         owner_ws.close()
         member_ws.close()
@@ -1328,7 +1462,10 @@ def main() -> int:
         expected_statuses=(201,),
     )
 
-    print("[15/15] unread/read-state와 개인 CREATE/DELETE event 확인")
+    print(
+        "[15/15] unread/read-state, Read Receipt snapshot/delta, "
+        "접근 회수 확인"
+    )
     run_room_inbox_flow(
         ws_url,
         args.origin,
@@ -1341,7 +1478,8 @@ def main() -> int:
         "PASS: 쿠키 인증 → CORS → WebSocket 인증 실패/재연결 계약 → "
         "방 생성/설정 변경/목록·join 정책 → "
         "WebSocket/STOMP 구독 준비 → 생성/수정/삭제 → REST tombstone → "
-        "Room inbox unread/read-state/개인 invalidation 흐름이 정상입니다."
+        "Room inbox unread/read-state/개인 invalidation → "
+        "Read Receipt snapshot/delta/no-op/접근 회수 흐름이 정상입니다."
     )
     return 0
 

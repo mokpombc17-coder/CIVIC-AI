@@ -134,6 +134,33 @@ class RoomReadReceiptStateServiceTest {
     }
 
     @Test
+    void retriesMembershipCountMismatchWhenTopologyVersionChanged() {
+        Membership third = membership(
+                "membership-c", "user-third", 110, 1);
+        when(roomReader.findRoomById("room-1"))
+                .thenReturn(
+                        Optional.of(room(2, 12)),
+                        Optional.of(room(3, 13)),
+                        Optional.of(room(3, 13)),
+                        Optional.of(room(3, 13)));
+        when(roomReader.findMembershipsByRoomAndStatus(
+                eq("room-1"),
+                eq(MembershipStatus.ACTIVE),
+                isNull(),
+                anyInt()))
+                .thenReturn(new CursorSlice<>(
+                        List.of(self, other, third), false));
+        when(stateStore.findByMembershipIds(any()))
+                .thenReturn(Map.of());
+
+        RoomReadReceiptState result = service.state(
+                "user-self", "room-1");
+
+        assertThat(result.roomVersion()).isEqualTo(13);
+        assertThat(result.positions()).hasSize(3);
+    }
+
+    @Test
     void retryExhaustionIsRetryableUnavailable() {
         properties.setSnapshotMaxConsistencyAttempts(2);
         when(roomReader.findRoomById("room-1"))

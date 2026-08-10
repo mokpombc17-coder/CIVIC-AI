@@ -149,7 +149,17 @@ public final class RoomReadReceiptStateService {
                     "Active membership snapshot exceeds the safety limit");
         }
         List<Membership> activeMemberships = activeSlice.items();
-        verifyMembershipSet(roomId, first, activeMemberships);
+        verifyMembershipSet(roomId, activeMemberships);
+        if (activeMemberships.size() != first.activeMemberCount()) {
+            Room topologyCheck = roomReader.findRoomById(roomId)
+                    .orElse(null);
+            if (!stable(first, topologyCheck)) {
+                return null;
+            }
+            throw consistencyFailure(
+                    roomId,
+                    "Active membership count does not match Room state");
+        }
         List<String> membershipIds = activeMemberships.stream()
                 .map(Membership::membershipId)
                 .toList();
@@ -207,7 +217,6 @@ public final class RoomReadReceiptStateService {
 
     private void verifyMembershipSet(
             String roomId,
-            Room room,
             List<Membership> memberships
     ) {
         Set<String> membershipIds = new HashSet<>();
@@ -221,11 +230,6 @@ public final class RoomReadReceiptStateService {
                         roomId,
                         "Active membership snapshot is inconsistent");
             }
-        }
-        if (memberships.size() != room.activeMemberCount()) {
-            throw consistencyFailure(
-                    roomId,
-                    "Active membership count does not match Room state");
         }
     }
 

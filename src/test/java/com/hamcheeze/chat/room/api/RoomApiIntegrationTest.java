@@ -1181,6 +1181,92 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value(activeRoom));
     }
 
+    @Test
+    void readReceiptSnapshotReturnsOnlyActiveMembershipRawPositions()
+            throws Exception {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+        String ownerMembershipId = membershipStore
+                .findByRoomIdAndUserId(roomId, "owner-1")
+                .orElseThrow()
+                .membershipId();
+        String memberMembershipId = commandService.joinRoom(
+                new JoinRoomCommand(
+                        "user-2", requestId(), roomId))
+                .result()
+                .membershipId();
+        String bannedMembershipId = commandService.joinRoom(
+                new JoinRoomCommand(
+                        "user-3", requestId(), roomId))
+                .result()
+                .membershipId();
+        commandService.banMember(new BanMemberCommand(
+                "owner-1", requestId(), roomId, bannedMembershipId));
+
+        java.util.List<String> expectedMembershipIds =
+                java.util.stream.Stream.of(
+                                ownerMembershipId,
+                                memberMembershipId)
+                        .sorted()
+                        .toList();
+        MvcResult snapshot = mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}"
+                                        + "/read-receipts/state",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-1"))))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Cache-Control",
+                        org.hamcrest.Matchers.containsString(
+                                "no-store")))
+                .andExpect(jsonPath("$.roomId").value(roomId))
+                .andExpect(jsonPath("$.roomVersion").isNumber())
+                .andExpect(jsonPath("$.selfMembershipId")
+                        .value(ownerMembershipId))
+                .andExpect(jsonPath("$.positions.length()")
+                        .value(2))
+                .andExpect(jsonPath("$.positions[0].membershipId")
+                        .value(expectedMembershipIds.get(0)))
+                .andExpect(jsonPath("$.positions[1].membershipId")
+                        .value(expectedMembershipIds.get(1)))
+                .andExpect(jsonPath(
+                        "$.positions[0].messageVisibleAfterSequence")
+                        .value(0))
+                .andExpect(jsonPath(
+                        "$.positions[0].storedLastReadSequence")
+                        .value(0))
+                .andExpect(jsonPath("$.generatedAt").isString())
+                .andReturn();
+        assertThat(snapshot.getResponse().getContentAsString())
+                .doesNotContain(
+                        "userId",
+                        "displayName",
+                        "avatar",
+                        "effectiveReadThroughSequence");
+
+        commandService.leaveRoom(new LeaveRoomCommand(
+                "user-2", requestId(), roomId));
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}"
+                                        + "/read-receipts/state",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-1"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.positions.length()")
+                        .value(1))
+                .andExpect(jsonPath("$.positions[0].membershipId")
+                        .value(ownerMembershipId));
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}"
+                                        + "/read-receipts/state",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("user-2"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
     private String createRoom(
             String owner,
             JoinPolicy joinPolicy

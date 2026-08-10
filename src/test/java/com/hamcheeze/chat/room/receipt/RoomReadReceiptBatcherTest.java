@@ -13,6 +13,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RoomReadReceiptBatcherTest {
 
@@ -189,6 +192,81 @@ class RoomReadReceiptBatcherTest {
                 .map(event -> event.payload().roomId())
                 .toList())
                 .containsExactly("room-2");
+    }
+
+    @Test
+    void splitsSerializedEventsBelowConfiguredByteLimit() {
+        RoomReadReceiptProperties properties =
+                new RoomReadReceiptProperties();
+        properties.setMaxEventBytes(500);
+        CapturingDelivery delivery = new CapturingDelivery();
+        RoomReadReceiptBatcher batcher = batcher(
+                delivery, properties);
+
+        for (int index = 0; index < 5; index++) {
+            batcher.onAdvanced(
+                    "room-1",
+                    "membership-" + index + "-" + "x".repeat(80),
+                    1,
+                    index + 1);
+        }
+        batcher.flushNow();
+
+        ObjectMapper mapper = new ObjectMapper();
+        assertThat(delivery.events).hasSizeGreaterThan(1);
+        assertThat(delivery.events)
+                .allSatisfy(event -> assertThat(
+                        mapper.writeValueAsBytes(event).length)
+                        .isLessThan(properties.getMaxEventBytes()));
+    }
+
+    @Test
+    void serializationFailurePublishesInvalidationInsteadOfDelta() {
+        ObjectMapper mapper = mock(ObjectMapper.class);
+        when(mapper.writeValueAsBytes(any()))
+                .thenThrow(new IllegalStateException("serialization"));
+        CapturingDelivery delivery = new CapturingDelivery();
+        RoomReadReceiptBatcher batcher =
+                new RoomReadReceiptBatcher(
+                        delivery,
+                        new RoomReadReceiptProperties(),
+                        mapper,
+                        CLOCK,
+                        new SimpleMeterRegistry());
+
+        batcher.onAdvanced("room-1", "membership-a", 1, 10);
+        batcher.flushNow();
+
+        assertThat(delivery.events)
+                .extracting(RoomReadReceiptEventEnvelope::eventType)
+                .containsExactly(RoomReadReceiptEventType
+                        .ROOM_READ_RECEIPT_STATE_INVALIDATED);
+        assertThat(batcher.dirtyRoomCount()).isZero();
+    }
+
+    @Test
+    void maximumActiveMembershipBatchFitsEventAndStompLimits() {
+        RoomReadReceiptProperties properties =
+                new RoomReadReceiptProperties();
+        CapturingDelivery delivery = new CapturingDelivery();
+        RoomReadReceiptBatcher batcher = batcher(
+                delivery, properties);
+
+        for (int index = 0; index < 50; index++) {
+            batcher.onAdvanced(
+                    "room-1234567890123456789012345678901234567890",
+                    "00000000-0000-0000-0000-%012d".formatted(index),
+                    Long.MAX_VALUE,
+                    Long.MAX_VALUE);
+        }
+        batcher.flushNow();
+
+        assertThat(delivery.events).hasSize(1);
+        int serializedBytes = new ObjectMapper()
+                .writeValueAsBytes(delivery.events.getFirst()).length;
+        assertThat(serializedBytes)
+                .isLessThan(properties.getMaxEventBytes())
+                .isLessThan(32 * 1_024);
     }
 
     private static RoomReadReceiptBatcher batcher(

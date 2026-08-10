@@ -8,6 +8,7 @@ import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
+import com.hamcheeze.chat.room.inbox.RoomReadStateService;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
@@ -70,6 +71,9 @@ class RoomEventWebSocketIntegrationTest
 
     @Autowired
     private ChatSubscriptionRegistry subscriptions;
+
+    @Autowired
+    private RoomReadStateService readStateService;
 
     @Test
     void publishesSamePublicEnvelopeToRoomAndAffectedUser()
@@ -406,6 +410,92 @@ class RoomEventWebSocketIntegrationTest
             assertThat(message.get("payload")
                     .get("roomSequence").asLong())
                     .isEqualTo(1L);
+        } finally {
+            disconnect(session);
+            client.stop();
+            scheduler.shutdown();
+        }
+    }
+
+    @Test
+    void publishesStoredReadCursorToReadReceiptTopicOnlyOnAdvance()
+            throws Exception {
+        RoomCommandExecution created = commandService.createRoom(
+                new CreateRoomCommand(
+                        "owner-1",
+                        uuid(),
+                        "Read receipt room",
+                        java.util.List.of(
+                                com.hamcheeze.chat.room.RoomCategory.POLICY),
+                        RoomVisibility.LISTED,
+                        JoinPolicy.OPEN));
+        String roomId = created.result().roomId();
+        RoomCommandExecution joined = commandService.joinRoom(
+                new JoinRoomCommand("user-2", uuid(), roomId));
+
+        ThreadPoolTaskScheduler scheduler =
+                new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(2);
+        scheduler.setThreadNamePrefix("read-receipt-stomp-");
+        scheduler.initialize();
+        WebSocketStompClient client = stompClient(scheduler);
+        StompSession session = null;
+        try {
+            session = connect(client, "owner-1");
+            BlockingQueue<byte[]> messages =
+                    new LinkedBlockingQueue<>();
+            BlockingQueue<byte[]> receipts =
+                    new LinkedBlockingQueue<>();
+            int initialSubscriptionCount =
+                    subscriptions.activeSubscriptionCount();
+            session.subscribe(
+                    "/topic/rooms/" + roomId + "/messages",
+                    collectingHandler(messages));
+            session.subscribe(
+                    "/topic/rooms/" + roomId + "/room-events",
+                    collectingHandler(new LinkedBlockingQueue<>()));
+            session.subscribe(
+                    "/topic/rooms/" + roomId + "/read-receipts",
+                    collectingHandler(receipts));
+            waitUntil(() -> subscriptions.activeSubscriptionCount()
+                    >= initialSubscriptionCount + 3);
+
+            session.send(
+                    "/app/rooms/" + roomId + "/messages",
+                    new ChatSendCommand(uuid(), "receipt source"));
+            byte[] createdMessage = messages.poll(
+                    5, TimeUnit.SECONDS);
+            assertThat(createdMessage).isNotNull();
+            assertThat(objectMapper.readTree(createdMessage)
+                    .get("payload")
+                    .get("roomSequence")
+                    .asLong()).isEqualTo(1);
+
+            readStateService.update("user-2", roomId, 1);
+
+            byte[] receiptBytes = receipts.poll(
+                    5, TimeUnit.SECONDS);
+            assertThat(receiptBytes).isNotNull();
+            String rawReceipt = new String(
+                    receiptBytes, StandardCharsets.UTF_8);
+            JsonNode receipt = objectMapper.readTree(receiptBytes);
+            assertThat(receipt.get("eventVersion").asInt())
+                    .isEqualTo(1);
+            assertThat(receipt.get("eventType").asText())
+                    .isEqualTo("ROOM_READ_POSITIONS_ADVANCED");
+            JsonNode update = receipt.get("payload")
+                    .get("updates").get(0);
+            assertThat(update.get("membershipId").asText())
+                    .isEqualTo(joined.result().membershipId());
+            assertThat(update.get("membershipVersion").asLong())
+                    .isEqualTo(joined.result().membershipVersion());
+            assertThat(update.get("storedLastReadSequence").asLong())
+                    .isEqualTo(1);
+            assertThat(rawReceipt).doesNotContain("userId");
+
+            readStateService.update("user-2", roomId, 1);
+            assertThat(receipts.poll(600, TimeUnit.MILLISECONDS))
+                    .isNull();
         } finally {
             disconnect(session);
             client.stop();

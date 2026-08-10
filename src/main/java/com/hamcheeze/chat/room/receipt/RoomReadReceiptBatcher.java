@@ -277,6 +277,22 @@ public final class RoomReadReceiptBatcher
             String roomId,
             Map<String, RoomReadPositionAdvance> byMembership
     ) {
+        try {
+            flushRoomBatch(roomId, byMembership);
+        } catch (RuntimeException exception) {
+            markDirty(roomId);
+            recordEventFailure();
+            logBestEffort(
+                    "Read Receipt batch serialization failed",
+                    roomId,
+                    exception);
+        }
+    }
+
+    private void flushRoomBatch(
+            String roomId,
+            Map<String, RoomReadPositionAdvance> byMembership
+    ) {
         if (isDirty(roomId)) {
             return;
         }
