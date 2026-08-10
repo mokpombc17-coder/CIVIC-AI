@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
+import { ChatRoomParticipantProfile } from "@/components/chat-room-participant-profile";
 import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
 import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
 import { resolveRoomMembershipListPolicy } from "@/lib/chat/chat-room-membership-list-policy";
@@ -47,6 +48,7 @@ type RoomManagementCommand =
     }>;
 
 type RoomManagementCommandKind = RoomManagementCommand["kind"];
+type OwnerManagedMembershipStatus = Extract<MembershipStatus, "LEFT" | "BANNED">;
 
 const COMMAND_LABEL: Record<RoomManagementCommandKind, string> = {
   leave: "방 나가기",
@@ -76,7 +78,8 @@ export function ChatRoomMembershipPanel({
   roomId: string;
 }) {
   const router = useRouter();
-  const [membershipStatus, setMembershipStatus] = useState<MembershipStatus>("ACTIVE");
+  const [ownerManagedStatus, setOwnerManagedStatus] =
+    useState<OwnerManagedMembershipStatus>("LEFT");
   const [pendingCommand, setPendingCommand] = useState<RoomManagementCommand | null>(null);
   const [failedCommand, setFailedCommand] = useState<RoomManagementCommand | null>(null);
   const [commandError, setCommandError] = useState<unknown>(null);
@@ -85,11 +88,15 @@ export function ChatRoomMembershipPanel({
     enabled: room.myMembership !== null,
   });
   const membership = membershipQuery.data ?? room.myMembership;
-  const membershipListPolicy = resolveRoomMembershipListPolicy(room, membership, membershipStatus);
+  const membershipListPolicy = resolveRoomMembershipListPolicy(room, membership, "ACTIVE");
   const isOwner = membershipListPolicy.isOwner;
-  const membershipsQuery = useRoomMembershipsQuery(roomId, {
+  const activeMembershipsQuery = useRoomMembershipsQuery(roomId, {
     enabled: membershipListPolicy.enabled,
-    status: membershipListPolicy.status,
+    status: "ACTIVE",
+  });
+  const ownerManagedMembershipsQuery = useRoomMembershipsQuery(roomId, {
+    enabled: isOwner,
+    status: ownerManagedStatus,
   });
   const leaveRoom = useLeaveRoomMutation();
   const transferOwnership = useTransferRoomOwnershipMutation();
@@ -274,21 +281,40 @@ export function ChatRoomMembershipPanel({
         </p>
       ) : null}
 
-      {isOwner ? (
-        <OwnerMembershipList
-          error={membershipsQuery.error}
-          hasNextPage={membershipsQuery.hasNextPage}
+      {membershipListPolicy.enabled ? (
+        <ActiveMembershipList
+          error={activeMembershipsQuery.error}
+          hasNextPage={activeMembershipsQuery.hasNextPage}
           isCommandPending={isCommandPending}
-          isError={membershipsQuery.isError}
-          isFetchingNextPage={membershipsQuery.isFetchingNextPage}
-          isPending={membershipsQuery.isPending}
-          memberships={membershipsQuery.memberships}
-          onFetchNextPage={() => void membershipsQuery.fetchNextPage()}
+          isError={activeMembershipsQuery.isError}
+          isFetchingNextPage={activeMembershipsQuery.isFetchingNextPage}
+          isOwner={isOwner}
+          isPending={activeMembershipsQuery.isPending}
+          memberships={activeMembershipsQuery.memberships}
+          onFetchNextPage={() => void activeMembershipsQuery.fetchNextPage()}
           onMemberCommand={startMemberCommand}
-          onRetry={() => void membershipsQuery.refetch()}
-          onStatusChange={setMembershipStatus}
+          onRetry={() => void activeMembershipsQuery.refetch()}
           pendingCommand={pendingCommand}
-          status={membershipStatus}
+          selfMembershipId={membership?.membershipId ?? null}
+        />
+      ) : null}
+
+      {isOwner ? (
+        <OwnerMembershipManagement
+          error={ownerManagedMembershipsQuery.error}
+          hasNextPage={ownerManagedMembershipsQuery.hasNextPage}
+          isCommandPending={isCommandPending}
+          isError={ownerManagedMembershipsQuery.isError}
+          isFetchingNextPage={ownerManagedMembershipsQuery.isFetchingNextPage}
+          isPending={ownerManagedMembershipsQuery.isPending}
+          memberships={ownerManagedMembershipsQuery.memberships}
+          onFetchNextPage={() => void ownerManagedMembershipsQuery.fetchNextPage()}
+          onMemberCommand={startMemberCommand}
+          onRetry={() => void ownerManagedMembershipsQuery.refetch()}
+          onStatusChange={setOwnerManagedStatus}
+          pendingCommand={pendingCommand}
+          selfMembershipId={membership?.membershipId ?? null}
+          status={ownerManagedStatus}
         />
       ) : null}
     </section>
@@ -365,7 +391,82 @@ function MyMembershipCard({
   );
 }
 
-function OwnerMembershipList({
+function ActiveMembershipList({
+  error,
+  hasNextPage,
+  isCommandPending,
+  isError,
+  isFetchingNextPage,
+  isOwner,
+  isPending,
+  memberships,
+  onFetchNextPage,
+  onMemberCommand,
+  onRetry,
+  pendingCommand,
+  selfMembershipId,
+}: {
+  error: unknown;
+  hasNextPage: boolean;
+  isCommandPending: boolean;
+  isError: boolean;
+  isFetchingNextPage: boolean;
+  isOwner: boolean;
+  isPending: boolean;
+  memberships: readonly RoomMembershipListItem[];
+  onFetchNextPage: () => void;
+  onMemberCommand: (
+    kind: "transfer" | "ban" | "unban",
+    targetMembershipId: string,
+    targetLabel: string,
+  ) => void;
+  onRetry: () => void;
+  pendingCommand: RoomManagementCommand | null;
+  selfMembershipId: string | null;
+}) {
+  return (
+    <div className="mt-6 border-t border-slate-200 pt-5">
+      <div>
+        <p className="eyebrow">Room participants</p>
+        <h3 className="text-lg font-bold text-slate-950">참여자 목록</h3>
+      </div>
+
+      {isError ? (
+        <div
+          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
+          role="alert"
+        >
+          <p className="text-sm font-semibold">참여자 목록을 불러오지 못했습니다.</p>
+          <p className="mt-1 text-xs opacity-80">{toErrorMessage(error)}</p>
+          <button className="secondary-button mt-3" onClick={onRetry} type="button">
+            참여자 목록 다시 불러오기
+          </button>
+        </div>
+      ) : isPending ? (
+        <MembershipNotice message="참여자 목록을 불러오고 있습니다." />
+      ) : memberships.length === 0 ? (
+        <MembershipNotice message="현재 참여 중인 사람이 없습니다." />
+      ) : (
+        <MembershipRows
+          actionMode={isOwner ? "active-owner" : "none"}
+          isCommandPending={isCommandPending}
+          memberships={memberships}
+          onMemberCommand={onMemberCommand}
+          pendingCommand={pendingCommand}
+          selfMembershipId={selfMembershipId}
+        />
+      )}
+
+      <MembershipPagination
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        onFetchNextPage={onFetchNextPage}
+      />
+    </div>
+  );
+}
+
+function OwnerMembershipManagement({
   error,
   hasNextPage,
   isCommandPending,
@@ -378,6 +479,7 @@ function OwnerMembershipList({
   onRetry,
   onStatusChange,
   pendingCommand,
+  selfMembershipId,
   status,
 }: {
   error: unknown;
@@ -394,19 +496,20 @@ function OwnerMembershipList({
     targetLabel: string,
   ) => void;
   onRetry: () => void;
-  onStatusChange: (status: MembershipStatus) => void;
+  onStatusChange: (status: OwnerManagedMembershipStatus) => void;
   pendingCommand: RoomManagementCommand | null;
-  status: MembershipStatus;
+  selfMembershipId: string | null;
+  status: OwnerManagedMembershipStatus;
 }) {
   return (
     <div className="mt-6 border-t border-slate-200 pt-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="eyebrow">Owner controls</p>
-          <h3 className="text-lg font-bold text-slate-950">멤버 관리</h3>
+          <h3 className="text-lg font-bold text-slate-950">비활성 멤버 관리</h3>
         </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="멤버 상태 필터">
-          {(["ACTIVE", "LEFT", "BANNED"] as const).map((value) => (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="비활성 멤버 상태 필터">
+          {(["LEFT", "BANNED"] as const).map((value) => (
             <button
               aria-pressed={status === value}
               className={status === value ? "primary-button" : "secondary-button"}
@@ -425,92 +528,131 @@ function OwnerMembershipList({
           className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
           role="alert"
         >
-          <p className="text-sm font-semibold">멤버 목록을 불러오지 못했습니다.</p>
+          <p className="text-sm font-semibold">비활성 멤버 목록을 불러오지 못했습니다.</p>
           <p className="mt-1 text-xs opacity-80">{toErrorMessage(error)}</p>
           <button className="secondary-button mt-3" onClick={onRetry} type="button">
-            멤버 목록 다시 불러오기
+            비활성 멤버 목록 다시 불러오기
           </button>
         </div>
       ) : isPending ? (
-        <MembershipNotice message="멤버 목록을 불러오고 있습니다." />
+        <MembershipNotice message="비활성 멤버 목록을 불러오고 있습니다." />
       ) : memberships.length === 0 ? (
         <MembershipNotice message={`${MEMBERSHIP_STATUS_LABEL[status]} 상태의 멤버가 없습니다.`} />
       ) : (
-        <ul className="mt-4 grid gap-3">
-          {memberships.map((member, index) => {
-            const participantLabel = member.role === "OWNER" ? "나" : `참여자 ${index + 1}`;
-
-            return (
-              <li
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
-                key={member.membershipId}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-950">
-                    {participantLabel}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {member.role} · {MEMBERSHIP_STATUS_LABEL[member.status]} · version{" "}
-                    {member.version}
-                  </p>
-                </div>
-                {member.role === "MEMBER" && member.status === "ACTIVE" ? (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className="secondary-button"
-                      disabled={isCommandPending}
-                      onClick={() =>
-                        onMemberCommand("transfer", member.membershipId, participantLabel)
-                      }
-                      type="button"
-                    >
-                      {isPendingForMember(pendingCommand, "transfer", member.membershipId)
-                        ? "위임 중…"
-                        : "방장 위임"}
-                    </button>
-                    <button
-                      className="secondary-button border-red-300 text-red-700"
-                      disabled={isCommandPending}
-                      onClick={() => onMemberCommand("ban", member.membershipId, participantLabel)}
-                      type="button"
-                    >
-                      {isPendingForMember(pendingCommand, "ban", member.membershipId)
-                        ? "차단 중…"
-                        : "차단"}
-                    </button>
-                  </div>
-                ) : member.status === "BANNED" ? (
-                  <button
-                    className="secondary-button"
-                    disabled={isCommandPending}
-                    onClick={() => onMemberCommand("unban", member.membershipId, participantLabel)}
-                    type="button"
-                  >
-                    {isPendingForMember(pendingCommand, "unban", member.membershipId)
-                      ? "해제 중…"
-                      : "차단 해제"}
-                  </button>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        <MembershipRows
+          actionMode={status === "BANNED" ? "banned-owner" : "none"}
+          isCommandPending={isCommandPending}
+          memberships={memberships}
+          onMemberCommand={onMemberCommand}
+          pendingCommand={pendingCommand}
+          selfMembershipId={selfMembershipId}
+        />
       )}
 
-      {hasNextPage ? (
-        <div className="mt-4 text-center">
-          <button
-            className="secondary-button"
-            disabled={isFetchingNextPage}
-            onClick={onFetchNextPage}
-            type="button"
-          >
-            {isFetchingNextPage ? "불러오는 중…" : "멤버 더 보기"}
-          </button>
-        </div>
-      ) : null}
+      <MembershipPagination
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        onFetchNextPage={onFetchNextPage}
+      />
     </div>
   );
+}
+
+function MembershipRows({
+  actionMode,
+  isCommandPending,
+  memberships,
+  onMemberCommand,
+  pendingCommand,
+  selfMembershipId,
+}: {
+  actionMode: "active-owner" | "banned-owner" | "none";
+  isCommandPending: boolean;
+  memberships: readonly RoomMembershipListItem[];
+  onMemberCommand: (
+    kind: "transfer" | "ban" | "unban",
+    targetMembershipId: string,
+    targetLabel: string,
+  ) => void;
+  pendingCommand: RoomManagementCommand | null;
+  selfMembershipId: string | null;
+}) {
+  return (
+    <ul className="mt-4 grid gap-3">
+      {memberships.map((member) => (
+        <li
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
+          key={member.membershipId}
+        >
+          <ChatRoomParticipantProfile
+            displayName={member.displayName}
+            imageUrl={member.imageUrl}
+            isSelf={member.membershipId === selfMembershipId}
+            metadata={MEMBERSHIP_STATUS_LABEL[member.status]}
+            role={member.role}
+          />
+          {actionMode === "active-owner" && member.role === "MEMBER" ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="secondary-button"
+                disabled={isCommandPending}
+                onClick={() => onMemberCommand("transfer", member.membershipId, member.displayName)}
+                type="button"
+              >
+                {isPendingForMember(pendingCommand, "transfer", member.membershipId)
+                  ? "위임 중…"
+                  : "방장 위임"}
+              </button>
+              <button
+                className="secondary-button border-red-300 text-red-700"
+                disabled={isCommandPending}
+                onClick={() => onMemberCommand("ban", member.membershipId, member.displayName)}
+                type="button"
+              >
+                {isPendingForMember(pendingCommand, "ban", member.membershipId)
+                  ? "차단 중…"
+                  : "차단"}
+              </button>
+            </div>
+          ) : actionMode === "banned-owner" ? (
+            <button
+              className="secondary-button"
+              disabled={isCommandPending}
+              onClick={() => onMemberCommand("unban", member.membershipId, member.displayName)}
+              type="button"
+            >
+              {isPendingForMember(pendingCommand, "unban", member.membershipId)
+                ? "해제 중…"
+                : "차단 해제"}
+            </button>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function MembershipPagination({
+  hasNextPage,
+  isFetchingNextPage,
+  onFetchNextPage,
+}: {
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  onFetchNextPage: () => void;
+}) {
+  return hasNextPage ? (
+    <div className="mt-4 text-center">
+      <button
+        className="secondary-button"
+        disabled={isFetchingNextPage}
+        onClick={onFetchNextPage}
+        type="button"
+      >
+        {isFetchingNextPage ? "불러오는 중…" : "멤버 더 보기"}
+      </button>
+    </div>
+  ) : null;
 }
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
