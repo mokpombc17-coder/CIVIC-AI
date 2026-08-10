@@ -10,6 +10,10 @@ export function getChatRoomEventsDestination(roomId: string): string {
   return `/topic/rooms/${roomId}/room-events`;
 }
 
+export function getChatRoomReadReceiptsDestination(roomId: string): string {
+  return `/topic/rooms/${roomId}/read-receipts`;
+}
+
 export function getChatRoomMessageSendDestination(roomId: string): string {
   return `/app/rooms/${roomId}/messages`;
 }

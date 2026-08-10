@@ -7,6 +7,7 @@ import {
   getChatRoomMessageEditDestination,
   getChatRoomMessageSendDestination,
   getChatRoomMessagesDestination,
+  getChatRoomReadReceiptsDestination,
   getChatRoomSubscriptionSyncDestination,
 } from "./chat-stomp-destinations";
 
@@ -19,6 +20,9 @@ describe("chat STOMP destinations", () => {
   it("방 단위 topic destination을 생성한다", () => {
     expect(getChatRoomMessagesDestination("room-01")).toBe("/topic/rooms/room-01/messages");
     expect(getChatRoomEventsDestination("room-01")).toBe("/topic/rooms/room-01/room-events");
+    expect(getChatRoomReadReceiptsDestination("room-01")).toBe(
+      "/topic/rooms/room-01/read-receipts",
+    );
   });
 
   it("방 단위 SEND destination을 생성한다", () => {

@@ -298,6 +298,7 @@ describe("DirectStompTransport", () => {
       "SUBSCRIBE /user/queue/room-inbox-events",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/read-receipts",
       "SEND /app/rooms/room-01/subscriptions/sync",
     ]);
     expect(transport.getRoomSnapshot()).toMatchObject({
@@ -568,8 +569,10 @@ describe("DirectStompTransport", () => {
     expect(client.frames).toEqual([
       "UNSUBSCRIBE /topic/rooms/room-01/messages",
       "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "UNSUBSCRIBE /topic/rooms/room-01/read-receipts",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/read-receipts",
       "SEND /app/rooms/room-01/subscriptions/sync",
     ]);
     expect(transport.getRoomSnapshot()).toMatchObject({
@@ -645,8 +648,10 @@ describe("DirectStompTransport", () => {
     expect(client.frames).toEqual([
       "UNSUBSCRIBE /topic/rooms/room-01/messages",
       "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "UNSUBSCRIBE /topic/rooms/room-01/read-receipts",
       "SUBSCRIBE /topic/rooms/room-02/messages",
       "SUBSCRIBE /topic/rooms/room-02/room-events",
+      "SUBSCRIBE /topic/rooms/room-02/read-receipts",
       "SEND /app/rooms/room-02/subscriptions/sync",
     ]);
     expect(transport.getRoomSnapshot()).toMatchObject({

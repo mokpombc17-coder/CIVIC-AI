@@ -17,6 +17,7 @@ import {
   getChatRoomMessageEditDestination,
   getChatRoomMessageSendDestination,
   getChatRoomMessagesDestination,
+  getChatRoomReadReceiptsDestination,
   getChatRoomSubscriptionSyncDestination,
 } from "./chat-stomp-destinations";
 
@@ -27,12 +28,14 @@ type ChatStompSubscriptionCallbacks = Readonly<{
   onRoomInboxEvent?: (message: IMessage) => void;
   onRoomEvent?: (roomId: string, message: IMessage) => void;
   onRoomMessage?: (roomId: string, message: IMessage) => void;
+  onRoomReadReceiptEvent?: (roomId: string, message: IMessage) => void;
   onSystemEvent?: (message: IMessage) => void;
 }>;
 
 type RoomSubscriptions = Readonly<{
   roomId: string;
   messages: StompSubscription;
+  readReceipts: StompSubscription;
   roomEvents: StompSubscription;
 }>;
 
@@ -229,21 +232,35 @@ export class ChatStompSubscriptionManager {
     const messages = this.client.subscribe(getChatRoomMessagesDestination(roomId), (message) =>
       this.callbacks.onRoomMessage?.(roomId, message),
     );
+    let roomEvents: StompSubscription | null = null;
 
     try {
-      const roomEvents = this.client.subscribe(getChatRoomEventsDestination(roomId), (message) =>
+      roomEvents = this.client.subscribe(getChatRoomEventsDestination(roomId), (message) =>
         this.callbacks.onRoomEvent?.(roomId, message),
+      );
+      const readReceipts = this.client.subscribe(
+        getChatRoomReadReceiptsDestination(roomId),
+        (message) => this.callbacks.onRoomReadReceiptEvent?.(roomId, message),
       );
       this.roomSubscriptions = {
         roomId,
         messages,
+        readReceipts,
         roomEvents,
       };
     } catch (cause) {
+      if (roomEvents) {
+        try {
+          roomEvents.unsubscribe();
+        } catch {
+          // Preserve the later subscription setup failure.
+        }
+      }
+
       try {
         messages.unsubscribe();
       } catch {
-        // Preserve the room-events subscription failure.
+        // Preserve the later subscription setup failure.
       }
       throw cause;
     }
@@ -267,6 +284,12 @@ export class ChatStompSubscriptionManager {
 
     try {
       subscriptions.roomEvents.unsubscribe();
+    } catch (cause) {
+      failure ??= cause;
+    }
+
+    try {
+      subscriptions.readReceipts.unsubscribe();
     } catch (cause) {
       failure ??= cause;
     }

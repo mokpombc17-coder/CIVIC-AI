@@ -1,4 +1,4 @@
-import type { IPublishParams, StompSubscription } from "@stomp/stompjs";
+import type { IMessage, IPublishParams, StompSubscription } from "@stomp/stompjs";
 import { describe, expect, it, vi } from "vitest";
 import {
   ChatStompSubscriptionManager,
@@ -22,6 +22,7 @@ describe("ChatStompSubscriptionManager", () => {
       "SUBSCRIBE /user/queue/room-inbox-events",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/read-receipts",
       "SEND /app/rooms/room-01/subscriptions/sync",
     ]);
     expect(client.publish).toHaveBeenCalledWith({
@@ -86,9 +87,68 @@ describe("ChatStompSubscriptionManager", () => {
     expect(client.frames).toEqual([
       "UNSUBSCRIBE /topic/rooms/room-01/messages",
       "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "UNSUBSCRIBE /topic/rooms/room-01/read-receipts",
       "SUBSCRIBE /topic/rooms/room-01/messages",
       "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/read-receipts",
     ]);
+  });
+
+  it("read-receipts 구독 실패 시 앞서 만든 Room topic을 역순으로 rollback한다", () => {
+    const client = createFakeClient({
+      failSubscribeDestination: "/topic/rooms/room-01/read-receipts",
+    });
+    const manager = new ChatStompSubscriptionManager(client);
+
+    manager.connect();
+
+    expect(() => manager.activateRoom("room-01")).toThrow("subscription failed");
+    expect(client.frames.slice(3)).toEqual([
+      "SUBSCRIBE /topic/rooms/room-01/messages",
+      "SUBSCRIBE /topic/rooms/room-01/room-events",
+      "SUBSCRIBE /topic/rooms/room-01/read-receipts",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+    ]);
+    expect(manager.activeRoomId).toBeNull();
+    expect(() => manager.syncRoomSubscriptions("room-01", REQUEST_ID)).toThrow(
+      "활성 방의 STOMP topic 구독이 준비되지 않았습니다.",
+    );
+  });
+
+  it("Room release에서 일부 해제가 실패해도 세 topic을 모두 해제한다", () => {
+    const client = createFakeClient({
+      failUnsubscribeDestinations: new Set(["/topic/rooms/room-01/messages"]),
+    });
+    const manager = new ChatStompSubscriptionManager(client);
+
+    manager.connect();
+    manager.activateRoom("room-01");
+    client.frames.length = 0;
+
+    expect(() => manager.releaseRoom("room-01")).toThrow("unsubscribe failed");
+    expect(client.frames).toEqual([
+      "UNSUBSCRIBE /topic/rooms/room-01/messages",
+      "UNSUBSCRIBE /topic/rooms/room-01/room-events",
+      "UNSUBSCRIBE /topic/rooms/room-01/read-receipts",
+    ]);
+    expect(manager.activeRoomId).toBeNull();
+  });
+
+  it("read-receipts message를 활성 Room callback으로 전달한다", () => {
+    const client = createFakeClient();
+    const onRoomReadReceiptEvent = vi.fn();
+    const manager = new ChatStompSubscriptionManager(client, {
+      onRoomReadReceiptEvent,
+    });
+    const message = { body: "receipt" } as IMessage;
+
+    manager.connect();
+    manager.activateRoom("room-01");
+    client.emit("/topic/rooms/room-01/read-receipts", message);
+
+    expect(onRoomReadReceiptEvent).toHaveBeenCalledOnce();
+    expect(onRoomReadReceiptEvent).toHaveBeenCalledWith("room-01", message);
   });
 
   it("활성 방 메시지를 command destination으로 publish한다", () => {
@@ -186,27 +246,52 @@ describe("ChatStompSubscriptionManager", () => {
 });
 
 type FakeStompClient = ChatStompSubscriptionClient & {
+  emit: (destination: string, message: IMessage) => void;
   frames: string[];
   publish: ReturnType<typeof vi.fn<(params: IPublishParams) => void>>;
 };
 
-function createFakeClient(): FakeStompClient {
+type FakeStompClientOptions = Readonly<{
+  failSubscribeDestination?: string;
+  failUnsubscribeDestinations?: ReadonlySet<string>;
+}>;
+
+function createFakeClient({
+  failSubscribeDestination,
+  failUnsubscribeDestinations = new Set(),
+}: FakeStompClientOptions = {}): FakeStompClient {
   let nextSubscriptionId = 1;
   const frames: string[] = [];
+  const callbacks = new Map<string, (message: IMessage) => void>();
 
   return {
+    emit(destination, message) {
+      callbacks.get(destination)?.(message);
+    },
     frames,
     publish: vi.fn((params: IPublishParams) => {
       frames.push(`SEND ${params.destination}`);
     }),
-    subscribe: vi.fn((destination: string) => {
+    subscribe: vi.fn((destination: string, callback: (message: IMessage) => void) => {
       const id = `subscription-${nextSubscriptionId++}`;
       frames.push(`SUBSCRIBE ${destination}`);
+
+      if (destination === failSubscribeDestination) {
+        throw new Error("subscription failed");
+      }
+
+      callbacks.set(destination, callback);
 
       return {
         id,
         unsubscribe() {
           frames.push(`UNSUBSCRIBE ${destination}`);
+
+          if (failUnsubscribeDestinations.has(destination)) {
+            throw new Error("unsubscribe failed");
+          }
+
+          callbacks.delete(destination);
         },
       } satisfies StompSubscription;
     }),
