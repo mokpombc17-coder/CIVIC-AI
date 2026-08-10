@@ -211,7 +211,7 @@ describe("ChatSharedWorkerRuntime", () => {
     client.deliver(
       "/user/queue/room-inbox-events",
       JSON.stringify({
-        eventVersion: 1,
+        eventVersion: 2,
         eventId: "550e8400-e29b-41d4-a716-446655440022",
         eventType: "ROOM_INBOX_INVALIDATED",
         cause: "MESSAGE_CREATED",
@@ -1962,7 +1962,7 @@ function countRoomMessagePublishes(client: FakeStompClient, roomId: string): num
 
 function createMessageEvent(roomSequence: number, roomId = "room-01") {
   return {
-    eventVersion: 1,
+    eventVersion: 2,
     eventType: "CHAT_MESSAGE_CREATED",
     payload: {
       messageId: `${roomId}-message-${roomSequence}`,
@@ -1983,7 +1983,7 @@ function createMessageEvent(roomSequence: number, roomId = "room-01") {
 
 function createRoomEvent(eventId: string, roomId = "room-01") {
   return {
-    eventVersion: 1,
+    eventVersion: 2,
     eventId,
     eventType: "ROOM_MEMBER_JOINED",
     emittedAt: "2026-07-30T00:00:00Z",
@@ -1993,7 +1993,6 @@ function createRoomEvent(eventId: string, roomId = "room-01") {
       roomStatus: "ACTIVE",
       member: {
         membershipId: "membership-01",
-        userId: "local-user-1",
         role: "MEMBER",
         status: "ACTIVE",
         membershipVersion: 1,

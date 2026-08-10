@@ -144,7 +144,7 @@ describe("Room inbox runtime", () => {
 });
 
 const CREATED_EVENT: Extract<ChatRoomInboxEvent, { cause: "MESSAGE_CREATED" }> = {
-  eventVersion: 1,
+  eventVersion: 2,
   eventId: "550e8400-e29b-41d4-a716-446655440000",
   eventType: "ROOM_INBOX_INVALIDATED",
   cause: "MESSAGE_CREATED",

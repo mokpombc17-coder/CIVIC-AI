@@ -534,7 +534,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
             bufferSequence: 1,
             kind: "message",
             event: {
-              eventVersion: 1,
+              eventVersion: 2,
               eventType: "CHAT_MESSAGE_CREATED",
               payload: {
                 ...createMessage(1),
@@ -792,7 +792,7 @@ function createBufferedMessage(
     bufferSequence,
     kind: "message",
     event: {
-      eventVersion: 1,
+      eventVersion: 2,
       eventType: "CHAT_MESSAGE_CREATED",
       payload: createMessage(roomSequence),
     },
@@ -809,7 +809,7 @@ function createBufferedUpdatedMessage(
     bufferSequence,
     kind: "message",
     event: {
-      eventVersion: 1,
+      eventVersion: 2,
       eventType: "CHAT_MESSAGE_UPDATED",
       payload: {
         ...createMessage(roomSequence),
@@ -832,7 +832,7 @@ function createBufferedDeletedMessage(
     bufferSequence,
     kind: "message",
     event: {
-      eventVersion: 1,
+      eventVersion: 2,
       eventType: "CHAT_MESSAGE_DELETED",
       payload: {
         ...createMessage(roomSequence),
@@ -855,7 +855,7 @@ function createBufferedRoomEvent(
     bufferSequence,
     kind: "room",
     event: {
-      eventVersion: 1,
+      eventVersion: 2,
       eventId,
       eventType: "ROOM_MEMBER_JOINED",
       emittedAt: "2026-07-30T00:00:00Z",
@@ -865,7 +865,6 @@ function createBufferedRoomEvent(
         roomStatus: "ACTIVE",
         member: {
           membershipId: "membership-01",
-          userId: "local-user-1",
           role: "MEMBER",
           status: "ACTIVE",
           membershipVersion: 1,

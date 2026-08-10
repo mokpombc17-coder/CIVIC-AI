@@ -15,7 +15,6 @@ describe("chat room event cache projector", () => {
       eventId: "event-join",
       eventType: "ROOM_MEMBER_JOINED",
       roomVersion: 2,
-      userId: "local-user-2",
       membershipId: "membership-02",
       membershipVersion: 1,
       role: "MEMBER",
@@ -72,7 +71,6 @@ describe("chat room event cache projector", () => {
       eventId: "event-banned",
       eventType: "ROOM_MEMBER_BANNED",
       roomVersion: 2,
-      userId: "local-user-1",
       membershipId: "membership-01",
       membershipVersion: 2,
       role: "OWNER",
@@ -206,7 +204,6 @@ function createMemberEvent({
   role,
   roomVersion,
   status,
-  userId,
 }: {
   eventId: string;
   eventType:
@@ -220,10 +217,9 @@ function createMemberEvent({
   role: "OWNER" | "MEMBER";
   roomVersion: number;
   status: "ACTIVE" | "LEFT" | "BANNED";
-  userId: string;
 }): ChatRoomEventEnvelope {
   return {
-    eventVersion: 1,
+    eventVersion: 2,
     eventId,
     eventType,
     emittedAt: "2026-07-30T00:00:00Z",
@@ -233,7 +229,6 @@ function createMemberEvent({
       roomStatus: "ACTIVE",
       member: {
         membershipId,
-        userId,
         role,
         status,
         membershipVersion,
@@ -244,7 +239,7 @@ function createMemberEvent({
 
 function createOwnershipTransferredEvent(): ChatRoomEventEnvelope {
   return {
-    eventVersion: 1,
+    eventVersion: 2,
     eventId: "event-transfer",
     eventType: "ROOM_OWNERSHIP_TRANSFERRED",
     emittedAt: "2026-07-30T00:00:00Z",
@@ -254,14 +249,12 @@ function createOwnershipTransferredEvent(): ChatRoomEventEnvelope {
       roomStatus: "ACTIVE",
       previousOwner: {
         membershipId: "membership-01",
-        userId: "legacy-user-id-that-must-not-be-used",
         role: "MEMBER",
         status: "ACTIVE",
         membershipVersion: 2,
       },
       newOwner: {
         membershipId: "membership-02",
-        userId: "local-user-2",
         role: "OWNER",
         status: "ACTIVE",
         membershipVersion: 2,
@@ -272,7 +265,7 @@ function createOwnershipTransferredEvent(): ChatRoomEventEnvelope {
 
 function createOwnerEvent(eventId: string, roomVersion: number): ChatRoomEventEnvelope {
   return {
-    eventVersion: 1,
+    eventVersion: 2,
     eventId,
     eventType: "ROOM_CLOSED",
     emittedAt: "2026-07-30T00:00:00Z",
@@ -282,7 +275,6 @@ function createOwnerEvent(eventId: string, roomVersion: number): ChatRoomEventEn
       roomStatus: "CLOSED",
       owner: {
         membershipId: "membership-01",
-        userId: "local-user-1",
         role: "OWNER",
         status: "BANNED",
         membershipVersion: 2,
@@ -309,7 +301,7 @@ function createSettingsUpdatedEvent({
   joinPolicy?: "OPEN" | "INVITE_ONLY";
 }): ChatRoomEventEnvelope {
   return {
-    eventVersion: 1,
+    eventVersion: 2,
     eventId,
     eventType: "ROOM_SETTINGS_UPDATED",
     emittedAt: "2026-07-30T00:00:00Z",

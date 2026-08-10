@@ -20,7 +20,7 @@ const REQUEST_ID = "550e8400-e29b-41d4-a716-446655440000";
 const CLIENT_MESSAGE_ID = "ed7d2fe8-996d-4660-822f-e84af1218743";
 
 const ROOM_INBOX_CREATED_EVENT = {
-  eventVersion: 1,
+  eventVersion: 2,
   eventId: REQUEST_ID,
   eventType: "ROOM_INBOX_INVALIDATED",
   cause: "MESSAGE_CREATED",
@@ -269,7 +269,7 @@ describe("chat subscription sync contracts", () => {
 describe("chat realtime payload contracts", () => {
   it("CREATE/UPDATE/DELETE 이벤트의 전체 snapshot을 REST ChatMessage 계약으로 검증한다", () => {
     const event = {
-      eventVersion: 1,
+      eventVersion: 2,
       eventType: "CHAT_MESSAGE_CREATED",
       payload: {
         messageId: "message-01",
@@ -312,6 +312,7 @@ describe("chat realtime payload contracts", () => {
     expect(parseChatMessageEvent(JSON.stringify(event))).toEqual(event);
     expect(parseChatMessageEvent(JSON.stringify(updatedEvent))).toEqual(updatedEvent);
     expect(parseChatMessageEvent(JSON.stringify(deletedEvent))).toEqual(deletedEvent);
+    expect(parseChatMessageEvent(JSON.stringify({ ...event, eventVersion: 1 }))).toBeNull();
     expect(
       parseChatMessageEvent(
         JSON.stringify({
@@ -341,7 +342,7 @@ describe("chat realtime payload contracts", () => {
     expect(
       parseChatMessageEvent(
         JSON.stringify({
-          eventVersion: 1,
+          eventVersion: 2,
           eventType: "CHAT_MESSAGE_CREATED",
           payload: activePayload,
         }),
@@ -350,7 +351,7 @@ describe("chat realtime payload contracts", () => {
     expect(
       parseChatMessageEvent(
         JSON.stringify({
-          eventVersion: 1,
+          eventVersion: 2,
           eventType: "CHAT_MESSAGE_DELETED",
           payload: activePayload,
         }),
@@ -492,17 +493,18 @@ describe("chat realtime payload contracts", () => {
 
   it("멤버 상태를 포함한 Room Event를 검증한다", () => {
     const event = createRoomEvent("ROOM_MEMBER_JOINED", {
-      member: createMemberState("membership-02", "local-user-2", "MEMBER"),
+      member: createMemberState("membership-02", "MEMBER"),
     });
 
     expect(parseChatRoomEventEnvelope(JSON.stringify(event))).toEqual(event);
     expect(parseChatSystemEvent(JSON.stringify(event))).toEqual(event);
+    expect(parseChatRoomEventEnvelope(JSON.stringify({ ...event, eventVersion: 1 }))).toBeNull();
   });
 
   it("방장 위임 Room Event의 양쪽 사용자 상태를 검증한다", () => {
     const event = createRoomEvent("ROOM_OWNERSHIP_TRANSFERRED", {
-      previousOwner: createMemberState("membership-01", "local-user-1", "MEMBER"),
-      newOwner: createMemberState("membership-02", "local-user-2", "OWNER"),
+      previousOwner: createMemberState("membership-01", "MEMBER"),
+      newOwner: createMemberState("membership-02", "OWNER"),
     });
 
     expect(parseChatRoomEventEnvelope(JSON.stringify(event))).toEqual(event);
@@ -532,12 +534,15 @@ describe("chat realtime payload contracts", () => {
     expect(parseChatRoomEventEnvelope(JSON.stringify(event))).toBeNull();
   });
 
-  it("Room Event 상태 객체에 userId가 없으면 거절한다", () => {
-    const member = createMemberState("membership-02", "local-user-2", "MEMBER");
-    const memberWithoutUserId: Partial<typeof member> = { ...member };
-    delete memberWithoutUserId.userId;
+  it("Room Event 상태 객체는 membershipId를 필수로 하고 legacy userId로 대체하지 않는다", () => {
+    const member = createMemberState("membership-02", "MEMBER");
+    const memberWithoutMembershipId: Partial<typeof member> & { userId?: string } = {
+      ...member,
+      userId: "local-user-2",
+    };
+    delete memberWithoutMembershipId.membershipId;
     const event = createRoomEvent("ROOM_MEMBER_JOINED", {
-      member: memberWithoutUserId,
+      member: memberWithoutMembershipId,
     });
 
     expect(parseChatRoomEventEnvelope(JSON.stringify(event))).toBeNull();
@@ -554,6 +559,9 @@ describe("room inbox event contracts", () => {
     expect(parseChatRoomInboxEvent(JSON.stringify(ROOM_INBOX_CREATED_EVENT))).toEqual(
       ROOM_INBOX_CREATED_EVENT,
     );
+    expect(
+      parseChatRoomInboxEvent(JSON.stringify({ ...ROOM_INBOX_CREATED_EVENT, eventVersion: 1 })),
+    ).toBeNull();
     expect(
       parseChatRoomInboxEvent(
         JSON.stringify({
@@ -673,7 +681,7 @@ describe("room inbox event contracts", () => {
 
 function createRoomEvent(eventType: string, state: Record<string, unknown>) {
   return {
-    eventVersion: 1,
+    eventVersion: 2,
     eventId: "event-01",
     eventType,
     emittedAt: "2026-07-29T04:41:00Z",
@@ -708,10 +716,9 @@ function createMutationResult(
   };
 }
 
-function createMemberState(membershipId: string, userId: string, role: "OWNER" | "MEMBER") {
+function createMemberState(membershipId: string, role: "OWNER" | "MEMBER") {
   return {
     membershipId,
-    userId,
     role,
     status: "ACTIVE",
     membershipVersion: 1,

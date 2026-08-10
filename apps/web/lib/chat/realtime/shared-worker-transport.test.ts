@@ -629,7 +629,7 @@ describe("SharedWorkerTransport", () => {
           bufferSequence: 1,
           kind: "message",
           event: {
-            eventVersion: 1,
+            eventVersion: 2,
             eventType: "CHAT_MESSAGE_CREATED",
             payload: {
               messageId: "message-01",
@@ -751,7 +751,7 @@ describe("SharedWorkerTransport", () => {
     worker.port.dispatchMessage({
       type: "ROOM_INBOX_EVENT",
       event: {
-        eventVersion: 1,
+        eventVersion: 2,
         eventId: "550e8400-e29b-41d4-a716-446655440021",
         eventType: "ROOM_INBOX_INVALIDATED",
         cause: "MESSAGE_DELETED",

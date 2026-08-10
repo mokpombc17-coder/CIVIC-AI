@@ -159,7 +159,8 @@ Production 코드의 Room 참여자 식별 경로를 다시 검색하고 다음�
 - Room owner compatibility projection을 제거하고 `ownerMembershipId`만 유지한다.
 - Read-state Membership lifecycle identity도 `membershipId`로 통일한다. 로그인
   사용자 변경에 대한 비동기 결과 격리는 별도의 `principalGeneration`이 담당한다.
-- Room event v2 전환과 legacy member `userId` 제거는 다음 단계에서 함께 적용한다.
+- Message, Room inbox와 Room WebSocket event를 v2로 전환했고 Room member state의
+  legacy `userId`를 제거했다.
 
 Room 관련 동작에는 `userId` fallback을 추가하지 않는다. Backend가 필수
 Membership identity를 누락하면 프론트 계약 오류로 처리한다.

@@ -64,7 +64,7 @@ describe("chat shared worker protocol", () => {
     const event = {
       type: "ROOM_INBOX_EVENT",
       event: {
-        eventVersion: 1,
+        eventVersion: 2,
         eventId: "550e8400-e29b-41d4-a716-446655440023",
         eventType: "ROOM_INBOX_INVALIDATED",
         cause: "MESSAGE_DELETED",
@@ -504,7 +504,7 @@ describe("chat shared worker protocol", () => {
           bufferSequence: 1,
           kind: "message",
           event: {
-            eventVersion: 1,
+            eventVersion: 2,
             eventType: "CHAT_MESSAGE_CREATED",
             payload: {
               messageId: "message-01",

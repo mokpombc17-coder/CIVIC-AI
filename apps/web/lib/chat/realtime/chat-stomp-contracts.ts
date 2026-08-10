@@ -94,7 +94,7 @@ const chatRoomInboxSourceEventIdsSchema = z
   });
 
 const chatRoomInboxEventBaseSchema = z.object({
-  eventVersion: z.literal(1),
+  eventVersion: z.literal(2),
   eventId: requestIdSchema,
   eventType: z.literal("ROOM_INBOX_INVALIDATED"),
   roomId: roomIdSchema,
@@ -292,7 +292,7 @@ export const chatMessageMutationCommandResultSchema = z.union([
 
 export const chatMessageEventSchema = z.discriminatedUnion("eventType", [
   z.object({
-    eventVersion: z.literal(1),
+    eventVersion: z.literal(2),
     eventType: z.literal("CHAT_MESSAGE_CREATED"),
     payload: activeChatMessageSchema.refine((message) => message.messageVersion === 1, {
       message: "생성 메시지의 messageVersion은 1이어야 합니다.",
@@ -300,12 +300,12 @@ export const chatMessageEventSchema = z.discriminatedUnion("eventType", [
     }),
   }),
   z.object({
-    eventVersion: z.literal(1),
+    eventVersion: z.literal(2),
     eventType: z.literal("CHAT_MESSAGE_UPDATED"),
     payload: activeChatMessageSchema,
   }),
   z.object({
-    eventVersion: z.literal(1),
+    eventVersion: z.literal(2),
     eventType: z.literal("CHAT_MESSAGE_DELETED"),
     payload: deletedChatMessageSchema,
   }),
@@ -313,14 +313,13 @@ export const chatMessageEventSchema = z.discriminatedUnion("eventType", [
 
 export const chatRoomEventMemberStateSchema = z.object({
   membershipId: opaqueIdSchema,
-  userId: opaqueIdSchema,
   role: membershipRoleSchema,
   status: membershipStatusSchema,
   membershipVersion: versionSchema,
 });
 
 const chatRoomEventEnvelopeBaseSchema = z.object({
-  eventVersion: z.literal(1),
+  eventVersion: z.literal(2),
   eventId: opaqueIdSchema,
   emittedAt: instantSchema,
 });
