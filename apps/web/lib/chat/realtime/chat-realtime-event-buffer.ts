@@ -1,4 +1,8 @@
-import type { ChatMessageEvent, ChatRoomEventEnvelope } from "./chat-stomp-contracts";
+import type {
+  ChatMessageEvent,
+  ChatRoomEventEnvelope,
+  ChatRoomReadReceiptEventEnvelope,
+} from "./chat-stomp-contracts";
 
 export const DEFAULT_CHAT_REALTIME_EVENT_BUFFER_CAPACITY = 500;
 
@@ -12,6 +16,11 @@ export type ChatRealtimeBufferedEvent =
       bufferSequence: number;
       kind: "room";
       event: ChatRoomEventEnvelope;
+    }>
+  | Readonly<{
+      bufferSequence: number;
+      kind: "read-receipt";
+      event: ChatRoomReadReceiptEventEnvelope;
     }>;
 
 type UnsequencedChatRealtimeEvent =
@@ -22,6 +31,10 @@ type UnsequencedChatRealtimeEvent =
   | Readonly<{
       kind: "room";
       event: ChatRoomEventEnvelope;
+    }>
+  | Readonly<{
+      kind: "read-receipt";
+      event: ChatRoomReadReceiptEventEnvelope;
     }>;
 
 export type ChatRealtimeEventBufferSnapshot = Readonly<{
@@ -31,6 +44,7 @@ export type ChatRealtimeEventBufferSnapshot = Readonly<{
   throughBufferSequence: number;
   overflowed: boolean;
   invalidEventCount: number;
+  invalidReadReceiptEventCount: number;
 }>;
 
 export type ChatRealtimeEventDelivery = ChatRealtimeEventBufferSnapshot &
@@ -45,6 +59,7 @@ type ActiveBuffer = {
   nextBufferSequence: number;
   lastDroppedBufferSequence: number | null;
   invalidEventCount: number;
+  invalidReadReceiptEventCount: number;
 };
 
 export class ChatRealtimeEventBuffer {
@@ -68,6 +83,7 @@ export class ChatRealtimeEventBuffer {
       nextBufferSequence: 1,
       lastDroppedBufferSequence: null,
       invalidEventCount: 0,
+      invalidReadReceiptEventCount: 0,
     };
   }
 
@@ -107,6 +123,21 @@ export class ChatRealtimeEventBuffer {
     });
   }
 
+  appendReadReceipt(
+    roomId: string,
+    generation: number,
+    event: ChatRoomReadReceiptEventEnvelope,
+  ): boolean {
+    if (event.payload.roomId !== roomId) {
+      return false;
+    }
+
+    return this.append(roomId, generation, {
+      kind: "read-receipt",
+      event,
+    });
+  }
+
   recordInvalidEvent(roomId: string, generation: number): boolean {
     const activeBuffer = this.getMatchingBuffer(roomId, generation);
 
@@ -115,6 +146,17 @@ export class ChatRealtimeEventBuffer {
     }
 
     activeBuffer.invalidEventCount += 1;
+    return true;
+  }
+
+  recordInvalidReadReceiptEvent(roomId: string, generation: number): boolean {
+    const activeBuffer = this.getMatchingBuffer(roomId, generation);
+
+    if (!activeBuffer) {
+      return false;
+    }
+
+    activeBuffer.invalidReadReceiptEventCount += 1;
     return true;
   }
 
@@ -132,6 +174,7 @@ export class ChatRealtimeEventBuffer {
       throughBufferSequence: activeBuffer.nextBufferSequence - 1,
       overflowed: activeBuffer.lastDroppedBufferSequence !== null,
       invalidEventCount: activeBuffer.invalidEventCount,
+      invalidReadReceiptEventCount: activeBuffer.invalidReadReceiptEventCount,
     };
   }
 
@@ -140,6 +183,7 @@ export class ChatRealtimeEventBuffer {
     generation: number,
     throughBufferSequence: number,
     invalidEventCount: number,
+    invalidReadReceiptEventCount: number,
   ): boolean {
     const activeBuffer = this.getMatchingBuffer(roomId, generation);
 
@@ -150,7 +194,10 @@ export class ChatRealtimeEventBuffer {
       throughBufferSequence >= activeBuffer.nextBufferSequence ||
       !Number.isSafeInteger(invalidEventCount) ||
       invalidEventCount < 0 ||
-      invalidEventCount > activeBuffer.invalidEventCount
+      invalidEventCount > activeBuffer.invalidEventCount ||
+      !Number.isSafeInteger(invalidReadReceiptEventCount) ||
+      invalidReadReceiptEventCount < 0 ||
+      invalidReadReceiptEventCount > activeBuffer.invalidReadReceiptEventCount
     ) {
       return false;
     }
@@ -159,6 +206,7 @@ export class ChatRealtimeEventBuffer {
       (event) => event.bufferSequence > throughBufferSequence,
     );
     activeBuffer.invalidEventCount -= invalidEventCount;
+    activeBuffer.invalidReadReceiptEventCount -= invalidReadReceiptEventCount;
 
     if (
       activeBuffer.lastDroppedBufferSequence !== null &&
@@ -177,18 +225,11 @@ export class ChatRealtimeEventBuffer {
       return false;
     }
 
-    const bufferedEvent: ChatRealtimeBufferedEvent =
-      event.kind === "message"
-        ? {
-            bufferSequence: activeBuffer.nextBufferSequence,
-            kind: event.kind,
-            event: event.event,
-          }
-        : {
-            bufferSequence: activeBuffer.nextBufferSequence,
-            kind: event.kind,
-            event: event.event,
-          };
+    const bufferedEvent = {
+      bufferSequence: activeBuffer.nextBufferSequence,
+      kind: event.kind,
+      event: event.event,
+    } as ChatRealtimeBufferedEvent;
     activeBuffer.nextBufferSequence += 1;
 
     if (activeBuffer.events.length === this.capacity) {

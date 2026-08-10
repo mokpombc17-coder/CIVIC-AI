@@ -462,7 +462,7 @@ describe("DirectStompTransport", () => {
     });
   });
 
-  it("Direct fallback도 READY 전 실시간 이벤트와 user queue Room Event를 버퍼링한다", () => {
+  it("Direct fallback도 READY 전 core와 Read Receipt 이벤트를 도착 순서로 버퍼링한다", () => {
     const client = createFakeClient({ autoReady: false });
     const transport = new DirectStompTransport(
       client,
@@ -473,11 +473,22 @@ describe("DirectStompTransport", () => {
     client.onConnect({} as IFrame);
     transport.claimRoom("room-01");
     client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(11)));
+    client.deliver(
+      "/topic/rooms/room-01/read-receipts",
+      JSON.stringify(createReadReceiptEvent(11)),
+    );
     client.deliver("/user/queue/system-events", JSON.stringify(createRoomEvent("event-user")));
+    client.deliver("/topic/rooms/room-01/read-receipts", "{invalid-json");
+    client.deliver(
+      "/topic/rooms/room-01/read-receipts",
+      JSON.stringify(createReadReceiptEvent(12, "room-02")),
+    );
 
     expect(transport.getRealtimeBufferSnapshot()).toMatchObject({
       roomId: "room-01",
       generation: 1,
+      invalidEventCount: 0,
+      invalidReadReceiptEventCount: 2,
       events: [
         {
           bufferSequence: 1,
@@ -485,6 +496,11 @@ describe("DirectStompTransport", () => {
         },
         {
           bufferSequence: 2,
+          kind: "read-receipt",
+          event: { payload: { updates: [{ storedLastReadSequence: 11 }] } },
+        },
+        {
+          bufferSequence: 3,
           kind: "room",
         },
       ],
@@ -721,17 +737,19 @@ describe("DirectStompTransport", () => {
       events: [{ bufferSequence: 1, event: { payload: { roomSequence: 1 } } }],
     });
 
-    client.deliver("/topic/rooms/room-01/messages", JSON.stringify(createMessageEvent(2)));
+    client.deliver("/topic/rooms/room-01/read-receipts", "{invalid-json");
     expect(listener).toHaveBeenCalledTimes(1);
 
     transport.acknowledgeRealtimeEventDelivery("550e8400-e29b-41d4-a716-446655440002");
 
     expect(transport.getRealtimeEventDelivery()).toMatchObject({
       deliveryId: "550e8400-e29b-41d4-a716-446655440003",
-      throughBufferSequence: 2,
-      events: [{ bufferSequence: 2, event: { payload: { roomSequence: 2 } } }],
+      throughBufferSequence: 1,
+      events: [],
+      invalidEventCount: 0,
+      invalidReadReceiptEventCount: 1,
     });
-    expect(transport.getRealtimeBufferSnapshot()?.events).toHaveLength(1);
+    expect(transport.getRealtimeBufferSnapshot()?.events).toHaveLength(0);
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
@@ -1244,6 +1262,25 @@ function createRoomEvent(eventId: string, roomId = "room-01") {
         status: "ACTIVE",
         membershipVersion: 1,
       },
+    },
+  };
+}
+
+function createReadReceiptEvent(storedLastReadSequence: number, roomId = "room-01") {
+  return {
+    eventVersion: 1,
+    eventId: "550e8400-e29b-41d4-a716-446655440021",
+    eventType: "ROOM_READ_POSITIONS_ADVANCED",
+    emittedAt: "2026-07-30T00:00:00Z",
+    payload: {
+      roomId,
+      updates: [
+        {
+          membershipId: "membership-02",
+          membershipVersion: 1,
+          storedLastReadSequence,
+        },
+      ],
     },
   };
 }

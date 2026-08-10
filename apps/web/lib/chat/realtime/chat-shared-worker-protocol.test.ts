@@ -496,9 +496,10 @@ describe("chat shared worker protocol", () => {
       deliveryId: "delivery-1",
       roomId: "room-01",
       generation: 1,
-      throughBufferSequence: 1,
+      throughBufferSequence: 2,
       overflowed: false,
       invalidEventCount: 0,
+      invalidReadReceiptEventCount: 0,
       events: [
         {
           bufferSequence: 1,
@@ -522,6 +523,26 @@ describe("chat shared worker protocol", () => {
             },
           },
         },
+        {
+          bufferSequence: 2,
+          kind: "read-receipt",
+          event: {
+            eventVersion: 1,
+            eventId: "550e8400-e29b-41d4-a716-446655440001",
+            eventType: "ROOM_READ_POSITIONS_ADVANCED",
+            emittedAt: "2026-07-30T00:00:01Z",
+            payload: {
+              roomId: "room-01",
+              updates: [
+                {
+                  membershipId: "membership-02",
+                  membershipVersion: 1,
+                  storedLastReadSequence: 1,
+                },
+              ],
+            },
+          },
+        },
       ],
     };
 
@@ -536,6 +557,18 @@ describe("chat shared worker protocol", () => {
       isChatSharedWorkerEvent({
         ...delivery,
         throughBufferSequence: 0,
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        ...delivery,
+        invalidReadReceiptEventCount: undefined,
+      }),
+    ).toBe(false);
+    expect(
+      isChatSharedWorkerEvent({
+        ...delivery,
+        events: [delivery.events[0], { ...delivery.events[1], event: { invalid: true } }],
       }),
     ).toBe(false);
   });

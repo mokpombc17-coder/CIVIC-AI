@@ -1,20 +1,26 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessageEvent, ChatRoomEventEnvelope } from "./chat-stomp-contracts";
+import type {
+  ChatMessageEvent,
+  ChatRoomEventEnvelope,
+  ChatRoomReadReceiptEventEnvelope,
+} from "./chat-stomp-contracts";
 import { ChatRealtimeEventBuffer } from "./chat-realtime-event-buffer";
 
 describe("ChatRealtimeEventBuffer", () => {
-  it("메시지와 방 이벤트를 하나의 도착 순서로 보관한다", () => {
+  it("메시지와 방 및 Read Receipt 이벤트를 하나의 도착 순서로 보관한다", () => {
     const buffer = new ChatRealtimeEventBuffer();
 
     buffer.begin("room-01", 3);
     expect(buffer.appendMessage("room-01", 3, createMessageEvent(11))).toBe(true);
     expect(buffer.appendRoomEvent("room-01", 3, createRoomEvent("event-01"))).toBe(true);
+    expect(buffer.appendReadReceipt("room-01", 3, createReadReceiptEvent(11))).toBe(true);
 
     expect(buffer.getSnapshot()).toMatchObject({
       roomId: "room-01",
       generation: 3,
       overflowed: false,
       invalidEventCount: 0,
+      invalidReadReceiptEventCount: 0,
       events: [
         {
           bufferSequence: 1,
@@ -33,6 +39,15 @@ describe("ChatRealtimeEventBuffer", () => {
             eventId: "event-01",
           },
         },
+        {
+          bufferSequence: 3,
+          kind: "read-receipt",
+          event: {
+            payload: {
+              updates: [{ storedLastReadSequence: 11 }],
+            },
+          },
+        },
       ],
     });
   });
@@ -45,7 +60,15 @@ describe("ChatRealtimeEventBuffer", () => {
     expect(buffer.appendMessage("room-02", 3, createMessageEvent(11, "room-02"))).toBe(false);
     expect(buffer.appendMessage("room-01", 2, createMessageEvent(11))).toBe(false);
     expect(buffer.appendMessage("room-01", 3, createMessageEvent(11, "room-02"))).toBe(false);
+    expect(buffer.appendReadReceipt("room-02", 3, createReadReceiptEvent(11, "room-02"))).toBe(
+      false,
+    );
+    expect(buffer.appendReadReceipt("room-01", 2, createReadReceiptEvent(11))).toBe(false);
+    expect(buffer.appendReadReceipt("room-01", 3, createReadReceiptEvent(11, "room-02"))).toBe(
+      false,
+    );
     expect(buffer.recordInvalidEvent("room-02", 3)).toBe(false);
+    expect(buffer.recordInvalidReadReceiptEvent("room-02", 3)).toBe(false);
     expect(buffer.getSnapshot()?.events).toEqual([]);
   });
 
@@ -56,10 +79,12 @@ describe("ChatRealtimeEventBuffer", () => {
     buffer.appendMessage("room-01", 1, createMessageEvent(1));
     buffer.appendMessage("room-01", 1, createMessageEvent(2));
     buffer.recordInvalidEvent("room-01", 1);
+    buffer.recordInvalidReadReceiptEvent("room-01", 1);
 
     expect(buffer.getSnapshot()).toMatchObject({
       overflowed: true,
       invalidEventCount: 1,
+      invalidReadReceiptEventCount: 1,
     });
 
     buffer.begin("room-02", 2);
@@ -71,6 +96,7 @@ describe("ChatRealtimeEventBuffer", () => {
       throughBufferSequence: 0,
       overflowed: false,
       invalidEventCount: 0,
+      invalidReadReceiptEventCount: 0,
     });
   });
 
@@ -113,10 +139,12 @@ describe("ChatRealtimeEventBuffer", () => {
     buffer.begin("room-01", 1);
     buffer.appendMessage("room-01", 1, createMessageEvent(1));
     buffer.recordInvalidEvent("room-01", 1);
+    buffer.recordInvalidReadReceiptEvent("room-01", 1);
     const delivery = buffer.getSnapshot()!;
 
     buffer.appendMessage("room-01", 1, createMessageEvent(2));
     buffer.recordInvalidEvent("room-01", 1);
+    buffer.recordInvalidReadReceiptEvent("room-01", 1);
 
     expect(
       buffer.acknowledge(
@@ -124,6 +152,7 @@ describe("ChatRealtimeEventBuffer", () => {
         delivery.generation,
         delivery.throughBufferSequence,
         delivery.invalidEventCount,
+        delivery.invalidReadReceiptEventCount,
       ),
     ).toBe(true);
     expect(buffer.getSnapshot()).toMatchObject({
@@ -131,6 +160,7 @@ describe("ChatRealtimeEventBuffer", () => {
       generation: 1,
       throughBufferSequence: 2,
       invalidEventCount: 1,
+      invalidReadReceiptEventCount: 1,
       events: [
         {
           bufferSequence: 2,
@@ -146,7 +176,7 @@ describe("ChatRealtimeEventBuffer", () => {
     buffer.begin("room-01", 2);
     buffer.appendMessage("room-01", 2, createMessageEvent(1));
 
-    expect(buffer.acknowledge("room-01", 1, 1, 0)).toBe(false);
+    expect(buffer.acknowledge("room-01", 1, 1, 0, 0)).toBe(false);
     expect(buffer.getSnapshot()?.events).toHaveLength(1);
   });
 
@@ -199,6 +229,28 @@ function createRoomEvent(eventId: string): ChatRoomEventEnvelope {
         status: "ACTIVE",
         membershipVersion: 1,
       },
+    },
+  };
+}
+
+function createReadReceiptEvent(
+  storedLastReadSequence: number,
+  roomId = "room-01",
+): ChatRoomReadReceiptEventEnvelope {
+  return {
+    eventVersion: 1,
+    eventId: "550e8400-e29b-41d4-a716-446655440001",
+    eventType: "ROOM_READ_POSITIONS_ADVANCED",
+    emittedAt: "2026-07-30T00:00:00Z",
+    payload: {
+      roomId,
+      updates: [
+        {
+          membershipId: "membership-02",
+          membershipVersion: 1,
+          storedLastReadSequence,
+        },
+      ],
     },
   };
 }

@@ -21,6 +21,7 @@ import {
 import {
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
+  getChatRoomReadReceiptsDestination,
 } from "./chat-stomp-destinations";
 import {
   parseChatMessageEvent,
@@ -28,12 +29,14 @@ import {
   parseChatMessageMutationCommandResult,
   parseChatRoomInboxEvent,
   parseChatRoomEventEnvelope,
+  parseChatRoomReadReceiptEvent,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
   parseChatStompError,
   parseChatSubscriptionRejection,
   type ChatRoomEventEnvelope,
   type ChatRoomInboxEvent,
+  type ChatRoomReadReceiptEventEnvelope,
   type ChatRoomSubscriptionSyncRejected,
   type ChatRoomSubscriptionsReady,
 } from "./chat-stomp-contracts";
@@ -173,6 +176,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       onRoomInboxEvent: this.handleRoomInboxEvent,
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
+      onRoomReadReceiptEvent: this.handleRoomReadReceiptEvent,
       onSystemEvent: this.handleSystemEvent,
     });
     this.messageDeliveries = new ChatMessageDeliveryScheduler({
@@ -619,6 +623,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       delivery.generation,
       delivery.throughBufferSequence,
       delivery.invalidEventCount,
+      delivery.invalidReadReceiptEventCount,
     );
 
     if (!acknowledged) {
@@ -1264,7 +1269,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       !rejection ||
       !roomId ||
       (rejection.destination !== getChatRoomMessagesDestination(roomId) &&
-        rejection.destination !== getChatRoomEventsDestination(roomId))
+        rejection.destination !== getChatRoomEventsDestination(roomId) &&
+        rejection.destination !== getChatRoomReadReceiptsDestination(roomId))
     ) {
       return;
     }
@@ -1331,6 +1337,25 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.bufferRoomEvent(roomId, event);
   };
 
+  private readonly handleRoomReadReceiptEvent = (roomId: string, message: IMessage): void => {
+    const generation = this.getCurrentBufferGeneration(roomId);
+
+    if (generation === null) {
+      return;
+    }
+
+    const event = parseChatRoomReadReceiptEvent(message.body);
+
+    if (!event || event.payload.roomId !== roomId) {
+      if (this.realtimeBuffer.recordInvalidReadReceiptEvent(roomId, generation)) {
+        this.deliverRealtimeEvents(false);
+      }
+      return;
+    }
+
+    this.bufferRoomReadReceiptEvent(roomId, event);
+  };
+
   private bufferRoomEvent(roomId: string, event: ChatRoomEventEnvelope): void {
     const generation = this.getCurrentBufferGeneration(roomId);
 
@@ -1339,6 +1364,21 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     }
 
     if (this.realtimeBuffer.appendRoomEvent(roomId, generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
+  }
+
+  private bufferRoomReadReceiptEvent(
+    roomId: string,
+    event: ChatRoomReadReceiptEventEnvelope,
+  ): void {
+    const generation = this.getCurrentBufferGeneration(roomId);
+
+    if (generation === null) {
+      return;
+    }
+
+    if (this.realtimeBuffer.appendReadReceipt(roomId, generation, event)) {
       this.deliverRealtimeEvents(false);
     }
   }
@@ -1550,7 +1590,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       (!force &&
         snapshot.events.length === 0 &&
         !snapshot.overflowed &&
-        snapshot.invalidEventCount === 0)
+        snapshot.invalidEventCount === 0 &&
+        snapshot.invalidReadReceiptEventCount === 0)
     ) {
       return;
     }

@@ -30,6 +30,7 @@ import {
 import {
   getChatRoomEventsDestination,
   getChatRoomMessagesDestination,
+  getChatRoomReadReceiptsDestination,
 } from "../chat-stomp-destinations";
 import {
   parseChatMessageEvent,
@@ -37,12 +38,14 @@ import {
   parseChatMessageMutationCommandResult,
   parseChatRoomInboxEvent,
   parseChatRoomEventEnvelope,
+  parseChatRoomReadReceiptEvent,
   parseChatRoomSubscriptionSyncRejected,
   parseChatRoomSubscriptionsReady,
   parseChatStompError,
   parseChatSubscriptionRejection,
   type ChatRoomEventEnvelope,
   type ChatRoomInboxEvent,
+  type ChatRoomReadReceiptEventEnvelope,
   type ChatRoomSubscriptionSyncRejected,
   type ChatRoomSubscriptionsReady,
 } from "../chat-stomp-contracts";
@@ -179,6 +182,7 @@ export class ChatSharedWorkerRuntime {
       onRoomInboxEvent: this.handleRoomInboxEvent,
       onRoomEvent: this.handleRoomEvent,
       onRoomMessage: this.handleRoomMessage,
+      onRoomReadReceiptEvent: this.handleRoomReadReceiptEvent,
       onSystemEvent: this.handleSystemEvent,
     });
     this.messageDeliveries = new ChatMessageDeliveryScheduler({
@@ -1283,6 +1287,7 @@ export class ChatSharedWorkerRuntime {
       pending.generation,
       pending.throughBufferSequence,
       pending.invalidEventCount,
+      pending.invalidReadReceiptEventCount,
     );
 
     if (!acknowledged) {
@@ -1317,7 +1322,8 @@ export class ChatSharedWorkerRuntime {
       (!force &&
         snapshot.events.length === 0 &&
         !snapshot.overflowed &&
-        snapshot.invalidEventCount === 0)
+        snapshot.invalidEventCount === 0 &&
+        snapshot.invalidReadReceiptEventCount === 0)
     ) {
       return;
     }
@@ -1337,6 +1343,7 @@ export class ChatSharedWorkerRuntime {
       throughBufferSequence: delivery.throughBufferSequence,
       overflowed: delivery.overflowed,
       invalidEventCount: delivery.invalidEventCount,
+      invalidReadReceiptEventCount: delivery.invalidReadReceiptEventCount,
     });
   }
 
@@ -1458,7 +1465,8 @@ export class ChatSharedWorkerRuntime {
       !rejection ||
       !lease ||
       (rejection.destination !== getChatRoomMessagesDestination(lease.roomId) &&
-        rejection.destination !== getChatRoomEventsDestination(lease.roomId))
+        rejection.destination !== getChatRoomEventsDestination(lease.roomId) &&
+        rejection.destination !== getChatRoomReadReceiptsDestination(lease.roomId))
     ) {
       return;
     }
@@ -1545,6 +1553,25 @@ export class ChatSharedWorkerRuntime {
     this.bufferRoomEvent(roomId, event);
   };
 
+  private readonly handleRoomReadReceiptEvent = (roomId: string, message: IMessage): void => {
+    const lease = this.getCurrentBufferLease(roomId);
+
+    if (!lease) {
+      return;
+    }
+
+    const event = parseChatRoomReadReceiptEvent(message.body);
+
+    if (!event || event.payload.roomId !== roomId) {
+      if (this.realtimeBuffer.recordInvalidReadReceiptEvent(roomId, lease.generation)) {
+        this.deliverRealtimeEvents(false);
+      }
+      return;
+    }
+
+    this.bufferRoomReadReceiptEvent(roomId, event);
+  };
+
   private bufferRoomEvent(roomId: string, event: ChatRoomEventEnvelope): void {
     const lease = this.getCurrentBufferLease(roomId);
 
@@ -1553,6 +1580,21 @@ export class ChatSharedWorkerRuntime {
     }
 
     if (this.realtimeBuffer.appendRoomEvent(roomId, lease.generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
+  }
+
+  private bufferRoomReadReceiptEvent(
+    roomId: string,
+    event: ChatRoomReadReceiptEventEnvelope,
+  ): void {
+    const lease = this.getCurrentBufferLease(roomId);
+
+    if (!lease) {
+      return;
+    }
+
+    if (this.realtimeBuffer.appendReadReceipt(roomId, lease.generation, event)) {
       this.deliverRealtimeEvents(false);
     }
   }

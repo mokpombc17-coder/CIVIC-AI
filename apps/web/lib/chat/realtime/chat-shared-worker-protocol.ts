@@ -22,6 +22,7 @@ import {
   chatMessageSendRequestSchema,
   chatRoomInboxEventSchema,
   chatRoomEventEnvelopeSchema,
+  chatRoomReadReceiptEventSchema,
   type ChatMessageCommandResult,
   type ChatMessageDeleteRequest,
   type ChatMessageEditRequest,
@@ -229,6 +230,7 @@ export type ChatSharedWorkerEvent =
       throughBufferSequence: number;
       overflowed: boolean;
       invalidEventCount: number;
+      invalidReadReceiptEventCount: number;
     }>;
 
 const CONNECTION_STATUSES = new Set<ChatConnectionSnapshot["status"]>([
@@ -473,7 +475,8 @@ export function isChatSharedWorkerEvent(value: unknown): value is ChatSharedWork
           bufferedEvent.event.payload.roomId === event.roomId,
       ) &&
       typeof event.overflowed === "boolean" &&
-      isGeneration(event.invalidEventCount)
+      isGeneration(event.invalidEventCount) &&
+      isGeneration(event.invalidReadReceiptEventCount)
     );
   }
 
@@ -525,9 +528,17 @@ function isChatRealtimeBufferedEvent(value: unknown): value is ChatRealtimeBuffe
     return false;
   }
 
-  return event.kind === "message"
-    ? chatMessageEventSchema.safeParse(event.event).success
-    : event.kind === "room" && chatRoomEventEnvelopeSchema.safeParse(event.event).success;
+  if (event.kind === "message") {
+    return chatMessageEventSchema.safeParse(event.event).success;
+  }
+
+  if (event.kind === "room") {
+    return chatRoomEventEnvelopeSchema.safeParse(event.event).success;
+  }
+
+  return (
+    event.kind === "read-receipt" && chatRoomReadReceiptEventSchema.safeParse(event.event).success
+  );
 }
 
 function hasStrictlyIncreasingBufferSequences(

@@ -745,7 +745,7 @@ describe("ChatSharedWorkerRuntime", () => {
     });
   });
 
-  it("방 topic 구독 직후부터 READY 이후까지 메시지와 Room Event를 도착 순서로 버퍼링한다", () => {
+  it("방 topic 구독 직후부터 READY 이후까지 core와 Read Receipt 이벤트를 도착 순서로 버퍼링한다", () => {
     const client = createFakeStompClient({ autoReady: false });
     const runtime = new ChatSharedWorkerRuntime(
       client,
@@ -769,14 +769,24 @@ describe("ChatSharedWorkerRuntime", () => {
       "/topic/rooms/room-01/room-events",
       JSON.stringify(createRoomEvent("event-topic")),
     );
+    client.deliver(
+      "/topic/rooms/room-01/read-receipts",
+      JSON.stringify(createReadReceiptEvent(11)),
+    );
     client.deliver("/user/queue/system-events", JSON.stringify(createRoomEvent("event-user")));
     client.deliver("/topic/rooms/room-01/messages", "{invalid-json");
+    client.deliver("/topic/rooms/room-01/read-receipts", "{invalid-json");
+    client.deliver(
+      "/topic/rooms/room-01/read-receipts",
+      JSON.stringify(createReadReceiptEvent(12, "room-02")),
+    );
 
     expect(runtime.getRealtimeBufferSnapshot()).toMatchObject({
       roomId: "room-01",
       generation: 1,
       overflowed: false,
       invalidEventCount: 1,
+      invalidReadReceiptEventCount: 2,
       events: [
         {
           bufferSequence: 1,
@@ -790,6 +800,11 @@ describe("ChatSharedWorkerRuntime", () => {
         },
         {
           bufferSequence: 3,
+          kind: "read-receipt",
+          event: { payload: { updates: [{ storedLastReadSequence: 11 }] } },
+        },
+        {
+          bufferSequence: 4,
           kind: "room",
           event: { eventId: "event-user" },
         },
@@ -808,7 +823,7 @@ describe("ChatSharedWorkerRuntime", () => {
       }),
     );
 
-    expect(runtime.getRealtimeBufferSnapshot()?.events).toHaveLength(3);
+    expect(runtime.getRealtimeBufferSnapshot()?.events).toHaveLength(4);
   });
 
   it("REST 적용 뒤 한 delivery씩 보내고 확인 대기 중 이벤트는 다음 delivery로 보존한다", () => {
@@ -2006,6 +2021,25 @@ function createRoomEvent(eventId: string, roomId = "room-01") {
         status: "ACTIVE",
         membershipVersion: 1,
       },
+    },
+  };
+}
+
+function createReadReceiptEvent(storedLastReadSequence: number, roomId = "room-01") {
+  return {
+    eventVersion: 1,
+    eventId: "550e8400-e29b-41d4-a716-446655440021",
+    eventType: "ROOM_READ_POSITIONS_ADVANCED",
+    emittedAt: "2026-07-30T00:00:00Z",
+    payload: {
+      roomId,
+      updates: [
+        {
+          membershipId: "membership-02",
+          membershipVersion: 1,
+          storedLastReadSequence,
+        },
+      ],
     },
   };
 }

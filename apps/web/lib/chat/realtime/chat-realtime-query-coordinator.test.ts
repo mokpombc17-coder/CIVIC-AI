@@ -684,6 +684,25 @@ describe("applyChatRealtimeEventDelivery", () => {
       expect.objectContaining({ code }),
     );
   });
+
+  it("Read Receipt 검증 실패와 이벤트는 core cache 적용을 중단하지 않는다", () => {
+    const queryClient = new QueryClient();
+    seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+
+    expect(
+      applyChatRealtimeEventDelivery(
+        queryClient,
+        createDelivery({
+          events: [createBufferedReadReceipt(1, 1)],
+          invalidReadReceiptEventCount: 1,
+        }),
+      ),
+    ).toMatchObject({
+      messageCount: 0,
+      roomEventCount: 0,
+    });
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([createMessage(1)]);
+  });
 });
 
 type FakeTransport = ChatRealtimeQueryCoordinatorTransport & {
@@ -766,12 +785,14 @@ function createDelivery({
   events = [],
   overflowed = false,
   invalidEventCount = 0,
+  invalidReadReceiptEventCount = 0,
 }: {
   deliveryId?: string;
   generation?: number;
   events?: ChatRealtimeEventDelivery["events"];
   overflowed?: boolean;
   invalidEventCount?: number;
+  invalidReadReceiptEventCount?: number;
 } = {}): ChatRealtimeEventDelivery {
   return {
     deliveryId,
@@ -781,6 +802,7 @@ function createDelivery({
     throughBufferSequence: events.at(-1)?.bufferSequence ?? 0,
     overflowed,
     invalidEventCount,
+    invalidReadReceiptEventCount,
   };
 }
 
@@ -795,6 +817,32 @@ function createBufferedMessage(
       eventVersion: 2,
       eventType: "CHAT_MESSAGE_CREATED",
       payload: createMessage(roomSequence),
+    },
+  };
+}
+
+function createBufferedReadReceipt(
+  storedLastReadSequence: number,
+  bufferSequence: number,
+): Extract<ChatRealtimeEventDelivery["events"][number], { kind: "read-receipt" }> {
+  return {
+    bufferSequence,
+    kind: "read-receipt",
+    event: {
+      eventVersion: 1,
+      eventId: "550e8400-e29b-41d4-a716-446655440001",
+      eventType: "ROOM_READ_POSITIONS_ADVANCED",
+      emittedAt: "2026-07-30T00:00:01Z",
+      payload: {
+        roomId: "room-01",
+        updates: [
+          {
+            membershipId: "membership-02",
+            membershipVersion: 1,
+            storedLastReadSequence,
+          },
+        ],
+      },
     },
   };
 }

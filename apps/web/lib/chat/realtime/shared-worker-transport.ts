@@ -750,6 +750,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
             throughBufferSequence: workerEvent.throughBufferSequence,
             overflowed: workerEvent.overflowed,
             invalidEventCount: workerEvent.invalidEventCount,
+            invalidReadReceiptEventCount: workerEvent.invalidReadReceiptEventCount,
           });
         }
     }

@@ -624,6 +624,7 @@ describe("SharedWorkerTransport", () => {
       throughBufferSequence: 1,
       overflowed: false,
       invalidEventCount: 0,
+      invalidReadReceiptEventCount: 1,
       events: [
         {
           bufferSequence: 1,
@@ -656,6 +657,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 1,
       throughBufferSequence: 1,
+      invalidReadReceiptEventCount: 1,
     });
 
     transport.acknowledgeRealtimeEventDelivery("delivery-1");
