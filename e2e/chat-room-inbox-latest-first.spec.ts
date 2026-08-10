@@ -526,10 +526,11 @@ async function focusMember(ownerPage: Page, memberPage: Page): Promise<void> {
   await expect.poll(() => memberPage.evaluate(() => document.hasFocus())).toBe(true);
 }
 
-async function refreshMemberInbox(memberPage: Page): Promise<RoomInboxPage> {
+async function refreshMemberInbox(memberPage: Page): Promise<void> {
   const refresh = waitForFirstRoomInboxResponse(memberPage);
-  await memberPage.reload();
-  return readRoomInboxResponse(await refresh);
+  const [, response] = await Promise.all([memberPage.reload(), refresh]);
+
+  expect(response.ok(), `Room inbox 조회가 성공해야 합니다: ${response.status()}`).toBe(true);
 }
 
 async function clickInBackground(locator: Locator): Promise<void> {
