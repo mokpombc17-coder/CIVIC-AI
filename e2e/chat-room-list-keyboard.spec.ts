@@ -36,6 +36,11 @@ test("새 채팅방 폼은 키보드로 열고 닫아도 논리적인 포커스�
   await page.keyboard.press("Tab");
   await expect(page.getByRole("textbox", { name: "방 설명" })).toBeFocused();
   await page.keyboard.press("Tab");
+  await expect(page.getByRole("radio", { name: "정책", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("radio", { name: "환경", exact: true })).toBeFocused();
+  await expect(page.getByRole("radio", { name: "환경", exact: true })).toBeChecked();
+  await page.keyboard.press("Tab");
   await expect(page.getByRole("combobox", { name: "공개 범위" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("combobox", { name: "참여 정책" })).toBeFocused();
