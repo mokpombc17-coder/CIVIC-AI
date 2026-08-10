@@ -2,7 +2,11 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { SignJWT } from "jose";
-import { CHAT_AUTH_SCOPE, PLATFORM_AUTH_AUDIENCE } from "./platform-auth-contract";
+import {
+  CHAT_AUTH_SCOPE,
+  CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
+  PLATFORM_AUTH_AUDIENCE,
+} from "./platform-auth-contract";
 
 export const LOCAL_PLATFORM_AUTH_ALGORITHM = "HS256";
 export const LOCAL_PLATFORM_AUTH_ISSUER = "http://localhost:3000/api/dev/auth";
@@ -17,6 +21,9 @@ export const LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY =
   "civic-ai-local-auth-fixture-signing-key-v1-public-do-not-use-in-production";
 
 const fixtureSigningKey = new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY);
+
+const roomInboxPaginationSubjectPattern =
+  /^e2e-latest-(?:owner|member)-pagination-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type IssueLocalPlatformJwtInput = {
   subject: string;
@@ -37,7 +44,7 @@ export async function issueLocalPlatformJwt({
   const issuedAt = Math.floor(now.getTime() / 1000);
 
   return new SignJWT({
-    scope: CHAT_AUTH_SCOPE,
+    scope: resolveLocalChatScope(normalizedSubject),
   })
     .setProtectedHeader({
       alg: LOCAL_PLATFORM_AUTH_ALGORITHM,
@@ -50,4 +57,12 @@ export async function issueLocalPlatformJwt({
     .setExpirationTime(issuedAt + LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS)
     .setJti(jwtId)
     .sign(fixtureSigningKey);
+}
+
+function resolveLocalChatScope(subject: string): string {
+  if (!roomInboxPaginationSubjectPattern.test(subject)) {
+    return CHAT_AUTH_SCOPE;
+  }
+
+  return `${CHAT_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`;
 }
