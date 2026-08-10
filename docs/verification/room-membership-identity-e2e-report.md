@@ -2,18 +2,20 @@
 
 ## 기준 상태
 
-- 검증일: 2026-08-07 (Asia/Seoul)
-- Frontend `main`: `873bad6245c186bb919d627a343fc195174ac914`
-- Frontend `origin/main`: `873bad6245c186bb919d627a343fc195174ac914`
+- 검증일: 2026-08-10 (Asia/Seoul)
+- Frontend `main`: `4afc92472d5070080f8757e3b8a7165bc0cfac70`
+- Frontend `origin/main`: `f2f5ccd94b81b0b86eaf8b79003ffa73650e9296`
 - Backend health: `GET http://localhost:8082/actuator/health` → `200`, `UP`
-- Backend container image: `sha256:e6fec563b8b10161d…`
-- Backend container created at: `2026-08-07T07:47:06.711571197Z`
-- Backend commit SHA: image label과 공개 Actuator 정보에서 확인할 수 없음
+- Backend container image: `sha256:a5a92e503424c2dd327734453f00a6e6c5fc1b65fa688de4b0204d6bb715a554`
+- Backend container created at: `2026-08-10T02:02:50.246159062Z`
+- Backend repository HEAD: `b41a060 feat: Room 이벤트 참여자 계약을 membershipId로 전환`
+- Backend image에는 commit revision label이 없으므로 repository SHA와 image의 직접적인
+  metadata 연결은 확인할 수 없음
 - 기존 Frontend working tree 변경: `.gitignore`, `apps/mobile/tsconfig.json`
 
 인증 쿠키, JWT 및 민감 헤더는 이 문서에 기록하지 않는다.
 
-## Additive Backend 기준선 검증
+## Membership-only Backend 기준선 검증
 
 ### Owner identity REST projection
 
@@ -68,7 +70,7 @@
 - `MESSAGE_CREATED` notification 수신
 - `notificationHint.senderMembershipId` 확인
 - message sender의 owner Membership ID와 일치
-- `eventVersion=1` 유지 확인
+- `eventVersion=2` 확인
 
 검증 과정에서 만든 Room은 모두 종료하여 ACTIVE Room quota를 남기지 않았다.
 
@@ -78,6 +80,8 @@ Frontend 전환 커밋:
 
 - `c955cff feat(web): use membership identity in room state`
 - `6f1bb6f feat(web): target room members by membership id`
+- `d910ff0 refactor(web): remove legacy room participant ids`
+- `4afc924 feat(web): adopt membership-only realtime events`
 
 추가한 Playwright 시나리오:
 
@@ -98,7 +102,17 @@ pnpm exec playwright test e2e/chat-room-membership-identity.spec.ts
 
 pnpm exec playwright test e2e/chat-message-mutations.spec.ts
 → 1 passed
+
+pnpm exec playwright test \
+  e2e/chat-message-smoke.spec.ts \
+  e2e/chat-room-inbox.spec.ts \
+  e2e/chat-room-settings.spec.ts
+→ 3 passed
 ```
+
+최종 hard cutover 검증은 Message event v2, Room inbox event v2, Room event v2,
+membership-only command request와 owner control 이동을 실제 Backend에서 확인했다.
+검증 직후 Backend 로그에는 `WARN` 또는 `ERROR`가 없었다.
 
 테스트 fixture Room은 새 방장이 이전 방장을 차단한 뒤 종료하여 정리했다.
 
