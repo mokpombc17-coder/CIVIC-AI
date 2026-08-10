@@ -6,6 +6,7 @@ import {
   createMessageHistoryResponseSchema,
   createRoomRequestSchema,
   messageHistoryRequestSchema,
+  membershipDisplayNameSchema,
   myRoomListResponseSchema,
   normalizeChatMessageContent,
   normalizeRoomDescription,
@@ -18,6 +19,7 @@ import {
   roomIdSchema,
   roomInboxListParamsSchema,
   roomInboxListResponseSchema,
+  roomMembershipListResponseSchema,
   roomReadReceiptStateResponseSchema,
   targetMembershipRequestSchema,
   updateRoomReadStateRequestSchema,
@@ -253,6 +255,50 @@ describe("chat room REST contracts", () => {
     });
 
     expect(result.myMembership).toBeNull();
+  });
+
+  it("Room 참여자 목록의 필수 프로필을 파싱한다", () => {
+    const result = roomMembershipListResponseSchema.parse({
+      items: [createRoomMembershipListItem()],
+      nextCursor: null,
+      hasNext: false,
+    });
+
+    expect(result.items[0]).toMatchObject({
+      membershipId: "membership-02",
+      displayName: "참여자 2",
+      imageUrl: null,
+      profileVersion: 1,
+    });
+  });
+
+  it("Room 참여자 목록에서 프로필 누락과 잘못된 profileVersion을 거절한다", () => {
+    const membership = createRoomMembershipListItem();
+
+    for (const patch of [
+      { displayName: undefined },
+      { imageUrl: undefined },
+      { profileVersion: undefined },
+      { profileVersion: 0 },
+      { profileVersion: -1 },
+      { profileVersion: 1.5 },
+    ]) {
+      expect(
+        roomMembershipListResponseSchema.safeParse({
+          items: [{ ...membership, ...patch }],
+          nextCursor: null,
+          hasNext: false,
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("참여자 표시 이름을 trim된 Unicode code point 1~50자로 제한한다", () => {
+    expect(membershipDisplayNameSchema.safeParse("😀".repeat(50)).success).toBe(true);
+    expect(membershipDisplayNameSchema.safeParse("😀".repeat(51)).success).toBe(false);
+    expect(membershipDisplayNameSchema.safeParse("").success).toBe(false);
+    expect(membershipDisplayNameSchema.safeParse(" 참여자 2").success).toBe(false);
+    expect(membershipDisplayNameSchema.safeParse("참여자 2 ").success).toBe(false);
   });
 
   it("Room command 대상은 targetMembershipId 하나만 허용한다", () => {
@@ -668,6 +714,22 @@ function createReadReceiptPosition(membershipId: string, patch: Record<string, u
     membershipVersion: 1,
     messageVisibleAfterSequence: 0,
     storedLastReadSequence: 0,
+    ...patch,
+  };
+}
+
+function createRoomMembershipListItem(patch: Record<string, unknown> = {}) {
+  return {
+    membershipId: "membership-02",
+    displayName: "참여자 2",
+    imageUrl: null,
+    profileVersion: 1,
+    role: "MEMBER",
+    status: "ACTIVE",
+    joinedAt: "2026-08-10T03:00:00Z",
+    leftAt: null,
+    bannedAt: null,
+    version: 1,
     ...patch,
   };
 }

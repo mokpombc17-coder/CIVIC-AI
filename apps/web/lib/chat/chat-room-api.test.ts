@@ -535,6 +535,9 @@ const ROOM_INBOX_ITEM = {
 
 const MEMBERSHIP_LIST_ITEM = {
   membershipId: "membership-02",
+  displayName: "참여자 2",
+  imageUrl: null,
+  profileVersion: 1,
   role: "MEMBER",
   status: "ACTIVE",
   joinedAt: "2026-07-29T04:31:00Z",

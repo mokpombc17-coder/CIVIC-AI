@@ -94,6 +94,17 @@ export const roomCategoriesSchema = z
 export const roomStatusSchema = z.enum(["ACTIVE", "CLOSED"]);
 export const membershipRoleSchema = z.enum(["OWNER", "MEMBER"]);
 export const membershipStatusSchema = z.enum(["ACTIVE", "LEFT", "BANNED"]);
+export const membershipDisplayNameSchema = z
+  .string()
+  .min(1, "참여자 표시 이름은 비어 있을 수 없습니다.")
+  .refine(
+    (displayName) => displayName === displayName.replace(javaStringStripWhitespacePattern, ""),
+    "참여자 표시 이름은 앞뒤 공백이 제거된 값이어야 합니다.",
+  )
+  .refine(
+    (displayName) => Array.from(displayName).length <= 50,
+    "참여자 표시 이름은 Unicode code point 50자를 초과할 수 없습니다.",
+  );
 export const messageStateSchema = z.enum(["ACTIVE", "DELETED_BY_AUTHOR"]);
 export const roomParticipationStatusSchema = z.enum([
   "ACTIVE",
@@ -210,6 +221,9 @@ export const roomInboxListItemSchema = myRoomListItemSchema
 
 export const roomMembershipListItemSchema = z.object({
   membershipId: opaqueIdSchema,
+  displayName: membershipDisplayNameSchema,
+  imageUrl: z.string().nullable(),
+  profileVersion: z.number().int().positive(),
   role: membershipRoleSchema,
   status: membershipStatusSchema,
   joinedAt: instantSchema,
