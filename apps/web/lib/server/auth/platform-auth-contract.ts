@@ -12,4 +12,6 @@ export const CHAT_AUTH_SCOPES = [
 
 export const CHAT_AUTH_SCOPE = CHAT_AUTH_SCOPES.join(" ");
 
+export const CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE = "chat:rooms:membership-limit:exempt";
+
 export type ChatAuthScope = (typeof CHAT_AUTH_SCOPES)[number];
