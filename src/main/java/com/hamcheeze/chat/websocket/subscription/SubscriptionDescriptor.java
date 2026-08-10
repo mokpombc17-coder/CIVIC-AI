@@ -8,6 +8,8 @@ public record SubscriptionDescriptor(
         String destination,
         DestinationKind kind,
         String roomId,
+        String membershipId,
+        Long membershipVersion,
         Long messageVisibleAfterSequence,
         boolean roomAccessRevoked
 ) {
@@ -26,8 +28,31 @@ public record SubscriptionDescriptor(
                 destination,
                 kind,
                 roomId,
+                null,
+                null,
                 messageVisibleAfterSequence,
                 false);
+    }
+
+    public SubscriptionDescriptor(
+            String subscriptionId,
+            String userId,
+            String destination,
+            DestinationKind kind,
+            String roomId,
+            Long messageVisibleAfterSequence,
+            boolean roomAccessRevoked
+    ) {
+        this(
+                subscriptionId,
+                userId,
+                destination,
+                kind,
+                roomId,
+                null,
+                null,
+                messageVisibleAfterSequence,
+                roomAccessRevoked);
     }
 
     public SubscriptionDescriptor {
@@ -39,19 +64,29 @@ public record SubscriptionDescriptor(
         }
         if (roomScoped(kind)) {
             requireText(roomId, "roomId");
+            boolean identityAbsent = membershipId == null
+                    && membershipVersion == null;
+            boolean identityPresent = membershipId != null
+                    && !membershipId.isBlank()
+                    && membershipVersion != null
+                    && membershipVersion >= 0;
+            if (!identityAbsent && !identityPresent) {
+                throw new IllegalArgumentException(
+                        "Room membership identity must be complete");
+            }
         } else if (roomId != null && roomId.isBlank()) {
             throw new IllegalArgumentException(
                     "roomId must not be blank");
         }
-        if (kind == DestinationKind.TOPIC_ROOM_MESSAGES) {
+        if (roomScoped(kind)) {
             if (messageVisibleAfterSequence == null
                     || messageVisibleAfterSequence < 0) {
                 throw new IllegalArgumentException(
-                        "Message subscriptions require a valid boundary");
+                        "Room subscriptions require a valid boundary");
             }
         } else if (messageVisibleAfterSequence != null) {
             throw new IllegalArgumentException(
-                    "Only message subscriptions may have a boundary");
+                    "Only Room subscriptions may have a boundary");
         }
         if (roomAccessRevoked && !roomScoped(kind)) {
             throw new IllegalArgumentException(
@@ -72,13 +107,16 @@ public record SubscriptionDescriptor(
                         destination,
                         kind,
                         roomId,
+                        membershipId,
+                        membershipVersion,
                         messageVisibleAfterSequence,
                         true);
     }
 
     private static boolean roomScoped(DestinationKind kind) {
         return kind == DestinationKind.TOPIC_ROOM_MESSAGES
-                || kind == DestinationKind.TOPIC_ROOM_EVENTS;
+                || kind == DestinationKind.TOPIC_ROOM_EVENTS
+                || kind == DestinationKind.TOPIC_ROOM_READ_RECEIPTS;
     }
 
     private static void requireText(String value, String field) {

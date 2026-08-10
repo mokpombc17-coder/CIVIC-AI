@@ -75,7 +75,15 @@ public final class RoomSubscriptionSyncService {
                         userId,
                         roomId,
                         DestinationKind.TOPIC_ROOM_EVENTS);
-        if (messages.isEmpty() || events.isEmpty()) {
+        Optional<SubscriptionDescriptor> readReceipts =
+                subscriptions.findRoomSubscription(
+                        connectionId,
+                        userId,
+                        roomId,
+                        DestinationKind.TOPIC_ROOM_READ_RECEIPTS);
+        if (messages.isEmpty()
+                || events.isEmpty()
+                || readReceipts.isEmpty()) {
             reject(
                     userId,
                     connectionId,
@@ -116,9 +124,10 @@ public final class RoomSubscriptionSyncService {
 
         if (messages.get().roomAccessRevoked()
                 || events.get().roomAccessRevoked()
-                || !Objects.equals(
-                messages.get().messageVisibleAfterSequence(),
-                messageAccess.messageVisibleAfterSequence())) {
+                || readReceipts.get().roomAccessRevoked()
+                || !matches(messages.get(), messageAccess)
+                || !matches(events.get(), messageAccess)
+                || !matches(readReceipts.get(), messageAccess)) {
             reject(
                     userId,
                     connectionId,
@@ -173,6 +182,20 @@ public final class RoomSubscriptionSyncService {
                         roomId,
                         code,
                         retryable));
+    }
+
+    private static boolean matches(
+            SubscriptionDescriptor descriptor,
+            RoomMessageAccess access
+    ) {
+        return Objects.equals(
+                descriptor.membershipId(), access.membershipId())
+                && Objects.equals(
+                descriptor.membershipVersion(),
+                access.membershipVersion())
+                && Objects.equals(
+                descriptor.messageVisibleAfterSequence(),
+                access.messageVisibleAfterSequence());
     }
 
     private static boolean validRequestId(String requestId) {

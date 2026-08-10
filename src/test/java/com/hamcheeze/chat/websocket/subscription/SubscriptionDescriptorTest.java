@@ -38,7 +38,7 @@ class SubscriptionDescriptorTest {
     }
 
     @Test
-    void messagesRequireNonNegativeBoundaryAndOtherKindsRejectIt() {
+    void roomTopicsRequireNonNegativeBoundaryAndUserKindsRejectIt() {
         assertThatThrownBy(() -> new SubscriptionDescriptor(
                 "sub-1", "user-1", "/topic/rooms/room-1/messages",
                 DestinationKind.TOPIC_ROOM_MESSAGES, "room-1", null))
@@ -47,9 +47,19 @@ class SubscriptionDescriptorTest {
                 "sub-1", "user-1", "/topic/rooms/room-1/messages",
                 DestinationKind.TOPIC_ROOM_MESSAGES, "room-1", -1L))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new SubscriptionDescriptor(
+        SubscriptionDescriptor events = new SubscriptionDescriptor(
                 "sub-1", "user-1", "/topic/rooms/room-1/room-events",
-                DestinationKind.TOPIC_ROOM_EVENTS, "room-1", 0L))
+                DestinationKind.TOPIC_ROOM_EVENTS, "room-1", 0L);
+        SubscriptionDescriptor receipts = new SubscriptionDescriptor(
+                "sub-2", "user-1",
+                "/topic/rooms/room-1/read-receipts",
+                DestinationKind.TOPIC_ROOM_READ_RECEIPTS,
+                "room-1", 0L);
+        assertThat(events.messageVisibleAfterSequence()).isZero();
+        assertThat(receipts.messageVisibleAfterSequence()).isZero();
+        assertThatThrownBy(() -> new SubscriptionDescriptor(
+                "sub-3", "user-1", "/user/queue/system-events",
+                DestinationKind.USER_SYSTEM_EVENTS, null, 0L))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

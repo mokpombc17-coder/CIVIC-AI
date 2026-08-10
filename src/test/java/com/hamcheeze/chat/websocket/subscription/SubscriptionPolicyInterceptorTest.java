@@ -49,18 +49,38 @@ class SubscriptionPolicyInterceptorTest {
     }
 
     @Test
-    void disabledReadReceiptSkipsAuthorizationAndRegistry() {
+    void readReceiptTopicUsesRoomAuthorizationAndRegistry() {
+        when(authorization.authorizeSubscription(
+                "user-1", "room-1"))
+                .thenReturn(RoomAuthorizationDecision.ALLOWED);
+        when(messageAccessResolver.resolve("user-1", "room-1"))
+                .thenReturn(RoomMessageAccess.allowed(
+                        "membership-1", 3, 100));
+        when(registry.register(eq("connection-1"), any()))
+                .thenReturn(SubscriptionRegistrationResult.accepted());
         Message<byte[]> message = subscribe(
                 "/topic/rooms/room-1/read-receipts");
 
-        assertThat(interceptor.preSend(message, null)).isNull();
-        verifyNoInteractions(authorization, registry);
-        ArgumentCaptor<SubscriptionRejected> result =
-                ArgumentCaptor.forClass(SubscriptionRejected.class);
-        verify(sender).send(
-                eq("user-1"), eq("connection-1"), result.capture());
-        assertThat(result.getValue().code())
-                .isEqualTo(SubscriptionRejectedCode.DESTINATION_DISABLED);
+        assertThat(interceptor.preSend(message, null))
+                .isSameAs(message);
+        verify(authorization)
+                .authorizeSubscription("user-1", "room-1");
+        verify(messageAccessResolver, org.mockito.Mockito.times(2))
+                .resolve("user-1", "room-1");
+        ArgumentCaptor<SubscriptionDescriptor> descriptor =
+                ArgumentCaptor.forClass(SubscriptionDescriptor.class);
+        verify(registry).register(
+                eq("connection-1"), descriptor.capture());
+        assertThat(descriptor.getValue().kind()).isEqualTo(
+                com.hamcheeze.chat.websocket.protocol.DestinationKind
+                        .TOPIC_ROOM_READ_RECEIPTS);
+        assertThat(descriptor.getValue().membershipId())
+                .isEqualTo("membership-1");
+        assertThat(descriptor.getValue().membershipVersion())
+                .isEqualTo(3);
+        assertThat(descriptor.getValue().messageVisibleAfterSequence())
+                .isEqualTo(100);
+        verifyNoInteractions(sender);
     }
 
     @Test
@@ -74,7 +94,7 @@ class SubscriptionPolicyInterceptorTest {
                 ThrowingMeterRegistry.counter(
                         "stomp.subscriptions.rejected"));
         Message<byte[]> message = subscribe(
-                "/topic/rooms/room-1/read-receipts");
+                "/topic/rooms/room-1/unknown");
 
         assertThat(interceptor.preSend(message, null)).isNull();
 

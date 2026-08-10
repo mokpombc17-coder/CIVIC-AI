@@ -405,7 +405,7 @@ class WebSocketRoomAccessRevokerTest {
     }
 
     @Test
-    void staleRevocationPreservesNewEventOnlySubscriptionAndClosesRevokedOne()
+    void staleRevocationClosesEventOnlySubscriptionWithOldBoundary()
             throws Exception {
         ActualFixture fixture = new ActualFixture();
         WebSocketSession session =
@@ -419,28 +419,15 @@ class WebSocketRoomAccessRevokerTest {
                         "/topic/rooms/room-1/room-events",
                         DestinationKind.TOPIC_ROOM_EVENTS,
                         "room-1",
-                        null));
+                        100L));
 
         assertThat(fixture.revoker.revokeStaleUserRoomAccess(
                 "user-1",
                 "room-1",
                 150L,
                 RoomAccessRevocationReason.MEMBERSHIP_REJOINED))
-                .isEqualTo(RoomAccessRevocationSummary.noOp());
-        verify(session, never()).close(
-                org.mockito.ArgumentMatchers.any());
-
-        fixture.subscriptions.markRoomAccessRevoked(
-                "connection-1", "room-1");
-
-        RoomAccessRevocationSummary summary =
-                fixture.revoker.revokeStaleUserRoomAccess(
-                        "user-1",
-                        "room-1",
-                        150L,
-                        RoomAccessRevocationReason.MEMBERSHIP_REJOINED);
-
-        assertThat(summary.closedConnections()).isOne();
+                .extracting(RoomAccessRevocationSummary::closedConnections)
+                .isEqualTo(1);
         verify(session).close(
                 WebSocketRoomAccessRevoker.ROOM_ACCESS_REVOKED);
     }

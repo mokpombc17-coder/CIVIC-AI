@@ -354,6 +354,12 @@ class RoomEventWebSocketIntegrationTest
                             + "/room-events",
                     collectingHandler(
                             new LinkedBlockingQueue<>()));
+            session.subscribe(
+                    "/topic/rooms/"
+                            + roomId
+                            + "/read-receipts",
+                    collectingHandler(
+                            new LinkedBlockingQueue<>()));
 
             String requestId = uuid();
             session.send(

@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
 import java.security.Principal;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Component
 public final class SubscriptionPolicyInterceptor
@@ -84,11 +85,11 @@ public final class SubscriptionPolicyInterceptor
         DestinationDescriptor descriptor = destinationPolicy.classify(destination);
 
         if (!allowedSubscribeKind(descriptor.kind())) {
-            SubscriptionRejectedCode code =
-                    descriptor.kind() == DestinationKind.TOPIC_READ_RECEIPTS_DISABLED
-                            ? SubscriptionRejectedCode.DESTINATION_DISABLED
-                            : SubscriptionRejectedCode.INVALID_DESTINATION;
-            reject(userId, connectionId, destination, code);
+            reject(
+                    userId,
+                    connectionId,
+                    destination,
+                    SubscriptionRejectedCode.INVALID_DESTINATION);
             return null;
         }
 
@@ -127,6 +128,23 @@ public final class SubscriptionPolicyInterceptor
                         SubscriptionRejectedCode.ROOM_AUTHORIZATION_UNAVAILABLE);
                 return null;
             }
+            messageAccess = messageAccessResolver.resolve(
+                    userId,
+                    descriptor.roomId());
+            if (messageAccess.decision()
+                    != RoomAuthorizationDecision.ALLOWED) {
+                reject(
+                        userId,
+                        connectionId,
+                        destination,
+                        messageAccess.decision()
+                                == RoomAuthorizationDecision.FORBIDDEN
+                                ? SubscriptionRejectedCode
+                                .ROOM_SUBSCRIPTION_FORBIDDEN
+                                : SubscriptionRejectedCode
+                                .ROOM_AUTHORIZATION_UNAVAILABLE);
+                return null;
+            }
         }
 
         SubscriptionRegistrationResult registration = subscriptions.register(
@@ -138,9 +156,13 @@ public final class SubscriptionPolicyInterceptor
                         descriptor.kind(),
                         descriptor.roomId(),
                         messageAccess == null
-                                ? null
-                                : messageAccess
-                                .messageVisibleAfterSequence()));
+                                ? null : messageAccess.membershipId(),
+                        messageAccess == null
+                                ? null : messageAccess.membershipVersion(),
+                        messageAccess == null
+                                ? null : messageAccess
+                                .messageVisibleAfterSequence(),
+                        false));
         if (!registration.registered()) {
             reject(
                     userId, connectionId, destination,
@@ -154,8 +176,9 @@ public final class SubscriptionPolicyInterceptor
                             descriptor.roomId());
             if (secondAccess.decision()
                     != RoomAuthorizationDecision.ALLOWED
-                    || !secondAccess.messageVisibleAfterSequence().equals(
-                    messageAccess.messageVisibleAfterSequence())) {
+                    || !sameMembershipContext(
+                    messageAccess,
+                    secondAccess)) {
                 subscriptions.remove(
                         connectionId,
                         accessor.getSubscriptionId());
@@ -172,11 +195,15 @@ public final class SubscriptionPolicyInterceptor
                 return null;
             }
         } else if (descriptor.roomScoped()) {
-            RoomAuthorizationDecision decision =
-                    roomAuthorizationService.authorizeSubscription(
+            RoomMessageAccess secondAccess =
+                    messageAccessResolver.resolve(
                             userId,
                             descriptor.roomId());
-            if (decision != RoomAuthorizationDecision.ALLOWED) {
+            if (secondAccess.decision()
+                    != RoomAuthorizationDecision.ALLOWED
+                    || !sameMembershipContext(
+                    messageAccess,
+                    secondAccess)) {
                 subscriptions.remove(
                         connectionId,
                         accessor.getSubscriptionId());
@@ -184,7 +211,8 @@ public final class SubscriptionPolicyInterceptor
                         userId,
                         connectionId,
                         destination,
-                        decision == RoomAuthorizationDecision.FORBIDDEN
+                        secondAccess.decision()
+                                == RoomAuthorizationDecision.FORBIDDEN
                                 ? SubscriptionRejectedCode
                                 .ROOM_SUBSCRIPTION_FORBIDDEN
                                 : SubscriptionRejectedCode
@@ -193,6 +221,19 @@ public final class SubscriptionPolicyInterceptor
             }
         }
         return message;
+    }
+
+    private static boolean sameMembershipContext(
+            RoomMessageAccess first,
+            RoomMessageAccess second
+    ) {
+        return Objects.equals(
+                first.membershipId(), second.membershipId())
+                && Objects.equals(
+                first.membershipVersion(), second.membershipVersion())
+                && Objects.equals(
+                first.messageVisibleAfterSequence(),
+                second.messageVisibleAfterSequence());
     }
 
     private void reject(
@@ -218,6 +259,7 @@ public final class SubscriptionPolicyInterceptor
     private static boolean allowedSubscribeKind(DestinationKind kind) {
         return kind == DestinationKind.TOPIC_ROOM_MESSAGES
                 || kind == DestinationKind.TOPIC_ROOM_EVENTS
+                || kind == DestinationKind.TOPIC_ROOM_READ_RECEIPTS
                 || kind == DestinationKind.USER_COMMAND_RESULTS
                 || kind == DestinationKind.USER_SYSTEM_EVENTS
                 || kind == DestinationKind.USER_ROOM_INBOX_EVENTS;

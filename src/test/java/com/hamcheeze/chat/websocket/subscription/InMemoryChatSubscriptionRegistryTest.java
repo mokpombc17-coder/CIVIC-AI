@@ -25,7 +25,7 @@ class InMemoryChatSubscriptionRegistryTest {
     }
 
     @Test
-    void countsTwoDestinationsInOneRoomAsOneRoomSubscriber() {
+    void countsThreeDestinationsInOneRoomAsOneRoomSubscriber() {
         assertThat(registry.register(
                 "connection-1",
                 descriptor("sub-1", "room-1", "messages")).registered())
@@ -34,8 +34,13 @@ class InMemoryChatSubscriptionRegistryTest {
                 "connection-1",
                 descriptor("sub-2", "room-1", "events")).registered())
                 .isTrue();
+        assertThat(registry.register(
+                "connection-1",
+                descriptor(
+                        "sub-3", "room-1", "read-receipts"))
+                .registered()).isTrue();
 
-        assertThat(registry.activeSubscriptionCount()).isEqualTo(2);
+        assertThat(registry.activeSubscriptionCount()).isEqualTo(3);
         assertThat(registry.activeRoomSubscriberCount()).isOne();
         assertThat(registry.hasRoomSubscription(
                 "connection-1",
@@ -51,6 +56,12 @@ class InMemoryChatSubscriptionRegistryTest {
                 "user-1",
                 "room-1",
                 DestinationKind.TOPIC_ROOM_EVENTS))
+                .isTrue();
+        assertThat(registry.hasRoomSubscription(
+                "connection-1",
+                "user-1",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_READ_RECEIPTS))
                 .isTrue();
         assertThat(registry.hasRoomSubscription(
                 "connection-1",
@@ -332,20 +343,19 @@ class InMemoryChatSubscriptionRegistryTest {
     }
 
     @Test
-    void preservesNewEventOnlySubscriptionButClosesRevokedEventOnlyAccess() {
+    void revokesEventOnlySubscriptionWithStaleBoundary() {
         registry.register(
                 "connection-1",
                 descriptor("sub-events", "room-1", "events"));
 
         assertThat(registry.markStaleRoomAccessRevoked(
                 "connection-1", "user-1", "room-1", 150L))
-                .isFalse();
-
-        registry.markRoomAccessRevoked("connection-1", "room-1");
-
-        assertThat(registry.markStaleRoomAccessRevoked(
-                "connection-1", "user-1", "room-1", 150L))
                 .isTrue();
+        assertThat(registry.find(
+                "connection-1", "sub-events"))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(true);
     }
 
     private static SubscriptionDescriptor descriptor(
@@ -378,12 +388,15 @@ class InMemoryChatSubscriptionRegistryTest {
     }
 
     private static DestinationKind kind(String suffix) {
-        return "events".equals(suffix)
-                ? DestinationKind.TOPIC_ROOM_EVENTS
-                : DestinationKind.TOPIC_ROOM_MESSAGES;
+        return switch (suffix) {
+            case "events" -> DestinationKind.TOPIC_ROOM_EVENTS;
+            case "read-receipts" ->
+                    DestinationKind.TOPIC_ROOM_READ_RECEIPTS;
+            default -> DestinationKind.TOPIC_ROOM_MESSAGES;
+        };
     }
 
     private static Long boundary(String suffix) {
-        return "events".equals(suffix) ? null : 100L;
+        return 100L;
     }
 }

@@ -27,22 +27,23 @@ class SubscriptionLimitPropertiesTest {
     }
 
     @Test
-    void acceptsFiveAsMinimum() {
+    void acceptsSixAsMinimum() {
         contextRunner
                 .withPropertyValues(
                         "chat.websocket.subscription."
-                                + "max-subscriptions-per-connection=5")
+                                + "max-subscriptions-per-connection=6")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean(
                             SubscriptionLimitProperties.class)
                             .getMaxSubscriptionsPerConnection())
-                            .isEqualTo(5);
+                            .isEqualTo(6);
                 });
     }
 
     @Test
-    void rejectsValuesBelowFiveDuringStartupBinding() {
+    void rejectsValuesBelowSixDuringStartupBinding() {
+        assertInvalid("5");
         assertInvalid("4");
         assertInvalid("1");
     }

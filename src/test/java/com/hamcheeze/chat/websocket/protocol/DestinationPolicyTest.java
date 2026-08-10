@@ -19,7 +19,7 @@ class DestinationPolicyTest {
             "/app/rooms/room-1/subscriptions/sync,APP_ROOM_SUBSCRIPTION_SYNC,room-1",
             "/topic/rooms/room-1/messages,TOPIC_ROOM_MESSAGES,room-1",
             "/topic/rooms/room-1/room-events,TOPIC_ROOM_EVENTS,room-1",
-            "/topic/rooms/room-1/read-receipts,TOPIC_READ_RECEIPTS_DISABLED,room-1",
+            "/topic/rooms/room-1/read-receipts,TOPIC_ROOM_READ_RECEIPTS,room-1",
             "/user/queue/command-results,USER_COMMAND_RESULTS,NULL",
             "/user/queue/system-events,USER_SYSTEM_EVENTS,NULL",
             "/user/queue/room-inbox-events,USER_ROOM_INBOX_EVENTS,NULL",

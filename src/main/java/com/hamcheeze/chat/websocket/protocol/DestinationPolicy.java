@@ -78,7 +78,7 @@ public final class DestinationPolicy {
             }
             return roomDestination(
                     destination, TOPIC_PREFIX, "/read-receipts",
-                    DestinationKind.TOPIC_READ_RECEIPTS_DISABLED);
+                    DestinationKind.TOPIC_ROOM_READ_RECEIPTS);
         }
         return invalid(destination);
     }

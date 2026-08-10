@@ -30,6 +30,8 @@ public final class RoomMessageAccessResolver {
                 return RoomMessageAccess.forbidden();
             }
             return RoomMessageAccess.allowed(
+                    snapshot.membershipId(),
+                    snapshot.membershipVersion(),
                     snapshot.messageVisibleAfterSequence());
         } catch (RuntimeException exception) {
             return RoomMessageAccess.unavailable();

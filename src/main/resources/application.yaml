@@ -73,7 +73,6 @@ chat:
       max-subscribers-per-room: 50
       reject-duplicate-destination: true
       allow-wildcard-destination: false
-      read-receipts-enabled: false
 
     rate-limit:
       user:

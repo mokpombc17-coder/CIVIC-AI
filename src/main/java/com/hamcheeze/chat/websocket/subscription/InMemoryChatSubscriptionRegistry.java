@@ -236,35 +236,16 @@ public final class InMemoryChatSubscriptionRegistry
             if (subscriptions == null) {
                 return false;
             }
-            SubscriptionDescriptor messages = subscriptions.values()
-                    .stream()
+            boolean stale = subscriptions.values().stream()
                     .filter(descriptor ->
                             userId.equals(descriptor.userId())
-                                    && roomId.equals(
-                                    descriptor.roomId())
-                                    && descriptor.kind()
-                                    == DestinationKind
-                                    .TOPIC_ROOM_MESSAGES)
-                    .findFirst()
-                    .orElse(null);
-            SubscriptionDescriptor events = subscriptions.values()
-                    .stream()
-                    .filter(descriptor ->
-                            userId.equals(descriptor.userId())
-                                    && roomId.equals(
-                                    descriptor.roomId())
-                                    && descriptor.kind()
-                                    == DestinationKind
-                                    .TOPIC_ROOM_EVENTS)
-                    .findFirst()
-                    .orElse(null);
-            boolean stale = messages != null
-                    ? messages.roomAccessRevoked()
-                    || messages.messageVisibleAfterSequence()
-                    != currentMessageVisibleAfterSequence
-                    || events != null
-                    && events.roomAccessRevoked()
-                    : events != null && events.roomAccessRevoked();
+                                    && roomId.equals(descriptor.roomId())
+                                    && roomScoped(descriptor.kind()))
+                    .anyMatch(descriptor ->
+                            descriptor.roomAccessRevoked()
+                                    || descriptor
+                                    .messageVisibleAfterSequence()
+                                    != currentMessageVisibleAfterSequence);
             if (!stale) {
                 return false;
             }
@@ -387,7 +368,8 @@ public final class InMemoryChatSubscriptionRegistry
 
     private static boolean roomScoped(DestinationKind kind) {
         return kind == DestinationKind.TOPIC_ROOM_MESSAGES
-                || kind == DestinationKind.TOPIC_ROOM_EVENTS;
+                || kind == DestinationKind.TOPIC_ROOM_EVENTS
+                || kind == DestinationKind.TOPIC_ROOM_READ_RECEIPTS;
     }
 
     private void removeRoomConnection(String roomId, String connectionId) {

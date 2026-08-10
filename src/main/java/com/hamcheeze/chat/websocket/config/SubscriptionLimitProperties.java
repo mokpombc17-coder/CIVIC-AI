@@ -12,7 +12,7 @@ public class SubscriptionLimitProperties {
 
     @Min(1)
     private int maxActiveRoomsPerConnection = 1;
-    @Min(5)
+    @Min(6)
     private int maxSubscriptionsPerConnection = 6;
     @Min(1)
     private int maxSubscribersPerRoom = 50;
@@ -20,8 +20,6 @@ public class SubscriptionLimitProperties {
     private boolean rejectDuplicateDestination = true;
     @AssertFalse
     private boolean allowWildcardDestination;
-    @AssertFalse
-    private boolean readReceiptsEnabled;
 
     public int getMaxActiveRoomsPerConnection() {
         return maxActiveRoomsPerConnection;
@@ -63,11 +61,4 @@ public class SubscriptionLimitProperties {
         this.allowWildcardDestination = value;
     }
 
-    public boolean isReadReceiptsEnabled() {
-        return readReceiptsEnabled;
-    }
-
-    public void setReadReceiptsEnabled(boolean value) {
-        this.readReceiptsEnabled = value;
-    }
 }

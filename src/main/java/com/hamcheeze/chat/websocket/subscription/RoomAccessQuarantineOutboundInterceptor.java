@@ -84,6 +84,7 @@ public final class RoomAccessQuarantineOutboundInterceptor
 
     private static boolean roomScoped(DestinationKind kind) {
         return kind == DestinationKind.TOPIC_ROOM_MESSAGES
-                || kind == DestinationKind.TOPIC_ROOM_EVENTS;
+                || kind == DestinationKind.TOPIC_ROOM_EVENTS
+                || kind == DestinationKind.TOPIC_ROOM_READ_RECEIPTS;
     }
 }

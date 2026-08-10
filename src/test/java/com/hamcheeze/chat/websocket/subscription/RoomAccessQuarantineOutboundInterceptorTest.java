@@ -30,7 +30,7 @@ class RoomAccessQuarantineOutboundInterceptorTest {
     }
 
     @Test
-    void dropsRevokedMessagesAndRoomEvents() {
+    void dropsRevokedRoomTopics() {
         register(messages(true));
         Message<byte[]> message = roomMessage(
                 "sub-1", "/topic/rooms/room-1/messages");
@@ -40,10 +40,15 @@ class RoomAccessQuarantineOutboundInterceptorTest {
         Message<byte[]> event = roomMessage(
                 "sub-1", "/topic/rooms/room-1/room-events");
         assertThat(interceptor.preSend(event, null)).isNull();
+
+        register(readReceipts(true));
+        Message<byte[]> receipts = roomMessage(
+                "sub-1", "/topic/rooms/room-1/read-receipts");
+        assertThat(interceptor.preSend(receipts, null)).isNull();
     }
 
     @Test
-    void passesNonRevokedMessagesAndRoomEvents() {
+    void passesNonRevokedRoomTopics() {
         register(messages(false));
         Message<byte[]> message = roomMessage(
                 "sub-1", "/topic/rooms/room-1/messages");
@@ -54,6 +59,12 @@ class RoomAccessQuarantineOutboundInterceptorTest {
         Message<byte[]> event = roomMessage(
                 "sub-1", "/topic/rooms/room-1/room-events");
         assertThat(interceptor.preSend(event, null)).isSameAs(event);
+
+        register(readReceipts(false));
+        Message<byte[]> receipts = roomMessage(
+                "sub-1", "/topic/rooms/room-1/read-receipts");
+        assertThat(interceptor.preSend(receipts, null))
+                .isSameAs(receipts);
     }
 
     @Test
@@ -137,7 +148,18 @@ class RoomAccessQuarantineOutboundInterceptorTest {
                 "/topic/rooms/room-1/room-events",
                 DestinationKind.TOPIC_ROOM_EVENTS,
                 "room-1",
-                null,
+                100L,
+                revoked);
+    }
+
+    private static SubscriptionDescriptor readReceipts(boolean revoked) {
+        return new SubscriptionDescriptor(
+                "sub-1",
+                "user-1",
+                "/topic/rooms/room-1/read-receipts",
+                DestinationKind.TOPIC_ROOM_READ_RECEIPTS,
+                "room-1",
+                100L,
                 revoked);
     }
 

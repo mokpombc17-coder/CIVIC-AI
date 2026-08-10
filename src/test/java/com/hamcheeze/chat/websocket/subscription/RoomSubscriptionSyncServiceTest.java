@@ -82,7 +82,7 @@ class RoomSubscriptionSyncServiceTest {
     }
 
     @Test
-    void rejectsWhenEitherRoomTopicIsMissing() {
+    void rejectsWhenReadReceiptTopicIsMissing() {
         when(subscriptions.findRoomSubscription(
                 "connection-1",
                 "user-1",
@@ -94,7 +94,7 @@ class RoomSubscriptionSyncServiceTest {
                 "user-1",
                 "room-1",
                 DestinationKind.TOPIC_ROOM_EVENTS))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.of(events(100, false)));
 
         service.synchronize(
                 "user-1",
@@ -108,6 +108,48 @@ class RoomSubscriptionSyncServiceTest {
                 RoomSubscriptionSyncErrorCode
                         .ROOM_SUBSCRIPTIONS_NOT_READY);
         assertThat(rejected.retryable()).isFalse();
+        verifyNoInteractions(accessResolver, historyReader);
+    }
+
+    @Test
+    void rejectsWhenRoomEventTopicIsMissing() {
+        when(subscriptions.findRoomSubscription(
+                "connection-1", "user-1", "room-1",
+                DestinationKind.TOPIC_ROOM_MESSAGES))
+                .thenReturn(Optional.of(messages(100, false)));
+        when(subscriptions.findRoomSubscription(
+                "connection-1", "user-1", "room-1",
+                DestinationKind.TOPIC_ROOM_READ_RECEIPTS))
+                .thenReturn(Optional.of(readReceipts(100, false)));
+
+        service.synchronize(
+                "user-1", "connection-1", "room-1",
+                new RoomSubscriptionSyncRequest(REQUEST_ID));
+
+        assertThat(captureRejected().code()).isEqualTo(
+                RoomSubscriptionSyncErrorCode
+                        .ROOM_SUBSCRIPTIONS_NOT_READY);
+        verifyNoInteractions(accessResolver, historyReader);
+    }
+
+    @Test
+    void rejectsWhenMessageTopicIsMissing() {
+        when(subscriptions.findRoomSubscription(
+                "connection-1", "user-1", "room-1",
+                DestinationKind.TOPIC_ROOM_EVENTS))
+                .thenReturn(Optional.of(events(100, false)));
+        when(subscriptions.findRoomSubscription(
+                "connection-1", "user-1", "room-1",
+                DestinationKind.TOPIC_ROOM_READ_RECEIPTS))
+                .thenReturn(Optional.of(readReceipts(100, false)));
+
+        service.synchronize(
+                "user-1", "connection-1", "room-1",
+                new RoomSubscriptionSyncRequest(REQUEST_ID));
+
+        assertThat(captureRejected().code()).isEqualTo(
+                RoomSubscriptionSyncErrorCode
+                        .ROOM_SUBSCRIPTIONS_NOT_READY);
         verifyNoInteractions(accessResolver, historyReader);
     }
 
@@ -132,7 +174,7 @@ class RoomSubscriptionSyncServiceTest {
     }
 
     @Test
-    void rejectsRevokedMessagesOrRoomEventsAsStale() {
+    void rejectsAnyRevokedRoomTopicAsStale() {
         when(accessResolver.resolve("user-1", "room-1"))
                 .thenReturn(RoomMessageAccess.allowed(100));
         allowRequiredSubscriptions(100, true, false);
@@ -148,6 +190,18 @@ class RoomSubscriptionSyncServiceTest {
 
         org.mockito.Mockito.reset(subscriptions, resultSender);
         allowRequiredSubscriptions(100, false, true);
+
+        service.synchronize(
+                "user-1",
+                "connection-1",
+                "room-1",
+                new RoomSubscriptionSyncRequest(REQUEST_ID));
+
+        assertThat(captureRejected().code()).isEqualTo(
+                RoomSubscriptionSyncErrorCode.ROOM_SUBSCRIPTION_STALE);
+
+        org.mockito.Mockito.reset(subscriptions, resultSender);
+        allowRequiredSubscriptions(100, false, false, true);
 
         service.synchronize(
                 "user-1",
@@ -253,13 +307,26 @@ class RoomSubscriptionSyncServiceTest {
     }
 
     private void allowRequiredSubscriptions(long boundary) {
-        allowRequiredSubscriptions(boundary, false, false);
+        allowRequiredSubscriptions(boundary, false, false, false);
     }
 
     private void allowRequiredSubscriptions(
             long boundary,
             boolean messagesRevoked,
             boolean eventsRevoked
+    ) {
+        allowRequiredSubscriptions(
+                boundary,
+                messagesRevoked,
+                eventsRevoked,
+                false);
+    }
+
+    private void allowRequiredSubscriptions(
+            long boundary,
+            boolean messagesRevoked,
+            boolean eventsRevoked,
+            boolean readReceiptsRevoked
     ) {
         when(subscriptions.findRoomSubscription(
                 "connection-1",
@@ -273,7 +340,15 @@ class RoomSubscriptionSyncServiceTest {
                 "user-1",
                 "room-1",
                 DestinationKind.TOPIC_ROOM_EVENTS))
-                .thenReturn(Optional.of(events(eventsRevoked)));
+                .thenReturn(Optional.of(events(
+                        boundary, eventsRevoked)));
+        when(subscriptions.findRoomSubscription(
+                "connection-1",
+                "user-1",
+                "room-1",
+                DestinationKind.TOPIC_ROOM_READ_RECEIPTS))
+                .thenReturn(Optional.of(readReceipts(
+                        boundary, readReceiptsRevoked)));
     }
 
     private static SubscriptionDescriptor messages(
@@ -290,14 +365,31 @@ class RoomSubscriptionSyncServiceTest {
                 revoked);
     }
 
-    private static SubscriptionDescriptor events(boolean revoked) {
+    private static SubscriptionDescriptor events(
+            long boundary,
+            boolean revoked
+    ) {
         return new SubscriptionDescriptor(
                 "sub-events",
                 "user-1",
                 "/topic/rooms/room-1/room-events",
                 DestinationKind.TOPIC_ROOM_EVENTS,
                 "room-1",
-                null,
+                boundary,
+                revoked);
+    }
+
+    private static SubscriptionDescriptor readReceipts(
+            long boundary,
+            boolean revoked
+    ) {
+        return new SubscriptionDescriptor(
+                "sub-read-receipts",
+                "user-1",
+                "/topic/rooms/room-1/read-receipts",
+                DestinationKind.TOPIC_ROOM_READ_RECEIPTS,
+                "room-1",
+                boundary,
                 revoked);
     }
 
