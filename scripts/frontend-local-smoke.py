@@ -582,6 +582,10 @@ def run_websocket_flow(
                 settings_event = document
         if settings_event is None:
             raise AssertionError("ROOM_SETTINGS_UPDATED 이벤트를 받지 못했습니다.")
+        if settings_event.get("eventVersion") != 2:
+            raise AssertionError(
+                f"Room event 버전이 올바르지 않습니다: {settings_event}"
+            )
         settings_payload = settings_event["payload"]
         if (
             settings_payload.get("name") != updated_room_name

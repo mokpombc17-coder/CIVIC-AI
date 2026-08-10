@@ -141,7 +141,7 @@ class SimpleBrokerRoomEventDeliveryAdapterTest {
 
     private static RoomEventEnvelope event() {
         return new RoomEventEnvelope(
-                1,
+                RoomEventEnvelope.CURRENT_VERSION,
                 "550e8400-e29b-41d4-a716-446655440000",
                 RoomEventType.ROOM_MEMBER_JOINED,
                 Instant.parse("2026-07-28T10:00:00Z"),
@@ -151,7 +151,6 @@ class SimpleBrokerRoomEventDeliveryAdapterTest {
                         RoomStatus.ACTIVE,
                         new RoomMemberState(
                                 "membership-1",
-                                "user-1",
                                 MembershipRole.MEMBER,
                                 MembershipStatus.ACTIVE,
                                 0)));

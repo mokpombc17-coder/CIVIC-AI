@@ -19,7 +19,7 @@ class RoomEventModelTest {
             Instant.parse("2026-07-28T10:00:00Z");
 
     @Test
-    void serializesVersionedPublicEnvelopeWithMemberUserIdentity()
+    void serializesVersionedPublicEnvelopeWithMembershipIdentityOnly()
             throws Exception {
         RoomEventEnvelope event = new RoomEventEnvelope(
                 RoomEventEnvelope.CURRENT_VERSION,
@@ -40,15 +40,15 @@ class RoomEventModelTest {
                 .writeValueAsString(event);
 
         assertThat(json)
-                .contains("\"eventVersion\":1")
+                .contains("\"eventVersion\":2")
                 .contains("\"eventId\":\"" + EVENT_ID + "\"")
                 .contains("\"eventType\":\"ROOM_MEMBER_JOINED\"")
                 .contains("\"emittedAt\":\"2026-07-28T10:00:00Z\"")
                 .contains("\"roomId\":\"room-1\"")
                 .contains("\"roomVersion\":4")
                 .contains("\"membershipId\":\"membership-1\"")
-                .contains("\"userId\":\"user-1\"")
                 .contains("\"membershipVersion\":0")
+                .doesNotContain("userId")
                 .doesNotContain("actorUserId")
                 .doesNotContain("targetUserId")
                 .doesNotContain("ownerUserId")
@@ -118,19 +118,11 @@ class RoomEventModelTest {
                         0))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new RoomMemberState(
                 " ",
-                "user-1",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
                 0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new RoomMemberState(
                 "membership-1",
-                " ",
-                MembershipRole.MEMBER,
-                MembershipStatus.ACTIVE,
-                0)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new RoomMemberState(
-                "membership-1",
-                "user-1",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
                 -1)).isInstanceOf(IllegalArgumentException.class);
@@ -175,7 +167,7 @@ class RoomEventModelTest {
             RoomEventPayload payload
     ) {
         return new RoomEventEnvelope(
-                1,
+                RoomEventEnvelope.CURRENT_VERSION,
                 EVENT_ID,
                 eventType,
                 EMITTED_AT,
@@ -189,7 +181,6 @@ class RoomEventModelTest {
     ) {
         return new RoomMemberState(
                 "membership-1",
-                "user-1",
                 role,
                 status,
                 version);

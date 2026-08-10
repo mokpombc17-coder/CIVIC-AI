@@ -135,7 +135,7 @@ class RoomEventWebSocketIntegrationTest
             JsonNode roomEvent = objectMapper.readTree(roomBytes);
             JsonNode userEvent = objectMapper.readTree(userBytes);
             assertThat(roomEvent.get("eventVersion").asInt())
-                    .isEqualTo(1);
+                    .isEqualTo(2);
             assertThat(roomEvent.get("eventType").asText())
                     .isEqualTo("ROOM_MEMBER_JOINED");
             assertThat(roomEvent.get("eventId").asText())
@@ -150,14 +150,14 @@ class RoomEventWebSocketIntegrationTest
                     .isEqualTo(joined.result().membershipVersion());
             assertThat(roomEvent.get("payload")
                     .get("member")
-                    .get("userId")
+                    .get("membershipId")
                     .asText())
-                    .isEqualTo("user-2");
+                    .isEqualTo(joined.result().membershipId());
             String publicJson = new String(
                     roomBytes,
                     StandardCharsets.UTF_8);
             assertThat(publicJson)
-                    .contains("\"userId\":\"user-2\"")
+                    .doesNotContain("userId")
                     .doesNotContain("owner-1")
                     .doesNotContain("clientRequestId");
         } finally {

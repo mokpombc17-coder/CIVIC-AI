@@ -1543,7 +1543,7 @@ export 또는 backup, 실시간 이벤트 유실 수용 기록을 갖춘 별도 
 
 ```json
 {
-  "eventVersion": 1,
+  "eventVersion": 2,
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "eventType": "ROOM_MEMBER_JOINED",
   "emittedAt": "2026-07-29T04:41:00Z",
@@ -1553,7 +1553,6 @@ export 또는 backup, 실시간 이벤트 유실 수용 기록을 갖춘 별도 
     "roomStatus": "ACTIVE",
     "member": {
       "membershipId": "membership-02",
-      "userId": "local-user-2",
       "role": "MEMBER",
       "status": "ACTIVE",
       "membershipVersion": 1
@@ -1586,14 +1585,15 @@ payload 형태:
 | `ROOM_CLOSED` | `owner` |
 | `ROOM_SETTINGS_UPDATED` | `name`, `description`, `categories`, `visibility`, `joinPolicy` 전체 settings snapshot |
 
-모든 `member`, `owner`, `previousOwner`, `newOwner` 상태 객체에는 플랫폼 사용자 식별자인
-`userId`와 방 멤버십 식별자인 `membershipId`가 함께 포함됩니다.
+모든 `member`, `owner`, `previousOwner`, `newOwner` 상태 객체는 Room 범위
+참여자 식별자인 필수 `membershipId`만 노출하며 `userId`는 포함하지 않는다.
+서버 내부의 개인 queue routing과 접근 회수에는 계속 `userId`를 사용한다.
 
 `ROOM_SETTINGS_UPDATED` 예:
 
 ```json
 {
-  "eventVersion": 1,
+  "eventVersion": 2,
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "eventType": "ROOM_SETTINGS_UPDATED",
   "emittedAt": "2026-07-31T06:00:00Z",
