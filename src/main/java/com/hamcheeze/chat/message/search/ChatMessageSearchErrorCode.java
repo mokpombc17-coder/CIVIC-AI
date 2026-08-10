@@ -2,6 +2,7 @@ package com.hamcheeze.chat.message.search;
 
 public enum ChatMessageSearchErrorCode {
     INVALID_CURSOR,
+    MESSAGE_NOT_FOUND,
     ACCESS_DENIED,
     MESSAGE_SEARCH_NOT_AVAILABLE,
     MESSAGE_SEARCH_RATE_LIMITED,

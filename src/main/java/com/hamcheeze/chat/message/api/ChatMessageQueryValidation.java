@@ -13,6 +13,8 @@ final class ChatMessageQueryValidation {
 
     private static final Pattern ROOM_ID =
             Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
+    private static final Pattern MESSAGE_ID =
+            Pattern.compile("^[A-Za-z0-9_-]{1,128}$");
 
     private ChatMessageQueryValidation() {
     }
@@ -26,6 +28,31 @@ final class ChatMessageQueryValidation {
                     "roomId has an invalid format");
         }
         return roomId;
+    }
+
+    static String messageId(String messageId) {
+        if (messageId == null
+                || !MESSAGE_ID.matcher(messageId).matches()) {
+            throw new RoomApiInputException(
+                    RoomApiErrorCode.INVALID_REQUEST,
+                    HttpStatus.BAD_REQUEST,
+                    "messageId has an invalid format");
+        }
+        return messageId;
+    }
+
+    static int contextWindow(
+            Integer value,
+            String fieldName
+    ) {
+        int resolved = value == null ? 20 : value;
+        if (resolved < 0 || resolved > 50) {
+            throw new RoomApiInputException(
+                    RoomApiErrorCode.INVALID_REQUEST,
+                    HttpStatus.BAD_REQUEST,
+                    fieldName + " must be between 0 and 50");
+        }
+        return resolved;
     }
 
     static void cursors(

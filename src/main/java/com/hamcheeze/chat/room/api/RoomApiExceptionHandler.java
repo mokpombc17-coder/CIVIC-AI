@@ -155,6 +155,7 @@ public class RoomApiExceptionHandler {
     ) {
         HttpStatus status = switch (exception.code()) {
             case INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
+            case MESSAGE_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case ACCESS_DENIED -> HttpStatus.FORBIDDEN;
             case MESSAGE_SEARCH_NOT_AVAILABLE -> HttpStatus.CONFLICT;
             case MESSAGE_SEARCH_RATE_LIMITED ->
@@ -328,6 +329,7 @@ public class RoomApiExceptionHandler {
     ) {
         return switch (code) {
             case INVALID_CURSOR -> "The search cursor is invalid.";
+            case MESSAGE_NOT_FOUND -> "The message was not found.";
             case ACCESS_DENIED ->
                     "An active room membership is required.";
             case MESSAGE_SEARCH_NOT_AVAILABLE ->

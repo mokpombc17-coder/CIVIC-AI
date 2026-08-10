@@ -2,6 +2,8 @@ package com.hamcheeze.chat.message.api;
 
 import com.hamcheeze.chat.message.query.ChatMessageHistoryPage;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryService;
+import com.hamcheeze.chat.message.context.ChatMessageContext;
+import com.hamcheeze.chat.message.context.ChatMessageContextService;
 import com.hamcheeze.chat.message.search.ChatMessageSearchCriteria;
 import com.hamcheeze.chat.message.search.ChatMessageSearchNormalizer;
 import com.hamcheeze.chat.message.search.ChatMessageSearchPage;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChatMessageQueryController {
 
     private final ChatMessageHistoryService historyService;
+    private final ChatMessageContextService contextService;
     private final ChatMessageSearchService searchService;
     private final ChatMessageSearchNormalizer searchNormalizer;
     private final ChatMessageSearchProperties searchProperties;
@@ -34,12 +37,14 @@ public class ChatMessageQueryController {
 
     public ChatMessageQueryController(
             ChatMessageHistoryService historyService,
+            ChatMessageContextService contextService,
             ChatMessageSearchService searchService,
             ChatMessageSearchNormalizer searchNormalizer,
             ChatMessageSearchProperties searchProperties,
             AuthenticatedUserIdResolver userIdResolver
     ) {
         this.historyService = historyService;
+        this.contextService = contextService;
         this.searchService = searchService;
         this.searchNormalizer = searchNormalizer;
         this.searchProperties = searchProperties;
@@ -119,6 +124,36 @@ public class ChatMessageQueryController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(ChatMessageSearchResponse.from(page));
+    }
+
+    @GetMapping("/{messageId}/context")
+    public ResponseEntity<ChatMessageContextResponse> context(
+            Authentication authentication,
+            @PathVariable String roomId,
+            @PathVariable String messageId,
+            @RequestParam(required = false) Integer before,
+            @RequestParam(required = false) Integer after
+    ) {
+        String userId = userIdResolver.resolve(authentication);
+        String validatedRoomId = ChatMessageQueryValidation.roomId(
+                roomId);
+        String validatedMessageId = ChatMessageQueryValidation.messageId(
+                messageId);
+        int validatedBefore = ChatMessageQueryValidation.contextWindow(
+                before,
+                "before");
+        int validatedAfter = ChatMessageQueryValidation.contextWindow(
+                after,
+                "after");
+        ChatMessageContext context = contextService.find(
+                userId,
+                validatedRoomId,
+                validatedMessageId,
+                validatedBefore,
+                validatedAfter);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(ChatMessageContextResponse.from(context));
     }
 
     private RoomApiInputException invalidSearchRequest(
