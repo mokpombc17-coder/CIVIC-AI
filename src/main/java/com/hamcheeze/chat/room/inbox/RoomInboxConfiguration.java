@@ -9,6 +9,7 @@ import com.hamcheeze.chat.room.inbox.mongo.MongoUnreadCountReader;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaInitializer;
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
+import com.hamcheeze.chat.room.receipt.RoomReadPositionAdvanceObserver;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxEventDelivery;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxCurrentSummaryReader;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxNotificationPipeline;
@@ -77,6 +78,7 @@ public class RoomInboxConfiguration {
             RoomReadStateStore store,
             RoomReadPositionResolver readPositionResolver,
             RoomSequenceReader sequenceReader,
+            RoomReadPositionAdvanceObserver advanceObserver,
             MeterRegistry meterRegistry
     ) {
         return new RoomReadStateService(
@@ -84,6 +86,7 @@ public class RoomInboxConfiguration {
                 store,
                 readPositionResolver,
                 sequenceReader,
+                advanceObserver,
                 Clock.systemUTC(),
                 meterRegistry);
     }

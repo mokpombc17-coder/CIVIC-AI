@@ -6,18 +6,25 @@ import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
+import com.hamcheeze.chat.room.receipt.RoomReadPositionAdvanceObserver;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.util.Objects;
 
 public final class RoomReadStateService {
 
+    private static final Logger log = LoggerFactory.getLogger(
+            RoomReadStateService.class);
+
     private final RoomQueryReader roomReader;
     private final RoomReadStateStore readStateStore;
     private final RoomReadPositionResolver readPositionResolver;
     private final RoomSequenceReader sequenceReader;
+    private final RoomReadPositionAdvanceObserver advanceObserver;
     private final RoomInboxStorageExceptionClassifier
             storageExceptionClassifier;
     private final Clock clock;
@@ -33,6 +40,25 @@ public final class RoomReadStateService {
             Clock clock,
             MeterRegistry meterRegistry
     ) {
+        this(
+                roomReader,
+                readStateStore,
+                readPositionResolver,
+                sequenceReader,
+                RoomReadPositionAdvanceObserver.noop(),
+                clock,
+                meterRegistry);
+    }
+
+    public RoomReadStateService(
+            RoomQueryReader roomReader,
+            RoomReadStateStore readStateStore,
+            RoomReadPositionResolver readPositionResolver,
+            RoomSequenceReader sequenceReader,
+            RoomReadPositionAdvanceObserver advanceObserver,
+            Clock clock,
+            MeterRegistry meterRegistry
+    ) {
         this.roomReader = Objects.requireNonNull(
                 roomReader, "roomReader");
         this.readStateStore = Objects.requireNonNull(
@@ -41,6 +67,8 @@ public final class RoomReadStateService {
                 readPositionResolver, "readPositionResolver");
         this.sequenceReader = Objects.requireNonNull(
                 sequenceReader, "sequenceReader");
+        this.advanceObserver = Objects.requireNonNull(
+                advanceObserver, "advanceObserver");
         this.storageExceptionClassifier =
                 new RoomInboxStorageExceptionClassifier();
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -124,6 +152,10 @@ public final class RoomReadStateService {
             long result = advancedPosition
                     .effectiveReadThroughSequence();
             if (advance.updated()) {
+                notifyAdvanced(
+                        roomId,
+                        membership,
+                        advance.state().lastReadSequence());
                 BestEffortMetricRecorder.increment(
                         "room.read_state.updates", updatedCounter);
             } else {
@@ -153,6 +185,32 @@ public final class RoomReadStateService {
     private void recordNoop() {
         BestEffortMetricRecorder.increment(
                 "room.read_state.noops", noopCounter);
+    }
+
+    private void notifyAdvanced(
+            String roomId,
+            Membership membership,
+            long storedLastReadSequence
+    ) {
+        try {
+            advanceObserver.onAdvanced(
+                    roomId,
+                    membership.membershipId(),
+                    membership.version(),
+                    storedLastReadSequence);
+        } catch (RuntimeException exception) {
+            try {
+                log.warn(
+                        "Read position observer failed after cursor "
+                                + "persistence: roomId={}, membershipId={}, "
+                                + "exceptionClass={}",
+                        roomId,
+                        membership.membershipId(),
+                        exception.getClass().getName());
+            } catch (RuntimeException ignored) {
+                // Observability must not affect a successful read state.
+            }
+        }
     }
 
 }

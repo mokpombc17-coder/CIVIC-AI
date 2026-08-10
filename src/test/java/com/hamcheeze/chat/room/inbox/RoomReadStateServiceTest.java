@@ -8,6 +8,7 @@ import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
+import com.hamcheeze.chat.room.receipt.RoomReadPositionAdvanceObserver;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 class RoomReadStateServiceTest {
 
@@ -35,6 +37,7 @@ class RoomReadStateServiceTest {
     private RoomQueryReader roomReader;
     private RoomReadStateStore store;
     private RoomSequenceReader sequenceReader;
+    private RoomReadPositionAdvanceObserver advanceObserver;
     private RoomReadStateService service;
     private Membership membership;
 
@@ -43,11 +46,14 @@ class RoomReadStateServiceTest {
         roomReader = mock(RoomQueryReader.class);
         store = mock(RoomReadStateStore.class);
         sequenceReader = mock(RoomSequenceReader.class);
+        advanceObserver = mock(
+                RoomReadPositionAdvanceObserver.class);
         service = new RoomReadStateService(
                 roomReader,
                 store,
                 new RoomReadPositionResolver(),
                 sequenceReader,
+                advanceObserver,
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 new SimpleMeterRegistry());
         membership = Membership.restore(
@@ -120,6 +126,64 @@ class RoomReadStateServiceTest {
 
         assertThat(result.readThroughSequence()).isEqualTo(55);
         assertThat(result.updated()).isTrue();
+        verify(advanceObserver).onAdvanced(
+                "room-1", "membership-1", 1, 55);
+    }
+
+    @Test
+    void observerUsesStoreCursorAndOnlyRunsForActualWrite() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        RoomReadState state = new RoomReadState(
+                "membership-1", "room-1", "user-1", 60, NOW);
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenReturn(new RoomReadStateAdvance(state, true));
+
+        service.update("user-1", "room-1", 55);
+
+        verify(advanceObserver).onAdvanced(
+                "room-1", "membership-1", 1, 60);
+    }
+
+    @Test
+    void observerIsNotCalledForStoreOrServiceNoop() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        RoomReadState state = new RoomReadState(
+                "membership-1", "room-1", "user-1", 60, NOW);
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenReturn(new RoomReadStateAdvance(state, false));
+
+        service.update("user-1", "room-1", 55);
+        service.update("user-1", "room-1", 49);
+
+        verify(advanceObserver, never()).onAdvanced(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void observerFailureDoesNotChangeSuccessfulReadState() {
+        when(store.findByMembershipId("membership-1"))
+                .thenReturn(Optional.empty());
+        RoomReadState state = new RoomReadState(
+                "membership-1", "room-1", "user-1", 55, NOW);
+        when(store.advance(
+                "membership-1", "room-1", "user-1", 55, NOW))
+                .thenReturn(new RoomReadStateAdvance(state, true));
+        doThrow(new IllegalStateException("observer failed"))
+                .when(advanceObserver).onAdvanced(
+                        "room-1", "membership-1", 1, 55);
+
+        ReadStateResult result = service.update(
+                "user-1", "room-1", 55);
+
+        assertThat(result.updated()).isTrue();
+        assertThat(result.readThroughSequence()).isEqualTo(55);
     }
 
     @Test
