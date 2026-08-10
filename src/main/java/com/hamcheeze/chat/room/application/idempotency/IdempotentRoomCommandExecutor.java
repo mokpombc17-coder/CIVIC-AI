@@ -222,7 +222,7 @@ public final class IdempotentRoomCommandExecutor {
                             command.commandType(),
                             RoomCommandResultCode.IDEMPOTENCY_CONFLICT,
                             command.roomId(),
-                            command.targetUserId()),
+                            null),
                     false);
         }
         RoomCommandResult result = resultCodec.decode(

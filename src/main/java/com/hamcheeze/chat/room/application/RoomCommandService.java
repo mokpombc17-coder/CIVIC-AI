@@ -125,8 +125,7 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                candidateRoomId,
-                null);
+                candidateRoomId);
         return complete(executor.execute(prepared, () -> {
             if (checkQuotaBeforeIncrease(
                     command.requesterUserId(),
@@ -139,8 +138,7 @@ public final class RoomCommandService {
                         command.commandType(),
                         RoomCommandResultCode
                                 .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
-                        candidateRoomId,
-                        null);
+                        candidateRoomId);
             }
             RoomCreationResult creation =
                     RoomMembershipTransitions.createRoom(
@@ -179,12 +177,10 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                command.roomId(),
-                null);
+                command.roomId());
         return complete(executor.execute(prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
-                null,
                 () -> joinRoomInTransaction(
                         command,
                         candidateMembershipId,
@@ -197,13 +193,11 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                command.roomId(),
-                null);
+                command.roomId());
         RoomCommandExecution execution = executor.execute(
                 prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
-                null,
                 () -> leaveRoomInTransaction(
                         command,
                         transitionTime)));
@@ -217,12 +211,10 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                command.roomId(),
-                null);
+                command.roomId());
         return complete(executor.execute(prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
-                null,
                 () -> transferOwnershipInTransaction(command))));
     }
 
@@ -231,13 +223,11 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                command.roomId(),
-                null);
+                command.roomId());
         RoomCommandExecution execution = executor.execute(
                 prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
-                null,
                 () -> banMemberInTransaction(
                         command,
                         transitionTime)));
@@ -251,12 +241,10 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                command.roomId(),
-                null);
+                command.roomId());
         return complete(executor.execute(prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
-                null,
                 () -> unbanMemberInTransaction(
                         command,
                         transitionTime))));
@@ -267,13 +255,11 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                command.roomId(),
-                null);
+                command.roomId());
         RoomCommandExecution execution = executor.execute(
                 prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
-                null,
                 () -> closeRoomInTransaction(
                         command,
                         transitionTime)));
@@ -287,12 +273,10 @@ public final class RoomCommandService {
         PreparedRoomCommand prepared = prepare(
                 command,
                 transitionTime,
-                command.roomId(),
-                null);
+                command.roomId());
         return complete(executor.execute(prepared, () -> executeDomain(
                 command.commandType(),
                 command.roomId(),
-                null,
                 () -> updateRoomSettingsInTransaction(command))));
     }
 
@@ -315,8 +299,7 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         requireOwnerInvariant(room);
         Membership existing = membershipStore
@@ -340,8 +323,7 @@ public final class RoomCommandService {
                     command.commandType(),
                     RoomCommandResultCode
                             .ROOM_MEMBER_LIMIT_EXCEEDED,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         if ((outcome == JoinRoomTransition.Outcome.JOINED
                 || outcome == JoinRoomTransition.Outcome.REJOINED)
@@ -356,8 +338,7 @@ public final class RoomCommandService {
                     command.commandType(),
                     RoomCommandResultCode
                             .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         long messageVisibleAfterSequence =
                 outcome == JoinRoomTransition.Outcome.ALREADY_ACTIVE
@@ -421,16 +402,14 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         requireOwnerInvariant(room);
         if (room.status() == RoomStatus.CLOSED) {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_CLOSED,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         Membership membership = membershipStore
                 .findByRoomIdAndUserId(
@@ -441,8 +420,7 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.MEMBERSHIP_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         LeaveRoomTransition transition =
                 RoomMembershipTransitions.leaveRoom(
@@ -474,15 +452,13 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         Membership currentOwner = requireOwnerInvariant(room);
         RoomCommandResult precondition = ownerCommandRejection(
                 command.commandType(),
                 room,
-                command.requesterUserId(),
-                null);
+                command.requesterUserId());
         if (precondition != null) {
             return precondition;
         }
@@ -493,8 +469,7 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.TARGET_MEMBERSHIP_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         OwnershipTransferTransition transition =
                 RoomMembershipTransitions.transferOwnership(
@@ -525,15 +500,13 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         requireOwnerInvariant(room);
         RoomCommandResult precondition = ownerCommandRejection(
                 command.commandType(),
                 room,
-                command.requesterUserId(),
-                null);
+                command.requesterUserId());
         if (precondition != null) {
             return precondition;
         }
@@ -544,8 +517,7 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.TARGET_MEMBERSHIP_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         BanMemberTransition transition =
                 RoomMembershipTransitions.banMember(
@@ -578,15 +550,13 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         requireOwnerInvariant(room);
         RoomCommandResult precondition = ownerCommandRejection(
                 command.commandType(),
                 room,
-                command.requesterUserId(),
-                null);
+                command.requesterUserId());
         if (precondition != null) {
             return precondition;
         }
@@ -597,8 +567,7 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.TARGET_MEMBERSHIP_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         UnbanMemberTransition transition =
                 RoomMembershipTransitions.unbanMember(
@@ -631,8 +600,7 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         Membership owner = requireOwnerInvariant(room);
         CloseRoomTransition transition =
@@ -664,15 +632,13 @@ public final class RoomCommandService {
             return rejection(
                     command.commandType(),
                     RoomCommandResultCode.ROOM_NOT_FOUND,
-                    command.roomId(),
-                    null);
+                    command.roomId());
         }
         requireOwnerInvariant(room);
         RoomCommandResult precondition = ownerCommandRejection(
                 command.commandType(),
                 room,
-                command.requesterUserId(),
-                null);
+                command.requesterUserId());
         if (precondition != null) {
             return precondition;
         }
@@ -710,8 +676,7 @@ public final class RoomCommandService {
     private PreparedRoomCommand prepare(
             RoomCommand command,
             Instant completedAt,
-            String roomId,
-            String targetUserId
+            String roomId
     ) {
         return new PreparedRoomCommand(
                 command.requesterUserId(),
@@ -721,8 +686,7 @@ public final class RoomCommandService {
                 idGenerator.newReceiptId(),
                 completedAt,
                 completedAt.plus(properties.receiptTtl()),
-                roomId,
-                targetUserId);
+                roomId);
     }
 
     private Membership requireOwnerInvariant(Room room) {
@@ -762,22 +726,19 @@ public final class RoomCommandService {
     private RoomCommandResult ownerCommandRejection(
             RoomCommandType commandType,
             Room room,
-            String requesterUserId,
-            String targetUserId
+            String requesterUserId
     ) {
         if (room.status() == RoomStatus.CLOSED) {
             return rejection(
                     commandType,
                     RoomCommandResultCode.ROOM_CLOSED,
-                    room.roomId(),
-                    targetUserId);
+                    room.roomId());
         }
         if (!room.ownerUserId().equals(requesterUserId)) {
             return rejection(
                     commandType,
                     RoomCommandResultCode.NOT_ROOM_OWNER,
-                    room.roomId(),
-                    targetUserId);
+                    room.roomId());
         }
         return null;
     }
@@ -807,7 +768,6 @@ public final class RoomCommandService {
     private RoomCommandResult executeDomain(
             RoomCommandType commandType,
             String roomId,
-            String targetUserId,
             Supplier<RoomCommandResult> action
     ) {
         try {
@@ -824,22 +784,20 @@ public final class RoomCommandService {
             return rejection(
                     commandType,
                     code,
-                    roomId,
-                    targetUserId);
+                    roomId);
         }
     }
 
     private RoomCommandResult rejection(
             RoomCommandType commandType,
             RoomCommandResultCode code,
-            String roomId,
-            String targetUserId
+            String roomId
     ) {
         return RoomCommandResult.rejection(
                 commandType,
                 code,
                 roomId,
-                targetUserId);
+                null);
     }
 
     private RoomCommandResultCode deterministicResultCode(

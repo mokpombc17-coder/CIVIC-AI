@@ -13,8 +13,7 @@ public record PreparedRoomCommand(
         String receiptId,
         Instant completedAt,
         Instant expiresAt,
-        String roomId,
-        String targetUserId
+        String roomId
 ) {
 
     public PreparedRoomCommand {

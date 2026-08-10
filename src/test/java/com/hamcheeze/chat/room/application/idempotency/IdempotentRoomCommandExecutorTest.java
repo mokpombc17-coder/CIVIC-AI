@@ -115,6 +115,7 @@ class IdempotentRoomCommandExecutorTest {
         assertThat(execution.result().code())
                 .isEqualTo(
                         RoomCommandResultCode.IDEMPOTENCY_CONFLICT);
+        assertThat(execution.result().targetUserId()).isNull();
         assertThat(execution.replayed()).isFalse();
         assertThat(actionCalls).hasValue(0);
         assertThat(receipts.insertCalls).isZero();
@@ -484,8 +485,7 @@ class IdempotentRoomCommandExecutorTest {
                 "receipt-1",
                 COMPLETED_AT,
                 COMPLETED_AT.plusSeconds(3600),
-                "room-1",
-                null);
+                "room-1");
     }
 
     private RoomCommandReceipt receipt(
