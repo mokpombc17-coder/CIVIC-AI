@@ -1,10 +1,16 @@
-import { jwtVerify } from "jose";
+import { decodeJwt, jwtVerify } from "jose";
 import { describe, expect, it, vi } from "vitest";
-import { CHAT_AUTH_SCOPE, PLATFORM_AUTH_AUDIENCE } from "./platform-auth-contract";
+import {
+  CHAT_AUTH_SCOPE,
+  CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
+  PLATFORM_AUTH_AUDIENCE,
+} from "./platform-auth-contract";
 
 vi.mock("server-only", () => ({}));
 
 describe("issueLocalPlatformJwt", () => {
+  const paginationFixtureId = "43d79df6-df54-4d02-8ecf-a1f410d53e16";
+
   it("issues the documented local platform access-token contract", async () => {
     const {
       issueLocalPlatformJwt,
@@ -47,6 +53,32 @@ describe("issueLocalPlatformJwt", () => {
       jti: jwtId,
     });
     expect(String(payload.scope).split(" ")).toContain("chat:read-state:write");
+  });
+
+  it.each(["owner", "member"])(
+    "adds the Room membership quota exemption for the pagination %s fixture",
+    async (actor) => {
+      const { issueLocalPlatformJwt } = await import("./local-platform-jwt");
+      const token = await issueLocalPlatformJwt({
+        subject: `e2e-latest-${actor}-pagination-${paginationFixtureId}`,
+      });
+
+      expect(decodeJwt(token).scope).toBe(
+        `${CHAT_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`,
+      );
+    },
+  );
+
+  it.each([
+    `e2e-latest-owner-ordering-${paginationFixtureId}`,
+    "e2e-latest-owner-pagination-not-a-uuid",
+    `e2e-latest-sender-pagination-${paginationFixtureId}`,
+    "e2e-inbox-pagination-observer",
+  ])("does not exempt a non-allowlisted subject: %s", async (subject) => {
+    const { issueLocalPlatformJwt } = await import("./local-platform-jwt");
+    const token = await issueLocalPlatformJwt({ subject });
+
+    expect(decodeJwt(token).scope).toBe(CHAT_AUTH_SCOPE);
   });
 
   it("rejects an empty subject before signing", async () => {

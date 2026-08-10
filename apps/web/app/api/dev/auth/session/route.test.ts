@@ -2,6 +2,7 @@ import { jwtVerify } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CHAT_AUTH_SCOPE,
+  CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
   PLATFORM_AUTH_AUDIENCE,
   PLATFORM_AUTH_COOKIE_NAME,
 } from "@/lib/server/auth/platform-auth-contract";
@@ -58,6 +59,33 @@ describe("/api/dev/auth/session", () => {
       scope: CHAT_AUTH_SCOPE,
     });
     expect(payload.jti).toEqual(expect.any(String));
+  });
+
+  it("issues the quota exemption only through an allowlisted pagination subject", async () => {
+    const { POST } = await import("./route");
+    const {
+      LOCAL_PLATFORM_AUTH_ALGORITHM,
+      LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY,
+      LOCAL_PLATFORM_AUTH_ISSUER,
+    } = await import("@/lib/server/auth/local-platform-jwt");
+    const subject = "e2e-latest-member-pagination-43d79df6-df54-4d02-8ecf-a1f410d53e16";
+    const response = await POST(sessionRequest({ subject }));
+    const token = requiredCookieValue(requiredSetCookie(response));
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY),
+      {
+        issuer: LOCAL_PLATFORM_AUTH_ISSUER,
+        audience: PLATFORM_AUTH_AUDIENCE,
+        algorithms: [LOCAL_PLATFORM_AUTH_ALGORITHM],
+      },
+    );
+
+    expect(response.status).toBe(204);
+    expect(payload).toMatchObject({
+      sub: subject,
+      scope: `${CHAT_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`,
+    });
   });
 
   it("rejects malformed JSON and invalid subjects without setting a cookie", async () => {
