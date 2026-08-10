@@ -9,8 +9,9 @@
 - 인증 쿠키: `civic_ai_access_token`
 - REST API prefix: `/api/v1`
 
-현재 서버가 제공하는 범위는 방 관리 REST API와 실시간 채팅 WebSocket/STOMP이다.
-메시지 이력 조회와 공개 방 목록 REST API도 제공한다.
+현재 서버가 제공하는 범위는 방 관리 REST API, 실시간 채팅 WebSocket/STOMP,
+Membership cursor 기반 Read Receipt projection이다. 메시지 이력 조회와 공개 방
+목록 REST API도 제공한다.
 
 ## 프론트엔드 전달 문구
 
@@ -43,8 +44,10 @@
 >
 > 1. 기존 방 `/messages` UNSUBSCRIBE
 > 2. 기존 방 `/room-events` UNSUBSCRIBE
-> 3. 새 방 `/messages` SUBSCRIBE
-> 4. 새 방 `/room-events` SUBSCRIBE
+> 3. 기존 방 `/read-receipts` UNSUBSCRIBE
+> 4. 새 방 `/messages` SUBSCRIBE
+> 5. 새 방 `/room-events` SUBSCRIBE
+> 6. 새 방 `/read-receipts` SUBSCRIBE
 >
 > 같은 session에서 위 frame을 순서대로 보내면 별도의 receipt 대기는 필요하지
 > 않습니다. 기존 방 topic이 하나라도 남은 상태에서 새 `roomId`를 구독하면
@@ -63,7 +66,7 @@
 > sequence를 `afterSequence`로 전달합니다.
 >
 > 최초 진입과 재연결에서는 `/user/queue/system-events`를 먼저 구독하고
-> 방 topic 두 개를 구독한 뒤, 같은 STOMP session에서
+> 방 topic 세 개를 구독한 뒤, 같은 STOMP session에서
 > `/app/rooms/{roomId}/subscriptions/sync`로 sync 요청을 보내 주세요.
 > `ROOM_SUBSCRIPTIONS_READY`를 수신한 뒤 REST 이력 조회를 시작합니다.
 > 프론트 이벤트 버퍼링은 방 topic의 `SUBSCRIBE`를 보내기 전에 시작해야 합니다.
@@ -1040,7 +1043,8 @@ body는 기록하지 않는다. 현재 서버가 `clientInstanceId`를 수집하
 `oldClientInstanceId`와 `newClientInstanceId`도 로그 필드에 포함하지 않는다.
 
 퇴장, 차단 또는 방 종료가 commit된 뒤 transport close가 실패하더라도
-해당 connection의 그 방 `messages`, `room-events` subscription은 서버
+해당 connection의 그 방 `messages`, `room-events`, `read-receipts`
+subscription은 서버
 registry에서 즉시 격리된다. 따라서 close 재시도 전에도 추가 room payload는
 전달되지 않는다. Command가 `ACCESS_REVOCATION_FAILED`,
 `retryable=true`를 반환하면 같은 `Idempotency-Key`로 다시 요청하며,
@@ -1051,7 +1055,8 @@ registry에서 즉시 격리된다. 따라서 close 재시도 전에도 추가 r
 Room/Membership 변경이 commit된 뒤 현재 access snapshot을 읽을 수 없거나
 snapshot이 누락·무효인 경우에도 기존 room subscription을 유지하지 않는다.
 서버는 현재 경계를 추측하지 않고 해당 사용자의 그 방 접근을 전체 회수하며,
-`messages`와 `room-events`를 먼저 격리한 뒤 transport close를 시도한다.
+`messages`, `room-events`, `read-receipts`를 먼저 격리한 뒤 transport
+close를 시도한다.
 상태가 불명확하므로 현재 Membership과 일치하는 새 subscription까지 종료될 수
 있다. 클라이언트는 `4002 ROOM_ACCESS_REVOKED`를 받은 연결을 재사용하지 않고
 새 WebSocket 연결을 생성한 뒤 room topic 구독과 subscription sync를 다시
@@ -1087,24 +1092,19 @@ const client = new Client({
 | `SEND` | `/app/rooms/{roomId}/subscriptions/sync` | 방 topic 구독 준비 확인 |
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/messages` | 방 채팅 메시지 수신 |
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/room-events` | 방 상태 변경 이벤트 수신 |
+| `SUBSCRIBE` | `/topic/rooms/{roomId}/read-receipts` | Membership read cursor delta 수신 |
 | `SUBSCRIBE` | `/user/queue/command-results` | 내 메시지 전송 결과 수신 |
 | `SUBSCRIBE` | `/user/queue/system-events` | 구독 거절 및 사용자 대상 방 이벤트 수신 |
 | `SUBSCRIBE` | `/user/queue/room-inbox-events` | 토스트 hint 및 room-inbox REST query invalidation 수신 |
-
-다음 destination은 현재 비활성화되어 있다.
-
-```text
-/topic/rooms/{roomId}/read-receipts
-```
 
 와일드카드 destination 구독은 허용하지 않는다. 방 단위 topic을
 구독하려면 해당 방의 활성 멤버여야 한다.
 
 로컬 기본 설정상 한 연결에서 활성 방 구독은 한 개, 전체 구독은 최대
-여섯 개다. 정상 클라이언트는 사용자 queue 세 개와 현재 Room topic 두 개,
-총 다섯 개를 동시에 사용하므로 `max-subscriptions-per-connection`은 최소
-`5`여야 하며, 그보다 낮은 설정은 애플리케이션 startup validation에서
-거절된다. 기본값 `6`은 추가 구독 하나의 여유를 둔다.
+여섯 개다. 정상 클라이언트는 사용자 queue 세 개와 현재 Room topic 세 개,
+총 여섯 개를 동시에 사용하므로 `max-subscriptions-per-connection`은 최소
+`6`이어야 하며, 그보다 낮은 설정은 애플리케이션 startup validation에서
+거절된다.
 
 ### 구독 준비 barrier
 
@@ -1120,10 +1120,11 @@ STOMP `SUBSCRIBE` frame을 보낸 것만으로 프론트가 서버의 구독 처
 2. SUBSCRIBE /user/queue/system-events
 3. SUBSCRIBE /topic/rooms/{roomId}/messages
 4. SUBSCRIBE /topic/rooms/{roomId}/room-events
-5. SEND      /app/rooms/{roomId}/subscriptions/sync
-6. /user/queue/system-events에서 ROOM_SUBSCRIPTIONS_READY 수신
-7. REST 최신 이력 또는 afterSequence 이력 조회
-8. REST 결과 적용 후 버퍼 이벤트 병합 및 중복 제거
+5. SUBSCRIBE /topic/rooms/{roomId}/read-receipts
+6. SEND      /app/rooms/{roomId}/subscriptions/sync
+7. /user/queue/system-events에서 ROOM_SUBSCRIPTIONS_READY 수신
+8. REST 메시지 이력과 Read Receipt State snapshot 조회
+9. REST 결과 적용 후 버퍼 이벤트 병합 및 중복 제거
 ```
 
 사용자 공통 `/user/queue/system-events` 구독은 WebSocket 연결마다 한 번만
@@ -1144,7 +1145,7 @@ sync destination:
 }
 ```
 
-서버는 동일 session에서 앞서 보낸 두 room topic `SUBSCRIBE`를 처리했고
+서버는 동일 session에서 앞서 보낸 세 room topic `SUBSCRIBE`를 처리했고
 사용자의 활성 멤버십을 다시 확인한 경우에만 다음 응답을 같은 session의
 `/user/queue/system-events`로 전송한다.
 
@@ -1184,7 +1185,7 @@ sync 요청이 거절되면 다음 형태를 사용한다.
 | Code | `retryable` | 의미 |
 | --- | --- | --- |
 | `INVALID_SYNC_REQUEST` | `false` | `requestId`가 올바른 UUID가 아니다. |
-| `ROOM_SUBSCRIPTIONS_NOT_READY` | `false` | 같은 session에 필요한 방 topic 두 개가 모두 등록되지 않았다. 구독 거절 이벤트와 구독 순서를 확인한다. |
+| `ROOM_SUBSCRIPTIONS_NOT_READY` | `false` | 같은 session에 필요한 방 topic 세 개가 모두 등록되지 않았다. 구독 거절 이벤트와 구독 순서를 확인한다. |
 | `ROOM_SUBSCRIPTION_FORBIDDEN` | `false` | 사용자가 해당 방의 활성 멤버가 아니다. |
 | `ROOM_SUBSCRIPTION_STALE` | `false` | 기존 room subscription이 접근 회수 과정에서 격리되었거나 현재 Membership과 다른 `messageVisibleAfterSequence`를 사용한다. 아래 절차로 새로 구독한다. |
 | `ROOM_AUTHORIZATION_UNAVAILABLE` | `true` | 멤버십 권한 확인이 일시적으로 불가능하다. |
@@ -1201,9 +1202,10 @@ sync 요청만 재시도할 수 있다. READY를 받기 전에는 REST snapshot�
 ```text
 1. 기존 /topic/rooms/{roomId}/messages subscription 해제
 2. 기존 /topic/rooms/{roomId}/room-events subscription 해제
-3. 현재 방 topic 두 개를 새로 구독
-4. 새 requestId로 subscription sync
-5. ROOM_SUBSCRIPTIONS_READY 수신 후 REST 이력 동기화
+3. 기존 /topic/rooms/{roomId}/read-receipts subscription 해제
+4. 현재 방 topic 세 개를 새로 구독
+5. 새 requestId로 subscription sync
+6. ROOM_SUBSCRIPTIONS_READY 수신 후 REST snapshot 동기화
 ```
 
 현재 Membership이 `LEFT` 또는 `BANNED`이면 stale 여부보다 현재 접근 거절이
@@ -1221,14 +1223,16 @@ SharedWorker는 사용자 공통 destination을 유지한 채 활성 방을 선�
 ```text
 UNSUBSCRIBE /topic/rooms/{roomA}/messages
 UNSUBSCRIBE /topic/rooms/{roomA}/room-events
+UNSUBSCRIBE /topic/rooms/{roomA}/read-receipts
 SUBSCRIBE   /topic/rooms/{roomB}/messages
 SUBSCRIBE   /topic/rooms/{roomB}/room-events
+SUBSCRIBE   /topic/rooms/{roomB}/read-receipts
 ```
 
 - 각 `UNSUBSCRIBE`에는 기존 `SUBSCRIBE`에서 사용한 subscription ID를 전달한다.
 - `/user/queue/command-results`와 `/user/queue/system-events` 구독은 방 전환 중에도 유지한다.
 - 기존 방의 마지막 room-scoped subscription이 제거되면 기존 `roomId`가 비활성화된다.
-- 같은 WebSocket session에서 위 네 frame을 순서대로 보내면 별도의 receipt 대기 없이 처리 순서가
+- 같은 WebSocket session에서 위 여섯 frame을 순서대로 보내면 별도의 receipt 대기 없이 처리 순서가
   보존된다.
 - 기존 방 topic이 하나라도 남은 상태에서 다른 `roomId`를 구독하면
   `ACTIVE_ROOM_LIMIT_EXCEEDED`로 해당 구독만 거절하며 연결은 유지한다.
@@ -1648,7 +1652,6 @@ SUBSCRIPTION_LIMIT_EXCEEDED
 ROOM_SUBSCRIBER_LIMIT_EXCEEDED
 DUPLICATE_SUBSCRIPTION
 INVALID_DESTINATION
-DESTINATION_DISABLED
 ROOM_SUBSCRIPTION_FORBIDDEN
 ROOM_AUTHORIZATION_UNAVAILABLE
 ```
@@ -1697,7 +1700,8 @@ python3 scripts/frontend-local-smoke.py
 12. 다음 CREATE의 sequence와 REST snapshot 확인
 13. `LISTED`, `OPEN` 복원 후 cursor 기반 전체 공개 목록 재반영 확인
 14. 두 번째 사용자 Room join 확인
-15. room-inbox unread, read-state PUT, 개인 CREATE/DELETE invalidation 확인
+15. room-inbox unread/read-state, Read Receipt snapshot·cursor delta·no-op,
+    LEAVE 접근 회수와 개인 CREATE/DELETE invalidation 확인
 
 각 실행은 이름이 `frontend-smoke-`로 시작하는 테스트 방 하나와 메시지 하나를 로컬 MongoDB에
 추가한다. 다른 주소를 사용할 때는 `--base-url`, `--ws-url`, `--origin`, `--subject` 옵션으로
@@ -1717,21 +1721,24 @@ python3 scripts/frontend-local-smoke.py
 9. 방 실시간 이벤트의 로컬 버퍼링을 시작한다.
 10. `/topic/rooms/{roomId}/messages`를 구독한다.
 11. `/topic/rooms/{roomId}/room-events`를 구독한다.
-12. 같은 STOMP session에서
+12. `/topic/rooms/{roomId}/read-receipts`를 구독한다.
+13. 같은 STOMP session에서
     `/app/rooms/{roomId}/subscriptions/sync`로 UUID `requestId`를 보낸다.
-13. `/user/queue/system-events`에서 같은 `requestId`의
+14. `/user/queue/system-events`에서 같은 `requestId`의
     `ROOM_SUBSCRIPTIONS_READY`를 기다린다.
-14. `GET /api/v1/rooms/{roomId}/messages`로 최신 메시지를 조회하고,
+15. `GET /api/v1/rooms/{roomId}/messages`와
+    `GET /api/v1/rooms/{roomId}/read-receipts/state`를 조회하고,
     이전 이력은 `beforeSequence` cursor로 조회한다.
-15. REST 결과를 먼저 적용하고 버퍼 이벤트를 병합하며 중복을 제거한다.
+16. REST 결과를 먼저 적용하고 버퍼 이벤트를 병합하며 중복을 제거한다.
     이때 `roomSequence <= messageVisibleAfterSequence`인 버퍼 메시지는
     폐기한다.
-16. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
-17. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.
-18. 작성자 수정·삭제 command를 보내고 result와 UPDATE/DELETE event를
+17. `/app/rooms/{roomId}/messages`로 메시지를 전송한다.
+18. command 결과와 `CHAT_MESSAGE_CREATED` 이벤트를 확인한다.
+19. 작성자 수정·삭제 command를 보내고 result와 UPDATE/DELETE event를
     각각 `clientMutationId`, `messageId`, `messageVersion`으로 연결한다.
-19. 재연결 후 현재 로드 범위를 REST로 새로 조회한 뒤 buffered event를
-    `messageVersion`으로 병합한다.
+20. 재연결 후 현재 로드 범위와 Receipt State를 REST로 새로 조회한 뒤,
+    buffered message event는 `messageVersion`, Receipt delta는
+    `membershipVersion`과 stored cursor max 규칙으로 병합한다.
 
 ## Room inbox unread와 ReadState
 
@@ -1829,12 +1836,14 @@ Room inbox unread 계산
 Read-state API 응답
 → effectiveReadThroughSequence
 
-향후 실제 Read Receipt 판정
-→ visibility boundary와 stored cursor를 분리하여 사용
+Read Receipt 대상 여부
+→ message.roomSequence > messageVisibleAfterSequence
+
+Read Receipt 실제 읽음 여부
+→ storedLastReadSequence >= message.roomSequence
 ```
 
-Read Receipt API와 participant·sender 판정 정책은 현재 구현하지 않는다.
-effective cursor를 실제 읽음의 단독 증거로 사용하는 것도 현재 계약이 아니다.
+Read Receipt는 effective cursor를 실제 읽음의 단독 증거로 사용하지 않는다.
 
 `RoomReadState.updatedAt`은 cursor를 실제로 증가시킨 write들이 제출한 관측 시각
 중 저장된 최댓값이다. 감소하지 않으며, 특정 메시지를 읽은 정확한 시각이나
@@ -1922,6 +1931,189 @@ Membership에 영속된 visibility boundary가 effective acknowledgement를
   없으므로 임의 요청의 참여 구간을 서버가 식별하거나 강한 epoch 격리를
   보장하지 않는다.
 - 별도 `Idempotency-Key`는 필요하지 않다.
+
+## Read Receipt State와 cursor delta
+
+Read Receipt는 별도 사용자×메시지 receipt 문서나 메시지의 `readCount`,
+`unreadCount`, `readers` 필드를 저장하지 않는다. `RoomReadState`를 유일한
+영속 읽음 원천으로 사용하고, 현재 ACTIVE Membership과 메시지를 결합해
+클라이언트가 계산하는 projection이다.
+
+메시지 `m`과 participant position `p`의 판정식은 다음과 같다.
+
+```text
+eligible(p, m) =
+  p.membershipId != m.senderMembershipId
+  AND m.roomSequence > p.messageVisibleAfterSequence
+
+read(p, m) =
+  eligible(p, m)
+  AND p.storedLastReadSequence >= m.roomSequence
+```
+
+snapshot은 현재 ACTIVE Membership만 포함한다. LEFT/BANNED Membership,
+작성 Membership, 참여 경계 이전 메시지는 해당 메시지의 receipt 집계에서
+제외된다. 이는 과거 누적 통계가 아니라 현재 participant set 기준이므로
+LEAVE/BAN 뒤 과거 메시지의 계산 결과도 달라질 수 있다.
+
+### Read Receipt State snapshot
+
+```http
+GET /api/v1/rooms/{roomId}/read-receipts/state
+```
+
+`chat:rooms:read` scope, ACTIVE Room, 요청자의 ACTIVE Membership이 필요하며
+응답은 `Cache-Control: no-store`다.
+
+```json
+{
+  "roomId": "room-01",
+  "roomVersion": 12,
+  "selfMembershipId": "membership-a",
+  "positions": [
+    {
+      "membershipId": "membership-a",
+      "membershipVersion": 3,
+      "messageVisibleAfterSequence": 0,
+      "storedLastReadSequence": 130
+    },
+    {
+      "membershipId": "membership-b",
+      "membershipVersion": 2,
+      "messageVisibleAfterSequence": 100,
+      "storedLastReadSequence": 118
+    }
+  ],
+  "generatedAt": "2026-08-10T03:00:00Z"
+}
+```
+
+- `positions`에는 self를 포함한 현재 ACTIVE Membership 전체가
+  `membershipId` 오름차순으로 들어간다.
+- pagination하지 않으며 현재 Room 최대 ACTIVE member 수 50보다 큰 안전
+  상한 100을 사용한다. 초과하거나 일부 조립에 실패하면 잘라 반환하지 않고
+  fail-closed 처리한다.
+- `RoomReadState`가 없으면 `storedLastReadSequence=0`이다.
+- `userId`, profile, role/status, `effectiveReadThroughSequence`,
+  `RoomReadState.updatedAt`, 메시지별 count/readers는 반환하지 않는다.
+- Room status/version을 조립 전후에 확인하는 stable-pair를 최대 3회 시도한다.
+  JOIN/REJOIN/LEAVE/BAN/CLOSE 등 topology가 중간에 바뀌면 재시도한다.
+- boundary 또는 stored cursor가 현재 Room sequence보다 크면
+  `500 READ_STATE_INCONSISTENT`다. identity mismatch나 내부 후조건 위반은
+  일부 값을 숨기거나 0으로 바꾸지 않고 `500 INTERNAL_ERROR`다.
+- ACTIVE Membership이 없으면 `403 ACCESS_DENIED`, CLOSED Room은
+  `409 READ_STATE_NOT_AVAILABLE`, stable retry 소진 또는 retryable Mongo
+  장애는 `503 ROOM_INBOX_UNAVAILABLE`, `retryable=true`다.
+
+### Read Receipt WebSocket event
+
+구독 destination:
+
+```text
+/topic/rooms/{roomId}/read-receipts
+```
+
+이 topic은 메시지별 receipt event가 아니라 Membership별 stored cursor의
+증가를 전달한다. event는 비영속 파생 데이터이며 REST snapshot이 초기화와
+복구 원천이다.
+
+```json
+{
+  "eventVersion": 1,
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "eventType": "ROOM_READ_POSITIONS_ADVANCED",
+  "emittedAt": "2026-08-10T03:00:01Z",
+  "payload": {
+    "roomId": "room-01",
+    "updates": [
+      {
+        "membershipId": "membership-b",
+        "membershipVersion": 2,
+        "storedLastReadSequence": 118
+      }
+    ]
+  }
+}
+```
+
+`RoomReadStateStore.advance()`가 실제 insert 또는 cursor 증가 write를 수행한
+경우에만 event 후보를 만든다. 요청 cursor가 아니라 저장소가 반환한
+`lastReadSequence`를 사용한다. 동일하거나 낮은 cursor의 no-op은 event를
+만들지 않는다. Observer, batching 또는 broker publish 실패는 이미 성공한
+read-state PUT을 실패로 뒤집지 않는다.
+
+기본 200ms 동안 같은 Room의 update를 모으며 coalescing key는
+`roomId + membershipId`다. 같은 `membershipVersion`은 stored cursor의 max,
+낮은 version은 폐기, 높은 version은 새 entry로 교체한다. update 배열은
+`membershipId` 오름차순이다. 기본 제한은 event당 update 50개,
+직렬화 크기 12,288 bytes이며 STOMP frame limit 32,768 bytes보다 작다.
+limit을 넘으면 여러 event로 분할하고 event 도착 순서에는 의미를 두지 않는다.
+
+기본 설정은 다음과 같다.
+
+```yaml
+chat.room.read-receipt:
+  flush-interval: 200ms
+  max-updates-per-event: 50
+  max-event-bytes: 12288
+  max-pending-rooms: 1000
+  snapshot-max-consistency-attempts: 3
+  snapshot-max-positions: 100
+```
+
+delta 누락 가능성이 생기면 다음 invalidation을 best-effort로 발행한다.
+
+```json
+{
+  "eventVersion": 1,
+  "eventId": "550e8400-e29b-41d4-a716-446655440001",
+  "eventType": "ROOM_READ_RECEIPT_STATE_INVALIDATED",
+  "emittedAt": "2026-08-10T03:00:02Z",
+  "payload": {
+    "roomId": "room-01",
+    "cause": "DELTA_GAP_POSSIBLE"
+  }
+}
+```
+
+pending capacity, serialization, publisher 또는 batch 상태 실패는 Room을 dirty로
+표시한다. invalidation 성공 뒤 dirty를 해제한다. Receipt event용 transactional
+outbox는 없으므로 broker 장애 중 invalidation도 유실될 수 있다. 재연결,
+Room 재진입, focus 복귀 등에는 REST snapshot을 다시 조회한다.
+
+클라이언트 병합 규칙:
+
+```text
+incoming membershipVersion < snapshot version
+→ stale event 폐기
+
+incoming membershipVersion == snapshot version
+→ storedLastReadSequence를 max 병합
+
+incoming membershipVersion > snapshot version
+또는 알 수 없는 membershipId
+→ snapshot 무효화 후 재조회
+```
+
+`eventId`, `emittedAt`, 도착 순서는 병합 순서의 근거가 아니다. 구독을 먼저
+완료하고 `ROOM_SUBSCRIPTIONS_READY`를 받은 뒤 snapshot을 조회하며, 그동안
+buffer한 delta와 snapshot을 위 규칙으로 병합한다.
+
+다음 Room event는 participant set 또는 visibility boundary를 바꾸므로 Receipt
+snapshot을 무효화하고 재조회한다.
+
+```text
+ROOM_MEMBER_JOINED
+ROOM_MEMBER_REJOINED
+ROOM_MEMBER_LEFT
+ROOM_MEMBER_BANNED
+ROOM_CLOSED
+```
+
+`ROOM_MEMBER_UNBANNED`는 LEFT 유지, `ROOM_OWNERSHIP_TRANSFERRED`는 role만
+변경하므로 필수 재조회 대상이 아니다. LEAVE, BAN, Room close, connection
+replacement에서는 read-receipts subscription도 다른 Room topic과 함께 즉시
+quarantine/revoke된다.
 
 ### Room inbox 목록
 
@@ -2133,8 +2325,8 @@ server 또는 admission을 제어하지 않는다. Maintenance window에서는 �
 ```
 
 이 구독은 기본 최대 subscription 6개 중 하나다. 개인 queue 3개와 현재
-Room topic 2개를 함께 구독하며, 기본 설정에는 추가 subscription 하나의
-여유가 있다. 현재 Room message topic을 구독 중인 사용자도 서버 수신
+Room topic 3개를 함께 구독한다. 현재 Room message topic을 구독 중인
+사용자도 서버 수신
 대상에서 제외하지 않으며, foreground/현재 화면/토스트 억제 판단은 프론트가
 한다.
 
