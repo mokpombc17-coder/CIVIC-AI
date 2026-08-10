@@ -1769,6 +1769,9 @@ class RoomCommandServiceIntegrationTest
                 "owner-legacy",
                 MembershipRole.OWNER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 java.time.Instant.parse("2026-07-30T00:00:00Z"),
                 null,
                 null,

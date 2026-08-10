@@ -87,6 +87,9 @@ class RoomOwnershipModerationAndCloseTest {
                 "user-2",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -167,6 +170,9 @@ class RoomOwnershipModerationAndCloseTest {
                 "owner-1",
                 MembershipRole.OWNER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -291,6 +297,9 @@ class RoomOwnershipModerationAndCloseTest {
                 "user-2",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -481,6 +490,9 @@ class RoomOwnershipModerationAndCloseTest {
                 "user-2",
                 MembershipRole.MEMBER,
                 MembershipStatus.BANNED,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 CREATED_AT.plusSeconds(20),
@@ -720,6 +732,9 @@ class RoomOwnershipModerationAndCloseTest {
                 userId,
                 MembershipRole.OWNER,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 status == MembershipStatus.LEFT
                         ? CREATED_AT.plusSeconds(30) : null,
@@ -739,6 +754,9 @@ class RoomOwnershipModerationAndCloseTest {
                 userId,
                 MembershipRole.MEMBER,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 status == MembershipStatus.LEFT
                         ? CREATED_AT.plusSeconds(20) : null,

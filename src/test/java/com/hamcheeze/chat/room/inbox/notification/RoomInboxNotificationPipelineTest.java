@@ -1009,6 +1009,9 @@ class RoomInboxNotificationPipelineTest {
                 userId,
                 role,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 NOW.minusSeconds(60),
                 status == MembershipStatus.LEFT ? NOW : null,
                 status == MembershipStatus.BANNED ? NOW : null,

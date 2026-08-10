@@ -191,7 +191,9 @@ class MongoRoomAccessReaderTest {
 
     private static Document membership(String status, long version) {
         return new Document("_id", "membership-1")
-                .append("schemaVersion", 2)
+                .append(
+                        "schemaVersion",
+                        MongoMembershipDocument.CURRENT_SCHEMA_VERSION)
                 .append("roomId", "room-1")
                 .append("userId", "user-1")
                 .append("status", status)

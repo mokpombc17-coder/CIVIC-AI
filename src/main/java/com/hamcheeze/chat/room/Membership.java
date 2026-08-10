@@ -10,6 +10,7 @@ public final class Membership {
     private final String userId;
     private final MembershipRole role;
     private final MembershipStatus status;
+    private final MembershipProfile profile;
     private final Instant joinedAt;
     private final Instant leftAt;
     private final Instant bannedAt;
@@ -22,6 +23,7 @@ public final class Membership {
             String userId,
             MembershipRole role,
             MembershipStatus status,
+            MembershipProfile profile,
             Instant joinedAt,
             Instant leftAt,
             Instant bannedAt,
@@ -34,6 +36,7 @@ public final class Membership {
         this.userId = RoomDomainValidation.requireUserId(userId);
         this.role = RoomDomainValidation.requireStateValue(role);
         this.status = RoomDomainValidation.requireStateValue(status);
+        this.profile = RoomDomainValidation.requireStateValue(profile);
         this.joinedAt =
                 RoomDomainValidation.requireStateTime(joinedAt);
         this.messageVisibleAfterSequence =
@@ -41,6 +44,9 @@ public final class Membership {
                         messageVisibleAfterSequence);
         this.version = RoomDomainValidation.requireVersion(version);
         validateState(role, status, joinedAt, leftAt, bannedAt);
+        if (profile.createdAt().isAfter(joinedAt)) {
+            invalidState();
+        }
         this.leftAt = leftAt;
         this.bannedAt = bannedAt;
     }
@@ -51,6 +57,7 @@ public final class Membership {
             String userId,
             MembershipRole role,
             MembershipStatus status,
+            MembershipProfile profile,
             Instant joinedAt,
             Instant leftAt,
             Instant bannedAt,
@@ -63,6 +70,7 @@ public final class Membership {
                 userId,
                 role,
                 status,
+                profile,
                 joinedAt,
                 leftAt,
                 bannedAt,
@@ -82,7 +90,8 @@ public final class Membership {
                 userId,
                 MembershipRole.OWNER,
                 joinedAt,
-                0);
+                0,
+                1);
     }
 
     static Membership createMember(
@@ -90,7 +99,8 @@ public final class Membership {
             String roomId,
             String userId,
             Instant joinedAt,
-            long messageVisibleAfterSequence
+            long messageVisibleAfterSequence,
+            long participantNumber
     ) {
         return createActive(
                 membershipId,
@@ -98,7 +108,8 @@ public final class Membership {
                 userId,
                 MembershipRole.MEMBER,
                 joinedAt,
-                messageVisibleAfterSequence);
+                messageVisibleAfterSequence,
+                participantNumber);
     }
 
     private static Membership createActive(
@@ -107,7 +118,8 @@ public final class Membership {
             String userId,
             MembershipRole role,
             Instant joinedAt,
-            long messageVisibleAfterSequence
+            long messageVisibleAfterSequence,
+            long participantNumber
     ) {
         Instant transitionTime =
                 RoomDomainValidation.requireTransitionTime(joinedAt);
@@ -117,6 +129,9 @@ public final class Membership {
                 userId,
                 role,
                 MembershipStatus.ACTIVE,
+                MembershipProfile.createAnonymous(
+                        participantNumber,
+                        transitionTime),
                 transitionTime,
                 null,
                 null,
@@ -243,6 +258,7 @@ public final class Membership {
                 userId,
                 nextRole,
                 nextStatus,
+                profile,
                 nextJoinedAt,
                 nextLeftAt,
                 nextBannedAt,
@@ -307,6 +323,10 @@ public final class Membership {
         return status;
     }
 
+    public MembershipProfile profile() {
+        return profile;
+    }
+
     public Instant joinedAt() {
         return joinedAt;
     }
@@ -343,6 +363,7 @@ public final class Membership {
                 && userId.equals(membership.userId)
                 && role == membership.role
                 && status == membership.status
+                && profile.equals(membership.profile)
                 && joinedAt.equals(membership.joinedAt)
                 && Objects.equals(leftAt, membership.leftAt)
                 && Objects.equals(bannedAt, membership.bannedAt);
@@ -356,6 +377,7 @@ public final class Membership {
                 userId,
                 role,
                 status,
+                profile,
                 joinedAt,
                 leftAt,
                 bannedAt,
@@ -370,6 +392,7 @@ public final class Membership {
                 + ", userId=" + userId
                 + ", role=" + role
                 + ", status=" + status
+                + ", profile=" + profile
                 + ", joinedAt=" + joinedAt
                 + ", leftAt=" + leftAt
                 + ", bannedAt=" + bannedAt

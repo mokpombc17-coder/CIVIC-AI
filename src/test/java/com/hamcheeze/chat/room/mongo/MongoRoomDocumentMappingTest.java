@@ -219,7 +219,11 @@ class MongoRoomDocumentMappingTest {
         memberships.forEach(membership -> {
             MongoMembershipDocument document =
                     MongoMembershipDocument.fromDomain(membership);
-            assertThat(document.schemaVersion()).isEqualTo(2);
+            assertThat(document.schemaVersion()).isEqualTo(3);
+            assertThat(document.profile().participantNumber())
+                    .isEqualTo(2);
+            assertThat(document.profile().displayName())
+                    .isEqualTo("참여자 2");
             assertThat(document.messageVisibleAfterSequence())
                     .isEqualTo(10);
             assertThat(document.toDomain()).isEqualTo(membership);
@@ -309,11 +313,12 @@ class MongoRoomDocumentMappingTest {
         MongoMembershipDocument membershipDocument =
                 new MongoMembershipDocument(
                         "membership-1",
-                        3,
+                        4,
                         "room-1",
                         "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
+                        null,
                         CREATED_AT,
                         null,
                         null,
@@ -341,7 +346,7 @@ class MongoRoomDocumentMappingTest {
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,
-                3);
+                4);
         assertUnsupportedSchema(
                 receiptDocument::toDomain,
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME,
@@ -375,21 +380,34 @@ class MongoRoomDocumentMappingTest {
         MongoMembershipDocument legacy = new MongoMembershipDocument(
                 "membership-1", 1, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                CREATED_AT, null, null, 10L, 0);
+                null, CREATED_AT, null, null, 10L, 0);
+        MongoMembershipDocument previous = new MongoMembershipDocument(
+                "membership-1", 2, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                null, CREATED_AT, null, null, 10L, 0);
 
         assertUnsupportedSchema(
                 legacy::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,
                 1);
+        assertUnsupportedSchema(
+                previous::toDomain,
+                MongoMembershipDocument.COLLECTION_NAME,
+                2);
         assertThatThrownBy(() -> new MongoMembershipDocument(
-                "membership-1", 2, "room-1", "user-1",
+                "membership-1", 3, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                CREATED_AT, null, null, null, 0))
+                null, CREATED_AT, null, null, 10L, 0))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new MongoMembershipDocument(
-                "membership-1", 2, "room-1", "user-1",
+                "membership-1", 3, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                CREATED_AT, null, null, -1L, 0))
+                profile(), CREATED_AT, null, null, null, 0))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new MongoMembershipDocument(
+                "membership-1", 3, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                profile(), CREATED_AT, null, null, -1L, 0))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -407,6 +425,9 @@ class MongoRoomDocumentMappingTest {
                 membershipId,
                 role,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 leftAt,
                 bannedAt,
@@ -423,16 +444,27 @@ class MongoRoomDocumentMappingTest {
     ) {
         return new MongoMembershipDocument(
                 "membership-1",
-                2,
+                3,
                 "room-1",
                 "user-1",
                 role,
                 status,
+                profile(),
                 CREATED_AT,
                 leftAt,
                 bannedAt,
                 10L,
                 version);
+    }
+
+    private MongoMembershipProfileDocument profile() {
+        return new MongoMembershipProfileDocument(
+                2,
+                "참여자 2",
+                null,
+                1,
+                Instant.EPOCH,
+                Instant.EPOCH);
     }
 
     private RoomCommandReceipt receipt(

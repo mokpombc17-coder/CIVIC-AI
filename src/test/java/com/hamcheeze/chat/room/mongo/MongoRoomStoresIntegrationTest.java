@@ -248,6 +248,18 @@ class MongoRoomStoresIntegrationTest {
         membershipStore.insert(left);
         membershipStore.insert(banned);
 
+        Document raw = membershipCollection()
+                .find(new Document("_id", active.membershipId()))
+                .first();
+        assertThat(raw).isNotNull();
+        assertThat(raw.getInteger("schemaVersion")).isEqualTo(3);
+        Document profile = raw.get("profile", Document.class);
+        assertThat(profile).isNotNull();
+        assertThat(profile.getLong("participantNumber"))
+                .isEqualTo(active.profile().participantNumber());
+        assertThat(profile.getString("displayName"))
+                .isEqualTo(active.profile().displayName());
+
         assertThat(membershipStore.findById("active"))
                 .contains(active);
         assertThat(membershipStore.findById("left")).contains(left);
@@ -726,6 +738,9 @@ class MongoRoomStoresIntegrationTest {
                 userId,
                 role,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 status == MembershipStatus.LEFT
                         ? CREATED_AT.plusSeconds(10) : null,

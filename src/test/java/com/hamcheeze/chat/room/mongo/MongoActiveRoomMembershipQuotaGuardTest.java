@@ -256,6 +256,9 @@ class MongoActiveRoomMembershipQuotaGuardTest {
                     userId,
                     role,
                     status,
+                    com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                     NOW.minusSeconds(120),
                     status == MembershipStatus.LEFT
                             ? NOW.minusSeconds(60)

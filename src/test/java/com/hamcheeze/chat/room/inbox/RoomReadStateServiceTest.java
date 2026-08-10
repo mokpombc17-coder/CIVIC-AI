@@ -62,6 +62,9 @@ class RoomReadStateServiceTest {
                 "user-1",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 NOW.minusSeconds(60),
                 null,
                 null,

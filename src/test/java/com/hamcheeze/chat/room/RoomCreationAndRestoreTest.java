@@ -61,6 +61,12 @@ class RoomCreationAndRestoreTest {
         assertThat(owner.bannedAt()).isNull();
         assertThat(owner.messageVisibleAfterSequence()).isZero();
         assertThat(owner.version()).isZero();
+        assertThat(owner.profile().participantNumber()).isEqualTo(1);
+        assertThat(owner.profile().displayName()).isEqualTo("참여자 1");
+        assertThat(owner.profile().imageUrl()).isNull();
+        assertThat(owner.profile().version()).isEqualTo(1);
+        assertThat(owner.profile().createdAt()).isEqualTo(CREATED_AT);
+        assertThat(owner.profile().updatedAt()).isEqualTo(CREATED_AT);
     }
 
     @Test
@@ -250,6 +256,9 @@ class RoomCreationAndRestoreTest {
                 "owner-1",
                 MembershipRole.OWNER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -261,6 +270,9 @@ class RoomCreationAndRestoreTest {
                 "owner-1",
                 MembershipRole.OWNER,
                 MembershipStatus.LEFT,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 CREATED_AT.plusSeconds(30),
                 null,
@@ -292,6 +304,9 @@ class RoomCreationAndRestoreTest {
                         "owner-1",
                         MembershipRole.OWNER,
                         MembershipStatus.BANNED,
+                        com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                         CREATED_AT,
                         null,
                         CREATED_AT.plusSeconds(20),
@@ -375,6 +390,9 @@ class RoomCreationAndRestoreTest {
                         " ", "room-1", "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
+                        com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                         CREATED_AT, null, null, 0, 0),
                 RoomDomainErrorCode.INVALID_MEMBERSHIP_ID);
         assertFailure(
@@ -382,6 +400,9 @@ class RoomCreationAndRestoreTest {
                         "member-1", "invalid room", "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
+                        com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                         CREATED_AT, null, null, 0, 0),
                 RoomDomainErrorCode.INVALID_ROOM_ID);
         assertFailure(
@@ -389,6 +410,9 @@ class RoomCreationAndRestoreTest {
                         "member-1", "room-1", " ",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
+                        com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                         CREATED_AT, null, null, 0, 0),
                 RoomDomainErrorCode.INVALID_USER_ID);
         assertFailure(
@@ -396,8 +420,27 @@ class RoomCreationAndRestoreTest {
                         "member-1", "room-1", "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
+                        com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                         CREATED_AT, null, null, 0, -1),
                 RoomDomainErrorCode.INVALID_VERSION);
+        assertFailure(
+                () -> Membership.restore(
+                        "member-1",
+                        "room-1",
+                        "user-1",
+                        MembershipRole.MEMBER,
+                        MembershipStatus.ACTIVE,
+                        MembershipProfile.createAnonymous(
+                                2,
+                                CREATED_AT.plusSeconds(1)),
+                        CREATED_AT,
+                        null,
+                        null,
+                        0,
+                        0),
+                RoomDomainErrorCode.INVALID_DOMAIN_STATE);
     }
 
     @Test
@@ -408,7 +451,8 @@ class RoomCreationAndRestoreTest {
                         "room-1",
                         "user-1",
                         CREATED_AT,
-                        -1),
+                        -1,
+                        2),
                 RoomDomainErrorCode.INVALID_DOMAIN_STATE);
         assertFailure(
                 () -> Membership.restore(
@@ -417,6 +461,9 @@ class RoomCreationAndRestoreTest {
                         "user-1",
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
+                        com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                         CREATED_AT,
                         null,
                         null,
@@ -428,11 +475,11 @@ class RoomCreationAndRestoreTest {
     @Test
     void visibilityBoundaryParticipatesInMembershipEquality() {
         Membership first = Membership.createMember(
-                "membership-1", "room-1", "user-1", CREATED_AT, 10);
+                "membership-1", "room-1", "user-1", CREATED_AT, 10, 2);
         Membership same = Membership.createMember(
-                "membership-1", "room-1", "user-1", CREATED_AT, 10);
+                "membership-1", "room-1", "user-1", CREATED_AT, 10, 2);
         Membership differentBoundary = Membership.createMember(
-                "membership-1", "room-1", "user-1", CREATED_AT, 11);
+                "membership-1", "room-1", "user-1", CREATED_AT, 11, 2);
 
         assertThat(first).isEqualTo(same);
         assertThat(first.hashCode()).isEqualTo(same.hashCode());
@@ -496,6 +543,9 @@ class RoomCreationAndRestoreTest {
                 "user-1",
                 MembershipRole.MEMBER,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 leftAt,
                 bannedAt,

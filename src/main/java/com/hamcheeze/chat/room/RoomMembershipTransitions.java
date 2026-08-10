@@ -71,7 +71,8 @@ public final class RoomMembershipTransitions {
                     room.roomId(),
                     userId,
                     joinedAt,
-                    messageVisibleAfterSequence);
+                    messageVisibleAfterSequence,
+                    room.nextParticipantNumber());
             return new JoinRoomTransition(
                     outcome,
                     room.memberJoined(),

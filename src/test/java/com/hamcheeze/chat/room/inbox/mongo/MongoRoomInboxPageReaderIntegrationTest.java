@@ -468,6 +468,9 @@ class MongoRoomInboxPageReaderIntegrationTest {
                 USER_ID,
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 joinedAt,
                 null,
                 null,

@@ -66,6 +66,9 @@ class RoomQueryServiceTest {
                 "owner-1",
                 MembershipRole.OWNER,
                 MembershipStatus.LEFT,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 CREATED_AT.plusSeconds(60),
                 null,
@@ -179,6 +182,9 @@ class RoomQueryServiceTest {
                 userId,
                 MembershipRole.MEMBER,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 status == MembershipStatus.LEFT
                         ? CREATED_AT.plusSeconds(10)

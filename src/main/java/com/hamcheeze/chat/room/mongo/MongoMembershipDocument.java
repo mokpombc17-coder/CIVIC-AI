@@ -20,6 +20,7 @@ public record MongoMembershipDocument(
         String userId,
         MembershipRole role,
         MembershipStatus status,
+        MongoMembershipProfileDocument profile,
         Instant joinedAt,
         Instant leftAt,
         Instant bannedAt,
@@ -28,7 +29,7 @@ public record MongoMembershipDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_memberships";
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCHEMA_VERSION = 3;
 
     @PersistenceCreator
     public MongoMembershipDocument {
@@ -37,6 +38,9 @@ public record MongoMembershipDocument(
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(role, "role");
         Objects.requireNonNull(status, "status");
+        if (schemaVersion == CURRENT_SCHEMA_VERSION) {
+            Objects.requireNonNull(profile, "profile");
+        }
         Objects.requireNonNull(joinedAt, "joinedAt");
         Objects.requireNonNull(
                 messageVisibleAfterSequence,
@@ -58,6 +62,8 @@ public record MongoMembershipDocument(
                 membership.userId(),
                 membership.role(),
                 membership.status(),
+                MongoMembershipProfileDocument.fromDomain(
+                        membership.profile()),
                 membership.joinedAt(),
                 membership.leftAt(),
                 membership.bannedAt(),
@@ -73,6 +79,7 @@ public record MongoMembershipDocument(
                 userId,
                 role,
                 status,
+                profile.toDomain(),
                 joinedAt,
                 leftAt,
                 bannedAt,

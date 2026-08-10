@@ -304,6 +304,9 @@ class RoomInboxServiceTest {
                 "user-1",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 activityAt.minusSeconds(100),
                 null,
                 null,

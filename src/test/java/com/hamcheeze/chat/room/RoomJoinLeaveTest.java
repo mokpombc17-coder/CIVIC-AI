@@ -44,6 +44,12 @@ class RoomJoinLeaveTest {
         assertThat(result.membership().messageVisibleAfterSequence())
                 .isEqualTo(100);
         assertThat(result.membership().version()).isZero();
+        assertThat(result.membership().profile().participantNumber())
+                .isEqualTo(2);
+        assertThat(result.membership().profile().displayName())
+                .isEqualTo("참여자 2");
+        assertThat(result.membership().profile().createdAt())
+                .isEqualTo(TRANSITION_AT);
     }
 
     @Test
@@ -74,6 +80,8 @@ class RoomJoinLeaveTest {
                 .isEqualTo(CREATED_AT);
         assertThat(result.membership().messageVisibleAfterSequence())
                 .isEqualTo(10);
+        assertThat(result.membership().profile())
+                .isSameAs(membership.profile());
     }
 
     @Test
@@ -105,6 +113,38 @@ class RoomJoinLeaveTest {
         assertThat(result.membership().messageVisibleAfterSequence())
                 .isEqualTo(200);
         assertThat(result.membership().version()).isEqualTo(6);
+        assertThat(result.membership().profile())
+                .isSameAs(left.profile());
+        assertThat(result.membership().profile().participantNumber())
+                .isEqualTo(2);
+    }
+
+    @Test
+    void assignsMonotonicNumbersOnlyToNewMemberships() {
+        Room room = activeRoom(1, 0, JoinPolicy.OPEN, 2);
+
+        JoinRoomTransition second =
+                RoomMembershipTransitions.joinRoom(
+                        room,
+                        null,
+                        "membership-2",
+                        "user-2",
+                        TRANSITION_AT,
+                        10);
+        JoinRoomTransition third =
+                RoomMembershipTransitions.joinRoom(
+                        second.room(),
+                        null,
+                        "membership-3",
+                        "user-3",
+                        TRANSITION_AT.plusSeconds(1),
+                        11);
+
+        assertThat(second.membership().profile().participantNumber())
+                .isEqualTo(2);
+        assertThat(third.membership().profile().participantNumber())
+                .isEqualTo(3);
+        assertThat(third.room().nextParticipantNumber()).isEqualTo(4);
     }
 
     @Test
@@ -170,6 +210,9 @@ class RoomJoinLeaveTest {
                 "user-2",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -206,6 +249,9 @@ class RoomJoinLeaveTest {
                 "user-2",
                 MembershipRole.OWNER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -318,6 +364,9 @@ class RoomJoinLeaveTest {
                 "owner-1",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -355,6 +404,9 @@ class RoomJoinLeaveTest {
                 "user-2",
                 MembershipRole.OWNER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -402,6 +454,9 @@ class RoomJoinLeaveTest {
                 "user-2",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -506,6 +561,9 @@ class RoomJoinLeaveTest {
                 userId,
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 null,
@@ -520,6 +578,9 @@ class RoomJoinLeaveTest {
                 userId,
                 MembershipRole.MEMBER,
                 MembershipStatus.LEFT,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 CREATED_AT.plusSeconds(20),
                 null,
@@ -534,6 +595,9 @@ class RoomJoinLeaveTest {
                 userId,
                 MembershipRole.MEMBER,
                 MembershipStatus.BANNED,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 null,
                 CREATED_AT.plusSeconds(20),
@@ -548,6 +612,9 @@ class RoomJoinLeaveTest {
                 "owner-1",
                 MembershipRole.OWNER,
                 status,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
                 CREATED_AT,
                 status == MembershipStatus.LEFT
                         ? CREATED_AT.plusSeconds(20) : null,

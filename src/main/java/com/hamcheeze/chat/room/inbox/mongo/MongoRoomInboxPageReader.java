@@ -307,6 +307,7 @@ public final class MongoRoomInboxPageReader
                 .append("userId", "$userId")
                 .append("role", "$role")
                 .append("status", "$status")
+                .append("profile", "$profile")
                 .append("joinedAt", "$joinedAt")
                 .append("leftAt", "$leftAt")
                 .append("bannedAt", "$bannedAt")
