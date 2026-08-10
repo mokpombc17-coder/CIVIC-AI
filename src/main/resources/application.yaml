@@ -27,6 +27,19 @@ chat:
   room-query:
     listed-room-page-query-max-time: ${CHAT_LISTED_ROOM_PAGE_QUERY_MAX_TIME:1s}
 
+  message:
+    search:
+      default-result-limit: ${CHAT_MESSAGE_SEARCH_DEFAULT_RESULT_LIMIT:20}
+      max-result-limit: ${CHAT_MESSAGE_SEARCH_MAX_RESULT_LIMIT:50}
+      candidate-chunk-size: ${CHAT_MESSAGE_SEARCH_CANDIDATE_CHUNK_SIZE:500}
+      max-scanned-per-request: ${CHAT_MESSAGE_SEARCH_MAX_SCANNED_PER_REQUEST:2000}
+      request-deadline: ${CHAT_MESSAGE_SEARCH_REQUEST_DEADLINE:1s}
+      mongo-query-max-time: ${CHAT_MESSAGE_SEARCH_MONGO_QUERY_MAX_TIME:500ms}
+      cursor-ttl: ${CHAT_MESSAGE_SEARCH_CURSOR_TTL:10m}
+      max-concurrent-searches: ${CHAT_MESSAGE_SEARCH_MAX_CONCURRENT_SEARCHES:4}
+      user-rate-limit-per-second: ${CHAT_MESSAGE_SEARCH_USER_RATE_LIMIT_PER_SECOND:1}
+      user-rate-limit-burst: ${CHAT_MESSAGE_SEARCH_USER_RATE_LIMIT_BURST:3}
+
   message-pipeline:
     queue-capacity: ${CHAT_MESSAGE_PIPELINE_QUEUE_CAPACITY:100}
     shutdown-drain-timeout-ms: ${CHAT_MESSAGE_PIPELINE_SHUTDOWN_DRAIN_TIMEOUT_MS:10000}
