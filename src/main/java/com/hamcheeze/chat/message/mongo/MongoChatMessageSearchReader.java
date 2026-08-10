@@ -4,7 +4,10 @@ import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.search.ChatMessageSearchCandidateSlice;
 import com.hamcheeze.chat.message.search.ChatMessageSearchReader;
+import com.hamcheeze.chat.message.search.ChatMessageSearchReaderException;
+import org.bson.codecs.configuration.CodecConfigurationException;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mapping.MappingException;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -66,13 +69,30 @@ public final class MongoChatMessageSearchReader
                 .limit(limit + 1)
                 .maxTime(maxTime);
 
-        List<ChatMessage> found = mongoOperations.find(
-                        query,
-                        MongoChatMessageDocument.class,
-                        MongoChatMessageDocument.COLLECTION_NAME)
-                .stream()
-                .map(MongoChatMessageDocument::toDomain)
-                .toList();
+        List<ChatMessage> found;
+        try {
+            found = mongoOperations.find(
+                            query,
+                            MongoChatMessageDocument.class,
+                            MongoChatMessageDocument.COLLECTION_NAME)
+                    .stream()
+                    .map(MongoChatMessageDocument::toDomain)
+                    .toList();
+        } catch (MappingException
+                 | CodecConfigurationException
+                 | IllegalArgumentException exception) {
+            throw new ChatMessageSearchReaderException(
+                    ChatMessageSearchReaderException.FailureKind
+                            .DATA_INCONSISTENT,
+                    "Message search candidate is malformed",
+                    exception);
+        } catch (RuntimeException exception) {
+            throw new ChatMessageSearchReaderException(
+                    ChatMessageSearchReaderException.FailureKind
+                            .STORAGE_UNAVAILABLE,
+                    "Message search storage is unavailable",
+                    exception);
+        }
         boolean hasOlderCandidates = found.size() > limit;
         List<ChatMessage> items = hasOlderCandidates
                 ? List.copyOf(found.subList(0, limit))

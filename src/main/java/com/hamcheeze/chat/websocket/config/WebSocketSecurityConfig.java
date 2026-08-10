@@ -73,6 +73,11 @@ public class WebSocketSecurityConfig {
                                 ChatScopes.ROOMS_READ))
                         .requestMatchers(
                                 HttpMethod.POST,
+                                "/api/v1/rooms/*/messages/search")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ))
+                        .requestMatchers(
+                                HttpMethod.POST,
                                 "/api/v1/rooms/**")
                         .hasAuthority(ChatScopes.authority(
                                 ChatScopes.ROOMS_WRITE))

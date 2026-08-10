@@ -3,6 +3,8 @@ package com.hamcheeze.chat.room.api;
 import com.hamcheeze.chat.message.api.ChatMessageQueryController;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryErrorCode;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryException;
+import com.hamcheeze.chat.message.search.ChatMessageSearchErrorCode;
+import com.hamcheeze.chat.message.search.ChatMessageSearchException;
 import com.hamcheeze.chat.room.api.dto.FieldErrorResponse;
 import com.hamcheeze.chat.room.application.idempotency.RoomClientRequestId;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
@@ -146,6 +148,38 @@ public class RoomApiExceptionHandler {
                 null);
     }
 
+    @ExceptionHandler(ChatMessageSearchException.class)
+    ResponseEntity<ProblemDetail> messageSearch(
+            ChatMessageSearchException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = switch (exception.code()) {
+            case INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
+            case ACCESS_DENIED -> HttpStatus.FORBIDDEN;
+            case MESSAGE_SEARCH_NOT_AVAILABLE -> HttpStatus.CONFLICT;
+            case MESSAGE_SEARCH_RATE_LIMITED ->
+                    HttpStatus.TOO_MANY_REQUESTS;
+            case MESSAGE_SEARCH_UNAVAILABLE ->
+                    HttpStatus.SERVICE_UNAVAILABLE;
+            case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        boolean retryable = exception.code()
+                == ChatMessageSearchErrorCode.MESSAGE_SEARCH_RATE_LIMITED
+                || exception.code()
+                == ChatMessageSearchErrorCode.MESSAGE_SEARCH_UNAVAILABLE;
+        if (exception.code() == ChatMessageSearchErrorCode.INTERNAL_ERROR) {
+            log.error("Message search consistency failure", exception);
+        }
+        return problem(
+                status,
+                exception.code().name(),
+                "Message search failed",
+                messageSearchDetail(exception.code()),
+                request,
+                retryable,
+                null);
+    }
+
     @ExceptionHandler(RoomInboxException.class)
     ResponseEntity<ProblemDetail> roomInbox(
             RoomInboxException exception,
@@ -279,6 +313,24 @@ public class RoomApiExceptionHandler {
             case NOT_ROOM_OWNER ->
                     "Only the room owner may perform this query.";
             case INVALID_CURSOR -> "The cursor is invalid.";
+        };
+    }
+
+    private String messageSearchDetail(
+            ChatMessageSearchErrorCode code
+    ) {
+        return switch (code) {
+            case INVALID_CURSOR -> "The search cursor is invalid.";
+            case ACCESS_DENIED ->
+                    "An active room membership is required.";
+            case MESSAGE_SEARCH_NOT_AVAILABLE ->
+                    "Message search is not available for this room.";
+            case MESSAGE_SEARCH_RATE_LIMITED ->
+                    "Message search rate limit was exceeded.";
+            case MESSAGE_SEARCH_UNAVAILABLE ->
+                    "Message search is temporarily unavailable.";
+            case INTERNAL_ERROR ->
+                    "Message search data is inconsistent.";
         };
     }
 }

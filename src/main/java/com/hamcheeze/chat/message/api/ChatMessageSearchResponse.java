@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.message.api;
 
 import com.hamcheeze.chat.delivery.ChatMessagePayload;
+import com.hamcheeze.chat.message.search.ChatMessageSearchPage;
 
 import java.util.List;
 import java.util.Objects;
@@ -22,5 +23,17 @@ public record ChatMessageSearchResponse(
             throw new IllegalArgumentException(
                     "incomplete search must have a next cursor");
         }
+    }
+
+    public static ChatMessageSearchResponse from(
+            ChatMessageSearchPage page
+    ) {
+        Objects.requireNonNull(page, "page");
+        return new ChatMessageSearchResponse(
+                page.items().stream()
+                        .map(ChatMessagePayload::from)
+                        .toList(),
+                page.nextCursor(),
+                page.searchComplete());
     }
 }

@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.message.search;
 
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
+import com.hamcheeze.chat.room.inbox.RoomSequenceReader;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,5 +35,23 @@ public class ChatMessageSearchConfiguration {
                 objectMapper,
                 Clock.systemUTC(),
                 properties.getCursorTtl());
+    }
+
+    @Bean
+    ChatMessageSearchService chatMessageSearchService(
+            ChatMessageSearchReader reader,
+            ChatMessageSearchAccessResolver accessResolver,
+            RoomSequenceReader sequenceReader,
+            ChatMessageSearchNormalizer normalizer,
+            ChatMessageSearchCursorCodec cursorCodec,
+            ChatMessageSearchProperties properties
+    ) {
+        return new ChatMessageSearchService(
+                reader,
+                accessResolver,
+                sequenceReader,
+                normalizer,
+                cursorCodec,
+                properties);
     }
 }
