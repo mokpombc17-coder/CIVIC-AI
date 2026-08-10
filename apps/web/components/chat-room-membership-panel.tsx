@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
 import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
+import { resolveRoomMembershipListPolicy } from "@/lib/chat/chat-room-membership-list-policy";
 import type {
   MembershipStatus,
   RoomDetails,
@@ -84,14 +85,11 @@ export function ChatRoomMembershipPanel({
     enabled: room.myMembership !== null,
   });
   const membership = membershipQuery.data ?? room.myMembership;
-  const isOwner =
-    room.status === "ACTIVE" &&
-    membership?.status === "ACTIVE" &&
-    membership.role === "OWNER" &&
-    membership.membershipId === room.ownerMembershipId;
+  const membershipListPolicy = resolveRoomMembershipListPolicy(room, membership, membershipStatus);
+  const isOwner = membershipListPolicy.isOwner;
   const membershipsQuery = useRoomMembershipsQuery(roomId, {
-    enabled: isOwner,
-    status: membershipStatus,
+    enabled: membershipListPolicy.enabled,
+    status: membershipListPolicy.status,
   });
   const leaveRoom = useLeaveRoomMutation();
   const transferOwnership = useTransferRoomOwnershipMutation();
