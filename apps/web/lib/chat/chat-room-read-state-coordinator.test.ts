@@ -548,13 +548,13 @@ function createMembershipLifecycle(
   patch: Partial<{
     membershipVersion: number;
     messageVisibleAfterSequence: number;
-    userId: string;
+    membershipId: string;
   }> = {},
 ) {
   return {
     membershipVersion: 1,
     messageVisibleAfterSequence: 0,
-    userId: "user-a",
+    membershipId: "membership-a",
     ...patch,
   };
 }

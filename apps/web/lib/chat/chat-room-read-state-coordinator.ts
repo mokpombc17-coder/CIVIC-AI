@@ -21,9 +21,9 @@ export type ChatRoomReadStateEntrySnapshot = Readonly<{
 }>;
 
 export type ChatRoomReadStateMembershipLifecycle = Readonly<{
+  membershipId: string;
   membershipVersion: number;
   messageVisibleAfterSequence: number;
-  userId: string;
 }>;
 
 export type ChatRoomReadStateConfirmedEvent = Readonly<{
@@ -501,8 +501,8 @@ function assertSequence(sequence: number, field: string): void {
 function parseMembershipLifecycle(
   input: ChatRoomReadStateMembershipLifecycle,
 ): ChatRoomReadStateMembershipLifecycle {
-  if (typeof input.userId !== "string" || input.userId.trim().length === 0) {
-    throw new TypeError("userId는 공백이 아닌 문자열이어야 합니다.");
+  if (typeof input.membershipId !== "string" || input.membershipId.trim().length === 0) {
+    throw new TypeError("membershipId는 공백이 아닌 문자열이어야 합니다.");
   }
 
   if (!Number.isSafeInteger(input.membershipVersion) || input.membershipVersion < 0) {
@@ -511,9 +511,9 @@ function parseMembershipLifecycle(
 
   assertSequence(input.messageVisibleAfterSequence, "messageVisibleAfterSequence");
   return Object.freeze({
+    membershipId: input.membershipId,
     membershipVersion: input.membershipVersion,
     messageVisibleAfterSequence: input.messageVisibleAfterSequence,
-    userId: input.userId,
   });
 }
 
@@ -534,7 +534,7 @@ function isSameMembershipLifecycle(
 ): boolean {
   return (
     current !== null &&
-    current.userId === incoming.userId &&
+    current.membershipId === incoming.membershipId &&
     current.membershipVersion === incoming.membershipVersion &&
     current.messageVisibleAfterSequence === incoming.messageVisibleAfterSequence
   );

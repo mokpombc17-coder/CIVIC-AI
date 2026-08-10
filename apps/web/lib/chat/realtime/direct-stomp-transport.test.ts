@@ -800,7 +800,6 @@ describe("DirectStompTransport", () => {
         notificationHint: {
           messageId: "message-20",
           messageVersion: 1,
-          senderUserId: "user-02",
           senderMembershipId: "membership-02",
           messageCreatedAt: "2026-08-04T01:09:59Z",
           preview: "새 메시지",
@@ -1212,7 +1211,6 @@ function createMessageEvent(roomSequence: number, roomId = "room-01") {
       roomId,
       roomSequence,
       countable: true,
-      senderUserId: "local-user-1",
       senderMembershipId: "membership-01",
       clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
       content: `message ${roomSequence}`,

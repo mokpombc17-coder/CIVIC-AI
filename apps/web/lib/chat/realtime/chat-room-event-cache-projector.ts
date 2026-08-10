@@ -98,7 +98,6 @@ function projectRoomDetails(
     ...room,
     activeMemberCount: projectActiveMemberCount(room, event),
     ownerMembershipId: getOwnerMembershipId(event, room.ownerMembershipId),
-    ownerUserId: getCompatibilityOwnerUserId(event, room.ownerUserId),
     participationStatus:
       event.payload.roomStatus === "CLOSED" ? "ROOM_CLOSED" : room.participationStatus,
     status: event.payload.roomStatus,
@@ -170,23 +169,6 @@ function projectActiveMemberCount(room: RoomDetails, event: ChatRoomEventEnvelop
       return Math.max(0, room.activeMemberCount - 1);
     default:
       return room.activeMemberCount;
-  }
-}
-
-// Keep the additive v1 field internally consistent until the backend removes it.
-// Participant identity and ownership decisions must use ownerMembershipId instead.
-function getCompatibilityOwnerUserId(
-  event: ChatRoomEventEnvelope,
-  currentOwnerUserId: string,
-): string {
-  switch (event.eventType) {
-    case "ROOM_CREATED":
-    case "ROOM_CLOSED":
-      return event.payload.owner.userId;
-    case "ROOM_OWNERSHIP_TRANSFERRED":
-      return event.payload.newOwner.userId;
-    default:
-      return currentOwnerUserId;
   }
 }
 

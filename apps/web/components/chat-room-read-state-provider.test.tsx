@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 const membershipLifecycle = Object.freeze({
   membershipVersion: 1,
   messageVisibleAfterSequence: 0,
-  userId: "user-1",
+  membershipId: "membership-1",
 });
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {

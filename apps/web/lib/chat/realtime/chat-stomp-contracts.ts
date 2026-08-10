@@ -106,7 +106,6 @@ const chatRoomInboxNotificationHintSchema = z.object({
   messageId: opaqueIdSchema,
   messageVersion: z.number().int().positive(),
   senderMembershipId: opaqueIdSchema,
-  senderUserId: opaqueIdSchema,
   messageCreatedAt: instantSchema,
   preview: z.string(),
   previewTruncated: z.boolean(),

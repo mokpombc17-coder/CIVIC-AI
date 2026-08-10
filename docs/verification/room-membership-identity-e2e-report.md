@@ -152,17 +152,14 @@ Production 코드의 Room 참여자 식별 경로를 다시 검색하고 다음�
 위 경로에는 participant `userId` 비교, key, 표시 또는 command target fallback이
 남아 있지 않다.
 
-### 의도적으로 유지하는 `userId`
+### Membership-only hard cutover 상태
 
-- REST/STOMP Zod schema의 `ownerUserId`, `senderUserId`, `targetUserId` 등은
-  Backend additive v1 응답을 엄격하게 검증하기 위해 유지한다.
-- Room event cache projector는 v1 `ownerUserId` snapshot을 일관되게 보존하지만,
-  이 값을 ownership 판단에는 사용하지 않는다. 제거 의도를 드러내도록 helper를
-  `getCompatibilityOwnerUserId`로 명명했다.
-- Read-state coordinator의 `userId`는 Room participant key가 아니라 로그인
-  principal fencing이다. 다른 사용자의 pending cursor가 재전송되는 것을 막기
-  위해 유지해야 한다.
+- REST Room projection, Membership, command result와 message snapshot schema에서
+  participant `userId` 필드를 제거했다.
+- Room owner compatibility projection을 제거하고 `ownerMembershipId`만 유지한다.
+- Read-state Membership lifecycle identity도 `membershipId`로 통일한다. 로그인
+  사용자 변경에 대한 비동기 결과 격리는 별도의 `principalGeneration`이 담당한다.
+- Room event v2 전환과 legacy member `userId` 제거는 다음 단계에서 함께 적용한다.
 
-Backend의 public `userId` 제거 commit을 적용할 때는 additive Zod 필드와
-compatibility projection만 제거하면 된다. 현재 Room 참여자 행동 로직을 다시
-이관하거나 `userId` fallback을 둘 필요는 없다.
+Room 관련 동작에는 `userId` fallback을 추가하지 않는다. Backend가 필수
+Membership identity를 누락하면 프론트 계약 오류로 처리한다.

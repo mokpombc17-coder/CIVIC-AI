@@ -23,15 +23,15 @@ export function useChatRoomReadState(
   }: UseChatRoomReadStateOptions,
 ): (throughSequence: number) => void {
   const coordinator = useChatRoomReadStateCoordinator();
+  const membershipId = membershipLifecycleInput?.membershipId ?? null;
   const membershipVersion = membershipLifecycleInput?.membershipVersion ?? null;
   const messageVisibleAfterSequence = membershipLifecycleInput?.messageVisibleAfterSequence ?? null;
-  const userId = membershipLifecycleInput?.userId ?? null;
   const membershipLifecycle = useMemo<ChatRoomReadStateMembershipLifecycle | null>(
     () =>
-      membershipVersion === null || messageVisibleAfterSequence === null || userId === null
+      membershipId === null || membershipVersion === null || messageVisibleAfterSequence === null
         ? null
-        : Object.freeze({ membershipVersion, messageVisibleAfterSequence, userId }),
-    [membershipVersion, messageVisibleAfterSequence, userId],
+        : Object.freeze({ membershipId, membershipVersion, messageVisibleAfterSequence }),
+    [membershipId, membershipVersion, messageVisibleAfterSequence],
   );
 
   useEffect(() => {

@@ -113,7 +113,6 @@ export const publicRoomSearchQuerySchema = z
 export const roomMembershipSchema = z.object({
   membershipId: opaqueIdSchema,
   roomId: roomIdSchema,
-  userId: opaqueIdSchema,
   role: membershipRoleSchema,
   status: membershipStatusSchema,
   joinedAt: instantSchema,
@@ -133,7 +132,6 @@ export const roomSettingsSchema = z.object({
 export const publicRoomListItemSchema = roomSettingsSchema.extend({
   roomId: roomIdSchema,
   ownerMembershipId: opaqueIdSchema,
-  ownerUserId: opaqueIdSchema,
   status: roomStatusSchema,
   activeMemberCount: z.number().int().nonnegative(),
   createdAt: instantSchema,
@@ -206,7 +204,6 @@ export const roomInboxListItemSchema = myRoomListItemSchema
 
 export const roomMembershipListItemSchema = z.object({
   membershipId: opaqueIdSchema,
-  userId: opaqueIdSchema,
   role: membershipRoleSchema,
   status: membershipStatusSchema,
   joinedAt: instantSchema,
@@ -264,7 +261,6 @@ const commandResponseBaseSchema = z.object({
 export const createRoomResponseSchema = commandResponseBaseSchema.extend({
   code: z.literal("ROOM_CREATED"),
   ownerMembershipId: opaqueIdSchema,
-  ownerUserId: opaqueIdSchema,
   roomVersion: versionSchema,
   ownerMembershipVersion: versionSchema,
 });
@@ -277,7 +273,6 @@ export const updateRoomSettingsResponseSchema = commandResponseBaseSchema.extend
 
 const membershipCommandResponseFields = {
   membershipId: opaqueIdSchema,
-  membershipUserId: opaqueIdSchema,
   roomVersion: versionSchema,
   membershipVersion: versionSchema,
 } as const;
@@ -294,8 +289,6 @@ export const leaveRoomResponseSchema = commandResponseBaseSchema.extend({
 
 export const transferRoomOwnershipResponseSchema = commandResponseBaseSchema.extend({
   code: z.literal("OWNERSHIP_TRANSFERRED"),
-  previousOwnerUserId: opaqueIdSchema,
-  newOwnerUserId: opaqueIdSchema,
   previousOwnerMembershipId: opaqueIdSchema,
   newOwnerMembershipId: opaqueIdSchema,
   roomVersion: versionSchema,
@@ -304,7 +297,6 @@ export const transferRoomOwnershipResponseSchema = commandResponseBaseSchema.ext
 });
 
 const memberBanCommandResponseFields = {
-  targetUserId: opaqueIdSchema,
   targetMembershipId: opaqueIdSchema,
   roomVersion: versionSchema,
   membershipVersion: versionSchema,
@@ -323,7 +315,6 @@ export const unbanRoomMemberResponseSchema = commandResponseBaseSchema.extend({
 export const closeRoomResponseSchema = commandResponseBaseSchema.extend({
   code: z.enum(["CLOSED", "ALREADY_CLOSED"]),
   ownerMembershipId: opaqueIdSchema,
-  ownerUserId: opaqueIdSchema,
   roomVersion: versionSchema,
   ownerMembershipVersion: versionSchema,
 });
@@ -334,7 +325,6 @@ const chatMessageSnapshotBaseSchema = z.object({
   roomSequence: positiveSequenceSchema,
   countable: z.boolean(),
   senderMembershipId: opaqueIdSchema,
-  senderUserId: opaqueIdSchema,
   clientMessageId: idempotencyKeySchema,
   messageVersion: positiveMessageVersionSchema,
   createdAt: instantSchema,

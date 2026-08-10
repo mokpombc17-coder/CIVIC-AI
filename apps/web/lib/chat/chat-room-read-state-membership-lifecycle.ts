@@ -7,7 +7,7 @@ export function getChatRoomReadStateMembershipLifecycle({
   messageVisibleAfterSequence,
 }: Readonly<{
   enabled: boolean;
-  membership: Pick<RoomMembership, "status" | "userId" | "version"> | null;
+  membership: Pick<RoomMembership, "membershipId" | "status" | "version"> | null;
   messageVisibleAfterSequence: number | null;
 }>): ChatRoomReadStateMembershipLifecycle | null {
   if (!enabled || membership?.status !== "ACTIVE" || messageVisibleAfterSequence === null) {
@@ -15,8 +15,8 @@ export function getChatRoomReadStateMembershipLifecycle({
   }
 
   return Object.freeze({
+    membershipId: membership.membershipId,
     membershipVersion: membership.version,
     messageVisibleAfterSequence,
-    userId: membership.userId,
   });
 }

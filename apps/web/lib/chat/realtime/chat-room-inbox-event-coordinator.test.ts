@@ -20,7 +20,6 @@ const CREATED_EVENT: Extract<ChatRoomInboxEvent, { cause: "MESSAGE_CREATED" }> =
   notificationHint: {
     messageId: "message-01",
     messageVersion: 1,
-    senderUserId: "user-02",
     senderMembershipId: "membership-02",
     messageCreatedAt: "2026-08-04T01:09:59Z",
     preview: "안녕하세요.",

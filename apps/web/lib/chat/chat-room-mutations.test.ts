@@ -343,7 +343,6 @@ const CREATE_ROOM_RESPONSE = {
   replayed: false,
   roomId: "room-01",
   ownerMembershipId: "membership-01",
-  ownerUserId: "local-user-1",
   roomVersion: 1,
   ownerMembershipVersion: 1,
 };
@@ -366,7 +365,6 @@ const JOIN_ROOM_RESPONSE = {
   replayed: false,
   roomId: "room-01",
   membershipId: "membership-01",
-  membershipUserId: "local-user-1",
   roomVersion: 2,
   membershipVersion: 1,
 };
@@ -376,8 +374,6 @@ const TRANSFER_OWNERSHIP_RESPONSE = {
   code: "OWNERSHIP_TRANSFERRED" as const,
   replayed: false,
   roomId: "room-01",
-  previousOwnerUserId: "local-user-1",
-  newOwnerUserId: "local-user-2",
   previousOwnerMembershipId: "membership-01",
   newOwnerMembershipId: "membership-02",
   roomVersion: 3,

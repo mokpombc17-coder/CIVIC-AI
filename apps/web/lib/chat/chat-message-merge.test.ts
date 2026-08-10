@@ -82,7 +82,6 @@ describe("mergeChatMessages", () => {
           [
             {
               ...message,
-              senderUserId: "another-user",
               senderMembershipId: "another-membership",
               messageVersion: 2,
               updatedAt: "2026-07-29T04:41:00Z",
@@ -97,11 +96,10 @@ describe("mergeChatMessages", () => {
     );
   });
 
-  it("senderUserId가 달라도 senderMembershipId가 같으면 같은 작성자의 새 snapshot으로 병합한다", () => {
+  it("senderMembershipId가 같으면 같은 작성자의 새 snapshot으로 병합한다", () => {
     const message = createMessage(1);
     const updatedMessage = {
       ...message,
-      senderUserId: "legacy-user-id-that-must-not-be-used",
       messageVersion: 2,
       updatedAt: "2026-07-29T04:41:00Z",
     };
@@ -249,7 +247,6 @@ function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACT
     roomId: "room-01",
     roomSequence,
     countable: true,
-    senderUserId: "local-user-1",
     senderMembershipId: "membership-01",
     clientMessageId: `00000000-0000-4000-8000-${String(roomSequence).padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,

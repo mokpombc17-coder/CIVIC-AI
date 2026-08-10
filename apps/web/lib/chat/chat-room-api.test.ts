@@ -449,7 +449,6 @@ const PUBLIC_ROOM = {
   description: "",
   categories: ["POLICY"],
   ownerMembershipId: "membership-01",
-  ownerUserId: "local-user-1",
   status: "ACTIVE",
   visibility: "LISTED",
   joinPolicy: "OPEN",
@@ -461,7 +460,6 @@ const PUBLIC_ROOM = {
 const MEMBERSHIP = {
   membershipId: "membership-01",
   roomId: "room-01",
-  userId: "local-user-1",
   role: "OWNER",
   status: "ACTIVE",
   joinedAt: "2026-07-29T04:30:00Z",
@@ -505,7 +503,6 @@ const ROOM_INBOX_ITEM = {
 
 const MEMBERSHIP_LIST_ITEM = {
   membershipId: "membership-02",
-  userId: "local-user-2",
   role: "MEMBER",
   status: "ACTIVE",
   joinedAt: "2026-07-29T04:31:00Z",
@@ -520,7 +517,6 @@ const CREATE_ROOM_RESPONSE = {
   replayed: false,
   roomId: "room-01",
   ownerMembershipId: "membership-01",
-  ownerUserId: "local-user-1",
   roomVersion: 1,
   ownerMembershipVersion: 1,
 };
@@ -544,7 +540,6 @@ const JOIN_ROOM_RESPONSE = {
   replayed: false,
   roomId: "room-01",
   membershipId: "membership-02",
-  membershipUserId: "local-user-2",
   roomVersion: 2,
   membershipVersion: 1,
 };
@@ -559,8 +554,6 @@ const TRANSFER_OWNERSHIP_RESPONSE = {
   code: "OWNERSHIP_TRANSFERRED",
   replayed: false,
   roomId: "room-01",
-  previousOwnerUserId: "local-user-1",
-  newOwnerUserId: "local-user-2",
   previousOwnerMembershipId: "membership-01",
   newOwnerMembershipId: "membership-02",
   roomVersion: 3,
@@ -573,7 +566,6 @@ const BAN_MEMBER_RESPONSE = {
   code: "BANNED",
   replayed: false,
   roomId: "room-01",
-  targetUserId: "local-user-2",
   targetMembershipId: "membership-02",
   roomVersion: 4,
   membershipVersion: 3,
@@ -590,7 +582,6 @@ const CLOSE_ROOM_RESPONSE = {
   replayed: false,
   roomId: "room-01",
   ownerMembershipId: "membership-01",
-  ownerUserId: "local-user-1",
   roomVersion: 5,
   ownerMembershipVersion: 3,
 };
@@ -601,7 +592,6 @@ const CHAT_MESSAGE = {
   roomSequence: 120,
   countable: true,
   senderMembershipId: "membership-01",
-  senderUserId: "local-user-1",
   clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
   content: "안녕하세요.",
   createdAt: "2026-07-29T04:40:00Z",

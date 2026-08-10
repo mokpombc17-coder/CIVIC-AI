@@ -8,7 +8,7 @@ describe("getChatRoomReadStateMembershipLifecycle", () => {
         enabled: true,
         membership: {
           status: "ACTIVE",
-          userId: "user-a",
+          membershipId: "membership-a",
           version: 3,
         },
         messageVisibleAfterSequence: 120,
@@ -16,14 +16,14 @@ describe("getChatRoomReadStateMembershipLifecycle", () => {
     ).toEqual({
       membershipVersion: 3,
       messageVisibleAfterSequence: 120,
-      userId: "user-a",
+      membershipId: "membership-a",
     });
   });
 
   it.each([
     {
       enabled: false,
-      membership: { status: "ACTIVE" as const, userId: "user-a", version: 3 },
+      membership: { status: "ACTIVE" as const, membershipId: "membership-a", version: 3 },
       messageVisibleAfterSequence: 120,
     },
     {
@@ -33,17 +33,17 @@ describe("getChatRoomReadStateMembershipLifecycle", () => {
     },
     {
       enabled: true,
-      membership: { status: "LEFT" as const, userId: "user-a", version: 4 },
+      membership: { status: "LEFT" as const, membershipId: "membership-a", version: 4 },
       messageVisibleAfterSequence: 120,
     },
     {
       enabled: true,
-      membership: { status: "BANNED" as const, userId: "user-a", version: 4 },
+      membership: { status: "BANNED" as const, membershipId: "membership-a", version: 4 },
       messageVisibleAfterSequence: 120,
     },
     {
       enabled: true,
-      membership: { status: "ACTIVE" as const, userId: "user-a", version: 3 },
+      membership: { status: "ACTIVE" as const, membershipId: "membership-a", version: 3 },
       messageVisibleAfterSequence: null,
     },
   ])("읽음 보고가 불가능한 상태에서는 lifecycle identity를 만들지 않는다", (input) => {

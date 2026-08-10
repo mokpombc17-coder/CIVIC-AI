@@ -32,7 +32,6 @@ describe("chat room event cache projector", () => {
     ).toMatchObject({
       activeMemberCount: 2,
       ownerMembershipId: "membership-01",
-      ownerUserId: "local-user-1",
       status: "ACTIVE",
       version: 2,
     });
@@ -51,7 +50,6 @@ describe("chat room event cache projector", () => {
       queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail("room-01")),
     ).toMatchObject({
       ownerMembershipId: "membership-02",
-      ownerUserId: "local-user-2",
       version: 2,
       myMembership: {
         role: "MEMBER",
@@ -331,7 +329,6 @@ function createSettingsUpdatedEvent({
 const MY_MEMBERSHIP = {
   membershipId: "membership-01",
   roomId: "room-01",
-  userId: "local-user-1",
   role: "OWNER",
   status: "ACTIVE",
   joinedAt: "2026-07-29T04:30:00Z",
@@ -346,7 +343,6 @@ const ROOM_DETAILS = {
   description: "",
   categories: ["POLICY"],
   ownerMembershipId: "membership-01",
-  ownerUserId: "local-user-1",
   status: "ACTIVE",
   visibility: "LISTED",
   joinPolicy: "OPEN",
