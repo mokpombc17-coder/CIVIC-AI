@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
+import { createChatMessageReadReceiptPresentation } from "@/components/chat-message-read-receipt-presentation";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
@@ -28,7 +29,6 @@ import {
   createChatMessageTimeline,
   createChatMessageTimelineRows,
 } from "@/lib/chat/chat-message-timeline";
-import { projectChatMessageReadReceipts } from "@/lib/chat/chat-message-read-receipt-projector";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
@@ -91,33 +91,25 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null;
   const sessionView = getChatRoomSessionView(session, roomId, realtimeReady);
   const room = roomQuery.data;
+  const readReceiptPresentation = useMemo(
+    () =>
+      createChatMessageReadReceiptPresentation({
+        messages: messageHistory.messages,
+        receiptState: receiptStateQuery.data,
+        receiptSyncStatus: realtimeQuery.readReceiptStatus,
+        selfMembershipId: room?.myMembership?.membershipId ?? null,
+      }),
+    [
+      messageHistory.messages,
+      realtimeQuery.readReceiptStatus,
+      receiptStateQuery.data,
+      room?.myMembership?.membershipId,
+    ],
+  );
   const receiptMembershipMismatchKey =
-    room?.myMembership &&
-    receiptStateQuery.data &&
-    room.myMembership.membershipId !== receiptStateQuery.data.selfMembershipId
+    readReceiptPresentation.membershipMismatch && room?.myMembership && receiptStateQuery.data
       ? `${session.generation}:${room.myMembership.membershipId}:${receiptStateQuery.data.selfMembershipId}`
       : null;
-  const readReceiptSummaries = useMemo(() => {
-    if (
-      realtimeQuery.readReceiptStatus !== "ready" ||
-      !receiptStateQuery.data ||
-      !room?.myMembership ||
-      receiptMembershipMismatchKey !== null
-    ) {
-      return new Map();
-    }
-
-    return projectChatMessageReadReceipts(
-      messageHistory.messages,
-      receiptStateQuery.data.positionsByMembershipId,
-    );
-  }, [
-    messageHistory.messages,
-    realtimeQuery.readReceiptStatus,
-    receiptMembershipMismatchKey,
-    receiptStateQuery.data,
-    room?.myMembership,
-  ]);
   const timeline = useMemo(
     () => createChatMessageTimeline(messageHistory.messages, outgoingMessages),
     [messageHistory.messages, outgoingMessages],
@@ -129,9 +121,14 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         timelineRows,
         room?.myMembership?.membershipId ?? null,
         messageMutations.states,
-        readReceiptSummaries,
+        readReceiptPresentation.summaries,
       ),
-    [messageMutations.states, readReceiptSummaries, room?.myMembership?.membershipId, timelineRows],
+    [
+      messageMutations.states,
+      readReceiptPresentation.summaries,
+      room?.myMembership?.membershipId,
+      timelineRows,
+    ],
   );
   const messageItems = useMemo(
     () => viewportItems.flatMap((item) => (item.kind === "message" ? [item.item] : [])),

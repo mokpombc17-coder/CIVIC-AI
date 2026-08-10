@@ -261,6 +261,23 @@ describe("chat room view model", () => {
           updatedAt: "2026-08-10T03:01:00Z",
         },
       },
+      {
+        kind: "confirmed",
+        message: {
+          clientMessageId: "550e8400-e29b-41d4-a716-446655440032",
+          content: "다른 참여자가 작성한 읽은 메시지",
+          countable: true,
+          createdAt: "2026-08-10T03:02:00Z",
+          deletedAt: null,
+          messageId: "message-32",
+          messageVersion: 1,
+          roomId: "room-01",
+          roomSequence: 32,
+          senderMembershipId: "membership-02",
+          state: "ACTIVE",
+          updatedAt: "2026-08-10T03:02:00Z",
+        },
+      },
     ];
     const summaries = new Map([
       [
@@ -281,6 +298,15 @@ describe("chat room view model", () => {
           allRead: false,
         },
       ],
+      [
+        "message-32",
+        {
+          eligibleRecipientCount: 2,
+          readCount: 2,
+          unreadCount: 0,
+          allRead: true,
+        },
+      ],
     ]);
 
     const items = createChatMessageItemViewModels(timeline, "membership-01", new Map(), summaries);
@@ -294,6 +320,11 @@ describe("chat room view model", () => {
       isMine: false,
       readCount: null,
       readReceiptLabel: null,
+    });
+    expect(items[2]).toMatchObject({
+      isMine: false,
+      readCount: 2,
+      readReceiptLabel: "2명 읽음",
     });
   });
 
