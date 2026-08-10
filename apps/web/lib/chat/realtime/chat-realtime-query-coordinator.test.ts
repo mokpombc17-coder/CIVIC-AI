@@ -310,6 +310,49 @@ describe("ChatRealtimeQueryCoordinator", () => {
     );
   });
 
+  it("Receipt snapshot 실패가 core message 적용과 delivery ACK를 막지 않는다", async () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const receiptError = new Error("receipt unavailable");
+    const onReceiptError = vi.fn();
+    const onApplied = vi.fn();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+      onApplied,
+      readReceipt: {
+        api: {
+          getRoomReadReceiptState: vi.fn().mockRejectedValue(receiptError),
+        },
+        onError: onReceiptError,
+      },
+    });
+    seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+    coordinator.start();
+    await vi.waitFor(() => expect(onReceiptError).toHaveBeenCalledWith(receiptError));
+
+    transport.emit(
+      createDelivery({
+        deliveryId: "delivery-with-receipt-error",
+        events: [createBufferedMessage(2, 1), createBufferedReadReceipt(2, 2)],
+      }),
+    );
+
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items).toEqual([
+      createMessage(1),
+      createMessage(2),
+    ]);
+    expect(transport.acknowledgedDeliveries).toEqual(["delivery-with-receipt-error"]);
+    expect(onApplied).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deliveryId: "delivery-with-receipt-error",
+        messageCount: 1,
+        readReceiptEventCount: 1,
+      }),
+    );
+  });
+
   it("로드된 메시지의 UPDATE/DELETE snapshot을 기존 page 위치에서 version 순으로 병합한다", () => {
     const queryClient = new QueryClient();
     const transport = createFakeTransport();

@@ -19,6 +19,10 @@ import {
 } from "./chat-message-snapshot-refresh";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
 import {
+  ChatRoomReadReceiptCoordinator,
+  type ChatRoomReadReceiptCoordinatorOptions,
+} from "./chat-room-read-receipt-coordinator";
+import {
   applyChatRoomEventCacheProjection,
   createChatRoomEventCacheProjection,
 } from "./chat-room-event-cache-projector";
@@ -33,6 +37,7 @@ export type ChatRoomEventJournal = Readonly<{
 export type ApplyChatRealtimeDeliveryResult = Readonly<{
   deliveryId: string;
   messageCount: number;
+  readReceiptEventCount: number;
   roomEventCount: number;
   messageMerge: ChatMessageMergeResult;
 }>;
@@ -58,6 +63,7 @@ export type ChatRealtimeQueryCoordinatorOptions = Readonly<{
   onSnapshotRefreshStarted?: () => void;
   onSnapshotRefreshed?: (result: ChatMessageSnapshotRefreshResult) => void;
   onSynchronized?: () => void;
+  readReceipt?: Omit<ChatRoomReadReceiptCoordinatorOptions, "generation" | "roomId">;
   refreshLoadedPagesBeforeSnapshot?: boolean;
   watermarkSequence?: number;
 }>;
@@ -81,6 +87,7 @@ export class ChatRealtimeQueryCoordinatorError extends Error {
 
 export class ChatRealtimeQueryCoordinator {
   private loadedPagesRefreshed: boolean;
+  private readonly readReceiptCoordinator: ChatRoomReadReceiptCoordinator | null;
   private recovery: Promise<ChatMessageRecoveryResult> | null = null;
   private roomSnapshotApplied = false;
   private snapshotRefresh: Promise<ChatMessageSnapshotRefreshResult> | null = null;
@@ -93,6 +100,13 @@ export class ChatRealtimeQueryCoordinator {
     private readonly options: ChatRealtimeQueryCoordinatorOptions,
   ) {
     this.loadedPagesRefreshed = !options.refreshLoadedPagesBeforeSnapshot;
+    this.readReceiptCoordinator = options.readReceipt
+      ? new ChatRoomReadReceiptCoordinator(queryClient, {
+          ...options.readReceipt,
+          generation: options.generation,
+          roomId: options.roomId,
+        })
+      : null;
   }
 
   start(): void {
@@ -101,6 +115,7 @@ export class ChatRealtimeQueryCoordinator {
     }
 
     this.stopped = false;
+    this.readReceiptCoordinator?.start();
     this.unsubscribe = this.transport.observeRealtimeEventDelivery(
       this.handleRealtimeEventDelivery,
     );
@@ -110,6 +125,7 @@ export class ChatRealtimeQueryCoordinator {
   stop(): void {
     this.stopped = true;
     this.roomSnapshotApplied = false;
+    this.readReceiptCoordinator?.stop();
     this.unsubscribe?.();
     this.unsubscribe = null;
   }
@@ -149,6 +165,8 @@ export class ChatRealtimeQueryCoordinator {
   }
 
   retryPendingDelivery(): void {
+    this.readReceiptCoordinator?.retry();
+
     if (!this.roomSnapshotApplied) {
       this.notifyRoomSnapshotApplied();
       return;
@@ -169,12 +187,16 @@ export class ChatRealtimeQueryCoordinator {
     }
 
     try {
-      const result = applyChatRealtimeEventDelivery(
+      const coreResult = applyChatRealtimeEventDelivery(
         this.queryClient,
         delivery,
         this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
         this.options.messageVisibleAfterSequence,
       );
+      const result = {
+        ...coreResult,
+        readReceiptEventCount: this.readReceiptCoordinator?.handleDelivery(delivery) ?? 0,
+      };
       this.transport.acknowledgeRealtimeEventDelivery(delivery.deliveryId);
       this.options.onApplied?.(result);
     } catch (error) {
@@ -367,6 +389,7 @@ export function applyChatRealtimeEventDelivery(
   return {
     deliveryId: delivery.deliveryId,
     messageCount: messageEvents.length,
+    readReceiptEventCount: 0,
     roomEventCount: roomEvents.length,
     messageMerge,
   };
