@@ -136,6 +136,9 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
+ACTIVE membership profile 목록도 메시지 이력과 병렬로 조회하고, `membershipId`를 기준으로
+cursor page를 끝까지 이어 Backend `displayName`을 메시지 ViewModel에 연결한다. 현재 ACTIVE 목록에 없는 과거 발신자는
+`알 수 없는 참여자`로 표시하며, profile 조회 실패는 core message 동작을 막지 않는다.
 Read Receipt snapshot은 메시지 이력과 병렬로 조회하고, receipt sync가 ready이며 Room detail의
 현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은 인원 projection을
 적용한다. 이 projection은 message Query cache를 수정하지 않고 ViewModel 생성 직전에 계산하며,
@@ -156,8 +159,8 @@ session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 �
 조립하고, 선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
 방 정보 disclosure와 focus 복원도 Screen이 소유하며, `ChatRoomMembershipDialog` 안에서만
 `ChatRoomMembershipPanel`을 mount한다. 메시지 액션과 멤버십 Dialog는 동시에 렌더링하지 않는다.
-`ChatRoomMembershipPanel`은 membership Query와 관리 mutation을 조립하고 활성 OWNER에게만
-`ChatRoomSettingsControl`을 제공한다. 이 control은 설정 Dialog, 부분 patch 계산,
+`ChatRoomMembershipPanel`은 모든 ACTIVE membership에 profile 목록을 제공하고, LEFT/BANNED 조회와
+관리 mutation 및 `ChatRoomSettingsControl`은 활성 OWNER에게만 제공한다. 이 control은 설정 Dialog, 부분 patch 계산,
 update-settings mutation과 같은 멱등성 key 재시도를 소유한다.
 
 ## App Router special UI

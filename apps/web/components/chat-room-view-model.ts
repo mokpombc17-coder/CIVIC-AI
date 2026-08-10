@@ -7,6 +7,7 @@ import type {
   ChatMessageMutationViewState,
 } from "@/components/chat-message-mutation-state";
 import type { ChatMessageReadReceiptSummary } from "@/lib/chat/chat-message-read-receipt-projector";
+import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
 
 const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   hour: "numeric",
@@ -89,14 +90,13 @@ export function createChatMessageItemViewModels(
   selfMembershipId: string | null,
   mutationStates: ChatMessageMutationStates = new Map(),
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
+  participantDisplayNames: ReadonlyMap<string, string> = new Map(),
 ): readonly ChatMessageItemViewModel[] {
-  const participantLabels = createParticipantLabels(timeline, selfMembershipId);
-
   return timeline.map((item) =>
     createChatMessageItemViewModel(
       item,
       selfMembershipId,
-      participantLabels,
+      participantDisplayNames,
       mutationStates,
       readReceiptSummaries,
     ),
@@ -108,12 +108,8 @@ export function createChatMessageViewportItemViewModels(
   selfMembershipId: string | null,
   mutationStates: ChatMessageMutationStates = new Map(),
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
+  participantDisplayNames: ReadonlyMap<string, string> = new Map(),
 ): readonly ChatMessageViewportItemViewModel[] {
-  const participantLabels = createParticipantLabels(
-    rows.flatMap((row) => (row.kind === "message" ? [row.item] : [])),
-    selfMembershipId,
-  );
-
   return rows.map((row) => {
     if (row.kind === "date-separator") {
       return {
@@ -126,7 +122,7 @@ export function createChatMessageViewportItemViewModels(
     const item = createChatMessageItemViewModel(
       row.item,
       selfMembershipId,
-      participantLabels,
+      participantDisplayNames,
       mutationStates,
       readReceiptSummaries,
     );
@@ -141,7 +137,7 @@ export function createChatMessageViewportItemViewModels(
 function createChatMessageItemViewModel(
   item: ChatMessageTimelineItem,
   selfMembershipId: string | null,
-  participantLabels: ReadonlyMap<string, string>,
+  participantDisplayNames: ReadonlyMap<string, string>,
   mutationStates: ChatMessageMutationStates,
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary>,
 ): ChatMessageItemViewModel {
@@ -193,28 +189,10 @@ function createChatMessageItemViewModel(
     roomSequence: item.message.roomSequence,
     senderLabel: isMine
       ? null
-      : (participantLabels.get(item.message.senderMembershipId) ?? "참여자"),
+      : (participantDisplayNames.get(item.message.senderMembershipId) ??
+        UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME),
     timeLabel: formatMessageTime(item.message.createdAt),
   };
-}
-
-function createParticipantLabels(
-  timeline: readonly ChatMessageTimelineItem[],
-  selfMembershipId: string | null,
-): ReadonlyMap<string, string> {
-  const labels = new Map<string, string>();
-
-  for (const item of timeline) {
-    if (item.kind !== "confirmed" || item.message.senderMembershipId === selfMembershipId) {
-      continue;
-    }
-
-    if (!labels.has(item.message.senderMembershipId)) {
-      labels.set(item.message.senderMembershipId, `참여자 ${labels.size + 1}`);
-    }
-  }
-
-  return labels;
 }
 
 function createChatMessageRenderKey(clientMessageId: string): string {

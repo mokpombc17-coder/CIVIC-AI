@@ -6,6 +6,7 @@ import type {
   RoomMembership,
   RoomMembershipListItem,
 } from "@/lib/chat/chat-room-contracts";
+import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
 import { ChatRoomMembershipPanel } from "./chat-room-membership-panel";
 
 const mocks = vi.hoisted(() => ({
@@ -75,6 +76,7 @@ describe("ChatRoomMembershipPanel", () => {
     expect(mocks.useRoomMembershipsQuery).toHaveBeenCalledTimes(2);
     expect(mocks.useRoomMembershipsQuery).toHaveBeenNthCalledWith(1, "room-01", {
       enabled: true,
+      limit: ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT,
       status: "ACTIVE",
     });
     expect(mocks.useRoomMembershipsQuery).toHaveBeenNthCalledWith(2, "room-01", {

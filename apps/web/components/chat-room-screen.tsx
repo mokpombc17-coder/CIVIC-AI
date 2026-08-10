@@ -36,8 +36,13 @@ import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membersh
 import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
 import { getChatRoomReadStateMembershipLifecycle } from "@/lib/chat/chat-room-read-state-membership-lifecycle";
 import {
+  createRoomParticipantDisplayNames,
+  ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT,
+} from "@/lib/chat/chat-room-participant-profiles";
+import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
+  useRoomMembershipsQuery,
   useRoomMessageHistoryQuery,
   useRoomReadReceiptStateQuery,
 } from "@/lib/chat/chat-room-queries";
@@ -61,6 +66,35 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     roomId,
   });
   const roomQuery = useRoomDetailsQuery(roomId);
+  const {
+    fetchNextPage: fetchNextParticipantProfilesPage,
+    hasNextPage: hasNextParticipantProfilesPage,
+    isFetchNextPageError: isParticipantProfilesNextPageError,
+    isFetchingNextPage: isFetchingNextParticipantProfilesPage,
+    memberships: participantProfiles,
+  } = useRoomMembershipsQuery(roomId, {
+    enabled: session.isActive,
+    limit: ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT,
+    status: "ACTIVE",
+  });
+  useEffect(() => {
+    if (
+      !session.isActive ||
+      !hasNextParticipantProfilesPage ||
+      isFetchingNextParticipantProfilesPage ||
+      isParticipantProfilesNextPageError
+    ) {
+      return;
+    }
+
+    void fetchNextParticipantProfilesPage();
+  }, [
+    fetchNextParticipantProfilesPage,
+    hasNextParticipantProfilesPage,
+    isFetchingNextParticipantProfilesPage,
+    isParticipantProfilesNextPageError,
+    session.isActive,
+  ]);
   const receiptMembershipMismatchRef = useRef<string | null>(null);
   const messageHistory = useRoomMessageHistoryQuery(roomId, {
     enabled: session.isActive,
@@ -91,6 +125,10 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null;
   const sessionView = getChatRoomSessionView(session, roomId, realtimeReady);
   const room = roomQuery.data;
+  const participantDisplayNames = useMemo(
+    () => createRoomParticipantDisplayNames(participantProfiles),
+    [participantProfiles],
+  );
   const readReceiptPresentation = useMemo(
     () =>
       createChatMessageReadReceiptPresentation({
@@ -122,9 +160,11 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         room?.myMembership?.membershipId ?? null,
         messageMutations.states,
         readReceiptPresentation.summaries,
+        participantDisplayNames,
       ),
     [
       messageMutations.states,
+      participantDisplayNames,
       readReceiptPresentation.summaries,
       room?.myMembership?.membershipId,
       timelineRows,

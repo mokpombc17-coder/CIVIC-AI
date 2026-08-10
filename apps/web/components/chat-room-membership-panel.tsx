@@ -7,6 +7,7 @@ import { ChatRoomParticipantProfile } from "@/components/chat-room-participant-p
 import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
 import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
 import { resolveRoomMembershipListPolicy } from "@/lib/chat/chat-room-membership-list-policy";
+import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
 import type {
   MembershipStatus,
   RoomDetails,
@@ -92,6 +93,7 @@ export function ChatRoomMembershipPanel({
   const isOwner = membershipListPolicy.isOwner;
   const activeMembershipsQuery = useRoomMembershipsQuery(roomId, {
     enabled: membershipListPolicy.enabled,
+    limit: ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT,
     status: "ACTIVE",
   });
   const ownerManagedMembershipsQuery = useRoomMembershipsQuery(roomId, {

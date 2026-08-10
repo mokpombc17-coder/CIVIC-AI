@@ -27,7 +27,7 @@ describe("chat room view model", () => {
     });
   });
 
-  it("membershipId로 확정 메시지의 작성자를 판정하고 참여자 label을 만든다", () => {
+  it("membershipId로 작성자를 판정하고 Backend 프로필 이름 또는 알 수 없는 참여자를 표시한다", () => {
     const timeline: readonly ChatMessageTimelineItem[] = [
       {
         kind: "confirmed",
@@ -62,7 +62,14 @@ describe("chat room view model", () => {
       },
     ];
 
-    const items = createChatMessageItemViewModels(timeline, "membership-01");
+    const items = createChatMessageItemViewModels(
+      timeline,
+      "membership-01",
+      new Map(),
+      new Map(),
+      new Map([["membership-02", "참여자 2"]]),
+    );
+    const [unknownParticipant] = createChatMessageItemViewModels([timeline[0]!], "membership-01");
 
     expect(items[0]).toMatchObject({
       canOpenActions: true,
@@ -76,7 +83,7 @@ describe("chat room view model", () => {
       readReceiptLabel: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440001",
       roomSequence: 1,
-      senderLabel: "참여자 1",
+      senderLabel: "참여자 2",
     });
     expect(items[1]).toMatchObject({
       canOpenActions: false,
@@ -92,6 +99,7 @@ describe("chat room view model", () => {
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440002",
       roomSequence: null,
     });
+    expect(unknownParticipant?.senderLabel).toBe("알 수 없는 참여자");
   });
 
   it("날짜 구분선과 메시지 행을 viewport 전용 모델로 순서대로 변환한다", () => {

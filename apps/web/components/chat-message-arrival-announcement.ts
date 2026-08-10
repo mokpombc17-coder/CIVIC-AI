@@ -21,5 +21,5 @@ function getMessageSenderLabel(item: ChatMessageItemViewModel): string {
     return "내 메시지";
   }
 
-  return item.senderLabel ?? "알 수 없는 사용자";
+  return item.senderLabel ?? "알 수 없는 참여자";
 }
