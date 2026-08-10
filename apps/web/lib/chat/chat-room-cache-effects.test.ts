@@ -8,6 +8,7 @@ import {
   invalidateRoomState,
   refreshAuthoritativeRoomQueries,
   resetRoomInboxQueries,
+  resetRoomMembershipQueries,
 } from "./chat-room-cache-effects";
 import { chatRoomQueryKeys } from "./chat-room-queries";
 
@@ -47,9 +48,9 @@ describe("chat room cache effects", () => {
       chatRoomQueryKeys.myLists(),
       chatRoomQueryKeys.detail("room-01"),
       chatRoomQueryKeys.myMembership("room-01"),
-      chatRoomQueryKeys.membershipLists("room-01"),
     ]);
     expectRoomInboxReset(resetQueries);
+    expectRoomMembershipReset(resetQueries, "room-01");
   });
 
   it("Room event cache를 기존 authoritative query 우선순위로 무효화한다", async () => {
@@ -60,11 +61,11 @@ describe("chat room cache effects", () => {
     expectInvalidationOrder(invalidateQueries, [
       chatRoomQueryKeys.detail("room-01"),
       chatRoomQueryKeys.myMembership("room-01"),
-      chatRoomQueryKeys.membershipLists("room-01"),
       chatRoomQueryKeys.publicLists(),
       chatRoomQueryKeys.myLists(),
     ]);
     expectRoomInboxReset(resetQueries);
+    expectRoomMembershipReset(resetQueries, "room-01");
   });
 
   it("Room inbox 전용 helper가 page chain reset 옵션을 사용한다", async () => {
@@ -73,6 +74,15 @@ describe("chat room cache effects", () => {
     await resetRoomInboxQueries(queryClient);
 
     expectRoomInboxReset(resetQueries);
+  });
+
+  it("Room 참여자 전용 helper가 해당 Room의 page chain reset 옵션을 사용한다", async () => {
+    const { queryClient, resetQueries } = createObservedQueryClient();
+
+    await resetRoomMembershipQueries(queryClient, "room-01");
+
+    expect(resetQueries).toHaveBeenCalledTimes(1);
+    expectRoomMembershipReset(resetQueries, "room-01");
   });
 
   it.each(["ROOM_CLOSED", "JOIN_POLICY_NOT_OPEN"])(
@@ -194,6 +204,98 @@ describe("chat room cache effects", () => {
 
     unsubscribe();
   });
+
+  it("active Room 참여자 목록의 기존 pages와 pageParams를 버리고 첫 페이지부터 재조회한다", async () => {
+    const queryClient = createTestQueryClient();
+    let generation: "old" | "new" = "old";
+    const queryFn = vi.fn(({ pageParam }: { pageParam: string | null }) =>
+      Promise.resolve(getRoomMembershipTestPage(generation, pageParam)),
+    );
+    const observer = new InfiniteQueryObserver(
+      queryClient,
+      createRoomMembershipTestOptions(queryFn),
+    );
+    const unsubscribe = observer.subscribe(() => {});
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+    await observer.fetchNextPage();
+    expect(observer.getCurrentResult().data).toMatchObject({
+      pages: [
+        { items: ["membership-A", "membership-B"] },
+        { items: ["membership-C", "membership-D"] },
+      ],
+      pageParams: [null, "membership-cursor-1"],
+    });
+
+    generation = "new";
+    await resetRoomMembershipQueries(queryClient, "room-01");
+
+    expect(observer.getCurrentResult().data).toEqual({
+      pages: [
+        {
+          items: ["membership-A", "membership-C"],
+          nextCursor: "membership-cursor-new",
+        },
+      ],
+      pageParams: [null],
+    });
+    await observer.fetchNextPage();
+    expect(queryFn).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pageParam: "membership-cursor-new" }),
+    );
+    expect(observer.getCurrentResult().data).toMatchObject({
+      pages: [
+        { items: ["membership-A", "membership-C"] },
+        { items: ["membership-D", "membership-E"] },
+      ],
+      pageParams: [null, "membership-cursor-new"],
+    });
+
+    unsubscribe();
+  });
+
+  it("Room 참여자 reset 전에 진행 중이던 이전 cursor 결과를 새 page chain에 합치지 않는다", async () => {
+    const queryClient = createTestQueryClient();
+    let generation: "old" | "new" = "old";
+    const oldCursorDeferred: {
+      resolve?: (page: RoomMembershipTestPage) => void;
+    } = {};
+    const queryFn = vi.fn(({ pageParam }: { pageParam: string | null }) => {
+      if (generation === "old" && pageParam === "membership-cursor-1") {
+        return new Promise<RoomMembershipTestPage>((resolve) => {
+          oldCursorDeferred.resolve = resolve;
+        });
+      }
+
+      return Promise.resolve(getRoomMembershipTestPage(generation, pageParam));
+    });
+    const observer = new InfiniteQueryObserver(
+      queryClient,
+      createRoomMembershipTestOptions(queryFn),
+    );
+    const unsubscribe = observer.subscribe(() => {});
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+    const oldCursorRequest = observer.fetchNextPage().catch(() => undefined);
+    await vi.waitFor(() => expect(oldCursorDeferred.resolve).toBeTypeOf("function"));
+
+    generation = "new";
+    await resetRoomMembershipQueries(queryClient, "room-01");
+    oldCursorDeferred.resolve?.(getRoomMembershipTestPage("old", "membership-cursor-1"));
+    await oldCursorRequest;
+
+    expect(observer.getCurrentResult().data).toEqual({
+      pages: [
+        {
+          items: ["membership-A", "membership-C"],
+          nextCursor: "membership-cursor-new",
+        },
+      ],
+      pageParams: [null],
+    });
+
+    unsubscribe();
+  });
 });
 
 function createObservedQueryClient() {
@@ -219,9 +321,18 @@ function createJoinError(code: string): ChatApiError {
 function expectRoomInboxReset(
   resetQueries: ReturnType<typeof createObservedQueryClient>["resetQueries"],
 ): void {
-  expect(resetQueries).toHaveBeenCalledTimes(1);
   expect(resetQueries).toHaveBeenCalledWith(
     { queryKey: chatRoomQueryKeys.roomInboxes() },
+    { cancelRefetch: true },
+  );
+}
+
+function expectRoomMembershipReset(
+  resetQueries: ReturnType<typeof createObservedQueryClient>["resetQueries"],
+  roomId: string,
+): void {
+  expect(resetQueries).toHaveBeenCalledWith(
+    { queryKey: chatRoomQueryKeys.membershipLists(roomId) },
     { cancelRefetch: true },
   );
 }
@@ -262,6 +373,40 @@ function getRoomInboxTestPage(
   return pageParam === null
     ? { items: ["room-A", "room-B"], nextCursor: "cursor-1" }
     : { items: ["room-C", "room-D"], nextCursor: null };
+}
+
+type RoomMembershipTestPage = Readonly<{
+  items: readonly string[];
+  nextCursor: string | null;
+}>;
+
+function createRoomMembershipTestOptions(
+  queryFn: (context: { pageParam: string | null }) => Promise<RoomMembershipTestPage>,
+) {
+  return {
+    queryKey: chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 100),
+    initialPageParam: null as string | null,
+    queryFn,
+    getNextPageParam: (lastPage: RoomMembershipTestPage) => lastPage.nextCursor,
+  };
+}
+
+function getRoomMembershipTestPage(
+  generation: "old" | "new",
+  pageParam: string | null,
+): RoomMembershipTestPage {
+  if (generation === "new") {
+    return pageParam === null
+      ? {
+          items: ["membership-A", "membership-C"],
+          nextCursor: "membership-cursor-new",
+        }
+      : { items: ["membership-D", "membership-E"], nextCursor: null };
+  }
+
+  return pageParam === null
+    ? { items: ["membership-A", "membership-B"], nextCursor: "membership-cursor-1" }
+    : { items: ["membership-C", "membership-D"], nextCursor: null };
 }
 
 function createTestQueryClient(): QueryClient {

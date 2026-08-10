@@ -134,8 +134,8 @@ describe("chat room mutation options", () => {
     expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myMembership("room-01"))).toBe(true);
     expect(
-      isInvalidated(queryClient, chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20)),
-    ).toBe(true);
+      queryClient.getQueryData(chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20)),
+    ).toBeUndefined();
     expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50))).toBe(
       "room-01-50",
     );

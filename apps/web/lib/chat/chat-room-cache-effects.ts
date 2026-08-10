@@ -13,6 +13,20 @@ export async function resetRoomInboxQueries(queryClient: QueryClient): Promise<v
   );
 }
 
+export async function resetRoomMembershipQueries(
+  queryClient: QueryClient,
+  roomId: string,
+): Promise<void> {
+  await queryClient.resetQueries(
+    {
+      queryKey: chatRoomQueryKeys.membershipLists(roomId),
+    },
+    {
+      cancelRefetch: true,
+    },
+  );
+}
+
 export async function invalidateRoomLists(queryClient: QueryClient): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({
@@ -60,9 +74,7 @@ export async function invalidateRoomState(queryClient: QueryClient, roomId: stri
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myMembership(roomId),
     }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.membershipLists(roomId),
-    }),
+    resetRoomMembershipQueries(queryClient, roomId),
   ]);
 }
 
@@ -77,9 +89,7 @@ export async function refreshAuthoritativeRoomQueries(
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myMembership(roomId),
     }),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.membershipLists(roomId),
-    }),
+    resetRoomMembershipQueries(queryClient, roomId),
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.publicLists(),
     }),
