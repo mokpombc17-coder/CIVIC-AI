@@ -8,6 +8,10 @@ import { ChatMessageReadBoundary } from "@/components/chat-message-read-boundary
 import { canReportChatMessageReadState } from "@/components/chat-message-read-state-policy";
 import { ChatMessageItem } from "@/components/chat-message-item";
 import {
+  ChatRoomEntryNavigationNotice,
+  type ChatRoomEntryNavigationNoticeViewModel,
+} from "@/components/chat-room-entry-navigation-notice";
+import {
   type ChatMessageAppendSource,
   type ChatMessageViewportInitialScrollTarget,
   type ChatMessageViewportPosition,
@@ -43,6 +47,7 @@ export type ChatMessageViewportFeedback =
 
 export type ChatMessageViewportViewModel = Readonly<{
   canLoadOlder: boolean;
+  entryNavigation: ChatRoomEntryNavigationNoticeViewModel | null;
   feedback: ChatMessageViewportFeedback | null;
   initialScrollTarget: ChatMessageViewportInitialScrollTarget;
   isLoadingOlder: boolean;
@@ -622,6 +627,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
             다시 불러오기
           </button>
         </div>
+      ) : null}
+
+      {history.entryNavigation ? (
+        <ChatRoomEntryNavigationNotice notice={history.entryNavigation} />
       ) : null}
 
       <p aria-atomic="true" aria-live="polite" aria-relevant="additions text" className="sr-only">

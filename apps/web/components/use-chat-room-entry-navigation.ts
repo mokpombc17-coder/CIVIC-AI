@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessageViewportInitialScrollTarget } from "./chat-message-viewport-state";
 import {
   searchChatRoomEntryHistory,
@@ -15,13 +15,21 @@ import type { ChatRoomReadReceiptState } from "../lib/chat/chat-room-read-receip
 
 export type ChatRoomEntryNavigationStatus = "pending" | "searching" | "ready" | "manual" | "error";
 
+export type ChatRoomEntryNavigationRecovery = "continue" | "retry" | null;
+
 export type ChatRoomEntryNavigationState = Readonly<{
   canReportReadState: boolean;
   initialScrollTarget: ChatMessageViewportInitialScrollTarget;
   key: string;
   readBoundaryAfterSequence: number | null;
+  recovery: ChatRoomEntryNavigationRecovery;
   status: ChatRoomEntryNavigationStatus;
 }>;
+
+export type ChatRoomEntryNavigationController = ChatRoomEntryNavigationState &
+  Readonly<{
+    continueToReadPosition: () => void;
+  }>;
 
 type UseChatRoomEntryNavigationOptions = Readonly<{
   enabled: boolean;
@@ -49,10 +57,15 @@ export function useChatRoomEntryNavigation({
   receiptStateUnavailable,
   roomId,
   selfMembershipId,
-}: UseChatRoomEntryNavigationOptions): ChatRoomEntryNavigationState {
+}: UseChatRoomEntryNavigationOptions): ChatRoomEntryNavigationController {
   const key = `${roomId}:${generation}`;
   const currentKeyRef = useRef(key);
+  const entryPositionRef = useRef<Extract<
+    ChatRoomEntryReadPositionSnapshot,
+    { mode: "restore" }
+  > | null>(null);
   const mountedRef = useRef(false);
+  const searchInFlightRef = useRef(false);
   const startedKeyRef = useRef<string | null>(null);
   const [state, setState] = useState<ChatRoomEntryNavigationState>(() =>
     createPendingChatRoomEntryNavigationState(key),
@@ -67,6 +80,8 @@ export function useChatRoomEntryNavigation({
 
   useEffect(() => {
     currentKeyRef.current = key;
+    entryPositionRef.current = null;
+    searchInFlightRef.current = false;
   }, [key]);
 
   useEffect(() => {
@@ -76,6 +91,7 @@ export function useChatRoomEntryNavigation({
 
     if (receiptStateUnavailable) {
       startedKeyRef.current = key;
+      entryPositionRef.current = null;
       queueMicrotask(() => {
         if (!mountedRef.current || currentKeyRef.current !== key) {
           return;
@@ -108,6 +124,7 @@ export function useChatRoomEntryNavigation({
     }
 
     startedKeyRef.current = key;
+    entryPositionRef.current = entryPosition.mode === "restore" ? entryPosition : null;
     const initialState = createChatRoomEntryNavigationState(entryPosition);
     queueMicrotask(() => {
       if (mountedRef.current && currentKeyRef.current === key) {
@@ -119,6 +136,7 @@ export function useChatRoomEntryNavigation({
       return;
     }
 
+    searchInFlightRef.current = true;
     void searchChatRoomEntryHistory({
       entryPosition,
       initialHistory: history,
@@ -130,6 +148,7 @@ export function useChatRoomEntryNavigation({
       }
 
       setState(createChatRoomEntryNavigationState(entryPosition, result));
+      searchInFlightRef.current = false;
     });
   }, [
     enabled,
@@ -146,7 +165,40 @@ export function useChatRoomEntryNavigation({
     selfMembershipId,
   ]);
 
-  return state.key === key ? state : createPendingChatRoomEntryNavigationState(key);
+  const continueToReadPosition = useCallback(() => {
+    const entryPosition = entryPositionRef.current;
+
+    if (
+      state.key !== key ||
+      state.recovery === null ||
+      entryPosition === null ||
+      searchInFlightRef.current
+    ) {
+      return;
+    }
+
+    searchInFlightRef.current = true;
+    setState(createChatRoomEntryNavigationState(entryPosition));
+    void searchChatRoomEntryHistory({
+      entryPosition,
+      initialHistory: history,
+      isCurrent: () => mountedRef.current && currentKeyRef.current === key,
+      loadOlder,
+    }).then((result) => {
+      if (!mountedRef.current || currentKeyRef.current !== key) {
+        return;
+      }
+
+      searchInFlightRef.current = false;
+      setState(createChatRoomEntryNavigationState(entryPosition, result));
+    });
+  }, [history, key, loadOlder, state.key, state.recovery]);
+
+  const visibleState = state.key === key ? state : createPendingChatRoomEntryNavigationState(key);
+  return {
+    ...visibleState,
+    continueToReadPosition,
+  };
 }
 
 export function createChatRoomEntryNavigationState(
@@ -161,6 +213,7 @@ export function createChatRoomEntryNavigationState(
       initialScrollTarget: Object.freeze({ kind: "latest" }),
       key,
       readBoundaryAfterSequence: null,
+      recovery: null,
       status: "ready",
     });
   }
@@ -171,6 +224,7 @@ export function createChatRoomEntryNavigationState(
       initialScrollTarget: Object.freeze({ kind: "first-message" }),
       key,
       readBoundaryAfterSequence: null,
+      recovery: null,
       status: "ready",
     });
   }
@@ -181,6 +235,7 @@ export function createChatRoomEntryNavigationState(
       initialScrollTarget: Object.freeze({ kind: "pending" }),
       key,
       readBoundaryAfterSequence: null,
+      recovery: null,
       status: "searching",
     });
   }
@@ -194,6 +249,7 @@ export function createChatRoomEntryNavigationState(
       }),
       key,
       readBoundaryAfterSequence: entryPosition.dividerAfterSequence,
+      recovery: null,
       status: "ready",
     });
   }
@@ -201,9 +257,10 @@ export function createChatRoomEntryNavigationState(
   if (searchResult.status === "limit-reached") {
     return Object.freeze({
       canReportReadState: false,
-      initialScrollTarget: Object.freeze({ kind: "latest" }),
+      initialScrollTarget: Object.freeze({ kind: "pending" }),
       key,
       readBoundaryAfterSequence: null,
+      recovery: "continue",
       status: "manual",
     });
   }
@@ -221,6 +278,7 @@ function createPendingChatRoomEntryNavigationState(key: string): ChatRoomEntryNa
     initialScrollTarget: Object.freeze({ kind: "pending" }),
     key,
     readBoundaryAfterSequence: null,
+    recovery: null,
     status: "pending",
   });
 }
@@ -231,9 +289,10 @@ function createFallbackChatRoomEntryNavigationState(
 ): ChatRoomEntryNavigationState {
   return Object.freeze({
     canReportReadState,
-    initialScrollTarget: Object.freeze({ kind: "latest" }),
+    initialScrollTarget: Object.freeze({ kind: canReportReadState ? "latest" : "pending" }),
     key,
     readBoundaryAfterSequence: null,
+    recovery: canReportReadState ? null : "retry",
     status: "error",
   });
 }

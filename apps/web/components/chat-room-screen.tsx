@@ -13,6 +13,7 @@ import {
   ChatRoomMembershipDialog,
   ChatRoomMembershipDialogTrigger,
 } from "@/components/chat-room-membership-dialog";
+import { createChatRoomEntryNavigationNotice } from "@/components/chat-room-entry-navigation-notice";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
 import {
   ChatRoomSessionIndicator,
@@ -165,6 +166,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     roomId,
     selfMembershipId: room?.myMembership?.membershipId ?? null,
   });
+  const entryNavigationNotice = createChatRoomEntryNavigationNotice(entryNavigation);
   const participantDisplayNames = useMemo(
     () => createRoomParticipantDisplayNames(participantProfiles),
     [participantProfiles],
@@ -308,6 +310,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       }
       messageHistory={{
         canLoadOlder: messageHistory.hasNextPage,
+        entryNavigation: entryNavigationNotice,
         feedback,
         initialScrollTarget: entryNavigation.initialScrollTarget,
         isLoadingOlder: messageHistory.isFetchingNextPage,

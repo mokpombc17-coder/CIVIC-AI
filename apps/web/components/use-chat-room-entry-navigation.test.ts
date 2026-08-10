@@ -57,7 +57,7 @@ describe("chat Room entry navigation", () => {
     });
   });
 
-  it("자동 탐색 한도에 도달하면 최신 위치를 보여주되 새 읽음 보고를 보류한다", () => {
+  it("자동 탐색 한도에 도달하면 수동 계속 탐색 전까지 이동과 읽음 보고를 보류한다", () => {
     expect(
       createChatRoomEntryNavigationState(RESTORE_POSITION, {
         loadedPageCount: 5,
@@ -65,9 +65,26 @@ describe("chat Room entry navigation", () => {
       }),
     ).toMatchObject({
       canReportReadState: false,
-      initialScrollTarget: { kind: "latest" },
+      initialScrollTarget: { kind: "pending" },
       readBoundaryAfterSequence: null,
+      recovery: "continue",
       status: "manual",
+    });
+  });
+
+  it("과거 이력 조회가 실패하면 같은 읽음 위치를 다시 찾을 수 있게 유지한다", () => {
+    expect(
+      createChatRoomEntryNavigationState(RESTORE_POSITION, {
+        error: new Error("temporary"),
+        loadedPageCount: 1,
+        status: "error",
+      }),
+    ).toMatchObject({
+      canReportReadState: false,
+      initialScrollTarget: { kind: "pending" },
+      readBoundaryAfterSequence: null,
+      recovery: "retry",
+      status: "error",
     });
   });
 
