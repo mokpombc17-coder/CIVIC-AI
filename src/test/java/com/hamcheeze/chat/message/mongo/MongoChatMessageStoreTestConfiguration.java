@@ -8,6 +8,11 @@ import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxSchemaIniti
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxStore;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.message.ChatMessageMutationStore;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditEventDocument;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditSchemaInitializer;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditStore;
+import com.hamcheeze.chat.message.audit.mongo.MongoRoomMessageAuditSequenceDocument;
 import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaInitializer;
@@ -68,6 +73,12 @@ final class MongoChatMessageStoreTestConfiguration
         return new MongoRoomInboxSummaryWriter(mongoTemplate);
     }
 
+    ChatMessageAuditWriter auditWriter(MeterRegistry meterRegistry) {
+        return new MongoChatMessageAuditStore(
+                mongoTemplate,
+                meterRegistry);
+    }
+
     MongoChatMessageStore store(
             Clock clock,
             Supplier<String> messageIdGenerator,
@@ -86,12 +97,28 @@ final class MongoChatMessageStoreTestConfiguration
             RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
+        return store(
+                clock,
+                messageIdGenerator,
+                auditWriter(meterRegistry),
+                summaryWriter,
+                meterRegistry);
+    }
+
+    MongoChatMessageStore store(
+            Clock clock,
+            Supplier<String> messageIdGenerator,
+            ChatMessageAuditWriter auditWriter,
+            RoomInboxSummaryWriter summaryWriter,
+            MeterRegistry meterRegistry
+    ) {
         return new MongoChatMessageStore(
                 mongoTemplate,
                 transactionTemplate,
                 clock,
                 messageIdGenerator,
                 new MongoChatMessageExceptionClassifier(),
+                auditWriter,
                 new MongoChatMessageOutboxStore(mongoTemplate),
                 summaryWriter,
                 meterRegistry);
@@ -115,11 +142,27 @@ final class MongoChatMessageStoreTestConfiguration
             RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
     ) {
+        return mutationStore(
+                clock,
+                outboxWriter,
+                auditWriter(meterRegistry),
+                summaryWriter,
+                meterRegistry);
+    }
+
+    ChatMessageMutationStore mutationStore(
+            Clock clock,
+            ChatMessageOutboxWriter outboxWriter,
+            ChatMessageAuditWriter auditWriter,
+            RoomInboxSummaryWriter summaryWriter,
+            MeterRegistry meterRegistry
+    ) {
         return new MongoChatMessageMutationStore(
                 mongoTemplate,
                 transactionTemplate,
                 clock,
                 new MongoChatMessageExceptionClassifier(),
+                auditWriter,
                 outboxWriter,
                 summaryWriter,
                 meterRegistry);
@@ -153,7 +196,19 @@ final class MongoChatMessageStoreTestConfiguration
             mongoTemplate.dropCollection(
                     MongoRoomInboxSummaryDocument.COLLECTION_NAME);
         }
+        if (mongoTemplate.collectionExists(
+                MongoChatMessageAuditEventDocument.COLLECTION_NAME)) {
+            mongoTemplate.dropCollection(
+                    MongoChatMessageAuditEventDocument.COLLECTION_NAME);
+        }
+        if (mongoTemplate.collectionExists(
+                MongoRoomMessageAuditSequenceDocument.COLLECTION_NAME)) {
+            mongoTemplate.dropCollection(
+                    MongoRoomMessageAuditSequenceDocument.COLLECTION_NAME);
+        }
         schemaInitializer().initialize();
+        new MongoChatMessageAuditSchemaInitializer(
+                mongoTemplate).initialize();
         summarySchemaInitializer().initialize();
         new MongoChatMessageMutationSchemaInitializer(
                 mongoTemplate).initialize();

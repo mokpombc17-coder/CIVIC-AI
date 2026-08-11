@@ -278,6 +278,8 @@ class MongoRoomReadStateStoreTest {
                         "client-" + sequence,
                         state == MessageState.ACTIVE
                                 ? "message " + sequence : null,
+                        state == MessageState.ACTIVE
+                                ? null : "message " + sequence,
                         ChatMessageContentFingerprint.of(
                                 "message " + sequence),
                         state,

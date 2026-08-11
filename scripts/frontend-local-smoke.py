@@ -158,6 +158,20 @@ def search_room_messages(
         raise AssertionError("메시지 검색 응답이 JSON 객체가 아닙니다.")
     if not isinstance(response.get("items"), list):
         raise AssertionError("메시지 검색 응답 items가 배열이 아닙니다.")
+    raw_response = json.dumps(response)
+    for forbidden in (
+        "senderUserId",
+        "retainedContent",
+        "actorUserId",
+        "roomChangeSequence",
+        "auditEventId",
+        '"before"',
+        '"after"',
+    ):
+        if forbidden in raw_response:
+            raise AssertionError(
+                f"메시지 검색 응답에 내부 필드 {forbidden}가 노출됐습니다."
+            )
     if response.get("searchComplete") is True:
         if response.get("nextCursor") is not None:
             raise AssertionError("완료된 메시지 검색에 cursor가 있습니다.")
@@ -835,6 +849,19 @@ def run_websocket_flow(
             or deleted.get("content") is not None
         ):
             raise AssertionError(f"삭제 tombstone event가 올바르지 않습니다: {deleted}")
+        for forbidden in (
+            "retainedContent",
+            "before",
+            "after",
+            "actorUserId",
+            "senderUserId",
+            "roomChangeSequence",
+            "auditEventId",
+        ):
+            if forbidden in deleted:
+                raise AssertionError(
+                    f"삭제 event에 내부 감사 필드 {forbidden}가 노출됐습니다."
+                )
 
         next_client_message_id = str(uuid.uuid4())
         next_body = json.dumps(
@@ -1376,6 +1403,7 @@ def run_room_inbox_flow(
             or not any(
                 item.get("messageId") == second_message_id
                 and item.get("state") == "DELETED_BY_AUTHOR"
+                and item.get("content") is None
                 for item in context_items
             )
         ):
@@ -1383,7 +1411,17 @@ def run_room_inbox_flow(
                 f"검색 결과 context/tombstone 계약이 다릅니다: {context}"
             )
         raw_context = json.dumps(context)
-        for forbidden in ("senderUserId", "displayName", "imageUrl"):
+        for forbidden in (
+            "senderUserId",
+            "displayName",
+            "imageUrl",
+            "retainedContent",
+            "before",
+            "after",
+            "actorUserId",
+            "roomChangeSequence",
+            "auditEventId",
+        ):
             if forbidden in raw_context:
                 raise AssertionError(
                     f"메시지 context에 {forbidden}가 노출됐습니다."

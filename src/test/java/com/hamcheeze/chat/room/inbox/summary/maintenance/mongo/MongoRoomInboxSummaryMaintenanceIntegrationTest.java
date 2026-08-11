@@ -1081,6 +1081,8 @@ class MongoRoomInboxSummaryMaintenanceIntegrationTest {
                 message.senderMembershipId(),
                 message.clientMessageId(),
                 message.content(),
+                message.state() == MessageState.DELETED_BY_AUTHOR
+                        ? "retained test content" : null,
                 "test-fingerprint",
                 message.state(),
                 message.countable(),

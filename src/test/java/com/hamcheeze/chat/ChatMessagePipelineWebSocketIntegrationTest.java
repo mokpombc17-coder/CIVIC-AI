@@ -283,7 +283,7 @@ class ChatMessagePipelineWebSocketIntegrationTest
                     .isEqualTo(CLIENT_MESSAGE_ID);
             assertThat(storedDocument.content()).isEqualTo("hello");
             assertThat(storedDocument.roomSequence()).isEqualTo(1);
-            assertThat(storedDocument.schemaVersion()).isEqualTo(4);
+            assertThat(storedDocument.schemaVersion()).isEqualTo(5);
             assertThat(storedDocument.countable()).isTrue();
             assertThat(storedDocument.messageVersion()).isEqualTo(1);
             assertThat(storedDocument.state().name())
@@ -450,6 +450,16 @@ class ChatMessagePipelineWebSocketIntegrationTest
             assertThat(deletedEvent.payload().senderMembershipId())
                     .isEqualTo(
                             "membership-test-room-local-user-1");
+            String rawDeletedJson = new String(
+                    rawDeletedEvent,
+                    StandardCharsets.UTF_8);
+            assertThat(rawDeletedJson)
+                    .doesNotContain(
+                            "retainedContent",
+                            "actorUserId",
+                            "roomChangeSequence",
+                            "\"before\"",
+                            "\"after\"");
             assertThat(deletedResult).isNotNull();
             assertThat(deletedResult.status()).isEqualTo("DELETED");
             assertThat(deletedResult.messageVersion()).isEqualTo(3);

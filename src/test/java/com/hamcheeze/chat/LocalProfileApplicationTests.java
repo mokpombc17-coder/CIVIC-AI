@@ -446,7 +446,7 @@ class LocalProfileApplicationTests
                 .isEqualTo("local-user-1");
         assertThat(storedDocument.content()).isEqualTo("hello");
         assertThat(storedDocument.roomSequence()).isEqualTo(1);
-        assertThat(storedDocument.schemaVersion()).isEqualTo(4);
+        assertThat(storedDocument.schemaVersion()).isEqualTo(5);
         assertThat(storedDocument.countable()).isTrue();
         assertThat(storedDocument.messageVersion()).isEqualTo(1);
         assertThat(storedDocument.state().name())

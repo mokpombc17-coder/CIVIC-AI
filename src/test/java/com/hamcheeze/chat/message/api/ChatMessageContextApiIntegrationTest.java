@@ -110,7 +110,17 @@ class ChatMessageContextApiIntegrationTest
                 .andExpect(jsonPath("$.items[0].state")
                         .value("DELETED_BY_AUTHOR"))
                 .andExpect(jsonPath("$.items[0].content").isEmpty())
-                .andExpect(jsonPath("$.items[0].deletedAt").isNotEmpty());
+                .andExpect(jsonPath("$.items[0].deletedAt").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].retainedContent")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].actorUserId")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].roomChangeSequence")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].before")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].after")
+                        .doesNotExist());
     }
 
     @Test

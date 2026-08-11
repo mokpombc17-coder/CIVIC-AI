@@ -1516,9 +1516,13 @@ client.publish({
 - 삭제는 물리 삭제가 아니라 `DELETED_BY_AUTHOR` tombstone이다. content는
   `null`이 되고 `deletedAt == updatedAt`이다. 새 mutation ID로 다시
   삭제하면 `ALREADY_DELETED`이며 version과 event는 늘지 않는다.
+- 일반 REST·WebSocket·검색·Context에서는 삭제 전 본문이나 수정 이력을
+  반환하지 않는다. 법적·운영 정책에 따라 제한된 내부 감사 저장소에는
+  CREATE/UPDATE/DELETE revision이 보존될 수 있지만, 현재 이를 조회하는
+  Super Admin Export API는 제공하지 않는다.
 - 수정·삭제는 대상 메시지의 최초 `roomSequence`를 유지한다. 방 sequence나
-  REST cursor를 새로 소비하지 않는다. 관리자 moderation, 복원, 수정 이력은
-  현재 지원하지 않는다.
+  REST cursor를 새로 소비하지 않는다. 관리자 moderation과 복원은 현재
+  지원하지 않는다.
 
 ### 메시지 Command 결과
 
@@ -1680,7 +1684,8 @@ payload:
 `eventType`은 `CHAT_MESSAGE_CREATED`, `CHAT_MESSAGE_UPDATED`,
 `CHAT_MESSAGE_DELETED` 중 하나다. 세 event 모두 같은 topic과 전체 message
 snapshot을 사용한다. DELETE payload는 `content=null`,
-`state=DELETED_BY_AUTHOR`이며 `deletedAt`이 설정된다.
+`state=DELETED_BY_AUTHOR`이며 `deletedAt`이 설정된다. 내부 감사 필드나
+삭제 전 본문은 event payload에 포함되지 않는다.
 
 메시지 이벤트는 at-least-once로 전파되므로 동일 이벤트가 다시 도착할 수
 있다. 프론트는 같은 `messageId`에 대해

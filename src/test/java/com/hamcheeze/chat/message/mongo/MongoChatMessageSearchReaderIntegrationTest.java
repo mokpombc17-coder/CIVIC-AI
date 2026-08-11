@@ -205,6 +205,8 @@ class MongoChatMessageSearchReaderIntegrationTest {
                 "membership-1",
                 roomId + "-client-" + sequence,
                 content,
+                state == MessageState.ACTIVE
+                        ? null : "retained deleted content",
                 "0".repeat(64),
                 state,
                 countable,
@@ -231,6 +233,9 @@ class MongoChatMessageSearchReaderIntegrationTest {
                 .append("senderMembershipId", "membership-1")
                 .append("clientMessageId", "client-" + sequence)
                 .append("content", content)
+                .append("retainedContent",
+                        state == MessageState.ACTIVE
+                                ? null : "retained deleted content")
                 .append("creationContentFingerprint", "0".repeat(64))
                 .append("state", state.name())
                 .append("countable", countable)

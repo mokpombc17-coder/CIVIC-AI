@@ -3,6 +3,9 @@ package com.hamcheeze.chat.message.mongo;
 import com.hamcheeze.chat.message.ChatMessageStore;
 import com.hamcheeze.chat.message.ChatMessageMutationStore;
 import com.hamcheeze.chat.message.context.ChatMessageContextReader;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditSchemaInitializer;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditStore;
 import com.hamcheeze.chat.message.query.ChatMessageHistoryReader;
 import com.hamcheeze.chat.message.search.ChatMessageSearchReader;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
@@ -48,6 +51,26 @@ public class MongoChatMessageStoreConfiguration {
     }
 
     @Bean(initMethod = "initialize")
+    MongoChatMessageAuditSchemaInitializer
+    mongoChatMessageAuditSchemaInitializer(
+            MongoOperations mongoOperations
+    ) {
+        return new MongoChatMessageAuditSchemaInitializer(
+                mongoOperations);
+    }
+
+    @Bean
+    MongoChatMessageAuditStore mongoChatMessageAuditStore(
+            MongoOperations mongoOperations,
+            MongoChatMessageAuditSchemaInitializer schemaInitializer,
+            MeterRegistry meterRegistry
+    ) {
+        return new MongoChatMessageAuditStore(
+                mongoOperations,
+                meterRegistry);
+    }
+
+    @Bean(initMethod = "initialize")
     MongoRoomInboxSummarySchemaInitializer
     mongoRoomInboxSummarySchemaInitializer(
             MongoOperations mongoOperations
@@ -71,6 +94,7 @@ public class MongoChatMessageStoreConfiguration {
             TransactionTemplate transactionTemplate,
             MongoChatMessageSchemaInitializer schemaInitializer,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageAuditWriter auditWriter,
             ChatMessageOutboxWriter outboxWriter,
             RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
@@ -81,6 +105,7 @@ public class MongoChatMessageStoreConfiguration {
                 Clock.systemUTC(),
                 () -> UUID.randomUUID().toString(),
                 exceptionClassifier,
+                auditWriter,
                 outboxWriter,
                 summaryWriter,
                 meterRegistry);
@@ -102,6 +127,7 @@ public class MongoChatMessageStoreConfiguration {
             TransactionTemplate transactionTemplate,
             MongoChatMessageMutationSchemaInitializer schemaInitializer,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageAuditWriter auditWriter,
             ChatMessageOutboxWriter outboxWriter,
             RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
@@ -111,6 +137,7 @@ public class MongoChatMessageStoreConfiguration {
                 transactionTemplate,
                 Clock.systemUTC(),
                 exceptionClassifier,
+                auditWriter,
                 outboxWriter,
                 summaryWriter,
                 meterRegistry);

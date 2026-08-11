@@ -10,6 +10,8 @@ import com.hamcheeze.chat.message.EditChatMessageMutation;
 import com.hamcheeze.chat.message.MessageMutationCommandType;
 import com.hamcheeze.chat.message.MessageMutationOutcome;
 import com.hamcheeze.chat.message.MessageState;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditActorType;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
@@ -40,6 +42,7 @@ public final class MongoChatMessageMutationStore
     private final TransactionOperations transactionOperations;
     private final Clock clock;
     private final MongoChatMessageExceptionClassifier exceptionClassifier;
+    private final ChatMessageAuditWriter auditWriter;
     private final ChatMessageOutboxWriter outboxWriter;
     private final RoomInboxSummaryWriter summaryWriter;
     private final Map<MessageMutationOutcome, Counter> resultCounters =
@@ -52,6 +55,7 @@ public final class MongoChatMessageMutationStore
             TransactionOperations transactionOperations,
             Clock clock,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageAuditWriter auditWriter,
             ChatMessageOutboxWriter outboxWriter,
             RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
@@ -63,6 +67,8 @@ public final class MongoChatMessageMutationStore
         this.clock = Objects.requireNonNull(clock, "clock");
         this.exceptionClassifier = Objects.requireNonNull(
                 exceptionClassifier, "exceptionClassifier");
+        this.auditWriter = Objects.requireNonNull(
+                auditWriter, "auditWriter");
         this.outboxWriter = Objects.requireNonNull(
                 outboxWriter, "outboxWriter");
         this.summaryWriter = Objects.requireNonNull(
@@ -484,10 +490,15 @@ public final class MongoChatMessageMutationStore
                 processedAt,
                 null);
         mongoOperations.save(
-                MongoChatMessageDocument.fromDomain(
+                MongoChatMessageDocument.fromActiveDomain(
                         updated,
                         creationContentFingerprint),
                 MongoChatMessageDocument.COLLECTION_NAME);
+        auditWriter.appendUpdated(
+                current,
+                updated,
+                actorUserId,
+                ChatMessageAuditActorType.ROOM_PARTICIPANT);
         summaryWriter.applyUpdated(updated);
         ChatMessageMutationResult result = insertReceipt(
                 MessageMutationCommandType.EDIT_MESSAGE,
@@ -539,10 +550,16 @@ public final class MongoChatMessageMutationStore
                 processedAt,
                 processedAt);
         mongoOperations.save(
-                MongoChatMessageDocument.fromDomain(
+                MongoChatMessageDocument.fromDeletedDomain(
                         deleted,
+                        current.content(),
                         creationContentFingerprint),
                 MongoChatMessageDocument.COLLECTION_NAME);
+        auditWriter.appendDeleted(
+                current,
+                deleted,
+                actorUserId,
+                ChatMessageAuditActorType.ROOM_PARTICIPANT);
         summaryWriter.applyDeleted(deleted);
         ChatMessageMutationResult result = insertReceipt(
                 MessageMutationCommandType.DELETE_MESSAGE,

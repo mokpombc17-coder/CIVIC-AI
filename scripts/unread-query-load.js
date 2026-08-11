@@ -8,7 +8,7 @@ const targetRoomId = process.env.UNREAD_ROOM_ID || "performance-room";
 const currentUserId = process.env.UNREAD_USER_ID || "performance-user";
 const messageCount = Number(process.env.UNREAD_MESSAGE_COUNT || "1000");
 const roomCount = Number(process.env.UNREAD_ROOM_COUNT || "1");
-const messageSchemaVersion = 4;
+const messageSchemaVersion = 5;
 
 if (!Number.isSafeInteger(messageCount)
     || messageCount < 1
@@ -52,6 +52,9 @@ for (const roomId of roomIds) {
                 clientMessageId: `${roomId}-client-${sequence}`,
                 content: deleted ? null
                     : `performance message ${sequence}`,
+                retainedContent: deleted
+                    ? `performance message ${sequence}`
+                    : null,
                 creationContentFingerprint: "0".repeat(64),
                 state: deleted ? "DELETED_BY_AUTHOR" : "ACTIVE",
                 countable,

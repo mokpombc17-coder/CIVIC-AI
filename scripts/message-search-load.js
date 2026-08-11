@@ -13,7 +13,7 @@ const matchEvery = Number(
     process.env.MESSAGE_SEARCH_MATCH_EVERY || "100");
 const contentLength = Number(
     process.env.MESSAGE_SEARCH_CONTENT_LENGTH || "2000");
-const messageSchemaVersion = 4;
+const messageSchemaVersion = 5;
 
 if (!Number.isSafeInteger(messageCount)
     || messageCount < 1
@@ -79,6 +79,9 @@ for (let start = 1; start <= messageCount; start += 1000) {
             content: isDeleted
                 ? null
                 : `${isMatch ? "search-needle" : "ordinary-text"} ${filler}`,
+            retainedContent: isDeleted
+                ? `ordinary-text ${filler}`
+                : null,
             creationContentFingerprint: "0".repeat(64),
             state: isDeleted ? "DELETED_BY_AUTHOR" : "ACTIVE",
             countable: isCountable,

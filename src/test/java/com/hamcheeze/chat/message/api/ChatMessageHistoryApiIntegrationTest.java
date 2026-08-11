@@ -86,7 +86,17 @@ class ChatMessageHistoryApiIntegrationTest
                 .andExpect(jsonPath("$.items[0].updatedAt")
                         .isNotEmpty())
                 .andExpect(jsonPath("$.items[0].deletedAt")
-                        .isNotEmpty());
+                        .isNotEmpty())
+                .andExpect(jsonPath("$.items[0].retainedContent")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].actorUserId")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].roomChangeSequence")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].before")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].after")
+                        .doesNotExist());
     }
 
     @Test

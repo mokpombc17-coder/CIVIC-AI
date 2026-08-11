@@ -9,6 +9,8 @@ import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditActorType;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
 import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
@@ -53,6 +55,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
     private final Supplier<String> messageIdGenerator;
     private final MongoChatMessageExceptionClassifier exceptionClassifier;
     private final MongoRoomSequenceAllocator sequenceAllocator;
+    private final ChatMessageAuditWriter auditWriter;
     private final ChatMessageOutboxWriter outboxWriter;
     private final RoomInboxSummaryWriter summaryWriter;
     private final Counter storedCounter;
@@ -68,6 +71,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             Clock clock,
             Supplier<String> messageIdGenerator,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageAuditWriter auditWriter,
             ChatMessageOutboxWriter outboxWriter,
             RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
@@ -78,6 +82,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                 clock,
                 messageIdGenerator,
                 exceptionClassifier,
+                auditWriter,
                 outboxWriter,
                 summaryWriter,
                 meterRegistry);
@@ -89,6 +94,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
             Clock clock,
             Supplier<String> messageIdGenerator,
             MongoChatMessageExceptionClassifier exceptionClassifier,
+            ChatMessageAuditWriter auditWriter,
             ChatMessageOutboxWriter outboxWriter,
             RoomInboxSummaryWriter summaryWriter,
             MeterRegistry meterRegistry
@@ -106,6 +112,9 @@ public final class MongoChatMessageStore implements ChatMessageStore {
         this.exceptionClassifier = Objects.requireNonNull(
                 exceptionClassifier,
                 "exceptionClassifier");
+        this.auditWriter = Objects.requireNonNull(
+                auditWriter,
+                "auditWriter");
         this.outboxWriter = Objects.requireNonNull(
                 outboxWriter,
                 "outboxWriter");
@@ -400,6 +409,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                         newMessage.senderMembershipId(),
                         newMessage.clientMessageId(),
                         newMessage.content(),
+                        null,
                         ChatMessageContentFingerprint.of(
                                 newMessage.content()),
                         com.hamcheeze.chat.message.MessageState.ACTIVE,
@@ -410,6 +420,10 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                         null);
         mongoOperations.insert(document);
         ChatMessage storedMessage = document.toDomain();
+        auditWriter.appendCreated(
+                storedMessage,
+                storedMessage.senderUserId(),
+                ChatMessageAuditActorType.ROOM_PARTICIPANT);
         summaryWriter.applyCreated(storedMessage);
         outboxWriter.appendMessageCreated(storedMessage);
         return new StoredChatMessage(storedMessage);

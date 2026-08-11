@@ -12,6 +12,10 @@ import com.hamcheeze.chat.message.MessageMutationOutcome;
 import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditEventType;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditEventDocument;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditStore;
+import com.hamcheeze.chat.message.audit.mongo.MongoRoomMessageAuditSequenceDocument;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxStore;
@@ -34,6 +38,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -97,10 +106,11 @@ class MongoChatMessageMutationStoreTest {
         assertThat(updated.messageState())
                 .isEqualTo(MessageState.ACTIVE);
         assertThat(message().content()).isEqualTo("edited");
+        assertThat(message().retainedContent()).isNull();
         assertThat(message().roomSequence()).isEqualTo(1);
         assertThat(message().senderMembershipId())
                 .isEqualTo("membership-1");
-        assertThat(message().schemaVersion()).isEqualTo(4);
+        assertThat(message().schemaVersion()).isEqualTo(5);
         assertThat(message().senderMembershipId())
                 .isEqualTo("membership-1");
         assertThat(message().countable()).isTrue();
@@ -111,6 +121,13 @@ class MongoChatMessageMutationStoreTest {
         assertThat(summary().lastMessage().preview()).isEqualTo("edited");
         assertThat(summary().lastActivityAt()).isEqualTo(CREATED_AT);
         assertThat(summary().updatedAt()).isEqualTo(MUTATED_AT);
+        assertThat(auditCount()).isEqualTo(2);
+        assertThat(auditEvents().get(1).eventType())
+                .isEqualTo(ChatMessageAuditEventType.MESSAGE_UPDATED);
+        assertThat(auditEvents().get(1).before().content())
+                .isEqualTo("original");
+        assertThat(auditEvents().get(1).after().content())
+                .isEqualTo("edited");
 
         ChatMessageMutationResult replay = mutationStore.edit(
                 new EditChatMessageMutation(
@@ -124,6 +141,7 @@ class MongoChatMessageMutationStoreTest {
         assertThat(replay.messageVersion()).isEqualTo(2);
         assertThat(outboxCount()).isEqualTo(1);
         assertThat(receiptCount()).isEqualTo(1);
+        assertThat(auditCount()).isEqualTo(2);
         assertThat(summary().lastMessage().messageVersion()).isEqualTo(2);
 
         ChatMessageMutationResult conflict = mutationStore.edit(
@@ -151,6 +169,7 @@ class MongoChatMessageMutationStoreTest {
         assertThat(message().state())
                 .isEqualTo(MessageState.DELETED_BY_AUTHOR);
         assertThat(message().content()).isNull();
+        assertThat(message().retainedContent()).isEqualTo("edited");
         assertThat(message().updatedAt()).isEqualTo(MUTATED_AT);
         assertThat(message().deletedAt()).isEqualTo(MUTATED_AT);
         assertThat(message().roomSequence()).isEqualTo(1);
@@ -165,6 +184,12 @@ class MongoChatMessageMutationStoreTest {
                 .isEqualTo(CREATED_AT);
         assertThat(summary().lastActivityAt()).isEqualTo(CREATED_AT);
         assertThat(summary().updatedAt()).isEqualTo(MUTATED_AT);
+        assertThat(auditCount()).isEqualTo(3);
+        assertThat(auditEvents().get(2).eventType())
+                .isEqualTo(ChatMessageAuditEventType.MESSAGE_DELETED);
+        assertThat(auditEvents().get(2).before().content())
+                .isEqualTo("edited");
+        assertThat(auditEvents().get(2).after().content()).isNull();
 
         assertThat(messageStore.append(new NewChatMessage(
                 "room-1",
@@ -196,6 +221,7 @@ class MongoChatMessageMutationStoreTest {
                         "message-client-2",
                         "next"));
         assertThat(next.message().roomSequence()).isEqualTo(2);
+        assertThat(auditCount()).isEqualTo(4);
     }
 
     @Test
@@ -214,6 +240,7 @@ class MongoChatMessageMutationStoreTest {
                 .isEqualTo(MessageMutationOutcome.UNCHANGED);
         assertThat(unchanged.messageVersion()).isEqualTo(1);
         assertThat(outboxCount()).isZero();
+        assertThat(auditCount()).isEqualTo(1);
 
         ChatMessageMutationResult forbidden = mutationStore.edit(
                 new EditChatMessageMutation(
@@ -237,6 +264,109 @@ class MongoChatMessageMutationStoreTest {
         assertThat(missing.outcome())
                 .isEqualTo(MessageMutationOutcome.MESSAGE_NOT_FOUND);
         assertThat(outboxCount()).isZero();
+    }
+
+    @Test
+    void auditFailureRollsBackUpdateDeleteAndAuditSequence() {
+        create("message-client-1");
+        clearOutbox();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MongoChatMessageAuditStore auditStore =
+                new MongoChatMessageAuditStore(
+                        CONFIGURATION.mongoOperations(),
+                        registry);
+        ChatMessageMutationStore failingStore =
+                CONFIGURATION.mutationStore(
+                        Clock.fixed(MUTATED_AT, ZoneOffset.UTC),
+                        new MongoChatMessageOutboxStore(
+                                CONFIGURATION.mongoOperations()),
+                        new FailingAfterAppendChatMessageAuditWriter(
+                                auditStore),
+                        CONFIGURATION.summaryWriter(),
+                        registry);
+
+        assertThatThrownBy(() -> failingStore.edit(
+                new EditChatMessageMutation(
+                        "user-1",
+                        UUID.randomUUID().toString(),
+                        "room-1",
+                        "message-1",
+                        "edited")))
+                .isInstanceOf(ChatMessageStoreException.class);
+        assertAuditFailureRollback();
+
+        assertThatThrownBy(() -> failingStore.delete(
+                new DeleteChatMessageMutation(
+                        "user-1",
+                        UUID.randomUUID().toString(),
+                        "room-1",
+                        "message-1")))
+                .isInstanceOf(ChatMessageStoreException.class);
+        assertAuditFailureRollback();
+    }
+
+    @Test
+    void concurrentDifferentMessageUpdatesAllocateUniqueRoomChanges()
+            throws Exception {
+        ChatMessage first = create("message-client-1");
+        MongoChatMessageStore secondStore = CONFIGURATION.store(
+                Clock.fixed(CREATED_AT, ZoneOffset.UTC),
+                () -> "message-2",
+                new SimpleMeterRegistry());
+        ChatMessage second = ((StoredChatMessage) secondStore.append(
+                new NewChatMessage(
+                        "room-1",
+                        "user-1",
+                        "membership-1",
+                        "message-client-2",
+                        "second original"))).message();
+        clearOutbox();
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<ChatMessageMutationResult> firstResult =
+                    executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return mutationStore.edit(
+                                new EditChatMessageMutation(
+                                        "user-1",
+                                        UUID.randomUUID().toString(),
+                                        "room-1",
+                                        first.messageId(),
+                                        "first edited"));
+                    });
+            Future<ChatMessageMutationResult> secondResult =
+                    executor.submit(() -> {
+                        ready.countDown();
+                        start.await();
+                        return mutationStore.edit(
+                                new EditChatMessageMutation(
+                                        "user-1",
+                                        UUID.randomUUID().toString(),
+                                        "room-1",
+                                        second.messageId(),
+                                        "second edited"));
+                    });
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(firstResult.get(20, TimeUnit.SECONDS).outcome())
+                    .isEqualTo(MessageMutationOutcome.UPDATED);
+            assertThat(secondResult.get(20, TimeUnit.SECONDS).outcome())
+                    .isEqualTo(MessageMutationOutcome.UPDATED);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(auditEvents())
+                .extracting(event -> event.roomChangeSequence())
+                .containsExactly(1L, 2L, 3L, 4L);
+        assertThat(auditEvents().subList(2, 4))
+                .extracting(event -> event.messageId())
+                .containsExactlyInAnyOrder("message-1", "message-2");
     }
 
     @Test
@@ -271,6 +401,8 @@ class MongoChatMessageMutationStoreTest {
         assertThat(alreadyDeleted.messageVersion()).isEqualTo(2);
         assertThat(editDeleted.messageVersion()).isEqualTo(2);
         assertThat(outboxCount()).isZero();
+        assertThat(auditCount()).isEqualTo(2);
+        assertThat(message().retainedContent()).isEqualTo("original");
     }
 
     @Test
@@ -447,6 +579,8 @@ class MongoChatMessageMutationStoreTest {
                         unknownAfterCommit,
                         Clock.fixed(MUTATED_AT, ZoneOffset.UTC),
                         new MongoChatMessageExceptionClassifier(),
+                        CONFIGURATION.auditWriter(
+                                new SimpleMeterRegistry()),
                         new MongoChatMessageOutboxStore(
                                 CONFIGURATION.mongoOperations()),
                         CONFIGURATION.summaryWriter(),
@@ -527,6 +661,37 @@ class MongoChatMessageMutationStoreTest {
         return CONFIGURATION.mongoOperations().count(
                 new org.springframework.data.mongodb.core.query.Query(),
                 MongoChatMessageOutboxDocument.COLLECTION_NAME);
+    }
+
+    private long auditCount() {
+        return CONFIGURATION.mongoOperations().count(
+                new org.springframework.data.mongodb.core.query.Query(),
+                MongoChatMessageAuditEventDocument.COLLECTION_NAME);
+    }
+
+    private java.util.List<com.hamcheeze.chat.message.audit.ChatMessageAuditEvent>
+    auditEvents() {
+        return new MongoChatMessageAuditStore(
+                CONFIGURATION.mongoOperations(),
+                new SimpleMeterRegistry())
+                .findChanges("room-1", 0, Long.MAX_VALUE, 100);
+    }
+
+    private void assertAuditFailureRollback() {
+        assertThat(message().content()).isEqualTo("original");
+        assertThat(message().retainedContent()).isNull();
+        assertThat(message().state()).isEqualTo(MessageState.ACTIVE);
+        assertThat(message().messageVersion()).isEqualTo(1);
+        assertThat(auditCount()).isEqualTo(1);
+        MongoRoomMessageAuditSequenceDocument sequence =
+                CONFIGURATION.mongoOperations().findById(
+                        "room-1",
+                        MongoRoomMessageAuditSequenceDocument.class);
+        assertThat(sequence).isNotNull();
+        assertThat(sequence.lastSequence()).isEqualTo(1);
+        assertThat(receiptCount()).isZero();
+        assertThat(outboxCount()).isZero();
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(1);
     }
 
     private String outboxId() {

@@ -21,6 +21,7 @@ public record MongoChatMessageDocument(
         String senderMembershipId,
         String clientMessageId,
         String content,
+        String retainedContent,
         String creationContentFingerprint,
         MessageState state,
         Boolean countable,
@@ -31,7 +32,7 @@ public record MongoChatMessageDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_messages";
-    public static final int CURRENT_SCHEMA_VERSION = 4;
+    public static final int CURRENT_SCHEMA_VERSION = 5;
 
     @PersistenceCreator
     public MongoChatMessageDocument {
@@ -71,6 +72,16 @@ public record MongoChatMessageDocument(
                 createdAt,
                 updatedAt,
                 deletedAt);
+        if (state == MessageState.ACTIVE && retainedContent != null) {
+            throw new IllegalArgumentException(
+                    "Active message must not retain deleted content");
+        }
+        if (state == MessageState.DELETED_BY_AUTHOR
+                && (retainedContent == null
+                || retainedContent.isBlank())) {
+            throw new IllegalArgumentException(
+                    "Deleted message must retain its last active content");
+        }
     }
 
     public MongoChatMessageDocument(
@@ -93,6 +104,7 @@ public record MongoChatMessageDocument(
                 senderMembershipId,
                 clientMessageId,
                 content,
+                null,
                 ChatMessageContentFingerprint.of(content),
                 MessageState.ACTIVE,
                 true,
@@ -127,7 +139,7 @@ public record MongoChatMessageDocument(
                 deletedAt);
     }
 
-    static MongoChatMessageDocument fromDomain(
+    static MongoChatMessageDocument fromActiveDomain(
             ChatMessage message,
             String creationContentFingerprint
     ) {
@@ -135,6 +147,10 @@ public record MongoChatMessageDocument(
         Objects.requireNonNull(
                 creationContentFingerprint,
                 "creationContentFingerprint");
+        if (message.state() != MessageState.ACTIVE) {
+            throw new IllegalArgumentException(
+                    "Active mapping requires an active message");
+        }
         return new MongoChatMessageDocument(
                 message.messageId(),
                 CURRENT_SCHEMA_VERSION,
@@ -144,6 +160,40 @@ public record MongoChatMessageDocument(
                 message.senderMembershipId(),
                 message.clientMessageId(),
                 message.content(),
+                null,
+                creationContentFingerprint,
+                message.state(),
+                message.countable(),
+                message.messageVersion(),
+                message.createdAt(),
+                message.updatedAt(),
+                message.deletedAt());
+    }
+
+    static MongoChatMessageDocument fromDeletedDomain(
+            ChatMessage message,
+            String retainedContent,
+            String creationContentFingerprint
+    ) {
+        Objects.requireNonNull(message, "message");
+        Objects.requireNonNull(retainedContent, "retainedContent");
+        Objects.requireNonNull(
+                creationContentFingerprint,
+                "creationContentFingerprint");
+        if (message.state() != MessageState.DELETED_BY_AUTHOR) {
+            throw new IllegalArgumentException(
+                    "Deleted mapping requires a deleted message");
+        }
+        return new MongoChatMessageDocument(
+                message.messageId(),
+                CURRENT_SCHEMA_VERSION,
+                message.roomId(),
+                message.roomSequence(),
+                message.senderUserId(),
+                message.senderMembershipId(),
+                message.clientMessageId(),
+                message.content(),
+                retainedContent,
                 creationContentFingerprint,
                 message.state(),
                 message.countable(),

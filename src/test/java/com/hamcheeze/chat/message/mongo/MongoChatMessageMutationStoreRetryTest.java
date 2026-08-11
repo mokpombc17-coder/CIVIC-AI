@@ -8,6 +8,7 @@ import com.hamcheeze.chat.message.MessageMutationCommandType;
 import com.hamcheeze.chat.message.MessageMutationOutcome;
 import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.outbox.ChatMessageOutboxWriter;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
 import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
 import com.mongodb.MongoException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -307,6 +308,7 @@ class MongoChatMessageMutationStoreRetryTest {
                         transactionOperations,
                         Clock.fixed(PROCESSED_AT, ZoneOffset.UTC),
                         new MongoChatMessageExceptionClassifier(),
+                        mock(ChatMessageAuditWriter.class),
                         outboxWriter,
                         mock(RoomInboxSummaryWriter.class),
                         new SimpleMeterRegistry());

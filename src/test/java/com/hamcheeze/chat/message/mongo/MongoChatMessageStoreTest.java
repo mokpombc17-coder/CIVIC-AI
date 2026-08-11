@@ -7,6 +7,9 @@ import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditEventDocument;
+import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditStore;
+import com.hamcheeze.chat.message.audit.mongo.MongoRoomMessageAuditSequenceDocument;
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
 import com.hamcheeze.chat.message.outbox.mongo.MongoChatMessageOutboxDocument;
 import com.hamcheeze.chat.room.inbox.summary.RoomInboxSummaryWriter;
@@ -94,7 +97,7 @@ class MongoChatMessageStoreTest {
         Document document = messages().find().first();
         assertThat(document).isNotNull();
         assertThat(document.get("_id")).isEqualTo("message-1");
-        assertThat(document.getInteger("schemaVersion")).isEqualTo(4);
+        assertThat(document.getInteger("schemaVersion")).isEqualTo(5);
         assertThat(document.getBoolean("countable")).isTrue();
         assertThat(document.getLong("roomSequence")).isEqualTo(1L);
         assertThat(document.getString("senderUserId"))
@@ -103,6 +106,7 @@ class MongoChatMessageStoreTest {
                 .isEqualTo("membership-user-1");
         assertThat(document.getString("content"))
                 .isEqualTo("normalized content");
+        assertThat(document.get("retainedContent")).isNull();
         assertThat(document.getString(
                 "creationContentFingerprint"))
                 .hasSize(64);
@@ -114,6 +118,20 @@ class MongoChatMessageStoreTest {
                 .isEqualTo(NOW);
         assertThat(document.get("deletedAt")).isNull();
         assertThat(messages().countDocuments()).isEqualTo(1L);
+        Document audit = CONFIGURATION.mongoOperations()
+                .getCollection(
+                        MongoChatMessageAuditEventDocument.COLLECTION_NAME)
+                .find()
+                .first();
+        assertThat(audit).isNotNull();
+        assertThat(audit.getString("_id"))
+                .isEqualTo("chat-message-audit:message-1:v1");
+        assertThat(audit.getString("eventType"))
+                .isEqualTo("MESSAGE_CREATED");
+        assertThat(audit.getLong("roomChangeSequence")).isEqualTo(1L);
+        assertThat(audit.get("before")).isNull();
+        assertThat(audit.get("after", Document.class)
+                .getString("content")).isEqualTo("normalized content");
         Document outbox = outboxEvents().find().first();
         assertThat(outbox).isNotNull();
         assertThat(outbox.get("_id"))
@@ -329,6 +347,43 @@ class MongoChatMessageStoreTest {
     }
 
     @Test
+    void auditFailureRollsBackMessageSequencesSummaryAndOutbox() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        MongoChatMessageAuditStore auditStore =
+                new MongoChatMessageAuditStore(
+                        CONFIGURATION.mongoOperations(),
+                        registry);
+        MongoChatMessageStore failingStore = CONFIGURATION.store(
+                CLOCK,
+                () -> "message-audit-failure",
+                new FailingAfterAppendChatMessageAuditWriter(auditStore),
+                CONFIGURATION.summaryWriter(),
+                registry);
+
+        assertThatThrownBy(() -> failingStore.append(message(
+                "room-1",
+                "user-1",
+                "client-audit-failure",
+                "content")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("audit append failure");
+
+        assertThat(messages().countDocuments()).isZero();
+        assertThat(outboxEvents().countDocuments()).isZero();
+        assertThat(summaries().countDocuments()).isZero();
+        assertThat(CONFIGURATION.mongoOperations().count(
+                new org.springframework.data.mongodb.core.query.Query(),
+                MongoChatMessageAuditEventDocument.COLLECTION_NAME))
+                .isZero();
+        assertThat(CONFIGURATION.mongoOperations().findById(
+                "room-1",
+                MongoRoomSequenceDocument.class)).isNull();
+        assertThat(CONFIGURATION.mongoOperations().findById(
+                "room-1",
+                MongoRoomMessageAuditSequenceDocument.class)).isNull();
+    }
+
+    @Test
     void sameClientMessageIdIsIndependentBySender() {
         StoreChatMessageResult first = store.append(
                 message("room-1", "user-1", "client-1", "one"));
@@ -455,6 +510,19 @@ class MongoChatMessageStoreTest {
                 .isEqualTo(stored.size());
         assertThat(lastSequence("room-1"))
                 .isEqualTo(stored.size());
+        MongoChatMessageAuditStore auditStore =
+                new MongoChatMessageAuditStore(
+                        CONFIGURATION.mongoOperations(),
+                        new SimpleMeterRegistry());
+        assertThat(auditStore.currentRoomChangeSequence("room-1"))
+                .isEqualTo(stored.size());
+        assertThat(auditStore.findChanges(
+                "room-1",
+                0,
+                Long.MAX_VALUE,
+                requestCount))
+                .extracting(event -> event.roomChangeSequence())
+                .containsExactlyElementsOf(expectedSequences);
     }
 
     @Test

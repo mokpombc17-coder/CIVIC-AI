@@ -6,6 +6,7 @@ import com.hamcheeze.chat.message.ChatMessageStoreFailureKind;
 import com.hamcheeze.chat.message.ConflictingChatMessage;
 import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.NewChatMessage;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
 import com.hamcheeze.chat.message.StoreChatMessageResult;
 import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
@@ -616,6 +617,7 @@ class MongoChatMessageStoreRetryTest {
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 messageIdGenerator,
                 new MongoChatMessageExceptionClassifier(),
+                mock(ChatMessageAuditWriter.class),
                 message -> {
                 },
                 mock(RoomInboxSummaryWriter.class),
