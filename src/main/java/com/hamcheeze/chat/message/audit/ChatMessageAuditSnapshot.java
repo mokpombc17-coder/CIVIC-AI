@@ -24,13 +24,18 @@ public record ChatMessageAuditSnapshot(
             throw new IllegalArgumentException(
                     "messageVersion must be at least 1");
         }
+        if (updatedAt.isBefore(createdAt)) {
+            throw new IllegalArgumentException(
+                    "Audit snapshot updatedAt must not precede createdAt");
+        }
         if (state == MessageState.ACTIVE) {
             if (content == null || content.isBlank() || deletedAt != null) {
                 throw new IllegalArgumentException(
                         "Active audit snapshot is malformed");
             }
         } else if (state == MessageState.DELETED_BY_AUTHOR) {
-            if (content != null
+            if (messageVersion < 2
+                    || content != null
                     || deletedAt == null
                     || !updatedAt.equals(deletedAt)) {
                 throw new IllegalArgumentException(

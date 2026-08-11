@@ -321,6 +321,7 @@ class MongoChatMessageStoreTest {
                 .find(new Document("_id", "room-1"))
                 .first();
         assertThat(sequence).isNull();
+        assertAuditStateUnchanged(0, 0);
     }
 
     @Test
@@ -344,6 +345,7 @@ class MongoChatMessageStoreTest {
         assertThat(CONFIGURATION.mongoOperations().getCollection(
                         MongoRoomSequenceDocument.COLLECTION_NAME)
                 .countDocuments()).isZero();
+        assertAuditStateUnchanged(0, 0);
     }
 
     @Test
@@ -778,6 +780,23 @@ class MongoChatMessageStoreTest {
                 .first();
         assertThat(sequence).isNotNull();
         return sequence.getLong("lastSequence");
+    }
+
+    private void assertAuditStateUnchanged(
+            long expectedCount,
+            long expectedSequence
+    ) {
+        long count = CONFIGURATION.mongoOperations().count(
+                new org.springframework.data.mongodb.core.query.Query(),
+                MongoChatMessageAuditEventDocument.COLLECTION_NAME);
+        MongoRoomMessageAuditSequenceDocument sequence =
+                CONFIGURATION.mongoOperations().findById(
+                        "room-1",
+                        MongoRoomMessageAuditSequenceDocument.class);
+
+        assertThat(count).isEqualTo(expectedCount);
+        assertThat(sequence == null ? 0 : sequence.lastSequence())
+                .isEqualTo(expectedSequence);
     }
 
     private List<Callable<StoreChatMessageResult>> repeatedCalls(

@@ -9,6 +9,7 @@ import com.hamcheeze.chat.message.DuplicateChatMessage;
 import com.hamcheeze.chat.message.ConflictingChatMessage;
 import com.hamcheeze.chat.message.EditChatMessageMutation;
 import com.hamcheeze.chat.message.MessageMutationOutcome;
+import com.hamcheeze.chat.message.MessageMutationCommandType;
 import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.NewChatMessage;
 import com.hamcheeze.chat.message.StoredChatMessage;
@@ -460,6 +461,42 @@ class MongoChatMessageMutationStoreTest {
         assertThat(outboxCount()).isZero();
         assertThat(summary().lastMessage().messageVersion()).isEqualTo(1);
         assertThat(summary().lastMessage().preview()).isEqualTo("original");
+        assertAuditStateUnchanged(1, 1);
+    }
+
+    @Test
+    void deleteOutboxFailureRollsBackMessageReceiptAndAudit() {
+        ChatMessage created = create("message-client-1");
+        clearOutbox();
+        ChatMessageMutationStore failingStore =
+                CONFIGURATION.mutationStore(
+                        Clock.fixed(MUTATED_AT, ZoneOffset.UTC),
+                        new ChatMessageOutboxWriter() {
+                            @Override
+                            public void appendMessageCreated(
+                                    ChatMessage message
+                            ) {
+                            }
+
+                            @Override
+                            public void appendMessageDeleted(
+                                    ChatMessage message
+                            ) {
+                                throw new IllegalStateException(
+                                        "forced delete outbox failure");
+                            }
+                        },
+                        new SimpleMeterRegistry());
+
+        assertThatThrownBy(() -> failingStore.delete(
+                new DeleteChatMessageMutation(
+                        "user-1",
+                        UUID.randomUUID().toString(),
+                        "room-1",
+                        created.messageId())))
+                .isInstanceOf(ChatMessageStoreException.class);
+
+        assertAuditFailureRollback();
     }
 
     @Test
@@ -501,23 +538,9 @@ class MongoChatMessageMutationStoreTest {
         ChatMessage created = create("message-client-1");
         clearOutbox();
         String mutationId = UUID.randomUUID().toString();
-        CONFIGURATION.mongoOperations().insert(
-                new MongoChatMessageMutationReceiptDocument(
-                        "user-1:" + mutationId,
-                        1,
-                        "different-user",
-                        UUID.randomUUID().toString(),
-                        com.hamcheeze.chat.message
-                                .MessageMutationCommandType
-                                .EDIT_MESSAGE,
-                        "room-1",
-                        "other-message",
-                        "corrupt-collision",
-                        MessageMutationOutcome.MESSAGE_NOT_FOUND,
-                        null,
-                        null,
-                        null,
-                        MUTATED_AT));
+        insertConflictingReceipt(
+                mutationId,
+                MessageMutationCommandType.EDIT_MESSAGE);
 
         assertThatThrownBy(() -> mutationStore.edit(
                 new EditChatMessageMutation(
@@ -537,6 +560,35 @@ class MongoChatMessageMutationStoreTest {
         assertThat(summary().lastMessage().state())
                 .isEqualTo(MessageState.ACTIVE);
         assertThat(summary().updatedAt()).isEqualTo(CREATED_AT);
+        assertAuditStateUnchanged(1, 1);
+    }
+
+    @Test
+    void deleteReceiptInsertFailureRollsBackMessageAndAudit() {
+        ChatMessage created = create("message-client-1");
+        clearOutbox();
+        String mutationId = UUID.randomUUID().toString();
+        insertConflictingReceipt(
+                mutationId,
+                MessageMutationCommandType.DELETE_MESSAGE);
+
+        assertThatThrownBy(() -> mutationStore.delete(
+                new DeleteChatMessageMutation(
+                        "user-1",
+                        mutationId,
+                        "room-1",
+                        created.messageId())))
+                .isInstanceOf(ChatMessageStoreException.class);
+
+        assertThat(message().content()).isEqualTo("original");
+        assertThat(message().retainedContent()).isNull();
+        assertThat(message().state()).isEqualTo(MessageState.ACTIVE);
+        assertThat(message().messageVersion()).isEqualTo(1);
+        assertThat(receiptCount()).isEqualTo(1);
+        assertThat(outboxCount()).isZero();
+        assertThat(summary().lastMessage().messageVersion()).isEqualTo(1);
+        assertThat(summary().lastMessage().preview()).isEqualTo("original");
+        assertAuditStateUnchanged(1, 1);
     }
 
     @Test
@@ -649,12 +701,34 @@ class MongoChatMessageMutationStoreTest {
         assertThat(outboxCount()).isZero();
         assertThat(summary().lastMessage().messageVersion()).isEqualTo(1);
         assertThat(summary().lastMessage().preview()).isEqualTo("original");
+        assertAuditStateUnchanged(1, 1);
     }
 
     private long receiptCount() {
         return CONFIGURATION.mongoOperations().count(
                 new org.springframework.data.mongodb.core.query.Query(),
                 MongoChatMessageMutationReceiptDocument.COLLECTION_NAME);
+    }
+
+    private void insertConflictingReceipt(
+            String mutationId,
+            MessageMutationCommandType commandType
+    ) {
+        CONFIGURATION.mongoOperations().insert(
+                new MongoChatMessageMutationReceiptDocument(
+                        "user-1:" + mutationId,
+                        1,
+                        "different-user",
+                        UUID.randomUUID().toString(),
+                        commandType,
+                        "room-1",
+                        "other-message",
+                        "corrupt-collision",
+                        MessageMutationOutcome.MESSAGE_NOT_FOUND,
+                        null,
+                        null,
+                        null,
+                        MUTATED_AT));
     }
 
     private long outboxCount() {
@@ -667,6 +741,20 @@ class MongoChatMessageMutationStoreTest {
         return CONFIGURATION.mongoOperations().count(
                 new org.springframework.data.mongodb.core.query.Query(),
                 MongoChatMessageAuditEventDocument.COLLECTION_NAME);
+    }
+
+    private void assertAuditStateUnchanged(
+            long expectedCount,
+            long expectedSequence
+    ) {
+        MongoRoomMessageAuditSequenceDocument sequence =
+                CONFIGURATION.mongoOperations().findById(
+                        "room-1",
+                        MongoRoomMessageAuditSequenceDocument.class);
+
+        assertThat(auditCount()).isEqualTo(expectedCount);
+        assertThat(sequence == null ? 0 : sequence.lastSequence())
+                .isEqualTo(expectedSequence);
     }
 
     private java.util.List<com.hamcheeze.chat.message.audit.ChatMessageAuditEvent>

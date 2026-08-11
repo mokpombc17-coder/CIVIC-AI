@@ -50,6 +50,11 @@ public record ChatMessageAuditEvent(
             throw new IllegalArgumentException(
                     "Audit event identity does not match its snapshot");
         }
+        if (actorType == ChatMessageAuditActorType.ROOM_PARTICIPANT
+                && !actorUserId.equals(senderUserId)) {
+            throw new IllegalArgumentException(
+                    "Room participant audit actor must match message sender");
+        }
         validateTransition(eventType, before, after, occurredAt);
     }
 
@@ -157,7 +162,8 @@ public record ChatMessageAuditEvent(
                 if (before != null
                         || after.state() != MessageState.ACTIVE
                         || after.messageVersion() != 1
-                        || !occurredAt.equals(after.createdAt())) {
+                        || !occurredAt.equals(after.createdAt())
+                        || !after.updatedAt().equals(after.createdAt())) {
                     throw new IllegalArgumentException(
                             "Malformed message-created audit event");
                 }
@@ -168,6 +174,10 @@ public record ChatMessageAuditEvent(
                         || after.state() != MessageState.ACTIVE
                         || after.messageVersion()
                         != before.messageVersion() + 1
+                        || !before.createdAt().equals(after.createdAt())
+                        || before.countable() != after.countable()
+                        || after.updatedAt().isBefore(before.updatedAt())
+                        || before.content().equals(after.content())
                         || !occurredAt.equals(after.updatedAt())) {
                     throw new IllegalArgumentException(
                             "Malformed message-updated audit event");
@@ -180,6 +190,9 @@ public record ChatMessageAuditEvent(
                         != MessageState.DELETED_BY_AUTHOR
                         || after.messageVersion()
                         != before.messageVersion() + 1
+                        || !before.createdAt().equals(after.createdAt())
+                        || before.countable() != after.countable()
+                        || after.updatedAt().isBefore(before.updatedAt())
                         || !occurredAt.equals(after.updatedAt())
                         || !occurredAt.equals(after.deletedAt())) {
                     throw new IllegalArgumentException(

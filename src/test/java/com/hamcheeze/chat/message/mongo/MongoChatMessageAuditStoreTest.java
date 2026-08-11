@@ -9,6 +9,7 @@ import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditEventDocument
 import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditSchemaInitializer;
 import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditStore;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.bson.Document;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.index.IndexInfo;
 
 import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -149,6 +151,74 @@ class MongoChatMessageAuditStoreTest {
                         .equals(index.getName()))
                 .singleElement()
                 .satisfies(index -> assertThat(index.isUnique()).isTrue());
+    }
+
+    @Test
+    void malformedPersistedTransitionFailsClosedDuringRead() {
+        Document before = auditSnapshot(
+                "before",
+                "ACTIVE",
+                true,
+                1,
+                CREATED_AT,
+                CREATED_AT,
+                null);
+        Document after = auditSnapshot(
+                "after",
+                "ACTIVE",
+                true,
+                2,
+                UPDATED_AT,
+                UPDATED_AT,
+                null);
+        Document malformed = new Document()
+                .append("_id", "chat-message-audit:message-1:v2")
+                .append("schemaVersion", 1)
+                .append("roomId", "room-1")
+                .append("roomChangeSequence", 1L)
+                .append("eventType", "MESSAGE_UPDATED")
+                .append("messageId", "message-1")
+                .append("roomSequence", 1L)
+                .append("messageVersion", 2L)
+                .append("senderMembershipId", "membership-1")
+                .append("senderUserId", "user-1")
+                .append("actorUserId", "user-1")
+                .append("actorType", "ROOM_PARTICIPANT")
+                .append("occurredAt", Date.from(UPDATED_AT))
+                .append("before", before)
+                .append("after", after);
+        CONFIGURATION.mongoOperations()
+                .getCollection(
+                        MongoChatMessageAuditEventDocument.COLLECTION_NAME)
+                .insertOne(malformed);
+
+        assertThatThrownBy(() -> store.findChanges(
+                "room-1",
+                0,
+                1,
+                10))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    private static Document auditSnapshot(
+            String content,
+            String state,
+            boolean countable,
+            long messageVersion,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant deletedAt
+    ) {
+        return new Document()
+                .append("content", content)
+                .append("state", state)
+                .append("countable", countable)
+                .append("messageVersion", messageVersion)
+                .append("createdAt", Date.from(createdAt))
+                .append("updatedAt", Date.from(updatedAt))
+                .append(
+                        "deletedAt",
+                        deletedAt == null ? null : Date.from(deletedAt));
     }
 
     private static ChatMessage active(

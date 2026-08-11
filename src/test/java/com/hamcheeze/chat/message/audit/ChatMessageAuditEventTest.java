@@ -81,6 +81,263 @@ class ChatMessageAuditEventTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void rejectsSnapshotWhoseUpdatedAtPrecedesCreatedAt() {
+        assertThatThrownBy(() -> activeSnapshot(
+                "content",
+                true,
+                1,
+                UPDATED_AT,
+                CREATED_AT))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsDeletedSnapshotAtVersionOne() {
+        assertThatThrownBy(() -> deletedSnapshot(
+                true,
+                1,
+                CREATED_AT,
+                DELETED_AT))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsCreateWhoseUpdatedAtDiffersFromCreatedAt() {
+        ChatMessageAuditSnapshot after = activeSnapshot(
+                "content",
+                true,
+                1,
+                CREATED_AT,
+                UPDATED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_CREATED,
+                null,
+                after,
+                UPDATED_AT);
+    }
+
+    @Test
+    void rejectsUpdateThatChangesCreatedAt() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "before", true, 1, CREATED_AT, CREATED_AT);
+        ChatMessageAuditSnapshot after = activeSnapshot(
+                "after", true, 2, UPDATED_AT, UPDATED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_UPDATED,
+                before,
+                after,
+                UPDATED_AT);
+    }
+
+    @Test
+    void rejectsUpdateThatChangesCountable() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "before", true, 1, CREATED_AT, CREATED_AT);
+        ChatMessageAuditSnapshot after = activeSnapshot(
+                "after", false, 2, CREATED_AT, UPDATED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_UPDATED,
+                before,
+                after,
+                UPDATED_AT);
+    }
+
+    @Test
+    void rejectsUpdateWhoseTimestampRegresses() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "before", true, 1, CREATED_AT, UPDATED_AT);
+        ChatMessageAuditSnapshot after = activeSnapshot(
+                "after", true, 2, CREATED_AT, CREATED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_UPDATED,
+                before,
+                after,
+                CREATED_AT);
+    }
+
+    @Test
+    void rejectsUpdateWithoutContentChange() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "same", true, 1, CREATED_AT, CREATED_AT);
+        ChatMessageAuditSnapshot after = activeSnapshot(
+                "same", true, 2, CREATED_AT, UPDATED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_UPDATED,
+                before,
+                after,
+                UPDATED_AT);
+    }
+
+    @Test
+    void rejectsDeleteThatChangesCreatedAt() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "before", true, 1, CREATED_AT, CREATED_AT);
+        ChatMessageAuditSnapshot after = deletedSnapshot(
+                true, 2, UPDATED_AT, DELETED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_DELETED,
+                before,
+                after,
+                DELETED_AT);
+    }
+
+    @Test
+    void rejectsDeleteThatChangesCountable() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "before", true, 1, CREATED_AT, CREATED_AT);
+        ChatMessageAuditSnapshot after = deletedSnapshot(
+                false, 2, CREATED_AT, DELETED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_DELETED,
+                before,
+                after,
+                DELETED_AT);
+    }
+
+    @Test
+    void rejectsDeleteWhoseTimestampRegresses() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "before", true, 1, CREATED_AT, DELETED_AT);
+        ChatMessageAuditSnapshot after = deletedSnapshot(
+                true, 2, CREATED_AT, UPDATED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_DELETED,
+                before,
+                after,
+                UPDATED_AT);
+    }
+
+    @Test
+    void rejectsDeleteWhoseOccurredAtDiffersFromDeletedAt() {
+        ChatMessageAuditSnapshot before = activeSnapshot(
+                "before", true, 1, CREATED_AT, CREATED_AT);
+        ChatMessageAuditSnapshot after = deletedSnapshot(
+                true, 2, CREATED_AT, DELETED_AT);
+
+        assertInvalidEvent(
+                ChatMessageAuditEventType.MESSAGE_DELETED,
+                before,
+                after,
+                UPDATED_AT);
+    }
+
+    @Test
+    void rejectsRoomParticipantActorThatDiffersFromSender() {
+        ChatMessageAuditSnapshot after = activeSnapshot(
+                "content", true, 1, CREATED_AT, CREATED_AT);
+
+        assertThatThrownBy(() -> event(
+                ChatMessageAuditEventType.MESSAGE_CREATED,
+                null,
+                after,
+                CREATED_AT,
+                "user-2",
+                ChatMessageAuditActorType.ROOM_PARTICIPANT))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void allowsSuperAdminActorThatDiffersFromSender() {
+        ChatMessageAuditSnapshot after = activeSnapshot(
+                "content", true, 1, CREATED_AT, CREATED_AT);
+
+        ChatMessageAuditEvent event = event(
+                ChatMessageAuditEventType.MESSAGE_CREATED,
+                null,
+                after,
+                CREATED_AT,
+                "admin-1",
+                ChatMessageAuditActorType.SUPER_ADMIN);
+
+        assertThat(event.actorUserId()).isEqualTo("admin-1");
+    }
+
+    private static void assertInvalidEvent(
+            ChatMessageAuditEventType eventType,
+            ChatMessageAuditSnapshot before,
+            ChatMessageAuditSnapshot after,
+            Instant occurredAt
+    ) {
+        assertThatThrownBy(() -> event(
+                eventType,
+                before,
+                after,
+                occurredAt,
+                "user-1",
+                ChatMessageAuditActorType.ROOM_PARTICIPANT))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static ChatMessageAuditEvent event(
+            ChatMessageAuditEventType eventType,
+            ChatMessageAuditSnapshot before,
+            ChatMessageAuditSnapshot after,
+            Instant occurredAt,
+            String actorUserId,
+            ChatMessageAuditActorType actorType
+    ) {
+        return new ChatMessageAuditEvent(
+                ChatMessageAuditEvent.eventId(
+                        "message-1",
+                        after.messageVersion()),
+                ChatMessageAuditEvent.CURRENT_SCHEMA_VERSION,
+                "room-1",
+                1,
+                eventType,
+                "message-1",
+                1,
+                after.messageVersion(),
+                "membership-1",
+                "user-1",
+                actorUserId,
+                actorType,
+                occurredAt,
+                before,
+                after);
+    }
+
+    private static ChatMessageAuditSnapshot activeSnapshot(
+            String content,
+            boolean countable,
+            long version,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        return new ChatMessageAuditSnapshot(
+                content,
+                MessageState.ACTIVE,
+                countable,
+                version,
+                createdAt,
+                updatedAt,
+                null);
+    }
+
+    private static ChatMessageAuditSnapshot deletedSnapshot(
+            boolean countable,
+            long version,
+            Instant createdAt,
+            Instant deletedAt
+    ) {
+        return new ChatMessageAuditSnapshot(
+                null,
+                MessageState.DELETED_BY_AUTHOR,
+                countable,
+                version,
+                createdAt,
+                deletedAt,
+                deletedAt);
+    }
+
     private static ChatMessage active(
             String content,
             long version,
