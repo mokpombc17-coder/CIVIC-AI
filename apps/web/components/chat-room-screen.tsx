@@ -1,22 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
   useChatRealtimeConnection,
   useChatRealtimeRoom,
 } from "@/components/chat-realtime-provider";
-import {
-  ChatRoomMembershipDialog,
-  ChatRoomMembershipDialogTrigger,
-} from "@/components/chat-room-membership-dialog";
-import {
-  ChatRoomMessageSearchDialog,
-  ChatRoomMessageSearchDialogTrigger,
-} from "@/components/chat-room-message-search-dialog";
 import { createChatRoomEntryNavigationNotice } from "@/components/chat-room-entry-navigation-notice";
+import {
+  ChatRoomScreenHeaderActions,
+  ChatRoomScreenOverlay,
+  resolveChatRoomScreenOverlayKind,
+} from "@/components/chat-room-screen-overlays";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
 import {
   ChatRoomSessionIndicator,
@@ -208,6 +204,12 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     onEditMessage: messageMutations.editMessage,
     viewportKey,
   });
+  const overlayKind = resolveChatRoomScreenOverlayKind({
+    hasMessageActions: messageActions.sheet !== null,
+    isMembershipDialogOpen,
+    isMessageSearchDialogOpen,
+    roomAvailable: room !== undefined,
+  });
   const header = createChatRoomHeaderViewModel({
     memberCount: room?.activeMemberCount,
     name: room?.name,
@@ -285,21 +287,16 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     <ChatRoomView
       header={header}
       headerAction={
-        room ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <ChatRoomMessageSearchDialogTrigger
-              disabled={!session.isActive}
-              isOpen={isMessageSearchDialogOpen}
-              onOpen={openMessageSearchDialog}
-              ref={messageSearchDialogTriggerRef}
-            />
-            <ChatRoomMembershipDialogTrigger
-              isOpen={isMembershipDialogOpen}
-              onOpen={openMembershipDialog}
-              ref={membershipDialogTriggerRef}
-            />
-          </div>
-        ) : null
+        <ChatRoomScreenHeaderActions
+          isMembershipDialogOpen={isMembershipDialogOpen}
+          isMessageSearchDialogOpen={isMessageSearchDialogOpen}
+          membershipDialogTriggerRef={membershipDialogTriggerRef}
+          messageSearchDialogTriggerRef={messageSearchDialogTriggerRef}
+          onOpenMembershipDialog={openMembershipDialog}
+          onOpenMessageSearchDialog={openMessageSearchDialog}
+          roomAvailable={room !== undefined}
+          searchDisabled={!session.isActive}
+        />
       }
       messageHistory={{
         canLoadOlder: messageHistory.hasNextPage,
@@ -328,17 +325,24 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         viewportKey,
       }}
       overlay={
-        isMessageSearchDialogOpen && room ? (
-          <ChatRoomMessageSearchDialog
-            context={messageContext}
-            controller={messageSearch}
-            onClose={closeMessageSearchDialog}
+        overlayKind ? (
+          <ChatRoomScreenOverlay
+            kind={overlayKind}
+            membershipDialog={{
+              isOpen: isMembershipDialogOpen,
+              onClose: closeMembershipDialog,
+            }}
+            messageActionsSheet={messageActions.sheet}
+            messageSearchDialog={{
+              context: messageContext,
+              controller: messageSearch,
+              isOpen: isMessageSearchDialogOpen,
+              onClose: closeMessageSearchDialog,
+            }}
             participantDisplayNames={participantDisplayNames}
+            room={room}
+            roomId={roomId}
           />
-        ) : isMembershipDialogOpen && room ? (
-          <ChatRoomMembershipDialog onClose={closeMembershipDialog} room={room} roomId={roomId} />
-        ) : messageActions.sheet ? (
-          <ChatMessageActionsBottomSheet sheet={messageActions.sheet} />
         ) : null
       }
       roomError={

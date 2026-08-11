@@ -100,15 +100,17 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                     ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
                                     │   └── ChatMessageComposer [Client] [Feature] (apps/web/components/chat-message-composer.tsx)
-                                    ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
-                                    ├── ChatRoomMessageSearchDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-message-search-dialog.tsx)
-                                    └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
-                                        └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
-                                            └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
-                                                ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
-                                                └── ChatRoomSettingsControl [Client] [Container] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
-                                                    └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-dialog.tsx)
-                                                        └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
+                                    ├── ChatRoomScreenHeaderActions [Client] [View] (apps/web/components/chat-room-screen-overlays.tsx)
+                                    └── ChatRoomScreenOverlay [Client] [View] [conditional, single] (apps/web/components/chat-room-screen-overlays.tsx)
+                                        ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
+                                        ├── ChatRoomMessageSearchDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-message-search-dialog.tsx)
+                                        └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
+                                            └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
+                                                └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
+                                                    ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
+                                                    └── ChatRoomSettingsControl [Client] [Container] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
+                                                        └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-dialog.tsx)
+                                                            └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
                         │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
@@ -162,8 +164,9 @@ Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, 재
 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
 대표 View 경계이며 overlay 존재 여부를 read-state pause 신호로 viewport에 전달한다. 내부 header,
-session indicator, membership trigger와 overlay wrapper는 받은 값을 표시하거나 전달하는 순수 표현
-요소라 생략한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
+session indicator처럼 받은 값을 표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·방 정보
+trigger를 배치하고, `ChatRoomScreenOverlay`는 검색, 참여자 정보, 메시지 action 순서의 단일 overlay 우선순위를
+표현한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
 focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 생명주기를 소유하므로 독립 Feature로 유지하고,
 상단 loading/error, 이력 안내, 새 메시지 이동 버튼과 가상 row 선택 렌더링은
 `chat-message-viewport-presentation.tsx`의 순수 표현 컴포넌트로 위임한다. 이 내부 표현 컴포넌트와
@@ -241,6 +244,8 @@ flowchart TD
     ChatRoomScreen["ChatRoomScreen [Client] [Container]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatRoomView["ChatRoomView [Client] [View]<br/>apps/web/components/chat-room-view.tsx"]
     ChatMessageViewport["ChatMessageViewport [Client] [Feature]<br/>apps/web/components/chat-message-viewport.tsx"]
+    ChatRoomScreenHeaderActions["ChatRoomScreenHeaderActions [Client] [View]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
+    ChatRoomScreenOverlay["ChatRoomScreenOverlay [Client] [View] [conditional, single]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
     ChatMessageActionsBottomSheet["ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single]<br/>apps/web/components/chat-message-actions-bottom-sheet.tsx"]
     ChatRoomMessageSearchDialog["ChatRoomMessageSearchDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-message-search-dialog.tsx"]
     ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
@@ -292,9 +297,11 @@ flowchart TD
     ChatRoomScreen -->|"snapshot sync recovery"| ChatRealtimeSyncStatus
     ChatRoomScreen -->|"message draft and send"| ChatRoomSessionControls
     ChatRoomSessionControls --> ChatMessageComposer
-    ChatRoomScreen -->|"one selected message"| ChatMessageActionsBottomSheet
-    ChatRoomScreen -->|"isolated Room message search and context windows"| ChatRoomMessageSearchDialog
-    ChatRoomScreen -->|"room info disclosure"| ChatRoomMembershipDialog
+    ChatRoomScreen -->|"header controls"| ChatRoomScreenHeaderActions
+    ChatRoomScreen -->|"single overlay priority"| ChatRoomScreenOverlay
+    ChatRoomScreenOverlay -->|"one selected message"| ChatMessageActionsBottomSheet
+    ChatRoomScreenOverlay -->|"isolated Room message search and context windows"| ChatRoomMessageSearchDialog
+    ChatRoomScreenOverlay -->|"room info disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel --> ChatRoomMembershipPanelView
     ChatRoomMembershipPanelView --> ChatRoomCategoryBadges
@@ -311,6 +318,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```
