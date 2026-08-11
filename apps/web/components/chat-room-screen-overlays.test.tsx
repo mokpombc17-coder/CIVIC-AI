@@ -1,9 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import {
-  ChatRoomScreenHeaderActions,
-  resolveChatRoomScreenOverlayKind,
-} from "./chat-room-screen-overlays";
+import { ChatRoomScreenHeaderActions } from "./chat-room-screen-overlays";
+import { resolveChatRoomScreenOverlayKind } from "./chat-room-screen-overlay-model";
 
 describe("ChatRoomScreen overlay presentation", () => {
   it("Room이 준비되면 검색과 방 정보 trigger를 렌더링한다", () => {

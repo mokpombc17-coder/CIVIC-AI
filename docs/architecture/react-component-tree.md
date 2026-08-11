@@ -195,6 +195,8 @@ session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 �
 검색/멤버십/메시지 액션의 단일 overlay 우선순위를 조립한다. Screen은 이 controller가 제공한
 header action과 overlay model을 View에 배치하고, `ChatRoomMembershipDialog` 안에서만
 `ChatRoomMembershipPanel`을 mount한다. 세 overlay는 동시에 렌더링하지 않는다.
+순수 overlay 선택 정책과 message history feedback 타입은 `.ts` ViewModel 모듈에 두어,
+experience hook이 `.tsx` 표현 컴포넌트의 구현 타입을 역으로 참조하지 않게 한다.
 `ChatRoomMembershipPanel`은 `useChatRoomMembershipPanel`이 조립한 controller를
 `ChatRoomMembershipPanelView`에 전달하는 얇은 container다. controller hook은 Membership Query,
 관리 mutation, 멱등성 key·재시도, 완료 라우팅을 소유하며 View에는 정규화된 목록 상태,

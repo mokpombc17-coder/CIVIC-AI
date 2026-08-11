@@ -26,6 +26,7 @@ import {
   shouldFollowLatestMessages,
 } from "@/components/chat-message-viewport-state";
 import type {
+  ChatMessageHistoryFeedback,
   ChatMessageItemViewModel,
   ChatMessageViewportItemViewModel,
 } from "@/components/chat-room-view-model";
@@ -39,21 +40,10 @@ const MESSAGE_OVERSCAN = 10;
 const LATEST_SCROLL_SETTLE_FRAMES = 4;
 const TOP_LOAD_THRESHOLD = 120;
 
-export type ChatMessageViewportFeedback =
-  | Readonly<{
-      kind: "notice";
-      message: string;
-    }>
-  | Readonly<{
-      kind: "error";
-      message: string;
-      title: string;
-    }>;
-
 export type ChatMessageViewportViewModel = Readonly<{
   canLoadOlder: boolean;
   entryNavigation: ChatRoomEntryNavigationNoticeViewModel | null;
-  feedback: ChatMessageViewportFeedback | null;
+  feedback: ChatMessageHistoryFeedback | null;
   initialScrollTarget: ChatMessageViewportInitialScrollTarget;
   isLoadingOlder: boolean;
   items: readonly ChatMessageViewportItemViewModel[];

@@ -1,6 +1,5 @@
 "use client";
 
-import type { RefObject } from "react";
 import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
 import {
   ChatRoomMembershipDialog,
@@ -9,32 +8,13 @@ import {
 import {
   ChatRoomMessageSearchDialog,
   ChatRoomMessageSearchDialogTrigger,
-  type ChatRoomMessageContextDialogController,
-  type ChatRoomMessageSearchDialogController,
 } from "@/components/chat-room-message-search-dialog";
+import type { ChatRoomScreenOverlayKind } from "@/components/chat-room-screen-overlay-model";
 import type { ChatMessageActionsBottomSheetViewModel } from "@/components/use-chat-message-actions-bottom-sheet";
+import type { ChatRoomOverlayExperience } from "@/components/use-chat-room-overlay-experience";
 import type { RoomDetails } from "@/lib/chat/chat-room-contracts";
 
-export type ChatRoomScreenOverlayControl = Readonly<{
-  onClose: () => void;
-}>;
-
-export type ChatRoomScreenHeaderActionsViewModel = Readonly<{
-  isMembershipDialogOpen: boolean;
-  isMessageSearchDialogOpen: boolean;
-  membershipDialogTriggerRef: RefObject<HTMLButtonElement | null>;
-  messageSearchDialogTriggerRef: RefObject<HTMLButtonElement | null>;
-  onOpenMembershipDialog: () => void;
-  onOpenMessageSearchDialog: () => void;
-  roomAvailable: boolean;
-  searchDisabled: boolean;
-}>;
-
-export type ChatRoomScreenMessageSearchDialogControl = ChatRoomScreenOverlayControl &
-  Readonly<{
-    context: ChatRoomMessageContextDialogController;
-    controller: ChatRoomMessageSearchDialogController;
-  }>;
+type ChatRoomScreenHeaderActionsViewModel = ChatRoomOverlayExperience["headerActions"];
 
 export function ChatRoomScreenHeaderActions({
   isMembershipDialogOpen,
@@ -67,30 +47,6 @@ export function ChatRoomScreenHeaderActions({
   );
 }
 
-export type ChatRoomScreenOverlayKind = "message-search" | "membership" | "message-actions";
-
-export function resolveChatRoomScreenOverlayKind({
-  hasMessageActions,
-  isMembershipDialogOpen,
-  isMessageSearchDialogOpen,
-  roomAvailable,
-}: Readonly<{
-  hasMessageActions: boolean;
-  isMembershipDialogOpen: boolean;
-  isMessageSearchDialogOpen: boolean;
-  roomAvailable: boolean;
-}>): ChatRoomScreenOverlayKind | null {
-  if (roomAvailable && isMessageSearchDialogOpen) {
-    return "message-search";
-  }
-
-  if (roomAvailable && isMembershipDialogOpen) {
-    return "membership";
-  }
-
-  return hasMessageActions ? "message-actions" : null;
-}
-
 export function ChatRoomScreenOverlay({
   kind,
   membershipDialog,
@@ -101,9 +57,9 @@ export function ChatRoomScreenOverlay({
   roomId,
 }: Readonly<{
   kind: ChatRoomScreenOverlayKind;
-  membershipDialog: ChatRoomScreenOverlayControl;
+  membershipDialog: ChatRoomOverlayExperience["membershipDialog"];
   messageActionsSheet: ChatMessageActionsBottomSheetViewModel | null;
-  messageSearchDialog: ChatRoomScreenMessageSearchDialogControl;
+  messageSearchDialog: ChatRoomOverlayExperience["messageSearchDialog"];
   participantDisplayNames: ReadonlyMap<string, string>;
   room: RoomDetails | undefined;
   roomId: string;

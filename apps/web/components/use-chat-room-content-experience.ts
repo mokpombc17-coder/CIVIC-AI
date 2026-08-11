@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback } from "react";
-import { createChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
-import type { ChatMessageHistoryFeedback } from "@/components/chat-room-view";
+import {
+  createChatRoomHeaderViewModel,
+  type ChatMessageHistoryFeedback,
+} from "@/components/chat-room-view-model";
 import { useChatRoomMessageExperience } from "@/components/use-chat-room-message-experience";
 import { useChatRoomReadExperience } from "@/components/use-chat-room-read-experience";
 import type { ChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";

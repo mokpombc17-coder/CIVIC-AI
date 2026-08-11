@@ -21,6 +21,17 @@ export type ChatRoomHeaderViewModel = Readonly<{
   title: string;
 }>;
 
+export type ChatMessageHistoryFeedback =
+  | Readonly<{
+      kind: "notice";
+      message: string;
+    }>
+  | Readonly<{
+      kind: "error";
+      message: string;
+      title: string;
+    }>;
+
 export type ChatMessageDeliveryViewStatus =
   "queued" | "sending" | "retry-waiting" | "accepted" | "failed" | "cancelled";
 

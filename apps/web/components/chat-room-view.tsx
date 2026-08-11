@@ -4,7 +4,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   ChatMessageViewport,
-  type ChatMessageViewportFeedback,
   type ChatMessageViewportViewModel,
 } from "@/components/chat-message-viewport";
 import { ChatRoomOverlayHost } from "@/components/chat-room-overlay-host";
@@ -13,7 +12,6 @@ import { useChatRoomVisualViewportMaxHeight } from "@/components/use-chat-room-v
 
 const CHAT_ROOM_BOTTOM_GAP = 16;
 
-export type ChatMessageHistoryFeedback = ChatMessageViewportFeedback;
 export type ChatMessageHistoryViewModel = Omit<ChatMessageViewportViewModel, "readStatePaused">;
 
 export type ChatRoomViewProps = Readonly<{

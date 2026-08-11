@@ -2,11 +2,8 @@
 
 import {
   resolveChatRoomScreenOverlayKind,
-  type ChatRoomScreenHeaderActionsViewModel,
-  type ChatRoomScreenMessageSearchDialogControl,
-  type ChatRoomScreenOverlayControl,
   type ChatRoomScreenOverlayKind,
-} from "@/components/chat-room-screen-overlays";
+} from "@/components/chat-room-screen-overlay-model";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import { useChatRoomMessageSearchExperience } from "@/components/use-chat-room-message-search-experience";
 
@@ -23,17 +20,10 @@ type ChatRoomOverlayExperienceState = Readonly<{
   searchDisabled: boolean;
 }>;
 
-export type ChatRoomOverlayExperience = Readonly<{
-  headerActions: ChatRoomScreenHeaderActionsViewModel;
-  kind: ChatRoomScreenOverlayKind | null;
-  membershipDialog: ChatRoomScreenOverlayControl;
-  messageSearchDialog: ChatRoomScreenMessageSearchDialogControl;
-}>;
-
 export function useChatRoomOverlayExperience(
   roomId: string,
   { generation, hasMessageActions, roomActive, roomAvailable }: ChatRoomOverlayExperienceOptions,
-): ChatRoomOverlayExperience {
+) {
   const membershipDialog = useChatRoomMembershipDialog(roomId);
   const messageSearchDialog = useChatRoomMessageSearchExperience(roomId, {
     generation,
@@ -69,6 +59,8 @@ export function useChatRoomOverlayExperience(
     },
   };
 }
+
+export type ChatRoomOverlayExperience = ReturnType<typeof useChatRoomOverlayExperience>;
 
 export function createChatRoomOverlayExperienceState({
   hasMessageActions,
