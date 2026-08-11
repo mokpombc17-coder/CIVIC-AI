@@ -22,6 +22,7 @@ import {
   ChatRoomReadReceiptCoordinator,
   type ChatRoomReadReceiptCoordinatorOptions,
 } from "./chat-room-read-receipt-coordinator";
+import { applyChatRoomMessageSearchCacheEffects } from "./chat-room-message-search-cache-effects";
 import {
   applyChatRoomEventCacheProjection,
   createChatRoomEventCacheProjection,
@@ -385,6 +386,22 @@ export function applyChatRealtimeEventDelivery(
   }
 
   applyChatRoomEventCacheProjection(queryClient, roomEventProjection);
+
+  try {
+    applyChatRoomMessageSearchCacheEffects(
+      queryClient,
+      delivery.roomId,
+      delivery.generation,
+      messageEvents,
+    );
+  } catch {
+    queryClient.removeQueries({
+      queryKey: chatRoomQueryKeys.messageSearchesForRoom(delivery.roomId),
+    });
+    queryClient.removeQueries({
+      queryKey: chatRoomQueryKeys.messageContextsForRoom(delivery.roomId),
+    });
+  }
 
   return {
     deliveryId: delivery.deliveryId,

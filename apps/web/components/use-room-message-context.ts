@@ -9,7 +9,11 @@ import type {
   RoomMessageContextResponse,
 } from "@/lib/chat/chat-room-contracts";
 import { mergeChatMessages } from "@/lib/chat/chat-message-merge";
-import { chatRoomQueryKeys, useRoomMessageContextQuery } from "@/lib/chat/chat-room-queries";
+import {
+  DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE,
+  chatRoomQueryKeys,
+  useRoomMessageContextQuery,
+} from "@/lib/chat/chat-room-queries";
 
 const INACTIVE_MESSAGE_CONTEXT_ID = "inactive-message-context";
 const MESSAGE_CONTEXT_CONTINUATION_LIMIT = 50;
@@ -186,6 +190,19 @@ export function useRoomMessageContext(
           return;
         }
 
+        const contextQueryKey = chatRoomQueryKeys.messageContext(
+          roomId,
+          activeSelection.messageId,
+          generation,
+          DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE,
+          DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE,
+        );
+        queryClient.setQueryData<RoomMessageContextResponse>(contextQueryKey, (current) =>
+          current
+            ? extendRoomMessageContextResponse(roomId, current, response, direction)
+            : current,
+        );
+
         dispatchExtension({
           type: "request-succeeded",
           direction,
@@ -206,8 +223,10 @@ export function useRoomMessageContext(
       activeSelection,
       api,
       contextQuery.data,
+      generation,
       nextAfterSequence,
       nextBeforeSequence,
+      queryClient,
       roomId,
       selectionKey,
     ],
@@ -266,6 +285,32 @@ export function mergeRoomMessageContextWindow(
     roomId,
     sources: [olderMessages, context.items, newerMessages],
   }).messages;
+}
+
+export function extendRoomMessageContextResponse(
+  roomId: string,
+  context: RoomMessageContextResponse,
+  response: MessageHistoryResponse,
+  direction: RoomMessageContextDirection,
+): RoomMessageContextResponse {
+  const items = mergeChatMessages({
+    roomId,
+    sources: [context.items, response.items],
+  }).messages;
+
+  return direction === "older"
+    ? {
+        ...context,
+        hasOlder: response.hasMore,
+        items: [...items],
+        nextBeforeSequence: response.hasMore ? (response.nextBeforeSequence ?? null) : null,
+      }
+    : {
+        ...context,
+        hasNewer: response.hasMore,
+        items: [...items],
+        nextAfterSequence: response.hasMore ? (response.nextAfterSequence ?? null) : null,
+      };
 }
 
 export async function discardRoomMessageContextQueries(

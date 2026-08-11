@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRoomMessageContextExtensionState,
   discardRoomMessageContextQueries,
+  extendRoomMessageContextResponse,
   mergeRoomMessageContextWindow,
   reduceRoomMessageContextExtensionState,
 } from "@/components/use-room-message-context";
@@ -55,6 +56,22 @@ describe("Room message context window", () => {
       nextBeforeSequence: 8,
     });
     expect(succeeded.olderMessages.map((message) => message.roomSequence)).toEqual([8, 9]);
+  });
+
+  it("continuation 메시지를 Context query snapshot에 합쳐 realtime 갱신 대상으로 유지한다", () => {
+    const context = createContextResponse([createMessage(10), createMessage(11)]);
+    const extended = extendRoomMessageContextResponse(
+      "room-01",
+      context,
+      createHistoryResponse([createMessage(8), createMessage(9)], {
+        hasMore: true,
+        nextBeforeSequence: 8,
+      }),
+      "older",
+    );
+
+    expect(extended.items.map((message) => message.roomSequence)).toEqual([8, 9, 10, 11]);
+    expect(extended).toMatchObject({ hasOlder: true, nextBeforeSequence: 8 });
   });
 
   it("continuation 실패 방향을 보존하고 다른 Context의 늦은 결과를 무시한다", () => {
