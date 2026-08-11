@@ -27,7 +27,7 @@
 | `iss`   | 환경별 인증 주체                       | `http://localhost:3000/api/dev/auth` |
 | `aud`   | 사내 Resource Server 신뢰 경계         | `civic-ai-api`                       |
 | `sub`   | 플랫폼 전체에서 사용하는 사용자 식별자 | 로컬 session 요청에서 전달받은 값    |
-| `scope` | 공백으로 구분한 권한 목록              | 아래의 채팅 scope                    |
+| `scope` | 공백으로 구분한 권한 목록              | 아래의 플랫폼 scope                  |
 | `iat`   | epoch seconds 기준 발급 시각           | 현재 서버 시각                       |
 | `exp`   | epoch seconds 기준 만료 시각           | `iat + 3600`                         |
 | `jti`   | 토큰별 고유 식별자                     | 임의 UUID                            |
@@ -41,14 +41,23 @@ JWT protected header는 다음과 같다.
 }
 ```
 
-로컬 issuer는 현재 다음 scope를 발급한다.
+로컬 issuer는 일반 사용자에게 현재 다음 scope를 기본 발급한다.
 
 ```text
 chat:connect
 chat:rooms:read
 chat:rooms:write
 chat:messages:write
+chat:read-state:write
+vote:surveys:read
+vote:survey-responses:write
+vote:tasks:read
+vote:submissions:read
+vote:submissions:write
 ```
+
+Vote 관리자 scope는 기본 JWT에 포함하지 않는다. 관리자 API와 인증 정책이 확정되면 allowlist된
+관리자 principal에만 별도 계약으로 발급한다.
 
 Resource Server는 `sub`를 인증된 플랫폼 사용자 ID로 사용한다. 서명이 유효하다는 이유만으로
 토큰을 허용해서는 안 되며, 설정된 issuer, audience, expiry와 필요한 scope도 함께 검증해야
@@ -173,9 +182,13 @@ Chat Resource Server에 필요한 동작은 다음과 같다.
    `Idempotency-Key` header를 허용한다.
 8. Cookie 인증을 local profile 밖에서 활성화하기 전에 CSRF 정책을 다시 검토한다.
 
-Chat authorization은 최종적으로 네 가지 `chat:*` scope를 검증해야 한다. 최초 transport
+Chat authorization은 최종적으로 다섯 가지 `chat:*` scope를 검증해야 한다. 최초 transport
 연동 단계에서 서버가 아직 scope를 검증하지 않는다면 subject 인증을 최소 호환 조건으로 둘 수
 있다.
+
+Vote Resource Server도 같은 로컬 issuer, HS256 fixture key, `civic-ai-api` audience와 공백 구분
+`scope` claim을 검증한다. 일반 사용자 API에는 위 다섯 가지 `vote:*` scope를 resource/action별로
+적용하고, 현재 로컬 issuer가 발급하지 않는 `vote:admin:*` 권한을 일반 사용자에게 허용하지 않는다.
 
 ## 운영 계약
 

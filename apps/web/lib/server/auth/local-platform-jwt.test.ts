@@ -1,9 +1,10 @@
 import { decodeJwt, jwtVerify } from "jose";
 import { describe, expect, it, vi } from "vitest";
 import {
-  CHAT_AUTH_SCOPE,
   CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
   PLATFORM_AUTH_AUDIENCE,
+  PLATFORM_AUTH_SCOPE,
+  VOTE_AUTH_SCOPES,
 } from "./platform-auth-contract";
 
 vi.mock("server-only", () => ({}));
@@ -47,12 +48,15 @@ describe("issueLocalPlatformJwt", () => {
       iss: LOCAL_PLATFORM_AUTH_ISSUER,
       aud: PLATFORM_AUTH_AUDIENCE,
       sub: "owner-1",
-      scope: CHAT_AUTH_SCOPE,
+      scope: PLATFORM_AUTH_SCOPE,
       iat: issuedAt,
       exp: issuedAt + LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS,
       jti: jwtId,
     });
-    expect(String(payload.scope).split(" ")).toContain("chat:read-state:write");
+    const grantedScopes = String(payload.scope).split(" ");
+    expect(grantedScopes).toContain("chat:read-state:write");
+    expect(grantedScopes).toEqual(expect.arrayContaining([...VOTE_AUTH_SCOPES]));
+    expect(grantedScopes.some((scope) => scope.startsWith("vote:admin:"))).toBe(false);
   });
 
   it.each(["owner", "member"])(
@@ -64,7 +68,7 @@ describe("issueLocalPlatformJwt", () => {
       });
 
       expect(decodeJwt(token).scope).toBe(
-        `${CHAT_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`,
+        `${PLATFORM_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`,
       );
     },
   );
@@ -78,7 +82,7 @@ describe("issueLocalPlatformJwt", () => {
     const { issueLocalPlatformJwt } = await import("./local-platform-jwt");
     const token = await issueLocalPlatformJwt({ subject });
 
-    expect(decodeJwt(token).scope).toBe(CHAT_AUTH_SCOPE);
+    expect(decodeJwt(token).scope).toBe(PLATFORM_AUTH_SCOPE);
   });
 
   it("rejects an empty subject before signing", async () => {

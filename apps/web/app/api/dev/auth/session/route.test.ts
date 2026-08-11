@@ -1,10 +1,11 @@
 import { jwtVerify } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  CHAT_AUTH_SCOPE,
   CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
   PLATFORM_AUTH_AUDIENCE,
   PLATFORM_AUTH_COOKIE_NAME,
+  PLATFORM_AUTH_SCOPE,
+  VOTE_AUTH_SCOPES,
 } from "@/lib/server/auth/platform-auth-contract";
 
 vi.mock("server-only", () => ({}));
@@ -56,8 +57,11 @@ describe("/api/dev/auth/session", () => {
       iss: LOCAL_PLATFORM_AUTH_ISSUER,
       aud: PLATFORM_AUTH_AUDIENCE,
       sub: "owner-1",
-      scope: CHAT_AUTH_SCOPE,
+      scope: PLATFORM_AUTH_SCOPE,
     });
+    const grantedScopes = String(payload.scope).split(" ");
+    expect(grantedScopes).toEqual(expect.arrayContaining([...VOTE_AUTH_SCOPES]));
+    expect(grantedScopes.some((scope) => scope.startsWith("vote:admin:"))).toBe(false);
     expect(payload.jti).toEqual(expect.any(String));
   });
 
@@ -84,7 +88,7 @@ describe("/api/dev/auth/session", () => {
     expect(response.status).toBe(204);
     expect(payload).toMatchObject({
       sub: subject,
-      scope: `${CHAT_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`,
+      scope: `${PLATFORM_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`,
     });
   });
 

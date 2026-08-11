@@ -3,9 +3,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { SignJWT } from "jose";
 import {
-  CHAT_AUTH_SCOPE,
   CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
   PLATFORM_AUTH_AUDIENCE,
+  PLATFORM_AUTH_SCOPE,
 } from "./platform-auth-contract";
 
 export const LOCAL_PLATFORM_AUTH_ALGORITHM = "HS256";
@@ -44,7 +44,7 @@ export async function issueLocalPlatformJwt({
   const issuedAt = Math.floor(now.getTime() / 1000);
 
   return new SignJWT({
-    scope: resolveLocalChatScope(normalizedSubject),
+    scope: resolveLocalPlatformScope(normalizedSubject),
   })
     .setProtectedHeader({
       alg: LOCAL_PLATFORM_AUTH_ALGORITHM,
@@ -59,10 +59,10 @@ export async function issueLocalPlatformJwt({
     .sign(fixtureSigningKey);
 }
 
-function resolveLocalChatScope(subject: string): string {
+function resolveLocalPlatformScope(subject: string): string {
   if (!roomInboxPaginationSubjectPattern.test(subject)) {
-    return CHAT_AUTH_SCOPE;
+    return PLATFORM_AUTH_SCOPE;
   }
 
-  return `${CHAT_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`;
+  return `${PLATFORM_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`;
 }
