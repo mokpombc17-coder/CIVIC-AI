@@ -27,6 +27,9 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @BeforeEach
     void createActiveParticipant() {
         jdbc.update("delete from sessions");
+        jdbc.update("delete from notification_outbox");
+        jdbc.update("delete from auth_challenges");
+        jdbc.update("delete from account_state_outbox where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from credentials where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from user_roles where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from users where origin = 'SIGNUP'");
@@ -73,6 +76,40 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from sessions where user_id = ? and revoked_at is null", Integer.class, userId))
                 .isZero();
+    }
+
+    @Test
+    void reactivationRequiresTheDeactivatedAccountsCurrentPasswordBeforeSendingEmail() {
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
+        var challengesBefore = count("auth_challenges");
+        var notificationsBefore = count("notification_outbox");
+
+        var fakeFlow = auth.requestReactivation("person@example.com", "Wrong123!");
+
+        assertThat(fakeFlow).isNotNull();
+        assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+        assertThat(count("notification_outbox")).isEqualTo(notificationsBefore);
+
+        var realFlow = auth.requestReactivation("person@example.com", "Valid123!");
+
+        assertThat(realFlow).isNotNull().isNotEqualTo(fakeFlow);
+        assertThat(count("auth_challenges")).isEqualTo(challengesBefore + 1);
+        assertThat(count("notification_outbox")).isEqualTo(notificationsBefore + 1);
+    }
+
+    @Test
+    void reactivationDoesNotCreateAChallengeForAnActiveOrDeletedAccount() {
+        var challengesBefore = count("auth_challenges");
+
+        auth.requestReactivation("person@example.com", "Valid123!");
+        jdbc.update("update users set state = 'DELETED', deleted_at = now() where id = ?", userId);
+        auth.requestReactivation("person@example.com", "Valid123!");
+
+        assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+    }
+
+    private int count(String table) {
+        return jdbc.queryForObject("select count(*) from " + table, Integer.class);
     }
 
     private String captureFailure(String email, String password) {

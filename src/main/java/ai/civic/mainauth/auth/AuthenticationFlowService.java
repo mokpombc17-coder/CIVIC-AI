@@ -144,8 +144,19 @@ public class AuthenticationFlowService {
     }
 
     @Transactional
-    public UUID requestReactivation(String email) {
-        return requestAccountChallenge(email, "DEACTIVATED", "REACTIVATION");
+    public UUID requestReactivation(String email, String password) {
+        var normalized = normalize(email);
+        var accounts = jdbc.query("""
+                select u.id, c.password_hash
+                from users u join credentials c on c.user_id = u.id
+                where u.normalized_email = ? and u.state = 'DEACTIVATED' and u.deleted_at is null
+                """, (rs, rowNum) -> new ReactivationAccount(
+                rs.getObject("id", UUID.class), rs.getString("password_hash")), normalized);
+        if (accounts.size() != 1 || password == null
+                || !safeMatches(password, accounts.getFirst().passwordHash())) {
+            return UUID.randomUUID();
+        }
+        return createChallenge(accounts.getFirst().id(), normalized, "REACTIVATION");
     }
 
     @Transactional
@@ -375,4 +386,5 @@ public class AuthenticationFlowService {
             UUID id, UUID userId, byte[] codeHash, int attemptCount, Instant expiresAt, boolean consumed) {}
 
     private record VerifiedChallenge(UUID userId) {}
+    private record ReactivationAccount(UUID id, String passwordHash) {}
 }

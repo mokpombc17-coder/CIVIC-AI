@@ -137,9 +137,9 @@ public class AuthController {
     }
 
     @PostMapping("/reactivation/request")
-    ResponseEntity<Void> requestReactivation(@RequestBody EmailBody body, HttpServletRequest request) {
+    ResponseEntity<Void> requestReactivation(@RequestBody ReactivationBody body, HttpServletRequest request) {
         requirePreSession(request);
-        var flow = authentication.requestReactivation(body.email());
+        var flow = authentication.requestReactivation(body.email(), body.password());
         return ResponseEntity.accepted()
                 .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString()).build();
     }
@@ -174,6 +174,7 @@ public class AuthController {
 
     record LoginBody(String email, String password) {}
     record EmailBody(String email) {}
+    record ReactivationBody(String email, String password) {}
     record CodeBody(String code) {}
     record ResetBody(String code, String newPassword) {}
     record SessionBody(
