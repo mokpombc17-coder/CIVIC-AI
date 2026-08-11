@@ -154,14 +154,16 @@ projection, 날짜·읽음 구분선 timeline과 viewport item을 한 경계에�
 Room detail의 현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은
 인원 projection을 적용하고, message Query cache는 수정하지 않으며 양수인 읽은 인원만 표시한다.
 Room 진입 시에는 `ChatRoomScreen`이 실시간 generation별 최초 receipt position을 고정하고, 읽음
-구분선이 현재 message page에 없으면 제한된 수의 과거 page를 순차 조회한다. 탐색이 끝나기 전에는
+경험 조립을 `useChatRoomReadExperience`에 위임한다. 이 hook은 읽음 구분선이 현재 message page에
+없으면 제한된 수의 과거 page를 순차 조회한다. 탐색이 끝나기 전에는
 viewport 초기 이동과 새 read-state 보고를 보류하며, 탐색 결과를 읽음 구분선 또는 안전한 fallback
 초기 스크롤 목표로 변환한다. `ChatMessageViewport`는 이 목표가 준비된 뒤 virtualization index로
 이동하고, 목표 위치가 정착된 이후에만 기존 focus·visibility·overlay 판정을 다시 적용한다. 자동
 탐색 한도 또는 일시적 조회 실패에서는 viewport 상단 안내가 사용자 동작으로 다음 탐색 batch나
 재시도를 시작하며, 읽음 위치가 결정되기 전까지 새 read-state 보고를 계속 보류한다.
-Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, 재참여 후 새 실시간 generation이
-준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
+같은 hook이 Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, receipt snapshot의 self
+membership 불일치에서는 generation별 한 번만 Room detail과 receipt를 함께 재조회한다. 재참여 후 새
+실시간 generation이 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
 대표 View 경계이며 overlay 존재 여부를 read-state pause 신호로 viewport에 전달한다. 내부 header,
 session indicator처럼 받은 값을 표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·방 정보

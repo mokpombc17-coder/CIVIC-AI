@@ -53,7 +53,6 @@ describe("chat room message presentation", () => {
       readReceiptLabel: null,
     });
     expect(presentation.participantDisplayNames.get("membership-02")).toBe("참여자 2");
-    expect(presentation.receiptMembershipMismatch).toBe(false);
   });
 
   it("receipt self membership가 다르면 읽음 표시를 숨기고 mismatch를 노출한다", () => {
@@ -74,7 +73,6 @@ describe("chat room message presentation", () => {
       selfMembershipId: "membership-01",
     });
 
-    expect(presentation.receiptMembershipMismatch).toBe(true);
     expect(presentation.messageItems[0]).toMatchObject({
       readCount: null,
       readReceiptLabel: null,

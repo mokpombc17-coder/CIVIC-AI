@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
   useChatRealtimeConnection,
   useChatRealtimeRoom,
 } from "@/components/chat-realtime-provider";
-import { createChatRoomEntryNavigationNotice } from "@/components/chat-room-entry-navigation-notice";
 import {
   ChatRoomScreenHeaderActions,
   ChatRoomScreenOverlay,
@@ -24,15 +23,12 @@ import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
-import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
-import { useChatRoomEntryNavigation } from "@/components/use-chat-room-entry-navigation";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import { useChatRoomMessageSearchDialog } from "@/components/use-chat-room-message-search-dialog";
 import { useChatRoomMessagePresentation } from "@/components/use-chat-room-message-presentation";
+import { useChatRoomReadExperience } from "@/components/use-chat-room-read-experience";
 import { useRoomMessageContext } from "@/components/use-room-message-context";
 import { useRoomMessageSearch } from "@/components/use-room-message-search";
-import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
-import { getChatRoomReadStateMembershipLifecycle } from "@/lib/chat/chat-room-read-state-membership-lifecycle";
 import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
@@ -113,7 +109,6 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     isParticipantProfilesNextPageError,
     session.isActive,
   ]);
-  const receiptMembershipMismatchRef = useRef<string | null>(null);
   const messageHistory = useRoomMessageHistoryQuery(roomId, {
     enabled: session.isActive,
     limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
@@ -164,13 +159,20 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       messages: flattenRoomMessageHistoryPages(roomId, result.data?.pages),
     };
   }, [fetchNextMessageHistoryPage, roomId]);
-  const entryNavigation = useChatRoomEntryNavigation({
+  const readExperience = useChatRoomReadExperience({
+    connectionErrorCode: session.connectionError?.code ?? null,
     enabled: session.isActive,
     generation: session.generation,
     history: entryHistory,
     historyReady: messageHistory.status === "success",
     latestConfirmedSequence,
     loadOlder: loadOlderEntryHistory,
+    membership: room?.myMembership ?? null,
+    messageVisibleAfterSequence: session.messageVisibleAfterSequence,
+    onRefetchReceiptState: receiptStateQuery.refetch,
+    onRefetchRoom: roomQuery.refetch,
+    participationStatus: room?.participationStatus,
+    readStateReady: realtimeReady,
     receiptState: receiptStateQuery.data,
     receiptStateReady:
       receiptStateQuery.status === "success" && realtimeQuery.readReceiptStatus === "ready",
@@ -178,25 +180,20 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       receiptStateQuery.status === "error" ||
       realtimeQuery.readReceiptStatus === "error" ||
       realtimeQuery.readReceiptStatus === "terminal",
+    roomErrorCode: session.error?.code ?? null,
     roomId,
+    roomStatus: room?.status,
+  });
+  const { messageItems, participantDisplayNames, viewportItems } = useChatRoomMessagePresentation({
+    confirmedMessages: messageHistory.messages,
+    mutationStates: messageMutations.states,
+    outgoingMessages,
+    participantProfiles,
+    readBoundaryAfterSequence: readExperience.readBoundaryAfterSequence,
+    receiptState: receiptStateQuery.data,
+    receiptSyncStatus: realtimeQuery.readReceiptStatus,
     selfMembershipId: room?.myMembership?.membershipId ?? null,
   });
-  const entryNavigationNotice = createChatRoomEntryNavigationNotice(entryNavigation);
-  const { messageItems, participantDisplayNames, receiptMembershipMismatch, viewportItems } =
-    useChatRoomMessagePresentation({
-      confirmedMessages: messageHistory.messages,
-      mutationStates: messageMutations.states,
-      outgoingMessages,
-      participantProfiles,
-      readBoundaryAfterSequence: entryNavigation.readBoundaryAfterSequence,
-      receiptState: receiptStateQuery.data,
-      receiptSyncStatus: realtimeQuery.readReceiptStatus,
-      selfMembershipId: room?.myMembership?.membershipId ?? null,
-    });
-  const receiptMembershipMismatchKey =
-    receiptMembershipMismatch && room?.myMembership && receiptStateQuery.data
-      ? `${session.generation}:${room.myMembership.membershipId}:${receiptStateQuery.data.selfMembershipId}`
-      : null;
   const viewportKey = `${roomId}:${session.generation}`;
   const messageActions = useChatMessageActionsBottomSheet({
     items: messageItems,
@@ -225,57 +222,12 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     isPending: messageHistory.isPending,
     messageCount: messageItems.length,
   });
-  const readStateEnabled = realtimeReady && session.isActive && entryNavigation.canReportReadState;
-  const readStateMembership = room?.myMembership ?? null;
-  const readStateMembershipLifecycle = useMemo(
-    () =>
-      getChatRoomReadStateMembershipLifecycle({
-        enabled: readStateEnabled,
-        membership: readStateMembership,
-        messageVisibleAfterSequence: session.messageVisibleAfterSequence,
-      }),
-    [readStateEnabled, readStateMembership, session.messageVisibleAfterSequence],
-  );
-  const readStateTerminalReason: ChatRoomReadStateCancellationReason | null =
-    session.connectionError?.code === "ROOM_ACCESS_REVOKED"
-      ? "ACCESS_REVOKED"
-      : session.connectionError?.code === "ROOM_CLOSED" ||
-          session.error?.code === "ROOM_CLOSED" ||
-          room?.status === "CLOSED" ||
-          room?.participationStatus === "ROOM_CLOSED"
-        ? "ROOM_CLOSED"
-        : room?.participationStatus === "LEFT" ||
-            room?.participationStatus === "BANNED" ||
-            room?.participationStatus === "NOT_JOINED"
-          ? room.participationStatus
-          : null;
-  const updateReadThroughSequence = useChatRoomReadState(roomId, {
-    activeGeneration: readStateEnabled ? session.generation : null,
-    membershipLifecycle: readStateMembershipLifecycle,
-    terminalReason: readStateTerminalReason,
-  });
-
   useEffect(() => {
     outbox.acknowledgeConfirmed(
       roomId,
       new Set(messageHistory.messages.map((message) => message.clientMessageId)),
     );
   }, [messageHistory.messages, outbox, roomId]);
-
-  useEffect(() => {
-    if (receiptMembershipMismatchKey === null) {
-      receiptMembershipMismatchRef.current = null;
-      return;
-    }
-
-    if (receiptMembershipMismatchRef.current === receiptMembershipMismatchKey) {
-      return;
-    }
-
-    receiptMembershipMismatchRef.current = receiptMembershipMismatchKey;
-    void roomQuery.refetch();
-    void receiptStateQuery.refetch();
-  }, [receiptMembershipMismatchKey, receiptStateQuery, roomQuery]);
 
   useEffect(() => {
     if (isMessageSearchDialogOpen && !session.isActive) {
@@ -300,9 +252,9 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       }
       messageHistory={{
         canLoadOlder: messageHistory.hasNextPage,
-        entryNavigation: entryNavigationNotice,
+        entryNavigation: readExperience.entryNavigationNotice,
         feedback,
-        initialScrollTarget: entryNavigation.initialScrollTarget,
+        initialScrollTarget: readExperience.initialScrollTarget,
         isLoadingOlder: messageHistory.isFetchingNextPage,
         items: viewportItems,
         latestConfirmedSequence,
@@ -318,9 +270,9 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
           };
         },
         onOpenMessageActions: messageActions.openMessageActions,
-        onReadThroughSequence: updateReadThroughSequence,
+        onReadThroughSequence: readExperience.onReadThroughSequence,
         onRetry: () => void messageHistory.refetch(),
-        readStateEnabled,
+        readStateEnabled: readExperience.readStateEnabled,
         roomLabel: `${roomId} 메시지`,
         viewportKey,
       }}

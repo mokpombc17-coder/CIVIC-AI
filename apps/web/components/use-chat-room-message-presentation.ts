@@ -21,7 +21,6 @@ import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-roo
 export type ChatRoomMessagePresentation = Readonly<{
   messageItems: readonly ChatMessageItemViewModel[];
   participantDisplayNames: ReadonlyMap<string, string>;
-  receiptMembershipMismatch: boolean;
   viewportItems: readonly ChatMessageViewportItemViewModel[];
 }>;
 
@@ -103,7 +102,6 @@ export function createChatRoomMessagePresentation({
   return {
     messageItems: viewportItems.flatMap((item) => (item.kind === "message" ? [item.item] : [])),
     participantDisplayNames,
-    receiptMembershipMismatch: readReceiptPresentation.membershipMismatch,
     viewportItems,
   };
 }
