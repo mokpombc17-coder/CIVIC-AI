@@ -246,6 +246,88 @@ describe("chatRoomApi message history", () => {
   });
 });
 
+describe("chatRoomApi message search", () => {
+  it("정규화한 검색 조건과 cursor를 POST하고 AbortSignal을 전달한다", async () => {
+    const response = {
+      items: [CHAT_MESSAGE],
+      nextCursor: "opaque cursor",
+      searchComplete: false,
+    };
+    const { calls, request } = createQueuedChatFetch(response);
+    const api = createChatRoomApi(request);
+    const abortController = new AbortController();
+
+    await expect(
+      api.searchRoomMessages(
+        "room-01",
+        {
+          query: "  환경　 정책  ",
+          cursor: "previous cursor",
+          limit: 20,
+        },
+        abortController.signal,
+      ),
+    ).resolves.toEqual(response);
+
+    expect(calls[0]?.path).toBe("/rooms/room-01/messages/search");
+    expect(calls[0]?.init?.method).toBe("POST");
+    expect(calls[0]?.init?.signal).toBe(abortController.signal);
+    expect(new Headers(calls[0]?.init?.headers).get("Content-Type")).toBe("application/json");
+    expect(new Headers(calls[0]?.init?.headers).has("Idempotency-Key")).toBe(false);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      query: "환경 정책",
+      cursor: "previous cursor",
+      limit: 20,
+    });
+  });
+
+  it("메시지 ID를 path encoding하고 Context window를 조회한다", async () => {
+    const target = {
+      ...CHAT_MESSAGE,
+      messageId: "message/120",
+    };
+    const response = {
+      targetMessageId: target.messageId,
+      targetRoomSequence: target.roomSequence,
+      items: [target],
+      nextBeforeSequence: 119,
+      nextAfterSequence: 121,
+      hasOlder: true,
+      hasNewer: true,
+    };
+    const { calls, request } = createQueuedChatFetch(response);
+    const api = createChatRoomApi(request);
+    const abortController = new AbortController();
+
+    await expect(
+      api.getRoomMessageContext(
+        "room-01",
+        target.messageId,
+        { before: 5, after: 10 },
+        abortController.signal,
+      ),
+    ).resolves.toEqual(response);
+
+    expect(calls[0]?.path).toBe("/rooms/room-01/messages/message%2F120/context?before=5&after=10");
+    expect(calls[0]?.init?.signal).toBe(abortController.signal);
+    expect(calls[0]?.init?.method).toBeUndefined();
+  });
+
+  it("유효하지 않은 검색 조건과 Context window를 HTTP 요청 전에 거절한다", async () => {
+    const { calls, request } = createQueuedChatFetch();
+    const api = createChatRoomApi(request);
+
+    await expect(
+      api.searchRoomMessages("room-01", { query: "한", cursor: null, limit: 20 }),
+    ).rejects.toThrow();
+    await expect(
+      api.getRoomMessageContext("room-01", "message-01", { before: 51 }),
+    ).rejects.toThrow();
+
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe("chatRoomApi commands", () => {
   it("변경된 Room 설정만 정규화해 update-settings command로 전송한다", async () => {
     const unchangedResponse = {

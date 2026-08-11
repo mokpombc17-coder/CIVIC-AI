@@ -6,6 +6,7 @@ import {
   chatRoomQueryKeys,
   flattenRoomListPages,
   flattenRoomMessageHistoryPages,
+  flattenRoomMessageSearchPages,
   getNextRoomInboxPageParam,
   getRoomInboxRetryDelay,
   myRoomMembershipQueryOptions,
@@ -14,7 +15,9 @@ import {
   recoverPublicRoomInvalidCursorOnce,
   roomDetailsQueryOptions,
   roomInboxInfiniteQueryOptions,
+  roomMessageContextQueryOptions,
   roomMessageHistoryInfiniteQueryOptions,
+  roomMessageSearchInfiniteQueryOptions,
   roomMembershipsInfiniteQueryOptions,
   roomReadReceiptStateQueryOptions,
   shouldRetryPublicRoomRequest,
@@ -482,6 +485,142 @@ describe("chat room query options", () => {
       ]).map(({ roomSequence }) => roomSequence),
     ).toEqual([50, 70]);
   });
+
+  it("메시지 검색 조건을 정규화해 generation별 key와 첫 요청에 고정한다", async () => {
+    const searchRoomMessages = vi.fn(async () => ({
+      items: [],
+      nextCursor: null,
+      searchComplete: true,
+    }));
+    const options = roomMessageSearchInfiniteQueryOptions(
+      "room-01",
+      {
+        enabled: true,
+        generation: 4,
+        query: "  Env　POLICY  ",
+        limit: 30,
+      },
+      { searchRoomMessages },
+    );
+
+    await createQueryClient().fetchInfiniteQuery(options);
+
+    expect(options.queryKey).toEqual(
+      chatRoomQueryKeys.messageSearch("room-01", {
+        generation: 4,
+        query: "env policy",
+        limit: 30,
+      }),
+    );
+    expect(searchRoomMessages).toHaveBeenCalledWith(
+      "room-01",
+      {
+        query: "env policy",
+        cursor: null,
+        limit: 30,
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("빈 중간 검색 page도 continuation cursor로 같은 session을 이어간다", async () => {
+    const searchRoomMessages = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [],
+        nextCursor: "opaque cursor",
+        searchComplete: false,
+      })
+      .mockResolvedValueOnce({
+        items: [createSearchMessage(80)],
+        nextCursor: null,
+        searchComplete: true,
+      });
+    const options = roomMessageSearchInfiniteQueryOptions(
+      "room-01",
+      {
+        enabled: true,
+        generation: 2,
+        query: "환경 정책",
+      },
+      { searchRoomMessages },
+    );
+    const observer = new InfiniteQueryObserver(createQueryClient(), options);
+    const unsubscribe = observer.subscribe(() => {});
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().hasNextPage).toBe(true));
+    await observer.fetchNextPage();
+
+    expect(searchRoomMessages).toHaveBeenNthCalledWith(
+      2,
+      "room-01",
+      {
+        query: "환경 정책",
+        cursor: "opaque cursor",
+        limit: 20,
+      },
+      expect.any(AbortSignal),
+    );
+    expect(observer.getCurrentResult().hasNextPage).toBe(false);
+
+    unsubscribe();
+  });
+
+  it("검색 page를 messageId로 중복 제거하고 roomSequence 내림차순으로 펼친다", () => {
+    const firstVersion = createSearchMessage(90);
+    const duplicateVersion = {
+      ...firstVersion,
+      content: "중복 page의 메시지",
+      messageVersion: 2,
+    };
+
+    expect(
+      flattenRoomMessageSearchPages([
+        {
+          items: [createSearchMessage(120), firstVersion],
+          nextCursor: "opaque cursor",
+          searchComplete: false,
+        },
+        {
+          items: [duplicateVersion, createSearchMessage(70)],
+          nextCursor: null,
+          searchComplete: true,
+        },
+      ]),
+    ).toEqual([createSearchMessage(120), firstVersion, createSearchMessage(70)]);
+  });
+
+  it("Context query를 generation과 window로 격리하고 기본 window를 전달한다", async () => {
+    const target = createMessage(120);
+    const response = {
+      targetMessageId: target.messageId,
+      targetRoomSequence: target.roomSequence,
+      items: [target],
+      nextBeforeSequence: null,
+      nextAfterSequence: null,
+      hasOlder: false,
+      hasNewer: false,
+    };
+    const getRoomMessageContext = vi.fn(async () => response);
+    const options = roomMessageContextQueryOptions(
+      "room-01",
+      target.messageId,
+      { enabled: true, generation: 3 },
+      { getRoomMessageContext },
+    );
+
+    await createQueryClient().fetchQuery(options);
+
+    expect(options.queryKey).toEqual(
+      chatRoomQueryKeys.messageContext("room-01", target.messageId, 3, 20, 20),
+    );
+    expect(getRoomMessageContext).toHaveBeenCalledWith(
+      "room-01",
+      target.messageId,
+      { before: 20, after: 20 },
+      expect.any(AbortSignal),
+    );
+  });
 });
 
 function createQueryClient(): QueryClient {
@@ -620,5 +759,12 @@ function createMessage(roomSequence: number) {
     messageVersion: 1,
     state: "ACTIVE" as const,
     updatedAt: "2026-07-29T04:40:00Z",
+  };
+}
+
+function createSearchMessage(roomSequence: number) {
+  return {
+    ...createMessage(roomSequence),
+    countable: true as const,
   };
 }

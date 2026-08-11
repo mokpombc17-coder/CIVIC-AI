@@ -6,6 +6,8 @@ import {
   banRoomMemberResponseSchema,
   closeRoomResponseSchema,
   createMessageHistoryResponseSchema,
+  createRoomMessageContextResponseSchema,
+  createRoomMessageSearchResponseSchema,
   createRoomRequestSchema,
   createRoomResponseSchema,
   cursorPaginationParamsSchema,
@@ -14,6 +16,8 @@ import {
   leaveRoomResponseSchema,
   membershipStatusSchema,
   messageHistoryRequestSchema,
+  roomMessageContextParamsSchema,
+  roomMessageSearchRequestSchema,
   myRoomListResponseSchema,
   publicRoomListParamsSchema,
   publicRoomListResponseSchema,
@@ -52,6 +56,10 @@ import {
   type RoomMembership,
   type RoomMembershipListParams,
   type RoomMembershipListResponse,
+  type RoomMessageContextParams,
+  type RoomMessageContextResponse,
+  type RoomMessageSearchRequest,
+  type RoomMessageSearchResponse,
   type RoomReadReceiptStateResponse,
   type TargetMembershipRequest,
   type TransferRoomOwnershipResponse,
@@ -118,6 +126,17 @@ export type ChatRoomApi = Readonly<{
     params?: RoomMembershipListParams,
   ): Promise<RoomMembershipListResponse>;
   getRoomMessages(roomId: string, request?: MessageHistoryRequest): Promise<MessageHistoryResponse>;
+  searchRoomMessages(
+    roomId: string,
+    request: RoomMessageSearchRequest,
+    signal?: AbortSignal,
+  ): Promise<RoomMessageSearchResponse>;
+  getRoomMessageContext(
+    roomId: string,
+    messageId: string,
+    params?: RoomMessageContextParams,
+    signal?: AbortSignal,
+  ): Promise<RoomMessageContextResponse>;
 }>;
 
 export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
@@ -326,6 +345,40 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
         createMessageHistoryPath(parsedRoomId, parsedRequest),
       );
     },
+
+    async searchRoomMessages(roomId, searchRequest, signal) {
+      const parsedRoomId = roomIdSchema.parse(roomId);
+      const body = roomMessageSearchRequestSchema.parse(searchRequest);
+
+      return requestAndParse(
+        request,
+        "Room 메시지 검색 응답",
+        createRoomMessageSearchResponseSchema(parsedRoomId),
+        `${createRoomPath(parsedRoomId)}/messages/search`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          ...(signal ? { signal } : {}),
+        },
+      );
+    },
+
+    async getRoomMessageContext(roomId, messageId, params = {}, signal) {
+      const parsedRoomId = roomIdSchema.parse(roomId);
+      const parsedParams = roomMessageContextParamsSchema.parse(params);
+      const responseSchema = createRoomMessageContextResponseSchema(parsedRoomId, messageId);
+
+      return requestAndParse(
+        request,
+        "Room 메시지 Context 응답",
+        responseSchema,
+        createRoomMessageContextPath(parsedRoomId, messageId, parsedParams),
+        signal ? { signal } : undefined,
+      );
+    },
   };
 }
 
@@ -379,6 +432,19 @@ function createMessageHistoryPath(
   searchParams.set("limit", String(request.limit ?? 50));
 
   return `/rooms/${roomId}/messages?${searchParams.toString()}`;
+}
+
+function createRoomMessageContextPath(
+  roomId: string,
+  messageId: string,
+  params: z.output<typeof roomMessageContextParamsSchema>,
+): string {
+  const searchParams = new URLSearchParams();
+
+  searchParams.set("before", String(params.before ?? 20));
+  searchParams.set("after", String(params.after ?? 20));
+
+  return `/rooms/${roomId}/messages/${encodeURIComponent(messageId)}/context?${searchParams.toString()}`;
 }
 
 function createListPath(

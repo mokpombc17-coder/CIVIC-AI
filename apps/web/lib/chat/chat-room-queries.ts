@@ -12,7 +12,11 @@ import {
 import { mergePresortedChatMessages } from "./chat-message-merge";
 import { ChatApiError } from "./chat-fetch";
 import { chatRoomApi, type ChatRoomApi } from "./chat-room-api";
-import { publicRoomListParamsSchema } from "./chat-room-contracts";
+import {
+  publicRoomListParamsSchema,
+  roomMessageContextParamsSchema,
+  roomMessageSearchRequestSchema,
+} from "./chat-room-contracts";
 import { normalizeRoomReadReceiptState } from "./chat-room-read-receipt-state";
 import type {
   ChatMessage,
@@ -24,6 +28,7 @@ import type {
   RoomInboxListItem,
   RoomInboxListResponse,
   RoomMembershipListItem,
+  RoomMessageSearchResponse,
 } from "./chat-room-contracts";
 
 const DEFAULT_LIST_LIMIT = 20;
@@ -32,6 +37,8 @@ const ROOM_INBOX_RETRY_MAX_DELAY_MS = 2_000;
 const ROOM_INBOX_MAX_RETRIES = 3;
 const ROOM_READ_RECEIPT_STATE_MAX_RETRIES = 3;
 export const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
+export const DEFAULT_ROOM_MESSAGE_SEARCH_LIMIT = 20;
+export const DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE = 20;
 const EMPTY_CHAT_MESSAGES: readonly ChatMessage[] = [];
 const EMPTY_ROOM_LIST_ITEMS: readonly never[] = [];
 
@@ -76,6 +83,26 @@ export type ChatRoomReadReceiptStateQueryParams = Readonly<{
   generation: number;
 }>;
 
+export type ChatRoomMessageSearchQueryParams = Readonly<{
+  enabled: boolean;
+  generation: number;
+  query: string;
+  limit?: number;
+}>;
+
+export type ChatRoomMessageSearchCriteria = Readonly<{
+  generation: number;
+  query: string;
+  limit: number;
+}>;
+
+export type ChatRoomMessageContextQueryParams = Readonly<{
+  enabled: boolean;
+  generation: number;
+  before?: number;
+  after?: number;
+}>;
+
 export const chatRoomQueryKeys = {
   all: ["chat", "rooms"] as const,
   publicLists: () => [...chatRoomQueryKeys.all, "public-list"] as const,
@@ -98,6 +125,26 @@ export const chatRoomQueryKeys = {
     [...chatRoomQueryKeys.messageHistories(), roomId] as const,
   messageHistory: (roomId: string, limit: number) =>
     [...chatRoomQueryKeys.messageHistoriesForRoom(roomId), { limit }] as const,
+  messageSearches: () => [...chatRoomQueryKeys.all, "message-search"] as const,
+  messageSearchesForRoom: (roomId: string) =>
+    [...chatRoomQueryKeys.messageSearches(), roomId] as const,
+  messageSearch: (roomId: string, criteria: ChatRoomMessageSearchCriteria) =>
+    [...chatRoomQueryKeys.messageSearchesForRoom(roomId), criteria] as const,
+  messageContexts: () => [...chatRoomQueryKeys.all, "message-context"] as const,
+  messageContextsForRoom: (roomId: string) =>
+    [...chatRoomQueryKeys.messageContexts(), roomId] as const,
+  messageContext: (
+    roomId: string,
+    messageId: string,
+    generation: number,
+    before: number,
+    after: number,
+  ) =>
+    [
+      ...chatRoomQueryKeys.messageContextsForRoom(roomId),
+      messageId,
+      { generation, before, after },
+    ] as const,
   roomEventJournals: () => [...chatRoomQueryKeys.all, "room-event-journal"] as const,
   roomEventJournal: (roomId: string) => [...chatRoomQueryKeys.roomEventJournals(), roomId] as const,
   readReceiptStates: () => [...chatRoomQueryKeys.all, "read-receipt-state"] as const,
@@ -273,6 +320,87 @@ export function roomMessageHistoryInfiniteQueryOptions(
   });
 }
 
+export function roomMessageSearchInfiniteQueryOptions(
+  roomId: string,
+  {
+    enabled,
+    generation,
+    query,
+    limit = DEFAULT_ROOM_MESSAGE_SEARCH_LIMIT,
+  }: ChatRoomMessageSearchQueryParams,
+  api: Pick<ChatRoomApi, "searchRoomMessages"> = chatRoomApi,
+) {
+  const request = roomMessageSearchRequestSchema.parse({
+    query,
+    cursor: null,
+    limit,
+  });
+  const criteria: ChatRoomMessageSearchCriteria = {
+    generation,
+    query: request.query,
+    limit: request.limit ?? DEFAULT_ROOM_MESSAGE_SEARCH_LIMIT,
+  };
+
+  return infiniteQueryOptions({
+    queryKey: chatRoomQueryKeys.messageSearch(roomId, criteria),
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      api.searchRoomMessages(
+        roomId,
+        {
+          query: criteria.query,
+          cursor: pageParam,
+          limit: criteria.limit,
+        },
+        signal,
+      ),
+    getNextPageParam: (lastPage) => (lastPage.searchComplete ? null : lastPage.nextCursor),
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+export function roomMessageContextQueryOptions(
+  roomId: string,
+  messageId: string,
+  {
+    enabled,
+    generation,
+    before = DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE,
+    after = DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE,
+  }: ChatRoomMessageContextQueryParams,
+  api: Pick<ChatRoomApi, "getRoomMessageContext"> = chatRoomApi,
+) {
+  const params = roomMessageContextParamsSchema.parse({ before, after });
+  const normalizedBefore = params.before ?? DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE;
+  const normalizedAfter = params.after ?? DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE;
+
+  return queryOptions({
+    queryKey: chatRoomQueryKeys.messageContext(
+      roomId,
+      messageId,
+      generation,
+      normalizedBefore,
+      normalizedAfter,
+    ),
+    enabled,
+    queryFn: ({ signal }) =>
+      api.getRoomMessageContext(
+        roomId,
+        messageId,
+        { before: normalizedBefore, after: normalizedAfter },
+        signal,
+      ),
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
 export function flattenRoomMessageHistoryPages(
   roomId: string,
   pages: readonly MessageHistoryResponse[] | undefined,
@@ -285,6 +413,28 @@ export function flattenRoomMessageHistoryPages(
     roomId,
     sources: [...pages].reverse().map((page) => page.items),
   }).messages;
+}
+
+export function flattenRoomMessageSearchPages(
+  pages: readonly RoomMessageSearchResponse[] | undefined,
+): readonly ChatMessage[] {
+  if (!pages || pages.length === 0) {
+    return EMPTY_CHAT_MESSAGES;
+  }
+
+  const messageIds = new Set<string>();
+
+  return pages
+    .flatMap((page) => page.items)
+    .filter((message) => {
+      if (messageIds.has(message.messageId)) {
+        return false;
+      }
+
+      messageIds.add(message.messageId);
+      return true;
+    })
+    .sort((left, right) => right.roomSequence - left.roomSequence);
 }
 
 export function usePublicRoomsQuery(params: PublicRoomListQueryParams = {}) {
@@ -392,6 +542,30 @@ export function useRoomMessageHistoryQuery(roomId: string, params: ChatMessageHi
     ...query,
     messages,
   };
+}
+
+export function useRoomMessageSearchQuery(
+  roomId: string,
+  params: ChatRoomMessageSearchQueryParams,
+) {
+  const query = useInfiniteQuery(roomMessageSearchInfiniteQueryOptions(roomId, params));
+  const messages = useMemo(
+    () => flattenRoomMessageSearchPages(query.data?.pages),
+    [query.data?.pages],
+  );
+
+  return {
+    ...query,
+    messages,
+  };
+}
+
+export function useRoomMessageContextQuery(
+  roomId: string,
+  messageId: string,
+  params: ChatRoomMessageContextQueryParams,
+) {
+  return useQuery(roomMessageContextQueryOptions(roomId, messageId, params));
 }
 
 export function flattenRoomListPages<TItem>(
