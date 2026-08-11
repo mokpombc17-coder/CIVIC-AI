@@ -1,0 +1,7 @@
+vote:
+  security:
+    cookie-authentication-enabled: true
+    local-jwt:
+      secret: ${VOTE_LOCAL_JWT_SECRET:civic-ai-local-auth-fixture-signing-key-v1-public-do-not-use-in-production}
+      issuer: ${VOTE_LOCAL_JWT_ISSUER:http://localhost:3000/api/dev/auth}
+      audience: ${VOTE_LOCAL_JWT_AUDIENCE:civic-ai-api}
