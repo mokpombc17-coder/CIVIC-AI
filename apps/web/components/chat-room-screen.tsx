@@ -3,7 +3,6 @@
 import {
   ChatRoomScreenHeaderActions,
   ChatRoomScreenOverlay,
-  resolveChatRoomScreenOverlayKind,
 } from "@/components/chat-room-screen-overlays";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
 import {
@@ -13,62 +12,32 @@ import {
 import { ChatRoomView } from "@/components/chat-room-view";
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRoomContentExperience } from "@/components/use-chat-room-content-experience";
-import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
-import { useChatRoomMessageSearchExperience } from "@/components/use-chat-room-message-search-experience";
+import { useChatRoomOverlayExperience } from "@/components/use-chat-room-overlay-experience";
 import { useChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const realtime = useChatRoomRealtimeExperience(roomId);
   const { coordinator, coordinatorEnabled, session } = realtime;
-  const {
-    close: closeMembershipDialog,
-    isOpen: isMembershipDialogOpen,
-    open: openMembershipDialog,
-    triggerRef: membershipDialogTriggerRef,
-  } = useChatRoomMembershipDialog(roomId);
-  const messageSearchExperience = useChatRoomMessageSearchExperience(roomId, {
-    generation: session.generation,
-    roomActive: session.isActive,
-  });
   const content = useChatRoomContentExperience(roomId, realtime);
-  const overlayKind = resolveChatRoomScreenOverlayKind({
+  const overlays = useChatRoomOverlayExperience(roomId, {
+    generation: session.generation,
     hasMessageActions: content.messageActions.sheet !== null,
-    isMembershipDialogOpen,
-    isMessageSearchDialogOpen: messageSearchExperience.isOpen,
+    roomActive: session.isActive,
     roomAvailable: content.room !== undefined,
   });
 
   return (
     <ChatRoomView
       header={content.header}
-      headerAction={
-        <ChatRoomScreenHeaderActions
-          isMembershipDialogOpen={isMembershipDialogOpen}
-          isMessageSearchDialogOpen={messageSearchExperience.isOpen}
-          membershipDialogTriggerRef={membershipDialogTriggerRef}
-          messageSearchDialogTriggerRef={messageSearchExperience.triggerRef}
-          onOpenMembershipDialog={openMembershipDialog}
-          onOpenMessageSearchDialog={messageSearchExperience.open}
-          roomAvailable={content.room !== undefined}
-          searchDisabled={!session.isActive}
-        />
-      }
+      headerAction={<ChatRoomScreenHeaderActions {...overlays.headerActions} />}
       messageHistory={content.messageHistory}
       overlay={
-        overlayKind ? (
+        overlays.kind ? (
           <ChatRoomScreenOverlay
-            kind={overlayKind}
-            membershipDialog={{
-              isOpen: isMembershipDialogOpen,
-              onClose: closeMembershipDialog,
-            }}
+            kind={overlays.kind}
+            membershipDialog={overlays.membershipDialog}
             messageActionsSheet={content.messageActions.sheet}
-            messageSearchDialog={{
-              context: messageSearchExperience.context,
-              controller: messageSearchExperience.controller,
-              isOpen: messageSearchExperience.isOpen,
-              onClose: messageSearchExperience.close,
-            }}
+            messageSearchDialog={overlays.messageSearchDialog}
             participantDisplayNames={content.participantDisplayNames}
             room={content.room}
             roomId={roomId}

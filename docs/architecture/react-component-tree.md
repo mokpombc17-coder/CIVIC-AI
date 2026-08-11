@@ -191,8 +191,10 @@ focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 
 session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 입력·전송 및 키보드 동작을
 담당한다. 메시지 수정·삭제 lifecycle과 transport command는 `useChatRoomMessageExperience`가 조립하고,
 선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
-방 정보 disclosure와 focus 복원도 Screen이 소유하며, `ChatRoomMembershipDialog` 안에서만
-`ChatRoomMembershipPanel`을 mount한다. 메시지 액션과 멤버십 Dialog는 동시에 렌더링하지 않는다.
+`useChatRoomOverlayExperience`는 방 정보·메시지 검색 disclosure, trigger focus 복원과
+검색/멤버십/메시지 액션의 단일 overlay 우선순위를 조립한다. Screen은 이 controller가 제공한
+header action과 overlay model을 View에 배치하고, `ChatRoomMembershipDialog` 안에서만
+`ChatRoomMembershipPanel`을 mount한다. 세 overlay는 동시에 렌더링하지 않는다.
 `ChatRoomMembershipPanel`은 `useChatRoomMembershipPanel`이 조립한 controller를
 `ChatRoomMembershipPanelView`에 전달하는 얇은 container다. controller hook은 Membership Query,
 관리 mutation, 멱등성 key·재시도, 완료 라우팅을 소유하며 View에는 정규화된 목록 상태,

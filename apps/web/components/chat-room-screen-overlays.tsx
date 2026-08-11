@@ -15,10 +15,26 @@ import {
 import type { ChatMessageActionsBottomSheetViewModel } from "@/components/use-chat-message-actions-bottom-sheet";
 import type { RoomDetails } from "@/lib/chat/chat-room-contracts";
 
-type ChatRoomScreenOverlayControl = Readonly<{
-  isOpen: boolean;
+export type ChatRoomScreenOverlayControl = Readonly<{
   onClose: () => void;
 }>;
+
+export type ChatRoomScreenHeaderActionsViewModel = Readonly<{
+  isMembershipDialogOpen: boolean;
+  isMessageSearchDialogOpen: boolean;
+  membershipDialogTriggerRef: RefObject<HTMLButtonElement | null>;
+  messageSearchDialogTriggerRef: RefObject<HTMLButtonElement | null>;
+  onOpenMembershipDialog: () => void;
+  onOpenMessageSearchDialog: () => void;
+  roomAvailable: boolean;
+  searchDisabled: boolean;
+}>;
+
+export type ChatRoomScreenMessageSearchDialogControl = ChatRoomScreenOverlayControl &
+  Readonly<{
+    context: ChatRoomMessageContextDialogController;
+    controller: ChatRoomMessageSearchDialogController;
+  }>;
 
 export function ChatRoomScreenHeaderActions({
   isMembershipDialogOpen,
@@ -29,16 +45,7 @@ export function ChatRoomScreenHeaderActions({
   onOpenMessageSearchDialog,
   roomAvailable,
   searchDisabled,
-}: Readonly<{
-  isMembershipDialogOpen: boolean;
-  isMessageSearchDialogOpen: boolean;
-  membershipDialogTriggerRef: RefObject<HTMLButtonElement | null>;
-  messageSearchDialogTriggerRef: RefObject<HTMLButtonElement | null>;
-  onOpenMembershipDialog: () => void;
-  onOpenMessageSearchDialog: () => void;
-  roomAvailable: boolean;
-  searchDisabled: boolean;
-}>) {
+}: ChatRoomScreenHeaderActionsViewModel) {
   if (!roomAvailable) {
     return null;
   }
@@ -96,11 +103,7 @@ export function ChatRoomScreenOverlay({
   kind: ChatRoomScreenOverlayKind;
   membershipDialog: ChatRoomScreenOverlayControl;
   messageActionsSheet: ChatMessageActionsBottomSheetViewModel | null;
-  messageSearchDialog: ChatRoomScreenOverlayControl &
-    Readonly<{
-      context: ChatRoomMessageContextDialogController;
-      controller: ChatRoomMessageSearchDialogController;
-    }>;
+  messageSearchDialog: ChatRoomScreenMessageSearchDialogControl;
   participantDisplayNames: ReadonlyMap<string, string>;
   room: RoomDetails | undefined;
   roomId: string;
