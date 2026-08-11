@@ -942,12 +942,15 @@ Content-Type: application/json
 
 - `query`는 필수다. raw ISO control 문자를 거절한 뒤 Unicode whitespace를
   한 칸으로 합치고, 앞뒤 공백 제거, NFC, `Locale.ROOT` 소문자화를 적용한다.
-  정규화 후 2~100 Unicode code point만 허용한다.
+  raw 입력은 최대 512 UTF-16 code unit이며, 정규화 후 2~100 Unicode code
+  point만 허용한다.
 - 검색은 정규화된 현재 `content`에 대한 literal substring 비교다. 정규식,
   wildcard, 형태소·유사어·오타 보정, 관련도 점수는 지원하지 않는다.
 - `limit`은 한 페이지에서 반환할 일치 결과 수로 기본 20, 범위 1~50이다.
 - `cursor`는 최초 요청에서 생략하거나 `null`로 보낸다. 다음 요청에서는
-  서버가 발급한 opaque cursor와 같은 `query`, `limit`을 다시 보낸다.
+  서버가 발급한 opaque cursor와 같은 `query`, `limit`을 다시 보낸다. 서버가
+  발급한 값을 그대로 사용해야 하며 손상되었거나 비정상적으로 큰 cursor는
+  `INVALID_CURSOR`다.
 
 응답:
 
@@ -1029,9 +1032,52 @@ GET /api/v1/rooms/{roomId}/messages/{messageId}/context?before=20&after=20
 {
   "targetMessageId": "message-10",
   "targetRoomSequence": 97231,
-  "items": [],
-  "nextBeforeSequence": 97211,
-  "nextAfterSequence": 97251,
+  "items": [
+    {
+      "messageId": "message-9",
+      "roomId": "room-1",
+      "roomSequence": 97230,
+      "senderMembershipId": "membership-2",
+      "clientMessageId": "client-message-9",
+      "content": "이전 메시지",
+      "state": "ACTIVE",
+      "countable": true,
+      "messageVersion": 1,
+      "createdAt": "2026-08-10T06:59:00Z",
+      "updatedAt": "2026-08-10T06:59:00Z",
+      "deletedAt": null
+    },
+    {
+      "messageId": "message-10",
+      "roomId": "room-1",
+      "roomSequence": 97231,
+      "senderMembershipId": "membership-3",
+      "clientMessageId": "client-message-10",
+      "content": "검색된 대상 메시지",
+      "state": "ACTIVE",
+      "countable": true,
+      "messageVersion": 1,
+      "createdAt": "2026-08-10T07:00:00Z",
+      "updatedAt": "2026-08-10T07:00:00Z",
+      "deletedAt": null
+    },
+    {
+      "messageId": "message-11",
+      "roomId": "room-1",
+      "roomSequence": 97232,
+      "senderMembershipId": "membership-2",
+      "clientMessageId": "client-message-11",
+      "content": "다음 메시지",
+      "state": "ACTIVE",
+      "countable": true,
+      "messageVersion": 1,
+      "createdAt": "2026-08-10T07:01:00Z",
+      "updatedAt": "2026-08-10T07:01:00Z",
+      "deletedAt": null
+    }
+  ],
+  "nextBeforeSequence": 97230,
+  "nextAfterSequence": 97232,
   "hasOlder": true,
   "hasNewer": true
 }
@@ -1041,6 +1087,10 @@ GET /api/v1/rooms/{roomId}/messages/{messageId}/context?before=20&after=20
 target은 정확히 한 번 포함된다. 주변 문맥은 timeline이므로 삭제 tombstone과
 non-countable 메시지도 포함할 수 있다. 검색 당시 ACTIVE였던 target이 클릭 전에
 삭제되면 `DELETED_BY_AUTHOR`, `content=null`인 현재 tombstone을 반환한다.
+
+`hasOlder === (nextBeforeSequence != null)`,
+`hasNewer === (nextAfterSequence != null)` 관계가 항상 성립한다. 두 sequence는
+각각 기존 메시지 이력 API의 `beforeSequence`, `afterSequence`에 그대로 전달한다.
 
 존재하지 않는 messageId, 다른 Room의 messageId, 현재 visibility boundary 이전
 messageId는 존재 여부를 구분하지 않고 모두 `404 MESSAGE_NOT_FOUND`로 처리한다.

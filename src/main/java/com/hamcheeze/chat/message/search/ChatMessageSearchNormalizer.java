@@ -11,19 +11,19 @@ public final class ChatMessageSearchNormalizer {
 
     public static final int MIN_QUERY_CODE_POINTS = 2;
     public static final int MAX_QUERY_CODE_POINTS = 100;
+    public static final int MAX_RAW_QUERY_UTF16_LENGTH = 512;
 
     public String normalizeQuery(String query) {
         if (query == null) {
             throw new IllegalArgumentException(
                     "message search query must not be null");
         }
-        if (query.codePoints().anyMatch(Character::isISOControl)) {
+        if (query.length() > MAX_RAW_QUERY_UTF16_LENGTH) {
             throw new IllegalArgumentException(
-                    "message search query must not contain control "
-                            + "characters");
+                    "message search raw query is too long");
         }
 
-        String normalized = normalizeText(query);
+        String normalized = normalizeText(query, true);
         int codePoints = normalized.codePointCount(
                 0,
                 normalized.length());
@@ -41,7 +41,7 @@ public final class ChatMessageSearchNormalizer {
             throw new IllegalArgumentException(
                     "message search content must not be null");
         }
-        return normalizeText(content);
+        return normalizeText(content, false);
     }
 
     public String fingerprint(String normalizedQuery) {
@@ -60,11 +60,21 @@ public final class ChatMessageSearchNormalizer {
         }
     }
 
-    private String normalizeText(String value) {
+    private String normalizeText(
+            String value,
+            boolean rejectIsoControls
+    ) {
         StringBuilder collapsed = new StringBuilder(value.length());
         boolean pendingSpace = false;
-        int[] codePoints = value.codePoints().toArray();
-        for (int codePoint : codePoints) {
+        for (int offset = 0; offset < value.length();) {
+            int codePoint = value.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+            if (rejectIsoControls
+                    && Character.isISOControl(codePoint)) {
+                throw new IllegalArgumentException(
+                        "message search query must not contain control "
+                                + "characters");
+            }
             if (isSearchWhitespace(codePoint)) {
                 pendingSpace = collapsed.length() > 0;
                 continue;

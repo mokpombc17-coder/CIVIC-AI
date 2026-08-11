@@ -15,6 +15,8 @@ import java.util.Objects;
 
 public final class ChatMessageSearchCursorCodec {
 
+    static final int MAX_CURSOR_TOKEN_LENGTH = 16_384;
+
     private final ObjectWriter writer;
     private final ObjectReader reader;
     private final Clock clock;
@@ -84,7 +86,13 @@ public final class ChatMessageSearchCursorCodec {
             ChatMessageSearchCursorBinding expectedBinding
     ) {
         Objects.requireNonNull(expectedBinding, "expectedBinding");
-        if (token == null || token.isBlank()) {
+        if (token == null) {
+            return null;
+        }
+        if (token.length() > MAX_CURSOR_TOKEN_LENGTH) {
+            throw invalidCursor(null);
+        }
+        if (token.isBlank()) {
             return null;
         }
         try {

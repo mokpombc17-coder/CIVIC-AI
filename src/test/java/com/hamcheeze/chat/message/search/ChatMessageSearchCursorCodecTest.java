@@ -39,13 +39,55 @@ class ChatMessageSearchCursorCodecTest {
         assertThat(cursor.issuedAt()).isEqualTo(NOW);
         assertThat(cursor.expiresAt()).isEqualTo(NOW.plus(TTL));
         assertThat(token).doesNotContain("room-1");
+        assertThat(token).hasSizeLessThan(
+                ChatMessageSearchCursorCodec.MAX_CURSOR_TOKEN_LENGTH);
         assertThat(codec.decode(token, binding())).isEqualTo(cursor);
+    }
+
+    @Test
+    void roundTripsOpaqueUnicodeAndLongMembershipId() {
+        ChatMessageSearchCursorBinding opaqueBinding =
+                new ChatMessageSearchCursorBinding(
+                        "room-1",
+                        "멤버십-가-" + "x".repeat(100),
+                        3,
+                        10,
+                        FINGERPRINT,
+                        20);
+        ChatMessageSearchCursor cursor = codec.issue(
+                opaqueBinding,
+                100,
+                80);
+
+        String token = codec.encode(cursor);
+
+        assertThat(token).hasSizeLessThan(
+                ChatMessageSearchCursorCodec.MAX_CURSOR_TOKEN_LENGTH);
+        assertThat(codec.decode(token, opaqueBinding)).isEqualTo(cursor);
     }
 
     @Test
     void treatsMissingCursorAsFirstSearchRequest() {
         assertThat(codec.decode(null, binding())).isNull();
         assertThat(codec.decode("  ", binding())).isNull();
+    }
+
+    @Test
+    void rejectsOversizedTokenBeforeBase64Decode() {
+        assertInvalid(
+                "!".repeat(
+                        ChatMessageSearchCursorCodec
+                                .MAX_CURSOR_TOKEN_LENGTH),
+                binding());
+        assertThatThrownBy(() -> codec.decode(
+                        "!".repeat(
+                                ChatMessageSearchCursorCodec
+                                        .MAX_CURSOR_TOKEN_LENGTH + 1),
+                        binding()))
+                .isInstanceOf(ChatMessageSearchException.class)
+                .hasNoCause()
+                .extracting("code")
+                .isEqualTo(ChatMessageSearchErrorCode.INVALID_CURSOR);
     }
 
     @Test

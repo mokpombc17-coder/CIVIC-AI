@@ -125,6 +125,21 @@ class ChatMessageSearchApiIntegrationTest
         mockMvc.perform(post(
                                 "/api/v1/rooms/{roomId}/messages/search",
                                 roomId)
+                        .with(jwt(ChatScopes.ROOMS_READ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ChatMessageSearchRequest(
+                                        "x".repeat(513),
+                                        null,
+                                        20))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.detail")
+                        .value("message search raw query is too long"));
+
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/messages/search",
+                                roomId)
                         .with(jwt(ChatScopes.ROOMS_WRITE))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

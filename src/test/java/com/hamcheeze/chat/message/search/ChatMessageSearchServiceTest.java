@@ -137,6 +137,59 @@ class ChatMessageSearchServiceTest {
     }
 
     @Test
+    void scansMultipleCandidateChunksUntilBudgetIsExhausted() {
+        properties.setCandidateChunkSize(3);
+        properties.setMaxScannedPerRequest(8);
+        when(reader.findCandidates(
+                eq("room-1"), eq(0L), eq(10L), isNull(),
+                eq(3), any(Duration.class)))
+                .thenReturn(new ChatMessageSearchCandidateSlice(
+                        List.of(
+                                message(10, "other"),
+                                message(9, "other"),
+                                message(8, "other")),
+                        true));
+        when(reader.findCandidates(
+                eq("room-1"), eq(0L), eq(10L), eq(8L),
+                eq(3), any(Duration.class)))
+                .thenReturn(new ChatMessageSearchCandidateSlice(
+                        List.of(
+                                message(7, "other"),
+                                message(6, "match"),
+                                message(5, "other")),
+                        true));
+        when(reader.findCandidates(
+                eq("room-1"), eq(0L), eq(10L), eq(5L),
+                eq(2), any(Duration.class)))
+                .thenReturn(new ChatMessageSearchCandidateSlice(
+                        List.of(
+                                message(4, "other"),
+                                message(3, "other")),
+                        true));
+
+        ChatMessageSearchCriteria criteria = criteria("match", 3);
+        ChatMessageSearchPage page = service().search(
+                "user-1", "room-1", criteria, null);
+
+        assertThat(page.items())
+                .extracting(ChatMessage::roomSequence)
+                .containsExactly(6L);
+        assertThat(page.searchComplete()).isFalse();
+        assertThat(cursorCodec.decode(
+                page.nextCursor(),
+                binding(criteria)).nextBeforeSequence()).isEqualTo(3);
+        verify(reader).findCandidates(
+                eq("room-1"), eq(0L), eq(10L), isNull(),
+                eq(3), any(Duration.class));
+        verify(reader).findCandidates(
+                eq("room-1"), eq(0L), eq(10L), eq(8L),
+                eq(3), any(Duration.class));
+        verify(reader).findCandidates(
+                eq("room-1"), eq(0L), eq(10L), eq(5L),
+                eq(2), any(Duration.class));
+    }
+
+    @Test
     void exhaustsCandidateRangeAndCompletesWithoutCursor() {
         when(reader.findCandidates(
                 eq("room-1"), eq(0L), eq(10L), isNull(),
@@ -208,6 +261,44 @@ class ChatMessageSearchServiceTest {
         verify(reader, never()).findCandidates(
                 eq("room-1"), eq(0L), eq(12L), nullable(Long.class),
                 anyInt(), any(Duration.class));
+    }
+
+    @Test
+    void continuationAcceptsOpaqueUnicodeAndLongMembershipId() {
+        String membershipId = "멤버십-가-" + "x".repeat(100);
+        properties.setCandidateChunkSize(1);
+        properties.setMaxScannedPerRequest(1);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(ChatMessageSearchAccess.allowed(
+                        membershipId,
+                        1,
+                        0));
+        when(sequenceReader.currentSequence("room-1"))
+                .thenReturn(2L);
+        when(reader.findCandidates(
+                eq("room-1"), eq(0L), eq(2L), isNull(),
+                eq(1), any(Duration.class)))
+                .thenReturn(new ChatMessageSearchCandidateSlice(
+                        List.of(message(2, "other")),
+                        true));
+        when(reader.findCandidates(
+                eq("room-1"), eq(0L), eq(2L), eq(2L),
+                eq(1), any(Duration.class)))
+                .thenReturn(new ChatMessageSearchCandidateSlice(
+                        List.of(message(1, "match")),
+                        false));
+        ChatMessageSearchCriteria criteria = criteria("match", 1);
+
+        ChatMessageSearchPage first = service().search(
+                "user-1", "room-1", criteria, null);
+        ChatMessageSearchPage second = service().search(
+                "user-1", "room-1", criteria, first.nextCursor());
+
+        assertThat(first.searchComplete()).isFalse();
+        assertThat(second.items())
+                .extracting(ChatMessage::roomSequence)
+                .containsExactly(1L);
+        assertThat(second.searchComplete()).isTrue();
     }
 
     @Test

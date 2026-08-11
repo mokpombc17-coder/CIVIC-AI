@@ -30,6 +30,25 @@ class ChatMessageSearchNormalizerTest {
     }
 
     @Test
+    void boundsRawQueryByUtf16LengthBeforeNormalization() {
+        String maximumRawQuery = "AI"
+                + "\u2003".repeat(
+                        ChatMessageSearchNormalizer
+                                .MAX_RAW_QUERY_UTF16_LENGTH - 2);
+        String oversizedRawQuery = maximumRawQuery + " ";
+
+        assertThat(maximumRawQuery).hasSize(
+                ChatMessageSearchNormalizer
+                        .MAX_RAW_QUERY_UTF16_LENGTH);
+        assertThat(normalizer.normalizeQuery(maximumRawQuery))
+                .isEqualTo("ai");
+        assertThatThrownBy(() -> normalizer.normalizeQuery(
+                oversizedRawQuery))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("raw query is too long");
+    }
+
+    @Test
     void rejectsOneHundredOneCodePointQuery() {
         assertThatThrownBy(() -> normalizer.normalizeQuery(
                 "가".repeat(101)))
@@ -56,6 +75,14 @@ class ChatMessageSearchNormalizerTest {
         assertThat(normalizer.normalizeQuery(
                 " \u2003환경\u00a0 \u2009정책\u2003"))
                 .isEqualTo("환경 정책");
+    }
+
+    @Test
+    void processesSurrogatePairsWithoutSplittingCodePoints() {
+        assertThat(normalizer.normalizeQuery("😀정"))
+                .isEqualTo("😀정");
+        assertThat(normalizer.normalizeContent("😀\n\t정"))
+                .isEqualTo("😀 정");
     }
 
     @Test
