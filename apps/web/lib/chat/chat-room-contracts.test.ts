@@ -4,11 +4,14 @@ import {
   chatMessageSchema,
   chatMessageSendContentSchema,
   createMessageHistoryResponseSchema,
+  createRoomMessageContextResponseSchema,
+  createRoomMessageSearchResponseSchema,
   createRoomRequestSchema,
   messageHistoryRequestSchema,
   membershipDisplayNameSchema,
   myRoomListResponseSchema,
   normalizeChatMessageContent,
+  normalizeRoomMessageSearchQuery,
   normalizeRoomDescription,
   publicRoomListParamsSchema,
   publicRoomListResponseSchema,
@@ -20,6 +23,9 @@ import {
   roomInboxListParamsSchema,
   roomInboxListResponseSchema,
   roomMembershipListResponseSchema,
+  roomMessageContextParamsSchema,
+  roomMessageSearchQuerySchema,
+  roomMessageSearchRequestSchema,
   roomReadReceiptStateResponseSchema,
   targetMembershipRequestSchema,
   updateRoomReadStateRequestSchema,
@@ -667,6 +673,192 @@ describe("chat room REST contracts", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("Room 메시지 검색어를 서버 정책에 맞춰 정규화하고 길이와 제어 문자를 검증한다", () => {
+    expect(normalizeRoomMessageSearchQuery("  ENVIRONMENT\t  POLICYE\u0301  ")).toBe(
+      "environment policyé",
+    );
+    expect(roomMessageSearchQuerySchema.parse(".*")).toBe(".*");
+    expect(roomMessageSearchQuerySchema.parse("😀😀")).toBe("😀😀");
+    expect(roomMessageSearchQuerySchema.safeParse("가").success).toBe(false);
+    expect(roomMessageSearchQuerySchema.safeParse("가".repeat(101)).success).toBe(false);
+    expect(roomMessageSearchQuerySchema.safeParse("환경\u0000정책").success).toBe(false);
+    expect(roomMessageSearchQuerySchema.safeParse("환경\u0085정책").success).toBe(false);
+  });
+
+  it("Room 메시지 검색 요청의 nullable cursor와 1~50 limit을 검증한다", () => {
+    expect(
+      roomMessageSearchRequestSchema.parse({
+        query: "  환경   정책  ",
+        cursor: null,
+        limit: null,
+      }),
+    ).toEqual({
+      query: "환경 정책",
+      cursor: null,
+      limit: null,
+    });
+    expect(
+      roomMessageSearchRequestSchema.safeParse({ query: "환경", cursor: "cursor-1", limit: 50 })
+        .success,
+    ).toBe(true);
+    expect(roomMessageSearchRequestSchema.safeParse({ query: "환경", limit: 0 }).success).toBe(
+      false,
+    );
+    expect(roomMessageSearchRequestSchema.safeParse({ query: "환경", limit: 51 }).success).toBe(
+      false,
+    );
+  });
+
+  it("Room 메시지 검색 응답의 DESC 정렬과 완료 cursor invariant를 검증한다", () => {
+    const schema = createRoomMessageSearchResponseSchema("room-01");
+
+    expect(
+      schema.safeParse({
+        items: [createMessage(3), createMessage(2)],
+        nextCursor: "cursor-1",
+        searchComplete: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({
+        items: [],
+        nextCursor: "cursor-2",
+        searchComplete: false,
+      }).success,
+    ).toBe(true);
+    expect(schema.safeParse({ items: [], nextCursor: null, searchComplete: true }).success).toBe(
+      true,
+    );
+    expect(
+      schema.safeParse({
+        items: [createMessage(2), createMessage(3)],
+        nextCursor: null,
+        searchComplete: true,
+      }).success,
+    ).toBe(false);
+    expect(schema.safeParse({ items: [], nextCursor: null, searchComplete: false }).success).toBe(
+      false,
+    );
+    expect(
+      schema.safeParse({ items: [], nextCursor: "cursor-1", searchComplete: true }).success,
+    ).toBe(false);
+  });
+
+  it("Room 메시지 검색 결과를 ACTIVE countable 메시지와 요청 Room으로 제한한다", () => {
+    const schema = createRoomMessageSearchResponseSchema("room-01");
+    const validPage = {
+      items: [createMessage(2)],
+      nextCursor: null,
+      searchComplete: true,
+    };
+
+    expect(
+      schema.safeParse({
+        ...validPage,
+        items: [{ ...createMessage(2), countable: false }],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validPage,
+        items: [{ ...createMessage(2), roomId: "room-02" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validPage,
+        items: [createDeletedMessage(2)],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("Message Context params와 ASC target invariant를 검증한다", () => {
+    expect(roomMessageContextParamsSchema.safeParse({ before: 0, after: 50 }).success).toBe(true);
+    expect(roomMessageContextParamsSchema.safeParse({ before: -1 }).success).toBe(false);
+    expect(roomMessageContextParamsSchema.safeParse({ after: 51 }).success).toBe(false);
+
+    const schema = createRoomMessageContextResponseSchema("room-01", "message-2");
+    const validContext = {
+      targetMessageId: "message-2",
+      targetRoomSequence: 2,
+      items: [createMessage(1), createMessage(2), createMessage(3)],
+      nextBeforeSequence: 1,
+      nextAfterSequence: 3,
+      hasOlder: true,
+      hasNewer: true,
+    };
+
+    expect(schema.safeParse(validContext).success).toBe(true);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        items: [createMessage(2), createMessage(1), createMessage(3)],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        targetRoomSequence: 3,
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        items: [createMessage(1), createMessage(3)],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        items: [
+          createMessage(1),
+          createMessage(2),
+          { ...createMessage(3), messageId: "message-2" },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        nextBeforeSequence: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        hasOlder: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        nextAfterSequence: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        ...validContext,
+        hasNewer: false,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("Message Context target이 삭제된 경우 tombstone을 허용한다", () => {
+    const schema = createRoomMessageContextResponseSchema("room-01", "message-2");
+
+    expect(
+      schema.safeParse({
+        targetMessageId: "message-2",
+        targetRoomSequence: 2,
+        items: [createMessage(1), createDeletedMessage(2), createMessage(3)],
+        nextBeforeSequence: null,
+        nextAfterSequence: null,
+        hasOlder: false,
+        hasNewer: false,
+      }).success,
+    ).toBe(true);
+  });
 });
 
 function createMessage(roomSequence: number) {
@@ -683,6 +875,17 @@ function createMessage(roomSequence: number) {
     messageVersion: 1,
     state: "ACTIVE" as const,
     updatedAt: "2026-07-29T04:40:00Z",
+  };
+}
+
+function createDeletedMessage(roomSequence: number) {
+  return {
+    ...createMessage(roomSequence),
+    content: null,
+    state: "DELETED_BY_AUTHOR" as const,
+    messageVersion: 2,
+    updatedAt: "2026-07-29T05:00:00Z",
+    deletedAt: "2026-07-29T05:00:00Z",
   };
 }
 

@@ -24,6 +24,7 @@ export class ChatApiError extends Error {
   readonly problem: ChatProblemDetails | undefined;
   readonly code: string | undefined;
   readonly retryable: boolean;
+  readonly retryAfterMs: number | undefined;
   readonly fieldErrors: readonly ChatFieldError[];
 
   constructor(
@@ -37,6 +38,7 @@ export class ChatApiError extends Error {
     this.problem = isChatProblemDetails(body) ? body : undefined;
     this.code = this.problem?.code;
     this.retryable = this.problem?.retryable ?? false;
+    this.retryAfterMs = this.problem?.retryAfterMs;
     this.fieldErrors = this.problem?.fieldErrors ?? [];
   }
 }

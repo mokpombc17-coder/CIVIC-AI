@@ -146,6 +146,32 @@ describe("chatFetch", () => {
     });
   });
 
+  it("메시지 검색 rate limit의 retryAfterMs를 노출한다", () => {
+    const error = new ChatApiError(
+      429,
+      "Too Many Requests",
+      "http://localhost:8082/api/v1/rooms/room-1/messages/search",
+      {
+        type: "urn:hamcheeze:problem:message-search-rate-limited",
+        title: "Message search failed",
+        status: 429,
+        detail: "Message search rate limit was exceeded.",
+        instance: "/api/v1/rooms/room-1/messages/search",
+        code: "MESSAGE_SEARCH_RATE_LIMITED",
+        replayed: false,
+        retryable: true,
+        retryAfterMs: 250,
+      },
+    );
+
+    expect(error).toMatchObject({
+      status: 429,
+      code: "MESSAGE_SEARCH_RATE_LIMITED",
+      retryable: true,
+      retryAfterMs: 250,
+    });
+  });
+
   it("일반 JSON 오류를 Problem Details로 오인하지 않는다", () => {
     const error = new ChatApiError(500, "Internal Server Error", "http://localhost:8082", {
       detail: "Unexpected error.",

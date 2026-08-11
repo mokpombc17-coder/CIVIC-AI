@@ -13,6 +13,7 @@ export type ChatProblemDetails = Readonly<{
   clientRequestId?: string;
   replayed: boolean;
   retryable: boolean;
+  retryAfterMs?: number;
   fieldErrors?: readonly ChatFieldError[];
 }>;
 
@@ -22,8 +23,13 @@ export function isChatProblemDetails(value: unknown): value is ChatProblemDetail
   }
 
   const fieldErrors = value.fieldErrors;
+  const retryAfterMs = value.retryAfterMs;
+  const isValidRetryAfterMs =
+    retryAfterMs === undefined ||
+    (typeof retryAfterMs === "number" && Number.isSafeInteger(retryAfterMs) && retryAfterMs >= 1);
+  const isMessageSearchRateLimit = value.code === "MESSAGE_SEARCH_RATE_LIMITED";
 
-  return (
+  const isCommonProblemDetails =
     typeof value.type === "string" &&
     typeof value.title === "string" &&
     typeof value.status === "number" &&
@@ -34,8 +40,20 @@ export function isChatProblemDetails(value: unknown): value is ChatProblemDetail
     (value.clientRequestId === undefined || typeof value.clientRequestId === "string") &&
     typeof value.replayed === "boolean" &&
     typeof value.retryable === "boolean" &&
+    isValidRetryAfterMs &&
     (fieldErrors === undefined ||
-      (Array.isArray(fieldErrors) && fieldErrors.every(isChatFieldError)))
+      (Array.isArray(fieldErrors) && fieldErrors.every(isChatFieldError)));
+
+  if (!isCommonProblemDetails) {
+    return false;
+  }
+
+  return (
+    !isMessageSearchRateLimit ||
+    (value.status === 429 &&
+      value.replayed === false &&
+      value.retryable === true &&
+      retryAfterMs !== undefined)
   );
 }
 

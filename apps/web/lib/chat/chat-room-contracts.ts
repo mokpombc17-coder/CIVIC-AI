@@ -15,8 +15,11 @@ const safeNonnegativeIntegerSchema = z
   });
 const positiveMessageVersionSchema = z.number().int().positive();
 const messageHistoryLimitSchema = z.number().int().min(1).max(100);
+const roomMessageSearchLimitSchema = z.number().int().min(1).max(50);
+const roomMessageContextWindowSizeSchema = z.number().int().min(0).max(50);
 const forbiddenC0ControlCharacterPattern = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 const isoControlCharacterPattern = /[\u0000-\u001F\u007F-\u009F]/u;
+const unicodeWhitespacePattern = /\p{White_Space}+/gu;
 const javaStringStripWhitespacePattern =
   /^[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+|[\u0009-\u000D\u001C-\u001F\u0020\u1680\u2000-\u2006\u2008-\u200A\u2028\u2029\u205F\u3000]+$/gu;
 
@@ -370,6 +373,190 @@ export const deletedChatMessageSchema = chatMessageSnapshotBaseSchema
 
 export const chatMessageSchema = z.union([activeChatMessageSchema, deletedChatMessageSchema]);
 
+export const roomMessageSearchQuerySchema = z
+  .string()
+  .refine(
+    (query) => !isoControlCharacterPattern.test(query),
+    "검색어에 제어 문자를 포함할 수 없습니다.",
+  )
+  .transform(normalizeRoomMessageSearchQuery)
+  .refine(
+    (query) => Array.from(query).length >= 2,
+    "검색어는 Unicode code point 기준 2자 이상이어야 합니다.",
+  )
+  .refine(
+    (query) => Array.from(query).length <= 100,
+    "검색어는 Unicode code point 기준 100자를 초과할 수 없습니다.",
+  );
+
+export function normalizeRoomMessageSearchQuery(query: string): string {
+  return query.trim().replace(unicodeWhitespacePattern, " ").normalize("NFC").toLowerCase();
+}
+
+export const roomMessageSearchRequestSchema = z
+  .object({
+    query: roomMessageSearchQuerySchema,
+    cursor: cursorSchema.nullable().optional(),
+    limit: roomMessageSearchLimitSchema.nullable().optional(),
+  })
+  .strict();
+
+const roomMessageSearchItemSchema = activeChatMessageSchema.extend({
+  countable: z.literal(true),
+});
+
+const roomMessageSearchResponseBaseSchema = z.object({
+  items: z.array(roomMessageSearchItemSchema),
+  nextCursor: cursorSchema.nullable(),
+  searchComplete: z.boolean(),
+});
+
+export function createRoomMessageSearchResponseSchema(expectedRoomId: string) {
+  const parsedRoomId = roomIdSchema.parse(expectedRoomId);
+
+  return roomMessageSearchResponseBaseSchema.superRefine((response, context) => {
+    if (response.searchComplete && response.nextCursor !== null) {
+      context.addIssue({
+        code: "custom",
+        path: ["nextCursor"],
+        message: "검색이 완료되면 nextCursor는 null이어야 합니다.",
+      });
+    }
+
+    if (!response.searchComplete && response.nextCursor === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["nextCursor"],
+        message: "검색이 완료되지 않았으면 nextCursor가 필요합니다.",
+      });
+    }
+
+    const messageIds = new Set<string>();
+
+    response.items.forEach((message, index) => {
+      if (message.roomId !== parsedRoomId) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "roomId"],
+          message: "요청한 방과 다른 roomId의 검색 결과를 반환할 수 없습니다.",
+        });
+      }
+
+      if (messageIds.has(message.messageId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "messageId"],
+          message: "검색 결과 messageId는 중복될 수 없습니다.",
+        });
+      }
+      messageIds.add(message.messageId);
+
+      const previousMessage = response.items[index - 1];
+
+      if (previousMessage && message.roomSequence >= previousMessage.roomSequence) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "roomSequence"],
+          message: "검색 결과는 roomSequence 내림차순이어야 합니다.",
+        });
+      }
+    });
+  });
+}
+
+export const roomMessageContextParamsSchema = z
+  .object({
+    before: roomMessageContextWindowSizeSchema.optional(),
+    after: roomMessageContextWindowSizeSchema.optional(),
+  })
+  .strict();
+
+const roomMessageContextResponseBaseSchema = z.object({
+  targetMessageId: opaqueIdSchema,
+  targetRoomSequence: positiveSequenceSchema,
+  items: z.array(chatMessageSchema),
+  nextBeforeSequence: positiveSequenceSchema.nullable(),
+  nextAfterSequence: nonnegativeSequenceSchema.nullable(),
+  hasOlder: z.boolean(),
+  hasNewer: z.boolean(),
+});
+
+export function createRoomMessageContextResponseSchema(
+  expectedRoomId: string,
+  expectedMessageId: string,
+) {
+  const parsedRoomId = roomIdSchema.parse(expectedRoomId);
+  const parsedMessageId = opaqueIdSchema.parse(expectedMessageId);
+
+  return roomMessageContextResponseBaseSchema.superRefine((response, context) => {
+    if (response.hasOlder !== (response.nextBeforeSequence !== null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["nextBeforeSequence"],
+        message: "hasOlder와 nextBeforeSequence 존재 여부가 일치해야 합니다.",
+      });
+    }
+
+    if (response.hasNewer !== (response.nextAfterSequence !== null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["nextAfterSequence"],
+        message: "hasNewer와 nextAfterSequence 존재 여부가 일치해야 합니다.",
+      });
+    }
+
+    if (response.targetMessageId !== parsedMessageId) {
+      context.addIssue({
+        code: "custom",
+        path: ["targetMessageId"],
+        message: "요청한 messageId와 Context targetMessageId가 일치해야 합니다.",
+      });
+    }
+
+    const targetIndexes: number[] = [];
+
+    response.items.forEach((message, index) => {
+      if (message.roomId !== parsedRoomId) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "roomId"],
+          message: "요청한 방과 다른 roomId의 Context 메시지를 반환할 수 없습니다.",
+        });
+      }
+
+      if (message.messageId === response.targetMessageId) {
+        targetIndexes.push(index);
+
+        if (message.roomSequence !== response.targetRoomSequence) {
+          context.addIssue({
+            code: "custom",
+            path: ["targetRoomSequence"],
+            message: "Context target의 roomSequence가 targetRoomSequence와 일치해야 합니다.",
+          });
+        }
+      }
+
+      const previousMessage = response.items[index - 1];
+
+      if (previousMessage && message.roomSequence <= previousMessage.roomSequence) {
+        context.addIssue({
+          code: "custom",
+          path: ["items", index, "roomSequence"],
+          message: "Context 메시지는 roomSequence 오름차순이어야 합니다.",
+        });
+      }
+    });
+
+    if (targetIndexes.length !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["items"],
+        message: "Context target 메시지는 items에 정확히 한 번 포함되어야 합니다.",
+      });
+    }
+  });
+}
+
 export const messageHistoryModeSchema = z.enum(["latest", "before", "after"]);
 
 export const messageHistoryRequestSchema = z.discriminatedUnion("mode", [
@@ -515,6 +702,11 @@ export type BanRoomMemberResponse = z.infer<typeof banRoomMemberResponseSchema>;
 export type UnbanRoomMemberResponse = z.infer<typeof unbanRoomMemberResponseSchema>;
 export type CloseRoomResponse = z.infer<typeof closeRoomResponseSchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
+export type RoomMessageSearchRequest = z.input<typeof roomMessageSearchRequestSchema>;
+export type NormalizedRoomMessageSearchRequest = z.output<typeof roomMessageSearchRequestSchema>;
+export type RoomMessageSearchResponse = z.infer<typeof roomMessageSearchResponseBaseSchema>;
+export type RoomMessageContextParams = z.input<typeof roomMessageContextParamsSchema>;
+export type RoomMessageContextResponse = z.infer<typeof roomMessageContextResponseBaseSchema>;
 export type MessageHistoryMode = z.infer<typeof messageHistoryModeSchema>;
 export type MessageHistoryRequest = z.input<typeof messageHistoryRequestSchema>;
 export type MessageHistoryResponse = z.infer<typeof messageHistoryResponseBaseSchema>;
