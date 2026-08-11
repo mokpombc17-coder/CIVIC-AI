@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
-import { createChatMessageReadReceiptPresentation } from "@/components/chat-message-read-receipt-presentation";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
@@ -23,31 +22,22 @@ import {
   ChatRoomSessionIndicator,
   ChatRoomSessionNotice,
 } from "@/components/chat-room-session-status";
-import {
-  createChatMessageViewportItemViewModels,
-  createChatRoomHeaderViewModel,
-} from "@/components/chat-room-view-model";
+import { createChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
 import { ChatRoomView, type ChatMessageHistoryFeedback } from "@/components/chat-room-view";
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
-import {
-  createChatMessageTimeline,
-  createChatMessageTimelineRows,
-} from "@/lib/chat/chat-message-timeline";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
 import { useChatRoomEntryNavigation } from "@/components/use-chat-room-entry-navigation";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import { useChatRoomMessageSearchDialog } from "@/components/use-chat-room-message-search-dialog";
+import { useChatRoomMessagePresentation } from "@/components/use-chat-room-message-presentation";
 import { useRoomMessageContext } from "@/components/use-room-message-context";
 import { useRoomMessageSearch } from "@/components/use-room-message-search";
 import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
 import { getChatRoomReadStateMembershipLifecycle } from "@/lib/chat/chat-room-read-state-membership-lifecycle";
-import {
-  createRoomParticipantDisplayNames,
-  ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT,
-} from "@/lib/chat/chat-room-participant-profiles";
+import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   flattenRoomMessageHistoryPages,
@@ -196,61 +186,21 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     selfMembershipId: room?.myMembership?.membershipId ?? null,
   });
   const entryNavigationNotice = createChatRoomEntryNavigationNotice(entryNavigation);
-  const participantDisplayNames = useMemo(
-    () => createRoomParticipantDisplayNames(participantProfiles),
-    [participantProfiles],
-  );
-  const readReceiptPresentation = useMemo(
-    () =>
-      createChatMessageReadReceiptPresentation({
-        messages: messageHistory.messages,
-        receiptState: receiptStateQuery.data,
-        receiptSyncStatus: realtimeQuery.readReceiptStatus,
-        selfMembershipId: room?.myMembership?.membershipId ?? null,
-      }),
-    [
-      messageHistory.messages,
-      realtimeQuery.readReceiptStatus,
-      receiptStateQuery.data,
-      room?.myMembership?.membershipId,
-    ],
-  );
+  const { messageItems, participantDisplayNames, receiptMembershipMismatch, viewportItems } =
+    useChatRoomMessagePresentation({
+      confirmedMessages: messageHistory.messages,
+      mutationStates: messageMutations.states,
+      outgoingMessages,
+      participantProfiles,
+      readBoundaryAfterSequence: entryNavigation.readBoundaryAfterSequence,
+      receiptState: receiptStateQuery.data,
+      receiptSyncStatus: realtimeQuery.readReceiptStatus,
+      selfMembershipId: room?.myMembership?.membershipId ?? null,
+    });
   const receiptMembershipMismatchKey =
-    readReceiptPresentation.membershipMismatch && room?.myMembership && receiptStateQuery.data
+    receiptMembershipMismatch && room?.myMembership && receiptStateQuery.data
       ? `${session.generation}:${room.myMembership.membershipId}:${receiptStateQuery.data.selfMembershipId}`
       : null;
-  const timeline = useMemo(
-    () => createChatMessageTimeline(messageHistory.messages, outgoingMessages),
-    [messageHistory.messages, outgoingMessages],
-  );
-  const timelineRows = useMemo(
-    () =>
-      createChatMessageTimelineRows(timeline, {
-        readBoundaryAfterSequence: entryNavigation.readBoundaryAfterSequence,
-      }),
-    [entryNavigation.readBoundaryAfterSequence, timeline],
-  );
-  const viewportItems = useMemo(
-    () =>
-      createChatMessageViewportItemViewModels(
-        timelineRows,
-        room?.myMembership?.membershipId ?? null,
-        messageMutations.states,
-        readReceiptPresentation.summaries,
-        participantDisplayNames,
-      ),
-    [
-      messageMutations.states,
-      participantDisplayNames,
-      readReceiptPresentation.summaries,
-      room?.myMembership?.membershipId,
-      timelineRows,
-    ],
-  );
-  const messageItems = useMemo(
-    () => viewportItems.flatMap((item) => (item.kind === "message" ? [item.item] : [])),
-    [viewportItems],
-  );
   const viewportKey = `${roomId}:${session.generation}`;
   const messageActions = useChatMessageActionsBottomSheet({
     items: messageItems,

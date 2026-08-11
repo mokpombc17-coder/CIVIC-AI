@@ -146,10 +146,11 @@ Room 메시지 검색은 적용된 query와 opaque cursor를 소유하는 독립
 ACTIVE membership profile 목록도 메시지 이력과 병렬로 조회하고, `membershipId`를 기준으로
 cursor page를 끝까지 이어 Backend `displayName`을 메시지 ViewModel에 연결한다. 현재 ACTIVE 목록에 없는 과거 발신자는
 `알 수 없는 참여자`로 표시하며, profile 조회 실패는 core message 동작을 막지 않는다.
-Read Receipt snapshot은 메시지 이력과 병렬로 조회하고, receipt sync가 ready이며 Room detail의
-현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은 인원 projection을
-적용한다. 이 projection은 message Query cache를 수정하지 않고 ViewModel 생성 직전에 계산하며,
-양수인 읽은 인원만 표시한다.
+`ChatRoomScreen`은 이 Query 결과와 outgoing·mutation 상태를
+`useChatRoomMessagePresentation`에 전달한다. 이 presentation hook은 참여자 이름 map, Read Receipt
+projection, 날짜·읽음 구분선 timeline과 viewport item을 한 경계에서 조립한다. receipt sync가 ready이며
+Room detail의 현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은
+인원 projection을 적용하고, message Query cache는 수정하지 않으며 양수인 읽은 인원만 표시한다.
 Room 진입 시에는 `ChatRoomScreen`이 실시간 generation별 최초 receipt position을 고정하고, 읽음
 구분선이 현재 message page에 없으면 제한된 수의 과거 page를 순차 조회한다. 탐색이 끝나기 전에는
 viewport 초기 이동과 새 read-state 보고를 보류하며, 탐색 결과를 읽음 구분선 또는 안전한 fallback
