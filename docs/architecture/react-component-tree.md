@@ -104,9 +104,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     ├── ChatRoomMessageSearchDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-message-search-dialog.tsx)
                                     └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                         └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
-                                            ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
-                                            └── ChatRoomSettingsControl [Client] [Feature] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
-                                                └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
+                                            └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
+                                                ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
+                                                └── ChatRoomSettingsControl [Client] [Feature] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
+                                                    └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
                         │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
@@ -171,8 +172,11 @@ session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 �
 조립하고, 선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
 방 정보 disclosure와 focus 복원도 Screen이 소유하며, `ChatRoomMembershipDialog` 안에서만
 `ChatRoomMembershipPanel`을 mount한다. 메시지 액션과 멤버십 Dialog는 동시에 렌더링하지 않는다.
-`ChatRoomMembershipPanel`은 모든 ACTIVE membership에 profile 목록을 제공하고, LEFT/BANNED 조회와
-관리 mutation 및 `ChatRoomSettingsControl`은 활성 OWNER에게만 제공한다. 이 control은 설정 Dialog, 부분 patch 계산,
+`ChatRoomMembershipPanel`은 `useChatRoomMembershipPanel`이 조립한 controller를
+`ChatRoomMembershipPanelView`에 전달하는 얇은 container다. controller hook은 Membership Query,
+관리 mutation, 멱등성 key·재시도, 완료 라우팅을 소유하며 View에는 정규화된 목록 상태,
+사용자 문구와 callback만 제공한다. View는 모든 ACTIVE membership에 profile 목록을 제공하고,
+LEFT/BANNED 조회와 관리 control은 활성 OWNER에게만 표시한다. `ChatRoomSettingsControl`은 설정 Dialog, 부분 patch 계산,
 update-settings mutation과 같은 멱등성 key 재시도를 소유한다.
 
 ## App Router special UI
@@ -235,6 +239,7 @@ flowchart TD
     ChatRoomMessageSearchDialog["ChatRoomMessageSearchDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-message-search-dialog.tsx"]
     ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat-room-membership-panel.tsx"]
+    ChatRoomMembershipPanelView["ChatRoomMembershipPanelView [Client] [View]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [Feature] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client] [Feature]<br/>apps/web/components/chat-room-session-controls.tsx"]
@@ -284,8 +289,9 @@ flowchart TD
     ChatRoomScreen -->|"isolated Room message search and context windows"| ChatRoomMessageSearchDialog
     ChatRoomScreen -->|"room info disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
-    ChatRoomMembershipPanel --> ChatRoomCategoryBadges
-    ChatRoomMembershipPanel -->|"active OWNER only"| ChatRoomSettingsControl
+    ChatRoomMembershipPanel --> ChatRoomMembershipPanelView
+    ChatRoomMembershipPanelView --> ChatRoomCategoryBadges
+    ChatRoomMembershipPanelView -->|"active OWNER only"| ChatRoomSettingsControl
     ChatRoomSettingsControl -->|"conditional settings dialog"| ChatRoomCategorySelector
 
     SpecialBoundary -. "loading state" .-> Loading

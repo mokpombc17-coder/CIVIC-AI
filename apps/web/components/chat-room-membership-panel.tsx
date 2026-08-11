@@ -1,29 +1,22 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomParticipantProfile } from "@/components/chat-room-participant-profile";
 import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
-import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
-import { resolveRoomMembershipListPolicy } from "@/lib/chat/chat-room-membership-list-policy";
-import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
+import {
+  useChatRoomMembershipPanel,
+  type ChatRoomMemberCommandKind,
+  type ChatRoomMembershipPanelController,
+  type ChatRoomMembershipPendingCommand,
+  type ChatRoomOwnerManagedMembershipStatus,
+} from "@/components/use-chat-room-membership-panel";
 import type {
   MembershipStatus,
   RoomDetails,
   RoomMembership,
   RoomMembershipListItem,
-  TargetMembershipRequest,
 } from "@/lib/chat/chat-room-contracts";
-import {
-  useBanRoomMemberMutation,
-  useCloseRoomMutation,
-  useLeaveRoomMutation,
-  useTransferRoomOwnershipMutation,
-  useUnbanRoomMemberMutation,
-} from "@/lib/chat/chat-room-mutations";
-import { useMyRoomMembershipQuery, useRoomMembershipsQuery } from "@/lib/chat/chat-room-queries";
-import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   dateStyle: "medium",
@@ -37,36 +30,6 @@ const MEMBERSHIP_STATUS_LABEL: Record<MembershipStatus, string> = {
   BANNED: "차단됨",
 };
 
-type RoomManagementCommand =
-  | Readonly<{
-      kind: "leave" | "close";
-      command: IdempotentCommand<undefined>;
-    }>
-  | Readonly<{
-      kind: "transfer" | "ban" | "unban";
-      command: IdempotentCommand<TargetMembershipRequest>;
-      targetMembershipId: string;
-    }>;
-
-type RoomManagementCommandKind = RoomManagementCommand["kind"];
-type OwnerManagedMembershipStatus = Extract<MembershipStatus, "LEFT" | "BANNED">;
-
-const COMMAND_LABEL: Record<RoomManagementCommandKind, string> = {
-  leave: "방 나가기",
-  close: "방 종료",
-  transfer: "방장 위임",
-  ban: "멤버 차단",
-  unban: "차단 해제",
-};
-
-const COMMAND_SUCCESS_MESSAGE: Record<RoomManagementCommandKind, string> = {
-  leave: "채팅방에서 나갔습니다.",
-  close: "채팅방을 종료했습니다.",
-  transfer: "방장을 위임했습니다.",
-  ban: "멤버를 차단했습니다.",
-  unban: "멤버의 차단을 해제했습니다.",
-};
-
 export function ChatRoomMembershipPanel({
   headerAction,
   headingId,
@@ -78,128 +41,38 @@ export function ChatRoomMembershipPanel({
   room: RoomDetails;
   roomId: string;
 }) {
-  const router = useRouter();
-  const [ownerManagedStatus, setOwnerManagedStatus] =
-    useState<OwnerManagedMembershipStatus>("LEFT");
-  const [pendingCommand, setPendingCommand] = useState<RoomManagementCommand | null>(null);
-  const [failedCommand, setFailedCommand] = useState<RoomManagementCommand | null>(null);
-  const [commandError, setCommandError] = useState<unknown>(null);
-  const [commandSuccess, setCommandSuccess] = useState<string | null>(null);
-  const membershipQuery = useMyRoomMembershipQuery(roomId, {
-    enabled: room.myMembership !== null,
-  });
-  const membership = membershipQuery.data ?? room.myMembership;
-  const membershipListPolicy = resolveRoomMembershipListPolicy(room, membership, "ACTIVE");
-  const isOwner = membershipListPolicy.isOwner;
-  const activeMembershipsQuery = useRoomMembershipsQuery(roomId, {
-    enabled: membershipListPolicy.enabled,
-    limit: ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT,
-    status: "ACTIVE",
-  });
-  const ownerManagedMembershipsQuery = useRoomMembershipsQuery(roomId, {
-    enabled: isOwner,
-    status: ownerManagedStatus,
-  });
-  const leaveRoom = useLeaveRoomMutation();
-  const transferOwnership = useTransferRoomOwnershipMutation();
-  const banMember = useBanRoomMemberMutation();
-  const unbanMember = useUnbanRoomMemberMutation();
-  const closeRoom = useCloseRoomMutation();
+  const controller = useChatRoomMembershipPanel(room, roomId);
 
-  async function execute(command: RoomManagementCommand): Promise<void> {
-    setPendingCommand(command);
-    setFailedCommand(null);
-    setCommandError(null);
-    setCommandSuccess(null);
+  return (
+    <ChatRoomMembershipPanelView
+      controller={controller}
+      {...(headerAction === undefined ? {} : { headerAction })}
+      {...(headingId === undefined ? {} : { headingId })}
+      room={room}
+    />
+  );
+}
 
-    try {
-      switch (command.kind) {
-        case "leave":
-          await leaveRoom.mutateAsync({
-            roomId,
-            command: command.command,
-          });
-          break;
-        case "close":
-          await closeRoom.mutateAsync({
-            roomId,
-            command: command.command,
-          });
-          break;
-        case "transfer":
-          await transferOwnership.mutateAsync({
-            roomId,
-            command: command.command,
-          });
-          break;
-        case "ban":
-          await banMember.mutateAsync({
-            roomId,
-            command: command.command,
-          });
-          break;
-        case "unban":
-          await unbanMember.mutateAsync({
-            roomId,
-            command: command.command,
-          });
-          break;
-      }
-
-      setCommandSuccess(COMMAND_SUCCESS_MESSAGE[command.kind]);
-
-      if (command.kind === "leave" || command.kind === "close") {
-        router.push("/chat");
-      }
-    } catch (error) {
-      setFailedCommand(command);
-      setCommandError(error);
-    } finally {
-      setPendingCommand(null);
-    }
-  }
-
-  function startRoomCommand(kind: "leave" | "close") {
-    const prompt =
-      kind === "leave"
-        ? "이 채팅방에서 나갈까요?"
-        : "채팅방을 종료할까요? 종료한 방은 다시 활성화할 수 없습니다.";
-
-    if (!window.confirm(prompt)) {
-      return;
-    }
-
-    void execute({
-      kind,
-      command: createIdempotentCommand(undefined),
-    });
-  }
-
-  function startMemberCommand(
-    kind: "transfer" | "ban" | "unban",
-    targetMembershipId: string,
-    targetLabel: string,
-  ) {
-    const prompt =
-      kind === "transfer"
-        ? `${targetLabel}에게 방장을 위임할까요?`
-        : kind === "ban"
-          ? `${targetLabel}를 이 방에서 차단할까요?`
-          : `${targetLabel}의 차단을 해제할까요?`;
-
-    if (!window.confirm(prompt)) {
-      return;
-    }
-
-    void execute({
-      kind,
-      targetMembershipId,
-      command: createIdempotentCommand({ targetMembershipId }),
-    });
-  }
-
-  const retryCommand = selectRetryableChatCommand(failedCommand, commandError);
-  const isCommandPending = pendingCommand !== null;
+export function ChatRoomMembershipPanelView({
+  controller,
+  headerAction,
+  headingId,
+  room,
+}: {
+  controller: ChatRoomMembershipPanelController;
+  headerAction?: ReactNode;
+  headingId?: string;
+  room: RoomDetails;
+}) {
+  const {
+    activeMemberships,
+    command,
+    isActiveMembershipListEnabled,
+    isOwner,
+    ownerManagedMemberships,
+    roomActionKind,
+    selfMembership,
+  } = controller;
 
   return (
     <section className="panel">
@@ -218,54 +91,50 @@ export function ChatRoomMembershipPanel({
       <div className="grid gap-4 lg:grid-cols-2">
         <RoomDetailsCard room={room} />
         <MyMembershipCard
-          error={membershipQuery.error}
-          isError={membershipQuery.isError}
-          isFetching={membershipQuery.isFetching}
-          membership={membership}
-          onRetry={() => void membershipQuery.refetch()}
+          errorMessage={selfMembership.errorMessage}
+          isError={selfMembership.isError}
+          isFetching={selfMembership.isFetching}
+          membership={selfMembership.membership}
+          onRetry={selfMembership.retry}
         />
       </div>
 
-      {room.status === "ACTIVE" && membership?.status === "ACTIVE" ? (
+      {roomActionKind ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          {membership.role === "MEMBER" ? (
+          {roomActionKind === "leave" ? (
             <button
               className="secondary-button"
-              disabled={isCommandPending}
-              onClick={() => startRoomCommand("leave")}
+              disabled={command.isPending}
+              onClick={() => command.startRoom("leave")}
               type="button"
             >
-              {pendingCommand?.kind === "leave" ? "나가는 중…" : "방 나가기"}
+              {command.pending?.kind === "leave" ? "나가는 중…" : "방 나가기"}
             </button>
           ) : (
             <button
               className="secondary-button border-red-300 text-red-700"
-              disabled={isCommandPending}
-              onClick={() => startRoomCommand("close")}
+              disabled={command.isPending}
+              onClick={() => command.startRoom("close")}
               type="button"
             >
-              {pendingCommand?.kind === "close" ? "종료 중…" : "방 종료"}
+              {command.pending?.kind === "close" ? "종료 중…" : "방 종료"}
             </button>
           )}
         </div>
       ) : null}
 
-      {commandError ? (
+      {command.error ? (
         <div
           className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
           role="alert"
         >
-          <p className="text-sm font-semibold">
-            {failedCommand
-              ? `${COMMAND_LABEL[failedCommand.kind]}에 실패했습니다.`
-              : "요청에 실패했습니다."}
-          </p>
-          <p className="mt-1 text-xs opacity-80">{toErrorMessage(commandError)}</p>
-          {retryCommand ? (
+          <p className="text-sm font-semibold">{command.error.title}</p>
+          <p className="mt-1 text-xs opacity-80">{command.error.message}</p>
+          {command.error.canRetry ? (
             <button
               className="secondary-button mt-3"
-              disabled={isCommandPending}
-              onClick={() => void execute(retryCommand)}
+              disabled={command.isPending}
+              onClick={command.retry}
               type="button"
             >
               같은 요청으로 다시 시도
@@ -274,49 +143,49 @@ export function ChatRoomMembershipPanel({
         </div>
       ) : null}
 
-      {commandSuccess ? (
+      {command.successMessage ? (
         <p
           className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
           role="status"
         >
-          {commandSuccess}
+          {command.successMessage}
         </p>
       ) : null}
 
-      {membershipListPolicy.enabled ? (
+      {isActiveMembershipListEnabled ? (
         <ActiveMembershipList
-          error={activeMembershipsQuery.error}
-          hasNextPage={activeMembershipsQuery.hasNextPage}
-          isCommandPending={isCommandPending}
-          isError={activeMembershipsQuery.isError}
-          isFetchingNextPage={activeMembershipsQuery.isFetchingNextPage}
+          errorMessage={activeMemberships.errorMessage}
+          hasNextPage={activeMemberships.hasNextPage}
+          isCommandPending={command.isPending}
+          isError={activeMemberships.isError}
+          isFetchingNextPage={activeMemberships.isFetchingNextPage}
           isOwner={isOwner}
-          isPending={activeMembershipsQuery.isPending}
-          memberships={activeMembershipsQuery.memberships}
-          onFetchNextPage={() => void activeMembershipsQuery.fetchNextPage()}
-          onMemberCommand={startMemberCommand}
-          onRetry={() => void activeMembershipsQuery.refetch()}
-          pendingCommand={pendingCommand}
-          selfMembershipId={membership?.membershipId ?? null}
+          isPending={activeMemberships.isPending}
+          memberships={activeMemberships.memberships}
+          onFetchNextPage={activeMemberships.fetchNextPage}
+          onMemberCommand={command.startMember}
+          onRetry={activeMemberships.retry}
+          pendingCommand={command.pending}
+          selfMembershipId={selfMembership.membership?.membershipId ?? null}
         />
       ) : null}
 
       {isOwner ? (
         <OwnerMembershipManagement
-          error={ownerManagedMembershipsQuery.error}
-          hasNextPage={ownerManagedMembershipsQuery.hasNextPage}
-          isCommandPending={isCommandPending}
-          isError={ownerManagedMembershipsQuery.isError}
-          isFetchingNextPage={ownerManagedMembershipsQuery.isFetchingNextPage}
-          isPending={ownerManagedMembershipsQuery.isPending}
-          memberships={ownerManagedMembershipsQuery.memberships}
-          onFetchNextPage={() => void ownerManagedMembershipsQuery.fetchNextPage()}
-          onMemberCommand={startMemberCommand}
-          onRetry={() => void ownerManagedMembershipsQuery.refetch()}
-          onStatusChange={setOwnerManagedStatus}
-          pendingCommand={pendingCommand}
-          selfMembershipId={membership?.membershipId ?? null}
-          status={ownerManagedStatus}
+          errorMessage={ownerManagedMemberships.errorMessage}
+          hasNextPage={ownerManagedMemberships.hasNextPage}
+          isCommandPending={command.isPending}
+          isError={ownerManagedMemberships.isError}
+          isFetchingNextPage={ownerManagedMemberships.isFetchingNextPage}
+          isPending={ownerManagedMemberships.isPending}
+          memberships={ownerManagedMemberships.memberships}
+          onFetchNextPage={ownerManagedMemberships.fetchNextPage}
+          onMemberCommand={command.startMember}
+          onRetry={ownerManagedMemberships.retry}
+          onStatusChange={ownerManagedMemberships.setStatus}
+          pendingCommand={command.pending}
+          selfMembershipId={selfMembership.membership?.membershipId ?? null}
+          status={ownerManagedMemberships.status}
         />
       ) : null}
     </section>
@@ -352,13 +221,13 @@ function RoomDetailsCard({ room }: { room: RoomDetails }) {
 }
 
 function MyMembershipCard({
-  error,
+  errorMessage,
   isError,
   isFetching,
   membership,
   onRetry,
 }: {
-  error: unknown;
+  errorMessage: string | null;
   isError: boolean;
   isFetching: boolean;
   membership: RoomMembership | null;
@@ -373,7 +242,7 @@ function MyMembershipCard({
 
       {isError ? (
         <div className="mt-3 text-red-700" role="alert">
-          <p className="text-xs">{toErrorMessage(error)}</p>
+          <p className="text-xs">{errorMessage}</p>
           <button className="secondary-button mt-3" onClick={onRetry} type="button">
             내 멤버십 다시 불러오기
           </button>
@@ -394,7 +263,7 @@ function MyMembershipCard({
 }
 
 function ActiveMembershipList({
-  error,
+  errorMessage,
   hasNextPage,
   isCommandPending,
   isError,
@@ -408,7 +277,7 @@ function ActiveMembershipList({
   pendingCommand,
   selfMembershipId,
 }: {
-  error: unknown;
+  errorMessage: string | null;
   hasNextPage: boolean;
   isCommandPending: boolean;
   isError: boolean;
@@ -418,12 +287,12 @@ function ActiveMembershipList({
   memberships: readonly RoomMembershipListItem[];
   onFetchNextPage: () => void;
   onMemberCommand: (
-    kind: "transfer" | "ban" | "unban",
+    kind: ChatRoomMemberCommandKind,
     targetMembershipId: string,
     targetLabel: string,
   ) => void;
   onRetry: () => void;
-  pendingCommand: RoomManagementCommand | null;
+  pendingCommand: ChatRoomMembershipPendingCommand | null;
   selfMembershipId: string | null;
 }) {
   return (
@@ -439,7 +308,7 @@ function ActiveMembershipList({
           role="alert"
         >
           <p className="text-sm font-semibold">참여자 목록을 불러오지 못했습니다.</p>
-          <p className="mt-1 text-xs opacity-80">{toErrorMessage(error)}</p>
+          <p className="mt-1 text-xs opacity-80">{errorMessage}</p>
           <button className="secondary-button mt-3" onClick={onRetry} type="button">
             참여자 목록 다시 불러오기
           </button>
@@ -469,7 +338,7 @@ function ActiveMembershipList({
 }
 
 function OwnerMembershipManagement({
-  error,
+  errorMessage,
   hasNextPage,
   isCommandPending,
   isError,
@@ -484,7 +353,7 @@ function OwnerMembershipManagement({
   selfMembershipId,
   status,
 }: {
-  error: unknown;
+  errorMessage: string | null;
   hasNextPage: boolean;
   isCommandPending: boolean;
   isError: boolean;
@@ -493,15 +362,15 @@ function OwnerMembershipManagement({
   memberships: readonly RoomMembershipListItem[];
   onFetchNextPage: () => void;
   onMemberCommand: (
-    kind: "transfer" | "ban" | "unban",
+    kind: ChatRoomMemberCommandKind,
     targetMembershipId: string,
     targetLabel: string,
   ) => void;
   onRetry: () => void;
-  onStatusChange: (status: OwnerManagedMembershipStatus) => void;
-  pendingCommand: RoomManagementCommand | null;
+  onStatusChange: (status: ChatRoomOwnerManagedMembershipStatus) => void;
+  pendingCommand: ChatRoomMembershipPendingCommand | null;
   selfMembershipId: string | null;
-  status: OwnerManagedMembershipStatus;
+  status: ChatRoomOwnerManagedMembershipStatus;
 }) {
   return (
     <div className="mt-6 border-t border-slate-200 pt-5">
@@ -531,7 +400,7 @@ function OwnerMembershipManagement({
           role="alert"
         >
           <p className="text-sm font-semibold">비활성 멤버 목록을 불러오지 못했습니다.</p>
-          <p className="mt-1 text-xs opacity-80">{toErrorMessage(error)}</p>
+          <p className="mt-1 text-xs opacity-80">{errorMessage}</p>
           <button className="secondary-button mt-3" onClick={onRetry} type="button">
             비활성 멤버 목록 다시 불러오기
           </button>
@@ -572,11 +441,11 @@ function MembershipRows({
   isCommandPending: boolean;
   memberships: readonly RoomMembershipListItem[];
   onMemberCommand: (
-    kind: "transfer" | "ban" | "unban",
+    kind: ChatRoomMemberCommandKind,
     targetMembershipId: string,
     targetLabel: string,
   ) => void;
-  pendingCommand: RoomManagementCommand | null;
+  pendingCommand: ChatRoomMembershipPendingCommand | null;
   selfMembershipId: string | null;
 }) {
   return (
@@ -677,8 +546,8 @@ function MembershipNotice({ message }: { message: string }) {
 }
 
 function isPendingForMember(
-  command: RoomManagementCommand | null,
-  kind: "transfer" | "ban" | "unban",
+  command: ChatRoomMembershipPendingCommand | null,
+  kind: ChatRoomMemberCommandKind,
   targetMembershipId: string,
 ): boolean {
   return command?.kind === kind && command.targetMembershipId === targetMembershipId;
@@ -687,8 +556,4 @@ function isPendingForMember(
 function formatDateTime(value: string): string {
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp) ? value : DATE_TIME_FORMATTER.format(timestamp);
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
 }

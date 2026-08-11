@@ -7,7 +7,8 @@ import type {
   RoomMembershipListItem,
 } from "@/lib/chat/chat-room-contracts";
 import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
-import { ChatRoomMembershipPanel } from "./chat-room-membership-panel";
+import { ChatRoomMembershipPanel, ChatRoomMembershipPanelView } from "./chat-room-membership-panel";
+import type { ChatRoomMembershipPanelController } from "./use-chat-room-membership-panel";
 
 const mocks = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
@@ -126,6 +127,24 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain('aria-label="비활성 멤버 상태 필터"');
     expect(html).not.toContain('aria-label="멤버 상태 필터"');
   });
+
+  it("View는 Query나 mutation hook 없이 controller 상태만 렌더링한다", () => {
+    const membership = createMembership();
+    const room = createRoomDetails({ myMembership: membership });
+    const controller = createMembershipPanelController(membership, [
+      createMembershipListItem({ membershipId: membership.membershipId }),
+    ]);
+
+    const html = renderToStaticMarkup(
+      <ChatRoomMembershipPanelView controller={controller} room={room} />,
+    );
+
+    expect(html).toContain("참여자 목록");
+    expect(html).toContain("참여자 2");
+    expect(mocks.useMyRoomMembershipQuery).not.toHaveBeenCalled();
+    expect(mocks.useRoomMembershipsQuery).not.toHaveBeenCalled();
+    expect(mocks.mutateAsync).not.toHaveBeenCalled();
+  });
 });
 
 function prepareQueries(
@@ -206,5 +225,52 @@ function createMembershipListItem(
     bannedAt: null,
     version: 1,
     ...patch,
+  };
+}
+
+function createMembershipPanelController(
+  membership: RoomMembership,
+  activeMemberships: readonly RoomMembershipListItem[],
+): ChatRoomMembershipPanelController {
+  const emptyList = {
+    errorMessage: null,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isError: false,
+    isFetchingNextPage: false,
+    isPending: false,
+    memberships: [],
+    retry: vi.fn(),
+  } as const;
+
+  return {
+    activeMemberships: {
+      ...emptyList,
+      memberships: activeMemberships,
+    },
+    command: {
+      error: null,
+      isPending: false,
+      pending: null,
+      retry: vi.fn(),
+      startMember: vi.fn(),
+      startRoom: vi.fn(),
+      successMessage: null,
+    },
+    isActiveMembershipListEnabled: true,
+    isOwner: false,
+    ownerManagedMemberships: {
+      ...emptyList,
+      setStatus: vi.fn(),
+      status: "LEFT",
+    },
+    roomActionKind: "leave",
+    selfMembership: {
+      errorMessage: null,
+      isError: false,
+      isFetching: false,
+      membership,
+      retry: vi.fn(),
+    },
   };
 }
