@@ -98,6 +98,35 @@ public class AuthenticationFlowService {
         sessions.revokeAll(userId, "PASSWORD_CHANGED");
     }
 
+    @Transactional(readOnly = true)
+    public void confirmPassword(UUID userId, String password) {
+        var encoded = jdbc.queryForObject(
+                "select password_hash from credentials where user_id = ?", String.class, userId);
+        if (!safeMatches(password, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
+    }
+
+    @Transactional
+    public UUID requestTwoFactorEnable(UUID userId, String email) {
+        return createChallenge(userId, normalize(email), "TWO_FACTOR_ENABLE");
+    }
+
+    @Transactional
+    public void enableTwoFactor(UUID userId, UUID flowId, String code) {
+        var verified = consumeChallenge(flowId, "TWO_FACTOR_ENABLE", code);
+        if (!userId.equals(verified.userId())) throw new AuthenticationException("Authentication flow subject mismatch");
+        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
+    }
+
+    @Transactional
+    public void disableTwoFactor(UUID userId, String password) {
+        confirmPassword(userId, password);
+        jdbc.update("""
+                update credentials set two_factor_enabled = false,
+                    two_factor_secret_ciphertext = null where user_id = ?
+                """, userId);
+        sessions.revokeAll(userId, "TWO_FACTOR_DISABLED");
+    }
+
     @Transactional
     public UUID requestPasswordReset(String email) {
         return requestAccountChallenge(email, "ACTIVE", "PASSWORD_RESET");

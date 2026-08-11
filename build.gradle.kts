@@ -27,6 +27,7 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.bouncycastle:bcprov-jdk18on:1.81")
+    implementation("com.nimbusds:nimbus-jose-jwt:10.5")
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")

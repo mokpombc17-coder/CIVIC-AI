@@ -4,6 +4,8 @@ import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.signup.SignupConflictException;
 import ai.civic.mainauth.signup.SignupValidationException;
+import ai.civic.mainauth.admin.AdminPolicyException;
+import ai.civic.mainauth.admin.AdminVersionConflictException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -25,6 +27,26 @@ public class ApiExceptionHandler {
     @ExceptionHandler(SignupConflictException.class)
     ProblemDetail conflict(SignupConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Request conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(AdminPolicyException.class)
+    ProblemDetail forbidden(AdminPolicyException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Operation forbidden", exception.getMessage());
+    }
+
+    @ExceptionHandler(AdminVersionConflictException.class)
+    ProblemDetail versionConflict(AdminVersionConflictException exception) {
+        return problem(HttpStatus.CONFLICT, "Version conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    ProblemDetail internalClientRejected(SecurityException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Operation forbidden", "Internal request authentication failed");
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ProblemDetail invalidArgument(IllegalArgumentException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Request rejected", exception.getMessage());
     }
 
     private ProblemDetail problem(HttpStatus status, String title, String detail) {
