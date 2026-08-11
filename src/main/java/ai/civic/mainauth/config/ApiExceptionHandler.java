@@ -2,15 +2,19 @@ package ai.civic.mainauth.config;
 
 import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
+import ai.civic.mainauth.auth.RateLimitExceededException;
 import ai.civic.mainauth.signup.SignupConflictException;
 import ai.civic.mainauth.signup.SignupValidationException;
 import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.admin.AdminVersionConflictException;
+import ai.civic.mainauth.feature.FeatureGateDisabledException;
+import ai.civic.mainauth.notification.NotificationDeliveryException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MissingRequestCookieException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -22,6 +26,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     ProblemDetail unauthorized(AuthenticationException exception) {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", exception.getMessage());
+    }
+
+    @ExceptionHandler(MissingRequestCookieException.class)
+    ProblemDetail missingSessionOrFlowCookie(MissingRequestCookieException exception) {
+        return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", "Authentication cookie is missing");
     }
 
     @ExceptionHandler(SignupConflictException.class)
@@ -37,6 +46,21 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AdminVersionConflictException.class)
     ProblemDetail versionConflict(AdminVersionConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Version conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(FeatureGateDisabledException.class)
+    ProblemDetail unavailable(FeatureGateDisabledException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Feature unavailable", exception.getMessage());
+    }
+
+    @ExceptionHandler(NotificationDeliveryException.class)
+    ProblemDetail notificationUnavailable(NotificationDeliveryException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Notification unavailable", exception.getMessage());
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    ProblemDetail rateLimited(RateLimitExceededException exception) {
+        return problem(HttpStatus.TOO_MANY_REQUESTS, "Request rate limited", exception.getMessage());
     }
 
     @ExceptionHandler(SecurityException.class)

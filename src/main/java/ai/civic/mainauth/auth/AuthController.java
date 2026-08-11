@@ -23,24 +23,32 @@ public class AuthController {
     private final SessionCookieFactory cookies;
     private final CsrfService csrf;
     private final BrowserRequestPolicy browserPolicy;
+    private final TrustedClientAddressResolver clientAddresses;
+    private final PreSessionRateLimitService preSessionRateLimits;
 
     public AuthController(
             AuthenticationFlowService authentication,
             SessionService sessions,
             SessionCookieFactory cookies,
             CsrfService csrf,
-            BrowserRequestPolicy browserPolicy) {
+            BrowserRequestPolicy browserPolicy,
+            TrustedClientAddressResolver clientAddresses,
+            PreSessionRateLimitService preSessionRateLimits) {
         this.authentication = authentication;
         this.sessions = sessions;
         this.cookies = cookies;
         this.csrf = csrf;
         this.browserPolicy = browserPolicy;
+        this.clientAddresses = clientAddresses;
+        this.preSessionRateLimits = preSessionRateLimits;
     }
 
     @PostMapping("/login")
     ResponseEntity<?> login(@RequestBody LoginBody body, HttpServletRequest request) {
         requirePreSession(request);
-        var result = authentication.login(body.email(), body.password(), request.getRemoteAddr());
+        rateLimit(request, body.email());
+        var result = authentication.login(
+                body.email(), body.password(), clientAddresses.resolve(request));
         if (result.next() == AuthenticationFlowService.Next.TWO_FACTOR) {
             return ResponseEntity.accepted()
                     .header(HttpHeaders.SET_COOKIE, cookies.authFlow(result.authFlowId()).toString())
@@ -57,6 +65,7 @@ public class AuthController {
             @RequestBody CodeBody body,
             HttpServletRequest request) {
         requirePreSession(request);
+        rateLimit(request, flow);
         var result = authentication.verifyTwoFactor(UUID.fromString(flow), body.code());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.authenticated(result.sessionId(), result.role()).toString())
@@ -69,6 +78,7 @@ public class AuthController {
             @CookieValue(SessionCookieFactory.AUTH_FLOW_COOKIE) String flow,
             HttpServletRequest request) {
         requirePreSession(request);
+        rateLimit(request, flow);
         authentication.resend(UUID.fromString(flow), "TWO_FACTOR");
         return ResponseEntity.accepted().build();
     }
@@ -119,6 +129,7 @@ public class AuthController {
     @PostMapping("/password-reset/request")
     ResponseEntity<Void> requestPasswordReset(@RequestBody EmailBody body, HttpServletRequest request) {
         requirePreSession(request);
+        rateLimit(request, body.email());
         var flow = authentication.requestPasswordReset(body.email());
         return ResponseEntity.accepted()
                 .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString()).build();
@@ -130,6 +141,7 @@ public class AuthController {
             @RequestBody ResetBody body,
             HttpServletRequest request) {
         requirePreSession(request);
+        rateLimit(request, flow);
         authentication.completePasswordReset(UUID.fromString(flow), body.code(), body.newPassword());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString())
@@ -139,6 +151,7 @@ public class AuthController {
     @PostMapping("/reactivation/request")
     ResponseEntity<Void> requestReactivation(@RequestBody ReactivationBody body, HttpServletRequest request) {
         requirePreSession(request);
+        rateLimit(request, body.email());
         var flow = authentication.requestReactivation(body.email(), body.password());
         return ResponseEntity.accepted()
                 .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString()).build();
@@ -150,6 +163,7 @@ public class AuthController {
             @RequestBody CodeBody body,
             HttpServletRequest request) {
         requirePreSession(request);
+        rateLimit(request, flow);
         authentication.completeReactivation(UUID.fromString(flow), body.code());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
@@ -163,6 +177,10 @@ public class AuthController {
         sessions.require(sessionId);
         if (!csrf.matches(sessionId, csrfToken)) throw new BrowserRequestRejectedException("CSRF token is invalid");
         browserPolicy.requireAuthenticatedMutation(metadata(request), csrfToken, csrfToken);
+    }
+
+    private void rateLimit(HttpServletRequest request, String identity) {
+        preSessionRateLimits.checkAndRecord(identity, clientAddresses.resolve(request));
     }
 
     private BrowserRequestPolicy.RequestMetadata metadata(HttpServletRequest request) {

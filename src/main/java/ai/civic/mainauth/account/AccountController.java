@@ -31,6 +31,7 @@ public class AccountController {
     private final AccountProfileService profiles;
     private final AuthenticationFlowService authentication;
     private final AccountLifecycleService lifecycle;
+    private final SessionCookieFactory cookies;
 
     public AccountController(
             SessionService sessions,
@@ -38,13 +39,15 @@ public class AccountController {
             BrowserRequestPolicy browser,
             AccountProfileService profiles,
             AuthenticationFlowService authentication,
-            AccountLifecycleService lifecycle) {
+            AccountLifecycleService lifecycle,
+            SessionCookieFactory cookies) {
         this.sessions = sessions;
         this.csrf = csrf;
         this.browser = browser;
         this.profiles = profiles;
         this.authentication = authentication;
         this.lifecycle = lifecycle;
+        this.cookies = cookies;
     }
 
     @GetMapping("/profile")
@@ -89,12 +92,12 @@ public class AccountController {
             var profile = profiles.get(session);
             var flow = authentication.requestTwoFactorEnable(session.userId(), profile.email());
             return ResponseEntity.accepted()
-                    .header(HttpHeaders.SET_COOKIE,
-                            new ai.civic.mainauth.auth.SessionCookieFactory().authFlow(flow.toString()).toString())
+                    .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString())
                     .body(Map.of("next", "EMAIL_CODE"));
         }
         authentication.enableTwoFactor(session.userId(), UUID.fromString(authFlow), body.code());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
     }
 
     @PostMapping("/2fa/disable")
@@ -117,7 +120,9 @@ public class AccountController {
         var session = requireMutation(sessionId, csrfToken, request);
         authentication.confirmPassword(session.userId(), body.password());
         lifecycle.deactivateSelf(session.userId(), session.userId());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
     }
 
     private SessionService.SessionView requireMutation(

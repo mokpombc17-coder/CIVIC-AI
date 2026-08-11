@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import ai.civic.mainauth.account.AccountLifecycleService;
+import ai.civic.mainauth.auth.AuthenticationException;
+import ai.civic.mainauth.auth.SessionService;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +20,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Autowired AdminRoleService roles;
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountLifecycleService lifecycle;
+    @Autowired SessionService sessions;
     UUID bootstrapId;
 
     @BeforeEach
@@ -54,6 +57,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
 
         roles.replaceRoles(
                 bootstrapId, second, 0, Set.of("HIGHEST_ADMIN", "RAG_ADMIN"), "RAG 운영 담당 지정", false);
+        var staleRoleSession = sessions.issue(second, SessionService.SessionRole.RAG_ADMIN).sessionId();
         assertThat(roles.rolesOf(second)).containsExactlyInAnyOrder("HIGHEST_ADMIN", "RAG_ADMIN");
         var audit = jdbc.queryForObject(
                 "select payload::text from audit_outbox where subject_user_id = ? order by created_at desc limit 1",
@@ -68,6 +72,8 @@ class AdminPolicyTest extends PostgresIntegrationTest {
         roles.replaceRoles(
                 bootstrapId, second, 1, Set.of("HIGHEST_ADMIN"), "RAG 운영 권한 회수", true);
         assertThat(roles.rolesOf(second)).containsExactly("HIGHEST_ADMIN");
+        assertThatThrownBy(() -> sessions.require(staleRoleSession))
+                .isInstanceOf(AuthenticationException.class);
         assertThatThrownBy(() -> roles.replaceRoles(second, second, 2, Set.of("RAG_ADMIN"), "자기 권한 회수", true))
                 .isInstanceOf(AdminPolicyException.class);
     }

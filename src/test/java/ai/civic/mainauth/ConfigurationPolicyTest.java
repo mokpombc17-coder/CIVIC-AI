@@ -21,7 +21,8 @@ class ConfigurationPolicyTest {
                 "CIVIC_REDIS_URL",
                 "CIVIC_ES256_KEY_DIRECTORY",
                 "CIVIC_SMTP_HOST",
-                "CIVIC_ISSUER");
+                "CIVIC_ISSUER",
+                "production-secrets-required: true");
         assertThat(production).doesNotContain(
                 "CIVIC_DB_PASSWORD",
                 "CIVIC_SESSION_HMAC_SECRET",

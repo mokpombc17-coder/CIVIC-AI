@@ -1,6 +1,7 @@
 package ai.civic.mainauth.signup;
 
 import ai.civic.mainauth.consent.ConsentEvidenceService;
+import ai.civic.mainauth.feature.RuntimeFeatureGateService;
 import ai.civic.mainauth.notification.VerificationCodeProtector;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +38,7 @@ public class SignupFlowService {
     private final ObjectMapper json;
     private final ConsentEvidenceService consent;
     private final VerificationCodeProtector codeProtector;
+    private final RuntimeFeatureGateService featureGates;
     private final Clock clock;
     private final Argon2PasswordEncoder passwordEncoder = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
 
@@ -45,8 +47,9 @@ public class SignupFlowService {
             JdbcTemplate jdbc,
             ObjectMapper json,
             ConsentEvidenceService consent,
-            VerificationCodeProtector codeProtector) {
-        this(jdbc, json, consent, codeProtector, Clock.systemUTC());
+            VerificationCodeProtector codeProtector,
+            RuntimeFeatureGateService featureGates) {
+        this(jdbc, json, consent, codeProtector, featureGates, Clock.systemUTC());
     }
 
     SignupFlowService(
@@ -54,16 +57,19 @@ public class SignupFlowService {
             ObjectMapper json,
             ConsentEvidenceService consent,
             VerificationCodeProtector codeProtector,
+            RuntimeFeatureGateService featureGates,
             Clock clock) {
         this.jdbc = jdbc;
         this.json = json;
         this.consent = consent;
         this.codeProtector = codeProtector;
+        this.featureGates = featureGates;
         this.clock = clock;
     }
 
     @Transactional
     public SignupFlowView startSignup(String email) {
+        featureGates.requireEnabled("PUBLIC_SIGNUP_ENABLED");
         var normalized = normalizeAndValidateEmail(email);
         var schema = jdbc.queryForMap("""
                 select id, version from questionnaire_schemas
@@ -71,17 +77,24 @@ public class SignupFlowService {
                 """);
         var documents = jdbc.query(
                 """
-                select document_id, document_version from legal_documents
+                select document_id, document_version, body_sha256, path from legal_documents
                 where active_for_new_signup order by document_id
                 """,
                 rs -> {
-                    var result = new java.util.LinkedHashMap<String, String>();
-                    while (rs.next()) result.put(rs.getString(1), rs.getString(2));
+                    var result = new java.util.LinkedHashMap<String, SignupDocumentView>();
+                    while (rs.next()) {
+                        var document = new SignupDocumentView(
+                                rs.getString("document_id"), rs.getString("document_version"),
+                                rs.getString("body_sha256"), rs.getString("path"));
+                        result.put(document.documentId(), document);
+                    }
                     return result;
                 });
         if (!documents.keySet().equals(java.util.Set.of("TERMS", "ACCOUNT_RAG_PRIVACY"))) {
             throw new IllegalStateException("Exactly the required signup documents must be active");
         }
+        var documentVersions = new java.util.LinkedHashMap<String, String>();
+        documents.forEach((id, document) -> documentVersions.put(id, document.documentVersion()));
         var id = UUID.randomUUID();
         var expiry = clock.instant().plus(10, ChronoUnit.MINUTES);
         jdbc.update("""
@@ -89,9 +102,9 @@ public class SignupFlowService {
                     id, email, normalized_email, questionnaire_schema_id, document_versions, expires_at
                 ) values (?, ?, ?, ?, ?::jsonb, ?)
                 """,
-                id, normalized, normalized, schema.get("id"), writeJson(documents), Timestamp.from(expiry));
+                id, normalized, normalized, schema.get("id"), writeJson(documentVersions), Timestamp.from(expiry));
         return new SignupFlowView(
-                id, expiry, schema.get("version").toString(), documents,
+                id, expiry, schema.get("version").toString(), documentVersions, documents,
                 List.of("TERMS", "ACCOUNT_RAG_PRIVACY"),
                 Map.of("TERMS", false, "ACCOUNT_RAG_PRIVACY", false));
     }
@@ -105,6 +118,7 @@ public class SignupFlowService {
     @Transactional
     public CompletionResult completeSignup(UUID flowId, CompletionRequest request) {
         if (request == null) throw new SignupValidationException("Completion body is required");
+        featureGates.requireEnabledForUpdate("PUBLIC_SIGNUP_ENABLED");
         var flow = loadFlow(flowId, true);
         validateCompletion(flow, request);
 
@@ -293,8 +307,26 @@ public class SignupFlowService {
     private SignupFlowView toView(FlowRow row) {
         return new SignupFlowView(
                 row.id(), row.expiresAt(), Integer.toString(row.schemaVersion()), row.documentVersions(),
+                documentViews(row.documentVersions()),
                 List.of("TERMS", "ACCOUNT_RAG_PRIVACY"),
                 Map.of("TERMS", false, "ACCOUNT_RAG_PRIVACY", false));
+    }
+
+    private Map<String, SignupDocumentView> documentViews(Map<String, String> versions) {
+        var documents = new java.util.LinkedHashMap<String, SignupDocumentView>();
+        versions.forEach((id, version) -> {
+            var document = jdbc.queryForObject("""
+                    select document_id, document_version, body_sha256, path
+                    from legal_documents where document_id = ? and document_version = ?
+                    """, (rs, rowNum) -> new SignupDocumentView(
+                    rs.getString("document_id"), rs.getString("document_version"),
+                    rs.getString("body_sha256"), rs.getString("path")), id, version);
+            if (document == null) {
+                throw new IllegalStateException("Pinned legal document is unavailable");
+            }
+            documents.put(id, document);
+        });
+        return documents;
     }
 
     private String normalizeAndValidateEmail(String email) {
@@ -363,8 +395,12 @@ public class SignupFlowService {
             Instant expiresAt,
             String questionnaireVersion,
             Map<String, String> documentVersions,
+            Map<String, SignupDocumentView> documents,
             List<String> acceptanceControls,
             Map<String, Boolean> initialAcceptanceValues) {}
+
+    public record SignupDocumentView(
+            String documentId, String documentVersion, String bodySha256, String path) {}
 
     public record CompletionResult(String next) {}
 

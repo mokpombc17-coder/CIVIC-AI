@@ -17,6 +17,8 @@ import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ai.civic.mainauth.notification.VerificationCodeProtector;
+import ai.civic.mainauth.notification.SmtpNotificationService;
+import ai.civic.mainauth.notification.NotificationDeliveryException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
@@ -25,6 +27,7 @@ public class AuthenticationFlowService {
     private final JdbcTemplate jdbc;
     private final SessionService sessions;
     private final VerificationCodeProtector codeProtector;
+    private final SmtpNotificationService smtp;
     private final ObjectMapper json;
     private final Clock clock;
     private final Argon2PasswordEncoder passwords = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
@@ -34,31 +37,36 @@ public class AuthenticationFlowService {
             JdbcTemplate jdbc,
             SessionService sessions,
             VerificationCodeProtector codeProtector,
+            SmtpNotificationService smtp,
             ObjectMapper json) {
-        this(jdbc, sessions, codeProtector, json, Clock.systemUTC());
+        this(jdbc, sessions, codeProtector, smtp, json, Clock.systemUTC());
     }
 
     AuthenticationFlowService(
             JdbcTemplate jdbc,
             SessionService sessions,
             VerificationCodeProtector codeProtector,
+            SmtpNotificationService smtp,
             ObjectMapper json,
             Clock clock) {
         this.jdbc = jdbc;
         this.sessions = sessions;
         this.codeProtector = codeProtector;
+        this.smtp = smtp;
         this.json = json;
         this.clock = clock;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = {AuthenticationException.class, NotificationDeliveryException.class})
     public LoginResult login(String email, String password, String sourceIp) {
         var normalized = normalize(email);
+        if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
         var rows = jdbc.query("""
                 select u.id, u.state, c.password_hash, c.two_factor_enabled, c.must_change_password,
                        case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
                          when bool_or(r.code = 'ADMIN') then 'ADMIN'
+                         when bool_or(r.code = 'RAG_OPERATOR') then 'RAG_ADMIN'
                          else 'PARTICIPANT'
                        end as primary_role
                 from users u join credentials c on c.user_id = u.id
@@ -105,7 +113,7 @@ public class AuthenticationFlowService {
         if (!safeMatches(password, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestTwoFactorEnable(UUID userId, String email) {
         return createChallenge(userId, normalize(email), "TWO_FACTOR_ENABLE");
     }
@@ -127,7 +135,7 @@ public class AuthenticationFlowService {
         sessions.revokeAll(userId, "TWO_FACTOR_DISABLED");
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestPasswordReset(String email) {
         return requestAccountChallenge(email, "ACTIVE", "PASSWORD_RESET");
     }
@@ -143,7 +151,7 @@ public class AuthenticationFlowService {
         sessions.revokeAll(verified.userId(), "PASSWORD_RESET");
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestReactivation(String email, String password) {
         var normalized = normalize(email);
         var accounts = jdbc.query("""
@@ -186,7 +194,7 @@ public class AuthenticationFlowService {
         return new LoginResult(Next.SESSION, issued.sessionId(), null, account.role(), account.mustChangePassword());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public void resend(UUID flowId, String purpose) {
         var rows = jdbc.query("""
                 select id, user_id, target_identity, resend_count, last_sent_at,
@@ -279,6 +287,7 @@ public class AuthenticationFlowService {
                        case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
                          when bool_or(r.code = 'ADMIN') then 'ADMIN'
+                         when bool_or(r.code = 'RAG_OPERATOR') then 'RAG_ADMIN'
                          else 'PARTICIPANT'
                        end as primary_role
                 from users u join credentials c on c.user_id = u.id
@@ -298,10 +307,26 @@ public class AuthenticationFlowService {
                     "challenge_id", challengeId.toString(),
                     "protected_code", codeProtector.protect(code),
                     "template", purpose.toLowerCase(Locale.ROOT)));
-            jdbc.update("""
+            var notificationId = jdbc.queryForObject("""
                     insert into notification_outbox(event_type, recipient, payload)
-                    values (?, ?, ?::jsonb)
-                    """, purpose, target, payload);
+                    values (?, ?, ?::jsonb) returning id
+                    """, UUID.class, purpose, target, payload);
+            try {
+                smtp.sendChallenge(target, code, purpose);
+                jdbc.update("""
+                        update notification_outbox set delivered_at = now(), attempt_count = 1
+                        where id = ?
+                        """, notificationId);
+            } catch (RuntimeException deliveryFailure) {
+                jdbc.update("""
+                        update notification_outbox set attempt_count = 1,
+                            last_error_code = 'SMTP_DELIVERY_FAILED'
+                        where id = ?
+                        """, notificationId);
+                throw new NotificationDeliveryException();
+            }
+        } catch (NotificationDeliveryException exception) {
+            throw exception;
         } catch (Exception exception) {
             throw new IllegalStateException("Could not enqueue authentication notification", exception);
         }
@@ -336,6 +361,15 @@ public class AuthenticationFlowService {
                     next_allowed_at = now() + make_interval(secs => least(30, login_throttles.failure_count + 1)),
                     last_failure_at = now()
                 """, sha256(normalizedEmail), sourceIp);
+    }
+
+    private boolean isThrottled(String normalizedEmail, String sourceIp) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                select exists(
+                    select 1 from login_throttles
+                    where identity_hash = ? and source_ip = ?::inet and next_allowed_at > now()
+                )
+                """, Boolean.class, sha256(normalizedEmail), sourceIp));
     }
 
     private void clearFailures(String normalizedEmail, String sourceIp) {

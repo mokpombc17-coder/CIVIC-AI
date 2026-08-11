@@ -52,7 +52,7 @@ class MigrationTest {
                 "users", "credentials", "roles", "user_roles", "questionnaire_schemas",
                 "questionnaire_responses", "consent_evidence", "sessions", "auth_challenges",
                 "notification_outbox", "audit_outbox", "audit_events", "feature_gates",
-                "account_state_outbox");
+                "account_state_outbox", "pre_session_rate_limits");
 
         try (var connection = DriverManager.getConnection(
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -79,6 +79,40 @@ class MigrationTest {
                     assertThat(row.getBoolean("must_change_password")).isTrue();
                     assertThat(row.getString("code")).isEqualTo("SUPER_ADMIN");
                     assertThat(row.next()).isFalse();
+                }
+            }
+
+            try (var initialState = connection.prepareStatement("""
+                    select o.account_state_version, o.state, o.event_payload->>'reason' as reason
+                    from account_state_outbox o
+                    join users u on u.id = o.user_id
+                    where u.normalized_email = 'bootstrap@example.test'
+                    """)) {
+                try (var row = initialState.executeQuery()) {
+                    assertThat(row.next()).isTrue();
+                    assertThat(row.getLong("account_state_version")).isZero();
+                    assertThat(row.getString("state")).isEqualTo("ACTIVE");
+                    assertThat(row.getString("reason")).isEqualTo("ACTIVE_STATE_BACKFILL");
+                    assertThat(row.next()).isFalse();
+                }
+            }
+
+            try (var legalDocuments = connection.prepareStatement("""
+                    select document_id, body_sha256, path
+                    from legal_documents where active_for_new_signup order by document_id
+                    """)) {
+                try (var rows = legalDocuments.executeQuery()) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("document_id")).isEqualTo("ACCOUNT_RAG_PRIVACY");
+                    assertThat(rows.getString("body_sha256"))
+                            .isEqualTo("e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/account-rag-privacy/1");
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("document_id")).isEqualTo("TERMS");
+                    assertThat(rows.getString("body_sha256"))
+                            .isEqualTo("c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/terms/1");
+                    assertThat(rows.next()).isFalse();
                 }
             }
         }

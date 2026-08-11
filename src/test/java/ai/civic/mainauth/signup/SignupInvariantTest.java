@@ -23,6 +23,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void cleanSignupData() {
+        jdbc.update("update feature_gates set enabled = true where gate_key = 'PUBLIC_SIGNUP_ENABLED'");
         jdbc.update("delete from account_state_outbox where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from notification_outbox");
         jdbc.update("delete from auth_challenges");
@@ -35,11 +36,39 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void publicSignupCannotStartWhileTheProductionGateIsDisabled() {
+        jdbc.update("update feature_gates set enabled = false where gate_key = 'PUBLIC_SIGNUP_ENABLED'");
+
+        assertThatThrownBy(() -> service.startSignup("blocked@example.com"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PUBLIC_SIGNUP_ENABLED");
+
+        assertThat(count("signup_flows", "normalized_email = 'blocked@example.com'")).isZero();
+    }
+
+    @Test
+    void disablingTheSignupKillSwitchInvalidatesAnInFlightFlowBeforeAccountCreation() {
+        var flow = service.startSignup("in-flight@example.com");
+        jdbc.update("update feature_gates set enabled = false where gate_key = 'PUBLIC_SIGNUP_ENABLED'");
+
+        assertThatThrownBy(() -> service.completeSignup(
+                flow.flowId(), validRequest("in-flight@example.com", "Valid123!")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PUBLIC_SIGNUP_ENABLED");
+        assertThat(count("users", "normalized_email = 'in-flight@example.com'")).isZero();
+    }
+
+    @Test
     void startingAFlowPinsVersionsAndCreatesNoAccount() {
         var flow = service.startSignup("  Person@Example.COM  ");
 
         assertThat(flow.flowId()).isNotNull();
         assertThat(flow.acceptanceControls()).containsExactly("TERMS", "ACCOUNT_RAG_PRIVACY");
+        assertThat(flow.documents().get("TERMS").documentVersion()).isEqualTo("1");
+        assertThat(flow.documents().get("TERMS").bodySha256())
+                .isEqualTo("c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076");
+        assertThat(flow.documents().get("ACCOUNT_RAG_PRIVACY").path())
+                .isEqualTo("/legal/account-rag-privacy/1");
         assertThat(flow.initialAcceptanceValues()).containsEntry("TERMS", false)
                 .containsEntry("ACCOUNT_RAG_PRIVACY", false);
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
@@ -120,9 +149,14 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         var now = Instant.now();
         return new SignupFlowService.CompletionRequest(
                 email, password, "ko", "balanced", true,
-                new SignupFlowService.Evidence("TERMS", "1", "a".repeat(64), now, "/terms"),
                 new SignupFlowService.Evidence(
-                        "ACCOUNT_RAG_PRIVACY", "1", "b".repeat(64), now, "/privacy"));
+                        "TERMS", "1",
+                        "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
+                        now, "/legal/terms/1"),
+                new SignupFlowService.Evidence(
+                        "ACCOUNT_RAG_PRIVACY", "1",
+                        "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a",
+                        now, "/legal/account-rag-privacy/1"));
     }
 
     private int count(String table, String predicate) {

@@ -135,7 +135,7 @@ public class SessionService {
         return new AuthenticationException("Session is invalid or expired");
     }
 
-    public enum SessionRole { PARTICIPANT, ADMIN, HIGHEST_ADMIN }
+    public enum SessionRole { PARTICIPANT, RAG_ADMIN, ADMIN, HIGHEST_ADMIN }
 
     public record IssuedSession(
             String sessionId, String csrfToken, SessionRole role, Instant idleExpiresAt, Instant absoluteExpiresAt) {}

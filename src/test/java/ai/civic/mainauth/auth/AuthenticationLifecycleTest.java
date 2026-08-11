@@ -12,6 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import ai.civic.mainauth.notification.SmtpNotificationService;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
+import ai.civic.mainauth.notification.NotificationDeliveryException;
 
 @SpringBootTest(properties = {
         "spring.main.lazy-initialization=true",
@@ -21,12 +27,14 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Autowired AuthenticationFlowService auth;
     @Autowired SessionService sessions;
     @Autowired JdbcTemplate jdbc;
+    @MockitoBean SmtpNotificationService smtp;
 
     private UUID userId;
 
     @BeforeEach
     void createActiveParticipant() {
         jdbc.update("delete from sessions");
+        jdbc.update("delete from login_throttles");
         jdbc.update("delete from notification_outbox");
         jdbc.update("delete from auth_challenges");
         jdbc.update("delete from account_state_outbox where user_id in (select id from users where origin = 'SIGNUP')");
@@ -65,6 +73,21 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void accountAndIpThrottleBlocksEvenACorrectPasswordUntilTheDelayExpires() {
+        assertThat(captureFailure("person@example.com", "Wrong123!"))
+                .isEqualTo("Email or password is invalid");
+        jdbc.update("update login_throttles set next_allowed_at = now() + interval '5 minutes'");
+
+        assertThat(captureFailure("person@example.com", "Valid123!"))
+                .isEqualTo("Email or password is invalid");
+        assertThat(jdbc.queryForObject("select count(*) from sessions", Integer.class)).isZero();
+
+        jdbc.update("update login_throttles set next_allowed_at = now() - interval '1 second'");
+        assertThat(auth.login("person@example.com", "Valid123!", "127.0.0.1").sessionId())
+                .isNotBlank();
+    }
+
+    @Test
     void passwordChangeRevokesEveryExistingSession() {
         var first = auth.login("person@example.com", "Valid123!", "127.0.0.1").sessionId();
         var second = auth.login("person@example.com", "Valid123!", "127.0.0.2").sessionId();
@@ -76,6 +99,20 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from sessions where user_id = ? and revoked_at is null", Integer.class, userId))
                 .isZero();
+    }
+
+    @Test
+    void ragAdministratorRoleSurvivesLoginInsteadOfCollapsingToParticipant() {
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'RAG_OPERATOR'
+                """, userId);
+
+        var login = auth.login("person@example.com", "Valid123!", "127.0.0.1");
+
+        assertThat(login.role()).isEqualTo(SessionService.SessionRole.RAG_ADMIN);
+        assertThat(sessions.require(login.sessionId()).role())
+                .isEqualTo(SessionService.SessionRole.RAG_ADMIN);
     }
 
     @Test
@@ -95,6 +132,43 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(realFlow).isNotNull().isNotEqualTo(fakeFlow);
         assertThat(count("auth_challenges")).isEqualTo(challengesBefore + 1);
         assertThat(count("notification_outbox")).isEqualTo(notificationsBefore + 1);
+        verify(smtp).sendChallenge(eq("person@example.com"), challengeCode(), eq("REACTIVATION"));
+    }
+
+    @Test
+    void passwordResetAndTwoFactorChallengesAttemptSynchronousDeliveryOnlyOnce() {
+        auth.requestPasswordReset("person@example.com");
+        auth.requestTwoFactorEnable(userId, "person@example.com");
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from notification_outbox
+                where event_type in ('PASSWORD_RESET', 'TWO_FACTOR_ENABLE')
+                  and attempt_count = 1 and delivered_at is not null
+                """, Integer.class)).isEqualTo(2);
+        verify(smtp).sendChallenge(
+                eq("person@example.com"), challengeCode(), eq("PASSWORD_RESET"));
+        verify(smtp).sendChallenge(
+                eq("person@example.com"), challengeCode(), eq("TWO_FACTOR_ENABLE"));
+    }
+
+    @Test
+    void synchronousDeliveryFailureIsReturnedAndTheFailedAttemptRemainsAuditable() {
+        doThrow(new IllegalStateException("synthetic SMTP outage"))
+                .when(smtp).sendChallenge(eq("person@example.com"), org.mockito.ArgumentMatchers.anyString(),
+                        eq("PASSWORD_RESET"));
+
+        assertThatThrownBy(() -> auth.requestPasswordReset("person@example.com"))
+                .isInstanceOf(NotificationDeliveryException.class)
+                .hasMessageContaining("request a resend");
+        assertThat(jdbc.queryForObject("""
+                select count(*) from notification_outbox
+                where event_type = 'PASSWORD_RESET' and attempt_count = 1
+                  and last_error_code = 'SMTP_DELIVERY_FAILED'
+                """, Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -119,5 +193,9 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         } catch (AuthenticationException expected) {
             return expected.getMessage();
         }
+    }
+
+    private String challengeCode() {
+        return org.mockito.ArgumentMatchers.argThat(value -> value != null && value.matches("\\d{6}"));
     }
 }

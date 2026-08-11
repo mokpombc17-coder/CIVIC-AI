@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ai.civic.mainauth.auth.SessionService;
 
 @Service
 public class AdminRoleService {
@@ -14,10 +15,12 @@ public class AdminRoleService {
     private static final Set<String> ADMIN_ROLES = Set.of("RAG_ADMIN", "ADMIN", "HIGHEST_ADMIN");
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
+    private final SessionService sessions;
 
-    public AdminRoleService(JdbcTemplate jdbc, ObjectMapper json) {
+    public AdminRoleService(JdbcTemplate jdbc, ObjectMapper json, SessionService sessions) {
         this.jdbc = jdbc;
         this.json = json;
+        this.sessions = sessions;
     }
 
     @Transactional
@@ -67,6 +70,7 @@ public class AdminRoleService {
                     """, subjectId, actorId, databaseRole(role));
         }
         jdbc.update("update users set row_version = row_version + 1, updated_at = now() where id = ?", subjectId);
+        sessions.revokeAll(subjectId, "ROLES_CHANGED");
         appendAudit(actorId, subjectId, current, desiredRoles, normalizedReason);
     }
 

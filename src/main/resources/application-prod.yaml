@@ -12,6 +12,7 @@ spring:
     port: ${CIVIC_SMTP_PORT:587}
 
 civic:
+  production-secrets-required: true
   issuer: ${CIVIC_ISSUER}
   es256:
     key-directory: ${CIVIC_ES256_KEY_DIRECTORY:/run/secrets/civic/main/es256-keys}
