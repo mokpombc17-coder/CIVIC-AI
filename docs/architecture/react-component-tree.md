@@ -276,7 +276,7 @@ flowchart TD
     ChatRoomScreen -->|"message draft and send"| ChatRoomSessionControls
     ChatRoomSessionControls --> ChatMessageComposer
     ChatRoomScreen -->|"one selected message"| ChatMessageActionsBottomSheet
-    ChatRoomScreen -->|"isolated Room message search session"| ChatRoomMessageSearchDialog
+    ChatRoomScreen -->|"isolated Room message search and context windows"| ChatRoomMessageSearchDialog
     ChatRoomScreen -->|"room info disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel --> ChatRoomCategoryBadges

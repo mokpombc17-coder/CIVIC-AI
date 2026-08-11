@@ -40,6 +40,7 @@ import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
 import { useChatRoomEntryNavigation } from "@/components/use-chat-room-entry-navigation";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import { useChatRoomMessageSearchDialog } from "@/components/use-chat-room-message-search-dialog";
+import { useRoomMessageContext } from "@/components/use-room-message-context";
 import { useRoomMessageSearch } from "@/components/use-room-message-search";
 import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
 import { getChatRoomReadStateMembershipLifecycle } from "@/lib/chat/chat-room-read-state-membership-lifecycle";
@@ -79,11 +80,18 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     enabled: session.isActive && isMessageSearchDialogOpen,
     generation: session.generation,
   });
+  const messageContext = useRoomMessageContext(roomId, {
+    enabled: session.isActive && isMessageSearchDialogOpen,
+    generation: session.generation,
+    searchSessionGeneration: messageSearch.sessionGeneration,
+  });
   const clearMessageSearch = messageSearch.clearSearch;
+  const closeMessageContext = messageContext.closeContext;
   const closeMessageSearchDialog = useCallback(() => {
+    closeMessageContext();
     clearMessageSearch();
     closeMessageSearchDialogOverlay();
-  }, [clearMessageSearch, closeMessageSearchDialogOverlay]);
+  }, [clearMessageSearch, closeMessageContext, closeMessageSearchDialogOverlay]);
   const messageMutations = useChatMessageMutations({
     enabled: session.isActive,
     generation: session.generation,
@@ -372,6 +380,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       overlay={
         isMessageSearchDialogOpen && room ? (
           <ChatRoomMessageSearchDialog
+            context={messageContext}
             controller={messageSearch}
             onClose={closeMessageSearchDialog}
             participantDisplayNames={participantDisplayNames}
