@@ -6,6 +6,7 @@ import {
   type ChatRoomMessageContextDialogController,
   type ChatRoomMessageSearchDialogController,
 } from "@/components/chat-room-message-search-dialog";
+import { ChatApiError } from "@/lib/chat/chat-fetch";
 import type { ChatMessage } from "@/lib/chat/chat-room-contracts";
 
 describe("Room message search dialog", () => {
@@ -62,15 +63,41 @@ describe("Room message search dialog", () => {
     const html = renderDialog({
       appliedQuery: "환경 정책",
       draftQuery: "환경\n정책",
-      error: new Error("검색 서버에 연결할 수 없습니다."),
+      error: new TypeError("fetch failed"),
       isError: true,
       validationMessage: "검색어에 제어 문자를 포함할 수 없습니다.",
     });
 
     expect(html.match(/role="alert"/g)).toHaveLength(2);
     expect(html).toContain("검색어에 제어 문자를 포함할 수 없습니다.");
-    expect(html).toContain("검색 서버에 연결할 수 없습니다.");
+    expect(html).toContain("네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
     expect(html).toContain("다시 시도");
+  });
+
+  it("자동 반복하면 안 되는 서버 오류에는 다시 시도를 표시하지 않는다", () => {
+    const html = renderDialog({
+      appliedQuery: "환경 정책",
+      draftQuery: "환경 정책",
+      error: createChatApiError(500, "INTERNAL_ERROR"),
+      isError: true,
+    });
+
+    expect(html).toContain("같은 요청을 자동으로 반복하지 않습니다.");
+    expect(html).not.toContain(">다시 시도<");
+  });
+
+  it("사라진 Context target은 전용 안내를 표시하고 재시도하지 않는다", () => {
+    const html = renderDialog({}, new Map(), {
+      error: createChatApiError(404, "MESSAGE_NOT_FOUND"),
+      isError: true,
+      selectedMessageId: "message-2",
+      targetMessageId: "message-2",
+    });
+
+    expect(html).toContain("메시지를 찾을 수 없습니다.");
+    expect(html).toContain("메시지가 삭제되었거나 더 이상 접근할 수 없습니다.");
+    expect(html).not.toContain(">다시 시도<");
+    expect(html).toContain("검색 결과로 돌아가기");
   });
 
   it("검색 결과 Context를 별도 창에 ASC로 표시하고 target을 강조한다", () => {
@@ -157,6 +184,19 @@ function createContextController(
     targetRoomSequence: null,
     ...patch,
   };
+}
+
+function createChatApiError(status: number, code: string): ChatApiError {
+  return new ChatApiError(status, "", "http://localhost:8082/rooms/room-01/messages/search", {
+    type: `urn:hamcheeze:problem:${code.toLowerCase()}`,
+    title: "Message search failed",
+    status,
+    detail: "Message search failed.",
+    instance: "/api/v1/rooms/room-01/messages/search",
+    code,
+    replayed: false,
+    retryable: false,
+  });
 }
 
 function createMessage(

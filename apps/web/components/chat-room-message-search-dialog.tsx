@@ -6,6 +6,10 @@ import {
   ROOM_MESSAGE_SEARCH_RAW_QUERY_MAX_UTF16_CODE_UNITS,
   type ChatMessage,
 } from "@/lib/chat/chat-room-contracts";
+import {
+  createRoomMessageContextErrorPresentation,
+  createRoomMessageSearchErrorPresentation,
+} from "@/lib/chat/chat-room-message-search-error-presentation";
 import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
 
 export type ChatRoomMessageSearchDialogController = Readonly<{
@@ -90,6 +94,9 @@ export function ChatRoomMessageSearchDialog({
   const describedBy = [helpId, controller.validationMessage ? validationId : undefined]
     .filter(Boolean)
     .join(" ");
+  const searchErrorPresentation = controller.isError
+    ? createRoomMessageSearchErrorPresentation(controller.error)
+    : null;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -177,6 +184,7 @@ export function ChatRoomMessageSearchDialog({
                     autoComplete="off"
                     autoFocus
                     className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    disabled={searchErrorPresentation?.terminal}
                     inputMode="search"
                     maxLength={ROOM_MESSAGE_SEARCH_RAW_QUERY_MAX_UTF16_CODE_UNITS}
                     onChange={(event) => controller.setDraftQuery(event.currentTarget.value)}
@@ -189,7 +197,11 @@ export function ChatRoomMessageSearchDialog({
                 </label>
                 <button
                   className="primary-button sm:min-w-24"
-                  disabled={controller.isComposing || controller.isFetching}
+                  disabled={
+                    controller.isComposing ||
+                    controller.isFetching ||
+                    searchErrorPresentation?.terminal
+                  }
                   type="submit"
                 >
                   {controller.isFetching && !controller.isFetchingNextPage ? "검색 중…" : "검색"}
@@ -254,6 +266,10 @@ function SearchResults({
 
   const hasResults = controller.messages.length > 0;
   const retryScheduled = controller.rateLimitRetryAfterMs !== undefined;
+  const errorPresentation = controller.isError
+    ? createRoomMessageSearchErrorPresentation(controller.error)
+    : null;
+  const searchTerminated = errorPresentation?.terminal === true;
 
   return (
     <div className="grid gap-4" aria-live="polite">
@@ -269,6 +285,7 @@ function SearchResults({
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                 data-message-id={message.messageId}
                 data-room-sequence={message.roomSequence}
+                disabled={searchTerminated}
                 onClick={() => onSelectMessage(message.messageId)}
                 type="button"
               >
@@ -303,13 +320,9 @@ function SearchResults({
 
       {controller.isError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-950" role="alert">
-          <p className="text-sm font-semibold">
-            {retryScheduled
-              ? "검색 요청이 몰려 잠시 후 자동으로 다시 시도합니다."
-              : "메시지 검색에 실패했습니다."}
-          </p>
-          <p className="mt-1 text-xs opacity-80">{toErrorMessage(controller.error)}</p>
-          {!retryScheduled ? (
+          <p className="text-sm font-semibold">{errorPresentation?.title}</p>
+          <p className="mt-1 text-xs opacity-80">{errorPresentation?.detail}</p>
+          {!retryScheduled && errorPresentation?.canRetry ? (
             <button
               className="secondary-button mt-3"
               onClick={() => void controller.retry()}
@@ -321,7 +334,7 @@ function SearchResults({
         </div>
       ) : null}
 
-      {controller.hasNextPage ? (
+      {controller.hasNextPage && !controller.isError ? (
         <button
           className="secondary-button justify-self-center"
           disabled={controller.isFetchingNextPage || retryScheduled}
@@ -462,20 +475,29 @@ function MessageContextWindow({
 function ContextFailure({
   context,
 }: Readonly<{ context: ChatRoomMessageContextDialogController }>) {
-  const title =
+  const fallbackTitle =
     context.failedDirection === "older"
       ? "이전 대화를 더 불러오지 못했습니다."
       : context.failedDirection === "newer"
         ? "이후 대화를 더 불러오지 못했습니다."
         : "주변 대화를 불러오지 못했습니다.";
+  const presentation = createRoomMessageContextErrorPresentation(context.error);
+  const title =
+    presentation.title === "주변 대화를 불러오지 못했습니다." ? fallbackTitle : presentation.title;
 
   return (
     <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-950" role="alert">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mt-1 text-xs opacity-80">{toErrorMessage(context.error)}</p>
-      <button className="secondary-button mt-3" onClick={() => void context.retry()} type="button">
-        다시 시도
-      </button>
+      <p className="mt-1 text-xs opacity-80">{presentation.detail}</p>
+      {presentation.canRetry ? (
+        <button
+          className="secondary-button mt-3"
+          onClick={() => void context.retry()}
+          type="button"
+        >
+          다시 시도
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -493,8 +515,4 @@ function formatSearchResultTime(instant: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(instant));
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
 }

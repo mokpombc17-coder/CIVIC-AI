@@ -556,6 +556,39 @@ describe("ChatRealtimeQueryCoordinator", () => {
     expect(transport.acknowledgedDeliveries).toEqual(["delivery-1", "delivery-2"]);
   });
 
+  it("검색 보조 cache 반영 실패는 core 메시지 적용과 delivery ACK를 막지 않는다", () => {
+    const queryClient = new QueryClient();
+    const transport = createFakeTransport();
+    const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
+      roomId: "room-01",
+      generation: 1,
+      messageVisibleAfterSequence: 0,
+    });
+    const searchKey = chatRoomQueryKeys.messageSearch("room-01", {
+      generation: 1,
+      sessionGeneration: 1,
+      query: "message",
+      limit: 20,
+    });
+    seedMessageHistory(queryClient, "room-01", [[createMessage(1)]]);
+    queryClient.setQueryData(searchKey, { pageParams: [null], pages: null });
+    coordinator.start();
+
+    transport.emit(
+      createDelivery({
+        deliveryId: "delivery-auxiliary-failure",
+        events: [createBufferedUpdatedMessage(1, 2, 1, "message updated")],
+      }),
+    );
+
+    expect(getMessageHistory(queryClient, "room-01").pages[0]?.items[0]).toMatchObject({
+      content: "message updated",
+      messageVersion: 2,
+    });
+    expect(queryClient.getQueryState(searchKey)).toBeUndefined();
+    expect(transport.acknowledgedDeliveries).toEqual(["delivery-auxiliary-failure"]);
+  });
+
   it("메시지 충돌이 발생하면 cache와 ACK를 변경하지 않고 오류를 보존한다", () => {
     const queryClient = new QueryClient();
     const transport = createFakeTransport();
