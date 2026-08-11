@@ -1,12 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import {
-  useChatMessageOutbox,
-  useChatOutgoingMessages,
-  useChatRealtimeConnection,
-  useChatRealtimeRoom,
-} from "@/components/chat-realtime-provider";
+import { useChatMessageOutbox, useChatOutgoingMessages } from "@/components/chat-realtime-provider";
 import {
   ChatRoomScreenHeaderActions,
   ChatRoomScreenOverlay,
@@ -20,30 +15,21 @@ import {
 import { createChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
 import { ChatRoomView, type ChatMessageHistoryFeedback } from "@/components/chat-room-view";
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
-import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
 import { useChatRoomMessageSearchExperience } from "@/components/use-chat-room-message-search-experience";
 import { useChatRoomMessagePresentation } from "@/components/use-chat-room-message-presentation";
 import { useChatRoomReadExperience } from "@/components/use-chat-room-read-experience";
-import {
-  useChatRoomMessageHistoryData,
-  useChatRoomParticipantProfiles,
-} from "@/components/use-chat-room-screen-data";
-import {
-  DEFAULT_MESSAGE_HISTORY_LIMIT,
-  useRoomDetailsQuery,
-  useRoomReadReceiptStateQuery,
-} from "@/lib/chat/chat-room-queries";
-import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
-import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
+import { useChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";
+import { useChatRoomParticipantProfiles } from "@/components/use-chat-room-screen-data";
+import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const outbox = useChatMessageOutbox();
   const outgoingMessages = useChatOutgoingMessages(roomId);
-  const { reconnect } = useChatRealtimeConnection();
-  const session = useChatRealtimeRoom(roomId);
+  const realtime = useChatRoomRealtimeExperience(roomId);
+  const { coordinator, coordinatorEnabled, messageHistory, receiptStateQuery, session } = realtime;
   const {
     close: closeMembershipDialog,
     isOpen: isMembershipDialogOpen,
@@ -63,33 +49,6 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const participantProfiles = useChatRoomParticipantProfiles(roomId, {
     enabled: session.isActive,
   });
-  const messageHistory = useChatRoomMessageHistoryData(roomId, {
-    enabled: session.isActive,
-  });
-  const receiptStateQuery = useRoomReadReceiptStateQuery(roomId, {
-    enabled: session.isActive,
-    generation: session.generation,
-  });
-  const coordinatorEnabled =
-    session.messageVisibleAfterSequence !== null &&
-    session.watermarkSequence !== null &&
-    isChatRoomSnapshotReadyForRealtimeMerge({
-      hasMessageHistory: messageHistory.data !== undefined,
-      isMessageHistoryRefetching: messageHistory.isRefetching,
-      isRoomActive: session.isActive,
-      messageHistoryStatus: messageHistory.status,
-    });
-  const realtimeQuery = useChatRealtimeQueryCoordinator({
-    enabled: coordinatorEnabled,
-    roomId,
-    generation: session.generation,
-    limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
-    messageVisibleAfterSequence: session.messageVisibleAfterSequence ?? 0,
-    watermarkSequence: session.watermarkSequence ?? 0,
-  });
-  const realtimeReady =
-    coordinatorEnabled && realtimeQuery.isSynchronized && realtimeQuery.error === null;
-  const sessionView = getChatRoomSessionView(session, roomId, realtimeReady);
   const room = roomQuery.data;
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
   const readExperience = useChatRoomReadExperience({
@@ -105,14 +64,14 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     onRefetchReceiptState: receiptStateQuery.refetch,
     onRefetchRoom: roomQuery.refetch,
     participationStatus: room?.participationStatus,
-    readStateReady: realtimeReady,
+    readStateReady: realtime.realtimeReady,
     receiptState: receiptStateQuery.data,
     receiptStateReady:
-      receiptStateQuery.status === "success" && realtimeQuery.readReceiptStatus === "ready",
+      receiptStateQuery.status === "success" && coordinator.readReceiptStatus === "ready",
     receiptStateUnavailable:
       receiptStateQuery.status === "error" ||
-      realtimeQuery.readReceiptStatus === "error" ||
-      realtimeQuery.readReceiptStatus === "terminal",
+      coordinator.readReceiptStatus === "error" ||
+      coordinator.readReceiptStatus === "terminal",
     roomErrorCode: session.error?.code ?? null,
     roomId,
     roomStatus: room?.status,
@@ -124,7 +83,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     participantProfiles,
     readBoundaryAfterSequence: readExperience.readBoundaryAfterSequence,
     receiptState: receiptStateQuery.data,
-    receiptSyncStatus: realtimeQuery.readReceiptStatus,
+    receiptSyncStatus: coordinator.readReceiptStatus,
     selfMembershipId: room?.myMembership?.membershipId ?? null,
   });
   const viewportKey = `${roomId}:${session.generation}`;
@@ -232,19 +191,19 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
             }
           : null
       }
-      sessionIndicator={<ChatRoomSessionIndicator view={sessionView} />}
+      sessionIndicator={<ChatRoomSessionIndicator view={realtime.sessionView} />}
       sessionNotice={
         <ChatRoomSessionNotice
           onReactivate={session.reactivate}
-          onReconnect={reconnect}
-          view={sessionView}
+          onReconnect={realtime.reconnect}
+          view={realtime.sessionView}
         />
       }
-      sessionControls={<ChatRoomSessionControls roomId={roomId} view={sessionView} />}
+      sessionControls={<ChatRoomSessionControls roomId={roomId} view={realtime.sessionView} />}
       syncStatus={
         <ChatRealtimeSyncStatus
-          error={realtimeQuery.error}
-          onRetry={realtimeQuery.retry}
+          error={coordinator.error}
+          onRetry={coordinator.retry}
           visible={coordinatorEnabled}
         />
       }

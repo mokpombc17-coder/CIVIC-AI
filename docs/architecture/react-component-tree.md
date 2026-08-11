@@ -140,7 +140,11 @@ View 이하의 생성 폼과 참여 control은 각각 동작 hook을 호출하�
 Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
 
-`ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
+`ChatRoomScreen`은 화면에 필요한 controller와 ViewModel을 조립하는 container다.
+`useChatRoomRealtimeExperience`는 Room session, Message History와 Read Receipt snapshot,
+실시간 Query coordinator를 한 생명주기로 묶는다. Message History snapshot과 두 sequence 경계가
+모두 준비된 뒤에만 실시간 event merge를 열고, 동기화 결과를 session view로 변환한다.
+Receipt 오류는 기존 coordinator 경계에서 core message realtime과 분리한다.
 Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 소유하는 독립 session,
 검색 결과를 기준으로 조회한 Context window는 `useChatRoomMessageSearchExperience`가 함께 조립한다.
 이 controller hook은 dialog 종료 시 Context와 검색 session을 정리하고 Room session이 비활성화되면
