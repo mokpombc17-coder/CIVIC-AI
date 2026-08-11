@@ -106,8 +106,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                         └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
                                             └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
                                                 ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
-                                                └── ChatRoomSettingsControl [Client] [Feature] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
-                                                    └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
+                                                └── ChatRoomSettingsControl [Client] [Container] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
+                                                    └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-dialog.tsx)
+                                                        └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
                         │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
@@ -176,8 +177,10 @@ session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 �
 `ChatRoomMembershipPanelView`에 전달하는 얇은 container다. controller hook은 Membership Query,
 관리 mutation, 멱등성 key·재시도, 완료 라우팅을 소유하며 View에는 정규화된 목록 상태,
 사용자 문구와 callback만 제공한다. View는 모든 ACTIVE membership에 profile 목록을 제공하고,
-LEFT/BANNED 조회와 관리 control은 활성 OWNER에게만 표시한다. `ChatRoomSettingsControl`은 설정 Dialog, 부분 patch 계산,
-update-settings mutation과 같은 멱등성 key 재시도를 소유한다.
+LEFT/BANNED 조회와 관리 control은 활성 OWNER에게만 표시한다.
+`ChatRoomSettingsControl`은 `useChatRoomSettingsControl`의 controller를 설정 View에 전달하는 container다.
+controller hook은 draft category, 부분 patch 계산, update-settings mutation과 멱등성 key 재시도를 소유하고,
+View는 native Dialog의 focus·Escape·backdrop 동작과 form 표현만 담당한다.
 
 ## App Router special UI
 
@@ -240,7 +243,8 @@ flowchart TD
     ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatRoomMembershipPanelView["ChatRoomMembershipPanelView [Client] [View]<br/>apps/web/components/chat-room-membership-panel.tsx"]
-    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
+    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Container] [conditional]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
+    ChatRoomSettingsControlView["ChatRoomSettingsControlView [Client] [View]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [Feature] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client] [Feature]<br/>apps/web/components/chat-room-session-controls.tsx"]
     ChatRoomSessionNotice["ChatRoomSessionNotice [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-session-status.tsx"]
@@ -292,7 +296,8 @@ flowchart TD
     ChatRoomMembershipPanel --> ChatRoomMembershipPanelView
     ChatRoomMembershipPanelView --> ChatRoomCategoryBadges
     ChatRoomMembershipPanelView -->|"active OWNER only"| ChatRoomSettingsControl
-    ChatRoomSettingsControl -->|"conditional settings dialog"| ChatRoomCategorySelector
+    ChatRoomSettingsControl --> ChatRoomSettingsControlView
+    ChatRoomSettingsControlView -->|"conditional settings dialog"| ChatRoomCategorySelector
 
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage

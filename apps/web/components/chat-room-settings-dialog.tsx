@@ -1,66 +1,51 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useRef, type FormEvent, type MouseEvent } from "react";
 import { ChatRoomCategorySelector } from "@/components/chat-room-category-selector";
-import { createRoomSettingsPatch } from "@/components/chat-room-settings-form";
-import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
-import type {
-  RoomCategory,
-  RoomDetails,
-  UpdateRoomSettingsRequest,
-} from "@/lib/chat/chat-room-contracts";
-import { useUpdateRoomSettingsMutation } from "@/lib/chat/chat-room-mutations";
-import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
-
-type RoomSettingsCompletion = "updated" | "unchanged";
+import {
+  useChatRoomSettingsControl,
+  type ChatRoomSettingsControlController,
+} from "@/components/use-chat-room-settings-control";
+import type { RoomDetails } from "@/lib/chat/chat-room-contracts";
 
 export function ChatRoomSettingsControl({ room }: { room: RoomDetails }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [completion, setCompletion] = useState<RoomSettingsCompletion | null>(null);
+  const controller = useChatRoomSettingsControl(room);
 
-  function openDialog() {
-    setCompletion(null);
-    setIsOpen(true);
-  }
+  return <ChatRoomSettingsControlView controller={controller} room={room} />;
+}
 
+export function ChatRoomSettingsControlView({
+  controller,
+  room,
+}: {
+  controller: ChatRoomSettingsControlController;
+  room: RoomDetails;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <button className="secondary-button" onClick={openDialog} type="button">
+      <button className="secondary-button" onClick={controller.open} type="button">
         방 설정
       </button>
-      {completion ? (
+      {controller.completionMessage ? (
         <span className="text-xs text-emerald-700" role="status">
-          {completion === "updated" ? "방 설정을 변경했습니다." : "변경된 설정이 없습니다."}
+          {controller.completionMessage}
         </span>
       ) : null}
-      {isOpen ? (
-        <ChatRoomSettingsDialog
-          onClose={() => setIsOpen(false)}
-          onComplete={setCompletion}
-          room={room}
-        />
+      {controller.isOpen ? (
+        <ChatRoomSettingsDialogView controller={controller} room={room} />
       ) : null}
     </div>
   );
 }
 
-function ChatRoomSettingsDialog({
-  onClose,
-  onComplete,
+export function ChatRoomSettingsDialogView({
+  controller,
   room,
 }: {
-  onClose: () => void;
-  onComplete: (completion: RoomSettingsCompletion) => void;
+  controller: ChatRoomSettingsControlController;
   room: RoomDetails;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const updateSettings = useUpdateRoomSettingsMutation();
-  const [selectedCategory, setSelectedCategory] = useState<RoomCategory | null>(
-    room.categories[0] ?? null,
-  );
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [retryCommand, setRetryCommand] =
-    useState<IdempotentCommand<UpdateRoomSettingsRequest> | null>(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -78,76 +63,24 @@ function ChatRoomSettingsDialog({
     };
   }, []);
 
-  function closeDialog() {
-    if (!updateSettings.isPending) {
-      onClose();
-    }
-  }
-
-  function clearFailedAttempt() {
-    setValidationError(null);
-
-    if (retryCommand || updateSettings.error) {
-      setRetryCommand(null);
-      updateSettings.reset();
-    }
-  }
-
-  async function execute(command: IdempotentCommand<UpdateRoomSettingsRequest>) {
-    try {
-      const response = await updateSettings.mutateAsync({
-        roomId: room.roomId,
-        command,
-      });
-
-      onComplete(response.code === "ROOM_SETTINGS_UPDATED" ? "updated" : "unchanged");
-      onClose();
-    } catch {
-      // Mutation state renders the error and retains this command for an idempotent retry.
-    }
-  }
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
-    const result = createRoomSettingsPatch(room, {
+    controller.submit({
       name: formData.get("name"),
       description: formData.get("description"),
-      categories: selectedCategory ? [selectedCategory] : [],
+      categories: controller.selectedCategory ? [controller.selectedCategory] : [],
       visibility: formData.get("visibility"),
       joinPolicy: formData.get("joinPolicy"),
     });
-
-    if (!result.success) {
-      setValidationError(result.message);
-      return;
-    }
-
-    if (!result.patch) {
-      onComplete("unchanged");
-      onClose();
-      return;
-    }
-
-    updateSettings.reset();
-    setValidationError(null);
-
-    const command = createIdempotentCommand(result.patch);
-    setRetryCommand(command);
-    void execute(command);
   }
 
   function handleBackdropClick(event: MouseEvent<HTMLDialogElement>) {
     if (event.target === event.currentTarget) {
-      closeDialog();
+      controller.close();
     }
   }
-
-  const canRetry =
-    retryCommand !== null &&
-    updateSettings.isError &&
-    isRetryableChatCommandError(updateSettings.error);
 
   return (
     <dialog
@@ -155,12 +88,16 @@ function ChatRoomSettingsDialog({
       className="m-auto max-h-[calc(100dvh-2rem)] w-[min(36rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/50"
       onCancel={(event) => {
         event.preventDefault();
-        closeDialog();
+        controller.close();
       }}
       onClick={handleBackdropClick}
       ref={dialogRef}
     >
-      <form className="grid gap-5 p-6" onChange={clearFailedAttempt} onSubmit={handleSubmit}>
+      <form
+        className="grid gap-5 p-6"
+        onChange={controller.clearFailedAttempt}
+        onSubmit={handleSubmit}
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="eyebrow">Room settings</p>
@@ -171,15 +108,15 @@ function ChatRoomSettingsDialog({
           <button
             aria-label="방 설정 닫기"
             className="flex size-9 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-100"
-            disabled={updateSettings.isPending}
-            onClick={closeDialog}
+            disabled={controller.isPending}
+            onClick={controller.close}
             type="button"
           >
             ×
           </button>
         </div>
 
-        <fieldset className="grid gap-4" disabled={updateSettings.isPending}>
+        <fieldset className="grid gap-4" disabled={controller.isPending}>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             방 이름
             <input
@@ -210,9 +147,9 @@ function ChatRoomSettingsDialog({
           </div>
 
           <ChatRoomCategorySelector
-            disabled={updateSettings.isPending}
-            onSelect={setSelectedCategory}
-            selectedCategory={selectedCategory}
+            disabled={controller.isPending}
+            onSelect={controller.selectCategory}
+            selectedCategory={controller.selectedCategory}
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -246,24 +183,24 @@ function ChatRoomSettingsDialog({
           </p>
         </fieldset>
 
-        {validationError ? (
+        {controller.validationMessage ? (
           <p
             className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
             role="alert"
           >
-            {validationError}
+            {controller.validationMessage}
           </p>
         ) : null}
 
-        {updateSettings.isError ? (
+        {controller.errorMessage ? (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-950" role="alert">
             <p className="text-sm font-semibold">방 설정을 변경하지 못했습니다.</p>
-            <p className="mt-1 text-xs opacity-80">{toErrorMessage(updateSettings.error)}</p>
-            {canRetry ? (
+            <p className="mt-1 text-xs opacity-80">{controller.errorMessage}</p>
+            {controller.canRetry ? (
               <button
                 className="secondary-button mt-3"
-                disabled={updateSettings.isPending}
-                onClick={() => void execute(retryCommand)}
+                disabled={controller.isPending}
+                onClick={controller.retry}
                 type="button"
               >
                 같은 요청으로 다시 시도
@@ -275,21 +212,17 @@ function ChatRoomSettingsDialog({
         <div className="flex flex-wrap justify-end gap-2">
           <button
             className="secondary-button"
-            disabled={updateSettings.isPending}
-            onClick={closeDialog}
+            disabled={controller.isPending}
+            onClick={controller.close}
             type="button"
           >
             취소
           </button>
-          <button className="primary-button" disabled={updateSettings.isPending} type="submit">
-            {updateSettings.isPending ? "저장 중…" : "변경사항 저장"}
+          <button className="primary-button" disabled={controller.isPending} type="submit">
+            {controller.isPending ? "저장 중…" : "변경사항 저장"}
           </button>
         </div>
       </form>
     </dialog>
   );
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
 }
