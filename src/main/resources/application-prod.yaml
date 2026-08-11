@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: ${CIVIC_DB_URL}
+    username: ${CIVIC_DB_USER}
+  data:
+    redis:
+      url: ${CIVIC_REDIS_URL}
+  mail:
+    host: ${CIVIC_SMTP_HOST}
+    port: ${CIVIC_SMTP_PORT:587}
+    username: ${CIVIC_SMTP_USERNAME}
+
+civic:
+  audit:
+    database-user: ${CIVIC_AUDIT_DB_USER}
+  issuer: ${CIVIC_ISSUER}
+  secrets:
+    database-password-file: ${CIVIC_DB_PASSWORD_FILE}
+    audit-database-password-file: ${CIVIC_AUDIT_DB_PASSWORD_FILE}
+    redis-password-file: ${CIVIC_REDIS_PASSWORD_FILE}
+    session-hmac-secret-file: ${CIVIC_SESSION_HMAC_SECRET_FILE}
+    smtp-password-file: ${CIVIC_SMTP_PASSWORD_FILE}
+    es256-key-directory: ${CIVIC_ES256_KEY_DIRECTORY}
+  bootstrap:
+    admin-email: ${CIVIC_BOOTSTRAP_ADMIN_EMAIL}
+    admin-password-hash: ${CIVIC_BOOTSTRAP_ADMIN_PASSWORD_HASH}
