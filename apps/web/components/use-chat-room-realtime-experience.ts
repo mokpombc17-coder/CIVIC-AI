@@ -57,6 +57,8 @@ export function useChatRoomRealtimeExperience(roomId: string) {
   };
 }
 
+export type ChatRoomRealtimeExperience = ReturnType<typeof useChatRoomRealtimeExperience>;
+
 export function isChatRoomRealtimeCoordinatorEnabled({
   hasMessageHistory,
   isMessageHistoryRefetching,

@@ -145,6 +145,9 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 실시간 Query coordinator를 한 생명주기로 묶는다. Message History snapshot과 두 sequence 경계가
 모두 준비된 뒤에만 실시간 event merge를 열고, 동기화 결과를 session view로 변환한다.
 Receipt 오류는 기존 coordinator 경계에서 core message realtime과 분리한다.
+`useChatRoomContentExperience`는 Room detail과 ACTIVE participant profile을 조회하고, realtime
+snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. Header, viewport ViewModel, history feedback과
+Room 오류 복구 동작까지 UI가 바로 소비할 수 있는 content model로 반환한다.
 Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 소유하는 독립 session,
 검색 결과를 기준으로 조회한 Context window는 `useChatRoomMessageSearchExperience`가 함께 조립한다.
 이 controller hook은 dialog 종료 시 Context와 검색 session을 정리하고 Room session이 비활성화되면
