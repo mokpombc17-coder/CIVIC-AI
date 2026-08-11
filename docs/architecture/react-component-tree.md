@@ -164,7 +164,9 @@ Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, 재
 session indicator, membership trigger와 overlay wrapper는 받은 값을 표시하거나 전달하는 순수 표현
 요소라 생략한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
 focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 생명주기를 소유하므로 독립 Feature로 유지하고,
-반복되는 개별 message item은 생략한다.
+상단 loading/error, 이력 안내, 새 메시지 이동 버튼과 가상 row 선택 렌더링은
+`chat-message-viewport-presentation.tsx`의 순수 표현 컴포넌트로 위임한다. 이 내부 표현 컴포넌트와
+반복되는 개별 message item은 책임 경계를 새로 만들지 않으므로 트리에서는 생략한다.
 
 다른 탭 사용이나 연결 오류처럼 조치가 필요한 안내는 `ChatRoomSessionNotice`, snapshot 동기화
 실패와 복구 동작은 `ChatRealtimeSyncStatus`가 담당한다. `ChatRoomSessionControls`는 해석된

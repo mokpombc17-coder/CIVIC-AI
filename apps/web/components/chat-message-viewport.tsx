@@ -3,14 +3,19 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat-message-arrival-announcement";
-import { ChatMessageDateSeparator } from "@/components/chat-message-date-separator";
-import { ChatMessageReadBoundary } from "@/components/chat-message-read-boundary";
 import { canReportChatMessageReadState } from "@/components/chat-message-read-state-policy";
-import { ChatMessageItem } from "@/components/chat-message-item";
 import {
   ChatRoomEntryNavigationNotice,
   type ChatRoomEntryNavigationNoticeViewModel,
 } from "@/components/chat-room-entry-navigation-notice";
+import {
+  ChatMessageViewportArrivalAnnouncement,
+  ChatMessageViewportHistoryError,
+  ChatMessageViewportHistoryNotice,
+  ChatMessageViewportNewMessagesButton,
+  ChatMessageViewportOlderHistoryStatus,
+  ChatMessageViewportVirtualRow,
+} from "@/components/chat-message-viewport-presentation";
 import {
   type ChatMessageAppendSource,
   type ChatMessageViewportInitialScrollTarget,
@@ -589,68 +594,30 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
 
   return (
     <div className="relative flex h-[clamp(22rem,62dvh,42rem)] min-h-0 shrink flex-col bg-slate-50">
-      {isLoadingOlder || olderLoadError ? (
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-5">
-          {olderLoadError ? (
-            <div
-              className="pointer-events-auto rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-red-950 shadow-sm"
-              role="alert"
-            >
-              <p className="text-xs">{olderLoadError}</p>
-              <button
-                className="secondary-button mt-2"
-                onClick={() => void loadOlderMessages()}
-                type="button"
-              >
-                이전 메시지 다시 불러오기
-              </button>
-            </div>
-          ) : (
-            <p
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 shadow-sm"
-              role="status"
-            >
-              이전 메시지를 불러오는 중…
-            </p>
-          )}
-        </div>
-      ) : null}
+      <ChatMessageViewportOlderHistoryStatus
+        error={olderLoadError}
+        isLoading={isLoadingOlder}
+        onRetry={() => void loadOlderMessages()}
+      />
 
       {history.feedback?.kind === "error" ? (
-        <div
-          className="mx-5 mt-5 shrink-0 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
-          role="alert"
-        >
-          <p className="text-sm font-semibold">{history.feedback.title}</p>
-          <p className="mt-1 text-xs opacity-80">{history.feedback.message}</p>
-          <button className="secondary-button mt-3" onClick={history.onRetry} type="button">
-            다시 불러오기
-          </button>
-        </div>
+        <ChatMessageViewportHistoryError
+          message={history.feedback.message}
+          onRetry={history.onRetry}
+          title={history.feedback.title}
+        />
       ) : null}
 
       {history.entryNavigation ? (
         <ChatRoomEntryNavigationNotice notice={history.entryNavigation} />
       ) : null}
 
-      <p aria-atomic="true" aria-live="polite" aria-relevant="additions text" className="sr-only">
-        {arrivalAnnouncement ? (
-          <span key={arrivalAnnouncement.id}>{arrivalAnnouncement.message}</span>
-        ) : null}
-      </p>
+      <ChatMessageViewportArrivalAnnouncement announcement={arrivalAnnouncement} />
 
-      {viewportState.unseenMessageCount > 0 ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-5">
-          <button
-            aria-label={`새 메시지 ${viewportState.unseenMessageCount}개, 최신 메시지로 이동`}
-            className="pointer-events-auto rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-950"
-            onClick={handleJumpToLatest}
-            type="button"
-          >
-            새 메시지 {viewportState.unseenMessageCount}개 <span aria-hidden="true">↓</span>
-          </button>
-        </div>
-      ) : null}
+      <ChatMessageViewportNewMessagesButton
+        count={viewportState.unseenMessageCount}
+        onJumpToLatest={handleJumpToLatest}
+      />
 
       <div
         aria-label={history.roomLabel}
@@ -663,7 +630,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
         tabIndex={-1}
       >
         {history.feedback?.kind === "notice" ? (
-          <MessageHistoryNotice message={history.feedback.message} />
+          <ChatMessageViewportHistoryNotice message={history.feedback.message} />
         ) : null}
 
         {history.items.length > 0 ? (
@@ -680,47 +647,13 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
                 return null;
               }
 
-              const style = {
-                left: 0,
-                position: "absolute" as const,
-                top: 0,
-                transform: `translateY(${virtualItem.start}px)`,
-                width: "100%",
-              };
-
-              if (item.kind === "date-separator") {
-                return (
-                  <ChatMessageDateSeparator
-                    date={item.date}
-                    key={virtualItem.key}
-                    ref={virtualizer.measureElement}
-                    renderKey={item.renderKey}
-                    style={style}
-                    virtualIndex={virtualItem.index}
-                  />
-                );
-              }
-
-              if (item.kind === "read-boundary") {
-                return (
-                  <ChatMessageReadBoundary
-                    afterSequence={item.afterSequence}
-                    key={virtualItem.key}
-                    ref={virtualizer.measureElement}
-                    renderKey={item.renderKey}
-                    style={style}
-                    virtualIndex={virtualItem.index}
-                  />
-                );
-              }
-
               return (
-                <ChatMessageItem
-                  item={item.item}
+                <ChatMessageViewportVirtualRow
+                  item={item}
                   key={virtualItem.key}
-                  onOpenActions={history.onOpenMessageActions}
-                  ref={virtualizer.measureElement}
-                  style={style}
+                  measureElement={virtualizer.measureElement}
+                  onOpenMessageActions={history.onOpenMessageActions}
+                  start={virtualItem.start}
                   virtualIndex={virtualItem.index}
                 />
               );
@@ -815,12 +748,4 @@ function isSequenceVisible(scrollElement: HTMLDivElement, roomSequence: number):
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "이전 메시지를 불러오지 못했습니다.";
-}
-
-function MessageHistoryNotice({ message }: { message: string }) {
-  return (
-    <div className="flex h-full min-h-[20rem] items-center justify-center">
-      <p className="text-center text-sm text-slate-500">{message}</p>
-    </div>
-  );
 }
