@@ -141,8 +141,10 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
-Room 메시지 검색은 적용된 query와 opaque cursor를 소유하는 독립 session으로 관리하고,
-검색 결과와 결과를 기준으로 조회한 Context window를 일반 최신 timeline cache와 분리한다.
+Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 소유하는 독립 session,
+검색 결과를 기준으로 조회한 Context window는 `useChatRoomMessageSearchExperience`가 함께 조립한다.
+이 controller hook은 dialog 종료 시 Context와 검색 session을 정리하고 Room session이 비활성화되면
+열린 검색을 닫는다. 검색 결과와 Context window는 일반 최신 timeline cache와 분리한다.
 새 메시지는 고정된 검색 session에 자동 추가하지 않고, 실시간 UPDATE와 DELETE만 이미 로드된
 검색 결과와 Context에 반영한다. 검색이나 Context 오류는 core message 수신·전송을 막지 않는다.
 `useChatRoomParticipantProfiles`는 ACTIVE membership profile을 메시지 이력과 병렬로 조회하고,

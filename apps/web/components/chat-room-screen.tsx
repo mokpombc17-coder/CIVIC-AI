@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
@@ -24,15 +24,13 @@ import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
-import { useChatRoomMessageSearchDialog } from "@/components/use-chat-room-message-search-dialog";
+import { useChatRoomMessageSearchExperience } from "@/components/use-chat-room-message-search-experience";
 import { useChatRoomMessagePresentation } from "@/components/use-chat-room-message-presentation";
 import { useChatRoomReadExperience } from "@/components/use-chat-room-read-experience";
 import {
   useChatRoomMessageHistoryData,
   useChatRoomParticipantProfiles,
 } from "@/components/use-chat-room-screen-data";
-import { useRoomMessageContext } from "@/components/use-room-message-context";
-import { useRoomMessageSearch } from "@/components/use-room-message-search";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomDetailsQuery,
@@ -52,28 +50,10 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     open: openMembershipDialog,
     triggerRef: membershipDialogTriggerRef,
   } = useChatRoomMembershipDialog(roomId);
-  const {
-    close: closeMessageSearchDialogOverlay,
-    isOpen: isMessageSearchDialogOpen,
-    open: openMessageSearchDialog,
-    triggerRef: messageSearchDialogTriggerRef,
-  } = useChatRoomMessageSearchDialog(roomId);
-  const messageSearch = useRoomMessageSearch(roomId, {
-    enabled: session.isActive && isMessageSearchDialogOpen,
+  const messageSearchExperience = useChatRoomMessageSearchExperience(roomId, {
     generation: session.generation,
+    roomActive: session.isActive,
   });
-  const messageContext = useRoomMessageContext(roomId, {
-    enabled: session.isActive && isMessageSearchDialogOpen,
-    generation: session.generation,
-    searchSessionGeneration: messageSearch.sessionGeneration,
-  });
-  const clearMessageSearch = messageSearch.clearSearch;
-  const closeMessageContext = messageContext.closeContext;
-  const closeMessageSearchDialog = useCallback(() => {
-    closeMessageContext();
-    clearMessageSearch();
-    closeMessageSearchDialogOverlay();
-  }, [clearMessageSearch, closeMessageContext, closeMessageSearchDialogOverlay]);
   const messageMutations = useChatMessageMutations({
     enabled: session.isActive,
     generation: session.generation,
@@ -157,7 +137,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const overlayKind = resolveChatRoomScreenOverlayKind({
     hasMessageActions: messageActions.sheet !== null,
     isMembershipDialogOpen,
-    isMessageSearchDialogOpen,
+    isMessageSearchDialogOpen: messageSearchExperience.isOpen,
     roomAvailable: room !== undefined,
   });
   const header = createChatRoomHeaderViewModel({
@@ -182,23 +162,17 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     );
   }, [messageHistory.messages, outbox, roomId]);
 
-  useEffect(() => {
-    if (isMessageSearchDialogOpen && !session.isActive) {
-      closeMessageSearchDialog();
-    }
-  }, [closeMessageSearchDialog, isMessageSearchDialogOpen, session.isActive]);
-
   return (
     <ChatRoomView
       header={header}
       headerAction={
         <ChatRoomScreenHeaderActions
           isMembershipDialogOpen={isMembershipDialogOpen}
-          isMessageSearchDialogOpen={isMessageSearchDialogOpen}
+          isMessageSearchDialogOpen={messageSearchExperience.isOpen}
           membershipDialogTriggerRef={membershipDialogTriggerRef}
-          messageSearchDialogTriggerRef={messageSearchDialogTriggerRef}
+          messageSearchDialogTriggerRef={messageSearchExperience.triggerRef}
           onOpenMembershipDialog={openMembershipDialog}
-          onOpenMessageSearchDialog={openMessageSearchDialog}
+          onOpenMessageSearchDialog={messageSearchExperience.open}
           roomAvailable={room !== undefined}
           searchDisabled={!session.isActive}
         />
@@ -239,10 +213,10 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
             }}
             messageActionsSheet={messageActions.sheet}
             messageSearchDialog={{
-              context: messageContext,
-              controller: messageSearch,
-              isOpen: isMessageSearchDialogOpen,
-              onClose: closeMessageSearchDialog,
+              context: messageSearchExperience.context,
+              controller: messageSearchExperience.controller,
+              isOpen: messageSearchExperience.isOpen,
+              onClose: messageSearchExperience.close,
             }}
             participantDisplayNames={participantDisplayNames}
             room={room}
