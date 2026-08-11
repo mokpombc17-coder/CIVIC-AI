@@ -55,6 +55,10 @@ class InternalJwtContractTest {
         assertThatThrownBy(() -> tokens.issueRagToken(
                         UUID.randomUUID(), 0, "PARTICIPANT", Set.of("admin:*"), "request-01"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThat(ring.publicJwks().toString()).doesNotContain("\"d\"");
+        var publicJwks = ring.publicJwks().toString();
+        assertThat(publicJwks)
+                .contains("\"alg\":\"ES256\"")
+                .contains("\"use\":\"sig\"")
+                .doesNotContain("\"d\"");
     }
 }

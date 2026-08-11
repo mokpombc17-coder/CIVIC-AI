@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AdminRoleService {
     private static final Set<String> ALLOWED = Set.of("PARTICIPANT", "RAG_ADMIN", "ADMIN", "HIGHEST_ADMIN");
+    private static final Set<String> ADMIN_ROLES = Set.of("RAG_ADMIN", "ADMIN", "HIGHEST_ADMIN");
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
 
@@ -20,8 +21,18 @@ public class AdminRoleService {
     }
 
     @Transactional
-    public void replaceRoles(UUID actorId, UUID subjectId, long expectedVersion, Set<String> desiredRoles) {
+    public void replaceRoles(
+            UUID actorId,
+            UUID subjectId,
+            long expectedVersion,
+            Set<String> desiredRoles,
+            String reason,
+            boolean impactConfirmed) {
         requireActiveHighestAdminWithRotatedPassword(actorId);
+        var normalizedReason = reason == null ? "" : reason.strip();
+        if (normalizedReason.isEmpty() || normalizedReason.length() > 1000) {
+            throw new AdminPolicyException("A role change reason between 1 and 1000 characters is required");
+        }
         if (desiredRoles == null || desiredRoles.isEmpty() || !ALLOWED.containsAll(desiredRoles)) {
             throw new AdminPolicyException("At least one known role is required");
         }
@@ -29,6 +40,18 @@ public class AdminRoleService {
         var currentVersion = ((Number) subject.get("row_version")).longValue();
         if (currentVersion != expectedVersion) throw new AdminVersionConflictException("User version is stale");
         var current = Set.copyOf(rolesOf(subjectId));
+        var removedAdminRoles = new java.util.HashSet<>(current);
+        removedAdminRoles.removeAll(desiredRoles);
+        removedAdminRoles.retainAll(ADMIN_ROLES);
+        if (!removedAdminRoles.isEmpty() && !impactConfirmed) {
+            throw new AdminPolicyException("Administrator role revocation requires impact confirmation");
+        }
+        var newAdminRoles = new java.util.HashSet<>(desiredRoles);
+        newAdminRoles.removeAll(current);
+        newAdminRoles.retainAll(ADMIN_ROLES);
+        if (!"ACTIVE".equals(subject.get("state")) && !newAdminRoles.isEmpty()) {
+            throw new AdminPolicyException("New administrator roles require an active account");
+        }
         if (actorId.equals(subjectId) && current.contains("HIGHEST_ADMIN") && !desiredRoles.contains("HIGHEST_ADMIN")) {
             throw new AdminPolicyException("Highest administrators cannot demote themselves");
         }
@@ -44,7 +67,7 @@ public class AdminRoleService {
                     """, subjectId, actorId, databaseRole(role));
         }
         jdbc.update("update users set row_version = row_version + 1, updated_at = now() where id = ?", subjectId);
-        appendAudit(actorId, subjectId, desiredRoles);
+        appendAudit(actorId, subjectId, current, desiredRoles, normalizedReason);
     }
 
     @Transactional(readOnly = true)
@@ -80,12 +103,20 @@ public class AdminRoleService {
                 """, Integer.class);
     }
 
-    private void appendAudit(UUID actor, UUID subject, Set<String> roles) {
+    private void appendAudit(
+            UUID actor,
+            UUID subject,
+            Set<String> beforeRoles,
+            Set<String> afterRoles,
+            String reason) {
         try {
             jdbc.update("""
                     insert into audit_outbox(event_type, actor_user_id, subject_user_id, payload)
                     values ('ADMIN_ROLES_REPLACED', ?, ?, ?::jsonb)
-                    """, actor, subject, json.writeValueAsString(java.util.Map.of("roles", roles)));
+                    """, actor, subject, json.writeValueAsString(java.util.Map.of(
+                            "before_roles", beforeRoles,
+                            "after_roles", afterRoles,
+                            "reason", reason)));
         } catch (Exception exception) {
             throw new IllegalStateException("Could not append role audit event", exception);
         }

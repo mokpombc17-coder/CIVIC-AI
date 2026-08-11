@@ -174,6 +174,14 @@ public class SignupFlowService {
                 update users set state = 'ACTIVE', email_verified_at = now(), updated_at = now()
                 where id = ? and state = 'PENDING_EMAIL_VERIFICATION'
                 """, challenge.get("user_id"));
+        jdbc.update("""
+                insert into account_state_outbox(user_id, account_state_version, state, event_payload)
+                select id, account_state_version, 'ACTIVE',
+                    jsonb_build_object('subject_id', id, 'version', account_state_version,
+                                       'state', 'ACTIVE', 'reason', 'SIGNUP_VERIFIED', 'at', now())
+                from users where id = ? and state = 'ACTIVE'
+                on conflict (user_id, account_state_version) do nothing
+                """, challenge.get("user_id"));
     }
 
     @Transactional

@@ -29,7 +29,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Test
     void bootstrapPasswordRotationBlocksAllAdminMutations() {
         assertThatThrownBy(() -> roles.replaceRoles(
-                bootstrapId, bootstrapId, 0, Set.of("HIGHEST_ADMIN")))
+                bootstrapId, bootstrapId, 0, Set.of("HIGHEST_ADMIN"), "정기 권한 검토", false))
                 .isInstanceOf(AdminPolicyException.class)
                 .hasMessageContaining("password rotation");
     }
@@ -37,9 +37,9 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Test
     void selfDemotionAndZeroHighestAdminAreRejectedAndStaleVersionConflicts() {
         jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
-        assertThatThrownBy(() -> roles.replaceRoles(bootstrapId, bootstrapId, 0, Set.of("ADMIN")))
+        assertThatThrownBy(() -> roles.replaceRoles(bootstrapId, bootstrapId, 0, Set.of("ADMIN"), "자기 권한 회수", true))
                 .isInstanceOf(AdminPolicyException.class);
-        assertThatThrownBy(() -> roles.replaceRoles(bootstrapId, bootstrapId, 99, Set.of("HIGHEST_ADMIN")))
+        assertThatThrownBy(() -> roles.replaceRoles(bootstrapId, bootstrapId, 99, Set.of("HIGHEST_ADMIN"), "동시성 확인", false))
                 .isInstanceOf(AdminVersionConflictException.class);
     }
 
@@ -47,9 +47,28 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     void anIndependentSecondHighestAdminCanBeChangedWithoutRemovingTheLastOne() {
         jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
         var second = createAdmin("second-admin@example.com");
-        roles.replaceRoles(bootstrapId, second, 0, Set.of("HIGHEST_ADMIN", "RAG_ADMIN"));
+        assertThatThrownBy(() -> roles.replaceRoles(
+                bootstrapId, second, 0, Set.of("HIGHEST_ADMIN", "RAG_ADMIN"), "  ", false))
+                .isInstanceOf(AdminPolicyException.class)
+                .hasMessageContaining("reason");
+
+        roles.replaceRoles(
+                bootstrapId, second, 0, Set.of("HIGHEST_ADMIN", "RAG_ADMIN"), "RAG 운영 담당 지정", false);
         assertThat(roles.rolesOf(second)).containsExactlyInAnyOrder("HIGHEST_ADMIN", "RAG_ADMIN");
-        assertThatThrownBy(() -> roles.replaceRoles(second, second, 1, Set.of("RAG_ADMIN")))
+        var audit = jdbc.queryForObject(
+                "select payload::text from audit_outbox where subject_user_id = ? order by created_at desc limit 1",
+                String.class,
+                second);
+        assertThat(audit)
+                .contains("RAG 운영 담당 지정", "before_roles", "after_roles");
+        assertThatThrownBy(() -> roles.replaceRoles(
+                bootstrapId, second, 1, Set.of("HIGHEST_ADMIN"), "RAG 운영 권한 회수", false))
+                .isInstanceOf(AdminPolicyException.class)
+                .hasMessageContaining("impact");
+        roles.replaceRoles(
+                bootstrapId, second, 1, Set.of("HIGHEST_ADMIN"), "RAG 운영 권한 회수", true);
+        assertThat(roles.rolesOf(second)).containsExactly("HIGHEST_ADMIN");
+        assertThatThrownBy(() -> roles.replaceRoles(second, second, 2, Set.of("RAG_ADMIN"), "자기 권한 회수", true))
                 .isInstanceOf(AdminPolicyException.class);
     }
 

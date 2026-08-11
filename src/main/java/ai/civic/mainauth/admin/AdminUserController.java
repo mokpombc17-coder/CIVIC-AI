@@ -52,13 +52,17 @@ public class AdminUserController {
         authorization.requireAdmin(sessionId, false);
         var normalized = query.strip().toLowerCase(java.util.Locale.ROOT);
         var users = jdbc.query("""
-                select u.id, u.email, u.state, u.row_version, c.must_change_password
+                select u.id, u.email, u.state, u.row_version, c.must_change_password,
+                       u.email_verified_at, coalesce(max(s.last_seen_at), u.updated_at) as last_activity_at
                 from users u join credentials c on c.user_id = u.id
+                left join sessions s on s.user_id = u.id
                 where ? = '' or u.normalized_email like '%' || ? || '%'
+                group by u.id, c.must_change_password
                 order by u.created_at desc limit 100
                 """, (rs, rowNum) -> view(
                 rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("state"),
-                rs.getLong("row_version"), rs.getBoolean("must_change_password")), normalized, normalized);
+                rs.getLong("row_version"), rs.getBoolean("must_change_password"),
+                rs.getTimestamp("email_verified_at"), rs.getTimestamp("last_activity_at")), normalized, normalized);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(new UserPage(users));
     }
 
@@ -82,26 +86,45 @@ public class AdminUserController {
         browser.requireAuthenticatedMutation(new BrowserRequestPolicy.RequestMetadata(
                 request.getMethod(), request.getHeader(HttpHeaders.ORIGIN), request.getHeader("Sec-Fetch-Site"),
                 request.getContentType(), request.getHeader(HttpHeaders.AUTHORIZATION)), csrfToken, csrfToken);
-        roles.replaceRoles(actor.userId(), userId, body.rowVersion(), body.roles());
+        roles.replaceRoles(
+                actor.userId(),
+                userId,
+                body.rowVersion(),
+                body.roles(),
+                body.reason(),
+                body.impactConfirmed());
         return load(userId);
     }
 
     private AdminUserView load(UUID userId) {
         return jdbc.queryForObject("""
-                select u.id, u.email, u.state, u.row_version, c.must_change_password
-                from users u join credentials c on c.user_id = u.id where u.id = ?
+                select u.id, u.email, u.state, u.row_version, c.must_change_password,
+                       u.email_verified_at, coalesce(max(s.last_seen_at), u.updated_at) as last_activity_at
+                from users u join credentials c on c.user_id = u.id
+                left join sessions s on s.user_id = u.id
+                where u.id = ? group by u.id, c.must_change_password
                 """, (rs, rowNum) -> view(
                 rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("state"),
-                rs.getLong("row_version"), rs.getBoolean("must_change_password")), userId);
+                rs.getLong("row_version"), rs.getBoolean("must_change_password"),
+                rs.getTimestamp("email_verified_at"), rs.getTimestamp("last_activity_at")), userId);
     }
 
-    private AdminUserView view(UUID id, String email, String state, long version, boolean mustChange) {
+    private AdminUserView view(
+            UUID id,
+            String email,
+            String state,
+            long version,
+            boolean mustChange,
+            java.sql.Timestamp emailVerifiedAt,
+            java.sql.Timestamp lastActivityAt) {
         return new AdminUserView(
                 id, email, "DEACTIVATED".equals(state) ? "INACTIVE" : state,
-                roles.rolesOf(id), version, mustChange);
+                roles.rolesOf(id), version, mustChange,
+                emailVerifiedAt == null ? null : emailVerifiedAt.toInstant(),
+                lastActivityAt == null ? null : lastActivityAt.toInstant());
     }
 
-    record RoleUpdate(Set<String> roles, long rowVersion) {}
+    record RoleUpdate(Set<String> roles, long rowVersion, String reason, boolean impactConfirmed) {}
     record UserPage(List<AdminUserView> items) {}
     record AdminUserView(
             UUID userId,
@@ -109,5 +132,7 @@ public class AdminUserController {
             String accountState,
             List<String> roles,
             long rowVersion,
-            boolean mustChangePassword) {}
+            boolean mustChangePassword,
+            Instant emailVerifiedAt,
+            Instant lastActivityAt) {}
 }

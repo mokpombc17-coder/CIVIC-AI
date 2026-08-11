@@ -3,7 +3,9 @@ package ai.civic.mainauth.token;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.JWSAlgorithm;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -48,9 +50,17 @@ public final class Es256KeyRing {
 
     public JWKSet publicJwks() {
         var keys = new ArrayList<com.nimbusds.jose.jwk.JWK>();
-        retiring.forEach(key -> keys.add(key.toPublicJWK()));
-        keys.add(active.toPublicJWK());
+        retiring.forEach(key -> keys.add(publicSigningKey(key)));
+        keys.add(publicSigningKey(active));
         return new JWKSet(keys);
+    }
+
+    private ECKey publicSigningKey(ECKey key) {
+        return new ECKey.Builder(key.getCurve(), key.getX(), key.getY())
+                .keyID(key.getKeyID())
+                .keyUse(KeyUse.SIGNATURE)
+                .algorithm(JWSAlgorithm.ES256)
+                .build();
     }
 
     private List<ECKey> loadKeys(String directory) {

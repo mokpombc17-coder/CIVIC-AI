@@ -71,7 +71,7 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                                 """.formatted("a".repeat(64), "b".repeat(64))))
                 .andExpect(status().isAccepted());
 
-        jdbc.update("update auth_challenges set last_sent_at = now() - interval '61 seconds'");
+        jdbc.update("update auth_challenges set last_sent_at = now() - interval '2 minutes'");
         mvc.perform(post("/api/v1/signup/verification/resend")
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")

@@ -15,15 +15,19 @@ class ConfigurationPolicyTest {
     void productionConfigurationIsFailClosedAndNamesEverySecretInput() throws Exception {
         var production = Files.readString(RESOURCES.resolve("application-prod.yaml"));
         assertThat(production).contains(
-                "CIVIC_DB_PASSWORD_FILE",
-                "CIVIC_AUDIT_DB_PASSWORD_FILE",
-                "CIVIC_REDIS_PASSWORD_FILE",
-                "CIVIC_SESSION_HMAC_SECRET_FILE",
+                "configtree:/run/secrets/civic/main/",
+                "CIVIC_DB_URL",
+                "CIVIC_DB_USER",
+                "CIVIC_REDIS_URL",
                 "CIVIC_ES256_KEY_DIRECTORY",
-                "CIVIC_BOOTSTRAP_ADMIN_EMAIL",
-                "CIVIC_BOOTSTRAP_ADMIN_PASSWORD_HASH",
-                "CIVIC_SMTP_HOST");
-        assertThat(production).doesNotContain("password: password", "secret: secret");
+                "CIVIC_SMTP_HOST",
+                "CIVIC_ISSUER");
+        assertThat(production).doesNotContain(
+                "CIVIC_DB_PASSWORD",
+                "CIVIC_SESSION_HMAC_SECRET",
+                "CIVIC_INTERNAL_CLIENT_SECRET",
+                "password: password",
+                "secret: secret");
     }
 
     @Test

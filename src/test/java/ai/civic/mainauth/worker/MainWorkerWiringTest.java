@@ -25,4 +25,18 @@ class MainWorkerWiringTest {
         assertThat(worker).contains("WebApplicationType.NONE", "OutboxPoller");
         assertThat(server).doesNotContain("OutboxPoller");
     }
+
+    @Test
+    void workerPollerLoopActuallySchedulesOutboxWork() throws Exception {
+        var loop = Files.readString(Path.of(
+                "src/main/java/ai/civic/mainauth/worker/WorkerPollerLoop.java"));
+        assertThat(loop).contains("@Scheduled", "pollOnce");
+    }
+
+    @Test
+    void servletSecurityIsNotLoadedIntoTheNonWebWorker() throws Exception {
+        var security = Files.readString(Path.of(
+                "src/main/java/ai/civic/mainauth/config/SecurityConfiguration.java"));
+        assertThat(security).contains("@ConditionalOnWebApplication", "Type.SERVLET");
+    }
 }

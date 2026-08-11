@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +23,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void cleanSignupData() {
+        jdbc.update("delete from account_state_outbox where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from notification_outbox");
         jdbc.update("delete from auth_challenges");
         jdbc.update("delete from consent_evidence");
@@ -71,6 +74,25 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("notification_outbox", "event_type = 'SIGNUP_EMAIL_VERIFICATION'"))
                 .isOne();
         assertThat(count("sessions", "true")).isZero();
+    }
+
+    @Test
+    void verifiedSignupPublishesInitialActiveAccountState() throws Exception {
+        var flow = service.startSignup("verified@example.com");
+        service.completeSignup(flow.flowId(), validRequest("verified@example.com", "Valid123!"));
+        var digest = MessageDigest.getInstance("SHA-256")
+                .digest("123456".getBytes(StandardCharsets.UTF_8));
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where flow_hash is not null and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """, digest);
+
+        service.verifyEmail(flow.flowId(), "123456");
+
+        assertThat(count("users", "origin = 'SIGNUP' and state = 'ACTIVE'")).isOne();
+        assertThat(count("account_state_outbox", "state = 'ACTIVE' and account_state_version = 0"
+                + " and user_id in (select id from users where origin = 'SIGNUP')"))
+                .isOne();
     }
 
     @Test
