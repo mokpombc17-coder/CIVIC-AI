@@ -86,12 +86,14 @@ export type ChatRoomReadReceiptStateQueryParams = Readonly<{
 export type ChatRoomMessageSearchQueryParams = Readonly<{
   enabled: boolean;
   generation: number;
+  sessionGeneration?: number;
   query: string;
   limit?: number;
 }>;
 
 export type ChatRoomMessageSearchCriteria = Readonly<{
   generation: number;
+  sessionGeneration: number;
   query: string;
   limit: number;
 }>;
@@ -325,6 +327,7 @@ export function roomMessageSearchInfiniteQueryOptions(
   {
     enabled,
     generation,
+    sessionGeneration = 0,
     query,
     limit = DEFAULT_ROOM_MESSAGE_SEARCH_LIMIT,
   }: ChatRoomMessageSearchQueryParams,
@@ -337,6 +340,7 @@ export function roomMessageSearchInfiniteQueryOptions(
   });
   const criteria: ChatRoomMessageSearchCriteria = {
     generation,
+    sessionGeneration,
     query: request.query,
     limit: request.limit ?? DEFAULT_ROOM_MESSAGE_SEARCH_LIMIT,
   };

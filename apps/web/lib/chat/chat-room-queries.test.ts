@@ -508,6 +508,7 @@ describe("chat room query options", () => {
     expect(options.queryKey).toEqual(
       chatRoomQueryKeys.messageSearch("room-01", {
         generation: 4,
+        sessionGeneration: 0,
         query: "env policy",
         limit: 30,
       }),
