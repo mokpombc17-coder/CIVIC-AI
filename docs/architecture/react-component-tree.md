@@ -145,9 +145,11 @@ Room 메시지 검색은 적용된 query와 opaque cursor를 소유하는 독립
 검색 결과와 결과를 기준으로 조회한 Context window를 일반 최신 timeline cache와 분리한다.
 새 메시지는 고정된 검색 session에 자동 추가하지 않고, 실시간 UPDATE와 DELETE만 이미 로드된
 검색 결과와 Context에 반영한다. 검색이나 Context 오류는 core message 수신·전송을 막지 않는다.
-ACTIVE membership profile 목록도 메시지 이력과 병렬로 조회하고, `membershipId`를 기준으로
-cursor page를 끝까지 이어 Backend `displayName`을 메시지 ViewModel에 연결한다. 현재 ACTIVE 목록에 없는 과거 발신자는
-`알 수 없는 참여자`로 표시하며, profile 조회 실패는 core message 동작을 막지 않는다.
+`useChatRoomParticipantProfiles`는 ACTIVE membership profile을 메시지 이력과 병렬로 조회하고,
+`membershipId` cursor page를 끝까지 이어 Backend `displayName`을 제공한다. profile 조회 실패는 core
+message 동작을 막지 않으며, 현재 ACTIVE 목록에 없는 과거 발신자는 `알 수 없는 참여자`로 표시한다.
+`useChatRoomMessageHistoryData`는 최신 message Query와 과거 page load를 진입 위치 탐색용 history
+snapshot으로 변환하여 Screen이 TanStack infinite page 구조를 직접 해석하지 않게 한다.
 `ChatRoomScreen`은 이 Query 결과와 outgoing·mutation 상태를
 `useChatRoomMessagePresentation`에 전달한다. 이 presentation hook은 참여자 이름 map, Read Receipt
 projection, 날짜·읽음 구분선 timeline과 viewport item을 한 경계에서 조립한다. receipt sync가 ready이며

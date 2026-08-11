@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 import {
   useChatMessageOutbox,
   useChatOutgoingMessages,
@@ -27,15 +27,15 @@ import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membersh
 import { useChatRoomMessageSearchDialog } from "@/components/use-chat-room-message-search-dialog";
 import { useChatRoomMessagePresentation } from "@/components/use-chat-room-message-presentation";
 import { useChatRoomReadExperience } from "@/components/use-chat-room-read-experience";
+import {
+  useChatRoomMessageHistoryData,
+  useChatRoomParticipantProfiles,
+} from "@/components/use-chat-room-screen-data";
 import { useRoomMessageContext } from "@/components/use-room-message-context";
 import { useRoomMessageSearch } from "@/components/use-room-message-search";
-import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
-  flattenRoomMessageHistoryPages,
   useRoomDetailsQuery,
-  useRoomMembershipsQuery,
-  useRoomMessageHistoryQuery,
   useRoomReadReceiptStateQuery,
 } from "@/lib/chat/chat-room-queries";
 import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
@@ -80,38 +80,11 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     roomId,
   });
   const roomQuery = useRoomDetailsQuery(roomId);
-  const {
-    fetchNextPage: fetchNextParticipantProfilesPage,
-    hasNextPage: hasNextParticipantProfilesPage,
-    isFetchNextPageError: isParticipantProfilesNextPageError,
-    isFetchingNextPage: isFetchingNextParticipantProfilesPage,
-    memberships: participantProfiles,
-  } = useRoomMembershipsQuery(roomId, {
+  const participantProfiles = useChatRoomParticipantProfiles(roomId, {
     enabled: session.isActive,
-    limit: ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT,
-    status: "ACTIVE",
   });
-  useEffect(() => {
-    if (
-      !session.isActive ||
-      !hasNextParticipantProfilesPage ||
-      isFetchingNextParticipantProfilesPage ||
-      isParticipantProfilesNextPageError
-    ) {
-      return;
-    }
-
-    void fetchNextParticipantProfilesPage();
-  }, [
-    fetchNextParticipantProfilesPage,
-    hasNextParticipantProfilesPage,
-    isFetchingNextParticipantProfilesPage,
-    isParticipantProfilesNextPageError,
-    session.isActive,
-  ]);
-  const messageHistory = useRoomMessageHistoryQuery(roomId, {
+  const messageHistory = useChatRoomMessageHistoryData(roomId, {
     enabled: session.isActive,
-    limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
   });
   const receiptStateQuery = useRoomReadReceiptStateQuery(roomId, {
     enabled: session.isActive,
@@ -139,34 +112,14 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const sessionView = getChatRoomSessionView(session, roomId, realtimeReady);
   const room = roomQuery.data;
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
-  const fetchNextMessageHistoryPage = messageHistory.fetchNextPage;
-  const entryHistory = useMemo(
-    () => ({
-      hasOlderMessages: messageHistory.hasNextPage,
-      messages: messageHistory.messages,
-    }),
-    [messageHistory.hasNextPage, messageHistory.messages],
-  );
-  const loadOlderEntryHistory = useCallback(async () => {
-    const result = await fetchNextMessageHistoryPage();
-
-    if (result.isError) {
-      throw result.error;
-    }
-
-    return {
-      hasOlderMessages: result.hasNextPage,
-      messages: flattenRoomMessageHistoryPages(roomId, result.data?.pages),
-    };
-  }, [fetchNextMessageHistoryPage, roomId]);
   const readExperience = useChatRoomReadExperience({
     connectionErrorCode: session.connectionError?.code ?? null,
     enabled: session.isActive,
     generation: session.generation,
-    history: entryHistory,
+    history: messageHistory.entryHistory,
     historyReady: messageHistory.status === "success",
     latestConfirmedSequence,
-    loadOlder: loadOlderEntryHistory,
+    loadOlder: messageHistory.loadOlderEntryHistory,
     membership: room?.myMembership ?? null,
     messageVisibleAfterSequence: session.messageVisibleAfterSequence,
     onRefetchReceiptState: receiptStateQuery.refetch,
