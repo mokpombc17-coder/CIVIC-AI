@@ -188,6 +188,106 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
+    void authorizesConfirmedUserScopesFromScopeClaim()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/me/surveys/current")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.SURVEYS_READ)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/me/survey-responses")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes
+                                                .SURVEY_RESPONSES_WRITE)))
+                .andExpect(status().isOk());
+
+        String taskReadToken = scopedToken(
+                "user-a",
+                VoteScopes.TASKS_READ);
+        mockMvc.perform(get("/api/v1/me/tasks")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/me/tasks/task-1")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/me/submissions")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.SUBMISSIONS_READ)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post(
+                        "/api/v1/me/tasks/task-1/submission")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.SUBMISSIONS_WRITE)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void rejectsMissingOrWrongUserScopeWithProblemDetail()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/me/surveys/current"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get("/api/v1/me/surveys/current")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + validToken("user-a")))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentType(
+                        MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
+
+        mockMvc.perform(get("/api/v1/me/surveys/current")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.TASKS_READ)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void deniesAdminApiWithoutAnAdminContract() throws Exception {
+        String allUserScopesToken = scopedToken(
+                "user-a",
+                VoteScopes.SURVEYS_READ,
+                VoteScopes.SURVEY_RESPONSES_WRITE,
+                VoteScopes.TASKS_READ,
+                VoteScopes.SUBMISSIONS_READ,
+                VoteScopes.SUBMISSIONS_WRITE);
+
+        mockMvc.perform(get("/api/v1/admin/tasks")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + allUserScopesToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
+    }
+
+    @Test
     void allowsCredentialCorsOnlyFromFrontendOrigin()
             throws Exception {
         mockMvc.perform(options("/api/v1/test/current-user")
@@ -248,12 +348,42 @@ class VoteApiSecurityIntegrationTest {
                 Instant.now().plusSeconds(300));
     }
 
+    private String scopedToken(
+            String subject,
+            String... scopes
+    ) throws Exception {
+        return token(
+                properties.getSecret(),
+                subject,
+                properties.getIssuer(),
+                List.of(properties.getAudience()),
+                Instant.now().plusSeconds(300),
+                String.join(" ", scopes));
+    }
+
     private String token(
             String secret,
             String subject,
             String issuer,
             List<String> audience,
             Instant expiresAt
+    ) throws Exception {
+        return token(
+                secret,
+                subject,
+                issuer,
+                audience,
+                expiresAt,
+                null);
+    }
+
+    private String token(
+            String secret,
+            String subject,
+            String issuer,
+            List<String> audience,
+            Instant expiresAt,
+            String scope
     ) throws Exception {
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                 .issuer(issuer)
@@ -262,6 +392,9 @@ class VoteApiSecurityIntegrationTest {
                 .expirationTime(Date.from(expiresAt));
         if (subject != null) {
             claims.subject(subject);
+        }
+        if (scope != null) {
+            claims.claim("scope", scope);
         }
 
         SignedJWT jwt = new SignedJWT(
@@ -303,6 +436,25 @@ class VoteApiSecurityIntegrationTest {
             return Map.of(
                     "requesterUserId",
                     userIdResolver.resolve(authentication));
+        }
+
+        @GetMapping({
+                "/api/v1/me/surveys/current",
+                "/api/v1/me/tasks",
+                "/api/v1/me/tasks/{taskId}",
+                "/api/v1/me/submissions",
+                "/api/v1/admin/tasks"
+        })
+        Map<String, String> scopedGet() {
+            return Map.of("status", "ok");
+        }
+
+        @PostMapping({
+                "/api/v1/me/survey-responses",
+                "/api/v1/me/tasks/{taskId}/submission"
+        })
+        Map<String, String> scopedPost() {
+            return Map.of("status", "ok");
         }
     }
 }

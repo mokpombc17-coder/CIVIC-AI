@@ -3,6 +3,7 @@ package com.hamcheeze.vote.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -31,6 +32,38 @@ public class VoteSecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**")
                         .permitAll()
+                        .requestMatchers(
+                                "/api/v1/admin",
+                                "/api/v1/admin/**")
+                        .denyAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/me/surveys",
+                                "/api/v1/me/surveys/**")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.SURVEYS_READ))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/me/survey-responses")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.SURVEY_RESPONSES_WRITE))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/me/tasks/*/submission")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.SUBMISSIONS_WRITE))
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/me/tasks",
+                                "/api/v1/me/tasks/**")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.TASKS_READ))
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/me/submissions",
+                                "/api/v1/me/submissions/**")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.SUBMISSIONS_READ))
                         .requestMatchers("/api/v1/**")
                         .authenticated()
                         .anyRequest()
