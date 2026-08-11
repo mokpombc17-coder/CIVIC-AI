@@ -56,6 +56,15 @@ describe("Room message search state", () => {
     expect(invalid.validationMessage).toBeTruthy();
   });
 
+  it("UTF-16 512 code unit를 넘는 원문은 정규화 전에 차단한다", () => {
+    const rawQuery = `환경${" ".repeat(511)}`;
+    const invalid = reduce([{ type: "draft-changed", value: rawQuery }, { type: "submitted" }]);
+
+    expect(invalid.appliedQuery).toBeUndefined();
+    expect(invalid.sessionGeneration).toBe(0);
+    expect(invalid.validationMessage).toContain("512");
+  });
+
   it("INVALID_CURSOR는 결과를 버릴 새 session을 한 번만 만든다", () => {
     const searched = reduce([{ type: "draft-changed", value: "환경 정책" }, { type: "submitted" }]);
     const recovered = reduce([{ type: "invalid-cursor-recovered" }], searched);

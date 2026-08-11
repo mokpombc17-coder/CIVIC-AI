@@ -17,6 +17,7 @@ const positiveMessageVersionSchema = z.number().int().positive();
 const messageHistoryLimitSchema = z.number().int().min(1).max(100);
 const roomMessageSearchLimitSchema = z.number().int().min(1).max(50);
 const roomMessageContextWindowSizeSchema = z.number().int().min(0).max(50);
+export const ROOM_MESSAGE_SEARCH_RAW_QUERY_MAX_UTF16_CODE_UNITS = 512;
 const forbiddenC0ControlCharacterPattern = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 const isoControlCharacterPattern = /[\u0000-\u001F\u007F-\u009F]/u;
 const unicodeWhitespacePattern = /\p{White_Space}+/gu;
@@ -375,6 +376,10 @@ export const chatMessageSchema = z.union([activeChatMessageSchema, deletedChatMe
 
 export const roomMessageSearchQuerySchema = z
   .string()
+  .max(
+    ROOM_MESSAGE_SEARCH_RAW_QUERY_MAX_UTF16_CODE_UNITS,
+    "검색어 원문은 UTF-16 code unit 기준 512자를 초과할 수 없습니다.",
+  )
   .refine(
     (query) => !isoControlCharacterPattern.test(query),
     "검색어에 제어 문자를 포함할 수 없습니다.",

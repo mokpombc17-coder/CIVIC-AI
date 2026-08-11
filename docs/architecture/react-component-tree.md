@@ -227,6 +227,7 @@ flowchart TD
     ChatRoomView["ChatRoomView [Client] [View]<br/>apps/web/components/chat-room-view.tsx"]
     ChatMessageViewport["ChatMessageViewport [Client] [Feature]<br/>apps/web/components/chat-message-viewport.tsx"]
     ChatMessageActionsBottomSheet["ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single]<br/>apps/web/components/chat-message-actions-bottom-sheet.tsx"]
+    ChatRoomMessageSearchDialog["ChatRoomMessageSearchDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-message-search-dialog.tsx"]
     ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
@@ -275,6 +276,7 @@ flowchart TD
     ChatRoomScreen -->|"message draft and send"| ChatRoomSessionControls
     ChatRoomSessionControls --> ChatMessageComposer
     ChatRoomScreen -->|"one selected message"| ChatMessageActionsBottomSheet
+    ChatRoomScreen -->|"isolated Room message search session"| ChatRoomMessageSearchDialog
     ChatRoomScreen -->|"room info disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel --> ChatRoomCategoryBadges
@@ -290,6 +292,6 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

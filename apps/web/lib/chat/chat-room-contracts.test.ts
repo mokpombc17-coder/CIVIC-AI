@@ -686,6 +686,16 @@ describe("chat room REST contracts", () => {
     expect(roomMessageSearchQuerySchema.safeParse("환경\u0085정책").success).toBe(false);
   });
 
+  it("Room 메시지 검색어 원문을 UTF-16 code unit 기준 512자로 제한한다", () => {
+    const normalizationPadding = " ".repeat(510);
+
+    expect(roomMessageSearchQuerySchema.parse(`환경${normalizationPadding}`)).toBe("환경");
+    expect(roomMessageSearchQuerySchema.safeParse(`환경${normalizationPadding} `).success).toBe(
+      false,
+    );
+    expect(roomMessageSearchQuerySchema.safeParse(`${"😀".repeat(255)}가나다`).success).toBe(false);
+  });
+
   it("Room 메시지 검색 요청의 nullable cursor와 1~50 limit을 검증한다", () => {
     expect(
       roomMessageSearchRequestSchema.parse({

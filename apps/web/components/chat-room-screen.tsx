@@ -13,6 +13,10 @@ import {
   ChatRoomMembershipDialog,
   ChatRoomMembershipDialogTrigger,
 } from "@/components/chat-room-membership-dialog";
+import {
+  ChatRoomMessageSearchDialog,
+  ChatRoomMessageSearchDialogTrigger,
+} from "@/components/chat-room-message-search-dialog";
 import { createChatRoomEntryNavigationNotice } from "@/components/chat-room-entry-navigation-notice";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
 import {
@@ -35,6 +39,8 @@ import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-
 import { useChatRoomReadState } from "@/components/use-chat-room-read-state";
 import { useChatRoomEntryNavigation } from "@/components/use-chat-room-entry-navigation";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
+import { useChatRoomMessageSearchDialog } from "@/components/use-chat-room-message-search-dialog";
+import { useRoomMessageSearch } from "@/components/use-room-message-search";
 import type { ChatRoomReadStateCancellationReason } from "@/lib/chat/chat-room-read-state-coordinator";
 import { getChatRoomReadStateMembershipLifecycle } from "@/lib/chat/chat-room-read-state-membership-lifecycle";
 import {
@@ -63,6 +69,21 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     open: openMembershipDialog,
     triggerRef: membershipDialogTriggerRef,
   } = useChatRoomMembershipDialog(roomId);
+  const {
+    close: closeMessageSearchDialogOverlay,
+    isOpen: isMessageSearchDialogOpen,
+    open: openMessageSearchDialog,
+    triggerRef: messageSearchDialogTriggerRef,
+  } = useChatRoomMessageSearchDialog(roomId);
+  const messageSearch = useRoomMessageSearch(roomId, {
+    enabled: session.isActive && isMessageSearchDialogOpen,
+    generation: session.generation,
+  });
+  const clearMessageSearch = messageSearch.clearSearch;
+  const closeMessageSearchDialog = useCallback(() => {
+    clearMessageSearch();
+    closeMessageSearchDialogOverlay();
+  }, [clearMessageSearch, closeMessageSearchDialogOverlay]);
   const messageMutations = useChatMessageMutations({
     enabled: session.isActive,
     generation: session.generation,
@@ -296,16 +317,30 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     void receiptStateQuery.refetch();
   }, [receiptMembershipMismatchKey, receiptStateQuery, roomQuery]);
 
+  useEffect(() => {
+    if (isMessageSearchDialogOpen && !session.isActive) {
+      closeMessageSearchDialog();
+    }
+  }, [closeMessageSearchDialog, isMessageSearchDialogOpen, session.isActive]);
+
   return (
     <ChatRoomView
       header={header}
       headerAction={
         room ? (
-          <ChatRoomMembershipDialogTrigger
-            isOpen={isMembershipDialogOpen}
-            onOpen={openMembershipDialog}
-            ref={membershipDialogTriggerRef}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <ChatRoomMessageSearchDialogTrigger
+              disabled={!session.isActive}
+              isOpen={isMessageSearchDialogOpen}
+              onOpen={openMessageSearchDialog}
+              ref={messageSearchDialogTriggerRef}
+            />
+            <ChatRoomMembershipDialogTrigger
+              isOpen={isMembershipDialogOpen}
+              onOpen={openMembershipDialog}
+              ref={membershipDialogTriggerRef}
+            />
+          </div>
         ) : null
       }
       messageHistory={{
@@ -335,7 +370,13 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         viewportKey,
       }}
       overlay={
-        isMembershipDialogOpen && room ? (
+        isMessageSearchDialogOpen && room ? (
+          <ChatRoomMessageSearchDialog
+            controller={messageSearch}
+            onClose={closeMessageSearchDialog}
+            participantDisplayNames={participantDisplayNames}
+          />
+        ) : isMembershipDialogOpen && room ? (
           <ChatRoomMembershipDialog onClose={closeMembershipDialog} room={room} roomId={roomId} />
         ) : messageActions.sheet ? (
           <ChatMessageActionsBottomSheet sheet={messageActions.sheet} />
