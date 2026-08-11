@@ -67,6 +67,29 @@ class ChatMessageSearchCursorCodecTest {
     }
 
     @Test
+    void rejectsOversizedServerIssuedCursorAsInternalInvariant() {
+        ChatMessageSearchCursorBinding oversizedBinding =
+                new ChatMessageSearchCursorBinding(
+                        "room-1",
+                        "membership-" + "x".repeat(
+                                ChatMessageSearchCursorCodec
+                                        .MAX_CURSOR_TOKEN_LENGTH * 2),
+                        3,
+                        10,
+                        FINGERPRINT,
+                        20);
+        ChatMessageSearchCursor cursor = codec.issue(
+                oversizedBinding,
+                100,
+                80);
+
+        assertThatThrownBy(() -> codec.encode(cursor))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(ChatMessageSearchException.class)
+                .hasMessageContaining("exceeds the token length limit");
+    }
+
+    @Test
     void treatsMissingCursorAsFirstSearchRequest() {
         assertThat(codec.decode(null, binding())).isNull();
         assertThat(codec.decode("  ", binding())).isNull();

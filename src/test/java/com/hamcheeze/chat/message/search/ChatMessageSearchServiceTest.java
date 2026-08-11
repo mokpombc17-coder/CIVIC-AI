@@ -302,6 +302,42 @@ class ChatMessageSearchServiceTest {
     }
 
     @Test
+    void oversizedServerIssuedCursorBecomesInternalError() {
+        String oversizedMembershipId = "membership-" + "x".repeat(
+                ChatMessageSearchCursorCodec.MAX_CURSOR_TOKEN_LENGTH * 2);
+        properties.setCandidateChunkSize(1);
+        properties.setMaxScannedPerRequest(1);
+        when(accessResolver.resolve("user-1", "room-1"))
+                .thenReturn(ChatMessageSearchAccess.allowed(
+                        oversizedMembershipId,
+                        1,
+                        0));
+        when(reader.findCandidates(
+                eq("room-1"), eq(0L), eq(10L), isNull(),
+                eq(1), any(Duration.class)))
+                .thenReturn(new ChatMessageSearchCandidateSlice(
+                        List.of(message(10, "other")),
+                        true));
+
+        assertThatThrownBy(() -> service().search(
+                "user-1",
+                "room-1",
+                criteria("match", 1),
+                null))
+                .isInstanceOf(ChatMessageSearchException.class)
+                .isInstanceOfSatisfying(
+                        ChatMessageSearchException.class,
+                        exception -> {
+                            assertThat(exception.code()).isEqualTo(
+                                    ChatMessageSearchErrorCode
+                                            .INTERNAL_ERROR);
+                            assertThat(exception.getCause())
+                                    .isInstanceOf(
+                                            IllegalStateException.class);
+                        });
+    }
+
+    @Test
     void failsWholeRequestWhenStorageFails() {
         when(reader.findCandidates(
                 any(), anyLong(), anyLong(), nullable(Long.class),

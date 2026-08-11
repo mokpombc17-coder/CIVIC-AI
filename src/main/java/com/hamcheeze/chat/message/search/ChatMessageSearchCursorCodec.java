@@ -71,14 +71,21 @@ public final class ChatMessageSearchCursorCodec {
 
     public String encode(ChatMessageSearchCursor cursor) {
         Objects.requireNonNull(cursor, "cursor");
+        final String token;
         try {
-            return Base64.getUrlEncoder()
+            token = Base64.getUrlEncoder()
                     .withoutPadding()
                     .encodeToString(writer.writeValueAsBytes(
                             CursorPayload.from(cursor)));
         } catch (RuntimeException exception) {
             throw invalidCursor(exception);
         }
+        if (token.length() > MAX_CURSOR_TOKEN_LENGTH) {
+            throw new IllegalStateException(
+                    "Server-issued message search cursor "
+                            + "exceeds the token length limit");
+        }
+        return token;
     }
 
     public ChatMessageSearchCursor decode(
