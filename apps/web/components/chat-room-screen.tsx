@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-import { useChatMessageOutbox, useChatOutgoingMessages } from "@/components/chat-realtime-provider";
 import {
   ChatRoomScreenHeaderActions,
   ChatRoomScreenOverlay,
@@ -15,19 +13,15 @@ import {
 import { createChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
 import { ChatRoomView, type ChatMessageHistoryFeedback } from "@/components/chat-room-view";
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
-import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
-import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatRoomMembershipDialog } from "@/components/use-chat-room-membership-dialog";
+import { useChatRoomMessageExperience } from "@/components/use-chat-room-message-experience";
 import { useChatRoomMessageSearchExperience } from "@/components/use-chat-room-message-search-experience";
-import { useChatRoomMessagePresentation } from "@/components/use-chat-room-message-presentation";
 import { useChatRoomReadExperience } from "@/components/use-chat-room-read-experience";
 import { useChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";
 import { useChatRoomParticipantProfiles } from "@/components/use-chat-room-screen-data";
 import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
-  const outbox = useChatMessageOutbox();
-  const outgoingMessages = useChatOutgoingMessages(roomId);
   const realtime = useChatRoomRealtimeExperience(roomId);
   const { coordinator, coordinatorEnabled, messageHistory, receiptStateQuery, session } = realtime;
   const {
@@ -39,11 +33,6 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const messageSearchExperience = useChatRoomMessageSearchExperience(roomId, {
     generation: session.generation,
     roomActive: session.isActive,
-  });
-  const messageMutations = useChatMessageMutations({
-    enabled: session.isActive,
-    generation: session.generation,
-    roomId,
   });
   const roomQuery = useRoomDetailsQuery(roomId);
   const participantProfiles = useChatRoomParticipantProfiles(roomId, {
@@ -76,25 +65,19 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     roomId,
     roomStatus: room?.status,
   });
-  const { messageItems, participantDisplayNames, viewportItems } = useChatRoomMessagePresentation({
+  const messageExperience = useChatRoomMessageExperience({
     confirmedMessages: messageHistory.messages,
-    mutationStates: messageMutations.states,
-    outgoingMessages,
+    enabled: session.isActive,
+    generation: session.generation,
     participantProfiles,
     readBoundaryAfterSequence: readExperience.readBoundaryAfterSequence,
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,
+    roomId,
     selfMembershipId: room?.myMembership?.membershipId ?? null,
   });
-  const viewportKey = `${roomId}:${session.generation}`;
-  const messageActions = useChatMessageActionsBottomSheet({
-    items: messageItems,
-    onDeleteMessage: messageMutations.deleteMessage,
-    onEditMessage: messageMutations.editMessage,
-    viewportKey,
-  });
   const overlayKind = resolveChatRoomScreenOverlayKind({
-    hasMessageActions: messageActions.sheet !== null,
+    hasMessageActions: messageExperience.actions.sheet !== null,
     isMembershipDialogOpen,
     isMessageSearchDialogOpen: messageSearchExperience.isOpen,
     roomAvailable: room !== undefined,
@@ -112,14 +95,8 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     isActive: session.isActive,
     isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
     isPending: messageHistory.isPending,
-    messageCount: messageItems.length,
+    messageCount: messageExperience.messageItems.length,
   });
-  useEffect(() => {
-    outbox.acknowledgeConfirmed(
-      roomId,
-      new Set(messageHistory.messages.map((message) => message.clientMessageId)),
-    );
-  }, [messageHistory.messages, outbox, roomId]);
 
   return (
     <ChatRoomView
@@ -142,7 +119,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         feedback,
         initialScrollTarget: readExperience.initialScrollTarget,
         isLoadingOlder: messageHistory.isFetchingNextPage,
-        items: viewportItems,
+        items: messageExperience.viewportItems,
         latestConfirmedSequence,
         onLoadOlder: async () => {
           const result = await messageHistory.fetchNextPage();
@@ -155,12 +132,12 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
             hasOlderMessages: result.hasNextPage,
           };
         },
-        onOpenMessageActions: messageActions.openMessageActions,
+        onOpenMessageActions: messageExperience.actions.openMessageActions,
         onReadThroughSequence: readExperience.onReadThroughSequence,
         onRetry: () => void messageHistory.refetch(),
         readStateEnabled: readExperience.readStateEnabled,
         roomLabel: `${roomId} 메시지`,
-        viewportKey,
+        viewportKey: messageExperience.viewportKey,
       }}
       overlay={
         overlayKind ? (
@@ -170,14 +147,14 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
               isOpen: isMembershipDialogOpen,
               onClose: closeMembershipDialog,
             }}
-            messageActionsSheet={messageActions.sheet}
+            messageActionsSheet={messageExperience.actions.sheet}
             messageSearchDialog={{
               context: messageSearchExperience.context,
               controller: messageSearchExperience.controller,
               isOpen: messageSearchExperience.isOpen,
               onClose: messageSearchExperience.close,
             }}
-            participantDisplayNames={participantDisplayNames}
+            participantDisplayNames={messageExperience.participantDisplayNames}
             room={room}
             roomId={roomId}
           />

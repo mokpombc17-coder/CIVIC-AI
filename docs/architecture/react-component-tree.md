@@ -156,9 +156,10 @@ Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 
 message 동작을 막지 않으며, 현재 ACTIVE 목록에 없는 과거 발신자는 `알 수 없는 참여자`로 표시한다.
 `useChatRoomMessageHistoryData`는 최신 message Query와 과거 page load를 진입 위치 탐색용 history
 snapshot으로 변환하여 Screen이 TanStack infinite page 구조를 직접 해석하지 않게 한다.
-`ChatRoomScreen`은 이 Query 결과와 outgoing·mutation 상태를
-`useChatRoomMessagePresentation`에 전달한다. 이 presentation hook은 참여자 이름 map, Read Receipt
-projection, 날짜·읽음 구분선 timeline과 viewport item을 한 경계에서 조립한다. receipt sync가 ready이며
+`useChatRoomMessageExperience`는 확정 Message History와 Outbox의 optimistic outgoing을 합치고,
+확정된 `clientMessageId`를 Outbox에서 정리한다. 수정·삭제 mutation, 메시지 action sheet와
+`useChatRoomMessagePresentation`도 같은 경험 경계에서 조립한다. presentation hook은 참여자 이름 map,
+Read Receipt projection, 날짜·읽음 구분선 timeline과 viewport item을 만든다. receipt sync가 ready이며
 Room detail의 현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은
 인원 projection을 적용하고, message Query cache는 수정하지 않으며 양수인 읽은 인원만 표시한다.
 Room 진입 시에는 `ChatRoomScreen`이 실시간 generation별 최초 receipt position을 고정하고, 읽음
@@ -185,8 +186,8 @@ focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 
 다른 탭 사용이나 연결 오류처럼 조치가 필요한 안내는 `ChatRoomSessionNotice`, snapshot 동기화
 실패와 복구 동작은 `ChatRealtimeSyncStatus`가 담당한다. `ChatRoomSessionControls`는 해석된
 session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 입력·전송 및 키보드 동작을
-담당한다. 메시지 수정·삭제 lifecycle과 transport command는 `ChatRoomScreen`의 container hook이
-조립하고, 선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
+담당한다. 메시지 수정·삭제 lifecycle과 transport command는 `useChatRoomMessageExperience`가 조립하고,
+선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
 방 정보 disclosure와 focus 복원도 Screen이 소유하며, `ChatRoomMembershipDialog` 안에서만
 `ChatRoomMembershipPanel`을 mount한다. 메시지 액션과 멤버십 Dialog는 동시에 렌더링하지 않는다.
 `ChatRoomMembershipPanel`은 `useChatRoomMembershipPanel`이 조립한 controller를
