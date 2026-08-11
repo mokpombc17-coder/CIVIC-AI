@@ -1,6 +1,8 @@
 spring:
   application:
     name: civic-main-auth
+  jackson:
+    property-naming-strategy: SNAKE_CASE
   datasource:
     url: ${CIVIC_DB_URL:jdbc:postgresql://localhost:5432/civic_main}
     username: ${CIVIC_DB_USER:civic_main}

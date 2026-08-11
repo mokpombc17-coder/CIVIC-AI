@@ -3,8 +3,10 @@ package ai.civic.mainauth.notification;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Service
+@ConditionalOnProperty(name = "civic.runtime.mode", havingValue = "worker")
 public class SmtpNotificationService {
     private final JavaMailSender sender;
 

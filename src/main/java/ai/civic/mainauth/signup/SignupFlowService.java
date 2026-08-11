@@ -4,6 +4,7 @@ import ai.civic.mainauth.consent.ConsentEvidenceService;
 import ai.civic.mainauth.notification.VerificationCodeProtector;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -175,6 +176,49 @@ public class SignupFlowService {
                 """, challenge.get("user_id"));
     }
 
+    @Transactional
+    public void resendSignupVerification(UUID flowId) {
+        var rows = jdbc.query("""
+                select id, target_identity, resend_count, last_sent_at,
+                       resend_window_started_at, expires_at, consumed_at
+                from auth_challenges
+                where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                for update
+                """, (rs, rowNum) -> new ResendChallenge(
+                rs.getObject("id", UUID.class), rs.getString("target_identity"),
+                rs.getInt("resend_count"),
+                rs.getTimestamp("last_sent_at") == null ? null : rs.getTimestamp("last_sent_at").toInstant(),
+                rs.getTimestamp("resend_window_started_at") == null ? null
+                        : rs.getTimestamp("resend_window_started_at").toInstant(),
+                rs.getTimestamp("expires_at").toInstant(), rs.getTimestamp("consumed_at") != null),
+                sha256(flowId.toString()));
+        if (rows.size() != 1) throw new SignupConflictException("Verification challenge is not active");
+        var challenge = rows.getFirst();
+        var now = clock.instant();
+        var count = challenge.windowStartedAt() != null
+                        && challenge.windowStartedAt().plus(1, ChronoUnit.HOURS).isAfter(now)
+                ? challenge.resendCount() : 0;
+        if (challenge.consumed() || count >= 5
+                || (challenge.lastSentAt() != null && challenge.lastSentAt().plusSeconds(60).isAfter(now))) {
+            throw new SignupConflictException("Verification message cannot be resent yet");
+        }
+        var code = "%06d".formatted(RANDOM.nextInt(1_000_000));
+        jdbc.update("""
+                update auth_challenges set code_hash = ?, attempt_count = 0, resend_count = ?,
+                    last_sent_at = ?, resend_window_started_at = ?, expires_at = ? where id = ?
+                """, sha256(code), count + 1, Timestamp.from(now),
+                Timestamp.from(count == 0 ? now : challenge.windowStartedAt()),
+                Timestamp.from(now.plus(10, ChronoUnit.MINUTES)), challenge.id());
+        var notification = Map.of(
+                "challenge_id", challenge.id().toString(),
+                "protected_code", codeProtector.protect(code),
+                "template", "signup-email-verification");
+        jdbc.update("""
+                insert into notification_outbox(event_type, recipient, payload)
+                values ('SIGNUP_EMAIL_VERIFICATION', ?, ?::jsonb)
+                """, challenge.targetIdentity(), writeJson(notification));
+    }
+
     private void validateCompletion(FlowRow flow, CompletionRequest request) {
         if (flow.completedAt() != null || !flow.expiresAt().isAfter(clock.instant())) {
             throw new SignupConflictException("Signup flow is no longer active");
@@ -302,7 +346,7 @@ public class SignupFlowService {
             String password,
             String preferredLanguage,
             String ragAnswerDetail,
-            boolean age14Confirmed,
+            @JsonProperty("age_14_confirmed") boolean age14Confirmed,
             Evidence termsEvidence,
             Evidence privacyEvidence) {}
 
@@ -325,4 +369,13 @@ public class SignupFlowService {
             int schemaVersion,
             String schemaDefinition,
             Map<String, String> documentVersions) {}
+
+    private record ResendChallenge(
+            UUID id,
+            String targetIdentity,
+            int resendCount,
+            Instant lastSentAt,
+            Instant windowStartedAt,
+            Instant expiresAt,
+            boolean consumed) {}
 }
