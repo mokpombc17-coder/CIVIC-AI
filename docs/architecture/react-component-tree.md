@@ -101,6 +101,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
                                     │   └── ChatMessageComposer [Client] [Feature] (apps/web/components/chat-message-composer.tsx)
                                     ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
+                                    ├── ChatRoomMessageSearchDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-message-search-dialog.tsx)
                                     └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                         └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
                                             ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
@@ -136,6 +137,10 @@ Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
 
 `ChatRoomScreen`은 REST Query, realtime session, Outbox 확인 처리를 조립하는 container다.
+Room 메시지 검색은 적용된 query와 opaque cursor를 소유하는 독립 session으로 관리하고,
+검색 결과와 결과를 기준으로 조회한 Context window를 일반 최신 timeline cache와 분리한다.
+새 메시지는 고정된 검색 session에 자동 추가하지 않고, 실시간 UPDATE와 DELETE만 이미 로드된
+검색 결과와 Context에 반영한다. 검색이나 Context 오류는 core message 수신·전송을 막지 않는다.
 ACTIVE membership profile 목록도 메시지 이력과 병렬로 조회하고, `membershipId`를 기준으로
 cursor page를 끝까지 이어 Backend `displayName`을 메시지 ViewModel에 연결한다. 현재 ACTIVE 목록에 없는 과거 발신자는
 `알 수 없는 참여자`로 표시하며, profile 조회 실패는 core message 동작을 막지 않는다.

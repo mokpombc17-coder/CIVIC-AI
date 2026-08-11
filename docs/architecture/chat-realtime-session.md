@@ -204,6 +204,12 @@ STOMP `CONNECT`에 `Authorization`을 추가하지 않는다. WebSocket handshak
 - Worker가 전달한 서버 event를 현재 탭의 query cache에 반영한다.
 - 연결 소유권이나 STOMP subscription 자체를 관리하지 않는다.
 - 재연결 누락 데이터는 메시지 이력 API와 `roomSequence` 계약에 따라 복구한다.
+- Room 메시지 검색 결과와 Context window는 일반 최신 timeline과 분리된 Query cache에
+  보관하며, room generation과 검색 session으로 느린 응답을 격리한다.
+- `CHAT_MESSAGE_CREATED`는 검색 시작 시점에 고정된 결과에 삽입하지 않고, UPDATE·DELETE는
+  이미 로드된 검색 결과와 Context를 `messageId`/`messageVersion`으로 갱신한다.
+- 검색·Context cache 반영 실패는 해당 보조 cache만 제거·복구하며 core message cache
+  적용과 realtime delivery ACK를 막지 않는다.
 - Read Receipt REST snapshot은 `roomId`와 실시간 `generation`별 query cache에 정규화해
   보관하고, read-receipt delta만 해당 cache에 병합한다.
 - 메시지별 `readCount`를 메시지 cache에 저장하지 않는다. Receipt 상태가 `ready`일 때 ViewModel
