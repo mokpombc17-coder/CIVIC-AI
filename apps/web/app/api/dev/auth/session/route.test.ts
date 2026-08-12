@@ -1,6 +1,7 @@
 import { jwtVerify } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CHAT_AUDIT_EXPORT_SCOPE,
   CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
   PLATFORM_AUTH_AUDIENCE,
   PLATFORM_AUTH_COOKIE_NAME,
@@ -61,8 +62,36 @@ describe("/api/dev/auth/session", () => {
     });
     const grantedScopes = String(payload.scope).split(" ");
     expect(grantedScopes).toEqual(expect.arrayContaining([...VOTE_AUTH_SCOPES]));
+    expect(grantedScopes).not.toContain(CHAT_AUDIT_EXPORT_SCOPE);
     expect(grantedScopes.some((scope) => scope.startsWith("vote:admin:"))).toBe(false);
     expect(payload.jti).toEqual(expect.any(String));
+  });
+
+  it("issues the audit Export scope only through the allowlisted local Super Admin subject", async () => {
+    const { POST } = await import("./route");
+    const {
+      LOCAL_CHAT_EXPORT_ADMIN_SUBJECT,
+      LOCAL_PLATFORM_AUTH_ALGORITHM,
+      LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY,
+      LOCAL_PLATFORM_AUTH_ISSUER,
+    } = await import("@/lib/server/auth/local-platform-jwt");
+    const response = await POST(sessionRequest({ subject: LOCAL_CHAT_EXPORT_ADMIN_SUBJECT }));
+    const token = requiredCookieValue(requiredSetCookie(response));
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY),
+      {
+        issuer: LOCAL_PLATFORM_AUTH_ISSUER,
+        audience: PLATFORM_AUTH_AUDIENCE,
+        algorithms: [LOCAL_PLATFORM_AUTH_ALGORITHM],
+      },
+    );
+
+    expect(response.status).toBe(204);
+    expect(payload).toMatchObject({
+      sub: LOCAL_CHAT_EXPORT_ADMIN_SUBJECT,
+      scope: `${PLATFORM_AUTH_SCOPE} ${CHAT_AUDIT_EXPORT_SCOPE}`,
+    });
   });
 
   it("issues the quota exemption only through an allowlisted pagination subject", async () => {

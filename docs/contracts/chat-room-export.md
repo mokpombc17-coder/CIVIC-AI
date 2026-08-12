@@ -6,7 +6,8 @@ Super Admin용 Room 채팅 감사 Export의 BFF, API client와 향후 hook이 �
 프론트 계약을 기록한다. Admin 화면과 Export 이력 UI는 현재 범위가 아니다.
 
 요구 scope `chat:audit:exports`는 일반 사용자의 기본 scope에 포함하지 않는다.
-로컬 개발에서는 allowlist된 Super Admin fixture에만 별도로 발급한다.
+로컬 개발에서는 `local-super-admin`과 `e2e-chat-export-admin-{uuid}` 형태의 allowlist된
+Super Admin fixture에만 별도로 발급한다.
 
 ## 요청
 

@@ -59,6 +59,16 @@ vote:submissions:write
 Vote 관리자 scope는 기본 JWT에 포함하지 않는다. 관리자 API와 인증 정책이 확정되면 allowlist된
 관리자 principal에만 별도 계약으로 발급한다.
 
+Chat 감사 Export의 `chat:audit:exports` scope도 일반 사용자 기본 JWT에 포함하지 않는다. 로컬
+개발과 E2E에서는 다음 subject만 코드로 allowlist한다.
+
+```text
+local-super-admin
+e2e-chat-export-admin-{uuid}
+```
+
+비슷한 이름이나 임의의 query/form 입력만으로 감사 scope를 추가하지 않는다.
+
 Resource Server는 `sub`를 인증된 플랫폼 사용자 ID로 사용한다. 서명이 유효하다는 이유만으로
 토큰을 허용해서는 안 되며, 설정된 issuer, audience, expiry와 필요한 scope도 함께 검증해야
 한다.

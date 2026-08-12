@@ -3,9 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { SignJWT } from "jose";
 import {
+  CHAT_AUDIT_EXPORT_SCOPE,
   CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE,
   PLATFORM_AUTH_AUDIENCE,
-  PLATFORM_AUTH_SCOPE,
+  PLATFORM_AUTH_SCOPES,
 } from "./platform-auth-contract";
 
 export const LOCAL_PLATFORM_AUTH_ALGORITHM = "HS256";
@@ -24,6 +25,11 @@ const fixtureSigningKey = new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_S
 
 const roomInboxPaginationSubjectPattern =
   /^e2e-latest-(?:owner|member)-pagination-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export const LOCAL_CHAT_EXPORT_ADMIN_SUBJECT = "local-super-admin";
+
+const chatExportAdminE2eSubjectPattern =
+  /^e2e-chat-export-admin-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type IssueLocalPlatformJwtInput = {
   subject: string;
@@ -60,9 +66,18 @@ export async function issueLocalPlatformJwt({
 }
 
 function resolveLocalPlatformScope(subject: string): string {
-  if (!roomInboxPaginationSubjectPattern.test(subject)) {
-    return PLATFORM_AUTH_SCOPE;
+  const scopes: string[] = [...PLATFORM_AUTH_SCOPES];
+
+  if (roomInboxPaginationSubjectPattern.test(subject)) {
+    scopes.push(CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE);
   }
 
-  return `${PLATFORM_AUTH_SCOPE} ${CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE}`;
+  if (
+    subject === LOCAL_CHAT_EXPORT_ADMIN_SUBJECT ||
+    chatExportAdminE2eSubjectPattern.test(subject)
+  ) {
+    scopes.push(CHAT_AUDIT_EXPORT_SCOPE);
+  }
+
+  return scopes.join(" ");
 }
