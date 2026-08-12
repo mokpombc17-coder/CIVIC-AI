@@ -14,6 +14,8 @@ export const CHAT_AUTH_SCOPE = CHAT_AUTH_SCOPES.join(" ");
 
 export const CHAT_ROOM_MEMBERSHIP_LIMIT_EXEMPT_SCOPE = "chat:rooms:membership-limit:exempt";
 
+export const CHAT_AUDIT_EXPORT_SCOPE = "chat:audit:exports";
+
 export const VOTE_AUTH_SCOPES = [
   "vote:surveys:read",
   "vote:survey-responses:write",
