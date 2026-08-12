@@ -95,7 +95,8 @@ recommendedMode
 resetError
 ```
 
-hook은 동시에 하나의 Export만 실행한다. 실패 시 자동 재시도하지 않고 실패한 모드만 수동으로
-재시도한다. `CHAT_EXPORT_BASE_NOT_FOUND`는 `recommendedMode=FULL`로 표현한다. Room이
-바뀐 뒤 완료된 이전 요청은 현재 hook 상태에 반영하지 않는다. 성공한 Blob은 파일 저장 함수에
-즉시 전달하고 React state나 Query cache에 보관하지 않는다.
+hook은 테스트 가능한 `ChatRoomExportController`를 구독하는 얇은 React adapter다. controller는
+동시에 하나의 Export만 실행한다. 실패 시 자동 재시도하지 않고 실패한 모드만 수동으로 재시도한다.
+`CHAT_EXPORT_BASE_NOT_FOUND`는 `recommendedMode=FULL`로 표현한다. Room 변경이나 unmount로
+controller가 폐기된 뒤 완료된 이전 요청은 현재 hook 상태에 반영하지 않고 ZIP 저장도 실행하지
+않는다. 성공한 Blob은 파일 저장 함수에 즉시 전달하고 React state나 Query cache에 보관하지 않는다.

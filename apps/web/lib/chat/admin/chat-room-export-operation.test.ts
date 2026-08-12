@@ -12,11 +12,13 @@ describe("downloadAndSaveRoomChatExport", () => {
     const api = { download: vi.fn(async () => download) };
     const save = vi.fn();
 
-    await downloadAndSaveRoomChatExport({
-      api,
-      input: { roomId: "room-01", mode: "FULL" },
-      save,
-    });
+    await expect(
+      downloadAndSaveRoomChatExport({
+        api,
+        input: { roomId: "room-01", mode: "FULL" },
+        save,
+      }),
+    ).resolves.toBe(true);
 
     expect(api.download).toHaveBeenCalledWith({ roomId: "room-01", mode: "FULL" });
     expect(save).toHaveBeenCalledWith(download);
@@ -38,6 +40,28 @@ describe("downloadAndSaveRoomChatExport", () => {
         save,
       }),
     ).rejects.toBe(error);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("응답이 도착하기 전에 operation이 무효화되면 ZIP을 저장하지 않는다", async () => {
+    const download = {
+      blob: new Blob(["zip"], { type: "application/zip" }),
+      exportId: "export-01",
+      filename: "chat-export-export-01.zip",
+      sha256: "a".repeat(64),
+    };
+    const api = { download: vi.fn(async () => download) };
+    const save = vi.fn();
+
+    await expect(
+      downloadAndSaveRoomChatExport({
+        api,
+        input: { roomId: "room-01", mode: "FULL" },
+        save,
+        shouldSave: () => false,
+      }),
+    ).resolves.toBe(false);
+
     expect(save).not.toHaveBeenCalled();
   });
 });
