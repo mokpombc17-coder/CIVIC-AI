@@ -2648,3 +2648,62 @@ fail-closed하고 `room.inbox.notification.recipient_snapshot.rejected`를
 오프라인 replay, Push, durable notification outbox를 제공하지 않는다. 향후
 Push 보장이 필요하면 message와 room-topic outbox를 저장하는 transaction에
 별도 durable notification intent를 함께 기록해야 한다.
+
+## Super Admin Room 채팅 Export
+
+`POST /api/v1/admin/rooms/{roomId}/exports`는 `chat:audit:exports` scope가 있는
+관리자만 호출할 수 있다. Room Membership과 `messageVisibleAfterSequence`는
+적용하지 않으며 ACTIVE/CLOSED Room을 모두 지원한다.
+
+요청 body는 `{"mode":"FULL"}` 또는 `{"mode":"INCREMENTAL"}`이다. FULL은
+요청 시작 시 고정한 Room의 현재 `roomChangeSequence`까지 감사 원장을 재생한다.
+INCREMENTAL은 같은 Room과 같은 요청 관리자의 최신 SUCCEEDED Export를 기준으로
+그 이후 변경만 포함한다. 해당 기준점이 없으면
+`409 CHAT_EXPORT_BASE_NOT_FOUND`이며 먼저 FULL을 실행해야 한다. 변경이 없는
+INCREMENTAL도 빈 `events.jsonl`을 가진 정상 ZIP을 반환한다.
+
+성공 응답은 `application/zip`이며 다음 헤더를 제공한다.
+
+```text
+Content-Disposition: attachment; filename="chat-export-{exportId}.zip"
+Content-Length: {artifactSize}
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+X-Content-Type-Options: nosniff
+X-Export-Id: {exportId}
+X-Export-SHA256: {sha256LowercaseHex}
+```
+
+FULL ZIP entry는 `manifest.json`, `room.json`, `participants.jsonl`,
+`events.jsonl`, `transcript.html`이고 INCREMENTAL은 마지막 entry가
+`changes.html`이다. `events.jsonl`은 UTF-8 한 줄 JSON이며 CREATE/UPDATE/DELETE
+revision의 before/after, `senderMembershipId`, 내부 감사용 `senderUserId`,
+actor identity를 포함한다. `participants.jsonl`은 ACTIVE/LEFT/BANNED Membership
+전체를 포함하며 Audit identity와 현재 profile snapshot을 연결한다.
+
+메시지와 event는 captured Audit Ledger watermark 기준이다. `room.json`과
+`participants.jsonl`은 Export 시작 시 현재 snapshot이므로 메시지 작성 당시의
+Room 이름이나 displayName을 의미하지 않는다. 각 payload file의 크기와 SHA-256은
+manifest에 기록하고 전체 ZIP SHA-256은 응답 헤더에 기록한다.
+
+Artifact는 응답 전 임시 private workspace에서 완성·검증되며 영구 저장하거나
+재다운로드하지 않는다. 전체 body write와 flush 이후 Job이 SUCCEEDED가 된 경우만
+다음 INCREMENTAL base로 사용한다. 전달 또는 성공 상태 저장이 실패하면 이전
+SUCCEEDED base를 유지하여 누락 대신 중복 가능성을 허용한다.
+
+주요 오류는 다음과 같다.
+
+```text
+400 INVALID_REQUEST
+403 ACCESS_DENIED
+404 ROOM_NOT_FOUND
+409 CHAT_EXPORT_ALREADY_RUNNING
+409 CHAT_EXPORT_BASE_NOT_FOUND
+413 CHAT_EXPORT_TOO_LARGE
+500 CHAT_EXPORT_LEDGER_INCONSISTENT
+503 CHAT_EXPORT_UNAVAILABLE
+```
+
+일반 Message History, Context, Search 및 WebSocket의 삭제 메시지는 계속
+`content=null`이며 Audit 원문과 userId는 이 관리자 Export 외부 계약으로
+노출되지 않는다.

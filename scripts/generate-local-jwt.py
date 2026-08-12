@@ -52,12 +52,21 @@ def main() -> int:
         default=3600,
         help="Token lifetime in seconds (default: 3600)",
     )
+    parser.add_argument(
+        "--additional-scope",
+        action="append",
+        default=[],
+        help="Additional local-only scope (repeatable)",
+    )
     args = parser.parse_args()
 
     if args.ttl_seconds < 1:
         parser.error("--ttl-seconds must be at least 1")
     if not args.subject.strip() or len(args.subject) > 128:
         parser.error("subject must contain 1 to 128 characters")
+    for scope in args.additional_scope:
+        if not scope.strip() or any(character.isspace() for character in scope):
+            parser.error("additional scope must be one non-blank token")
 
     secret = os.environ.get("CHAT_LOCAL_JWT_SECRET", DEFAULT_SECRET)
     if len(secret.encode("utf-8")) < 32:
@@ -82,7 +91,7 @@ def main() -> int:
             "iat": now,
             "iss": issuer,
             "jti": str(uuid.uuid4()),
-            "scope": DEFAULT_SCOPE,
+            "scope": " ".join((DEFAULT_SCOPE, *args.additional_scope)),
             "sub": args.subject,
         }
     )

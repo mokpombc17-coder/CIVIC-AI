@@ -53,6 +53,37 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     private LocalJwtProperties localJwtProperties;
 
     @Test
+    void chatExportRequiresDedicatedAuditScope() throws Exception {
+        String endpoint = "/api/v1/admin/rooms/missing-room/exports";
+        String body = "{\"mode\":\"FULL\"}";
+
+        mockMvc.perform(post(endpoint)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post(endpoint)
+                        .with(jwt().jwt(token -> token.subject("admin-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_WRITE))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post(endpoint)
+                        .with(jwt().jwt(token -> token.subject("admin-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_AUDIT_EXPORTS))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ROOM_NOT_FOUND"));
+    }
+
+    @Test
     void roomApiRequiresWriteScopeAndAcceptsJwtSubject()
             throws Exception {
         mockMvc.perform(post("/api/v1/rooms")

@@ -5,6 +5,21 @@ spring:
     timeout-per-shutdown-phase: 30s
 
 chat:
+  export:
+    temp-root: ${CHAT_EXPORT_TEMP_ROOT:/tmp/chat-export-tmp}
+    max-concurrent-exports: ${CHAT_EXPORT_MAX_CONCURRENT_EXPORTS:1}
+    audit-page-size: ${CHAT_EXPORT_AUDIT_PAGE_SIZE:1000}
+    max-events-per-export: ${CHAT_EXPORT_MAX_EVENTS_PER_EXPORT:100000}
+    max-distinct-messages-full: ${CHAT_EXPORT_MAX_DISTINCT_MESSAGES_FULL:50000}
+    max-replay-content-bytes: ${CHAT_EXPORT_MAX_REPLAY_CONTENT_BYTES:134217728}
+    max-artifact-bytes: ${CHAT_EXPORT_MAX_ARTIFACT_BYTES:268435456}
+    max-work-directory-bytes: ${CHAT_EXPORT_MAX_WORK_DIRECTORY_BYTES:536870912}
+    max-generation-duration: ${CHAT_EXPORT_MAX_GENERATION_DURATION:120s}
+    min-free-disk-bytes: ${CHAT_EXPORT_MIN_FREE_DISK_BYTES:1073741824}
+    cleanup-interval: ${CHAT_EXPORT_CLEANUP_INTERVAL:15m}
+    orphan-ttl: ${CHAT_EXPORT_ORPHAN_TTL:1h}
+    snapshot-max-attempts: ${CHAT_EXPORT_SNAPSHOT_MAX_ATTEMPTS:3}
+
   room:
     command:
       receipt-ttl: 1h

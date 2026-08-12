@@ -10,6 +10,8 @@ public final class ChatScopes {
     public static final String MESSAGES_WRITE = "chat:messages:write";
     public static final String READ_STATE_WRITE =
             "chat:read-state:write";
+    public static final String CHAT_AUDIT_EXPORTS =
+            "chat:audit:exports";
 
     private static final String AUTHORITY_PREFIX = "SCOPE_";
 
