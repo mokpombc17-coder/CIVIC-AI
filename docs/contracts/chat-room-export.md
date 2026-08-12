@@ -43,3 +43,27 @@ ZIP binary, base Export ID, watermark와 감사 데이터는 프론트 cache 또
 브라우저는 access token을 읽지 않는다. 향후 Next.js BFF Route Handler가
 `civic_ai_access_token` HttpOnly 쿠키를 서버에서 읽고 Backend 요청의
 `Authorization: Bearer` 헤더로 전달한다.
+
+프론트가 호출하는 same-origin endpoint는 다음과 같다.
+
+```text
+POST /api/chat/admin/rooms/{roomId}/exports
+```
+
+BFF는 요청 `Origin`을 검사하고, 고정된 Chat Resource Server URL에만 요청한다. Backend의
+성공 ZIP과 오류 body는 buffering하지 않고 stream으로 전달한다. 응답에서는 다음 헤더만
+allowlist로 전달한다.
+
+```text
+Content-Type
+Content-Disposition
+Content-Length
+Cache-Control
+Pragma
+X-Content-Type-Options
+X-Export-Id
+X-Export-SHA256
+```
+
+BFF는 별도의 짧은 timeout을 설정하지 않는다. 배포 플랫폼에서도 요청을 최대 300초까지
+허용하도록 Route Handler 실행 한도를 선언한다.
