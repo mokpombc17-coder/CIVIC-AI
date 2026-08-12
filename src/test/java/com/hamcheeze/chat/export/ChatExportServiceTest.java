@@ -37,6 +37,7 @@ class ChatExportServiceTest {
     private ChatExportSnapshotReader snapshotReader;
     private ChatExportArtifactGenerator artifactGenerator;
     private ChatExportTempManager tempManager;
+    private ChatExportConcurrencyGuard concurrencyGuard;
     private ChatExportService service;
 
     @BeforeEach
@@ -46,6 +47,7 @@ class ChatExportServiceTest {
         snapshotReader = mock(ChatExportSnapshotReader.class);
         artifactGenerator = mock(ChatExportArtifactGenerator.class);
         tempManager = mock(ChatExportTempManager.class);
+        concurrencyGuard = new ChatExportConcurrencyGuard(1);
         ChatExportProperties properties = new ChatExportProperties();
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         service = new ChatExportService(
@@ -54,7 +56,7 @@ class ChatExportServiceTest {
                 snapshotReader,
                 artifactGenerator,
                 tempManager,
-                new ChatExportConcurrencyGuard(1),
+                concurrencyGuard,
                 properties,
                 clock,
                 new ChatExportMetrics(new SimpleMeterRegistry()));
@@ -150,6 +152,63 @@ class ChatExportServiceTest {
                 eq(NOW));
         verify(jobStore, never()).markSucceeded(any(), any());
         verify(tempManager).cleanupBestEffort(workspace);
+    }
+
+    @Test
+    void oversizedEventRangeFailsBeforeWorkspaceCreation()
+            throws Exception {
+        ChatExportSnapshot snapshot = mock(ChatExportSnapshot.class);
+        when(snapshotReader.findStable(eq("room-1"), any(), anyInt()))
+                .thenReturn(Optional.of(snapshot));
+        when(auditReader.currentRoomChangeSequence("room-1"))
+                .thenReturn(100_001L);
+
+        assertThatThrownBy(() -> service.prepare(
+                "admin-1",
+                "room-1",
+                ChatExportMode.FULL))
+                .isInstanceOf(ChatExportException.class)
+                .satisfies(exception -> {
+                    ChatExportException exportException =
+                            (ChatExportException) exception;
+                    assertThat(exportException.code()).isEqualTo(
+                            ChatExportErrorCode.CHAT_EXPORT_TOO_LARGE);
+                    assertThat(exportException.retryable()).isFalse();
+                });
+
+        verify(jobStore).insertRunning(any());
+        verify(jobStore).markFailed(
+                any(),
+                eq(ChatExportFailureCode.TOO_LARGE),
+                eq(NOW));
+        verify(tempManager, never()).create(any(), any());
+        verify(artifactGenerator, never()).generate(any(), any(), any());
+        assertThat(concurrencyGuard.tryAcquire()).isNotNull();
+    }
+
+    @Test
+    void unstableSnapshotIsRetryableAndCreatesNoJob()
+            throws Exception {
+        when(snapshotReader.findStable(eq("room-1"), any(), anyInt()))
+                .thenThrow(new ChatExportSnapshotUnstableException(
+                        "unstable"));
+
+        assertThatThrownBy(() -> service.prepare(
+                "admin-1",
+                "room-1",
+                ChatExportMode.FULL))
+                .isInstanceOf(ChatExportException.class)
+                .satisfies(exception -> {
+                    ChatExportException exportException =
+                            (ChatExportException) exception;
+                    assertThat(exportException.code()).isEqualTo(
+                            ChatExportErrorCode.CHAT_EXPORT_UNAVAILABLE);
+                    assertThat(exportException.retryable()).isTrue();
+                });
+
+        verify(jobStore, never()).insertRunning(any());
+        verify(tempManager, never()).create(any(), any());
+        assertThat(concurrencyGuard.tryAcquire()).isNotNull();
     }
 
     private ChatExportJob succeededJob(

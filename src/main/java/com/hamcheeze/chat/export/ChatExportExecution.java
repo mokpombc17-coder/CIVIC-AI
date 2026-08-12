@@ -69,31 +69,47 @@ public final class ChatExportExecution implements AutoCloseable {
         return updated;
     }
 
-    public void markFailedBestEffort(ChatExportFailureCode failureCode) {
-        if (terminal.compareAndSet(false, true)) {
+    public synchronized void markFailedBestEffort(
+            ChatExportFailureCode failureCode
+    ) {
+        if (terminal.get()) {
+            return;
+        }
+        try {
+            jobStore.markFailed(
+                    job.exportId(),
+                    failureCode,
+                    clock.instant());
+            terminal.set(true);
             if (failureCode == ChatExportFailureCode.DELIVERY_FAILED) {
                 metrics.deliveryFailed(job.mode());
             }
             metrics.failed(metricsAttempt, failureCode.name());
-            try {
-                jobStore.markFailed(
-                        job.exportId(),
-                        failureCode,
-                        clock.instant());
-            } catch (RuntimeException ignored) {
-                // Delivery outcome must not be replaced by metadata failure.
-            }
+        } catch (RuntimeException ignored) {
+            // Keep the execution non-terminal so close() can retry once.
         }
     }
 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            if (!terminal.get()) {
-                metrics.failed(metricsAttempt, "ABANDONED");
+            try {
+                if (!terminal.get()) {
+                    markFailedBestEffort(
+                            ChatExportFailureCode.DELIVERY_FAILED);
+                }
+            } finally {
+                try {
+                    try {
+                        tempManager.cleanupBestEffort(
+                                artifact.workspace());
+                    } catch (RuntimeException ignored) {
+                        // Cleanup must not replace the delivery outcome.
+                    }
+                } finally {
+                    permit.close();
+                }
             }
-            tempManager.cleanupBestEffort(artifact.workspace());
-            permit.close();
         }
     }
 }

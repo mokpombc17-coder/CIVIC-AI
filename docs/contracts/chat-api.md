@@ -2691,6 +2691,13 @@ Artifact는 응답 전 임시 private workspace에서 완성·검증되며 영�
 다음 INCREMENTAL base로 사용한다. 전달 또는 성공 상태 저장이 실패하면 이전
 SUCCEEDED base를 유지하여 누락 대신 중복 가능성을 허용한다.
 
+event 범위, workspace 실제 UTF-8/binary write, 압축 artifact와 generation 시간은
+서버 설정 상한을 넘는 즉시 `413 CHAT_EXPORT_TOO_LARGE`로 중단된다. Room과 전체
+Membership의 current snapshot이 제한된 재시도 안에 안정화되지 않거나 시작에
+필요한 임시 디스크 예약을 확보하지 못하면 `503 CHAT_EXPORT_UNAVAILABLE`,
+`retryable=true`다. HTTP 전송 중 client disconnect 또는 write timeout은 성공
+checkpoint를 만들지 않는다.
+
 주요 오류는 다음과 같다.
 
 ```text

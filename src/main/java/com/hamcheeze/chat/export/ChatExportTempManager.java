@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.io.IOException;
-import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -37,6 +36,7 @@ public final class ChatExportTempManager {
     private final ChatExportProperties properties;
     private final Clock clock;
     private final Path root;
+    private final ChatExportUsableSpaceReader usableSpaceReader;
     private final Set<String> activeExportIds = ConcurrentHashMap.newKeySet();
     private final Counter cleanupAttempts;
     private final Counter cleanupFailures;
@@ -48,21 +48,35 @@ public final class ChatExportTempManager {
             Clock clock,
             MeterRegistry meterRegistry
     ) {
+        this(
+                properties,
+                clock,
+                meterRegistry,
+                ChatExportUsableSpaceReader.fileStore());
+    }
+
+    ChatExportTempManager(
+            ChatExportProperties properties,
+            Clock clock,
+            MeterRegistry meterRegistry,
+            ChatExportUsableSpaceReader usableSpaceReader
+    ) {
         this.properties = properties;
         this.clock = clock;
+        this.usableSpaceReader = usableSpaceReader;
         this.root = properties.getTempRoot()
                 .toAbsolutePath()
                 .normalize();
-        cleanupAttempts = meterRegistry.counter(
+        cleanupAttempts = counterBestEffort(meterRegistry,
                 "chat.export.temp.cleanup.attempts",
                 Tags.empty());
-        cleanupFailures = meterRegistry.counter(
+        cleanupFailures = counterBestEffort(meterRegistry,
                 "chat.export.temp.cleanup.failures",
                 Tags.empty());
-        orphansDeleted = meterRegistry.counter(
+        orphansDeleted = counterBestEffort(meterRegistry,
                 "chat.export.temp.orphans.deleted",
                 Tags.empty());
-        orphanBytes = meterRegistry.counter(
+        orphanBytes = counterBestEffort(meterRegistry,
                 "chat.export.temp.orphans.bytes",
                 Tags.empty());
     }
@@ -123,12 +137,15 @@ public final class ChatExportTempManager {
             return;
         }
         activeExportIds.remove(workspace.exportId());
-        cleanupAttempts.increment();
         try {
             deleteWorkspace(workspace.directory());
         } catch (RuntimeException | IOException exception) {
-            cleanupFailures.increment();
-            log.warn("Failed to clean chat export workspace", exception);
+            incrementBestEffort(cleanupFailures);
+            log.warn(
+                    "Failed to clean chat export workspace: {}",
+                    exception.getClass().getSimpleName());
+        } finally {
+            incrementBestEffort(cleanupAttempts);
         }
     }
 
@@ -138,7 +155,6 @@ public final class ChatExportTempManager {
     }
 
     public void cleanupOrphans() {
-        cleanupAttempts.increment();
         Instant threshold = clock.instant().minus(properties.getOrphanTtl());
         try (var directories = Files.list(root)) {
             directories
@@ -152,8 +168,12 @@ public final class ChatExportTempManager {
                     .filter(path -> modifiedBefore(path, threshold))
                     .forEach(this::deleteOrphanBestEffort);
         } catch (IOException exception) {
-            cleanupFailures.increment();
-            log.warn("Failed to scan chat export temp root", exception);
+            incrementBestEffort(cleanupFailures);
+            log.warn(
+                    "Failed to scan chat export temp root: {}",
+                    exception.getClass().getSimpleName());
+        } finally {
+            incrementBestEffort(cleanupAttempts);
         }
     }
 
@@ -170,8 +190,17 @@ public final class ChatExportTempManager {
     }
 
     private void ensureFreeDisk() throws IOException {
-        FileStore store = Files.getFileStore(root);
-        if (store.getUsableSpace() < properties.getMinFreeDiskBytes()) {
+        final long requiredUsableBytes;
+        try {
+            requiredUsableBytes = Math.addExact(
+                    properties.getMinFreeDiskBytes(),
+                    properties.getMaxWorkDirectoryBytes());
+        } catch (ArithmeticException exception) {
+            throw new IOException(
+                    "Invalid export temp disk reservation",
+                    exception);
+        }
+        if (usableSpaceReader.usableBytes(root) < requiredUsableBytes) {
             throw new IOException("Insufficient export temp disk space");
         }
     }
@@ -215,11 +244,13 @@ public final class ChatExportTempManager {
         try {
             long bytes = workspaceSize(directory);
             deleteWorkspace(directory);
-            orphansDeleted.increment();
-            orphanBytes.increment(bytes);
+            incrementBestEffort(orphansDeleted);
+            incrementBestEffort(orphanBytes, bytes);
         } catch (RuntimeException | IOException exception) {
-            cleanupFailures.increment();
-            log.warn("Failed to delete orphan export workspace", exception);
+            incrementBestEffort(cleanupFailures);
+            log.warn(
+                    "Failed to delete orphan export workspace: {}",
+                    exception.getClass().getSimpleName());
         }
     }
 
@@ -231,7 +262,7 @@ public final class ChatExportTempManager {
                     .toInstant()
                     .isBefore(threshold);
         } catch (IOException exception) {
-            cleanupFailures.increment();
+            incrementBestEffort(cleanupFailures);
             return false;
         }
     }
@@ -265,6 +296,33 @@ public final class ChatExportTempManager {
             return java.util.UUID.fromString(value).toString().equals(value);
         } catch (RuntimeException exception) {
             return false;
+        }
+    }
+
+    private static Counter counterBestEffort(
+            MeterRegistry meterRegistry,
+            String name,
+            Tags tags
+    ) {
+        try {
+            return meterRegistry.counter(name, tags);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static void incrementBestEffort(Counter counter) {
+        incrementBestEffort(counter, 1.0);
+    }
+
+    private static void incrementBestEffort(Counter counter, double amount) {
+        if (counter == null) {
+            return;
+        }
+        try {
+            counter.increment(amount);
+        } catch (RuntimeException ignored) {
+            // Export cleanup must not depend on metric availability.
         }
     }
 }

@@ -25,6 +25,13 @@ public class ChatExportProperties {
 
     @PostConstruct
     void validate() {
+        boolean diskReservationOverflows;
+        try {
+            Math.addExact(minFreeDiskBytes, maxWorkDirectoryBytes);
+            diskReservationOverflows = false;
+        } catch (ArithmeticException exception) {
+            diskReservationOverflows = true;
+        }
         if (tempRoot == null
                 || auditPageSize < 1
                 || auditPageSize > 1_000
@@ -42,7 +49,8 @@ public class ChatExportProperties {
                 || cleanupInterval.isNegative()
                 || orphanTtl == null
                 || orphanTtl.compareTo(maxGenerationDuration) <= 0
-                || maxConcurrentExports < 1
+                || maxConcurrentExports != 1
+                || diskReservationOverflows
                 || snapshotMaxAttempts < 1) {
             throw new IllegalStateException("Invalid chat export properties");
         }

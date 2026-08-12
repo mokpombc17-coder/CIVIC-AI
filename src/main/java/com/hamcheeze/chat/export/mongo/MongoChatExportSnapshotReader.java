@@ -4,6 +4,7 @@ import com.hamcheeze.chat.export.ChatExportParticipantSnapshot;
 import com.hamcheeze.chat.export.ChatExportRoomSnapshot;
 import com.hamcheeze.chat.export.ChatExportSnapshot;
 import com.hamcheeze.chat.export.ChatExportSnapshotReader;
+import com.hamcheeze.chat.export.ChatExportSnapshotUnstableException;
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipProfile;
 import com.hamcheeze.chat.room.Room;
@@ -53,7 +54,7 @@ public final class MongoChatExportSnapshotReader
                         participants));
             }
         }
-        throw new IllegalStateException(
+        throw new ChatExportSnapshotUnstableException(
                 "Room snapshot did not stabilize");
     }
 

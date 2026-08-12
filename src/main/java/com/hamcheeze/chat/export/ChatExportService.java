@@ -128,6 +128,17 @@ public final class ChatExportService {
                         "An export for this Room is already running");
             }
 
+            long expectedEventCount = Math.subtractExact(
+                    watermark,
+                    fromSequence);
+            if (expectedEventCount > properties.getMaxEventsPerExport()) {
+                throw failure(
+                        ChatExportErrorCode.CHAT_EXPORT_TOO_LARGE,
+                        HttpStatus.PAYLOAD_TOO_LARGE,
+                        false,
+                        "Chat export event range exceeds the limit");
+            }
+
             workspace = tempManager.create(exportId, mode);
             ChatExportArtifact artifact = artifactGenerator.generate(
                     job,
@@ -142,6 +153,21 @@ public final class ChatExportService {
                     clock,
                     metrics,
                     metricsAttempt);
+        } catch (ChatExportSnapshotUnstableException exception) {
+            failAndCleanup(
+                    job,
+                    workspace,
+                    ChatExportErrorCode.CHAT_EXPORT_UNAVAILABLE,
+                    permit);
+            metrics.failed(
+                    metricsAttempt,
+                    ChatExportErrorCode.CHAT_EXPORT_UNAVAILABLE.name());
+            throw new ChatExportException(
+                    ChatExportErrorCode.CHAT_EXPORT_UNAVAILABLE,
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    true,
+                    "Chat export snapshot is temporarily unavailable",
+                    exception);
         } catch (ChatExportException exception) {
             failAndCleanup(job, workspace, exception.code(), permit);
             metrics.failed(metricsAttempt, exception.code().name());
@@ -194,20 +220,30 @@ public final class ChatExportService {
             ChatExportErrorCode errorCode,
             ChatExportConcurrencyGuard.Permit permit
     ) {
-        if (job != null) {
+        try {
+            if (job != null) {
+                try {
+                    jobStore.markFailed(
+                            job.exportId(),
+                            failureCode(errorCode),
+                            clock.instant());
+                } catch (RuntimeException ignored) {
+                    // Preserve the original generation failure.
+                }
+            }
+        } finally {
             try {
-                jobStore.markFailed(
-                        job.exportId(),
-                        failureCode(errorCode),
-                        clock.instant());
-            } catch (RuntimeException ignored) {
-                // Preserve the original generation failure.
+                if (workspace != null) {
+                    try {
+                        tempManager.cleanupBestEffort(workspace);
+                    } catch (RuntimeException ignored) {
+                        // Preserve the original generation failure.
+                    }
+                }
+            } finally {
+                permit.close();
             }
         }
-        if (workspace != null) {
-            tempManager.cleanupBestEffort(workspace);
-        }
-        permit.close();
     }
 
     private ChatExportFailureCode failureCode(ChatExportErrorCode code) {

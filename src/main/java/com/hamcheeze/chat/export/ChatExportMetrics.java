@@ -18,17 +18,20 @@ public final class ChatExportMetrics {
 
     public ChatExportMetrics(MeterRegistry registry) {
         this.registry = Objects.requireNonNull(registry, "registry");
-        Gauge.builder("chat.export.running", running, AtomicInteger::get)
-                .register(registry);
+        bestEffort(() -> Gauge.builder(
+                        "chat.export.running",
+                        running,
+                        AtomicInteger::get)
+                .register(registry));
     }
 
     public Attempt start(ChatExportMode mode) {
-        registry.counter(
+        running.incrementAndGet();
+        bestEffort(() -> registry.counter(
                         "chat.export.requests",
                         "mode",
                         mode.name())
-                .increment();
-        running.incrementAndGet();
+                .increment());
         return new Attempt(mode, System.nanoTime());
     }
 
@@ -37,15 +40,17 @@ public final class ChatExportMetrics {
             return;
         }
         running.decrementAndGet();
-        recordDuration(attempt, "succeeded");
-        summary("chat.export.events", attempt.mode())
-                .record(artifact.eventCount());
-        summary("chat.export.messages", attempt.mode())
-                .record(artifact.createdCount());
-        summary("chat.export.participants", attempt.mode())
-                .record(artifact.participantCount());
-        summary("chat.export.artifact.bytes", attempt.mode())
-                .record(artifact.sizeBytes());
+        bestEffort(() -> {
+            recordDuration(attempt, "succeeded");
+            summary("chat.export.events", attempt.mode())
+                    .record(artifact.eventCount());
+            summary("chat.export.messages", attempt.mode())
+                    .record(artifact.createdCount());
+            summary("chat.export.participants", attempt.mode())
+                    .record(artifact.participantCount());
+            summary("chat.export.artifact.bytes", attempt.mode())
+                    .record(artifact.sizeBytes());
+        });
     }
 
     public void failed(Attempt attempt, String failureKind) {
@@ -53,20 +58,22 @@ public final class ChatExportMetrics {
             return;
         }
         running.decrementAndGet();
-        recordDuration(attempt, "failed");
-        Counter.builder("chat.export.failures")
-                .tag("mode", attempt.mode().name())
-                .tag("failure_kind", failureKind)
-                .register(registry)
-                .increment();
+        bestEffort(() -> {
+            recordDuration(attempt, "failed");
+            Counter.builder("chat.export.failures")
+                    .tag("mode", attempt.mode().name())
+                    .tag("failure_kind", failureKind)
+                    .register(registry)
+                    .increment();
+        });
     }
 
     public void deliveryFailed(ChatExportMode mode) {
-        registry.counter(
+        bestEffort(() -> registry.counter(
                         "chat.export.delivery.failures",
                         "mode",
                         mode.name())
-                .increment();
+                .increment());
     }
 
     private DistributionSummary summary(String name, ChatExportMode mode) {
@@ -83,6 +90,14 @@ public final class ChatExportMetrics {
                 .record(
                         System.nanoTime() - attempt.startedNanos(),
                         TimeUnit.NANOSECONDS);
+    }
+
+    private static void bestEffort(Runnable operation) {
+        try {
+            operation.run();
+        } catch (RuntimeException ignored) {
+            // Export correctness must not depend on metric availability.
+        }
     }
 
     public static final class Attempt {

@@ -46,3 +46,30 @@ temp path를 넣지 않는다.
 
 전역 concurrency, Room당 RUNNING unique index, event/message/content/artifact/work
 directory/time/disk limit으로 동기식 one-shot 작업의 비용을 제한한다.
+
+v1의 전역 concurrency는 정확히 1이다. Workspace 생성 전 usable disk가
+`minFreeDiskBytes + maxWorkDirectoryBytes` 이상인지 확인하며, event 범위 크기는
+RUNNING Job 생성 직후 파일 생성 전에 `maxEventsPerExport`와 비교한다. 범위가 너무
+크면 Job은 `FAILED/TOO_LARGE`가 되고 workspace는 만들지 않는다.
+
+`maxWorkDirectoryBytes`는 사후 관측값이 아니라 모든 JSON/JSONL/HTML/manifest와
+압축 중인 `artifact.part`가 공유하는 실제 byte budget이다. 문자 파일은 UTF-8로
+인코딩된 실제 byte를 소비하고, ZIP output은 이 workspace budget과
+`maxArtifactBytes`를 동시에 적용한다. 상한 초과 시 write가 즉시 중단되며 `.part`는
+완성 artifact로 rename되지 않는다. 같은 generation deadline은 audit page와 event
+처리, participant/transcript 출력, manifest, ZIP buffer copy, entry/전체 checksum,
+atomic rename 직전까지 적용된다.
+
+Execution은 SUCCEEDED 또는 FAILED 전이를 시도하지 않은 채 닫히면
+`DELIVERY_FAILED`로 FAILED 전환을 시도한다. Job metadata 전환, workspace cleanup,
+global permit 반환은 서로의 실패로 생략되지 않는다. Micrometer 등록·기록 실패도
+Job 상태, HTTP 결과, cleanup, permit에 영향을 주지 않는다. Room/Membership
+stable-pair가 제한 횟수 안에 안정화되지 않으면 데이터 손상으로 간주하지 않고
+`503 CHAT_EXPORT_UNAVAILABLE`, `retryable=true`로 처리한다.
+
+동기 Servlet 전송 timeout은 배포 계층에서 generation과 최대 전송 시간을 모두
+포함해야 한다. 기본 generation 120초, 예상 최대 delivery 120초, grace 30초라면
+reverse proxy, load balancer, servlet container의 response/write timeout을 최소
+270초 이상으로 정렬한다. 실제 운영값은 네트워크 대역폭과 artifact 상한을 기준으로
+확정한다. client disconnect나 write timeout은 `DELIVERY_FAILED`이며 checkpoint를
+전진시키지 않고 workspace를 삭제하고 permit을 반환한다.

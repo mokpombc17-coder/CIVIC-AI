@@ -31,6 +31,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -142,12 +143,85 @@ class ChatExportArtifactGeneratorTest {
                                 .CHAT_EXPORT_LEDGER_INCONSISTENT));
     }
 
+    @Test
+    void workspaceLimitStopsPayloadWriteBeforeArtifactCreation()
+            throws Exception {
+        Fixture fixture = fixture(
+                revisions(),
+                properties -> {
+                    properties.setMaxWorkDirectoryBytes(128);
+                    properties.setMaxArtifactBytes(64);
+                });
+        ChatExportJob job = ChatExportJob.running(
+                "11111111-1111-1111-1111-111111111111",
+                "room-1",
+                ChatExportMode.FULL,
+                null,
+                0,
+                4,
+                "admin-1",
+                CREATED_AT);
+
+        assertThatThrownBy(() -> fixture.generator().generate(
+                job,
+                snapshot(),
+                fixture.workspace()))
+                .isInstanceOf(ChatExportException.class)
+                .satisfies(exception -> assertThat(
+                        ((ChatExportException) exception).code())
+                        .isEqualTo(ChatExportErrorCode
+                                .CHAT_EXPORT_TOO_LARGE));
+        assertThat(fixture.workspace().artifactZip()).doesNotExist();
+        assertThat(directoryBytes(fixture.workspace().directory()))
+                .isLessThanOrEqualTo(128);
+    }
+
+    @Test
+    void artifactLimitStopsZipBeforeAtomicRename() throws Exception {
+        Fixture fixture = fixture(
+                revisions(),
+                properties -> {
+                    properties.setMaxArtifactBytes(64);
+                    properties.setMaxWorkDirectoryBytes(1_000_000);
+                });
+        ChatExportJob job = ChatExportJob.running(
+                "11111111-1111-1111-1111-111111111111",
+                "room-1",
+                ChatExportMode.FULL,
+                null,
+                0,
+                4,
+                "admin-1",
+                CREATED_AT);
+
+        assertThatThrownBy(() -> fixture.generator().generate(
+                job,
+                snapshot(),
+                fixture.workspace()))
+                .isInstanceOf(ChatExportException.class)
+                .satisfies(exception -> assertThat(
+                        ((ChatExportException) exception).code())
+                        .isEqualTo(ChatExportErrorCode
+                                .CHAT_EXPORT_TOO_LARGE));
+        assertThat(fixture.workspace().artifactZip()).doesNotExist();
+        assertThat(Files.size(fixture.workspace().artifactPart()))
+                .isLessThanOrEqualTo(64);
+    }
+
     private Fixture fixture(List<ChatMessageAuditEvent> events)
             throws IOException {
+        return fixture(events, ignored -> { });
+    }
+
+    private Fixture fixture(
+            List<ChatMessageAuditEvent> events,
+            Consumer<ChatExportProperties> customize
+    ) throws IOException {
         ChatExportProperties properties = new ChatExportProperties();
         properties.setTempRoot(tempDirectory);
         properties.setMinFreeDiskBytes(0);
         properties.setOrphanTtl(Duration.ofHours(1));
+        customize.accept(properties);
         Clock clock = Clock.fixed(
                 Instant.parse("2026-08-11T02:00:00Z"),
                 ZoneOffset.UTC);
@@ -174,6 +248,20 @@ class ChatExportArtifactGeneratorTest {
                         tempManager,
                         clock),
                 workspace);
+    }
+
+    private static long directoryBytes(Path directory) throws IOException {
+        try (var paths = Files.walk(directory)) {
+            return paths.filter(Files::isRegularFile)
+                    .mapToLong(path -> {
+                        try {
+                            return Files.size(path);
+                        } catch (IOException exception) {
+                            throw new IllegalStateException(exception);
+                        }
+                    })
+                    .sum();
+        }
     }
 
     private ChatExportSnapshot snapshot() {

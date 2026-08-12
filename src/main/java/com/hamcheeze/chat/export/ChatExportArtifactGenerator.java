@@ -10,6 +10,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -18,7 +19,6 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -71,9 +71,17 @@ public final class ChatExportArtifactGenerator {
             ChatExportSnapshot snapshot,
             ChatExportTempWorkspace workspace
     ) throws IOException {
-        Instant deadline = clock.instant().plus(
+        ChatExportDeadline deadline = new ChatExportDeadline(
+                clock,
                 properties.getMaxGenerationDuration());
-        writeJson(workspace.roomFile(), snapshot.room());
+        ChatExportWorkspaceBudget workspaceBudget =
+                new ChatExportWorkspaceBudget(
+                        properties.getMaxWorkDirectoryBytes());
+        writeJson(
+                workspace.roomFile(),
+                snapshot.room(),
+                workspaceBudget,
+                deadline);
 
         Map<String, ChatExportParticipantSnapshot> participants =
                 participantMap(snapshot.participants());
@@ -83,12 +91,17 @@ public final class ChatExportArtifactGenerator {
         ReplayBudget replayBudget = new ReplayBudget();
         Counts counts = new Counts();
 
-        try (BufferedOutputStream events = new BufferedOutputStream(
-                Files.newOutputStream(workspace.eventsFile()));
+        try (BufferedOutputStream events = boundedBinaryOutput(
+                workspace.eventsFile(),
+                properties.getMaxWorkDirectoryBytes(),
+                workspaceBudget,
+                deadline);
              BufferedWriter changes = job.mode() == ChatExportMode.INCREMENTAL
-                     ? Files.newBufferedWriter(
+                     ? boundedUtf8Writer(
                              workspace.htmlFile(),
-                             StandardCharsets.UTF_8)
+                             properties.getMaxWorkDirectoryBytes(),
+                             workspaceBudget,
+                             deadline)
                      : null) {
             if (changes != null) {
                 writeHtmlHeader(
@@ -109,6 +122,7 @@ public final class ChatExportArtifactGenerator {
                     deadline);
             if (changes != null) {
                 if (counts.events == 0) {
+                    deadline.check();
                     changes.write("<p>마지막 성공 Export 이후 "
                             + "변경 사항이 없습니다.</p>\n");
                 }
@@ -126,27 +140,38 @@ public final class ChatExportArtifactGenerator {
                 snapshot.room().capturedAt());
         List<ChatExportParticipantSnapshot> participantList =
                 sortedParticipants(participants);
-        writeJsonLines(workspace.participantsFile(), participantList);
+        writeJsonLines(
+                workspace.participantsFile(),
+                participantList,
+                workspaceBudget,
+                deadline);
 
         if (job.mode() == ChatExportMode.FULL) {
             writeTranscript(
                     workspace.htmlFile(),
                     snapshot.room(),
                     participants,
-                    replay);
+                    replay,
+                    workspaceBudget,
+                    deadline);
         }
 
-        ensureLimits(workspace, deadline);
+        deadline.check();
         Instant generatedAt = clock.instant();
         List<FileDescriptor> descriptors = List.of(
-                descriptor("room.json", workspace.roomFile()),
+                descriptor("room.json", workspace.roomFile(), deadline),
                 descriptor(
                         "participants.jsonl",
-                        workspace.participantsFile()),
-                descriptor("events.jsonl", workspace.eventsFile()),
+                        workspace.participantsFile(),
+                        deadline),
+                descriptor(
+                        "events.jsonl",
+                        workspace.eventsFile(),
+                        deadline),
                 descriptor(
                         workspace.htmlFile().getFileName().toString(),
-                        workspace.htmlFile()));
+                        workspace.htmlFile(),
+                        deadline));
         Manifest manifest = new Manifest(
                 1,
                 job.exportId(),
@@ -173,13 +198,20 @@ public final class ChatExportArtifactGenerator {
                                 ? replay.size()
                                 : 0),
                 descriptors);
-        writeJson(workspace.manifestFile(), manifest);
-        createZip(workspace, descriptors);
+        writeJson(
+                workspace.manifestFile(),
+                manifest,
+                workspaceBudget,
+                deadline);
+        createZip(workspace, descriptors, workspaceBudget, deadline);
+        ensureLimits(workspace, deadline);
         long artifactSize = Files.size(workspace.artifactZip());
         if (artifactSize > properties.getMaxArtifactBytes()) {
             throw tooLarge("Export artifact size limit exceeded");
         }
-        String artifactSha256 = sha256(workspace.artifactZip());
+        String artifactSha256 = sha256(
+                workspace.artifactZip(),
+                deadline);
         return new ChatExportArtifact(
                 workspace,
                 workspace.artifactZip(),
@@ -203,12 +235,12 @@ public final class ChatExportArtifactGenerator {
             Counts counts,
             BufferedOutputStream eventsOutput,
             BufferedWriter changes,
-            Instant deadline
+            ChatExportDeadline deadline
     ) throws IOException {
         long expected = job.fromChangeSequenceExclusive() + 1;
         long after = job.fromChangeSequenceExclusive();
         while (after < job.toChangeSequenceInclusive()) {
-            checkDeadline(deadline);
+            deadline.check();
             List<ChatMessageAuditEvent> page = auditReader.findChanges(
                     job.roomId(),
                     after,
@@ -218,6 +250,7 @@ public final class ChatExportArtifactGenerator {
                 throw inconsistent("Audit ledger sequence gap");
             }
             for (ChatMessageAuditEvent event : page) {
+                deadline.check();
                 if (!job.roomId().equals(event.roomId())
                         || event.roomChangeSequence() != expected
                         || event.roomChangeSequence()
@@ -235,7 +268,11 @@ public final class ChatExportArtifactGenerator {
                             roomSequences,
                             replayBudget);
                 } else {
-                    writeChange(changes, event, participants);
+                    writeChange(
+                            changes,
+                            event,
+                            participants,
+                            deadline);
                 }
                 eventsOutput.write(objectMapper.writeValueAsBytes(
                         ChatExportEventRecord.from(event)));
@@ -363,17 +400,26 @@ public final class ChatExportArtifactGenerator {
             Path file,
             ChatExportRoomSnapshot room,
             Map<String, ChatExportParticipantSnapshot> participants,
-            Map<String, ReplayMessage> replay
+            Map<String, ReplayMessage> replay,
+            ChatExportWorkspaceBudget workspaceBudget,
+            ChatExportDeadline deadline
     ) throws IOException {
-        try (BufferedWriter writer = Files.newBufferedWriter(
+        try (BufferedWriter writer = boundedUtf8Writer(
                 file,
-                StandardCharsets.UTF_8)) {
+                properties.getMaxWorkDirectoryBytes(),
+                workspaceBudget,
+                deadline)) {
+            deadline.check();
             writeHtmlHeader(writer, "Full Room transcript", room);
-            writeParticipantTable(writer, sortedParticipants(participants));
+            writeParticipantTable(
+                    writer,
+                    sortedParticipants(participants),
+                    deadline);
             for (ReplayMessage message : replay.values().stream()
                     .sorted(Comparator.comparingLong(value ->
                             value.roomSequence))
                     .toList()) {
+                deadline.check();
                 ChatExportParticipantSnapshot participant = participants.get(
                         message.senderMembershipId);
                 writer.write("<article><h3>[");
@@ -407,8 +453,10 @@ public final class ChatExportArtifactGenerator {
     private void writeChange(
             BufferedWriter writer,
             ChatMessageAuditEvent event,
-            Map<String, ChatExportParticipantSnapshot> participants
+            Map<String, ChatExportParticipantSnapshot> participants,
+            ChatExportDeadline deadline
     ) throws IOException {
+        deadline.check();
         ChatExportParticipantSnapshot participant = participants.get(
                 event.senderMembershipId());
         writer.write("<article><h3>");
@@ -444,10 +492,12 @@ public final class ChatExportArtifactGenerator {
 
     private void writeParticipantTable(
             BufferedWriter writer,
-            List<ChatExportParticipantSnapshot> participants
+            List<ChatExportParticipantSnapshot> participants,
+            ChatExportDeadline deadline
     ) throws IOException {
         writer.write("<section><h2>Participants</h2><ul>");
         for (ChatExportParticipantSnapshot participant : participants) {
+            deadline.check();
             writer.write("<li>");
             writer.write(escape(displayName(participant)));
             writer.write(" · membershipId: ");
@@ -505,16 +555,38 @@ public final class ChatExportArtifactGenerator {
                 .replace("'", "&#39;");
     }
 
-    private void writeJson(Path path, Object value) throws IOException {
-        Files.write(path, objectMapper.writeValueAsBytes(value));
+    private void writeJson(
+            Path path,
+            Object value,
+            ChatExportWorkspaceBudget workspaceBudget,
+            ChatExportDeadline deadline
+    ) throws IOException {
+        deadline.check();
+        try (BufferedOutputStream output = boundedBinaryOutput(
+                path,
+                properties.getMaxWorkDirectoryBytes(),
+                workspaceBudget,
+                deadline)) {
+            output.write(objectMapper.writeValueAsBytes(value));
+        }
+        deadline.check();
         tempManager.secureFile(path);
     }
 
-    private void writeJsonLines(Path path, List<?> values)
+    private void writeJsonLines(
+            Path path,
+            List<?> values,
+            ChatExportWorkspaceBudget workspaceBudget,
+            ChatExportDeadline deadline
+    )
             throws IOException {
-        try (BufferedOutputStream output = new BufferedOutputStream(
-                Files.newOutputStream(path))) {
+        try (BufferedOutputStream output = boundedBinaryOutput(
+                path,
+                properties.getMaxWorkDirectoryBytes(),
+                workspaceBudget,
+                deadline)) {
             for (Object value : values) {
+                deadline.check();
                 output.write(objectMapper.writeValueAsBytes(value));
                 output.write(NEWLINE);
             }
@@ -522,28 +594,77 @@ public final class ChatExportArtifactGenerator {
         tempManager.secureFile(path);
     }
 
-    private FileDescriptor descriptor(String name, Path path)
+    private BufferedOutputStream boundedBinaryOutput(
+            Path path,
+            long fileLimit,
+            ChatExportWorkspaceBudget workspaceBudget,
+            ChatExportDeadline deadline
+    ) throws IOException {
+        return new BufferedOutputStream(
+                new ChatExportBoundedOutputStream(
+                        Files.newOutputStream(path),
+                        workspaceBudget,
+                        fileLimit,
+                        deadline));
+    }
+
+    private BufferedWriter boundedUtf8Writer(
+            Path path,
+            long fileLimit,
+            ChatExportWorkspaceBudget workspaceBudget,
+            ChatExportDeadline deadline
+    ) throws IOException {
+        return new BufferedWriter(new OutputStreamWriter(
+                boundedBinaryOutput(
+                        path,
+                        fileLimit,
+                        workspaceBudget,
+                        deadline),
+                StandardCharsets.UTF_8));
+    }
+
+    private FileDescriptor descriptor(
+            String name,
+            Path path,
+            ChatExportDeadline deadline
+    )
             throws IOException {
-        return new FileDescriptor(name, Files.size(path), sha256(path));
+        deadline.check();
+        return new FileDescriptor(
+                name,
+                Files.size(path),
+                sha256(path, deadline));
     }
 
     private void createZip(
             ChatExportTempWorkspace workspace,
-            List<FileDescriptor> descriptors
+            List<FileDescriptor> descriptors,
+            ChatExportWorkspaceBudget workspaceBudget,
+            ChatExportDeadline deadline
     ) throws IOException {
+        deadline.check();
         try (ZipOutputStream zip = new ZipOutputStream(
-                new BufferedOutputStream(Files.newOutputStream(
-                        workspace.artifactPart())),
+                boundedBinaryOutput(
+                        workspace.artifactPart(),
+                        properties.getMaxArtifactBytes(),
+                        workspaceBudget,
+                        deadline),
                 StandardCharsets.UTF_8)) {
-            addZipEntry(zip, "manifest.json", workspace.manifestFile());
+            addZipEntry(
+                    zip,
+                    "manifest.json",
+                    workspace.manifestFile(),
+                    deadline);
             for (FileDescriptor descriptor : descriptors) {
                 addZipEntry(
                         zip,
                         descriptor.name(),
-                        workspace.directory().resolve(descriptor.name()));
+                        workspace.directory().resolve(descriptor.name()),
+                        deadline);
             }
         }
         tempManager.secureFile(workspace.artifactPart());
+        deadline.check();
         try {
             Files.move(
                     workspace.artifactPart(),
@@ -560,17 +681,30 @@ public final class ChatExportArtifactGenerator {
     private void addZipEntry(
             ZipOutputStream zip,
             String name,
-            Path file
+            Path file,
+            ChatExportDeadline deadline
     ) throws IOException {
+        deadline.check();
         if (!name.matches("[a-z.]+")) {
             throw new IllegalArgumentException("Unsafe ZIP entry name");
         }
         zip.putNextEntry(new ZipEntry(name));
-        Files.copy(file, zip);
+        byte[] buffer = new byte[16_384];
+        try (var input = Files.newInputStream(file)) {
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                deadline.check();
+                zip.write(buffer, 0, read);
+            }
+        }
         zip.closeEntry();
     }
 
-    private String sha256(Path file) throws IOException {
+    private String sha256(
+            Path file,
+            ChatExportDeadline deadline
+    ) throws IOException {
+        deadline.check();
         MessageDigest digest;
         try {
             digest = MessageDigest.getInstance("SHA-256");
@@ -581,6 +715,7 @@ public final class ChatExportArtifactGenerator {
             byte[] buffer = new byte[16_384];
             int read;
             while ((read = input.read(buffer)) >= 0) {
+                deadline.check();
                 digest.update(buffer, 0, read);
             }
         }
@@ -589,18 +724,12 @@ public final class ChatExportArtifactGenerator {
 
     private void ensureLimits(
             ChatExportTempWorkspace workspace,
-            Instant deadline
+            ChatExportDeadline deadline
     ) throws IOException {
-        checkDeadline(deadline);
+        deadline.check();
         if (tempManager.workspaceSize(workspace.directory())
                 > properties.getMaxWorkDirectoryBytes()) {
             throw tooLarge("Export workspace size limit exceeded");
-        }
-    }
-
-    private void checkDeadline(Instant deadline) {
-        if (clock.instant().isAfter(deadline)) {
-            throw tooLarge("Export generation deadline exceeded");
         }
     }
 
