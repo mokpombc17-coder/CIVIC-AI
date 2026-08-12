@@ -67,3 +67,13 @@ X-Export-SHA256
 
 BFF는 별도의 짧은 timeout을 설정하지 않는다. 배포 플랫폼에서도 요청을 최대 300초까지
 허용하도록 Route Handler 실행 한도를 선언한다.
+
+## 브라우저 client와 파일 저장
+
+브라우저 client는 access token을 인자로 받지 않고 same-origin BFF만 호출한다. 성공 응답의
+`Content-Type`이 `application/zip`인지 확인한 뒤 Blob으로 읽는다. `X-Export-Id`와
+`X-Export-SHA256`은 존재할 때 계약을 검증하고, 헤더가 없으면 각각 `null`로 취급한다.
+
+파일명은 `Content-Disposition`의 quoted `filename`을 우선 사용한다. 헤더가 없으면
+`chat-export-{exportId}.zip`, Export ID도 없으면 `chat-export-download.zip`을 사용한다.
+파일 저장 후에는 임시 anchor와 Object URL을 성공·실패 여부와 관계없이 정리한다.
