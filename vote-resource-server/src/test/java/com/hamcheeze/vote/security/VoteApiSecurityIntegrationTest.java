@@ -190,7 +190,7 @@ class VoteApiSecurityIntegrationTest {
     @Test
     void authorizesConfirmedUserScopesFromScopeClaim()
             throws Exception {
-        mockMvc.perform(get("/api/v1/me/surveys/current")
+        mockMvc.perform(get("/api/v1/me/surveys/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + scopedToken(
@@ -198,7 +198,7 @@ class VoteApiSecurityIntegrationTest {
                                         VoteScopes.SURVEYS_READ)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/v1/me/survey-responses")
+        mockMvc.perform(post("/api/v1/me/survey-responses/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + scopedToken(
@@ -242,12 +242,12 @@ class VoteApiSecurityIntegrationTest {
     @Test
     void rejectsMissingOrWrongUserScopeWithProblemDetail()
             throws Exception {
-        mockMvc.perform(get("/api/v1/me/surveys/current"))
+        mockMvc.perform(get("/api/v1/me/surveys/security-probe"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code")
                         .value("UNAUTHENTICATED"));
 
-        mockMvc.perform(get("/api/v1/me/surveys/current")
+        mockMvc.perform(get("/api/v1/me/surveys/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + validToken("user-a")))
@@ -257,7 +257,7 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(jsonPath("$.code")
                         .value("ACCESS_DENIED"));
 
-        mockMvc.perform(get("/api/v1/me/surveys/current")
+        mockMvc.perform(get("/api/v1/me/surveys/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + scopedToken(
@@ -269,7 +269,8 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
-    void deniesAdminApiWithoutAnAdminContract() throws Exception {
+    void allowsAuthenticatedUserOnAdminApiOnlyInLocalProfile()
+            throws Exception {
         String allUserScopesToken = scopedToken(
                 "user-a",
                 VoteScopes.SURVEYS_READ,
@@ -282,9 +283,7 @@ class VoteApiSecurityIntegrationTest {
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + allUserScopesToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code")
-                        .value("ACCESS_DENIED"));
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -439,7 +438,7 @@ class VoteApiSecurityIntegrationTest {
         }
 
         @GetMapping({
-                "/api/v1/me/surveys/current",
+                "/api/v1/me/surveys/security-probe",
                 "/api/v1/me/tasks",
                 "/api/v1/me/tasks/{taskId}",
                 "/api/v1/me/submissions",
@@ -450,7 +449,7 @@ class VoteApiSecurityIntegrationTest {
         }
 
         @PostMapping({
-                "/api/v1/me/survey-responses",
+                "/api/v1/me/survey-responses/security-probe",
                 "/api/v1/me/tasks/{taskId}/submission"
         })
         Map<String, String> scopedPost() {

@@ -3,6 +3,8 @@ package com.hamcheeze.vote.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -18,7 +20,10 @@ public class VoteSecurityConfig {
     SecurityFilterChain voteApiSecurityFilterChain(
             HttpSecurity http,
             VoteApiSecurityProblemWriter problemWriter,
-            BearerTokenResolver bearerTokenResolver
+            BearerTokenResolver bearerTokenResolver,
+            Environment environment,
+            @Value("${vote.security.local-admin-api-enabled:false}")
+            boolean localAdminApiEnabled
     ) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
@@ -35,16 +40,27 @@ public class VoteSecurityConfig {
                         .requestMatchers(
                                 "/api/v1/admin",
                                 "/api/v1/admin/**")
-                        .denyAll()
+                        .access((authentication, context) ->
+                                new org.springframework.security.authorization
+                                        .AuthorizationDecision(
+                                        localAdminApiEnabled
+                                                && environment.acceptsProfiles(
+                                                Profiles.of("local"))
+                                                && authentication.get()
+                                                .isAuthenticated()))
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/me/surveys",
-                                "/api/v1/me/surveys/**")
+                                "/api/v1/me/surveys/**",
+                                "/api/v1/me/survey-responses",
+                                "/api/v1/me/survey-responses/**",
+                                "/api/v1/me/service-eligibility")
                         .hasAuthority(VoteScopes.authority(
                                 VoteScopes.SURVEYS_READ))
                         .requestMatchers(
                                 HttpMethod.POST,
-                                "/api/v1/me/survey-responses")
+                                "/api/v1/me/survey-responses",
+                                "/api/v1/me/survey-responses/**")
                         .hasAuthority(VoteScopes.authority(
                                 VoteScopes.SURVEY_RESPONSES_WRITE))
                         .requestMatchers(

@@ -9,6 +9,8 @@ spring:
     open-in-view: false
 
 vote:
+  security:
+    local-admin-api-enabled: false
   survey:
     bootstrap:
       enabled: false

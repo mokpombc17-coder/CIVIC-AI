@@ -12,6 +12,7 @@ vote:
     bootstrap:
       enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}
   security:
+    local-admin-api-enabled: true
     cookie-authentication-enabled: true
     local-jwt:
       secret: ${VOTE_LOCAL_JWT_SECRET:civic-ai-local-auth-fixture-signing-key-v1-public-do-not-use-in-production}
