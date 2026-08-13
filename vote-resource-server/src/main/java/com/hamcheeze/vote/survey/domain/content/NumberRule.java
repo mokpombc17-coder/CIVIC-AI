@@ -67,8 +67,11 @@ public record NumberRule(
 
     private static BigDecimal canonical(BigDecimal value) {
         BigDecimal normalized = value.stripTrailingZeros();
-        return normalized.compareTo(BigDecimal.ZERO) == 0
-                ? BigDecimal.ZERO
+        if (normalized.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        return normalized.scale() < 0
+                ? normalized.setScale(0)
                 : normalized;
     }
 
