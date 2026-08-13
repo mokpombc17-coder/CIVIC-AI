@@ -8,6 +8,9 @@ server:
   port: ${SERVER_PORT:8083}
 
 vote:
+  survey:
+    bootstrap:
+      enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}
   security:
     cookie-authentication-enabled: true
     local-jwt:

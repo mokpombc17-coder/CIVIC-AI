@@ -3,3 +3,8 @@ spring:
     url: ${VOTE_TEST_DB_URL:jdbc:postgresql://localhost:5432/vote_test}
     username: ${VOTE_TEST_DB_USERNAME:vote}
     password: ${VOTE_TEST_DB_PASSWORD:vote}
+
+vote:
+  survey:
+    bootstrap:
+      enabled: false
