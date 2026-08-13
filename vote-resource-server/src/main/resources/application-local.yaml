@@ -1,3 +1,9 @@
+spring:
+  datasource:
+    url: ${VOTE_DB_URL:jdbc:postgresql://localhost:5432/vote}
+    username: ${VOTE_DB_USERNAME:vote}
+    password: ${VOTE_DB_PASSWORD:vote}
+
 vote:
   security:
     cookie-authentication-enabled: true
