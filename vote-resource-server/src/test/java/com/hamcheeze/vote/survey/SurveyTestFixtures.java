@@ -1,7 +1,9 @@
 package com.hamcheeze.vote.survey;
 
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyActorId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyReceiptId;
@@ -34,6 +36,14 @@ public final class SurveyTestFixtures {
 
     public static SurveyOptionId optionId() {
         return new SurveyOptionId(uuid(4));
+    }
+
+    public static SurveyOptionLineageKey optionLineageKey() {
+        return new SurveyOptionLineageKey(uuid(9));
+    }
+
+    public static SurveyActorId actorId() {
+        return new SurveyActorId("admin-user");
     }
 
     public static SurveyRoundId roundId() {
