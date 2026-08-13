@@ -4,6 +4,9 @@ spring:
     username: ${VOTE_DB_USERNAME:vote}
     password: ${VOTE_DB_PASSWORD:vote}
 
+server:
+  port: ${SERVER_PORT:8083}
+
 vote:
   security:
     cookie-authentication-enabled: true
