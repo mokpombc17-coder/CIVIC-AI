@@ -66,6 +66,41 @@ public final class SurveyRoundTransition {
         this.relatedRoundId = relatedRoundId;
     }
 
+    public static SurveyRoundTransition rehydrate(
+            SurveyRoundTransitionId id,
+            SurveyRoundId roundId,
+            SurveyContentVersionId contentVersionId,
+            SurveyRoundTransitionType type,
+            SurveyRoundStatus fromStatus,
+            SurveyRoundStatus toStatus,
+            SurveyRoundEnforcementMode fromEnforcementMode,
+            SurveyRoundEnforcementMode toEnforcementMode,
+            Instant previousScheduledAt,
+            Instant newScheduledAt,
+            SurveyActorId actorId,
+            SurveyRoundTransitionTrigger trigger,
+            String reason,
+            Instant occurredAt,
+            SurveyRoundId relatedRoundId
+    ) {
+        return new SurveyRoundTransition(
+                id,
+                roundId,
+                contentVersionId,
+                type,
+                fromStatus,
+                toStatus,
+                fromEnforcementMode,
+                toEnforcementMode,
+                previousScheduledAt,
+                newScheduledAt,
+                actorId,
+                trigger,
+                reason,
+                occurredAt,
+                relatedRoundId);
+    }
+
     static SurveyRoundTransition scheduled(
             SurveyRoundTransitionId id,
             SurveyRound round,
