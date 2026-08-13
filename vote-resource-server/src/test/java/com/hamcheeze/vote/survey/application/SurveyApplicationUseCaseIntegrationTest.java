@@ -151,6 +151,40 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(personaSource.answers()).hasSize(1);
         assertThat(personaSource.answers().getFirst().question().prompt())
                 .isEqualTo("자신을 한 문장으로 표현해주세요.");
+
+        PublishedContent nextContent = publishContent("두 번째 사용자 특성 설문");
+        SurveyRound nextRound = roundService.startPublishedContentNow(
+                        nextContent.value().id(), "next round", ADMIN)
+                .targetRound();
+        var advisory = eligibilityQuery.evaluate(USER);
+        assertThat(advisory.eligible()).isTrue();
+        assertThat(advisory.surveyRequirement())
+                .isEqualTo(SurveyRequirement.RECOMMENDED);
+
+        roundService.changeEnforcement(
+                nextRound.id(),
+                SurveyRoundEnforcementMode.REQUIRED,
+                "required",
+                ADMIN);
+        assertThat(eligibilityQuery.evaluate(USER).eligible()).isFalse();
+
+        SurveySubmissionOutcome nextSubmitted = submit(
+                nextRound, nextContent);
+        assertThat(nextSubmitted.succeeded()).isTrue();
+        assertThat(eligibilityQuery.evaluate(USER).eligible()).isTrue();
+        assertThat(myResponseQuery.findLatest(USER).orElseThrow().id())
+                .isEqualTo(nextSubmitted.responseId());
+        assertThat(myResponseQuery.findHistory(USER)).hasSize(2);
+
+        var restoredFirst = personaSurveySourceQuery.getByResponseId(
+                submitted.outcome().responseId());
+        assertThat(restoredFirst.contentVersionId())
+                .isEqualTo(content.value().id());
+        assertThat(restoredFirst.answers().getFirst().question().prompt())
+                .isEqualTo("자신을 한 문장으로 표현해주세요.");
+        assertThat(restoredFirst.answers().getFirst().value())
+                .isInstanceOf(com.hamcheeze.vote.survey.application.persona
+                        .PersonaSurveySource.TextValue.class);
     }
 
     @Test

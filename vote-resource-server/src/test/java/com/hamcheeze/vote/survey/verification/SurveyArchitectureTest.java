@@ -1,0 +1,71 @@
+package com.hamcheeze.vote.survey.verification;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.function.Supplier;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class SurveyArchitectureTest {
+
+    private static final String DOMAIN_PACKAGE =
+            "com.hamcheeze.vote.survey.domain";
+    private static final List<String> FORBIDDEN_DEPENDENCIES = List.of(
+            "org.springframework.",
+            "jakarta.persistence.",
+            "jakarta.servlet.",
+            "org.hibernate.");
+
+    @Test
+    void domainClassesHaveNoSpringJpaOrWebDependencies()
+            throws Exception {
+        for (Path root : classPathRoots()) {
+            try (var paths = Files.walk(root)) {
+                for (Path classFile : paths
+                        .filter(path -> path.toString().endsWith(".class"))
+                        .toList()) {
+                    byte[] bytecode = Files.readAllBytes(classFile);
+                    String constants = new String(
+                            bytecode, java.nio.charset.StandardCharsets.ISO_8859_1);
+                    assertThat(FORBIDDEN_DEPENDENCIES.stream()
+                            .map(value -> value.replace('.', '/'))
+                            .noneMatch(constants::contains))
+                            .as("forbidden dependency in %s", classFile)
+                            .isTrue();
+                }
+            }
+        }
+    }
+
+    private List<Path> classPathRoots() throws Exception {
+        URI uri = getClass().getClassLoader().getResource(
+                        DOMAIN_PACKAGE.replace('.', '/'))
+                .toURI();
+        if ("file".equals(uri.getScheme())) {
+            Path packagePath = Path.of(uri);
+            return List.of(packagePath);
+        }
+        if ("jar".equals(uri.getScheme())) {
+            return withJarFileSystem(uri, () -> List.of(Path.of(uri)));
+        }
+        throw new IllegalStateException("unsupported classpath: " + uri);
+    }
+
+    private <T> T withJarFileSystem(
+            URI uri,
+            Supplier<T> action
+    ) throws IOException {
+        try (FileSystem ignored = FileSystems.newFileSystem(
+                uri, new HashMap<>())) {
+            return action.get();
+        }
+    }
+}
