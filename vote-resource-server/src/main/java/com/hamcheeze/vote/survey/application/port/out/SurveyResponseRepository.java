@@ -18,6 +18,12 @@ public interface SurveyResponseRepository {
 
     Optional<SurveyResponse> findById(SurveyResponseId responseId);
 
+    Optional<SurveyResponse> findByIdAndUserId(
+            SurveyResponseId responseId,
+            SurveyUserId userId);
+
+    boolean existsByUserId(SurveyUserId userId);
+
     Optional<SurveyResponse> findLatestByUserId(SurveyUserId userId);
 
     List<SurveyResponse> findAllByUserId(SurveyUserId userId);

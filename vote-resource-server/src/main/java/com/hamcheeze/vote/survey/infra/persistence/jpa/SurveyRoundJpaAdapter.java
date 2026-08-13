@@ -6,6 +6,7 @@ import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundStatus;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundTransition;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
@@ -89,6 +90,20 @@ public class SurveyRoundJpaAdapter implements SurveyRoundRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<SurveyRound> findAll() {
+        return entityManager.createQuery("""
+                        SELECT round
+                        FROM SurveyRoundJpaEntity round
+                        ORDER BY round.roundNumber DESC
+                        """, SurveyRoundJpaEntity.class)
+                .getResultList()
+                .stream()
+                .map(SurveyRoundJpaMapper::toDomain)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public long lockGlobalControlForUpdate() {
         SurveyRoundControlJpaEntity control = (SurveyRoundControlJpaEntity)
@@ -116,6 +131,33 @@ public class SurveyRoundJpaAdapter implements SurveyRoundRepository {
         return rounds.stream()
                 .findFirst()
                 .map(SurveyRoundJpaMapper::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public List<SurveyRound> findByIdsForUpdate(
+            List<SurveyRoundId> roundIds
+    ) {
+        if (roundIds.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> ids = roundIds.stream()
+                .map(SurveyRoundId::value)
+                .distinct()
+                .sorted()
+                .toList();
+        return entityManager.createQuery("""
+                        SELECT round
+                        FROM SurveyRoundJpaEntity round
+                        WHERE round.id IN :ids
+                        ORDER BY round.id
+                        """, SurveyRoundJpaEntity.class)
+                .setParameter("ids", ids)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList()
+                .stream()
+                .map(SurveyRoundJpaMapper::toDomain)
+                .toList();
     }
 
     @Override

@@ -84,6 +84,40 @@ public class SurveyResponseJpaAdapter implements SurveyResponseRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<SurveyResponse> findByIdAndUserId(
+            SurveyResponseId responseId,
+            SurveyUserId userId
+    ) {
+        List<SurveyResponseJpaEntity> responses = entityManager
+                .createQuery("""
+                        SELECT response
+                        FROM SurveyResponseJpaEntity response
+                        JOIN FETCH response.round
+                        WHERE response.id = :responseId
+                          AND response.userId = :userId
+                        """, SurveyResponseJpaEntity.class)
+                .setParameter("responseId", responseId.value())
+                .setParameter("userId", userId.value())
+                .getResultList();
+        return responses.isEmpty()
+                ? Optional.empty()
+                : Optional.of(hydrate(responses).getFirst());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByUserId(SurveyUserId userId) {
+        return entityManager.createQuery("""
+                        SELECT count(response)
+                        FROM SurveyResponseJpaEntity response
+                        WHERE response.userId = :userId
+                        """, Long.class)
+                .setParameter("userId", userId.value())
+                .getSingleResult() > 0;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<SurveyResponse> findLatestByUserId(
             SurveyUserId userId
     ) {

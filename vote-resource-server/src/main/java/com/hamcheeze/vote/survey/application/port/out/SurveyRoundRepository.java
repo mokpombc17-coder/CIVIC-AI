@@ -20,9 +20,13 @@ public interface SurveyRoundRepository {
 
     List<SurveyRound> findScheduledDueAt(Instant dueAt);
 
+    List<SurveyRound> findAll();
+
     long lockGlobalControlForUpdate();
 
     Optional<SurveyRound> findByIdForShare(SurveyRoundId roundId);
+
+    List<SurveyRound> findByIdsForUpdate(List<SurveyRoundId> roundIds);
 
     void appendTransitions(List<SurveyRoundTransition> transitions);
 
