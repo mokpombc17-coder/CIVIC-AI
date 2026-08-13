@@ -2,6 +2,7 @@ package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
+import com.hamcheeze.vote.survey.application.port.in.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
@@ -63,6 +64,9 @@ class SurveyApplicationUseCaseIntegrationTest {
 
     @Autowired
     private MySurveyResponseQueryService myResponseQuery;
+
+    @Autowired
+    private PersonaSurveySourceQueryPort personaSurveySourceQuery;
 
     @Autowired
     private SurveyResponseSubmissionService submissionService;
@@ -139,6 +143,14 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(myResponseQuery.findDetail(
                 new SurveyUserId("another-user"),
                 submitted.outcome().responseId())).isEmpty();
+        var personaSource = personaSurveySourceQuery.getByResponseId(
+                submitted.outcome().responseId());
+        assertThat(personaSurveySourceQuery.getByResponseId(
+                submitted.outcome().responseId())).isEqualTo(personaSource);
+        assertThat(personaSource.userId()).isEqualTo(USER);
+        assertThat(personaSource.answers()).hasSize(1);
+        assertThat(personaSource.answers().getFirst().question().prompt())
+                .isEqualTo("자신을 한 문장으로 표현해주세요.");
     }
 
     @Test
