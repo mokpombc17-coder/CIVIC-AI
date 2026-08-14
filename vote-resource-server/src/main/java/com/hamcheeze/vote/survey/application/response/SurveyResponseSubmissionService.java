@@ -7,8 +7,10 @@ import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyKey;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyOperation;
 import com.hamcheeze.vote.survey.application.idempotency.SurveySubmissionRequestHashFactory;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
+import com.hamcheeze.vote.survey.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
+import com.hamcheeze.vote.survey.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
@@ -16,6 +18,7 @@ import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyValidationException;
 import com.hamcheeze.vote.survey.domain.common.SurveyViolation;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
+import com.hamcheeze.vote.survey.domain.persona.PersonaGeneration;
 import com.hamcheeze.vote.survey.domain.response.SurveyAnswer;
 import com.hamcheeze.vote.survey.domain.response.SurveySubmissionPolicy;
 import com.hamcheeze.vote.survey.domain.response.SurveySubmissionResult;
@@ -36,6 +39,7 @@ public class SurveyResponseSubmissionService {
     private final SurveyRoundRepository rounds;
     private final SurveyContentVersionRepository contents;
     private final SurveyResponseRepository responses;
+    private final PersonaGenerationRepository personaGenerations;
     private final SurveySubmissionRequestHashFactory requestHashFactory =
             new SurveySubmissionRequestHashFactory();
     private final SurveySubmissionPolicy submissionPolicy =
@@ -48,10 +52,11 @@ public class SurveyResponseSubmissionService {
             SurveySubmissionOutcomeCodec outcomeCodec,
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
-            SurveyResponseRepository responses
+            SurveyResponseRepository responses,
+            PersonaGenerationRepository personaGenerations
     ) {
         this(idempotency, outcomeCodec, rounds, contents, responses,
-                Clock.systemUTC());
+                personaGenerations, Clock.systemUTC());
     }
 
     SurveyResponseSubmissionService(
@@ -60,6 +65,7 @@ public class SurveyResponseSubmissionService {
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
+            PersonaGenerationRepository personaGenerations,
             Clock clock
     ) {
         this.idempotency = Objects.requireNonNull(
@@ -69,6 +75,8 @@ public class SurveyResponseSubmissionService {
         this.rounds = Objects.requireNonNull(rounds, "rounds");
         this.contents = Objects.requireNonNull(contents, "contents");
         this.responses = Objects.requireNonNull(responses, "responses");
+        this.personaGenerations = Objects.requireNonNull(
+                personaGenerations, "personaGenerations");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -141,6 +149,10 @@ public class SurveyResponseSubmissionService {
                             command.answers(),
                             clock.instant());
             responses.insert(result.response());
+            personaGenerations.insert(PersonaGeneration.pending(
+                    new PersonaGenerationId(UUID.randomUUID()),
+                    result.response().id(),
+                    result.response().submittedAt()));
             return SurveySubmissionOutcome.submitted(result.event());
         } catch (SurveyValidationException exception) {
             return SurveySubmissionOutcome.rejected(

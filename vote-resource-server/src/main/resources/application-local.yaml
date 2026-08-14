@@ -11,6 +11,10 @@ vote:
   survey:
     bootstrap:
       enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}
+    persona:
+      enabled: ${VOTE_SURVEY_PERSONA_ENABLED:false}
+      base-url: ${VOTE_SURVEY_PERSONA_BASE_URL:http://localhost:8090}
+      auth-token: ${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}
   security:
     local-admin-api-enabled: true
     cookie-authentication-enabled: true

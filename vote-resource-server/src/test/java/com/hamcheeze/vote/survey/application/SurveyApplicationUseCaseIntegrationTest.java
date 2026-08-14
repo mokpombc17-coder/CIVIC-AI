@@ -3,7 +3,9 @@ package com.hamcheeze.vote.survey.application;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.survey.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
+import com.hamcheeze.vote.survey.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
@@ -22,6 +24,7 @@ import com.hamcheeze.vote.survey.domain.response.ShortTextAnswer;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundEnforcementMode;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundStatus;
+import com.hamcheeze.vote.survey.domain.persona.PersonaId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,10 +66,16 @@ class SurveyApplicationUseCaseIntegrationTest {
     private SurveyEligibilityQueryService eligibilityQuery;
 
     @Autowired
+    private CurrentPersonaQueryService currentPersonaQuery;
+
+    @Autowired
     private MySurveyResponseQueryService myResponseQuery;
 
     @Autowired
     private PersonaSurveySourceQueryPort personaSurveySourceQuery;
+
+    @Autowired
+    private PersonaGenerationRepository personaGenerations;
 
     @Autowired
     private SurveyResponseSubmissionService submissionService;
@@ -119,11 +128,33 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(submitted.replayed()).isFalse();
         assertThat(submitted.outcome().succeeded()).isTrue();
         assertThat(submitted.outcome().submittedEvent()).isPresent();
+        assertThat(personaGenerations.findBySourceResponseId(
+                submitted.outcome().responseId()))
+                .get()
+                .satisfies(generation -> {
+                    assertThat(generation.status().name())
+                            .isEqualTo("PENDING");
+                    assertThat(generation.attemptCount()).isZero();
+                });
+        var firstGeneration = personaGenerations
+                .findBySourceResponseId(submitted.outcome().responseId())
+                .orElseThrow();
+        firstGeneration.startProcessing(
+                firstGeneration.createdAt().plusSeconds(1));
+        firstGeneration.succeed(
+                new PersonaId("persona-first"),
+                firstGeneration.createdAt().plusSeconds(2));
+        personaGenerations.save(firstGeneration);
+        assertThat(currentPersonaQuery.findCurrent(USER).personaReady())
+                .isTrue();
 
         var replayed = submissionService.submit(
                 USER, idempotencyKey, command);
         assertThat(replayed.replayed()).isTrue();
         assertThat(replayed.outcome()).isEqualTo(submitted.outcome());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM persona_generations",
+                Integer.class)).isEqualTo(1);
 
         var duplicate = submissionService.submit(
                 USER, UUID.randomUUID().toString(), command);
@@ -175,6 +206,17 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(myResponseQuery.findLatest(USER).orElseThrow().id())
                 .isEqualTo(nextSubmitted.responseId());
         assertThat(myResponseQuery.findHistory(USER)).hasSize(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM persona_generations",
+                Integer.class)).isEqualTo(2);
+        assertThat(currentPersonaQuery.findCurrent(USER))
+                .satisfies(currentPersona -> {
+                    assertThat(currentPersona.personaReady()).isFalse();
+                    assertThat(currentPersona.sourceResponseId())
+                            .contains(nextSubmitted.responseId());
+                    assertThat(currentPersona.status().name())
+                            .isEqualTo("PENDING");
+                });
 
         var restoredFirst = personaSurveySourceQuery.getByResponseId(
                 submitted.outcome().responseId());

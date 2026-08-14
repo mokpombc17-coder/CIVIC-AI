@@ -94,7 +94,13 @@ class ServiceEligibilityPolicyTest {
                 true));
 
         assertThat(decision.capabilities())
-                .containsExactlyInAnyOrder(ServiceCapability.values());
+                .containsExactlyInAnyOrder(
+                        ServiceCapability.USE_GENERAL_SERVICE,
+                        ServiceCapability.VIEW_CURRENT_SURVEY,
+                        ServiceCapability.SUBMIT_CURRENT_SURVEY,
+                        ServiceCapability.VIEW_OWN_SURVEY_RESPONSES)
+                .doesNotContain(
+                        ServiceCapability.USE_PERSONALIZED_SERVICE);
         assertThat(decision.reason()).contains(
                 ServiceEligibilityReason.CURRENT_SURVEY_RESPONSE_RECOMMENDED);
         assertThat(decision.nextAction()).contains(

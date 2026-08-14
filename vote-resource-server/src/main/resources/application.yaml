@@ -14,3 +14,13 @@ vote:
   survey:
     bootstrap:
       enabled: false
+    persona:
+      enabled: false
+      base-url: http://localhost:8090
+      connect-timeout: 5s
+      request-timeout: 60s
+      dispatcher-delay: 5s
+      retry-initial-delay: 30s
+      retry-max-delay: 2m
+      max-attempts: 3
+      batch-size: 10

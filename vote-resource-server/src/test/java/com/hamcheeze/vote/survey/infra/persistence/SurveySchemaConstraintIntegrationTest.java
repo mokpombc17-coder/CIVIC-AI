@@ -43,13 +43,15 @@ class SurveySchemaConstraintIntegrationTest {
                 "survey_responses",
                 "survey_answers",
                 "survey_answer_selections",
-                "survey_idempotency_receipts");
+                "survey_idempotency_receipts",
+                "persona_generations");
 
         List<String> actualTables = jdbcTemplate.queryForList("""
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name LIKE 'survey_%'
+                  AND (table_name LIKE 'survey_%'
+                    OR table_name = 'persona_generations')
                 """, String.class);
         Integer controlCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
