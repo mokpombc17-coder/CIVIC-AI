@@ -1,6 +1,8 @@
 package ai.civic.mainauth.privacy;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -60,6 +62,9 @@ public class MainPrivacyDeletionHandler {
                 anonymizedEmail, anonymizedEmail, originalEmail);
         jdbc.update("update notification_outbox set recipient = ? where lower(btrim(recipient)) = ?",
                 anonymizedEmail, originalEmail);
+        var originalIdentityHash = sha256(originalEmail);
+        jdbc.update("delete from login_throttles where identity_hash = ?", originalIdentityHash);
+        jdbc.update("delete from pre_session_rate_limits where identity_hash = ?", originalIdentityHash);
         var changed = jdbc.update("""
                 update users set email = ?, normalized_email = ?, state = 'DELETED',
                     account_state_version = account_state_version + 1,
@@ -90,6 +95,15 @@ public class MainPrivacyDeletionHandler {
 
     private String deletedEmail(UUID id) {
         return "deleted+" + id + "@invalid.local";
+    }
+
+    private byte[] sha256(String value) {
+        try {
+            return MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 
     private void lockHighestAdministratorChanges() {

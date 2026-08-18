@@ -80,6 +80,14 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
                 insert into notification_outbox(event_type, recipient, payload)
                 values ('PASSWORD_RESET', 'delete-me@example.com', '{}'::jsonb)
                 """);
+        jdbc.update("""
+                insert into login_throttles(identity_hash, source_ip)
+                values (digest('delete-me@example.com', 'sha256'), '127.0.0.20')
+                """);
+        jdbc.update("""
+                insert into pre_session_rate_limits(identity_hash, source_ip)
+                values (digest('delete-me@example.com', 'sha256'), '127.0.0.21')
+                """);
         var first = deletion.delete(user, "external-request-1");
         var second = deletion.delete(user, "external-request-1");
         assertThat(first.deleted()).isTrue();
@@ -95,6 +103,14 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
                 """, Integer.class)).isZero();
         assertThat(jdbc.queryForObject("""
                 select count(*) from notification_outbox where recipient = 'delete-me@example.com'
+                """, Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from login_throttles
+                where identity_hash = digest('delete-me@example.com', 'sha256')
+                """, Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from pre_session_rate_limits
+                where identity_hash = digest('delete-me@example.com', 'sha256')
                 """, Integer.class)).isZero();
         assertThat(jdbc.queryForObject("""
                 select count(*) from account_state_outbox
