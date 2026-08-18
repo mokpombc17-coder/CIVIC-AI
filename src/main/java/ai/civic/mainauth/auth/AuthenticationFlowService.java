@@ -136,9 +136,13 @@ public class AuthenticationFlowService {
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)
-    public void enableTwoFactor(UUID userId, UUID flowId, String code) {
+    public void enableTwoFactor(String sessionId, UUID userId, UUID flowId, String code) {
         var lockedUserId = lockChallengeUser(flowId, "TWO_FACTOR_ENABLE");
         if (!userId.equals(lockedUserId)) {
+            throw new AuthenticationException("Authentication flow subject mismatch");
+        }
+        var currentSession = sessions.require(sessionId);
+        if (!userId.equals(currentSession.userId())) {
             throw new AuthenticationException("Authentication flow subject mismatch");
         }
         var verified = consumeChallenge(flowId, "TWO_FACTOR_ENABLE", code);

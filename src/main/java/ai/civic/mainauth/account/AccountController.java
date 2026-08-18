@@ -97,7 +97,8 @@ public class AccountController {
                     .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString())
                     .body(Map.of("next", "EMAIL_CODE"));
         }
-        authentication.enableTwoFactor(session.userId(), UUID.fromString(authFlow), body.code());
+        authentication.enableTwoFactor(
+                sessionId, session.userId(), UUID.fromString(authFlow), body.code());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
     }

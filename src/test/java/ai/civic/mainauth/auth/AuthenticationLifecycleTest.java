@@ -307,6 +307,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var pendingLogin = auth.login("person@example.com", "Valid123!", "127.0.0.1");
         var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
+        var enablingSession = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose in ('TWO_FACTOR', 'TWO_FACTOR_ENABLE')
@@ -323,13 +324,15 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThatThrownBy(() -> auth.verifyTwoFactor(
                 UUID.fromString(pendingLogin.authFlowId()), "123456"))
                 .isInstanceOf(AuthenticationException.class);
-        assertThatThrownBy(() -> auth.enableTwoFactor(userId, pendingEnable, "123456"))
+        assertThatThrownBy(() -> auth.enableTwoFactor(
+                enablingSession.sessionId(), userId, pendingEnable, "123456"))
                 .isInstanceOf(AuthenticationException.class);
     }
 
     @Test
     void enablingTwoFactorWaitsForTheUserSecurityLockAndCannotOverrideDisable() throws Exception {
         var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
@@ -342,7 +345,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 lock.setObject(1, userId);
                 lock.executeQuery();
             }
-            var enable = executor.submit(() -> auth.enableTwoFactor(userId, pendingEnable, "123456"));
+            var enable = executor.submit(() -> auth.enableTwoFactor(
+                    session.sessionId(), userId, pendingEnable, "123456"));
 
             assertThatThrownBy(() -> enable.get(250, TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);
@@ -358,6 +362,45 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 disable.executeUpdate();
                 consume.setObject(1, userId);
                 consume.executeUpdate();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> enable.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(jdbc.queryForObject(
+                "select two_factor_enabled from credentials where user_id = ?",
+                Boolean.class, userId)).isFalse();
+    }
+
+    @Test
+    void enablingTwoFactorRejectsASessionRevokedWhileWaitingForTheUserLock() throws Exception {
+        var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
+                """, sha256("123456"), userId);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var enable = executor.submit(() -> auth.enableTwoFactor(
+                    session.sessionId(), userId, pendingEnable, "123456"));
+
+            assertThatThrownBy(() -> enable.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var revoke = connection.prepareStatement("""
+                        update sessions set revoked_at = now(), revocation_reason = 'PASSWORD_CHANGED'
+                        where user_id = ? and revoked_at is null
+                    """)) {
+                revoke.setObject(1, userId);
+                revoke.executeUpdate();
             }
             connection.commit();
 
