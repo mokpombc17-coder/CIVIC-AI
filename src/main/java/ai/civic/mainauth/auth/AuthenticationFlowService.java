@@ -299,8 +299,37 @@ public class AuthenticationFlowService {
                 select id from users where normalized_email = ? and state = ? for update
                 """,
                 (rs, rowNum) -> rs.getObject(1, UUID.class), normalized, requiredState);
-        if (ids.isEmpty()) return UUID.randomUUID();
+        if (ids.isEmpty()) return createDummyChallenge(normalized, purpose);
         return createChallenge(ids.getFirst(), normalized, purpose, deliverSynchronously);
+    }
+
+    private UUID createDummyChallenge(String targetIdentity, String purpose) {
+        try {
+            var userId = UUID.randomUUID();
+            var flow = UUID.randomUUID();
+            var challengeId = UUID.randomUUID();
+            var code = verificationCode();
+            var now = clock.instant();
+            jdbc.update("""
+                    update auth_challenges set consumed_at = now()
+                    where user_id = ? and purpose = ? and consumed_at is null
+                    """, userId, purpose);
+            jdbc.update("""
+                    insert into auth_challenges(
+                        id, flow_hash, user_id, purpose, target_identity, code_hash,
+                        expires_at, last_sent_at, resend_window_started_at
+                    ) select ?, ?, ?, ?, ?, ?, ?, ?, ? where false
+                    """, challengeId, sha256(flow.toString()), userId, purpose, targetIdentity,
+                    sha256(code), Timestamp.from(now.plus(Duration.ofMinutes(10))),
+                    Timestamp.from(now), Timestamp.from(now));
+            jdbc.update("""
+                    insert into notification_outbox(event_type, recipient, payload)
+                    select ?, ?, ?::jsonb where false
+                    """, purpose, targetIdentity, challengePayload(purpose, challengeId, code));
+            return flow;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not perform opaque authentication work", exception);
+        }
     }
 
     private UUID createChallenge(UUID userId, String targetIdentity, String purpose) {
@@ -399,10 +428,7 @@ public class AuthenticationFlowService {
     private void enqueueChallengeMail(
             String purpose, String target, UUID challengeId, String code, boolean deliverSynchronously) {
         try {
-            var payload = json.writeValueAsString(Map.of(
-                    "challenge_id", challengeId.toString(),
-                    "protected_code", codeProtector.protect(code),
-                    "template", purpose.toLowerCase(Locale.ROOT)));
+            var payload = challengePayload(purpose, challengeId, code);
             var notificationId = jdbc.queryForObject("""
                     insert into notification_outbox(event_type, recipient, payload)
                     values (?, ?, ?::jsonb) returning id
@@ -427,6 +453,13 @@ public class AuthenticationFlowService {
         } catch (Exception exception) {
             throw new IllegalStateException("Could not enqueue authentication notification", exception);
         }
+    }
+
+    private String challengePayload(String purpose, UUID challengeId, String code) throws Exception {
+        return json.writeValueAsString(Map.of(
+                "challenge_id", challengeId.toString(),
+                "protected_code", codeProtector.protect(code),
+                "template", purpose.toLowerCase(Locale.ROOT)));
     }
 
     private static String verificationCode() {

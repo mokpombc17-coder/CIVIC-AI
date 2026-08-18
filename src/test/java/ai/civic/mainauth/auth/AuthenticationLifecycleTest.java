@@ -27,9 +27,13 @@ import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import ai.civic.mainauth.notification.SmtpNotificationService;
+import ai.civic.mainauth.notification.VerificationCodeProtector;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @SpringBootTest(properties = {
         "spring.main.lazy-initialization=true",
@@ -42,6 +46,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @MockitoBean SmtpNotificationService smtp;
+    @MockitoSpyBean VerificationCodeProtector codeProtector;
 
     private UUID userId;
 
@@ -662,6 +667,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void knownAndUnknownPasswordResetRequestsAreBothAcceptedWithoutSynchronousSmtp() {
+        clearInvocations(codeProtector);
         var known = auth.requestPasswordReset("person@example.com");
         var unknown = auth.requestPasswordReset("unknown@example.com");
 
@@ -679,6 +685,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         verify(smtp, never()).sendChallenge(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(), eq("PASSWORD_RESET"));
+        verify(codeProtector, times(2)).protect(challengeCode());
     }
 
     @Test
