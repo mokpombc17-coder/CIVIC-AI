@@ -1,5 +1,6 @@
 package ai.civic.mainauth.account;
 
+import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.SessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,10 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountProfileService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
+    private final SessionService sessions;
 
-    public AccountProfileService(JdbcTemplate jdbc, ObjectMapper json) {
+    public AccountProfileService(JdbcTemplate jdbc, ObjectMapper json, SessionService sessions) {
         this.jdbc = jdbc;
         this.json = json;
+        this.sessions = sessions;
     }
 
     @Transactional(readOnly = true)
@@ -37,7 +40,10 @@ public class AccountProfileService {
 
     @Transactional
     public AccountProfile update(
-            SessionService.SessionView session, String preferredLanguage, String ragAnswerDetail) {
+            String sessionId,
+            SessionService.SessionView session,
+            String preferredLanguage,
+            String ragAnswerDetail) {
         if (preferredLanguage == null && ragAnswerDetail == null) {
             throw new IllegalArgumentException("At least one profile value is required");
         }
@@ -50,6 +56,10 @@ public class AccountProfileService {
         }
         jdbc.queryForObject(
                 "select id from users where id = ? for update", UUID.class, session.userId());
+        var currentSession = sessions.require(sessionId);
+        if (!session.userId().equals(currentSession.userId())) {
+            throw new AuthenticationException("Session is invalid or expired");
+        }
         var schemaIds = jdbc.query("""
                 select schema_id from questionnaire_responses where user_id = ? and active limit 1
                 """, (rs, rowNum) -> rs.getObject(1, UUID.class), session.userId());
@@ -61,7 +71,7 @@ public class AccountProfileService {
                 : schemaIds.getFirst();
         if (preferredLanguage != null) replaceAnswer(session.userId(), schemaId, "preferred_language", preferredLanguage);
         if (ragAnswerDetail != null) replaceAnswer(session.userId(), schemaId, "rag_answer_detail", ragAnswerDetail);
-        return get(session);
+        return get(currentSession);
     }
 
     private String activeAnswer(UUID userId, String key, String fallback) {

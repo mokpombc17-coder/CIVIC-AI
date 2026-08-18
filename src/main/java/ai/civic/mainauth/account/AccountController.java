@@ -66,7 +66,8 @@ public class AccountController {
             @RequestBody ProfileUpdate body,
             HttpServletRequest request) {
         var session = requireMutation(sessionId, csrfToken, request);
-        return profiles.update(session, body.preferredLanguage(), body.ragAnswerDetail());
+        return profiles.update(
+                sessionId, session, body.preferredLanguage(), body.ragAnswerDetail());
     }
 
     @PutMapping("/password")
