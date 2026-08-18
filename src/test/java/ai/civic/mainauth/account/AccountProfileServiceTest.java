@@ -127,4 +127,49 @@ class AccountProfileServiceTest extends PostgresIntegrationTest {
                 where user_id = ? and question_key = 'preferred_language'
                 """, Integer.class, userId)).isZero();
     }
+
+    @Test
+    void profileUpdateWaitsForLogoutAndRejectsTheRevokedSession() throws Exception {
+        var email = "profile-logout-race-" + UUID.randomUUID() + "@example.test";
+        var userId = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state, email_verified_at)
+                values (?, ?, 'SIGNUP', 'ACTIVE', now()) returning id
+                """, UUID.class, email, email);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", userId);
+        var issued = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        var session = sessions.require(issued.sessionId());
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("""
+                    select session_hash from sessions
+                    where user_id = ? and revoked_at is null for update
+                    """)) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+
+            var update = executor.submit(
+                    () -> profiles.update(issued.sessionId(), session, "en", null));
+            assertThatThrownBy(() -> update.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var revoke = connection.prepareStatement("""
+                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
+                    where user_id = ? and revoked_at is null
+                    """)) {
+                revoke.setObject(1, userId);
+                assertThat(revoke.executeUpdate()).isOne();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> update.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from questionnaire_responses
+                where user_id = ? and question_key = 'preferred_language'
+                """, Integer.class, userId)).isZero();
+    }
 }

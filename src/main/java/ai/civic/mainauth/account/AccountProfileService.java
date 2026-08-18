@@ -56,7 +56,7 @@ public class AccountProfileService {
         }
         jdbc.queryForObject(
                 "select id from users where id = ? for update", UUID.class, session.userId());
-        var currentSession = sessions.require(sessionId);
+        var currentSession = sessions.requireLocked(sessionId);
         if (!session.userId().equals(currentSession.userId())) {
             throw new AuthenticationException("Session is invalid or expired");
         }
