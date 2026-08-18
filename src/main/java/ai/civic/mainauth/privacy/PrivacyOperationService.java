@@ -25,6 +25,11 @@ public class PrivacyOperationService {
                 || scopes == null || scopes.isEmpty() || !ALLOWED_SCOPES.containsAll(scopes)) {
             throw new IllegalArgumentException("Verified external request evidence and valid scope are required");
         }
+        var subjectExists = jdbc.queryForObject(
+                "select count(*) from users where id = ?", Integer.class, subjectId);
+        if (subjectExists == null || subjectExists != 1) {
+            throw new IllegalArgumentException("Privacy subject does not exist");
+        }
         var existing = jdbc.query("select id from privacy_operations where external_request_evidence_id = ?",
                 (rs, rowNum) -> rs.getObject(1, UUID.class), evidenceId);
         if (!existing.isEmpty()) return existing.getFirst();

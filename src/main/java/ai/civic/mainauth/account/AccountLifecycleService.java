@@ -31,6 +31,7 @@ public class AccountLifecycleService {
     }
 
     private void deactivate(UUID subjectId, String reason) {
+        lockHighestAdminLifecycleChanges();
         var highest = jdbc.queryForObject("""
                 select count(*) from user_roles ur join roles r on r.id = ur.role_id
                 where ur.user_id = ? and ur.revoked_at is null and r.highest_admin
@@ -64,5 +65,11 @@ public class AccountLifecycleService {
                 insert into audit_outbox(event_type, actor_user_id, subject_user_id, payload)
                 values ('ACCOUNT_DEACTIVATED', ?, ?, jsonb_build_object('reason', ?::text))
                 """, subjectId, subjectId, reason);
+    }
+
+    private void lockHighestAdminLifecycleChanges() {
+        jdbc.queryForObject(
+                "select id from roles where code = 'SUPER_ADMIN' for update",
+                Integer.class);
     }
 }

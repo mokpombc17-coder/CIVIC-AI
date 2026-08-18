@@ -103,15 +103,16 @@ class AdminPolicyTest extends PostgresIntegrationTest {
         roles.replaceRoles(bootstrapId, second, 0, Set.of("HIGHEST_ADMIN"), "동시성 관리자 2 지정", false);
         jdbc.update("""
                 update user_roles set revoked_at = now()
-                where user_id = ? and role_id = (select id from roles where code = 'SUPER_ADMIN')
+                where user_id not in (?, ?) and role_id = (select id from roles where code = 'SUPER_ADMIN')
                   and revoked_at is null
-                """, bootstrapId);
+                """, first, second);
 
         try (var executor = Executors.newFixedThreadPool(2)) {
             var firstResult = executor.submit(() -> demoteOther(first, second));
             var secondResult = executor.submit(() -> demoteOther(second, first));
-            assertThat(Set.of(firstResult.get(10, TimeUnit.SECONDS), secondResult.get(10, TimeUnit.SECONDS)))
-                    .contains(false, true);
+            assertThat(java.util.List.of(
+                    firstResult.get(10, TimeUnit.SECONDS), secondResult.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(false, true);
         }
 
         assertThat(jdbc.queryForObject("""
@@ -135,6 +136,36 @@ class AdminPolicyTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from account_state_outbox where user_id = ?", Integer.class, participant))
                 .isOne();
+    }
+
+    @Test
+    void concurrentHighestAdminDeactivationsCannotRemoveEveryHighestAdministrator() throws Exception {
+        jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
+        var first = createAdmin("deactivate-first@example.com");
+        var second = createAdmin("deactivate-second@example.com");
+        roles.replaceRoles(bootstrapId, first, 0, Set.of("HIGHEST_ADMIN"), "비활성화 관리자 1 지정", false);
+        roles.replaceRoles(bootstrapId, second, 0, Set.of("HIGHEST_ADMIN"), "비활성화 관리자 2 지정", false);
+        jdbc.update("""
+                update user_roles set revoked_at = now()
+                where user_id not in (?, ?)
+                  and role_id = (select id from roles where code = 'SUPER_ADMIN')
+                  and revoked_at is null
+                """, first, second);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var firstResult = executor.submit(() -> deactivateSelf(first));
+            var secondResult = executor.submit(() -> deactivateSelf(second));
+            assertThat(java.util.List.of(
+                    firstResult.get(10, TimeUnit.SECONDS), secondResult.get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(false, true);
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select count(distinct u.id) from users u
+                join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
+                join roles r on r.id = ur.role_id
+                where u.state = 'ACTIVE' and r.highest_admin
+                """, Integer.class)).isOne();
     }
 
     private UUID createAdmin(String email) {
@@ -162,6 +193,15 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     private boolean demoteOther(UUID actor, UUID subject) {
         try {
             roles.replaceRoles(actor, subject, 1, Set.of("ADMIN"), "동시 교차 권한 회수", true);
+            return true;
+        } catch (AdminPolicyException exception) {
+            return false;
+        }
+    }
+
+    private boolean deactivateSelf(UUID subject) {
+        try {
+            lifecycle.deactivateSelf(subject, subject);
             return true;
         } catch (AdminPolicyException exception) {
             return false;

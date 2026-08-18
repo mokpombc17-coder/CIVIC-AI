@@ -124,6 +124,7 @@ public class SignupFlowService {
 
         UUID userId;
         try {
+            removeExpiredPendingRegistration(normalizeAndValidateEmail(request.email()));
             userId = jdbc.queryForObject("""
                     insert into users(email, normalized_email, origin, state)
                     values (?, ?, 'SIGNUP', 'PENDING_EMAIL_VERIFICATION') returning id
@@ -165,6 +166,29 @@ public class SignupFlowService {
                 """, normalizeAndValidateEmail(request.email()), writeJson(notification));
         jdbc.update("update signup_flows set completed_at = now() where id = ?", flowId);
         return new CompletionResult("EMAIL_VERIFICATION");
+    }
+
+    private void removeExpiredPendingRegistration(String normalizedEmail) {
+        var pending = jdbc.query("""
+                select id from users
+                where normalized_email = ? and state = 'PENDING_EMAIL_VERIFICATION'
+                for update
+                """, (rs, rowNum) -> rs.getObject(1, UUID.class), normalizedEmail);
+        if (pending.isEmpty()) return;
+        var userId = pending.getFirst();
+        var activeChallenges = jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where user_id = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                  and consumed_at is null and expires_at > ?
+                """, Integer.class, userId, Timestamp.from(clock.instant()));
+        if (activeChallenges != null && activeChallenges > 0) return;
+        jdbc.update("delete from auth_challenges where user_id = ?", userId);
+        jdbc.update("delete from consent_evidence where user_id = ?", userId);
+        jdbc.update("delete from questionnaire_responses where user_id = ?", userId);
+        jdbc.update("delete from user_roles where user_id = ?", userId);
+        jdbc.update("delete from credentials where user_id = ?", userId);
+        jdbc.update("delete from notification_outbox where lower(btrim(recipient)) = ?", normalizedEmail);
+        jdbc.update("delete from users where id = ? and state = 'PENDING_EMAIL_VERIFICATION'", userId);
     }
 
     @Transactional(noRollbackFor = SignupValidationException.class)

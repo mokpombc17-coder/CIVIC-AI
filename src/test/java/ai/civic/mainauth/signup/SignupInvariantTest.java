@@ -153,6 +153,28 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("users", "origin = 'SIGNUP'")).isEqualTo(2);
     }
 
+    @Test
+    void expiredPendingEmailRegistrationCanRestartWithANewFlow() {
+        var first = service.startSignup("restart@example.com");
+        service.completeSignup(first.flowId(), validRequest("restart@example.com", "Valid123!"));
+        jdbc.update("""
+                update auth_challenges set expires_at = now() - interval '1 minute'
+                where purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """);
+
+        var replacement = service.startSignup("restart@example.com");
+        service.completeSignup(
+                replacement.flowId(), validRequest("restart@example.com", "Replacement123!"));
+
+        assertThat(count("users", "normalized_email = 'restart@example.com'"
+                + " and state = 'PENDING_EMAIL_VERIFICATION'"))
+                .isOne();
+        assertThat(count("auth_challenges", "purpose = 'SIGNUP_EMAIL_VERIFICATION'"))
+                .isOne();
+        assertThat(count("notification_outbox", "recipient = 'restart@example.com'"))
+                .isOne();
+    }
+
     static Stream<String> invalidPasswords() {
         return Stream.of(
                 "Short1!", "onlyletters!", "NoSymbol123", "Whitespace 1!",
