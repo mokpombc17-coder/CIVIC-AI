@@ -120,7 +120,7 @@ public class SessionService {
                 """, (rs, rowNum) -> rs.getObject("id", UUID.class), hmac(rawSessionId));
         if (users.size() != 1) throw invalid();
 
-        var session = require(rawSessionId);
+        var session = requireLocked(rawSessionId);
         var currentRole = jdbc.queryForObject("""
                 select case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
