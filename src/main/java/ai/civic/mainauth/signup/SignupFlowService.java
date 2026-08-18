@@ -1,5 +1,6 @@
 package ai.civic.mainauth.signup;
 
+import ai.civic.mainauth.auth.AuthenticationIdentityLock;
 import ai.civic.mainauth.consent.ConsentEvidenceService;
 import ai.civic.mainauth.feature.RuntimeFeatureGateService;
 import ai.civic.mainauth.notification.VerificationCodeProtector;
@@ -36,6 +37,7 @@ public class SignupFlowService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final JdbcTemplate jdbc;
+    private final AuthenticationIdentityLock identityLocks;
     private final ObjectMapper json;
     private final ConsentEvidenceService consent;
     private final VerificationCodeProtector codeProtector;
@@ -46,21 +48,24 @@ public class SignupFlowService {
     @Autowired
     public SignupFlowService(
             JdbcTemplate jdbc,
+            AuthenticationIdentityLock identityLocks,
             ObjectMapper json,
             ConsentEvidenceService consent,
             VerificationCodeProtector codeProtector,
             RuntimeFeatureGateService featureGates) {
-        this(jdbc, json, consent, codeProtector, featureGates, Clock.systemUTC());
+        this(jdbc, identityLocks, json, consent, codeProtector, featureGates, Clock.systemUTC());
     }
 
     SignupFlowService(
             JdbcTemplate jdbc,
+            AuthenticationIdentityLock identityLocks,
             ObjectMapper json,
             ConsentEvidenceService consent,
             VerificationCodeProtector codeProtector,
             RuntimeFeatureGateService featureGates,
             Clock clock) {
         this.jdbc = jdbc;
+        this.identityLocks = identityLocks;
         this.json = json;
         this.consent = consent;
         this.codeProtector = codeProtector;
@@ -72,6 +77,7 @@ public class SignupFlowService {
     public SignupFlowView startSignup(String email) {
         featureGates.requireEnabled("PUBLIC_SIGNUP_ENABLED");
         var normalized = normalizeAndValidateEmail(email);
+        identityLocks.lock(normalized);
         var schema = jdbc.queryForMap("""
                 select id, version from questionnaire_schemas
                 where active_for_new_signup order by version desc limit 1

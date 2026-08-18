@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -77,6 +78,31 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
         assertThat(count("credentials", "true")).isOne(); // bootstrap credential only
         assertThat(count("sessions", "true")).isZero();
+    }
+
+    @Test
+    void startingSignupWaitsForTheIdentityPrivacyLock() throws Exception {
+        var identity = "privacy-lock@example.com";
+        var lockKey = ByteBuffer.wrap(MessageDigest.getInstance("SHA-256")
+                .digest(identity.getBytes(StandardCharsets.UTF_8))).getLong();
+        try (var executor = Executors.newSingleThreadExecutor();
+                var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var identityLock = connection.prepareStatement(
+                    "select pg_advisory_xact_lock(?)")) {
+                identityLock.setLong(1, lockKey);
+                identityLock.executeQuery();
+            }
+
+            var attempt = executor.submit(() -> service.startSignup(identity));
+            assertThatThrownBy(() -> attempt.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            assertThat(count("signup_flows", "normalized_email = 'privacy-lock@example.com'"))
+                    .isZero();
+            connection.rollback();
+
+            assertThat(attempt.get(10, TimeUnit.SECONDS).flowId()).isNotNull();
+        }
     }
 
     @Test
