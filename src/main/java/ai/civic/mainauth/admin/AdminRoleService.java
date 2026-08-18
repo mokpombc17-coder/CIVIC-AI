@@ -59,7 +59,8 @@ public class AdminRoleService {
         if (actorId.equals(subjectId) && current.contains("HIGHEST_ADMIN") && !desiredRoles.contains("HIGHEST_ADMIN")) {
             throw new AdminPolicyException("Highest administrators cannot demote themselves");
         }
-        if (current.contains("HIGHEST_ADMIN") && !desiredRoles.contains("HIGHEST_ADMIN")
+        if ("ACTIVE".equals(subject.get("state"))
+                && current.contains("HIGHEST_ADMIN") && !desiredRoles.contains("HIGHEST_ADMIN")
                 && activeHighestAdminCount() <= 1) {
             throw new AdminPolicyException("At least one active highest administrator is required");
         }

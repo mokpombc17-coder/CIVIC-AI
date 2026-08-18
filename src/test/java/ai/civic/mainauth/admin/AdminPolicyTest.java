@@ -95,6 +95,20 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void inactiveHighestAdminCanBeDemotedWhileAnActiveHighestAdminRemains() {
+        jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
+        var inactive = createAdmin("inactive-highest@example.com");
+        roles.replaceRoles(
+                bootstrapId, inactive, 0, Set.of("HIGHEST_ADMIN"), "비활성화 전 최고 관리자 지정", false);
+        jdbc.update("update users set state = 'DEACTIVATED' where id = ?", inactive);
+
+        roles.replaceRoles(
+                bootstrapId, inactive, 1, Set.of("PARTICIPANT"), "비활성 계정 권한 회수", true);
+
+        assertThat(roles.rolesOf(inactive)).containsExactly("PARTICIPANT");
+    }
+
+    @Test
     void concurrentCrossDemotionsCannotRemoveEveryHighestAdministrator() throws Exception {
         jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
         var first = createAdmin("concurrent-first@example.com");

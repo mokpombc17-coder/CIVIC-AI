@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class MainWorkerWiringTest {
@@ -36,6 +38,26 @@ class MainWorkerWiringTest {
         var loop = Files.readString(Path.of(
                 "src/main/java/ai/civic/mainauth/worker/WorkerPollerLoop.java"));
         assertThat(loop).contains("@Scheduled", "pollOnce");
+    }
+
+    @Test
+    void oneFailedChannelDoesNotStarveIndependentPollers() {
+        var healthyCalls = new AtomicInteger();
+        var failed = new OutboxPoller() {
+            public String channel() { return "account-state"; }
+            public boolean pollOnce() { throw new IllegalStateException("redis unavailable"); }
+        };
+        var healthy = new OutboxPoller() {
+            public String channel() { return "privacy-main"; }
+            public boolean pollOnce() {
+                healthyCalls.incrementAndGet();
+                return false;
+            }
+        };
+
+        new WorkerPollerLoop(List.of(failed, healthy)).poll();
+
+        assertThat(healthyCalls).hasValue(1);
     }
 
     @Test
