@@ -118,13 +118,37 @@ public class SignupFlowService {
 
     @Transactional
     public boolean purgeExpiredSignupFlows() {
-        return jdbc.update("""
+        var pendingRegistrations = jdbc.query("""
+                select u.id, u.normalized_email
+                from users u
+                where u.state = 'PENDING_EMAIL_VERIFICATION' and u.deleted_at is null
+                  and exists (
+                    select 1 from auth_challenges expired
+                    where expired.user_id = u.id
+                      and expired.purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                      and expired.expires_at <= now()
+                  )
+                  and not exists (
+                    select 1 from auth_challenges active
+                    where active.user_id = u.id
+                      and active.purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                      and active.consumed_at is null and active.expires_at > now()
+                  )
+                order by u.created_at, u.id
+                for update of u skip locked limit 100
+                """, (rs, rowNum) -> new PendingRegistration(
+                rs.getObject("id", UUID.class), rs.getString("normalized_email")));
+        for (var pending : pendingRegistrations) {
+            removeExpiredPendingRegistration(pending.normalizedEmail(), pending.userId());
+        }
+        var expiredFlows = jdbc.update("""
                 with expired as (
                     select id from signup_flows where expires_at < now()
                     order by expires_at for update skip locked limit 100
                 )
                 delete from signup_flows f using expired e where f.id = e.id
-                """) > 0;
+                """);
+        return !pendingRegistrations.isEmpty() || expiredFlows > 0;
     }
 
     @Transactional
@@ -504,4 +528,6 @@ public class SignupFlowService {
             Instant windowStartedAt,
             Instant expiresAt,
             boolean consumed) {}
+
+    private record PendingRegistration(UUID userId, String normalizedEmail) {}
 }

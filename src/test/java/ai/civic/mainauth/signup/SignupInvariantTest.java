@@ -94,6 +94,28 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(fresh.flowId()).isNotNull();
     }
 
+    @Test
+    void workerRetentionPurgesAnAbandonedPendingRegistrationAfterChallengeExpiry() {
+        var flow = service.startSignup("abandoned@example.com");
+        service.completeSignup(
+                flow.flowId(), validRequest("abandoned@example.com", "Valid123!"));
+        jdbc.update("""
+                update auth_challenges set expires_at = now() - interval '1 second'
+                where purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """);
+        jdbc.update("update signup_flows set expires_at = now() - interval '1 second'");
+
+        assertThat(service.purgeExpiredSignupFlows()).isTrue();
+
+        assertThat(count("users", "normalized_email = 'abandoned@example.com'")).isZero();
+        assertThat(count("credentials", "user_id not in (select id from users)")).isZero();
+        assertThat(count("auth_challenges", "purpose = 'SIGNUP_EMAIL_VERIFICATION'")).isZero();
+        assertThat(count("notification_outbox", "recipient = 'abandoned@example.com'")).isZero();
+        assertThat(count("consent_evidence", "true")).isZero();
+        assertThat(count("questionnaire_responses", "true")).isZero();
+        assertThat(count("signup_flows", "normalized_email = 'abandoned@example.com'")).isZero();
+    }
+
     @ParameterizedTest(name = "rejects invalid password: {0}")
     @MethodSource("invalidPasswords")
     void invalidCompletionIsAtomic(String password) {
