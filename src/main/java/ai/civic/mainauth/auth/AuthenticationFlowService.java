@@ -148,7 +148,7 @@ public class AuthenticationFlowService {
         if (!userId.equals(lockedUserId)) {
             throw new AuthenticationException("Authentication flow subject mismatch");
         }
-        var currentSession = sessions.require(sessionId);
+        var currentSession = sessions.requireLocked(sessionId);
         if (!userId.equals(currentSession.userId())) {
             throw new AuthenticationException("Authentication flow subject mismatch");
         }
@@ -164,7 +164,7 @@ public class AuthenticationFlowService {
         if (states.size() != 1 || !"ACTIVE".equals(states.getFirst())) {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }
-        var currentSession = sessions.require(sessionId);
+        var currentSession = sessions.requireLocked(sessionId);
         if (!userId.equals(currentSession.userId())) {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }

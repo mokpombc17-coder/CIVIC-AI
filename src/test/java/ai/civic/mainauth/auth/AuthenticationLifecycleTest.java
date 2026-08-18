@@ -483,6 +483,88 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void enablingTwoFactorWaitsForLogoutAndRejectsTheRevokedSession() throws Exception {
+        var flow = auth.requestTwoFactorEnable(userId, "person@example.com");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
+                """, sha256("123456"), userId);
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("""
+                    select session_hash from sessions
+                    where user_id = ? and revoked_at is null for update
+                    """)) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+
+            var enable = executor.submit(
+                    () -> auth.enableTwoFactor(session.sessionId(), userId, flow, "123456"));
+            assertThatThrownBy(() -> enable.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var revoke = connection.prepareStatement("""
+                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
+                    where user_id = ? and revoked_at is null
+                    """)) {
+                revoke.setObject(1, userId);
+                assertThat(revoke.executeUpdate()).isOne();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> enable.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(jdbc.queryForObject(
+                "select two_factor_enabled from credentials where user_id = ?",
+                Boolean.class,
+                userId)).isFalse();
+    }
+
+    @Test
+    void disablingTwoFactorWaitsForLogoutAndRejectsTheRevokedSession() throws Exception {
+        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("""
+                    select session_hash from sessions
+                    where user_id = ? and revoked_at is null for update
+                    """)) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+
+            var disable = executor.submit(
+                    () -> auth.disableTwoFactor(session.sessionId(), userId, "Valid123!"));
+            assertThatThrownBy(() -> disable.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var revoke = connection.prepareStatement("""
+                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
+                    where user_id = ? and revoked_at is null
+                    """)) {
+                revoke.setObject(1, userId);
+                assertThat(revoke.executeUpdate()).isOne();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> disable.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(jdbc.queryForObject(
+                "select two_factor_enabled from credentials where user_id = ?",
+                Boolean.class,
+                userId)).isTrue();
+    }
+
+    @Test
     void disablingTwoFactorRevalidatesActiveStateAfterAcquiringTheUserLifecycleLock()
             throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
