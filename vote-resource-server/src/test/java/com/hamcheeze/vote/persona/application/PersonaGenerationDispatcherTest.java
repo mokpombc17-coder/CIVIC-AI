@@ -12,10 +12,13 @@ import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
+import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.infra.PersonaGenerationProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -68,7 +71,10 @@ class PersonaGenerationDispatcherTest {
                         true,
                         "timeout"))
                 .thenReturn(new PersonaCreationResult(
-                        generationId, new PersonaId("persona-a")));
+                        generationId,
+                        new PersonaId("persona-a"),
+                        new PredictedAdoptionRate(new BigDecimal("0.72")),
+                        new PersonaModelVersion("model-v1")));
 
         assertThat(dispatcher.dispatchAvailable()).isEqualTo(1);
         assertThat(dispatcher.dispatchAvailable()).isEqualTo(1);

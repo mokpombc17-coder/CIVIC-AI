@@ -10,7 +10,7 @@ public record PersonaCreationCommand(
         PersonaSurveySource source
 ) {
 
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     public PersonaCreationCommand {
         Objects.requireNonNull(generationId, "generationId");

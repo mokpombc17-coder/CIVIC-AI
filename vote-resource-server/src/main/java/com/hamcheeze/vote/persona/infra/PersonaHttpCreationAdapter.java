@@ -14,8 +14,10 @@ import com.hamcheeze.vote.persona.application.PersonaSurveySource.ScaleValue;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource.SingleChoiceValue;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource.TextValue;
 import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
-import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
+import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -178,7 +180,10 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
             }
             return new PersonaCreationResult(
                     new PersonaGenerationId(response.generationId()),
-                    new PersonaId(response.personaId()));
+                    new PersonaId(response.personaId()),
+                    new PredictedAdoptionRate(
+                            response.predictedAdoptionRate()),
+                    new PersonaModelVersion(response.modelVersion()));
         } catch (PersonaCreationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -332,6 +337,11 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
         }
     }
 
-    record CreatePersonaResponse(UUID generationId, String personaId) {
+    record CreatePersonaResponse(
+            UUID generationId,
+            String personaId,
+            BigDecimal predictedAdoptionRate,
+            String modelVersion
+    ) {
     }
 }

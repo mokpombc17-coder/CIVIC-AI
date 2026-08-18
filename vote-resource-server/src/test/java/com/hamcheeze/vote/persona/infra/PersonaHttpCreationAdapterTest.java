@@ -71,7 +71,8 @@ class PersonaHttpCreationAdapterTest {
             String body = readBody(exchange);
             requestBody.set(body);
             respond(exchange, 201, """
-                    {"generationId":"%s","personaId":"persona-42"}
+                    {"generationId":"%s","personaId":"persona-42",
+                     "predictedAdoptionRate":0.72,"modelVersion":"model-v3"}
                     """.formatted(generationId(body)));
         });
         PersonaCreationCommand command = command();
@@ -80,6 +81,9 @@ class PersonaHttpCreationAdapterTest {
 
         assertThat(result.generationId()).isEqualTo(command.generationId());
         assertThat(result.personaId().value()).isEqualTo("persona-42");
+        assertThat(result.predictedAdoptionRate().value())
+                .isEqualByComparingTo("0.72");
+        assertThat(result.modelVersion().value()).isEqualTo("model-v3");
         assertThat(requestBody.get())
                 .contains("OTHER", "직접 입력", "세부 성향", "창작")
                 .doesNotContain("user-a", "userId");
@@ -89,7 +93,9 @@ class PersonaHttpCreationAdapterTest {
     void rejectsMismatchedGenerationIdAndBlankPersonaId() {
         server.createContext("/v1/personas", exchange -> respond(
                 exchange, 201, """
-                        {"generationId":"%s","personaId":"persona-42"}
+                        {"generationId":"%s","personaId":"persona-42",
+                         "predictedAdoptionRate":0.72,
+                         "modelVersion":"model-v3"}
                         """.formatted(UUID.randomUUID())));
 
         assertFailure(
@@ -100,7 +106,37 @@ class PersonaHttpCreationAdapterTest {
         server.removeContext("/v1/personas");
         server.createContext("/v1/personas", exchange -> respond(
                 exchange, 201, """
-                        {"generationId":"%s","personaId":" "}
+                        {"generationId":"%s","personaId":" ",
+                         "predictedAdoptionRate":0.72,
+                         "modelVersion":"model-v3"}
+                        """.formatted(generationId(readBody(exchange)))));
+
+        assertFailure(
+                () -> adapter().create(command()),
+                PersonaCreationErrorCode.INVALID_RESPONSE,
+                false);
+    }
+
+    @Test
+    void rejectsInvalidPredictedAdoptionRateAndModelVersion() {
+        server.createContext("/v1/personas", exchange -> respond(
+                exchange, 201, """
+                        {"generationId":"%s","personaId":"persona-42",
+                         "predictedAdoptionRate":1.01,
+                         "modelVersion":"model-v3"}
+                        """.formatted(generationId(readBody(exchange)))));
+
+        assertFailure(
+                () -> adapter().create(command()),
+                PersonaCreationErrorCode.INVALID_RESPONSE,
+                false);
+
+        server.removeContext("/v1/personas");
+        server.createContext("/v1/personas", exchange -> respond(
+                exchange, 201, """
+                        {"generationId":"%s","personaId":"persona-42",
+                         "predictedAdoptionRate":0.72,
+                         "modelVersion":" "}
                         """.formatted(generationId(readBody(exchange)))));
 
         assertFailure(
