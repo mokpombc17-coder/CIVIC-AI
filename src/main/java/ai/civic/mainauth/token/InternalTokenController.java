@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
+import ai.civic.mainauth.auth.AuthenticationException;
 
 @RestController
 @RequestMapping("/internal/v1/tokens")
@@ -42,7 +44,8 @@ public class InternalTokenController {
     }
 
     @PostMapping
-    ResponseEntity<TokenView> issue(
+    @Transactional(noRollbackFor = AuthenticationException.class)
+    public ResponseEntity<TokenView> issue(
             @RequestHeader(INTERNAL_SECRET_HEADER) String suppliedInternalSecret,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @RequestHeader(value = "X-Request-ID", defaultValue = "missing-request-id") String requestId,
@@ -55,7 +58,7 @@ public class InternalTokenController {
         if (!"civic-rag".equals(request.audience()) || !csrf.matches(sessionId, csrfToken)) {
             throw new SecurityException("Internal token request is invalid");
         }
-        var session = sessions.require(sessionId);
+        var session = sessions.requireForTokenIssuance(sessionId);
         if (session.mustChangePassword()) {
             throw new SecurityException("Password rotation is required before issuing internal tokens");
         }

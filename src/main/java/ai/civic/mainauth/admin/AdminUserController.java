@@ -97,7 +97,7 @@ public class AdminUserController {
     }
 
     private AdminUserView load(UUID userId) {
-        return jdbc.queryForObject("""
+        var users = jdbc.query("""
                 select u.id, u.email, u.state, u.row_version, c.must_change_password,
                        u.email_verified_at, coalesce(max(s.last_seen_at), u.updated_at) as last_activity_at
                 from users u join credentials c on c.user_id = u.id
@@ -107,6 +107,8 @@ public class AdminUserController {
                 rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("state"),
                 rs.getLong("row_version"), rs.getBoolean("must_change_password"),
                 rs.getTimestamp("email_verified_at"), rs.getTimestamp("last_activity_at")), userId);
+        if (users.size() != 1) throw new AdminUserNotFoundException();
+        return users.getFirst();
     }
 
     private AdminUserView view(

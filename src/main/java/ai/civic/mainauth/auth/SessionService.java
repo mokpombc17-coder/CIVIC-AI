@@ -56,7 +56,7 @@ public class SessionService {
         return new IssuedSession(rawSessionId, rawCsrf, role, idle, absolute);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public SessionView require(String rawSessionId) {
         if (rawSessionId == null || rawSessionId.isBlank()) throw invalid();
         var rows = jdbc.query("""
@@ -96,6 +96,35 @@ public class SessionService {
                     newIdle, view.absoluteExpiresAt(), now, view.mustChangePassword());
         }
         return view;
+    }
+
+    @Transactional(noRollbackFor = AuthenticationException.class)
+    public SessionView requireForTokenIssuance(String rawSessionId) {
+        if (rawSessionId == null || rawSessionId.isBlank()) throw invalid();
+        var users = jdbc.query("""
+                select u.id from sessions s join users u on u.id = s.user_id
+                where s.session_hash = ? and s.revoked_at is null
+                for update of u
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), hmac(rawSessionId));
+        if (users.size() != 1) throw invalid();
+
+        var session = require(rawSessionId);
+        var currentRole = jdbc.queryForObject("""
+                select case
+                         when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
+                         when bool_or(r.code = 'ADMIN') then 'ADMIN'
+                         when bool_or(r.code = 'RAG_OPERATOR') then 'RAG_ADMIN'
+                         else 'PARTICIPANT'
+                       end
+                from users u
+                left join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
+                left join roles r on r.id = ur.role_id
+                where u.id = ? group by u.id
+                """, String.class, session.userId());
+        return new SessionView(
+                session.userId(), SessionRole.valueOf(currentRole), session.accountState(),
+                session.accountStateVersion(), session.idleExpiresAt(), session.absoluteExpiresAt(),
+                session.lastSeenAt(), session.mustChangePassword());
     }
 
     @Transactional
