@@ -1,6 +1,7 @@
 package ai.civic.mainauth.privacy;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
+import ai.civic.mainauth.auth.SessionService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -11,9 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MainPrivacyDeletionHandler {
     private final JdbcTemplate jdbc;
+    private final SessionService sessions;
 
-    public MainPrivacyDeletionHandler(JdbcTemplate jdbc) {
+    public MainPrivacyDeletionHandler(JdbcTemplate jdbc, SessionService sessions) {
         this.jdbc = jdbc;
+        this.sessions = sessions;
     }
 
     @Transactional(noRollbackFor = {AdminPolicyException.class, IllegalArgumentException.class})
@@ -65,6 +68,11 @@ public class MainPrivacyDeletionHandler {
         var originalIdentityHash = sha256(originalEmail);
         jdbc.update("delete from login_throttles where identity_hash = ?", originalIdentityHash);
         jdbc.update("delete from pre_session_rate_limits where identity_hash = ?", originalIdentityHash);
+        jdbc.update("""
+                delete from opaque_auth_flows where identity_hash in (?, ?)
+                """,
+                sessions.opaqueCompletionIdentity(originalEmail, "PASSWORD_RESET"),
+                sessions.opaqueCompletionIdentity(originalEmail, "REACTIVATION"));
         var changed = jdbc.update("""
                 update users set email = ?, normalized_email = ?, state = 'DELETED',
                     account_state_version = account_state_version + 1,

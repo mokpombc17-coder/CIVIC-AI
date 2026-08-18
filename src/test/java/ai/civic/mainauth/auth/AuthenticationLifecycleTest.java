@@ -1205,6 +1205,18 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void workerRetentionPurgesExpiredOpaqueAuthenticationFlowsInBatches() {
+        jdbc.update("delete from opaque_auth_flows");
+        auth.requestPasswordReset("expired-opaque-flow@example.com");
+        jdbc.update("update opaque_auth_flows set expires_at = now() - interval '1 second'");
+
+        assertThat(auth.purgeExpiredOpaqueAuthenticationFlows()).isTrue();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from opaque_auth_flows", Integer.class)).isZero();
+        assertThat(auth.purgeExpiredOpaqueAuthenticationFlows()).isFalse();
+    }
+
+    @Test
     void invalidAuthenticationCodeAttemptRemainsCommitted() {
         var flow = auth.requestPasswordReset("person@example.com");
 

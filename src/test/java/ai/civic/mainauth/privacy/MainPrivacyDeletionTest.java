@@ -3,6 +3,7 @@ package ai.civic.mainauth.privacy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.civic.mainauth.admin.AdminPolicyException;
+import ai.civic.mainauth.auth.AuthenticationFlowService;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @SpringBootTest(properties = "spring.main.lazy-initialization=true")
 class MainPrivacyDeletionTest extends PostgresIntegrationTest {
     @Autowired MainPrivacyDeletionHandler deletion;
+    @Autowired AuthenticationFlowService authentication;
     @Autowired JdbcTemplate jdbc;
 
     @Test
@@ -116,6 +118,22 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
                 select count(*) from account_state_outbox
                 where user_id = ? and state = 'DELETED' and account_state_version = 1
                 """, Integer.class, user)).isOne();
+    }
+
+    @Test
+    void deletionErasesPurposeSpecificOpaqueAuthenticationIdentities() {
+        jdbc.update("delete from opaque_auth_flows");
+        var user = createUser();
+        authentication.requestReactivation("delete-me@example.com", "Wrong123!");
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", user);
+        authentication.requestPasswordReset("delete-me@example.com");
+        assertThat(jdbc.queryForObject(
+                "select count(*) from opaque_auth_flows", Integer.class)).isEqualTo(2);
+
+        deletion.delete(user, "opaque-identity-deletion");
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from opaque_auth_flows", Integer.class)).isZero();
     }
 
     @Test

@@ -358,7 +358,8 @@ public class AuthenticationFlowService {
                     insert into opaque_auth_flows(
                         flow_hash, identity_hash, purpose, expires_at
                     ) values (?, ?, ?, ?)
-                    """, sha256(flow.toString()), opaqueCompletionIdentity(targetIdentity, purpose),
+                    """, sha256(flow.toString()),
+                    sessions.opaqueCompletionIdentity(targetIdentity, purpose),
                     purpose, Timestamp.from(now.plus(Duration.ofMinutes(10))));
             return flow;
         } catch (Exception exception) {
@@ -480,9 +481,16 @@ public class AuthenticationFlowService {
                 """, shardHash);
     }
 
-    private byte[] opaqueCompletionIdentity(String targetIdentity, String purpose) {
-        return sessions.hmac(
-                "opaque-completion-identity\0" + purpose + "\0" + targetIdentity);
+    @Transactional
+    public boolean purgeExpiredOpaqueAuthenticationFlows() {
+        return jdbc.update("""
+                with expired as (
+                    select flow_hash from opaque_auth_flows where expires_at < now()
+                    order by expires_at for update skip locked limit 100
+                )
+                delete from opaque_auth_flows flow using expired
+                where flow.flow_hash = expired.flow_hash
+                """) > 0;
     }
 
     private void lockUser(UUID userId) {

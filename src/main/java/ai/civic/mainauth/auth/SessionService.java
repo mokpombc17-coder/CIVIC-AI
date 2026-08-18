@@ -183,6 +183,15 @@ public class SessionService {
         }
     }
 
+    public byte[] opaqueCompletionIdentity(String normalizedIdentity, String purpose) {
+        if (normalizedIdentity == null || normalizedIdentity.isBlank()
+                || purpose == null || purpose.isBlank()) {
+            throw new IllegalArgumentException("Opaque completion identity inputs are required");
+        }
+        return hmac(
+                "opaque-completion-identity\0" + purpose + "\0" + normalizedIdentity);
+    }
+
     private static String opaqueToken() {
         var bytes = new byte[32];
         RANDOM.nextBytes(bytes);
