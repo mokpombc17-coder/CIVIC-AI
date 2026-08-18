@@ -1,6 +1,8 @@
 package ai.civic.mainauth.privacy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import ai.civic.mainauth.admin.AdminPolicyException;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.util.UUID;
@@ -13,6 +15,33 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class MainPrivacyDeletionTest extends PostgresIntegrationTest {
     @Autowired MainPrivacyDeletionHandler deletion;
     @Autowired JdbcTemplate jdbc;
+
+    @Test
+    void privacyDeletionCannotRemoveTheLastActiveHighestAdministrator() {
+        var highestAdministrators = jdbc.queryForList("""
+                select u.id from users u
+                join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
+                join roles r on r.id = ur.role_id
+                where u.state = 'ACTIVE' and r.highest_admin
+                order by u.created_at
+                """, UUID.class);
+        var lastHighestAdministrator = highestAdministrators.getFirst();
+        var temporarilyInactive = highestAdministrators.stream().skip(1).toList();
+        temporarilyInactive.forEach(id ->
+                jdbc.update("update users set state = 'DEACTIVATED' where id = ?", id));
+
+        try {
+            assertThatThrownBy(() -> deletion.delete(lastHighestAdministrator, "highest-admin-deletion"))
+                    .isInstanceOf(AdminPolicyException.class)
+                    .hasMessageContaining("last active highest administrator");
+            assertThat(jdbc.queryForObject(
+                    "select state from users where id = ?", String.class, lastHighestAdministrator))
+                    .isEqualTo("ACTIVE");
+        } finally {
+            temporarilyInactive.forEach(id ->
+                    jdbc.update("update users set state = 'ACTIVE' where id = ?", id));
+        }
+    }
 
     @Test
     void deletionIsIdempotentLeavesOnlyTombstoneAndPreventsReactivation() {

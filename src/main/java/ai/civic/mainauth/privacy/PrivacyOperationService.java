@@ -1,6 +1,7 @@
 package ai.civic.mainauth.privacy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -30,9 +31,27 @@ public class PrivacyOperationService {
         if (subjectExists == null || subjectExists != 1) {
             throw new IllegalArgumentException("Privacy subject does not exist");
         }
-        var existing = jdbc.query("select id from privacy_operations where external_request_evidence_id = ?",
-                (rs, rowNum) -> rs.getObject(1, UUID.class), evidenceId);
-        if (!existing.isEmpty()) return existing.getFirst();
+        var existing = jdbc.query("""
+                select id, subject_id, requested_scopes::text
+                from privacy_operations where external_request_evidence_id = ?
+                """, (rs, rowNum) -> new StoredOperation(
+                rs.getObject("id", UUID.class), rs.getObject("subject_id", UUID.class),
+                rs.getString("requested_scopes")), evidenceId);
+        if (!existing.isEmpty()) {
+            var stored = existing.getFirst();
+            try {
+                var storedScopes = json.readValue(stored.requestedScopes(), new TypeReference<Set<String>>() {});
+                if (!subjectId.equals(stored.subjectId()) || !scopes.equals(storedScopes)) {
+                    throw new IllegalArgumentException(
+                            "Privacy idempotency evidence does not match the original request");
+                }
+                return stored.id();
+            } catch (IllegalArgumentException exception) {
+                throw exception;
+            } catch (Exception exception) {
+                throw new IllegalStateException("Could not verify privacy idempotency", exception);
+            }
+        }
         try {
             var id = UUID.randomUUID();
             jdbc.update("""
@@ -55,6 +74,13 @@ public class PrivacyOperationService {
                 || !Set.of("COMPLETE", "FAILED").contains(resultStatus)
                 || aggregateEvidence == null || aggregateEvidence.isBlank()) {
             throw new IllegalArgumentException("Aggregate privacy result is invalid");
+        }
+        var enqueued = jdbc.queryForObject("""
+                select count(*) from privacy_command_outbox
+                where operation_id = ? and service_code = ?
+                """, Integer.class, operationId, service);
+        if (enqueued == null || enqueued != 1) {
+            throw new IllegalArgumentException("Privacy result service was not enqueued");
         }
         jdbc.update("""
                 insert into privacy_results(operation_id, service_code, result_status, aggregate_evidence)
@@ -93,4 +119,6 @@ public class PrivacyOperationService {
                 values (?, ?, ?::jsonb)
                 """, operationId, service, payload);
     }
+
+    private record StoredOperation(UUID id, UUID subjectId, String requestedScopes) {}
 }

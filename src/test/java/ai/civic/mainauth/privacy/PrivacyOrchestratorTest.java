@@ -60,6 +60,39 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void idempotencyEvidenceMustMatchTheOriginalSubjectAndScopes() {
+        var subject = createSubject("privacy-idempotent@example.com");
+        var otherSubject = createSubject("privacy-idempotent-other@example.com");
+        var operation = privacy.start("external-idempotent-42", subject, Set.of("RAG"), true);
+
+        assertThat(privacy.start("external-idempotent-42", subject, Set.of("RAG"), true))
+                .isEqualTo(operation);
+        assertThatThrownBy(() -> privacy.start(
+                "external-idempotent-42", otherSubject, Set.of("RAG"), true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not match");
+        assertThatThrownBy(() -> privacy.start(
+                "external-idempotent-42", subject, Set.of("ACCOUNT", "RAG"), true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not match");
+    }
+
+    @Test
+    void resultForAServiceThatWasNotEnqueuedIsRejected() {
+        var subject = createSubject("privacy-service-match@example.com");
+        var operation = privacy.start("external-service-match-42", subject, Set.of("ACCOUNT"), true);
+
+        assertThatThrownBy(() -> privacy.recordResult(
+                operation, "RAG", "COMPLETE", "misrouted-rag-result"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("was not enqueued");
+        assertThat(privacy.status(operation)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject(
+                "select count(*) from privacy_results where operation_id = ?", Integer.class, operation))
+                .isZero();
+    }
+
+    @Test
     void workerConsumesMainDeletionCommandAndRecordsItsResult() {
         var subject = createSubject("privacy-worker@example.com");
         var operation = privacy.start("external-worker-42", subject, Set.of("ACCOUNT"), true);

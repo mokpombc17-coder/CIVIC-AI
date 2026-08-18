@@ -1,5 +1,6 @@
 package ai.civic.mainauth.privacy;
 
+import ai.civic.mainauth.admin.AdminPolicyException;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -19,9 +20,26 @@ public class MainPrivacyDeletionHandler {
                 "select count(*) from deletion_tombstones where subject_id = ?",
                 Integer.class, subjectId);
         if (existing != null && existing > 0) return new DeletionResult(false, true);
+        lockHighestAdministratorChanges();
         var user = jdbc.queryForMap(
                 "select normalized_email from users where id = ? for update", subjectId);
         var originalEmail = (String) user.get("normalized_email");
+        var subjectIsHighestAdministrator = jdbc.queryForObject("""
+                select count(*) from user_roles ur join roles r on r.id = ur.role_id
+                where ur.user_id = ? and ur.revoked_at is null and r.highest_admin
+                """, Integer.class, subjectId);
+        if (subjectIsHighestAdministrator != null && subjectIsHighestAdministrator > 0) {
+            var activeHighestAdministrators = jdbc.queryForObject("""
+                    select count(distinct u.id) from users u
+                    join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
+                    join roles r on r.id = ur.role_id
+                    where u.state = 'ACTIVE' and r.highest_admin
+                    """, Integer.class);
+            if (activeHighestAdministrators == null || activeHighestAdministrators <= 1) {
+                throw new AdminPolicyException(
+                        "The last active highest administrator cannot be privacy-deleted");
+            }
+        }
         var anonymizedEmail = deletedEmail(subjectId);
 
         jdbc.update("delete from sessions where user_id = ?", subjectId);
@@ -64,6 +82,12 @@ public class MainPrivacyDeletionHandler {
 
     private String deletedEmail(UUID id) {
         return "deleted+" + id + "@invalid.local";
+    }
+
+    private void lockHighestAdministratorChanges() {
+        jdbc.queryForObject(
+                "select id from roles where code = 'SUPER_ADMIN' for update",
+                Integer.class);
     }
 
     public record DeletionResult(boolean deleted, boolean alreadyDeleted) {}
