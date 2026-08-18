@@ -6,6 +6,9 @@ import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.
 import com.hamcheeze.vote.task.application.port.out.PredictionCreationPort;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
+import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
+import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -21,10 +24,13 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
 import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
+import com.hamcheeze.vote.task.domain.task.TaskSchedule;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,7 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TaskPredictionApplicationIntegrationTest {
 
     private static final AtomicLong SURVEY_SEQUENCE =
-            new AtomicLong(System.currentTimeMillis());
+            new AtomicLong(1_000_000_000L
+                    + Math.floorMod(System.nanoTime(), 500_000_000L));
 
     @Autowired
     private TaskRepository tasks;
@@ -68,6 +75,18 @@ class TaskPredictionApplicationIntegrationTest {
 
     @Autowired
     private TaskPredictionApplicationPolicy policy;
+
+    @Autowired
+    private TaskAdministrationService administration;
+
+    @Autowired
+    private TaskPredictionService predictionService;
+
+    @Autowired
+    private TaskSubmissionService submissionService;
+
+    @Autowired
+    private MyTaskSubmissionQueryService submissionQueries;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -151,16 +170,78 @@ class TaskPredictionApplicationIntegrationTest {
                 .isEqualTo(TaskPredictionAttemptOutcome.SUCCEEDED);
     }
 
+    @Test
+    void administersSchedulesPredictsAndSubmitsThroughPersistedAdapters() {
+        TaskQuestion question = shortTextQuestion();
+        TaskActorId admin = new TaskActorId("task-e2e-admin");
+        Task draft = administration.createDraft(
+                new TaskAdministrationService.CreateDraftCommand(
+                        "Task 종단 검증 과업",
+                        "관리자 작성부터 AI 예상 답변 채택까지 검증합니다.",
+                        List.of(question)),
+                admin);
+        Instant scheduledOpenAt = Instant.now().plus(1, ChronoUnit.HOURS);
+        administration.schedule(
+                draft.id(),
+                new TaskSchedule(
+                        scheduledOpenAt,
+                        scheduledOpenAt.plus(2, ChronoUnit.HOURS)),
+                "종단 검증 예약",
+                admin);
+        Task openTask = administration.openScheduledNow(
+                draft.id(),
+                "종단 검증 조기 공개",
+                admin)
+                .task();
+
+        TaskUserId userId = new TaskUserId(
+                "task-e2e-user-" + UUID.randomUUID());
+        insertSucceededPersona(userId.value());
+        TaskPrediction prediction = predictionService.ensureTaskPrediction(
+                        userId, openTask.id())
+                .prediction();
+        TaskPredictionDispatcher dispatcher = new TaskPredictionDispatcher(
+                states, this::success, policy);
+
+        assertThat(dispatcher.dispatchAvailable()).isEqualTo(1);
+
+        TaskPrediction succeeded = predictions.findById(prediction.id())
+                .orElseThrow();
+        TaskPredictionCandidate adopted = succeeded.candidates().getFirst();
+        var execution = submissionService.submit(
+                userId,
+                UUID.randomUUID().toString(),
+                new TaskSubmissionService.SubmitTaskCommand(
+                        openTask.id(),
+                        succeeded.id(),
+                        List.of(new AcceptTaskPredictionCandidate(
+                                question.id(), adopted.id()))));
+
+        assertThat(execution.replayed()).isFalse();
+        assertThat(execution.outcome().code())
+                .isEqualTo("TASK_SUBMISSION_CREATED");
+        assertThat(submissionQueries.findByTask(userId, openTask.id()))
+                .get()
+                .satisfies(submission -> {
+                    assertThat(submission.predictionId())
+                            .isEqualTo(succeeded.id());
+                    assertThat(submission.answers())
+                            .singleElement()
+                            .satisfies(answer -> {
+                                assertThat(answer.source())
+                                        .isEqualTo(TaskAnswerSource.AI_ACCEPTED);
+                                assertThat(answer.adoptedCandidate()
+                                        .candidateId())
+                                        .isEqualTo(adopted.id());
+                                assertThat(answer.finalAnswerValue())
+                                        .isEqualTo(adopted.answerValue());
+                            });
+                });
+    }
+
     private Task persistOpenTask() {
         Instant now = Instant.now();
-        TaskQuestion question = new TaskQuestion(
-                new TaskQuestionId(UUID.randomUUID()),
-                1,
-                TaskQuestionType.SHORT_TEXT,
-                "예상 답변을 작성할 질문",
-                null,
-                ShortTextConstraint.defaults(),
-                List.of());
+        TaskQuestion question = shortTextQuestion();
         Task task = Task.draft(
                 new TaskId(UUID.randomUUID()),
                 "예측 애플리케이션 통합 과업",
@@ -174,6 +255,17 @@ class TaskPredictionApplicationIntegrationTest {
                 null,
                 now.minus(1, ChronoUnit.SECONDS));
         return tasks.save(task);
+    }
+
+    private TaskQuestion shortTextQuestion() {
+        return new TaskQuestion(
+                new TaskQuestionId(UUID.randomUUID()),
+                1,
+                TaskQuestionType.SHORT_TEXT,
+                "예상 답변을 작성할 질문",
+                null,
+                ShortTextConstraint.defaults(),
+                List.of());
     }
 
     private CurrentTaskPersona insertSucceededPersona(String userId) {

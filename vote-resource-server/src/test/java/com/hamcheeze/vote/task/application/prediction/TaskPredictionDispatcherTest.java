@@ -3,6 +3,8 @@ package com.hamcheeze.vote.task.application.prediction;
 import com.hamcheeze.vote.task.application.port.out.PredictionCreationPort;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
@@ -36,6 +38,8 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.validCandidates;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TaskPredictionDispatcherTest {
@@ -100,6 +104,37 @@ class TaskPredictionDispatcherTest {
                 tasks,
                 policy,
                 Clock.fixed(DISPATCH_TIME, ZoneOffset.UTC));
+    }
+
+    @Test
+    void dispatchesEveryClaimInOneBatchExactlyOnce() {
+        TaskPredictionStateService claimedStates =
+                mock(TaskPredictionStateService.class);
+        PredictionCreationPort creation = mock(PredictionCreationPort.class);
+        TaskPredictionDispatchClaim first = dispatchClaim();
+        TaskPredictionDispatchClaim second = dispatchClaim();
+        when(claimedStates.claimNext())
+                .thenReturn(Optional.of(first))
+                .thenReturn(Optional.of(second))
+                .thenReturn(Optional.empty());
+        when(creation.create(any())).thenAnswer(invocation -> {
+            PredictionCreationCommand command = invocation.getArgument(0);
+            return new PredictionCreationResult(
+                    command.requestId(),
+                    command.task().id(),
+                    List.of(),
+                    200,
+                    responsePayload());
+        });
+        TaskPredictionDispatcher dispatcher = new TaskPredictionDispatcher(
+                claimedStates, creation, policy);
+
+        assertThat(dispatcher.dispatchAvailable()).isEqualTo(2);
+
+        verify(claimedStates, times(3)).claimNext();
+        verify(creation).create(first.command());
+        verify(creation).create(second.command());
+        verify(claimedStates, times(2)).completeSuccess(any(), any());
     }
 
     @Test
@@ -220,6 +255,25 @@ class TaskPredictionDispatcherTest {
                 .singleElement()
                 .extracting(TaskPredictionAttempt::outcome)
                 .isEqualTo(TaskPredictionAttemptOutcome.INVALID_RESPONSE);
+    }
+
+    private TaskPredictionDispatchClaim dispatchClaim() {
+        TaskPredictionId predictionId = new TaskPredictionId(
+                UUID.randomUUID());
+        PredictionCreationCommand command = new PredictionCreationCommand(
+                predictionId,
+                new TaskPersonaId("persona-" + UUID.randomUUID()),
+                openTask(),
+                policy.candidatePolicyVersion(),
+                policy.requestedCandidateCount(),
+                policy.retryPolicy().requestTimeout());
+        return new TaskPredictionDispatchClaim(
+                predictionId,
+                new TaskPredictionAttemptId(UUID.randomUUID()),
+                1,
+                command,
+                SanitizedTaskPredictionPayload.fromSanitized(
+                        "{\"request\":\"multi-claim\"}"));
     }
 
     private static PredictionCreationResult success(
