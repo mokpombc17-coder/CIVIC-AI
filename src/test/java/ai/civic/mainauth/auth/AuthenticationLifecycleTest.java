@@ -574,6 +574,41 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void reactivationCompletionLocksTheUserBeforeConsumingItsChallenge() throws Exception {
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
+        var flow = auth.requestReactivation("person@example.com", "Valid123!");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'REACTIVATION' and consumed_at is null
+                """, sha256("123456"), userId);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            connection.createStatement().execute("set local lock_timeout = '500ms'");
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var completion = executor.submit(() -> auth.completeReactivation(flow, "123456"));
+
+            assertThatThrownBy(() -> completion.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var delete = connection.prepareStatement("""
+                        delete from auth_challenges
+                        where user_id = ? and purpose = 'REACTIVATION'
+                    """)) {
+                delete.setObject(1, userId);
+                assertThat(delete.executeUpdate()).isOne();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> completion.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+    }
+
+    @Test
     void requestingReactivationWaitsForPrivacyDeletionAndDoesNotRestoreIdentity() throws Exception {
         jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
         var challengesBefore = count("auth_challenges");

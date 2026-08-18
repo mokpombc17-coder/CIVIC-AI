@@ -226,7 +226,11 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = AuthenticationException.class)
     public void completeReactivation(UUID flowId, String code) {
+        var lockedUserId = lockChallengeUser(flowId, "REACTIVATION");
         var verified = consumeChallenge(flowId, "REACTIVATION", code);
+        if (!lockedUserId.equals(verified.userId())) {
+            throw new AuthenticationException(CODE_FAILURE);
+        }
         var changed = jdbc.update("""
                 update users set state = 'ACTIVE', deactivated_at = null,
                     account_state_version = account_state_version + 1, updated_at = now()
