@@ -199,6 +199,29 @@ class TaskPredictionDispatcherTest {
                 .isEqualTo(TaskPredictionAttemptOutcome.INVALID_RESPONSE);
     }
 
+    @Test
+    void incompleteCandidateSetNeverBecomesPartiallySuccessful() {
+        TaskPredictionDispatchClaim claim = states.claimNext().orElseThrow();
+        PredictionCreationResult incomplete = new PredictionCreationResult(
+                claim.command().requestId(),
+                claim.command().task().id(),
+                validCandidates(2).subList(0, 1),
+                200,
+                responsePayload());
+
+        assertThat(states.completeSuccess(claim, incomplete)).isTrue();
+
+        assertThat(prediction.status())
+                .isEqualTo(TaskPredictionStatus.FAILED);
+        assertThat(prediction.candidates()).isEmpty();
+        assertThat(prediction.lastError().code())
+                .isEqualTo("AI_RESPONSE_INVALID");
+        assertThat(attempts.values())
+                .singleElement()
+                .extracting(TaskPredictionAttempt::outcome)
+                .isEqualTo(TaskPredictionAttemptOutcome.INVALID_RESPONSE);
+    }
+
     private static PredictionCreationResult success(
             PredictionCreationCommand command,
             int status

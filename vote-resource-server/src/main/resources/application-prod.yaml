@@ -15,5 +15,12 @@ vote:
   task:
     lifecycle:
       enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
+    prediction:
+      enabled: ${VOTE_TASK_PREDICTION_ENABLED:false}
+      base-url: ${VOTE_TASK_PREDICTION_BASE_URL:http://localhost:8090}
+      path: ${VOTE_TASK_PREDICTION_PATH:/v1/task-predictions}
+      auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:}
+      connect-timeout: ${VOTE_TASK_PREDICTION_CONNECT_TIMEOUT:5s}
+      request-timeout: ${VOTE_TASK_PREDICTION_REQUEST_TIMEOUT:60s}
   security:
     cookie-authentication-enabled: false
