@@ -103,6 +103,7 @@ public class AuthenticationFlowService {
                 update credentials set password_hash = ?, must_change_password = false,
                     password_changed_at = now() where user_id = ?
                 """, passwords.encode(newPassword), userId);
+        consumePendingLoginChallenges(userId);
         sessions.revokeAll(userId, "PASSWORD_CHANGED");
     }
 
@@ -148,7 +149,15 @@ public class AuthenticationFlowService {
                 update credentials set password_hash = ?, must_change_password = false,
                     password_changed_at = now() where user_id = ?
                 """, passwords.encode(newPassword), verified.userId());
+        consumePendingLoginChallenges(verified.userId());
         sessions.revokeAll(verified.userId(), "PASSWORD_RESET");
+    }
+
+    private void consumePendingLoginChallenges(UUID userId) {
+        jdbc.update("""
+                update auth_challenges set consumed_at = now()
+                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """, userId);
     }
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)

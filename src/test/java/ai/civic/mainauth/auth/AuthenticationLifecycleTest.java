@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -122,6 +123,31 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void passwordResetInvalidatesAPendingTwoFactorLoginChallenge() throws Exception {
+        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
+        var pendingLogin = auth.login("person@example.com", "Valid123!", "127.0.0.1");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """, sha256("123456"), userId);
+        var reset = auth.requestPasswordReset("person@example.com");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, sha256("654321"), userId);
+
+        auth.completePasswordReset(reset, "654321", "Changed123!");
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """, Integer.class, userId)).isZero();
+        assertThatThrownBy(() -> auth.verifyTwoFactor(
+                UUID.fromString(pendingLogin.authFlowId()), "123456"))
+                .isInstanceOf(AuthenticationException.class);
+    }
+
+    @Test
     void ragAdministratorRoleSurvivesLoginInsteadOfCollapsingToParticipant() {
         jdbc.update("""
                 insert into user_roles(user_id, role_id)
@@ -231,5 +257,9 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     private String challengeCode() {
         return org.mockito.ArgumentMatchers.argThat(value -> value != null && value.matches("\\d{6}"));
+    }
+
+    private byte[] sha256(String value) throws Exception {
+        return MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
     }
 }
