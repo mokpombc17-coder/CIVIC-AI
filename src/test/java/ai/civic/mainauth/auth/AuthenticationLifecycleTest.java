@@ -604,6 +604,26 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void fakeAndRealAuthenticationFlowsExposeTheSameInvalidCodeFailure() {
+        var fakeReset = auth.requestPasswordReset("unknown@example.com");
+        var realReset = auth.requestPasswordReset("person@example.com");
+
+        assertThat(captureAuthenticationFailure(
+                        () -> auth.completePasswordReset(fakeReset, "000000", "Changed123!")))
+                .isEqualTo(captureAuthenticationFailure(
+                        () -> auth.completePasswordReset(realReset, "000000", "Changed123!")));
+
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
+        var fakeReactivation = auth.requestReactivation("person@example.com", "Wrong123!");
+        var realReactivation = auth.requestReactivation("person@example.com", "Valid123!");
+
+        assertThat(captureAuthenticationFailure(
+                        () -> auth.completeReactivation(fakeReactivation, "000000")))
+                .isEqualTo(captureAuthenticationFailure(
+                        () -> auth.completeReactivation(realReactivation, "000000")));
+    }
+
+    @Test
     void invalidAuthenticationCodeAttemptRemainsCommitted() {
         var flow = auth.requestPasswordReset("person@example.com");
 
@@ -629,6 +649,15 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     private int count(String table) {
         return jdbc.queryForObject("select count(*) from " + table, Integer.class);
+    }
+
+    private String captureAuthenticationFailure(Runnable operation) {
+        try {
+            operation.run();
+            throw new AssertionError("Expected authentication to fail");
+        } catch (AuthenticationException expected) {
+            return expected.getMessage();
+        }
     }
 
     private String captureFailure(String email, String password) {

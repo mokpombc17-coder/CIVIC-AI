@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Service
 public class AuthenticationFlowService {
     private static final String PUBLIC_FAILURE = "Email or password is invalid";
+    private static final String CODE_FAILURE = "Authentication code is invalid";
     private final JdbcTemplate jdbc;
     private final SessionService sessions;
     private final VerificationCodeProtector codeProtector;
@@ -261,7 +262,7 @@ public class AuthenticationFlowService {
                         : rs.getTimestamp("resend_window_started_at").toInstant(),
                 rs.getTimestamp("expires_at").toInstant(), rs.getTimestamp("consumed_at") != null),
                 sha256(flowId.toString()), purpose);
-        if (rows.size() != 1) throw new AuthenticationException("Authentication flow is invalid");
+        if (rows.size() != 1) throw new AuthenticationException(CODE_FAILURE);
         var challenge = rows.getFirst();
         var now = clock.instant();
         var count = challenge.windowStartedAt() != null
@@ -329,14 +330,14 @@ public class AuthenticationFlowService {
                 rs.getBytes("code_hash"), rs.getInt("attempt_count"),
                 rs.getTimestamp("expires_at").toInstant(), rs.getTimestamp("consumed_at") != null),
                 sha256(flowId.toString()), purpose);
-        if (rows.size() != 1) throw new AuthenticationException("Authentication flow is invalid");
+        if (rows.size() != 1) throw new AuthenticationException(CODE_FAILURE);
         var challenge = rows.getFirst();
         if (challenge.consumed() || challenge.expiresAt().isBefore(clock.instant())
                 || challenge.attemptCount() >= 5
                 || code == null || !MessageDigest.isEqual(challenge.codeHash(), sha256(code))) {
             jdbc.update("update auth_challenges set attempt_count = attempt_count + 1 where id = ?",
                     challenge.id());
-            throw new AuthenticationException("Authentication code is invalid");
+            throw new AuthenticationException(CODE_FAILURE);
         }
         jdbc.update("update auth_challenges set consumed_at = now() where id = ?", challenge.id());
         return new VerifiedChallenge(challenge.userId());
@@ -346,7 +347,7 @@ public class AuthenticationFlowService {
         var users = jdbc.query("""
                 select user_id from auth_challenges where flow_hash = ? and purpose = ?
                 """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), sha256(flowId.toString()), purpose);
-        if (users.size() != 1) throw new AuthenticationException("Authentication flow is invalid");
+        if (users.size() != 1) throw new AuthenticationException(CODE_FAILURE);
         lockUser(users.getFirst());
         return users.getFirst();
     }
