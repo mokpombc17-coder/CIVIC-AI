@@ -53,6 +53,10 @@ public class AccountLifecycleService {
                 where id = ? and state = 'ACTIVE'
                 """, subjectId);
         if (changed != 1) throw new AdminPolicyException("Only active accounts can be deactivated");
+        jdbc.update("""
+                update auth_challenges set consumed_at = now()
+                where user_id = ? and consumed_at is null
+                """, subjectId);
         sessions.revokeAll(subjectId, "ACCOUNT_DEACTIVATED");
         jdbc.update("""
                 insert into account_state_outbox(user_id, account_state_version, state, event_payload)

@@ -160,6 +160,7 @@ public class AuthenticationFlowService {
                     password_changed_at = now() where user_id = ?
                 """, passwords.encode(newPassword), verified.userId());
         consumePendingLoginChallenges(verified.userId());
+        consumePendingPasswordResetChallenges(verified.userId());
         sessions.revokeAll(verified.userId(), "PASSWORD_RESET");
     }
 
@@ -262,7 +263,9 @@ public class AuthenticationFlowService {
     private UUID requestAccountChallenge(
             String email, String requiredState, String purpose, boolean deliverSynchronously) {
         var normalized = normalize(email);
-        var ids = jdbc.query("select id from users where normalized_email = ? and state = ?",
+        var ids = jdbc.query("""
+                select id from users where normalized_email = ? and state = ? for update
+                """,
                 (rs, rowNum) -> rs.getObject(1, UUID.class), normalized, requiredState);
         if (ids.isEmpty()) return UUID.randomUUID();
         return createChallenge(ids.getFirst(), normalized, purpose, deliverSynchronously);

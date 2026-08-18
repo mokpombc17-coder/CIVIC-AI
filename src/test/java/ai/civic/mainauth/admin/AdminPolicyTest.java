@@ -142,6 +142,14 @@ class AdminPolicyTest extends PostgresIntegrationTest {
         var participant = createParticipant("participant@example.com");
         assertThatThrownBy(() -> lifecycle.deactivateSelf(bootstrapId, participant))
                 .isInstanceOf(AdminPolicyException.class);
+        jdbc.update("""
+                insert into auth_challenges(
+                    flow_hash, user_id, purpose, target_identity, code_hash,
+                    expires_at, last_sent_at, resend_window_started_at
+                ) values (decode(repeat('ab', 32), 'hex'), ?, 'TWO_FACTOR',
+                          'participant@example.com', decode(repeat('cd', 32), 'hex'),
+                          now() + interval '10 minutes', now(), now())
+                """, participant);
 
         lifecycle.deactivateSelf(participant, participant);
 
@@ -150,6 +158,10 @@ class AdminPolicyTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from account_state_outbox where user_id = ?", Integer.class, participant))
                 .isOne();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """, Integer.class, participant)).isZero();
     }
 
     @Test

@@ -294,6 +294,32 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void completedPasswordResetConsumesEverySiblingResetChallenge() throws Exception {
+        var first = auth.requestPasswordReset("person@example.com");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where flow_hash = ? and purpose = 'PASSWORD_RESET'
+                """, sha256("123456"), sha256(first.toString()));
+        var sibling = UUID.randomUUID();
+        jdbc.update("""
+                insert into auth_challenges(
+                    flow_hash, user_id, purpose, target_identity, code_hash,
+                    expires_at, last_sent_at, resend_window_started_at
+                ) values (?, ?, 'PASSWORD_RESET', 'person@example.com', ?,
+                          now() + interval '10 minutes', now(), now())
+                """, sha256(sibling.toString()), userId, sha256("654321"));
+
+        auth.completePasswordReset(first, "123456", "Changed123!");
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, Integer.class, userId)).isZero();
+        assertThatThrownBy(() -> auth.completePasswordReset(sibling, "654321", "Attacker123!"))
+                .isInstanceOf(AuthenticationException.class);
+    }
+
+    @Test
     void ragAdministratorRoleSurvivesLoginInsteadOfCollapsingToParticipant() {
         jdbc.update("""
                 insert into user_roles(user_id, role_id)
