@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 @Repository
 public class TaskJpaAdapter implements TaskRepository {
@@ -66,6 +67,53 @@ public class TaskJpaAdapter implements TaskRepository {
                 TaskJpaEntity.class,
                 taskId.value(),
                 LockModeType.PESSIMISTIC_WRITE);
+        return Optional.ofNullable(entity)
+                .map(stored -> TaskJpaMapper.toDomain(entityManager, stored));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Task> findAll() {
+        return entityManager.createQuery(
+                        """
+                        SELECT task
+                        FROM TaskJpaEntity task
+                        ORDER BY task.createdAt DESC, task.id
+                        """, TaskJpaEntity.class)
+                .getResultList().stream()
+                .map(entity -> TaskJpaMapper.toDomain(entityManager, entity))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public Optional<Task> findNextLifecycleCandidateForUpdate(
+            Instant dueAt
+    ) {
+        @SuppressWarnings("unchecked")
+        List<UUID> taskIds = entityManager.createNativeQuery("""
+                        SELECT task_id
+                        FROM tasks
+                        WHERE (status = 'SCHEDULED'
+                                AND scheduled_open_at <= :dueAt)
+                           OR (status = 'OPEN'
+                                AND scheduled_close_at <= :dueAt)
+                        ORDER BY CASE
+                            WHEN status = 'SCHEDULED'
+                                THEN scheduled_open_at
+                            ELSE scheduled_close_at
+                        END,
+                        task_id
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT 1
+                        """, UUID.class)
+                .setParameter("dueAt", dueAt)
+                .getResultList();
+        if (taskIds.isEmpty()) {
+            return Optional.empty();
+        }
+        TaskJpaEntity entity = entityManager.find(
+                TaskJpaEntity.class, taskIds.getFirst());
         return Optional.ofNullable(entity)
                 .map(stored -> TaskJpaMapper.toDomain(entityManager, stored));
     }

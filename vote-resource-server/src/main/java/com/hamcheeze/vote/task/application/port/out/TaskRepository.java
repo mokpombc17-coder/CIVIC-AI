@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.domain.task.TaskLifecycleHistory;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 public interface TaskRepository {
 
@@ -14,6 +15,10 @@ public interface TaskRepository {
     Optional<Task> findById(TaskId taskId);
 
     Optional<Task> findByIdForUpdate(TaskId taskId);
+
+    List<Task> findAll();
+
+    Optional<Task> findNextLifecycleCandidateForUpdate(Instant dueAt);
 
     void appendLifecycleHistory(List<TaskLifecycleHistory> histories);
 

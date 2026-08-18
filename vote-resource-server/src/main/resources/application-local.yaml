@@ -8,6 +8,9 @@ server:
   port: ${SERVER_PORT:8083}
 
 vote:
+  task:
+    lifecycle:
+      enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
   survey:
     bootstrap:
       enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}

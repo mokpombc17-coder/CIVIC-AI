@@ -11,6 +11,11 @@ spring:
 vote:
   security:
     local-admin-api-enabled: false
+  task:
+    lifecycle:
+      enabled: false
+      scheduler-delay: 1s
+      batch-size: 100
   survey:
     bootstrap:
       enabled: false

@@ -5,6 +5,9 @@ spring:
     password: ${VOTE_TEST_DB_PASSWORD:vote}
 
 vote:
+  task:
+    lifecycle:
+      enabled: false
   survey:
     bootstrap:
       enabled: false

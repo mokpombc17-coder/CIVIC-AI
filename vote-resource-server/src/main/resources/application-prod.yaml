@@ -12,5 +12,8 @@ spring:
             - ${VOTE_JWT_AUDIENCE}
 
 vote:
+  task:
+    lifecycle:
+      enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
   security:
     cookie-authentication-enabled: false
