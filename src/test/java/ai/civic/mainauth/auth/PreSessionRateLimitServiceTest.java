@@ -5,7 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,5 +83,33 @@ class PreSessionRateLimitServiceTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from pre_session_rate_limits where source_ip = '127.0.0.4'",
                 Integer.class)).isZero();
+    }
+
+    @Test
+    void identityRateLimitWriteWaitsForThePrivacyDeletionLock() throws Exception {
+        var identity = "privacy-rate-limit@example.test";
+        var lockKey = ByteBuffer.wrap(MessageDigest.getInstance("SHA-256")
+                .digest(identity.getBytes(StandardCharsets.UTF_8))).getLong();
+        try (var executor = Executors.newSingleThreadExecutor();
+                var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var identityLock = connection.prepareStatement(
+                    "select pg_advisory_xact_lock(?)")) {
+                identityLock.setLong(1, lockKey);
+                identityLock.executeQuery();
+            }
+
+            var attempt = executor.submit(
+                    () -> rateLimits.checkAndRecord(identity, "127.0.0.6"));
+            assertThatThrownBy(() -> attempt.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            assertThat(jdbc.queryForObject("""
+                    select count(*) from pre_session_rate_limits
+                    where identity_hash = digest(?, 'sha256')
+                    """, Integer.class, identity)).isZero();
+            connection.rollback();
+
+            assertThatCode(() -> attempt.get(10, TimeUnit.SECONDS)).doesNotThrowAnyException();
+        }
     }
 }
