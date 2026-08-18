@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
@@ -204,11 +205,16 @@ public class SignupFlowService {
 
     @Transactional(noRollbackFor = SignupValidationException.class)
     public void verifyEmail(UUID flowId, String code) {
-        var challenge = jdbc.queryForMap("""
-                select id, user_id, code_hash, attempt_count, expires_at, consumed_at
-                from auth_challenges where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                for update
-                """, sha256(flowId.toString()));
+        Map<String, Object> challenge;
+        try {
+            challenge = jdbc.queryForMap("""
+                    select id, user_id, code_hash, attempt_count, expires_at, consumed_at
+                    from auth_challenges where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                    for update
+                    """, sha256(flowId.toString()));
+        } catch (EmptyResultDataAccessException exception) {
+            throw new SignupValidationException("Verification flow is invalid");
+        }
         if (challenge.get("consumed_at") != null
                 || ((Timestamp) challenge.get("expires_at")).toInstant().isBefore(clock.instant())) {
             throw new SignupConflictException("Verification challenge is no longer active");

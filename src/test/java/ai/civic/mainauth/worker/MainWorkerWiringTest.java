@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.env.StandardEnvironment;
 
 class MainWorkerWiringTest {
     @Test
@@ -31,6 +34,17 @@ class MainWorkerWiringTest {
                 "src/main/java/ai/civic/mainauth/MainAuthApplication.java"));
         assertThat(worker).contains("WebApplicationType.NONE", "OutboxPoller");
         assertThat(server).doesNotContain("OutboxPoller");
+    }
+
+    @Test
+    void workerModeOverridesTheServerDefaultFromApplicationConfiguration() {
+        var environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource(
+                "applicationConfig", Map.of("civic.runtime.mode", "server")));
+
+        MainWorkerApplication.forceWorkerMode(environment);
+
+        assertThat(environment.getProperty("civic.runtime.mode")).isEqualTo("worker");
     }
 
     @Test

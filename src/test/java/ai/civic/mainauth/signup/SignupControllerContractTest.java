@@ -144,6 +144,19 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void verificationRejectsAnUnknownFlowAsABadRequest() throws Exception {
+        mvc.perform(post("/api/v1/signup/verification/verify")
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .cookie(new jakarta.servlet.http.Cookie(
+                                "__Host-civic-auth-flow", java.util.UUID.randomUUID().toString()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"123456\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Verification flow is invalid"));
+    }
+
+    @Test
     void crossSiteSignupMutationIsRejectedBeforeCreatingAFlow() throws Exception {
         mvc.perform(post("/api/v1/signup/flows")
                         .header("Origin", "https://evil.example")
