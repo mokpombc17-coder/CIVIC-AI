@@ -7,6 +7,7 @@ import com.hamcheeze.vote.survey.domain.persona.PersonaGeneration;
 import com.hamcheeze.vote.survey.infra.persona.PersonaGenerationProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -33,6 +34,7 @@ public class PersonaGenerationDispatcher {
     private final PersonaGenerationProperties properties;
     private final Clock clock;
 
+    @Autowired
     public PersonaGenerationDispatcher(
             PersonaGenerationStateService states,
             PersonaSurveySourceQueryPort sources,

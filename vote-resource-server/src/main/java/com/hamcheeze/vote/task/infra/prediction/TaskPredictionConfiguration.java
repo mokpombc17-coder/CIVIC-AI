@@ -7,7 +7,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(TaskPredictionProperties.class)
+@EnableConfigurationProperties({
+        TaskPredictionProperties.class,
+        LocalTaskPredictionProperties.class
+})
 class TaskPredictionConfiguration {
 
     @Bean

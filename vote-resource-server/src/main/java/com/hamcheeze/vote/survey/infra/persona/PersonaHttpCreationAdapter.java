@@ -35,8 +35,9 @@ import java.util.UUID;
 @Component
 @ConditionalOnProperty(
         prefix = "vote.survey.persona",
-        name = "enabled",
-        havingValue = "true")
+        name = "provider",
+        havingValue = "http",
+        matchIfMissing = true)
 public class PersonaHttpCreationAdapter implements PersonaCreationPort {
 
     private static final String CREATE_PATH = "v1/personas";

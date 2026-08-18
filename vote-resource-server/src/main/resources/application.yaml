@@ -12,12 +12,15 @@ vote:
   security:
     local-admin-api-enabled: false
   task:
+    bootstrap:
+      enabled: false
     lifecycle:
       enabled: false
       scheduler-delay: 1s
       batch-size: 100
     prediction:
       enabled: false
+      provider: http
       base-url: http://localhost:8090
       path: /v1/task-predictions
       connect-timeout: 5s
@@ -28,11 +31,14 @@ vote:
       retry-delay: 30s
       dispatcher-delay: 5s
       batch-size: 10
+      fake:
+        scenario: success
   survey:
     bootstrap:
       enabled: false
     persona:
       enabled: false
+      provider: http
       base-url: http://localhost:8090
       connect-timeout: 5s
       request-timeout: 60s

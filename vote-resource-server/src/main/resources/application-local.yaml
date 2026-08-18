@@ -9,22 +9,31 @@ server:
 
 vote:
   task:
+    bootstrap:
+      enabled: ${VOTE_TASK_BOOTSTRAP_ENABLED:true}
     lifecycle:
       enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
     prediction:
-      enabled: ${VOTE_TASK_PREDICTION_ENABLED:false}
+      enabled: ${VOTE_TASK_PREDICTION_ENABLED:true}
+      provider: ${VOTE_TASK_PREDICTION_PROVIDER:fake}
       base-url: ${VOTE_TASK_PREDICTION_BASE_URL:http://localhost:8090}
       path: ${VOTE_TASK_PREDICTION_PATH:/v1/task-predictions}
       auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:}
       connect-timeout: ${VOTE_TASK_PREDICTION_CONNECT_TIMEOUT:5s}
       request-timeout: ${VOTE_TASK_PREDICTION_REQUEST_TIMEOUT:60s}
+      retry-delay: ${VOTE_TASK_PREDICTION_RETRY_DELAY:1s}
+      dispatcher-delay: ${VOTE_TASK_PREDICTION_DISPATCHER_DELAY:500ms}
+      fake:
+        scenario: ${VOTE_TASK_PREDICTION_FAKE_SCENARIO:success}
   survey:
     bootstrap:
       enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}
     persona:
-      enabled: ${VOTE_SURVEY_PERSONA_ENABLED:false}
+      enabled: ${VOTE_SURVEY_PERSONA_ENABLED:true}
+      provider: ${VOTE_SURVEY_PERSONA_PROVIDER:fake}
       base-url: ${VOTE_SURVEY_PERSONA_BASE_URL:http://localhost:8090}
       auth-token: ${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}
+      dispatcher-delay: ${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:500ms}
   security:
     local-admin-api-enabled: true
     cookie-authentication-enabled: true

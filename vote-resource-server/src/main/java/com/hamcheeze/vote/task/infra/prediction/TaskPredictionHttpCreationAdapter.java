@@ -23,8 +23,9 @@ import java.util.Objects;
 @Component
 @ConditionalOnProperty(
         prefix = "vote.task.prediction",
-        name = "enabled",
-        havingValue = "true")
+        name = "provider",
+        havingValue = "http",
+        matchIfMissing = true)
 public class TaskPredictionHttpCreationAdapter
         implements PredictionCreationPort {
 
