@@ -1245,14 +1245,28 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void workerRetentionPurgesExpiredOpaqueAuthenticationFlowsInBatches() {
+    void workerRetentionPurgesExpiredOpaqueAuthenticationFlowsInBatches() throws Exception {
         jdbc.update("delete from opaque_auth_flows");
         auth.requestPasswordReset("expired-opaque-flow@example.com");
+        var realFlow = auth.requestPasswordReset("person@example.com");
         jdbc.update("update opaque_auth_flows set expires_at = now() - interval '1 second'");
+        jdbc.update("""
+                update auth_challenges set expires_at = now() - interval '1 second'
+                where flow_hash = ? and purpose = 'PASSWORD_RESET'
+                """, sha256(realFlow.toString()));
 
         assertThat(auth.purgeExpiredOpaqueAuthenticationFlows()).isTrue();
         assertThat(jdbc.queryForObject(
                 "select count(*) from opaque_auth_flows", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where flow_hash = ? and purpose = 'PASSWORD_RESET'
+                """, Integer.class, sha256(realFlow.toString()))).isZero();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from notification_outbox
+                where event_type = 'PASSWORD_RESET' and delivered_at is not null
+                  and last_error_code = 'CHALLENGE_EXPIRED_RETENTION'
+                """, Integer.class)).isOne();
         assertThat(auth.purgeExpiredOpaqueAuthenticationFlows()).isFalse();
     }
 

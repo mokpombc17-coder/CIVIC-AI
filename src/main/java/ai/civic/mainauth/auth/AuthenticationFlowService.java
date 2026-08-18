@@ -499,14 +499,34 @@ public class AuthenticationFlowService {
 
     @Transactional
     public boolean purgeExpiredOpaqueAuthenticationFlows() {
-        return jdbc.update("""
+        var opaqueDeleted = jdbc.update("""
                 with expired as (
                     select flow_hash from opaque_auth_flows where expires_at < now()
                     order by expires_at for update skip locked limit 100
                 )
                 delete from opaque_auth_flows flow using expired
                 where flow.flow_hash = expired.flow_hash
-                """) > 0;
+                """);
+        var challengesDeleted = jdbc.update("""
+                with expired as (
+                    select id from auth_challenges
+                    where expires_at < now() and user_id is not null
+                      and purpose in (
+                        'PASSWORD_RESET', 'REACTIVATION', 'TWO_FACTOR', 'TWO_FACTOR_ENABLE'
+                      )
+                    order by expires_at for update skip locked limit 100
+                ), retired_notifications as (
+                    update notification_outbox notification
+                    set delivered_at = now(), leased_until = null,
+                        last_error_code = 'CHALLENGE_EXPIRED_RETENTION'
+                    from expired
+                    where notification.delivered_at is null
+                      and notification.payload ->> 'challenge_id' = expired.id::text
+                )
+                delete from auth_challenges challenge using expired
+                where challenge.id = expired.id
+                """);
+        return opaqueDeleted > 0 || challengesDeleted > 0;
     }
 
     private void lockUser(UUID userId) {
