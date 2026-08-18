@@ -226,10 +226,10 @@ public class AuthenticationFlowService {
         var passwordHash = eligible ? accounts.getFirst().passwordHash() : dummyPasswordHash;
         var passwordMatches = password != null && safeMatches(password, passwordHash);
         if (!eligible || !passwordMatches) {
-            return UUID.randomUUID();
+            return createDummyChallenge(normalized, "REACTIVATION");
         }
         return createChallenge(
-                accounts.getFirst().id(), accounts.getFirst().normalizedEmail(), "REACTIVATION");
+                accounts.getFirst().id(), accounts.getFirst().normalizedEmail(), "REACTIVATION", false);
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)

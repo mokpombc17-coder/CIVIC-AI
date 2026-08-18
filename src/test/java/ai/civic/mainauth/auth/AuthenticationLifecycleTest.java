@@ -601,6 +601,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void reactivationRequiresTheDeactivatedAccountsCurrentPasswordBeforeSendingEmail() {
+        clearInvocations(codeProtector);
         jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
         var challengesBefore = count("auth_challenges");
         var notificationsBefore = count("notification_outbox");
@@ -616,7 +617,11 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(realFlow).isNotNull().isNotEqualTo(fakeFlow);
         assertThat(count("auth_challenges")).isEqualTo(challengesBefore + 1);
         assertThat(count("notification_outbox")).isEqualTo(notificationsBefore + 1);
-        verify(smtp).sendChallenge(eq("person@example.com"), challengeCode(), eq("REACTIVATION"));
+        verify(smtp, never()).sendChallenge(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                eq("REACTIVATION"));
+        verify(codeProtector, times(2)).protect(challengeCode());
     }
 
     @Test
