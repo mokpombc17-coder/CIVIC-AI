@@ -14,6 +14,11 @@ class MainWorkerWiringTest {
         assertThat(yaml).contains("server");
         assertThat(yaml).contains("worker");
         assertThat(yaml).doesNotContain("match-if-missing: true");
+        assertThat(yaml).doesNotContain("web-application-type");
+        assertThat(ai.civic.mainauth.MainAuthApplication.webApplicationType("worker"))
+                .isEqualTo(org.springframework.boot.WebApplicationType.NONE);
+        assertThat(ai.civic.mainauth.MainAuthApplication.webApplicationType("server"))
+                .isEqualTo(org.springframework.boot.WebApplicationType.SERVLET);
     }
 
     @Test

@@ -17,9 +17,6 @@ spring:
   mail:
     host: ${CIVIC_SMTP_HOST:localhost}
     port: ${CIVIC_SMTP_PORT:1025}
-  main:
-    web-application-type: ${CIVIC_WEB_APPLICATION_TYPE:servlet}
-
 civic:
   runtime:
     # CIVIC_RUNTIME_MODE must be exactly server or worker.
