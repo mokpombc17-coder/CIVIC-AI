@@ -124,4 +124,23 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                 "select count(*) from privacy_operations where external_request_evidence_id = 'operator-evidence-denied'",
                 Integer.class)).isZero();
     }
+
+    @Test
+    void privacyDeletionRejectsEvidenceIdsBeyondTheDurableColumnLimit() throws Exception {
+        mvc.perform(post("/api/v1/admin/privacy-operations")
+                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
+                        .header("X-CSRF-Token", administrator.csrfToken())
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"external_request_evidence_id":"%s",
+                                 "subject_id":"%s","scopes":["ACCOUNT"]}
+                                """.formatted("x".repeat(256), subjectId)))
+                .andExpect(status().isBadRequest());
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from privacy_operations where subject_id = ?",
+                Integer.class, subjectId)).isZero();
+    }
 }

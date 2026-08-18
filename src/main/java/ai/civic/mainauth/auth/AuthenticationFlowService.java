@@ -172,8 +172,10 @@ public class AuthenticationFlowService {
                 where u.normalized_email = ? and u.state = 'DEACTIVATED' and u.deleted_at is null
                 """, (rs, rowNum) -> new ReactivationAccount(
                 rs.getObject("id", UUID.class), rs.getString("password_hash")), normalized);
-        if (accounts.size() != 1 || password == null
-                || !safeMatches(password, accounts.getFirst().passwordHash())) {
+        var eligible = accounts.size() == 1;
+        var passwordHash = eligible ? accounts.getFirst().passwordHash() : dummyPasswordHash;
+        var passwordMatches = password != null && safeMatches(password, passwordHash);
+        if (!eligible || !passwordMatches) {
             return UUID.randomUUID();
         }
         return createChallenge(accounts.getFirst().id(), normalized, "REACTIVATION");

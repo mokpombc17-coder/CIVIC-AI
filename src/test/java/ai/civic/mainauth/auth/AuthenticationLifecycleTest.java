@@ -3,6 +3,7 @@ package ai.civic.mainauth.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -146,6 +147,27 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                                 """))
                 .andExpect(status().isNoContent())
                 .andExpect(cookie().maxAge(SessionCookieFactory.SESSION_COOKIE, 0));
+    }
+
+    @Test
+    void twoFactorResendRefreshesTheAuthenticationFlowCookie() throws Exception {
+        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
+        var login = auth.login("person@example.com", "Valid123!", "127.0.0.1");
+        jdbc.update(
+                """
+                update auth_challenges set last_sent_at = now() - interval '2 minutes'
+                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """,
+                userId);
+
+        mvc.perform(post("/api/v1/auth/2fa/resend")
+                        .cookie(new Cookie(SessionCookieFactory.AUTH_FLOW_COOKIE, login.authFlowId()))
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isAccepted())
+                .andExpect(cookie().maxAge(SessionCookieFactory.AUTH_FLOW_COOKIE, 600));
     }
 
     @Test

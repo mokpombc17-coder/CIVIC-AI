@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.time.Clock;
 import java.util.Set;
 import java.util.UUID;
@@ -78,7 +79,7 @@ public class PrivacyAdminController {
     }
 
     record StartRequest(
-            @NotBlank String externalRequestEvidenceId,
+            @NotBlank @Size(max = 255) String externalRequestEvidenceId,
             @NotNull UUID subjectId,
             @NotEmpty Set<@NotBlank String> scopes) {}
 

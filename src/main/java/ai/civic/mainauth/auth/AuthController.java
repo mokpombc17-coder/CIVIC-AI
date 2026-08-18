@@ -80,7 +80,9 @@ public class AuthController {
         requirePreSession(request);
         rateLimit(request, flow);
         authentication.resend(UUID.fromString(flow), "TWO_FACTOR");
-        return ResponseEntity.accepted().build();
+        return ResponseEntity.accepted()
+                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow).toString())
+                .build();
     }
 
     @GetMapping("/session")
