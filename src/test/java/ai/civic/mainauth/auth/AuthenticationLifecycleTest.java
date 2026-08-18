@@ -135,6 +135,48 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void unknownPasswordResetWaitsForTheIdentityKeyedLock() throws Exception {
+        var identity = "unknown-reset-lock@example.com";
+        var lockKey = ByteBuffer.wrap(sha256(identity)).getLong();
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
+                lock.setLong(1, lockKey);
+                lock.executeQuery();
+            }
+
+            var attempt = executor.submit(() -> auth.requestPasswordReset(identity));
+            assertThatThrownBy(() -> attempt.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            connection.commit();
+
+            assertThat(attempt.get(10, TimeUnit.SECONDS)).isNotNull();
+        }
+    }
+
+    @Test
+    void unknownReactivationWaitsForTheIdentityKeyedLock() throws Exception {
+        var identity = "unknown-reactivation-lock@example.com";
+        var lockKey = ByteBuffer.wrap(sha256(identity)).getLong();
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
+                lock.setLong(1, lockKey);
+                lock.executeQuery();
+            }
+
+            var attempt = executor.submit(() -> auth.requestReactivation(identity, "Wrong123!"));
+            assertThatThrownBy(() -> attempt.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            connection.commit();
+
+            assertThat(attempt.get(10, TimeUnit.SECONDS)).isNotNull();
+        }
+    }
+
+    @Test
     void accountAndIpThrottleBlocksEvenACorrectPasswordUntilTheDelayExpires() {
         assertThat(captureFailure("person@example.com", "Wrong123!"))
                 .isEqualTo("Email or password is invalid");

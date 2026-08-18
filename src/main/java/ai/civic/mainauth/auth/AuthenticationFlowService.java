@@ -64,7 +64,7 @@ public class AuthenticationFlowService {
     public LoginResult login(String email, String password, String sourceIp) {
         var normalized = normalize(email);
         if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
-        lockLoginIdentity(normalized);
+        lockAuthenticationIdentity(normalized);
         var identities = jdbc.query("""
                 select id from users where normalized_email = ? for update
                 """, (rs, rowNum) -> rs.getObject("id", UUID.class), normalized);
@@ -221,6 +221,7 @@ public class AuthenticationFlowService {
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestReactivation(String email, String password) {
         var normalized = normalize(email);
+        lockAuthenticationIdentity(normalized);
         var accounts = jdbc.query("""
                 select u.id, c.password_hash, u.normalized_email
                 from users u join credentials c on c.user_id = u.id
@@ -310,6 +311,7 @@ public class AuthenticationFlowService {
     private UUID requestAccountChallenge(
             String email, String requiredState, String purpose, boolean deliverSynchronously) {
         var normalized = normalize(email);
+        lockAuthenticationIdentity(normalized);
         var ids = jdbc.query("""
                 select id from users where normalized_email = ? and state = ? for update
                 """,
@@ -410,7 +412,7 @@ public class AuthenticationFlowService {
         if (locked.size() != 1) throw new AuthenticationException(PUBLIC_FAILURE);
     }
 
-    private void lockLoginIdentity(String normalizedEmail) {
+    private void lockAuthenticationIdentity(String normalizedEmail) {
         var lockKey = ByteBuffer.wrap(sha256(normalizedEmail)).getLong();
         jdbc.queryForObject(
                 "select pg_advisory_xact_lock(?)", (rs, rowNum) -> Boolean.TRUE, lockKey);
