@@ -1,8 +1,8 @@
 package ai.civic.mainauth.privacy;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
+import ai.civic.mainauth.auth.AuthenticationIdentityLock;
 import ai.civic.mainauth.auth.SessionService;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -13,10 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MainPrivacyDeletionHandler {
     private final JdbcTemplate jdbc;
+    private final AuthenticationIdentityLock identityLocks;
     private final SessionService sessions;
 
-    public MainPrivacyDeletionHandler(JdbcTemplate jdbc, SessionService sessions) {
+    public MainPrivacyDeletionHandler(
+            JdbcTemplate jdbc, AuthenticationIdentityLock identityLocks, SessionService sessions) {
         this.jdbc = jdbc;
+        this.identityLocks = identityLocks;
         this.sessions = sessions;
     }
 
@@ -32,7 +35,7 @@ public class MainPrivacyDeletionHandler {
                 String.class, subjectId);
         if (identities.size() != 1) throw new IllegalArgumentException("Subject does not exist");
         var lockedIdentity = identities.getFirst();
-        lockAuthenticationIdentity(lockedIdentity);
+        identityLocks.lock(lockedIdentity);
         var users = jdbc.query(
                 "select normalized_email, state from users where id = ? for update",
                 (rs, rowNum) -> new LockedUser(
@@ -132,12 +135,6 @@ public class MainPrivacyDeletionHandler {
         jdbc.queryForObject(
                 "select id from roles where code = 'SUPER_ADMIN' for update",
                 Integer.class);
-    }
-
-    private void lockAuthenticationIdentity(String normalizedIdentity) {
-        var lockKey = ByteBuffer.wrap(sha256(normalizedIdentity)).getLong();
-        jdbc.queryForObject(
-                "select pg_advisory_xact_lock(?)", (rs, rowNum) -> Boolean.TRUE, lockKey);
     }
 
     public record DeletionResult(boolean deleted, boolean alreadyDeleted) {}

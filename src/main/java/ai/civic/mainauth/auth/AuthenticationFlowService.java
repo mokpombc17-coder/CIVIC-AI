@@ -27,6 +27,7 @@ public class AuthenticationFlowService {
     private static final String PUBLIC_FAILURE = "Email or password is invalid";
     private static final String CODE_FAILURE = "Authentication code is invalid";
     private final JdbcTemplate jdbc;
+    private final AuthenticationIdentityLock identityLocks;
     private final SessionService sessions;
     private final VerificationCodeProtector codeProtector;
     private final SmtpNotificationService smtp;
@@ -38,21 +39,24 @@ public class AuthenticationFlowService {
     @Autowired
     public AuthenticationFlowService(
             JdbcTemplate jdbc,
+            AuthenticationIdentityLock identityLocks,
             SessionService sessions,
             VerificationCodeProtector codeProtector,
             SmtpNotificationService smtp,
             ObjectMapper json) {
-        this(jdbc, sessions, codeProtector, smtp, json, Clock.systemUTC());
+        this(jdbc, identityLocks, sessions, codeProtector, smtp, json, Clock.systemUTC());
     }
 
     AuthenticationFlowService(
             JdbcTemplate jdbc,
+            AuthenticationIdentityLock identityLocks,
             SessionService sessions,
             VerificationCodeProtector codeProtector,
             SmtpNotificationService smtp,
             ObjectMapper json,
             Clock clock) {
         this.jdbc = jdbc;
+        this.identityLocks = identityLocks;
         this.sessions = sessions;
         this.codeProtector = codeProtector;
         this.smtp = smtp;
@@ -64,7 +68,7 @@ public class AuthenticationFlowService {
     public LoginResult login(String email, String password, String sourceIp) {
         var normalized = normalize(email);
         if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
-        lockAuthenticationIdentity(normalized);
+        identityLocks.lock(normalized);
         if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
         var identities = jdbc.query("""
                 select id from users where normalized_email = ? for update
@@ -231,7 +235,7 @@ public class AuthenticationFlowService {
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestReactivation(String email, String password) {
         var normalized = normalize(email);
-        lockAuthenticationIdentity(normalized);
+        identityLocks.lock(normalized);
         var accounts = jdbc.query("""
                 select u.id, c.password_hash, u.normalized_email
                 from users u join credentials c on c.user_id = u.id
@@ -322,7 +326,7 @@ public class AuthenticationFlowService {
     private UUID requestAccountChallenge(
             String email, String requiredState, String purpose, boolean deliverSynchronously) {
         var normalized = normalize(email);
-        lockAuthenticationIdentity(normalized);
+        identityLocks.lock(normalized);
         var ids = jdbc.query("""
                 select id from users where normalized_email = ? and state = ? for update
                 """,
@@ -509,12 +513,6 @@ public class AuthenticationFlowService {
         var locked = jdbc.query("select id from users where id = ? for update",
                 (rs, rowNum) -> rs.getObject("id", UUID.class), userId);
         if (locked.size() != 1) throw new AuthenticationException(PUBLIC_FAILURE);
-    }
-
-    private void lockAuthenticationIdentity(String normalizedEmail) {
-        var lockKey = ByteBuffer.wrap(sha256(normalizedEmail)).getLong();
-        jdbc.queryForObject(
-                "select pg_advisory_xact_lock(?)", (rs, rowNum) -> Boolean.TRUE, lockKey);
     }
 
     private String lockActiveUserIdentity(UUID userId) {
