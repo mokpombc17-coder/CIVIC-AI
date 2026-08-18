@@ -100,7 +100,7 @@ public class AuthenticationFlowService {
     public void changePassword(UUID userId, String currentPassword, String newPassword) {
         requireValidPassword(newPassword);
         var encoded = jdbc.queryForObject(
-                "select password_hash from credentials where user_id = ?", String.class, userId);
+                "select password_hash from credentials where user_id = ? for update", String.class, userId);
         if (!safeMatches(currentPassword, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
         jdbc.update("""
                 update credentials set password_hash = ?, must_change_password = false,
@@ -136,6 +136,7 @@ public class AuthenticationFlowService {
                 update credentials set two_factor_enabled = false,
                     two_factor_secret_ciphertext = null where user_id = ?
                 """, userId);
+        consumePendingLoginChallenges(userId);
         sessions.revokeAll(userId, "TWO_FACTOR_DISABLED");
     }
 

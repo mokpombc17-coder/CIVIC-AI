@@ -12,6 +12,9 @@ import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -133,6 +136,24 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void concurrentPasswordChangesCanConsumeTheCurrentPasswordOnlyOnce() throws Exception {
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> attemptPasswordChange(ready, start, "FirstChanged123!"));
+            var second = executor.submit(() -> attemptPasswordChange(ready, start, "SecondChanged123!"));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat((first.get(30, TimeUnit.SECONDS) ? 1 : 0)
+                    + (second.get(30, TimeUnit.SECONDS) ? 1 : 0)).isOne();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void passwordChangeResponseDeletesTheNowRevokedBrowserSession() throws Exception {
         var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
 
@@ -165,6 +186,26 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                                 """))
                 .andExpect(status().isNoContent())
                 .andExpect(cookie().maxAge(SessionCookieFactory.SESSION_COOKIE, 0));
+    }
+
+    @Test
+    void disablingTwoFactorConsumesAPendingLoginChallenge() throws Exception {
+        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
+        var pendingLogin = auth.login("person@example.com", "Valid123!", "127.0.0.1");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """, sha256("123456"), userId);
+
+        auth.disableTwoFactor(userId, "Valid123!");
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """, Integer.class, userId)).isZero();
+        assertThatThrownBy(() -> auth.verifyTwoFactor(
+                UUID.fromString(pendingLogin.authFlowId()), "123456"))
+                .isInstanceOf(AuthenticationException.class);
     }
 
     @Test
@@ -323,6 +364,18 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     private String challengeCode() {
         return org.mockito.ArgumentMatchers.argThat(value -> value != null && value.matches("\\d{6}"));
+    }
+
+    private boolean attemptPasswordChange(
+            CountDownLatch ready, CountDownLatch start, String newPassword) throws InterruptedException {
+        ready.countDown();
+        if (!start.await(10, TimeUnit.SECONDS)) throw new AssertionError("password race did not start");
+        try {
+            auth.changePassword(userId, "Valid123!", newPassword);
+            return true;
+        } catch (AuthenticationException expected) {
+            return false;
+        }
     }
 
     private byte[] sha256(String value) throws Exception {
