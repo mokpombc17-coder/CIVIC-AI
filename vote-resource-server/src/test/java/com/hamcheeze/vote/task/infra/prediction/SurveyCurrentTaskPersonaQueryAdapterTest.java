@@ -1,0 +1,60 @@
+package com.hamcheeze.vote.task.infra.prediction;
+
+import com.hamcheeze.vote.survey.application.persona.CurrentPersonaStatus;
+import com.hamcheeze.vote.survey.application.query.CurrentPersonaQueryService;
+import com.hamcheeze.vote.survey.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.survey.domain.persona.PersonaId;
+import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
+import com.hamcheeze.vote.task.domain.common.TaskUserId;
+import org.junit.jupiter.api.Test;
+
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class SurveyCurrentTaskPersonaQueryAdapterTest {
+
+    @Test
+    void mapsOnlyReadyCurrentSurveyPersonaIntoTaskIdentity() {
+        CurrentPersonaQueryService query =
+                mock(CurrentPersonaQueryService.class);
+        UUID generationId = UUID.randomUUID();
+        when(query.findCurrent(any())).thenReturn(new CurrentPersonaStatus(
+                Optional.empty(),
+                Optional.of(new PersonaGenerationId(generationId)),
+                CurrentPersonaStatus.Status.SUCCEEDED,
+                Optional.of(new PersonaId("persona-external")),
+                Optional.empty(),
+                true,
+                Set.of()));
+        SurveyCurrentTaskPersonaQueryAdapter adapter =
+                new SurveyCurrentTaskPersonaQueryAdapter(query);
+
+        Optional<CurrentTaskPersona> result = adapter.findCurrentUsable(
+                new TaskUserId("user-a"));
+
+        assertThat(result).get().satisfies(persona -> {
+            assertThat(persona.generationId().value())
+                    .isEqualTo(generationId);
+            assertThat(persona.personaId().value())
+                    .isEqualTo("persona-external");
+        });
+    }
+
+    @Test
+    void hidesPendingPersona() {
+        CurrentPersonaQueryService query =
+                mock(CurrentPersonaQueryService.class);
+        when(query.findCurrent(any())).thenReturn(
+                CurrentPersonaStatus.notSubmitted());
+
+        assertThat(new SurveyCurrentTaskPersonaQueryAdapter(query)
+                .findCurrentUsable(new TaskUserId("user-a")))
+                .isEmpty();
+    }
+}

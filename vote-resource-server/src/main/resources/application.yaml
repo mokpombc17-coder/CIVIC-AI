@@ -16,6 +16,15 @@ vote:
       enabled: false
       scheduler-delay: 1s
       batch-size: 100
+    prediction:
+      enabled: false
+      candidate-policy-version: candidate-policy-v1
+      requested-candidate-count: 2
+      request-timeout: 60s
+      maximum-attempts: 2
+      retry-delay: 30s
+      dispatcher-delay: 5s
+      batch-size: 10
   survey:
     bootstrap:
       enabled: false

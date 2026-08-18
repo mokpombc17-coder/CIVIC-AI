@@ -11,6 +11,8 @@ vote:
   task:
     lifecycle:
       enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
+    prediction:
+      enabled: ${VOTE_TASK_PREDICTION_ENABLED:false}
   survey:
     bootstrap:
       enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}

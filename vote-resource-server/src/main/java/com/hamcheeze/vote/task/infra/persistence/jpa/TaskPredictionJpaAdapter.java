@@ -141,6 +141,10 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
             entity = new TaskPredictionAttemptJpaEntity(attempt);
             entityManager.persist(entity);
         } else {
+            if (entity.outcome().completed()) {
+                throw new IllegalStateException(
+                        "completed task prediction attempt is immutable");
+            }
             entity.apply(attempt);
         }
         entityManager.flush();
