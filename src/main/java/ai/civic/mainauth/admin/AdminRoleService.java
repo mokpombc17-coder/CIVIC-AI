@@ -75,6 +75,9 @@ public class AdminRoleService {
                 "select row_version, state from users where id = ? for update", subjectId);
         if (subjects.size() != 1) throw new AdminUserNotFoundException();
         var subject = subjects.getFirst();
+        if ("DELETED".equals(subject.get("state"))) {
+            throw new AdminPolicyException("Role changes are forbidden for a deleted account");
+        }
         if ("PENDING_EMAIL_VERIFICATION".equals(subject.get("state"))) {
             throw new AdminPolicyException("Role changes require a verified account");
         }

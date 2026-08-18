@@ -142,6 +142,38 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void privacyDeletedAccountsRejectRoleReplacementWithoutMutatingTheTombstone() {
+        jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
+        var deleted = createParticipant("deleted-role@example.com");
+        jdbc.update("delete from credentials where user_id = ?", deleted);
+        jdbc.update("""
+                update users set state = 'DELETED', deleted_at = now()
+                where id = ?
+                """, deleted);
+        var roleCount = jdbc.queryForObject(
+                "select count(*) from user_roles where user_id = ?", Integer.class, deleted);
+
+        assertThatThrownBy(() -> roles.replaceRoles(
+                bootstrapId,
+                deleted,
+                0,
+                Set.of("PARTICIPANT"),
+                "삭제 계정 역할 변경 차단",
+                false))
+                .isInstanceOf(AdminPolicyException.class)
+                .hasMessageContaining("deleted account");
+
+        assertThat(jdbc.queryForObject(
+                "select row_version from users where id = ?", Long.class, deleted)).isZero();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from user_roles where user_id = ?", Integer.class, deleted))
+                .isEqualTo(roleCount);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from audit_outbox where subject_user_id = ?", Integer.class, deleted))
+                .isZero();
+    }
+
+    @Test
     void concurrentCrossDemotionsCannotRemoveEveryHighestAdministrator() throws Exception {
         jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
         var first = createAdmin("concurrent-first@example.com");
