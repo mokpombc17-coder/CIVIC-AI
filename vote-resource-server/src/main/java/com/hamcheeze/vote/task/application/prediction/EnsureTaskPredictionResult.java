@@ -18,8 +18,7 @@ public record EnsureTaskPredictionResult(
             throw new IllegalArgumentException(
                     "predictedAnswerAllowed must follow prediction status");
         }
-        if (directAnswerAllowed
-                != (prediction.status() == TaskPredictionStatus.FAILED)) {
+        if (directAnswerAllowed != prediction.status().terminal()) {
             throw new IllegalArgumentException(
                     "directAnswerAllowed must follow prediction status");
         }
@@ -33,6 +32,6 @@ public record EnsureTaskPredictionResult(
                 prediction,
                 created,
                 prediction.status() == TaskPredictionStatus.SUCCEEDED,
-                prediction.status() == TaskPredictionStatus.FAILED);
+                prediction.status().terminal());
     }
 }

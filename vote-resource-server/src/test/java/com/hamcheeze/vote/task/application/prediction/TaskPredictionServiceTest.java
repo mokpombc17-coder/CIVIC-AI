@@ -23,6 +23,7 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.failedPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.openTask;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaGenerationId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaId;
+import static com.hamcheeze.vote.task.TaskTestFixtures.succeededPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.taskId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.userId;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -122,6 +123,22 @@ class TaskPredictionServiceTest {
         assertThat(result.created()).isFalse();
         assertThat(result.directAnswerAllowed()).isTrue();
         assertThat(result.predictedAnswerAllowed()).isFalse();
+        verify(predictions, never()).insert(any());
+    }
+
+    @Test
+    void returnsTerminalSuccessAsCandidateOrDirectAnswerReady() {
+        TaskPrediction succeeded = succeededPrediction(openTask());
+        when(predictions.findByIdentity(
+                userId(), taskId(), personaGenerationId()))
+                .thenReturn(Optional.of(succeeded));
+
+        EnsureTaskPredictionResult result =
+                service.ensureTaskPrediction(userId(), taskId());
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.predictedAnswerAllowed()).isTrue();
+        assertThat(result.directAnswerAllowed()).isTrue();
         verify(predictions, never()).insert(any());
     }
 
