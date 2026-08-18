@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import jakarta.servlet.http.Cookie;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -112,6 +113,28 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void unknownLoginWaitsForTheIdentityKeyedLock() throws Exception {
+        var identity = "unknown-lock@example.com";
+        var lockKey = ByteBuffer.wrap(sha256(identity)).getLong();
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
+                lock.setLong(1, lockKey);
+                lock.executeQuery();
+            }
+
+            var attempt = executor.submit(() -> captureFailure(identity, "Wrong123!"));
+            assertThatThrownBy(() -> attempt.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            connection.commit();
+
+            assertThat(attempt.get(10, TimeUnit.SECONDS))
+                    .isEqualTo("Email or password is invalid");
+        }
+    }
+
+    @Test
     void accountAndIpThrottleBlocksEvenACorrectPasswordUntilTheDelayExpires() {
         assertThat(captureFailure("person@example.com", "Wrong123!"))
                 .isEqualTo("Email or password is invalid");
@@ -152,7 +175,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         var first = auth.login("person@example.com", "Valid123!", "127.0.0.1").sessionId();
         var second = auth.login("person@example.com", "Valid123!", "127.0.0.2").sessionId();
 
-        auth.changePassword(userId, "Valid123!", "Changed123!");
+        auth.changePassword(first, userId, "Valid123!", "Changed123!");
 
         assertThatThrownBy(() -> sessions.require(first)).isInstanceOf(AuthenticationException.class);
         assertThatThrownBy(() -> sessions.require(second)).isInstanceOf(AuthenticationException.class);
@@ -178,12 +201,16 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void concurrentPasswordChangesCanConsumeTheCurrentPasswordOnlyOnce() throws Exception {
+        var firstSession = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT).sessionId();
+        var secondSession = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT).sessionId();
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
         var executor = Executors.newFixedThreadPool(2);
         try {
-            var first = executor.submit(() -> attemptPasswordChange(ready, start, "FirstChanged123!"));
-            var second = executor.submit(() -> attemptPasswordChange(ready, start, "SecondChanged123!"));
+            var first = executor.submit(
+                    () -> attemptPasswordChange(firstSession, ready, start, "FirstChanged123!"));
+            var second = executor.submit(
+                    () -> attemptPasswordChange(secondSession, ready, start, "SecondChanged123!"));
             assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             start.countDown();
 
@@ -276,6 +303,48 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                     "update users set state = 'DEACTIVATED' where id = ?")) {
                 update.setObject(1, userId);
                 update.executeUpdate();
+            }
+            connection.commit();
+
+            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+        }
+
+        var encoded = jdbc.queryForObject(
+                "select password_hash from credentials where user_id = ?", String.class, userId);
+        assertThat(Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()
+                        .matches("Valid123!", encoded))
+                .isTrue();
+    }
+
+    @Test
+    void passwordChangeRevalidatesTheSessionAfterWaitingForTheUserLock() throws Exception {
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var response = executor.submit(() -> mvc.perform(put("/api/v1/account/password")
+                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
+                            .header("X-CSRF-Token", session.csrfToken())
+                            .header("Origin", "https://localhost")
+                            .header("Sec-Fetch-Site", "same-origin")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"current_password":"Valid123!","new_password":"Changed123!"}
+                                    """))
+                    .andReturn().getResponse().getStatus());
+
+            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var revoke = connection.prepareStatement("""
+                        update sessions set revoked_at = now(), revocation_reason = 'LOGOUT_ALL'
+                        where user_id = ? and revoked_at is null
+                    """)) {
+                revoke.setObject(1, userId);
+                assertThat(revoke.executeUpdate()).isOne();
             }
             connection.commit();
 
@@ -543,13 +612,14 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void authenticatedPasswordChangeConsumesPendingPasswordResetChallenges() throws Exception {
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         var reset = auth.requestPasswordReset("person@example.com");
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
                 """, sha256("654321"), userId);
 
-        auth.changePassword(userId, "Valid123!", "Changed123!");
+        auth.changePassword(session.sessionId(), userId, "Valid123!", "Changed123!");
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from auth_challenges
@@ -805,11 +875,12 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     private boolean attemptPasswordChange(
-            CountDownLatch ready, CountDownLatch start, String newPassword) throws InterruptedException {
+            String sessionId, CountDownLatch ready, CountDownLatch start, String newPassword)
+            throws InterruptedException {
         ready.countDown();
         if (!start.await(10, TimeUnit.SECONDS)) throw new AssertionError("password race did not start");
         try {
-            auth.changePassword(userId, "Valid123!", newPassword);
+            auth.changePassword(sessionId, userId, "Valid123!", newPassword);
             return true;
         } catch (AuthenticationException expected) {
             return false;

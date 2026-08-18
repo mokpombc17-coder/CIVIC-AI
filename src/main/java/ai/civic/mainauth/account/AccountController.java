@@ -77,7 +77,8 @@ public class AccountController {
             @RequestBody PasswordChange body,
             HttpServletRequest request) {
         var session = requireMutation(sessionId, csrfToken, request);
-        authentication.changePassword(session.userId(), body.currentPassword(), body.newPassword());
+        authentication.changePassword(
+                sessionId, session.userId(), body.currentPassword(), body.newPassword());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
                 .build();

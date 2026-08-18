@@ -99,6 +99,18 @@ public class SessionService {
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)
+    public SessionView requireLocked(String rawSessionId) {
+        if (rawSessionId == null || rawSessionId.isBlank()) throw invalid();
+        var locked = jdbc.query("""
+                select user_id from sessions
+                where session_hash = ? and revoked_at is null
+                for update
+                """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), hmac(rawSessionId));
+        if (locked.size() != 1) throw invalid();
+        return require(rawSessionId);
+    }
+
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public SessionView requireForTokenIssuance(String rawSessionId) {
         if (rawSessionId == null || rawSessionId.isBlank()) throw invalid();
         var users = jdbc.query("""
@@ -138,6 +150,9 @@ public class SessionService {
 
     @Transactional
     public void revokeAll(UUID userId, String reason) {
+        var locked = jdbc.query("select id from users where id = ? for update",
+                (rs, rowNum) -> rs.getObject("id", UUID.class), userId);
+        if (locked.size() != 1) throw invalid();
         jdbc.update("""
                 update sessions set revoked_at = now(), revocation_reason = ?
                 where user_id = ? and revoked_at is null

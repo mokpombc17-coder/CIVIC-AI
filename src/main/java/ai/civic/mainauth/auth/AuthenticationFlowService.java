@@ -1,5 +1,6 @@
 package ai.civic.mainauth.auth;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.Timestamp;
@@ -63,6 +64,7 @@ public class AuthenticationFlowService {
     public LoginResult login(String email, String password, String sourceIp) {
         var normalized = normalize(email);
         if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
+        lockLoginIdentity(normalized);
         var identities = jdbc.query("""
                 select id from users where normalized_email = ? for update
                 """, (rs, rowNum) -> rs.getObject("id", UUID.class), normalized);
@@ -100,11 +102,16 @@ public class AuthenticationFlowService {
     }
 
     @Transactional
-    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+    public void changePassword(
+            String sessionId, UUID userId, String currentPassword, String newPassword) {
         requireValidPassword(newPassword);
         lockUser(userId);
         var states = jdbc.queryForList("select state from users where id = ?", String.class, userId);
         if (states.size() != 1 || !"ACTIVE".equals(states.getFirst())) {
+            throw new AuthenticationException(PUBLIC_FAILURE);
+        }
+        var currentSession = sessions.requireLocked(sessionId);
+        if (!userId.equals(currentSession.userId())) {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }
         var encoded = jdbc.queryForObject(
@@ -401,6 +408,12 @@ public class AuthenticationFlowService {
         var locked = jdbc.query("select id from users where id = ? for update",
                 (rs, rowNum) -> rs.getObject("id", UUID.class), userId);
         if (locked.size() != 1) throw new AuthenticationException(PUBLIC_FAILURE);
+    }
+
+    private void lockLoginIdentity(String normalizedEmail) {
+        var lockKey = ByteBuffer.wrap(sha256(normalizedEmail)).getLong();
+        jdbc.queryForObject(
+                "select pg_advisory_xact_lock(?)", (rs, rowNum) -> Boolean.TRUE, lockKey);
     }
 
     private String lockActiveUserIdentity(UUID userId) {
