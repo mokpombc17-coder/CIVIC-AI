@@ -354,6 +354,12 @@ public class AuthenticationFlowService {
                     insert into notification_outbox(event_type, recipient, payload)
                     select ?, ?, ?::jsonb where false
                     """, purpose, targetIdentity, challengePayload(purpose, challengeId, code));
+            jdbc.update("""
+                    insert into opaque_auth_flows(
+                        flow_hash, identity_hash, purpose, expires_at
+                    ) values (?, ?, ?, ?)
+                    """, sha256(flow.toString()), opaqueCompletionIdentity(targetIdentity, purpose),
+                    purpose, Timestamp.from(now.plus(Duration.ofMinutes(10))));
             return flow;
         } catch (Exception exception) {
             throw new IllegalStateException("Could not perform opaque authentication work", exception);
@@ -435,22 +441,29 @@ public class AuthenticationFlowService {
                 select user_id from auth_challenges where flow_hash = ? and purpose = ?
                 """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), sha256(flowId.toString()), purpose);
         if (users.size() != 1) {
-            recordOpaqueCompletionAttempt(flowId, purpose);
+            var opaqueIdentities = jdbc.query("""
+                    select identity_hash from opaque_auth_flows
+                    where flow_hash = ? and purpose = ? for update
+                    """, (rs, rowNum) -> rs.getBytes("identity_hash"),
+                    sha256(flowId.toString()), purpose);
+            var identityHash = opaqueIdentities.size() == 1
+                    ? opaqueIdentities.getFirst()
+                    : sessions.hmac("opaque-completion-forged\0" + purpose + "\0" + flowId);
+            recordOpaqueCompletionAttempt(identityHash, purpose);
             throw new AuthenticationException(CODE_FAILURE);
         }
         lockUser(users.getFirst());
         return users.getFirst();
     }
 
-    private void recordOpaqueCompletionAttempt(UUID flowId, String purpose) {
-        var attemptKey = sha256("opaque-completion\0" + purpose + "\0" + flowId);
-        var lockKey = ByteBuffer.wrap(attemptKey).getLong();
+    private void recordOpaqueCompletionAttempt(byte[] identityHash, String purpose) {
+        var lockKey = ByteBuffer.wrap(identityHash).getLong();
         jdbc.queryForObject(
                 "select pg_advisory_xact_lock(?)", (rs, rowNum) -> Boolean.TRUE, lockKey);
 
-        // A bounded set of non-personal sentinel rows gives unknown flows the same serialized
-        // lock-and-write shape as real invalid-code attempts without retaining the submitted flow.
-        var shard = Byte.toUnsignedInt(attemptKey[Long.BYTES]);
+        // A bounded set of non-personal sentinel rows gives unknown identities the same serialized
+        // lock-and-write shape as real invalid-code attempts without retaining the submitted identity.
+        var shard = Byte.toUnsignedInt(identityHash[Long.BYTES]);
         var shardHash = sha256("opaque-completion-shard\0" + purpose + "\0" + shard);
         jdbc.update("""
                 insert into auth_challenges(
@@ -465,6 +478,11 @@ public class AuthenticationFlowService {
                     end,
                     consumed_at = now()
                 """, shardHash);
+    }
+
+    private byte[] opaqueCompletionIdentity(String targetIdentity, String purpose) {
+        return sessions.hmac(
+                "opaque-completion-identity\0" + purpose + "\0" + targetIdentity);
     }
 
     private void lockUser(UUID userId) {

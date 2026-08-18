@@ -1167,33 +1167,41 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void fakeFlowCompletionSerializesAndPersistsOpaqueAttemptWork() throws Exception {
-        var fakeFlow = auth.requestPasswordReset("unknown@example.com");
-        var lockKey = ByteBuffer.wrap(sha256(
-                "opaque-completion\0PASSWORD_RESET\0" + fakeFlow)).getLong();
+    void fakeFlowCompletionsForOneIdentitySerializeAndPersistOpaqueAttemptWork() throws Exception {
+        var identity = "unknown-completion@example.com";
+        var firstFakeFlow = auth.requestPasswordReset(identity);
+        var secondFakeFlow = auth.requestPasswordReset(identity);
+        var lockKey = ByteBuffer.wrap(sessions.hmac(
+                "opaque-completion-identity\0PASSWORD_RESET\0" + identity)).getLong();
 
         try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
+                var executor = Executors.newFixedThreadPool(2)) {
             connection.setAutoCommit(false);
             try (var lock = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
                 lock.setLong(1, lockKey);
                 lock.executeQuery();
             }
 
-            var completion = executor.submit(() -> captureAuthenticationFailure(
-                    () -> auth.completePasswordReset(fakeFlow, "000000", "Changed123!")));
-            assertThatThrownBy(() -> completion.get(250, TimeUnit.MILLISECONDS))
+            var firstCompletion = executor.submit(() -> captureAuthenticationFailure(
+                    () -> auth.completePasswordReset(firstFakeFlow, "000000", "Changed123!")));
+            var secondCompletion = executor.submit(() -> captureAuthenticationFailure(
+                    () -> auth.completePasswordReset(secondFakeFlow, "000000", "Changed123!")));
+            assertThatThrownBy(() -> firstCompletion.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            assertThatThrownBy(() -> secondCompletion.get(250, TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);
             connection.commit();
 
-            assertThat(completion.get(10, TimeUnit.SECONDS))
+            assertThat(firstCompletion.get(10, TimeUnit.SECONDS))
+                    .isEqualTo("Authentication code is invalid");
+            assertThat(secondCompletion.get(10, TimeUnit.SECONDS))
                     .isEqualTo("Authentication code is invalid");
         }
 
         assertThat(jdbc.queryForObject("""
                 select sum(attempt_count) from auth_challenges
                 where purpose = 'OPAQUE_COMPLETION'
-                """, Integer.class)).isOne();
+                """, Integer.class)).isEqualTo(2);
     }
 
     @Test
