@@ -6,6 +6,9 @@ import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.auth.AuthenticationFlowService;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -195,6 +198,34 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
                     .extracting(MainPrivacyDeletionHandler.DeletionResult::deleted,
                             MainPrivacyDeletionHandler.DeletionResult::alreadyDeleted)
                     .containsExactly(false, true);
+        }
+    }
+
+    @Test
+    void deletionLocksTheAuthenticationIdentityBeforeTheUser() throws Exception {
+        var user = createUser();
+        var lockKey = ByteBuffer.wrap(MessageDigest.getInstance("SHA-256")
+                .digest("delete-me@example.com".getBytes(StandardCharsets.UTF_8))).getLong();
+        try (var executor = Executors.newSingleThreadExecutor();
+                var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var identityLock = connection.prepareStatement(
+                    "select pg_advisory_xact_lock(?)")) {
+                identityLock.setLong(1, lockKey);
+                identityLock.executeQuery();
+            }
+
+            var attempt = executor.submit(() -> deletion.delete(user, "identity-serialized"));
+            assertThatThrownBy(() -> attempt.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(java.util.concurrent.TimeoutException.class);
+            try (var userLock = connection.prepareStatement(
+                    "select id from users where id = ? for update nowait")) {
+                userLock.setObject(1, user);
+                assertThat(userLock.executeQuery().next()).isTrue();
+            }
+            connection.rollback();
+
+            assertThat(attempt.get(10, TimeUnit.SECONDS).deleted()).isTrue();
         }
     }
 

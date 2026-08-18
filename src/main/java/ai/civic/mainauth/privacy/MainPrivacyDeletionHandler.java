@@ -2,6 +2,7 @@ package ai.civic.mainauth.privacy;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.auth.SessionService;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -26,6 +27,12 @@ public class MainPrivacyDeletionHandler {
                 "select count(*) from deletion_tombstones where subject_id = ?",
                 Integer.class, subjectId);
         if (existing != null && existing > 0) return new DeletionResult(false, true);
+        var identities = jdbc.queryForList(
+                "select normalized_email from users where id = ?",
+                String.class, subjectId);
+        if (identities.size() != 1) throw new IllegalArgumentException("Subject does not exist");
+        var lockedIdentity = identities.getFirst();
+        lockAuthenticationIdentity(lockedIdentity);
         var users = jdbc.query(
                 "select normalized_email, state from users where id = ? for update",
                 (rs, rowNum) -> new LockedUser(
@@ -37,6 +44,9 @@ public class MainPrivacyDeletionHandler {
                 Integer.class, subjectId);
         if (existing != null && existing > 0) return new DeletionResult(false, true);
         var user = users.getFirst();
+        if (!lockedIdentity.equals(user.normalizedEmail())) {
+            throw new IllegalStateException("Subject identity changed while deletion was queued");
+        }
         var originalEmail = user.normalizedEmail();
         var subjectIsActive = "ACTIVE".equals(user.state());
         var subjectIsHighestAdministrator = jdbc.queryForObject("""
@@ -122,6 +132,12 @@ public class MainPrivacyDeletionHandler {
         jdbc.queryForObject(
                 "select id from roles where code = 'SUPER_ADMIN' for update",
                 Integer.class);
+    }
+
+    private void lockAuthenticationIdentity(String normalizedIdentity) {
+        var lockKey = ByteBuffer.wrap(sha256(normalizedIdentity)).getLong();
+        jdbc.queryForObject(
+                "select pg_advisory_xact_lock(?)", (rs, rowNum) -> Boolean.TRUE, lockKey);
     }
 
     public record DeletionResult(boolean deleted, boolean alreadyDeleted) {}
