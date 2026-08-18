@@ -13,10 +13,21 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.UUID;
+import ai.civic.mainauth.auth.SessionService;
 import org.junit.jupiter.api.Test;
 
 class InternalJwtContractTest {
     private static final Instant NOW = Instant.parse("2026-08-11T12:00:00Z");
+
+    @Test
+    void participantScopesNeverIncludeAdministrativeDocumentWrites() {
+        assertThat(InternalTokenController.allowedRagScopes(SessionService.SessionRole.PARTICIPANT))
+                .containsExactlyInAnyOrder(
+                        "rag:documents:read", "rag:queries:write", "rag:jobs:read")
+                .doesNotContain("rag:documents:write");
+        assertThat(InternalTokenController.allowedRagScopes(SessionService.SessionRole.RAG_ADMIN))
+                .contains("rag:documents:write");
+    }
 
     @Test
     void ragTokenHasExactShortLivedSingleAudienceClaimsAndValidEs256Signature() throws Exception {
