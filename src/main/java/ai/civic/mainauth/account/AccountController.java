@@ -125,7 +125,8 @@ public class AccountController {
             @RequestBody PasswordConfirmation body,
             HttpServletRequest request) {
         var session = requireMutation(sessionId, csrfToken, request);
-        lifecycle.deactivateSelf(session.userId(), session.userId(), body.password());
+        lifecycle.deactivateSelf(
+                sessionId, session.userId(), session.userId(), body.password());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();

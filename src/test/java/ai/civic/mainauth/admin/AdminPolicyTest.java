@@ -173,7 +173,8 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Test
     void accountDeactivationIsSelfServiceOnlyAndWritesOneVersionedEvent() {
         var participant = createParticipant("participant@example.com");
-        assertThatThrownBy(() -> lifecycle.deactivateSelf(bootstrapId, participant, "Valid123!"))
+        assertThatThrownBy(() -> lifecycle.deactivateSelf(
+                "unused-session", bootstrapId, participant, "Valid123!"))
                 .isInstanceOf(AdminPolicyException.class);
         jdbc.update("""
                 insert into auth_challenges(
@@ -184,7 +185,9 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                           now() + interval '10 minutes', now(), now())
                 """, participant);
 
-        lifecycle.deactivateSelf(participant, participant, "Valid123!");
+        var session = sessions.issue(participant, SessionService.SessionRole.PARTICIPANT);
+        lifecycle.deactivateSelf(
+                session.sessionId(), participant, participant, "Valid123!");
 
         assertThat(jdbc.queryForObject("select state from users where id = ?", String.class, participant))
                 .isEqualTo("DEACTIVATED");
@@ -275,7 +278,9 @@ class AdminPolicyTest extends PostgresIntegrationTest {
 
     private boolean deactivateSelf(UUID subject) {
         try {
-            lifecycle.deactivateSelf(subject, subject, "Valid123!");
+            var session = sessions.issue(subject, SessionService.SessionRole.HIGHEST_ADMIN);
+            lifecycle.deactivateSelf(
+                    session.sessionId(), subject, subject, "Valid123!");
             return true;
         } catch (AdminPolicyException exception) {
             return false;
