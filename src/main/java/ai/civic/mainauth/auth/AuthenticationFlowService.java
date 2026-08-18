@@ -132,6 +132,10 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = AuthenticationException.class)
     public void enableTwoFactor(UUID userId, UUID flowId, String code) {
+        var lockedUserId = lockChallengeUser(flowId, "TWO_FACTOR_ENABLE");
+        if (!userId.equals(lockedUserId)) {
+            throw new AuthenticationException("Authentication flow subject mismatch");
+        }
         var verified = consumeChallenge(flowId, "TWO_FACTOR_ENABLE", code);
         if (!userId.equals(verified.userId())) throw new AuthenticationException("Authentication flow subject mismatch");
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
@@ -146,6 +150,7 @@ public class AuthenticationFlowService {
                     two_factor_secret_ciphertext = null where user_id = ?
                 """, userId);
         consumePendingLoginChallenges(userId);
+        consumePendingTwoFactorEnableChallenges(userId);
         sessions.revokeAll(userId, "TWO_FACTOR_DISABLED");
     }
 
@@ -179,6 +184,13 @@ public class AuthenticationFlowService {
         jdbc.update("""
                 update auth_challenges set consumed_at = now()
                 where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, userId);
+    }
+
+    private void consumePendingTwoFactorEnableChallenges(UUID userId) {
+        jdbc.update("""
+                update auth_challenges set consumed_at = now()
+                where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
                 """, userId);
     }
 

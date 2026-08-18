@@ -303,23 +303,71 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void disablingTwoFactorConsumesAPendingLoginChallenge() throws Exception {
+    void disablingTwoFactorConsumesPendingLoginAndEnableChallenges() throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var pendingLogin = auth.login("person@example.com", "Valid123!", "127.0.0.1");
+        var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
         jdbc.update("""
                 update auth_challenges set code_hash = ?
-                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                where user_id = ? and purpose in ('TWO_FACTOR', 'TWO_FACTOR_ENABLE')
+                  and consumed_at is null
                 """, sha256("123456"), userId);
 
         auth.disableTwoFactor(userId, "Valid123!");
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from auth_challenges
-                where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                where user_id = ? and purpose in ('TWO_FACTOR', 'TWO_FACTOR_ENABLE')
+                  and consumed_at is null
                 """, Integer.class, userId)).isZero();
         assertThatThrownBy(() -> auth.verifyTwoFactor(
                 UUID.fromString(pendingLogin.authFlowId()), "123456"))
                 .isInstanceOf(AuthenticationException.class);
+        assertThatThrownBy(() -> auth.enableTwoFactor(userId, pendingEnable, "123456"))
+                .isInstanceOf(AuthenticationException.class);
+    }
+
+    @Test
+    void enablingTwoFactorWaitsForTheUserSecurityLockAndCannotOverrideDisable() throws Exception {
+        var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
+                """, sha256("123456"), userId);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var enable = executor.submit(() -> auth.enableTwoFactor(userId, pendingEnable, "123456"));
+
+            assertThatThrownBy(() -> enable.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var disable = connection.prepareStatement("""
+                        update credentials set two_factor_enabled = false,
+                            two_factor_secret_ciphertext = null where user_id = ?
+                    """);
+                    var consume = connection.prepareStatement("""
+                        update auth_challenges set consumed_at = now()
+                        where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
+                    """)) {
+                disable.setObject(1, userId);
+                disable.executeUpdate();
+                consume.setObject(1, userId);
+                consume.executeUpdate();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> enable.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(jdbc.queryForObject(
+                "select two_factor_enabled from credentials where user_id = ?",
+                Boolean.class, userId)).isFalse();
     }
 
     @Test
