@@ -123,7 +123,7 @@ public class AuthController {
             @RequestHeader("X-CSRF-Token") String csrfToken,
             HttpServletRequest request) {
         requireAuthenticated(request, sessionId, csrfToken);
-        sessions.revokeAll(sessions.require(sessionId).userId(), "LOGOUT_ALL");
+        sessions.revokeAllFromSession(sessionId, "LOGOUT_ALL");
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString()).build();
     }

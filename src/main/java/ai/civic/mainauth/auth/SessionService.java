@@ -148,6 +148,20 @@ public class SessionService {
                 """, reason, hmac(rawSessionId));
     }
 
+    @Transactional(noRollbackFor = AuthenticationException.class)
+    public void revokeAllFromSession(String rawSessionId, String reason) {
+        if (rawSessionId == null || rawSessionId.isBlank()) throw invalid();
+        var users = jdbc.query("""
+                select u.id from sessions s join users u on u.id = s.user_id
+                where s.session_hash = ? and s.revoked_at is null
+                for update of u
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), hmac(rawSessionId));
+        if (users.size() != 1) throw invalid();
+
+        var session = requireLocked(rawSessionId);
+        revokeAll(session.userId(), reason);
+    }
+
     @Transactional
     public void revokeAll(UUID userId, String reason) {
         var locked = jdbc.query("select id from users where id = ? for update",

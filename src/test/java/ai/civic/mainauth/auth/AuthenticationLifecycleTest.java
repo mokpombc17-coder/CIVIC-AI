@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -520,6 +521,41 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()
                         .matches("Valid123!", encoded))
                 .isTrue();
+    }
+
+    @Test
+    void logoutAllRevalidatesTheInitiatingSessionAfterWaitingForTheUserLock() throws Exception {
+        var initiating = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        var other = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+
+            var response = executor.submit(
+                    () -> sessions.revokeAllFromSession(initiating.sessionId(), "LOGOUT_ALL"));
+
+            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var revoke = connection.prepareStatement("""
+                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
+                    where session_hash = ? and revoked_at is null
+                    """)) {
+                revoke.setBytes(1, sessions.hmac(initiating.sessionId()));
+                assertThat(revoke.executeUpdate()).isOne();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> response.get(10, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(sessions.require(other.sessionId()).userId()).isEqualTo(userId);
     }
 
     @Test
