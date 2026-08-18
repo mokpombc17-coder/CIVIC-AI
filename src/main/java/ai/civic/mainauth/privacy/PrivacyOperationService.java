@@ -31,40 +31,52 @@ public class PrivacyOperationService {
         if (subjectExists == null || subjectExists != 1) {
             throw new IllegalArgumentException("Privacy subject does not exist");
         }
-        var existing = jdbc.query("""
-                select id, subject_id, requested_scopes::text
-                from privacy_operations where external_request_evidence_id = ?
-                """, (rs, rowNum) -> new StoredOperation(
-                rs.getObject("id", UUID.class), rs.getObject("subject_id", UUID.class),
-                rs.getString("requested_scopes")), evidenceId);
-        if (!existing.isEmpty()) {
-            var stored = existing.getFirst();
-            try {
-                var storedScopes = json.readValue(stored.requestedScopes(), new TypeReference<Set<String>>() {});
-                if (!subjectId.equals(stored.subjectId()) || !scopes.equals(storedScopes)) {
-                    throw new IllegalArgumentException(
-                            "Privacy idempotency evidence does not match the original request");
-                }
-                return stored.id();
-            } catch (IllegalArgumentException exception) {
-                throw exception;
-            } catch (Exception exception) {
-                throw new IllegalStateException("Could not verify privacy idempotency", exception);
-            }
-        }
+        final String requestedScopes;
         try {
-            var id = UUID.randomUUID();
-            jdbc.update("""
+            requestedScopes = json.writeValueAsString(scopes);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not serialize privacy scopes", exception);
+        }
+        var id = UUID.randomUUID();
+        var inserted = jdbc.update("""
                     insert into privacy_operations(
                         id, external_request_evidence_id, subject_id, requested_scopes,
                         request_verified, status
                     ) values (?, ?, ?, ?::jsonb, true, 'PENDING')
-                    """, id, evidenceId, subjectId, json.writeValueAsString(scopes));
+                    on conflict (external_request_evidence_id) do nothing
+                    """, id, evidenceId, subjectId, requestedScopes);
+        if (inserted == 0) {
+            return loadAndValidateExisting(evidenceId, subjectId, scopes).id();
+        }
+        try {
             if (scopes.contains("ACCOUNT")) enqueue(id, subjectId, "MAIN", evidenceId);
             if (scopes.contains("RAG")) enqueue(id, subjectId, "RAG", evidenceId);
             return id;
         } catch (Exception exception) {
             throw new IllegalStateException("Could not start privacy operation", exception);
+        }
+    }
+
+    private StoredOperation loadAndValidateExisting(
+            String evidenceId, UUID subjectId, Set<String> scopes) {
+        var stored = jdbc.queryForObject("""
+                select id, subject_id, requested_scopes::text
+                from privacy_operations where external_request_evidence_id = ?
+                """, (rs, rowNum) -> new StoredOperation(
+                rs.getObject("id", UUID.class), rs.getObject("subject_id", UUID.class),
+                rs.getString("requested_scopes")), evidenceId);
+        try {
+            var storedScopes = json.readValue(
+                    stored.requestedScopes(), new TypeReference<Set<String>>() {});
+            if (!subjectId.equals(stored.subjectId()) || !scopes.equals(storedScopes)) {
+                throw new IllegalArgumentException(
+                        "Privacy idempotency evidence does not match the original request");
+            }
+            return stored;
+        } catch (IllegalArgumentException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not verify privacy idempotency", exception);
         }
     }
 

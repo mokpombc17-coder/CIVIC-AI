@@ -4,6 +4,7 @@ import ai.civic.mainauth.admin.AdminPolicyException;
 import java.util.UUID;
 import java.util.LinkedHashMap;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -97,7 +98,7 @@ public class PrivacyCommandDispatcher {
         } catch (AdminPolicyException exception) {
             operations.recordResult(
                     command.operationId(), "MAIN", "FAILED", "deleted=0,policy_blocked=1");
-        } catch (IllegalArgumentException exception) {
+        } catch (IllegalArgumentException | EmptyResultDataAccessException exception) {
             operations.recordResult(
                     command.operationId(), "MAIN", "FAILED", "deleted=0,subject_missing=1");
         }

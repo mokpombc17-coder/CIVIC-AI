@@ -44,6 +44,26 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void inactiveHighestAdministratorDoesNotConsumeTheLastActiveAdministratorGuard() {
+        var subject = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state, email_verified_at)
+                values ('inactive-admin-delete@example.com','inactive-admin-delete@example.com',
+                        'ADMIN_CREATED','DEACTIVATED',now()) returning id
+                """, UUID.class);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'hash')", subject);
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'SUPER_ADMIN'
+                """, subject);
+
+        var result = deletion.delete(subject, "inactive-highest-admin-deletion");
+
+        assertThat(result.deleted()).isTrue();
+        assertThat(jdbc.queryForObject(
+                "select state from users where id = ?", String.class, subject)).isEqualTo("DELETED");
+    }
+
+    @Test
     void deletionIsIdempotentLeavesOnlyTombstoneAndPreventsReactivation() {
         var user = createUser();
         jdbc.update("""

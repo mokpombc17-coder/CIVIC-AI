@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,6 +82,39 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void concurrentIdempotentStartsReturnOneOperationAndOneCommand() throws Exception {
+        var subject = createSubject("privacy-concurrent@example.com");
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return privacy.start("external-concurrent-42", subject, Set.of("RAG"), true);
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return privacy.start("external-concurrent-42", subject, Set.of("RAG"), true);
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(first.get(10, TimeUnit.SECONDS))
+                    .isEqualTo(second.get(10, TimeUnit.SECONDS));
+        }
+        assertThat(jdbc.queryForObject("""
+                select count(*) from privacy_operations
+                where external_request_evidence_id = 'external-concurrent-42'
+                """, Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from privacy_command_outbox pco
+                join privacy_operations po on po.id = pco.operation_id
+                where po.external_request_evidence_id = 'external-concurrent-42'
+                """, Integer.class)).isOne();
+    }
+
+    @Test
     void resultForAServiceThatWasNotEnqueuedIsRejected() {
         var subject = createSubject("privacy-service-match@example.com");
         var operation = privacy.start("external-service-match-42", subject, Set.of("ACCOUNT"), true);
@@ -130,6 +166,27 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
                 """, Integer.class, operation)).isOne();
         assertThat(jdbc.queryForObject(
                 "select state from users where id = ?", String.class, subject)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void physicallyRemovedSubjectIsRecordedAsPermanentFailureWithoutPoisoningWorker() {
+        var subject = createSubject("privacy-removed-before-worker@example.com");
+        var operation = privacy.start(
+                "external-removed-before-worker-42", subject, Set.of("ACCOUNT"), true);
+        jdbc.update("delete from credentials where user_id = ?", subject);
+        jdbc.update("delete from users where id = ?", subject);
+
+        assertThat(dispatcher.dispatchMainOne()).isTrue();
+
+        assertThat(privacy.status(operation)).isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("""
+                select aggregate_evidence from privacy_results
+                where operation_id = ? and service_code = 'MAIN'
+                """, String.class, operation)).isEqualTo("deleted=0,subject_missing=1");
+        assertThat(jdbc.queryForObject("""
+                select count(*) from privacy_command_outbox
+                where operation_id = ? and delivered_at is not null
+                """, Integer.class, operation)).isOne();
     }
 
     @Test

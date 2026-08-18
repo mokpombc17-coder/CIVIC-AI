@@ -21,14 +21,22 @@ public class MainPrivacyDeletionHandler {
                 Integer.class, subjectId);
         if (existing != null && existing > 0) return new DeletionResult(false, true);
         lockHighestAdministratorChanges();
-        var user = jdbc.queryForMap(
-                "select normalized_email from users where id = ? for update", subjectId);
-        var originalEmail = (String) user.get("normalized_email");
+        var users = jdbc.query(
+                "select normalized_email, state from users where id = ? for update",
+                (rs, rowNum) -> new LockedUser(
+                        rs.getString("normalized_email"), rs.getString("state")),
+                subjectId);
+        if (users.isEmpty()) throw new IllegalArgumentException("Subject does not exist");
+        var user = users.getFirst();
+        var originalEmail = user.normalizedEmail();
+        var subjectIsActive = "ACTIVE".equals(user.state());
         var subjectIsHighestAdministrator = jdbc.queryForObject("""
                 select count(*) from user_roles ur join roles r on r.id = ur.role_id
                 where ur.user_id = ? and ur.revoked_at is null and r.highest_admin
                 """, Integer.class, subjectId);
-        if (subjectIsHighestAdministrator != null && subjectIsHighestAdministrator > 0) {
+        if (subjectIsActive
+                && subjectIsHighestAdministrator != null
+                && subjectIsHighestAdministrator > 0) {
             var activeHighestAdministrators = jdbc.queryForObject("""
                     select count(distinct u.id) from users u
                     join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
@@ -91,4 +99,6 @@ public class MainPrivacyDeletionHandler {
     }
 
     public record DeletionResult(boolean deleted, boolean alreadyDeleted) {}
+
+    private record LockedUser(String normalizedEmail, String state) {}
 }
