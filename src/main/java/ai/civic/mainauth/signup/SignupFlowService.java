@@ -116,6 +116,17 @@ public class SignupFlowService {
     }
 
     @Transactional
+    public boolean purgeExpiredSignupFlows() {
+        return jdbc.update("""
+                with expired as (
+                    select id from signup_flows where expires_at < now()
+                    order by expires_at for update skip locked limit 100
+                )
+                delete from signup_flows f using expired e where f.id = e.id
+                """) > 0;
+    }
+
+    @Transactional
     public CompletionResult completeSignup(UUID flowId, CompletionRequest request) {
         if (request == null) throw new SignupValidationException("Completion body is required");
         featureGates.requireEnabledForUpdate("PUBLIC_SIGNUP_ENABLED");

@@ -169,6 +169,14 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
         assertThat(dispatcher.dispatchMainOne()).isTrue();
 
         assertThat(privacy.status(operation)).isEqualTo("PENDING");
+        assertThat(redis.opsForStream().size(PrivacyCommandDispatcher.RAG_COMMAND_STREAM)).isZero();
+        assertThat(jdbc.queryForObject("""
+                select jsonb_exists(command_payload, 'ledger_aggregate_evidence')
+                from privacy_command_outbox where operation_id = ? and service_code = 'MAIN'
+                """, Boolean.class, operation)).isTrue();
+
+        assertThat(dispatcher.dispatchMainOne()).isTrue();
+
         var ledgerCommands = redis.opsForStream().range(
                 PrivacyCommandDispatcher.RAG_COMMAND_STREAM, Range.unbounded());
         assertThat(ledgerCommands).hasSize(1);

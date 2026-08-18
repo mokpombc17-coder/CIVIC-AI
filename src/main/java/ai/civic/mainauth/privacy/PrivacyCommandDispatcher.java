@@ -69,7 +69,10 @@ public class PrivacyCommandDispatcher {
         var commands = jdbc.query("""
                 select id, operation_id,
                        command_payload->>'subject_id' as subject_id,
-                       command_payload->>'external_request_evidence_id' as evidence_id
+                       command_payload->>'external_request_evidence_id' as evidence_id,
+                       command_payload->>'ledger_aggregate_evidence' as ledger_aggregate_evidence,
+                       command_payload->>'deletion_version' as deletion_version,
+                       command_payload->>'completed_at' as completed_at
                 from privacy_command_outbox
                 where service_code = 'MAIN' and delivered_at is null
                   and available_at <= now()
@@ -79,7 +82,10 @@ public class PrivacyCommandDispatcher {
                 rs.getObject("id", UUID.class),
                 rs.getObject("operation_id", UUID.class),
                 UUID.fromString(rs.getString("subject_id")),
-                rs.getString("evidence_id")));
+                rs.getString("evidence_id"),
+                rs.getString("ledger_aggregate_evidence"),
+                rs.getString("deletion_version"),
+                rs.getString("completed_at")));
         if (commands.isEmpty()) return false;
         var command = commands.getFirst();
         jdbc.update("""
@@ -87,6 +93,15 @@ public class PrivacyCommandDispatcher {
                 set leased_until = now() + interval '30 seconds', attempt_count = attempt_count + 1
                 where id = ? and delivered_at is null
                 """, command.id());
+        if (command.ledgerAggregateEvidence() != null) {
+            publishMainDeletionLedger(
+                    command,
+                    new MainLedger(
+                            Long.parseLong(command.deletionVersion()), command.completedAt()),
+                    command.ledgerAggregateEvidence());
+            markDelivered(command.id());
+            return true;
+        }
         try {
             deletion.delete(command.subjectId(), command.evidenceId());
             var ledger = jdbc.queryForObject("""
@@ -94,7 +109,15 @@ public class PrivacyCommandDispatcher {
                     from deletion_tombstones where subject_id = ?
                     """, (rs, rowNum) -> new MainLedger(
                     rs.getLong("deletion_version"), rs.getString("deleted_at")), command.subjectId());
-            publishMainDeletionLedger(command, ledger, "account_anonymized=1");
+            jdbc.update("""
+                    update privacy_command_outbox
+                    set command_payload = command_payload || jsonb_build_object(
+                            'ledger_aggregate_evidence', 'account_anonymized=1',
+                            'deletion_version', ?, 'completed_at', ?),
+                        leased_until = null, available_at = now()
+                    where id = ? and delivered_at is null
+                    """, Long.toString(ledger.deletionVersion()), ledger.completedAt(), command.id());
+            return true;
         } catch (AdminPolicyException exception) {
             operations.recordResult(
                     command.operationId(), "MAIN", "FAILED", "deleted=0,policy_blocked=1");
@@ -127,7 +150,14 @@ public class PrivacyCommandDispatcher {
                 """, commandId) == 1;
     }
 
-    private record MainCommand(UUID id, UUID operationId, UUID subjectId, String evidenceId) {}
+    private record MainCommand(
+            UUID id,
+            UUID operationId,
+            UUID subjectId,
+            String evidenceId,
+            String ledgerAggregateEvidence,
+            String deletionVersion,
+            String completedAt) {}
 
     private record MainLedger(long deletionVersion, String completedAt) {}
 

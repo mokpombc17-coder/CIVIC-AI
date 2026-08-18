@@ -76,6 +76,21 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("sessions", "true")).isZero();
     }
 
+    @Test
+    void workerRetentionPurgesExpiredRawEmailsButKeepsFreshFlows() {
+        var expired = service.startSignup("expired-flow@example.com");
+        var fresh = service.startSignup("fresh-flow@example.com");
+        jdbc.update("update signup_flows set expires_at = now() - interval '1 second' where id = ?",
+                expired.flowId());
+
+        assertThat(service.purgeExpiredSignupFlows()).isTrue();
+
+        assertThat(count("signup_flows", "normalized_email = 'expired-flow@example.com'")).isZero();
+        assertThat(count("signup_flows", "normalized_email = 'fresh-flow@example.com'")).isOne();
+        assertThat(service.purgeExpiredSignupFlows()).isFalse();
+        assertThat(fresh.flowId()).isNotNull();
+    }
+
     @ParameterizedTest(name = "rejects invalid password: {0}")
     @MethodSource("invalidPasswords")
     void invalidCompletionIsAtomic(String password) {
