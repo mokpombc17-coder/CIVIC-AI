@@ -201,7 +201,8 @@ public class SignupFlowService {
                 ) values (?, ?, ?, 'SIGNUP_EMAIL_VERIFICATION', ?, ?, ?, '{}'::jsonb, now(), now())
                 """,
                 challengeId, sha256(flowId.toString()), userId, normalizedEmail,
-                sha256(code), Timestamp.from(clock.instant().plus(10, ChronoUnit.MINUTES)));
+                codeProtector.verifier(code),
+                Timestamp.from(clock.instant().plus(10, ChronoUnit.MINUTES)));
         var notification = Map.of(
                 "challenge_id", challengeId.toString(),
                 "protected_code", codeProtector.protect(code),
@@ -259,7 +260,8 @@ public class SignupFlowService {
             throw new SignupConflictException("Verification challenge is no longer active");
         }
         var attempts = ((Number) challenge.get("attempt_count")).intValue();
-        if (attempts >= 5 || !MessageDigest.isEqual((byte[]) challenge.get("code_hash"), sha256(code))) {
+        if (attempts >= 5
+                || !codeProtector.matches(code, (byte[]) challenge.get("code_hash"))) {
             jdbc.update("update auth_challenges set attempt_count = attempt_count + 1 where id = ?", challenge.get("id"));
             throw new SignupValidationException("Verification code is invalid");
         }
@@ -325,7 +327,7 @@ public class SignupFlowService {
         jdbc.update("""
                 update auth_challenges set code_hash = ?, attempt_count = 0, resend_count = ?,
                     last_sent_at = ?, resend_window_started_at = ?, expires_at = ? where id = ?
-                """, sha256(code), count + 1, Timestamp.from(now),
+                """, codeProtector.verifier(code), count + 1, Timestamp.from(now),
                 Timestamp.from(count == 0 ? now : challenge.windowStartedAt()),
                 Timestamp.from(now.plus(10, ChronoUnit.MINUTES)), challenge.id());
         var notification = Map.of(

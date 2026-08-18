@@ -286,7 +286,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where flow_hash = ? and purpose = 'PASSWORD_RESET'
-                """, sha256("654321"), sha256(reset.toString()));
+                """, codeProtector.verifier("654321"), sha256(reset.toString()));
 
         assertThatThrownBy(() -> auth.completePasswordReset(reset, "654321", "Valid123!"))
                 .isInstanceOf(AuthenticationException.class);
@@ -586,7 +586,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose in ('TWO_FACTOR', 'TWO_FACTOR_ENABLE')
                   and consumed_at is null
-                """, sha256("123456"), userId);
+                """, codeProtector.verifier("123456"), userId);
 
         auth.disableTwoFactor(enablingSession.sessionId(), userId, "Valid123!");
 
@@ -611,7 +611,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
-                """, sha256("123456"), userId);
+                """, codeProtector.verifier("123456"), userId);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
@@ -772,7 +772,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
-                """, sha256("123456"), userId);
+                """, codeProtector.verifier("123456"), userId);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
@@ -817,7 +817,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
-                """, sha256("123456"), userId);
+                """, codeProtector.verifier("123456"), userId);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
@@ -912,12 +912,12 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
-                """, sha256("123456"), userId);
+                """, codeProtector.verifier("123456"), userId);
         var reset = auth.requestPasswordReset("person@example.com");
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
-                """, sha256("654321"), userId);
+                """, codeProtector.verifier("654321"), userId);
 
         auth.completePasswordReset(reset, "654321", "Changed123!");
 
@@ -937,7 +937,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
-                """, sha256("654321"), userId);
+                """, codeProtector.verifier("654321"), userId);
 
         auth.changePassword(session.sessionId(), userId, "Valid123!", "Changed123!");
 
@@ -955,7 +955,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where flow_hash = ? and purpose = 'PASSWORD_RESET'
-                """, sha256("123456"), sha256(first.toString()));
+                """, codeProtector.verifier("123456"), sha256(first.toString()));
         var sibling = UUID.randomUUID();
         jdbc.update("""
                 insert into auth_challenges(
@@ -963,7 +963,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                     expires_at, last_sent_at, resend_window_started_at
                 ) values (?, ?, 'PASSWORD_RESET', 'person@example.com', ?,
                           now() + interval '10 minutes', now(), now())
-                """, sha256(sibling.toString()), userId, sha256("654321"));
+                """, sha256(sibling.toString()), userId, codeProtector.verifier("654321"));
 
         auth.completePasswordReset(first, "123456", "Changed123!");
 
@@ -1021,7 +1021,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'REACTIVATION' and consumed_at is null
-                """, sha256("123456"), userId);
+                """, codeProtector.verifier("123456"), userId);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {

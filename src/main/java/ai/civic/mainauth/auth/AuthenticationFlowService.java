@@ -317,7 +317,7 @@ public class AuthenticationFlowService {
                 update auth_challenges set code_hash = ?, attempt_count = 0,
                     resend_count = ?, last_sent_at = ?, resend_window_started_at = ?,
                     expires_at = ? where id = ?
-                """, sha256(code), count + 1, Timestamp.from(now),
+                """, codeProtector.verifier(code), count + 1, Timestamp.from(now),
                 Timestamp.from(count == 0 ? now : challenge.windowStartedAt()),
                 Timestamp.from(now.plus(Duration.ofMinutes(10))), challenge.id());
         enqueueChallengeMail(purpose, challenge.targetIdentity(), challenge.id(), code, true);
@@ -352,7 +352,7 @@ public class AuthenticationFlowService {
                         expires_at, last_sent_at, resend_window_started_at
                     ) select ?, ?, ?, ?, ?, ?, ?, ?, ? where false
                     """, challengeId, sha256(flow.toString()), userId, purpose, targetIdentity,
-                    sha256(code), Timestamp.from(now.plus(Duration.ofMinutes(10))),
+                    codeProtector.verifier(code), Timestamp.from(now.plus(Duration.ofMinutes(10))),
                     Timestamp.from(now), Timestamp.from(now));
             jdbc.update("""
                     insert into notification_outbox(event_type, recipient, payload)
@@ -392,7 +392,7 @@ public class AuthenticationFlowService {
                     expires_at, last_sent_at, resend_window_started_at
                 ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, challengeId, sha256(flow.toString()), userId, purpose, targetIdentity,
-                sha256(code), Timestamp.from(now.plus(Duration.ofMinutes(10))),
+                codeProtector.verifier(code), Timestamp.from(now.plus(Duration.ofMinutes(10))),
                 Timestamp.from(now), Timestamp.from(now));
         enqueueChallengeMail(purpose, targetIdentity, challengeId, code, deliverSynchronously);
         return flow;
@@ -444,7 +444,7 @@ public class AuthenticationFlowService {
         var challenge = rows.getFirst();
         if (challenge.consumed() || challenge.expiresAt().isBefore(clock.instant())
                 || challenge.attemptCount() >= 5
-                || code == null || !MessageDigest.isEqual(challenge.codeHash(), sha256(code))) {
+                || !codeProtector.matches(code, challenge.codeHash())) {
             jdbc.update("update auth_challenges set attempt_count = attempt_count + 1 where id = ?",
                     challenge.id());
             throw new AuthenticationException(CODE_FAILURE);

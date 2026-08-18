@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import ai.civic.mainauth.notification.VerificationCodeProtector;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -24,6 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class SignupInvariantTest extends PostgresIntegrationTest {
     @Autowired SignupFlowService service;
     @Autowired JdbcTemplate jdbc;
+    @Autowired VerificationCodeProtector codeProtector;
 
     @BeforeEach
     void cleanSignupData() {
@@ -205,8 +207,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     void verifiedSignupPublishesInitialActiveAccountState() throws Exception {
         var flow = service.startSignup("verified@example.com");
         service.completeSignup(flow.flowId(), validRequest("verified@example.com", "Valid123!"));
-        var digest = MessageDigest.getInstance("SHA-256")
-                .digest("123456".getBytes(StandardCharsets.UTF_8));
+        var digest = codeProtector.verifier("123456");
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where flow_hash is not null and purpose = 'SIGNUP_EMAIL_VERIFICATION'
@@ -231,8 +232,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                """, MessageDigest.getInstance("SHA-256")
-                        .digest("123456".getBytes(StandardCharsets.UTF_8)), userId);
+                """, codeProtector.verifier("123456"), userId);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
