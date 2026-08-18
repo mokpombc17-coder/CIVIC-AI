@@ -16,11 +16,31 @@ public class AdminRoleService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final SessionService sessions;
+    private final AdminAuthorizationService authorization;
 
-    public AdminRoleService(JdbcTemplate jdbc, ObjectMapper json, SessionService sessions) {
+    public AdminRoleService(
+            JdbcTemplate jdbc,
+            ObjectMapper json,
+            SessionService sessions,
+            AdminAuthorizationService authorization) {
         this.jdbc = jdbc;
         this.json = json;
         this.sessions = sessions;
+        this.authorization = authorization;
+    }
+
+    @Transactional
+    public void replaceRolesAuthorized(
+            String sessionId,
+            UUID subjectId,
+            long expectedVersion,
+            Set<String> desiredRoles,
+            String reason,
+            boolean impactConfirmed) {
+        lockHighestAdminRoleChanges();
+        var actor = authorization.requireCurrentAdmin(sessionId, true);
+        replaceRolesAfterAuthorization(
+                actor.userId(), subjectId, expectedVersion, desiredRoles, reason, impactConfirmed);
     }
 
     @Transactional
@@ -33,6 +53,17 @@ public class AdminRoleService {
             boolean impactConfirmed) {
         lockHighestAdminRoleChanges();
         requireActiveHighestAdminWithRotatedPassword(actorId);
+        replaceRolesAfterAuthorization(
+                actorId, subjectId, expectedVersion, desiredRoles, reason, impactConfirmed);
+    }
+
+    private void replaceRolesAfterAuthorization(
+            UUID actorId,
+            UUID subjectId,
+            long expectedVersion,
+            Set<String> desiredRoles,
+            String reason,
+            boolean impactConfirmed) {
         var normalizedReason = reason == null ? "" : reason.strip();
         if (normalizedReason.isEmpty() || normalizedReason.length() > 1000) {
             throw new AdminPolicyException("A role change reason between 1 and 1000 characters is required");

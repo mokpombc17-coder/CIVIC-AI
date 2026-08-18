@@ -81,13 +81,13 @@ public class AdminUserController {
             @PathVariable UUID userId,
             @RequestBody RoleUpdate body,
             HttpServletRequest request) {
-        var actor = authorization.requireAdmin(sessionId, true);
+        authorization.requireAdmin(sessionId, true);
         if (!csrf.matches(sessionId, csrfToken)) throw new BrowserRequestRejectedException("CSRF token is invalid");
         browser.requireAuthenticatedMutation(new BrowserRequestPolicy.RequestMetadata(
                 request.getMethod(), request.getHeader(HttpHeaders.ORIGIN), request.getHeader("Sec-Fetch-Site"),
                 request.getContentType(), request.getHeader(HttpHeaders.AUTHORIZATION)), csrfToken, csrfToken);
-        roles.replaceRoles(
-                actor.userId(),
+        roles.replaceRolesAuthorized(
+                sessionId,
                 userId,
                 body.rowVersion(),
                 body.roles(),
