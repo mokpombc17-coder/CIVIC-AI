@@ -162,19 +162,41 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void workerConsumesMainDeletionCommandAndRecordsItsResult() {
+    void workerWaitsForOffHostMainDeletionLedgerBeforeCompletingItsResult() {
         var subject = createSubject("privacy-worker@example.com");
         var operation = privacy.start("external-worker-42", subject, Set.of("ACCOUNT"), true);
 
         assertThat(dispatcher.dispatchMainOne()).isTrue();
 
-        assertThat(privacy.status(operation)).isEqualTo("COMPLETE");
+        assertThat(privacy.status(operation)).isEqualTo("PENDING");
+        var ledgerCommands = redis.opsForStream().range(
+                PrivacyCommandDispatcher.RAG_COMMAND_STREAM, Range.unbounded());
+        assertThat(ledgerCommands).hasSize(1);
+        assertThat(ledgerCommands.getFirst().getValue())
+                .containsEntry("operation_id", operation.toString())
+                .containsEntry("subject_id", subject.toString())
+                .containsEntry("external_request_evidence_id", "external-worker-42")
+                .containsEntry("scope", "ACCOUNT_LEDGER")
+                .containsEntry("aggregate_evidence", "account_anonymized=1");
+        assertThat(String.valueOf(ledgerCommands.getFirst().getValue().get("deletion_version")))
+                .isNotBlank();
+        assertThat(String.valueOf(ledgerCommands.getFirst().getValue().get("completed_at")))
+                .isNotBlank();
         assertThat(jdbc.queryForObject("""
                 select count(*) from privacy_command_outbox
                 where operation_id = ? and service_code = 'MAIN' and delivered_at is not null
                 """, Integer.class, operation)).isOne();
         assertThat(jdbc.queryForObject("select state from users where id = ?", String.class, subject))
                 .isEqualTo("DELETED");
+
+        redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
+                "operation_id", operation.toString(),
+                "service_code", "MAIN",
+                "result_status", "COMPLETE",
+                "aggregate_evidence", "account_anonymized=1"
+        )).withStreamKey(PrivacyResultDispatcher.RESULT_STREAM));
+        assertThat(resultDispatcher.dispatchOne()).isTrue();
+        assertThat(privacy.status(operation)).isEqualTo("COMPLETE");
     }
 
     @Test
@@ -271,6 +293,24 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
         assertThat(resultDispatcher.dispatchOne()).isTrue();
 
         assertThat(privacy.status(operation)).isEqualTo("COMPLETE");
+        assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_STREAM)).isZero();
+    }
+
+    @Test
+    void resultWithoutAggregateEvidenceIsDeadLetteredAndCannotCompleteTheOperation() {
+        var subject = createSubject("privacy-result-no-evidence@example.com");
+        var operation = privacy.start("external-result-no-evidence-42", subject, Set.of("RAG"), true);
+        redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
+                "operation_id", operation.toString(),
+                "service_code", "RAG",
+                "result_status", "COMPLETE"
+        )).withStreamKey(PrivacyResultDispatcher.RESULT_STREAM));
+
+        assertThat(resultDispatcher.dispatchOne()).isTrue();
+
+        assertThat(privacy.status(operation)).isEqualTo("PENDING");
+        assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_DEAD_LETTER_STREAM))
+                .isOne();
         assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_STREAM)).isZero();
     }
 

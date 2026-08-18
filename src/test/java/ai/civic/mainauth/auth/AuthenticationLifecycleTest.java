@@ -87,6 +87,27 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void failedLoginExpiresOnlyStaleThrottleIdentities() {
+        jdbc.update("""
+                insert into login_throttles(identity_hash, source_ip, last_failure_at)
+                values (decode(repeat('11', 32), 'hex'), '192.0.2.10', now() - interval '25 hours'),
+                       (decode(repeat('22', 32), 'hex'), '192.0.2.11', now() - interval '23 hours')
+                """);
+
+        assertThat(captureFailure("attacker-chosen@example.com", "Wrong123!"))
+                .isEqualTo("Email or password is invalid");
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from login_throttles
+                where identity_hash = decode(repeat('11', 32), 'hex')
+                """, Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from login_throttles
+                where identity_hash = decode(repeat('22', 32), 'hex')
+                """, Integer.class)).isOne();
+    }
+
+    @Test
     void passwordChangeRevokesEveryExistingSession() {
         var first = auth.login("person@example.com", "Valid123!", "127.0.0.1").sessionId();
         var second = auth.login("person@example.com", "Valid123!", "127.0.0.2").sessionId();

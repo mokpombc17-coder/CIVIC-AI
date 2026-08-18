@@ -88,13 +88,13 @@ public class PrivacyCommandDispatcher {
                 where id = ? and delivered_at is null
                 """, command.id());
         try {
-            var result = deletion.delete(command.subjectId(), command.evidenceId());
-            operations.recordResult(
-                    command.operationId(),
-                    "MAIN",
-                    "COMPLETE",
-                    "deleted=" + (result.deleted() ? 1 : 0)
-                            + ",already_deleted=" + (result.alreadyDeleted() ? 1 : 0));
+            deletion.delete(command.subjectId(), command.evidenceId());
+            var ledger = jdbc.queryForObject("""
+                    select deletion_version, deleted_at::text
+                    from deletion_tombstones where subject_id = ?
+                    """, (rs, rowNum) -> new MainLedger(
+                    rs.getLong("deletion_version"), rs.getString("deleted_at")), command.subjectId());
+            publishMainDeletionLedger(command, ledger, "account_anonymized=1");
         } catch (AdminPolicyException exception) {
             operations.recordResult(
                     command.operationId(), "MAIN", "FAILED", "deleted=0,policy_blocked=1");
@@ -106,6 +106,19 @@ public class PrivacyCommandDispatcher {
         return true;
     }
 
+    private void publishMainDeletionLedger(
+            MainCommand command, MainLedger ledger, String aggregateEvidence) {
+        var fields = new LinkedHashMap<String, String>();
+        fields.put("operation_id", command.operationId().toString());
+        fields.put("subject_id", command.subjectId().toString());
+        fields.put("external_request_evidence_id", command.evidenceId());
+        fields.put("scope", "ACCOUNT_LEDGER");
+        fields.put("aggregate_evidence", aggregateEvidence);
+        fields.put("deletion_version", Long.toString(ledger.deletionVersion()));
+        fields.put("completed_at", ledger.completedAt());
+        redis.opsForStream().add(StreamRecords.mapBacked(fields).withStreamKey(RAG_COMMAND_STREAM));
+    }
+
     @Transactional
     public boolean markDelivered(UUID commandId) {
         return jdbc.update("""
@@ -115,6 +128,8 @@ public class PrivacyCommandDispatcher {
     }
 
     private record MainCommand(UUID id, UUID operationId, UUID subjectId, String evidenceId) {}
+
+    private record MainLedger(long deletionVersion, String completedAt) {}
 
     private record RagCommand(
             UUID id, UUID operationId, String subjectId, String evidenceId, String scope) {}

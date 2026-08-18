@@ -360,6 +360,7 @@ public class AuthenticationFlowService {
     }
 
     private void recordFailure(String normalizedEmail, String sourceIp) {
+        jdbc.update("delete from login_throttles where last_failure_at < now() - interval '24 hours'");
         jdbc.update("""
                 insert into login_throttles(
                     identity_hash, source_ip, failure_count, next_allowed_at, last_failure_at

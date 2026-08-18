@@ -1,7 +1,8 @@
 package ai.civic.mainauth.privacy;
 
-import java.util.UUID;
 import java.util.LinkedHashMap;
+import java.util.Objects;
+import java.util.UUID;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.Limit;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,10 +27,10 @@ public class PrivacyResultDispatcher {
         if (records == null || records.isEmpty()) return false;
         var record = records.getFirst();
         var values = record.getValue();
-        var operationId = String.valueOf(values.get("operation_id"));
-        var service = String.valueOf(values.get("service_code"));
-        var status = String.valueOf(values.get("result_status"));
-        var evidence = String.valueOf(values.get("aggregate_evidence"));
+        var operationId = Objects.toString(values.get("operation_id"), "");
+        var service = Objects.toString(values.get("service_code"), "");
+        var status = Objects.toString(values.get("result_status"), "");
+        var evidence = Objects.toString(values.get("aggregate_evidence"), "");
         try {
             results.accept(UUID.fromString(operationId), service, status, evidence);
         } catch (IllegalArgumentException exception) {
