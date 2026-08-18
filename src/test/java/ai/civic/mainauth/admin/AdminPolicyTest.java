@@ -168,6 +168,19 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void under14PolicyDeactivationRecordsTheSystemAsActor() {
+        var participant = createParticipant("under14-policy@example.com");
+
+        lifecycle.deactivateForUnder14Determination(participant);
+
+        assertThat(jdbc.queryForObject("""
+                select actor_user_id is null from audit_outbox
+                where event_type = 'ACCOUNT_DEACTIVATED' and subject_user_id = ?
+                order by created_at desc limit 1
+                """, Boolean.class, participant)).isTrue();
+    }
+
+    @Test
     void concurrentHighestAdminDeactivationsCannotRemoveEveryHighestAdministrator() throws Exception {
         jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
         var first = createAdmin("deactivate-first@example.com");

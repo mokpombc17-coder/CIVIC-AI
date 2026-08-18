@@ -28,15 +28,15 @@ public class AccountLifecycleService {
         }
         lockHighestAdminLifecycleChanges();
         verifyPasswordUnderUserLock(subjectId, password);
-        deactivate(subjectId, "SELF_DEACTIVATION");
+        deactivate(actorId, subjectId, "SELF_DEACTIVATION");
     }
 
     @Transactional
     public void deactivateForUnder14Determination(UUID subjectId) {
-        deactivate(subjectId, "UNDER_14_DETERMINATION");
+        deactivate(null, subjectId, "UNDER_14_DETERMINATION");
     }
 
-    private void deactivate(UUID subjectId, String reason) {
+    private void deactivate(UUID actorId, UUID subjectId, String reason) {
         lockHighestAdminLifecycleChanges();
         var highest = jdbc.queryForObject("""
                 select count(*) from user_roles ur join roles r on r.id = ur.role_id
@@ -74,7 +74,7 @@ public class AccountLifecycleService {
         jdbc.update("""
                 insert into audit_outbox(event_type, actor_user_id, subject_user_id, payload)
                 values ('ACCOUNT_DEACTIVATED', ?, ?, jsonb_build_object('reason', ?::text))
-                """, subjectId, subjectId, reason);
+                """, actorId, subjectId, reason);
     }
 
     private void lockHighestAdminLifecycleChanges() {
