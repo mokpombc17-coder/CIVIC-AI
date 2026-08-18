@@ -1147,6 +1147,46 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void replacingPasswordResetLocksTheChallengeBeforeItsQueuedMail() throws Exception {
+        auth.requestPasswordReset("person@example.com");
+        var challengeId = jdbc.queryForObject("""
+                select id from auth_challenges
+                where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, UUID.class, userId);
+        var notificationId = jdbc.queryForObject("""
+                select id from notification_outbox
+                where payload ->> 'challenge_id' = ? and delivered_at is null
+                """, UUID.class, challengeId.toString());
+
+        try (var executor = Executors.newSingleThreadExecutor();
+                var connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var notificationLock = connection.prepareStatement(
+                    "select id from notification_outbox where id = ? for update")) {
+                notificationLock.setObject(1, notificationId);
+                notificationLock.executeQuery();
+            }
+
+            var replacement = executor.submit(
+                    () -> auth.requestPasswordReset("person@example.com"));
+            assertThatThrownBy(() -> replacement.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            try (var challengeLock = connection.prepareStatement(
+                    "select id from auth_challenges where id = ? for update nowait")) {
+                challengeLock.setObject(1, challengeId);
+                assertThatThrownBy(challengeLock::executeQuery)
+                        .isInstanceOf(java.sql.SQLException.class)
+                        .extracting(error -> ((java.sql.SQLException) error).getSQLState())
+                        .isEqualTo("55P03");
+            }
+            connection.rollback();
+
+            assertThat(replacement.get(10, TimeUnit.SECONDS)).isNotNull();
+        }
+    }
+
+    @Test
     void fakeAndRealAuthenticationFlowsExposeTheSameInvalidCodeFailure() {
         var fakeReset = auth.requestPasswordReset("unknown@example.com");
         var realReset = auth.requestPasswordReset("person@example.com");

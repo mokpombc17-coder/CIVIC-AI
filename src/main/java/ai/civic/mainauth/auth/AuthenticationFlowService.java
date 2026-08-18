@@ -404,6 +404,18 @@ public class AuthenticationFlowService {
     }
 
     private void retirePendingChallengeNotificationsForUser(UUID userId, String purpose) {
+        jdbc.query("""
+                select challenge.id from auth_challenges challenge
+                where challenge.user_id = ? and challenge.purpose = ?
+                  and exists (
+                    select 1 from notification_outbox notification
+                    where notification.delivered_at is null
+                      and notification.event_type = ?
+                      and notification.payload ->> 'challenge_id' = challenge.id::text
+                  )
+                order by challenge.id
+                for update
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), userId, purpose, purpose);
         jdbc.update("""
                 update notification_outbox notification set delivered_at = now(), leased_until = null,
                     last_error_code = 'CHALLENGE_SUPERSEDED'
