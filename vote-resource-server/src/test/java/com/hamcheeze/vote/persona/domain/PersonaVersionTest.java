@@ -59,6 +59,20 @@ class PersonaVersionTest {
     }
 
     @Test
+    void predictedAdoptionRateRejectsPrecisionThatStorageCannotPreserve() {
+        assertThatThrownBy(() -> new PredictedAdoptionRate(
+                new BigDecimal("0.1234567")))
+                .isInstanceOf(PersonaDomainException.class)
+                .extracting(exception -> ((PersonaDomainException) exception)
+                        .violation().code())
+                .isEqualTo("PREDICTED_ADOPTION_RATE_SCALE_EXCEEDED");
+
+        assertThat(new PredictedAdoptionRate(
+                new BigDecimal("0.1234560")).value())
+                .isEqualByComparingTo("0.123456");
+    }
+
+    @Test
     void personaOwnedTextValuesRejectBlankOrSurroundingWhitespace() {
         assertThatThrownBy(() -> new PersonaUserId(" "))
                 .isInstanceOf(PersonaDomainException.class);

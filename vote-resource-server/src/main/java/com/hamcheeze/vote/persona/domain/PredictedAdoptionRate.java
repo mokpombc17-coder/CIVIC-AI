@@ -8,6 +8,7 @@ public record PredictedAdoptionRate(BigDecimal value) {
 
     private static final BigDecimal MIN = BigDecimal.ZERO;
     private static final BigDecimal MAX = BigDecimal.ONE;
+    public static final int MAX_SCALE = 6;
 
     public PredictedAdoptionRate {
         if (value == null) {
@@ -23,5 +24,12 @@ public record PredictedAdoptionRate(BigDecimal value) {
                     "predictedAdoptionRate must be between 0 and 1");
         }
         value = value.stripTrailingZeros();
+        if (value.scale() > MAX_SCALE) {
+            throw PersonaDomainException.invariant(
+                    "PREDICTED_ADOPTION_RATE_SCALE_EXCEEDED",
+                    "predictedAdoptionRate",
+                    "predictedAdoptionRate must not exceed " + MAX_SCALE
+                            + " decimal places");
+        }
     }
 }

@@ -95,7 +95,7 @@ public class PersonaGenerationDispatcher {
                         false,
                         "persona response generationId does not match");
             }
-            states.succeed(generation.id(), result.personaId());
+            states.succeed(generation.id(), source, result);
             log.info("Persona generation succeeded: generationId={}",
                     generation.id().value());
         } catch (PersonaSurveySourceException exception) {

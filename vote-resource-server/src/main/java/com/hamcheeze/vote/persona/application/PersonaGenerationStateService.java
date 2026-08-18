@@ -1,9 +1,14 @@
 package com.hamcheeze.vote.persona.application;
 
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
-import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
-import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
+import com.hamcheeze.vote.persona.domain.PersonaVersion;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
+import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,26 +17,31 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class PersonaGenerationStateService {
 
     private final PersonaGenerationRepository generations;
+    private final PersonaVersionRepository versions;
     private final Clock clock;
 
     @Autowired
     public PersonaGenerationStateService(
-            PersonaGenerationRepository generations
+            PersonaGenerationRepository generations,
+            PersonaVersionRepository versions
     ) {
-        this(generations, Clock.systemUTC());
+        this(generations, versions, Clock.systemUTC());
     }
 
     PersonaGenerationStateService(
             PersonaGenerationRepository generations,
+            PersonaVersionRepository versions,
             Clock clock
     ) {
         this.generations = Objects.requireNonNull(
                 generations, "generations");
+        this.versions = Objects.requireNonNull(versions, "versions");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -48,13 +58,37 @@ public class PersonaGenerationStateService {
     }
 
     @Transactional
-    public void succeed(
+    public PersonaVersion succeed(
             PersonaGenerationId generationId,
-            PersonaId personaId
+            PersonaSurveySource source,
+            PersonaCreationResult result
     ) {
+        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(result, "result");
+        if (!generationId.equals(result.generationId())) {
+            throw new IllegalArgumentException(
+                    "result generation ID must match");
+        }
         PersonaGeneration generation = requireGeneration(generationId);
-        generation.succeed(personaId, clock.instant());
+        PersonaSourceId sourceId = new PersonaSourceId(
+                source.responseId().value());
+        if (!generation.sourceResponseId().equals(sourceId)) {
+            throw new IllegalArgumentException(
+                    "source response ID must match generation source");
+        }
+        Instant succeededAt = clock.instant();
+        generation.succeed(result.personaId(), succeededAt);
         generations.save(generation);
+        return versions.insert(new PersonaVersion(
+                new PersonaVersionId(UUID.randomUUID()),
+                generation.id(),
+                new PersonaUserId(source.userId().value()),
+                result.personaId(),
+                result.predictedAdoptionRate(),
+                result.modelVersion(),
+                succeededAt,
+                PersonaSourceType.SURVEY_RESPONSE,
+                sourceId));
     }
 
     @Transactional

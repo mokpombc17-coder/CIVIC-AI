@@ -93,8 +93,12 @@ class PersonaGenerationDispatcherTest {
                 generationId,
                 PersonaCreationErrorCode.TIMEOUT.name(),
                 NOW.plusSeconds(30));
-        verify(states).succeed(
-                generationId, new PersonaId("persona-a"));
+        verify(states).succeed(generationId, source,
+                new PersonaCreationResult(
+                        generationId,
+                        new PersonaId("persona-a"),
+                        new PredictedAdoptionRate(new BigDecimal("0.72")),
+                        new PersonaModelVersion("model-v1")));
     }
 
     @Test
