@@ -1,6 +1,7 @@
 package ai.civic.mainauth.privacy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -200,6 +201,56 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("""
                 select count(*) from privacy_operations
                 where external_request_evidence_id = 'operator-evidence-race'
+                """, Integer.class)).isZero();
+    }
+
+    @Test
+    void revokedAdministratorSessionCannotEnqueueAnInflightPrivacyDeletion() throws Exception {
+        var administratorId = jdbc.queryForObject(
+                "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, administratorId);
+                lock.executeQuery();
+            }
+            var response = executor.submit(() -> mvc.perform(post("/api/v1/admin/privacy-operations")
+                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
+                            .header("X-CSRF-Token", administrator.csrfToken())
+                            .header("Origin", "https://localhost")
+                            .header("Sec-Fetch-Site", "same-origin")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"external_request_evidence_id":"operator-evidence-revoked-session",
+                                     "subject_id":"%s","scopes":["ACCOUNT"]}
+                                    """.formatted(subjectId)))
+                    .andReturn().getResponse().getStatus());
+
+            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var rotate = connection.prepareStatement("""
+                        update credentials set password_changed_at = now()
+                        where user_id = ?
+                    """);
+                    var revoke = connection.prepareStatement("""
+                        update sessions set revoked_at = now(), revocation_reason = 'PASSWORD_CHANGED'
+                        where user_id = ? and revoked_at is null
+                    """)) {
+                rotate.setObject(1, administratorId);
+                rotate.executeUpdate();
+                revoke.setObject(1, administratorId);
+                revoke.executeUpdate();
+            }
+            connection.commit();
+
+            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from privacy_operations
+                where external_request_evidence_id = 'operator-evidence-revoked-session'
                 """, Integer.class)).isZero();
     }
 

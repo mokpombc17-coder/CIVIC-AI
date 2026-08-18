@@ -12,7 +12,15 @@ public class AdminAuthorizationService {
     }
 
     public SessionService.SessionView requireAdmin(String sessionId, boolean highestOnly) {
-        var session = sessions.require(sessionId);
+        return requireAdmin(sessions.require(sessionId), highestOnly);
+    }
+
+    public SessionService.SessionView requireCurrentAdmin(String sessionId, boolean highestOnly) {
+        return requireAdmin(sessions.requireForTokenIssuance(sessionId), highestOnly);
+    }
+
+    private SessionService.SessionView requireAdmin(
+            SessionService.SessionView session, boolean highestOnly) {
         if (session.mustChangePassword()) {
             throw new AdminPolicyException("Administrator password rotation is required");
         }

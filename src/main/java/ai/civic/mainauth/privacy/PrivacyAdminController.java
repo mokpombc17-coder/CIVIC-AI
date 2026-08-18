@@ -64,7 +64,7 @@ public class PrivacyAdminController {
         var validated = operatorCommand.validate(new PrivacyOperatorCommand.Request(
                 body.externalRequestEvidenceId(), body.subjectId(), body.scopes(), true,
                 actor.absoluteExpiresAt(), false), clock.instant());
-        var operationId = operations.start(actor.userId(),
+        var operationId = operations.startAuthorized(sessionId,
                 validated.externalRequestEvidenceId(), validated.subjectId(),
                 validated.scopes(), validated.operatorAuthorizationVerified());
         return ResponseEntity.accepted().body(new OperationResponse(operationId, operations.status(operationId)));

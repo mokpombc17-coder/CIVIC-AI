@@ -1,6 +1,7 @@
 package ai.civic.mainauth.privacy;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
+import ai.civic.mainauth.admin.AdminAuthorizationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.Map;
@@ -15,10 +16,25 @@ public class PrivacyOperationService {
     private static final Set<String> ALLOWED_SCOPES = Set.of("ACCOUNT", "RAG");
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
+    private final AdminAuthorizationService authorization;
 
-    public PrivacyOperationService(JdbcTemplate jdbc, ObjectMapper json) {
+    public PrivacyOperationService(
+            JdbcTemplate jdbc, ObjectMapper json, AdminAuthorizationService authorization) {
         this.jdbc = jdbc;
         this.json = json;
+        this.authorization = authorization;
+    }
+
+    @Transactional
+    public UUID startAuthorized(
+            String sessionId,
+            String evidenceId,
+            UUID subjectId,
+            Set<String> scopes,
+            boolean requestVerified) {
+        lockHighestAdminRoleChanges();
+        var actor = authorization.requireCurrentAdmin(sessionId, true);
+        return startAfterAuthorization(evidenceId, subjectId, scopes, requestVerified);
     }
 
     @Transactional
@@ -30,6 +46,14 @@ public class PrivacyOperationService {
             boolean requestVerified) {
         lockHighestAdminRoleChanges();
         requireCurrentHighestAdministrator(actorId);
+        return startAfterAuthorization(evidenceId, subjectId, scopes, requestVerified);
+    }
+
+    private UUID startAfterAuthorization(
+            String evidenceId,
+            UUID subjectId,
+            Set<String> scopes,
+            boolean requestVerified) {
         if (!requestVerified || evidenceId == null || evidenceId.isBlank() || subjectId == null
                 || scopes == null || scopes.isEmpty() || !ALLOWED_SCOPES.containsAll(scopes)) {
             throw new IllegalArgumentException("Verified external request evidence and valid scope are required");
