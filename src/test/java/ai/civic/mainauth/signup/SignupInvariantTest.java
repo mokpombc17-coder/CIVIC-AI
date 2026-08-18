@@ -263,6 +263,43 @@ class SignupInvariantTest extends PostgresIntegrationTest {
                 .isOne();
     }
 
+    @Test
+    void replacementSignupLocksThePendingUserBeforeItsFlow() throws Exception {
+        var first = service.startSignup("lock-order@example.com");
+        service.completeSignup(first.flowId(), validRequest("lock-order@example.com", "Valid123!"));
+        jdbc.update("""
+                update auth_challenges set expires_at = now() - interval '1 minute'
+                where purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """);
+        var pendingUserId = jdbc.queryForObject(
+                "select id from users where normalized_email = 'lock-order@example.com'",
+                java.util.UUID.class);
+        var replacement = service.startSignup("lock-order@example.com");
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var userLock = connection.prepareStatement("select id from users where id = ? for update")) {
+                userLock.setObject(1, pendingUserId);
+                userLock.executeQuery();
+            }
+            var completion = executor.submit(() -> service.completeSignup(
+                    replacement.flowId(),
+                    validRequest("lock-order@example.com", "Replacement123!")));
+
+            assertThatThrownBy(() -> completion.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var flowLock = connection.prepareStatement(
+                    "select id from signup_flows where id = ? for update nowait")) {
+                flowLock.setObject(1, replacement.flowId());
+                assertThat(flowLock.executeQuery().next()).isTrue();
+            }
+            connection.commit();
+
+            assertThat(completion.get(10, TimeUnit.SECONDS).next()).isEqualTo("EMAIL_VERIFICATION");
+        }
+    }
+
     static Stream<String> invalidPasswords() {
         return Stream.of(
                 "Short1!", "onlyletters!", "NoSymbol123", "Whitespace 1!",
