@@ -14,8 +14,13 @@ class AuditWorkerBoundaryTest extends PostgresIntegrationTest {
 
     @Test
     void auditRoleCanOnlyInsertAuditEvents() {
+        assertThat(jdbc.queryForObject(
+                "select pg_has_role(current_user, 'civic_audit_insert_only', 'MEMBER')",
+                Boolean.class)).isTrue();
         assertThat(privilege("audit_events", "INSERT")).isTrue();
         assertThat(privilege("audit_events", "SELECT")).isFalse();
+        assertThat(columnPrivilege("audit_events", "id", "SELECT")).isTrue();
+        assertThat(columnPrivilege("audit_events", "payload", "SELECT")).isFalse();
         assertThat(privilege("audit_events", "UPDATE")).isFalse();
         assertThat(privilege("audit_events", "DELETE")).isFalse();
         assertThat(privilege("users", "SELECT")).isFalse();
@@ -26,5 +31,11 @@ class AuditWorkerBoundaryTest extends PostgresIntegrationTest {
         return jdbc.queryForObject(
                 "select has_table_privilege('civic_audit_insert_only', ?, ?)",
                 Boolean.class, table, privilege);
+    }
+
+    private boolean columnPrivilege(String table, String column, String privilege) {
+        return jdbc.queryForObject(
+                "select has_column_privilege('civic_audit_insert_only', ?, ?, ?)",
+                Boolean.class, table, column, privilege);
     }
 }
