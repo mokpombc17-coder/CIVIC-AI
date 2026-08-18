@@ -89,7 +89,7 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                         .header("Sec-Fetch-Site", "same-origin")
                         .cookie(flowCookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
+                .content("""
                                 {
                                   "email":"resend@example.com",
                                   "password":"Valid123!",
@@ -102,7 +102,10 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                                 """.formatted(
                                 "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
                                 "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a")))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(cookie().httpOnly("__Host-civic-auth-flow", true))
+                .andExpect(cookie().secure("__Host-civic-auth-flow", true))
+                .andExpect(cookie().maxAge("__Host-civic-auth-flow", 600));
 
         jdbc.update("update auth_challenges set last_sent_at = now() - interval '2 minutes'");
         mvc.perform(post("/api/v1/signup/verification/resend")

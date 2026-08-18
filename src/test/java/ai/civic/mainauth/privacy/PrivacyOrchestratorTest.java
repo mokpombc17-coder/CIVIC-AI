@@ -305,6 +305,31 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void oversizedAggregateEvidenceIsDeadLetteredBeforeTheNextResultIsConsumed() {
+        var subject = createSubject("privacy-result-oversized@example.com");
+        var operation = privacy.start("external-result-oversized-42", subject, Set.of("RAG"), true);
+        redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
+                "operation_id", operation.toString(),
+                "service_code", "RAG",
+                "result_status", "COMPLETE",
+                "aggregate_evidence", "x".repeat(256)
+        )).withStreamKey(PrivacyResultDispatcher.RESULT_STREAM));
+        redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
+                "operation_id", operation.toString(),
+                "service_code", "RAG",
+                "result_status", "COMPLETE",
+                "aggregate_evidence", "queries_anonymized=1"
+        )).withStreamKey(PrivacyResultDispatcher.RESULT_STREAM));
+
+        assertThat(resultDispatcher.dispatchOne()).isTrue();
+        assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_DEAD_LETTER_STREAM))
+                .isOne();
+        assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_STREAM)).isOne();
+        assertThat(resultDispatcher.dispatchOne()).isTrue();
+        assertThat(privacy.status(operation)).isEqualTo("COMPLETE");
+    }
+
+    @Test
     void resultWithoutAggregateEvidenceIsDeadLetteredAndCannotCompleteTheOperation() {
         var subject = createSubject("privacy-result-no-evidence@example.com");
         var operation = privacy.start("external-result-no-evidence-42", subject, Set.of("RAG"), true);

@@ -31,6 +31,7 @@ public class AuthenticationFlowService {
     private final ObjectMapper json;
     private final Clock clock;
     private final Argon2PasswordEncoder passwords = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
+    private final String dummyPasswordHash = passwords.encode("CivicDummyPassword1!");
 
     @Autowired
     public AuthenticationFlowService(
@@ -79,8 +80,10 @@ public class AuthenticationFlowService {
                 rs.getBoolean("two_factor_enabled"), rs.getBoolean("must_change_password"),
                 SessionService.SessionRole.valueOf(rs.getString("primary_role"))), normalized);
         var account = rows.isEmpty() ? null : rows.getFirst();
-        if (account == null || !"ACTIVE".equals(account.state())
-                || password == null || !safeMatches(password, account.passwordHash())) {
+        var eligible = account != null && "ACTIVE".equals(account.state());
+        var passwordHash = eligible ? account.passwordHash() : dummyPasswordHash;
+        var passwordMatches = password != null && safeMatches(password, passwordHash);
+        if (!eligible || !passwordMatches) {
             recordFailure(normalized, sourceIp);
             throw new AuthenticationException(PUBLIC_FAILURE);
         }

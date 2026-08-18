@@ -32,6 +32,9 @@ public class PrivacyResultDispatcher {
         var status = Objects.toString(values.get("result_status"), "");
         var evidence = Objects.toString(values.get("aggregate_evidence"), "");
         try {
+            if (evidence.length() > 255) {
+                throw new IllegalArgumentException("Aggregate evidence exceeds the durable limit");
+            }
             results.accept(UUID.fromString(operationId), service, status, evidence);
         } catch (IllegalArgumentException exception) {
             var deadLetter = new LinkedHashMap<String, String>();

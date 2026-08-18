@@ -68,7 +68,10 @@ public class SignupController {
         requirePreSession(request);
         requireMatchingFlow(flowId, cookieFlow);
         rateLimit(request, cookieFlow);
-        return ResponseEntity.accepted().body(signup.completeSignup(flowId, body));
+        var result = signup.completeSignup(flowId, body);
+        return ResponseEntity.accepted()
+                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flowId.toString()).toString())
+                .body(result);
     }
 
     @PostMapping("/verification/verify")

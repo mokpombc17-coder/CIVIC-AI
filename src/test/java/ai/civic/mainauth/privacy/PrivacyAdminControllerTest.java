@@ -2,6 +2,7 @@ package ai.civic.mainauth.privacy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -47,7 +48,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
 
     @Test
     void highestAdministratorCanValidateAndStartPrivacyDeletion() throws Exception {
-        mvc.perform(post("/api/v1/admin/privacy-operations")
+        var started = mvc.perform(post("/api/v1/admin/privacy-operations")
                         .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
                         .header("X-CSRF-Token", administrator.csrfToken())
                         .header("Origin", "https://localhost")
@@ -62,6 +63,16 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                                 """.formatted(subjectId)))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.operation_id").isString())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andReturn();
+
+        var operationId = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(started.getResponse().getContentAsString())
+                .path("operation_id").asText();
+        mvc.perform(get("/api/v1/admin/privacy-operations/{operationId}", operationId)
+                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operation_id").value(operationId))
                 .andExpect(jsonPath("$.status").value("PENDING"));
 
         assertThat(jdbc.queryForObject("""

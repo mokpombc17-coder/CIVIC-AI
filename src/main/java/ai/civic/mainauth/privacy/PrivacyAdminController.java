@@ -16,6 +16,7 @@ import java.util.UUID;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -66,6 +67,14 @@ public class PrivacyAdminController {
                 validated.externalRequestEvidenceId(), validated.subjectId(),
                 validated.scopes(), validated.operatorAuthorizationVerified());
         return ResponseEntity.accepted().body(new OperationResponse(operationId, operations.status(operationId)));
+    }
+
+    @GetMapping("/{operationId}")
+    ResponseEntity<OperationResponse> status(
+            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @org.springframework.web.bind.annotation.PathVariable UUID operationId) {
+        authorization.requireAdmin(sessionId, true);
+        return ResponseEntity.ok(new OperationResponse(operationId, operations.status(operationId)));
     }
 
     record StartRequest(
