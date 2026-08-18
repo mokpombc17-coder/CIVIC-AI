@@ -14,7 +14,7 @@ public class MainPrivacyDeletionHandler {
         this.jdbc = jdbc;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = {AdminPolicyException.class, IllegalArgumentException.class})
     public DeletionResult delete(UUID subjectId, String externalRequestEvidenceId) {
         var existing = jdbc.queryForObject(
                 "select count(*) from deletion_tombstones where subject_id = ?",

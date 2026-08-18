@@ -1,5 +1,6 @@
 package ai.civic.mainauth.privacy;
 
+import ai.civic.mainauth.admin.AdminPolicyException;
 import java.util.UUID;
 import java.util.LinkedHashMap;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -85,13 +86,21 @@ public class PrivacyCommandDispatcher {
                 set leased_until = now() + interval '30 seconds', attempt_count = attempt_count + 1
                 where id = ? and delivered_at is null
                 """, command.id());
-        var result = deletion.delete(command.subjectId(), command.evidenceId());
-        operations.recordResult(
-                command.operationId(),
-                "MAIN",
-                "COMPLETE",
-                "deleted=" + (result.deleted() ? 1 : 0)
-                        + ",already_deleted=" + (result.alreadyDeleted() ? 1 : 0));
+        try {
+            var result = deletion.delete(command.subjectId(), command.evidenceId());
+            operations.recordResult(
+                    command.operationId(),
+                    "MAIN",
+                    "COMPLETE",
+                    "deleted=" + (result.deleted() ? 1 : 0)
+                            + ",already_deleted=" + (result.alreadyDeleted() ? 1 : 0));
+        } catch (AdminPolicyException exception) {
+            operations.recordResult(
+                    command.operationId(), "MAIN", "FAILED", "deleted=0,policy_blocked=1");
+        } catch (IllegalArgumentException exception) {
+            operations.recordResult(
+                    command.operationId(), "MAIN", "FAILED", "deleted=0,subject_missing=1");
+        }
         markDelivered(command.id());
         return true;
     }

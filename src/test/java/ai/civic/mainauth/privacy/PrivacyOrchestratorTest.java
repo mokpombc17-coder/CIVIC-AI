@@ -30,6 +30,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
         jdbc.update("delete from privacy_operations");
         redis.delete(PrivacyCommandDispatcher.RAG_COMMAND_STREAM);
         redis.delete(PrivacyResultDispatcher.RESULT_STREAM);
+        redis.delete(PrivacyResultDispatcher.RESULT_DEAD_LETTER_STREAM);
     }
 
     @Test
@@ -109,6 +110,29 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void permanentMainDeletionPolicyFailureIsRecordedWithoutBlockingTheQueue() {
+        var subject = jdbc.queryForObject(
+                "select id from users where normalized_email = 'bootstrap@example.test'",
+                UUID.class);
+        var operation = privacy.start(
+                "external-last-admin-42", subject, Set.of("ACCOUNT"), true);
+
+        assertThat(dispatcher.dispatchMainOne()).isTrue();
+
+        assertThat(privacy.status(operation)).isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("""
+                select aggregate_evidence from privacy_results
+                where operation_id = ? and service_code = 'MAIN'
+                """, String.class, operation)).isEqualTo("deleted=0,policy_blocked=1");
+        assertThat(jdbc.queryForObject("""
+                select count(*) from privacy_command_outbox
+                where operation_id = ? and delivered_at is not null
+                """, Integer.class, operation)).isOne();
+        assertThat(jdbc.queryForObject(
+                "select state from users where id = ?", String.class, subject)).isEqualTo("ACTIVE");
+    }
+
+    @Test
     void workerPublishesRagCommandAndConsumesDurableAggregateResult() {
         var subject = createSubject("privacy-rag@example.com");
         var operation = privacy.start("external-rag-42", subject, Set.of("RAG"), true);
@@ -128,6 +152,33 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
                 "result_status", "COMPLETE",
                 "aggregate_evidence", "queries_anonymized=2,citations_deleted=3"
         )).withStreamKey(PrivacyResultDispatcher.RESULT_STREAM));
+        assertThat(resultDispatcher.dispatchOne()).isTrue();
+
+        assertThat(privacy.status(operation)).isEqualTo("COMPLETE");
+        assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_STREAM)).isZero();
+    }
+
+    @Test
+    void permanentlyInvalidResultIsDeadLetteredBeforeTheNextResultIsConsumed() {
+        var subject = createSubject("privacy-result-poison@example.com");
+        var operation = privacy.start("external-result-poison-42", subject, Set.of("RAG"), true);
+        redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
+                "operation_id", "not-a-uuid",
+                "service_code", "RAG",
+                "result_status", "COMPLETE",
+                "aggregate_evidence", "invalid=1"
+        )).withStreamKey(PrivacyResultDispatcher.RESULT_STREAM));
+        redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
+                "operation_id", operation.toString(),
+                "service_code", "RAG",
+                "result_status", "COMPLETE",
+                "aggregate_evidence", "queries_anonymized=1"
+        )).withStreamKey(PrivacyResultDispatcher.RESULT_STREAM));
+
+        assertThat(resultDispatcher.dispatchOne()).isTrue();
+        assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_DEAD_LETTER_STREAM))
+                .isOne();
+        assertThat(redis.opsForStream().size(PrivacyResultDispatcher.RESULT_STREAM)).isOne();
         assertThat(resultDispatcher.dispatchOne()).isTrue();
 
         assertThat(privacy.status(operation)).isEqualTo("COMPLETE");
