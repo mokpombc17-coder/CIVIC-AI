@@ -206,13 +206,15 @@ public class SignupFlowService {
 
     @Transactional(noRollbackFor = SignupValidationException.class)
     public void verifyEmail(UUID flowId, String code) {
+        var userId = lockSignupVerificationUser(flowId);
         Map<String, Object> challenge;
         try {
             challenge = jdbc.queryForMap("""
                     select id, user_id, code_hash, attempt_count, expires_at, consumed_at
-                    from auth_challenges where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                    from auth_challenges
+                    where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION' and user_id = ?
                     for update
-                    """, sha256(flowId.toString()));
+                    """, sha256(flowId.toString()), userId);
         } catch (EmptyResultDataAccessException exception) {
             throw new SignupValidationException("Verification flow is invalid");
         }
@@ -238,6 +240,22 @@ public class SignupFlowService {
                 from users where id = ? and state = 'ACTIVE'
                 on conflict (user_id, account_state_version) do nothing
                 """, challenge.get("user_id"));
+    }
+
+    private UUID lockSignupVerificationUser(UUID flowId) {
+        var userIds = jdbc.query("""
+                select user_id from auth_challenges
+                where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), sha256(flowId.toString()));
+        if (userIds.size() != 1) throw new SignupValidationException("Verification flow is invalid");
+        var userId = userIds.getFirst();
+        var locked = jdbc.query("""
+                select id from users
+                where id = ? and state = 'PENDING_EMAIL_VERIFICATION' and deleted_at is null
+                for update
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), userId);
+        if (locked.size() != 1) throw new SignupValidationException("Verification flow is invalid");
+        return userId;
     }
 
     @Transactional

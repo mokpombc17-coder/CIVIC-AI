@@ -8,6 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.stream.Stream;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -167,6 +170,46 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("account_state_outbox", "state = 'ACTIVE' and account_state_version = 0"
                 + " and user_id in (select id from users where origin = 'SIGNUP')"))
                 .isOne();
+    }
+
+    @Test
+    void signupVerificationLocksTheUserBeforeConsumingItsChallenge() throws Exception {
+        var flow = service.startSignup("verify-lock-order@example.com");
+        service.completeSignup(
+                flow.flowId(), validRequest("verify-lock-order@example.com", "Valid123!"));
+        var userId = jdbc.queryForObject(
+                "select id from users where normalized_email = 'verify-lock-order@example.com'",
+                java.util.UUID.class);
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """, MessageDigest.getInstance("SHA-256")
+                        .digest("123456".getBytes(StandardCharsets.UTF_8)), userId);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            connection.createStatement().execute("set local lock_timeout = '500ms'");
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var verification = executor.submit(() -> service.verifyEmail(flow.flowId(), "123456"));
+
+            assertThatThrownBy(() -> verification.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var delete = connection.prepareStatement("""
+                        delete from auth_challenges
+                        where user_id = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                    """)) {
+                delete.setObject(1, userId);
+                assertThat(delete.executeUpdate()).isOne();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> verification.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(SignupValidationException.class);
+        }
     }
 
     @Test
