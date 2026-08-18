@@ -2,7 +2,7 @@ package com.hamcheeze.vote.survey.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
-import com.hamcheeze.vote.survey.application.query.CurrentPersonaQueryService;
+import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;

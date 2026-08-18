@@ -1,8 +1,8 @@
 package com.hamcheeze.vote.survey.application.query;
 
-import com.hamcheeze.vote.survey.application.persona.PersonaSurveySourceAssembler;
-import com.hamcheeze.vote.survey.application.persona.PersonaSurveySourceErrorCode;
-import com.hamcheeze.vote.survey.application.persona.PersonaSurveySourceException;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceAssembler;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;

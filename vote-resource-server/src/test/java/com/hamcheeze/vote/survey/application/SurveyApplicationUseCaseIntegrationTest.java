@@ -2,10 +2,10 @@ package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
-import com.hamcheeze.vote.survey.application.port.in.PersonaSurveySourceQueryPort;
-import com.hamcheeze.vote.survey.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
-import com.hamcheeze.vote.survey.application.query.CurrentPersonaQueryService;
+import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
@@ -24,7 +24,7 @@ import com.hamcheeze.vote.survey.domain.response.ShortTextAnswer;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundEnforcementMode;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundStatus;
-import com.hamcheeze.vote.survey.domain.persona.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -225,7 +225,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(restoredFirst.answers().getFirst().question().prompt())
                 .isEqualTo("자신을 한 문장으로 표현해주세요.");
         assertThat(restoredFirst.answers().getFirst().value())
-                .isInstanceOf(com.hamcheeze.vote.survey.application.persona
+                .isInstanceOf(com.hamcheeze.vote.persona.application
                         .PersonaSurveySource.TextValue.class);
     }
 

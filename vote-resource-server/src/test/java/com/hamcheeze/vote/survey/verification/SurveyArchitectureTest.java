@@ -22,10 +22,11 @@ class SurveyArchitectureTest {
             "org.springframework.",
             "jakarta.persistence.",
             "jakarta.servlet.",
-            "org.hibernate.");
+            "org.hibernate.",
+            "com.hamcheeze.vote.persona.");
 
     @Test
-    void domainClassesHaveNoSpringJpaOrWebDependencies()
+    void domainClassesHaveNoInfrastructureOrPersonaDependencies()
             throws Exception {
         for (Path root : classPathRoots()) {
             try (var paths = Files.walk(root)) {

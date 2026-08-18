@@ -2,20 +2,21 @@ package com.hamcheeze.vote.survey.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
-import com.hamcheeze.vote.survey.application.query.CurrentPersonaQueryService;
-import com.hamcheeze.vote.survey.application.persona.CurrentPersonaStatus;
+import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
+import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.response.SurveySubmissionOutcome;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.survey.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
-import com.hamcheeze.vote.survey.domain.persona.PersonaGeneration;
-import com.hamcheeze.vote.survey.domain.persona.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaGeneration;
+import com.hamcheeze.vote.persona.domain.PersonaId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -114,7 +115,7 @@ class SurveyUserControllerTest {
             throws Exception {
         PersonaGeneration generation = PersonaGeneration.pending(
                 new PersonaGenerationId(UUID.randomUUID()),
-                new SurveyResponseId(UUID.randomUUID()),
+                new PersonaSourceId(UUID.randomUUID()),
                 Instant.parse("2026-08-14T00:00:00Z"));
         generation.startProcessing(
                 Instant.parse("2026-08-14T00:00:01Z"));

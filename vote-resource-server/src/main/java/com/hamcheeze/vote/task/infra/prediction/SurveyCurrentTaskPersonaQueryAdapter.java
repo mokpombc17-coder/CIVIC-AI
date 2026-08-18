@@ -1,7 +1,7 @@
 package com.hamcheeze.vote.task.infra.prediction;
 
-import com.hamcheeze.vote.survey.application.persona.CurrentPersonaStatus;
-import com.hamcheeze.vote.survey.application.query.CurrentPersonaQueryService;
+import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
+import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;

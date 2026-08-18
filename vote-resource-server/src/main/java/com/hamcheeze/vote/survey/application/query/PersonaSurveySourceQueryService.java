@@ -1,9 +1,10 @@
 package com.hamcheeze.vote.survey.application.query;
 
-import com.hamcheeze.vote.survey.application.persona.PersonaSurveySource;
-import com.hamcheeze.vote.survey.application.persona.PersonaSurveySourceAssembler;
-import com.hamcheeze.vote.survey.application.persona.PersonaSurveySourceException;
-import com.hamcheeze.vote.survey.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.PersonaSurveySource;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceAssembler;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
+import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
@@ -40,9 +41,10 @@ public class PersonaSurveySourceQueryService
     @Override
     @Transactional(readOnly = true)
     public PersonaSurveySource getByResponseId(
-            SurveyResponseId responseId
+            PersonaSourceId sourceId
     ) {
-        Objects.requireNonNull(responseId, "responseId");
+        Objects.requireNonNull(sourceId, "sourceId");
+        SurveyResponseId responseId = new SurveyResponseId(sourceId.value());
         SurveyResponse response = responses.findById(responseId)
                 .orElseThrow(() ->
                         PersonaSurveySourceException.notFound(responseId));

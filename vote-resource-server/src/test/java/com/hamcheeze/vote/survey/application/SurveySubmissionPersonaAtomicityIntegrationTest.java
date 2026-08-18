@@ -2,8 +2,8 @@ package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
-import com.hamcheeze.vote.survey.application.persona.PersonaGenerationPersistenceException;
-import com.hamcheeze.vote.survey.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceException;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.round.SurveyRoundService;
 import com.hamcheeze.vote.survey.domain.common.SurveyActorId;

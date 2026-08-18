@@ -1,9 +1,9 @@
 package com.hamcheeze.vote.task.infra.prediction;
 
-import com.hamcheeze.vote.survey.application.persona.CurrentPersonaStatus;
-import com.hamcheeze.vote.survey.application.query.CurrentPersonaQueryService;
-import com.hamcheeze.vote.survey.domain.common.PersonaGenerationId;
-import com.hamcheeze.vote.survey.domain.persona.PersonaId;
+import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
+import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import org.junit.jupiter.api.Test;
