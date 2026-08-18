@@ -134,8 +134,12 @@ public class AuthenticationFlowService {
     }
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
-    public UUID requestTwoFactorEnable(UUID userId, String email) {
+    public UUID requestTwoFactorEnable(String sessionId, UUID userId, String email) {
         var lockedIdentity = lockActiveUserIdentity(userId);
+        var currentSession = sessions.requireLocked(sessionId);
+        if (!userId.equals(currentSession.userId())) {
+            throw new AuthenticationException(PUBLIC_FAILURE);
+        }
         if (!lockedIdentity.equals(normalize(email))) {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }

@@ -94,7 +94,8 @@ public class AccountController {
         var session = requireMutation(sessionId, csrfToken, request);
         if (authFlow == null) {
             var profile = profiles.get(session);
-            var flow = authentication.requestTwoFactorEnable(session.userId(), profile.email());
+            var flow = authentication.requestTwoFactorEnable(
+                    sessionId, session.userId(), profile.email());
             return ResponseEntity.accepted()
                     .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString())
                     .body(Map.of("next", "EMAIL_CODE"));

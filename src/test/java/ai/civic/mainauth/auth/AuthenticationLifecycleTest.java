@@ -459,7 +459,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     void disablingTwoFactorConsumesPendingLoginAndEnableChallenges() throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var pendingLogin = auth.login("person@example.com", "Valid123!", "127.0.0.1");
-        var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
+        var pendingEnable = requestTwoFactorEnable();
         var enablingSession = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         jdbc.update("""
                 update auth_challenges set code_hash = ?
@@ -484,12 +484,13 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void enablingTwoFactorWaitsForLogoutAndRejectsTheRevokedSession() throws Exception {
-        var flow = auth.requestTwoFactorEnable(userId, "person@example.com");
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        var flow = auth.requestTwoFactorEnable(
+                session.sessionId(), userId, "person@example.com");
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
                 """, sha256("123456"), userId);
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
@@ -523,6 +524,44 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 "select two_factor_enabled from credentials where user_id = ?",
                 Boolean.class,
                 userId)).isFalse();
+    }
+
+    @Test
+    void requestingTwoFactorEnableWaitsForLogoutAndCreatesNoChallenge() throws Exception {
+        var challengesBefore = count("auth_challenges");
+        var notificationsBefore = count("notification_outbox");
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("""
+                    select session_hash from sessions
+                    where user_id = ? and revoked_at is null for update
+                    """)) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+
+            var request = executor.submit(() -> auth.requestTwoFactorEnable(
+                    session.sessionId(), userId, "person@example.com"));
+            assertThatThrownBy(() -> request.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var revoke = connection.prepareStatement("""
+                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
+                    where user_id = ? and revoked_at is null
+                    """)) {
+                revoke.setObject(1, userId);
+                assertThat(revoke.executeUpdate()).isOne();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> request.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+        assertThat(count("notification_outbox")).isEqualTo(notificationsBefore);
     }
 
     @Test
@@ -607,7 +646,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void enablingTwoFactorWaitsForTheUserSecurityLockAndCannotOverrideDisable() throws Exception {
-        var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
+        var pendingEnable = requestTwoFactorEnable();
         var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         jdbc.update("""
                 update auth_challenges set code_hash = ?
@@ -652,7 +691,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void enablingTwoFactorRejectsASessionRevokedWhileWaitingForTheUserLock() throws Exception {
-        var pendingEnable = auth.requestTwoFactorEnable(userId, "person@example.com");
+        var pendingEnable = requestTwoFactorEnable();
         var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         jdbc.update("""
                 update auth_challenges set code_hash = ?
@@ -700,8 +739,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 lock.setObject(1, userId);
                 lock.executeQuery();
             }
-            var request = executor.submit(
-                    () -> auth.requestTwoFactorEnable(userId, "person@example.com"));
+            var request = executor.submit(this::requestTwoFactorEnable);
 
             assertThatThrownBy(() -> request.get(250, TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);
@@ -929,7 +967,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Test
     void passwordResetQueuesDeliveryWhileTwoFactorStillDeliversSynchronously() {
         auth.requestPasswordReset("person@example.com");
-        auth.requestTwoFactorEnable(userId, "person@example.com");
+        requestTwoFactorEnable();
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from notification_outbox
@@ -1007,6 +1045,12 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         auth.requestReactivation("person@example.com", "Valid123!");
 
         assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+    }
+
+    private UUID requestTwoFactorEnable() {
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        return auth.requestTwoFactorEnable(
+                session.sessionId(), userId, "person@example.com");
     }
 
     private int count(String table) {
