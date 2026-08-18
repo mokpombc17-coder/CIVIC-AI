@@ -118,6 +118,7 @@ public class AuthenticationFlowService {
         var encoded = jdbc.queryForObject(
                 "select password_hash from credentials where user_id = ? for update", String.class, userId);
         if (!safeMatches(currentPassword, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
+        if (safeMatches(newPassword, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
         jdbc.update("""
                 update credentials set password_hash = ?, must_change_password = false,
                     password_changed_at = now() where user_id = ?
@@ -193,6 +194,10 @@ public class AuthenticationFlowService {
         requireValidPassword(newPassword);
         lockChallengeUser(flowId, "PASSWORD_RESET");
         var verified = consumeChallenge(flowId, "PASSWORD_RESET", code);
+        var encoded = jdbc.queryForObject(
+                "select password_hash from credentials where user_id = ? for update",
+                String.class, verified.userId());
+        if (safeMatches(newPassword, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
         jdbc.update("""
                 update credentials set password_hash = ?, must_change_password = false,
                     password_changed_at = now() where user_id = ?

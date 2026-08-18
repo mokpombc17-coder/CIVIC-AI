@@ -258,6 +258,47 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void mandatoryPasswordRotationRejectsReusingTheStoredPassword() {
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        jdbc.update("update credentials set must_change_password = true where user_id = ?", userId);
+        var before = jdbc.queryForObject(
+                "select password_hash from credentials where user_id = ?", String.class, userId);
+
+        assertThatThrownBy(() -> auth.changePassword(
+                session.sessionId(), userId, "Valid123!", "Valid123!"))
+                .isInstanceOf(AuthenticationException.class);
+
+        assertThat(jdbc.queryForObject(
+                "select password_hash from credentials where user_id = ?", String.class, userId))
+                .isEqualTo(before);
+        assertThat(jdbc.queryForObject(
+                "select must_change_password from credentials where user_id = ?", Boolean.class, userId))
+                .isTrue();
+        assertThat(sessions.require(session.sessionId()).userId()).isEqualTo(userId);
+    }
+
+    @Test
+    void passwordResetCannotClearMandatoryRotationByReusingTheStoredPassword() throws Exception {
+        jdbc.update("update credentials set must_change_password = true where user_id = ?", userId);
+        var reset = auth.requestPasswordReset("person@example.com");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where flow_hash = ? and purpose = 'PASSWORD_RESET'
+                """, sha256("654321"), sha256(reset.toString()));
+
+        assertThatThrownBy(() -> auth.completePasswordReset(reset, "654321", "Valid123!"))
+                .isInstanceOf(AuthenticationException.class);
+
+        assertThat(jdbc.queryForObject(
+                "select must_change_password from credentials where user_id = ?", Boolean.class, userId))
+                .isTrue();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where flow_hash = ? and consumed_at is not null
+                """, Integer.class, sha256(reset.toString()))).isOne();
+    }
+
+    @Test
     void expiredSessionRevocationRemainsCommittedAfterAuthenticationFailure() {
         var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         jdbc.update("update sessions set idle_expires_at = now() - interval '1 second'");
