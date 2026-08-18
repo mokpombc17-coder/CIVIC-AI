@@ -111,7 +111,7 @@ public class AccountController {
             @RequestBody PasswordConfirmation body,
             HttpServletRequest request) {
         var session = requireMutation(sessionId, csrfToken, request);
-        authentication.disableTwoFactor(session.userId(), body.password());
+        authentication.disableTwoFactor(sessionId, session.userId(), body.password());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
                 .build();

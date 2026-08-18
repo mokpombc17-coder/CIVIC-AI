@@ -151,8 +151,16 @@ public class AuthenticationFlowService {
     }
 
     @Transactional
-    public void disableTwoFactor(UUID userId, String password) {
+    public void disableTwoFactor(String sessionId, UUID userId, String password) {
         lockUser(userId);
+        var states = jdbc.queryForList("select state from users where id = ?", String.class, userId);
+        if (states.size() != 1 || !"ACTIVE".equals(states.getFirst())) {
+            throw new AuthenticationException(PUBLIC_FAILURE);
+        }
+        var currentSession = sessions.require(sessionId);
+        if (!userId.equals(currentSession.userId())) {
+            throw new AuthenticationException(PUBLIC_FAILURE);
+        }
         confirmPassword(userId, password);
         jdbc.update("""
                 update credentials set two_factor_enabled = false,

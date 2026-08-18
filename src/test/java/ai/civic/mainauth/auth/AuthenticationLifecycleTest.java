@@ -319,7 +319,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                   and consumed_at is null
                 """, sha256("123456"), userId);
 
-        auth.disableTwoFactor(userId, "Valid123!");
+        auth.disableTwoFactor(enablingSession.sessionId(), userId, "Valid123!");
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from auth_challenges
@@ -332,6 +332,47 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThatThrownBy(() -> auth.enableTwoFactor(
                 enablingSession.sessionId(), userId, pendingEnable, "123456"))
                 .isInstanceOf(AuthenticationException.class);
+    }
+
+    @Test
+    void disablingTwoFactorRevalidatesActiveStateAfterAcquiringTheUserLifecycleLock()
+            throws Exception {
+        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var response = executor.submit(() -> mvc.perform(post("/api/v1/account/2fa/disable")
+                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
+                            .header("X-CSRF-Token", session.csrfToken())
+                            .header("Origin", "https://localhost")
+                            .header("Sec-Fetch-Site", "same-origin")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"password":"Valid123!"}
+                                    """))
+                    .andReturn().getResponse().getStatus());
+
+            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var update = connection.prepareStatement(
+                    "update users set state = 'DEACTIVATED' where id = ?")) {
+                update.setObject(1, userId);
+                update.executeUpdate();
+            }
+            connection.commit();
+
+            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+        }
+
+        assertThat(jdbc.queryForObject(
+                "select two_factor_enabled from credentials where user_id = ?",
+                Boolean.class,
+                userId)).isTrue();
     }
 
     @Test
