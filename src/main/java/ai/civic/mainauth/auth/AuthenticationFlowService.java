@@ -65,6 +65,7 @@ public class AuthenticationFlowService {
         var normalized = normalize(email);
         if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
         lockAuthenticationIdentity(normalized);
+        if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
         var identities = jdbc.query("""
                 select id from users where normalized_email = ? for update
                 """, (rs, rowNum) -> rs.getObject("id", UUID.class), normalized);
@@ -405,9 +406,37 @@ public class AuthenticationFlowService {
         var users = jdbc.query("""
                 select user_id from auth_challenges where flow_hash = ? and purpose = ?
                 """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), sha256(flowId.toString()), purpose);
-        if (users.size() != 1) throw new AuthenticationException(CODE_FAILURE);
+        if (users.size() != 1) {
+            recordOpaqueCompletionAttempt(flowId, purpose);
+            throw new AuthenticationException(CODE_FAILURE);
+        }
         lockUser(users.getFirst());
         return users.getFirst();
+    }
+
+    private void recordOpaqueCompletionAttempt(UUID flowId, String purpose) {
+        var attemptKey = sha256("opaque-completion\0" + purpose + "\0" + flowId);
+        var lockKey = ByteBuffer.wrap(attemptKey).getLong();
+        jdbc.queryForObject(
+                "select pg_advisory_xact_lock(?)", (rs, rowNum) -> Boolean.TRUE, lockKey);
+
+        // A bounded set of non-personal sentinel rows gives unknown flows the same serialized
+        // lock-and-write shape as real invalid-code attempts without retaining the submitted flow.
+        var shard = Byte.toUnsignedInt(attemptKey[Long.BYTES]);
+        var shardHash = sha256("opaque-completion-shard\0" + purpose + "\0" + shard);
+        jdbc.update("""
+                insert into auth_challenges(
+                    flow_hash, user_id, purpose, target_identity, code_hash,
+                    attempt_count, expires_at, consumed_at
+                ) values (?, null, 'OPAQUE_COMPLETION', null, null, 1,
+                          now() + interval '100 years', now())
+                on conflict(flow_hash) do update set
+                    attempt_count = case
+                        when auth_challenges.attempt_count >= 2147483646 then 1
+                        else auth_challenges.attempt_count + 1
+                    end,
+                    consumed_at = now()
+                """, shardHash);
     }
 
     private void lockUser(UUID userId) {

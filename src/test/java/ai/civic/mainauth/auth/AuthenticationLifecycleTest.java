@@ -192,6 +192,37 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void queuedLoginAttemptsRecheckThrottleAfterTheIdentityLock() throws Exception {
+        var identity = "person@example.com";
+        var sourceIp = "127.0.0.1";
+        var lockKey = ByteBuffer.wrap(sha256(identity)).getLong();
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newFixedThreadPool(2)) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
+                lock.setLong(1, lockKey);
+                lock.executeQuery();
+            }
+
+            var first = executor.submit(() -> captureFailure(identity, "Wrong123!"));
+            var second = executor.submit(() -> captureFailure(identity, "Wrong123!"));
+            assertThatThrownBy(() -> first.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            assertThatThrownBy(() -> second.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            connection.commit();
+
+            assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo("Email or password is invalid");
+            assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo("Email or password is invalid");
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select failure_count from login_throttles
+                where identity_hash = ? and source_ip = ?::inet
+                """, Integer.class, sha256(identity), sourceIp)).isOne();
+    }
+
+    @Test
     void failedLoginExpiresOnlyStaleThrottleIdentities() {
         jdbc.update("""
                 insert into login_throttles(identity_hash, source_ip, last_failure_at)
@@ -1021,6 +1052,36 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                         () -> auth.completeReactivation(fakeReactivation, "000000")))
                 .isEqualTo(captureAuthenticationFailure(
                         () -> auth.completeReactivation(realReactivation, "000000")));
+    }
+
+    @Test
+    void fakeFlowCompletionSerializesAndPersistsOpaqueAttemptWork() throws Exception {
+        var fakeFlow = auth.requestPasswordReset("unknown@example.com");
+        var lockKey = ByteBuffer.wrap(sha256(
+                "opaque-completion\0PASSWORD_RESET\0" + fakeFlow)).getLong();
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
+                lock.setLong(1, lockKey);
+                lock.executeQuery();
+            }
+
+            var completion = executor.submit(() -> captureAuthenticationFailure(
+                    () -> auth.completePasswordReset(fakeFlow, "000000", "Changed123!")));
+            assertThatThrownBy(() -> completion.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            connection.commit();
+
+            assertThat(completion.get(10, TimeUnit.SECONDS))
+                    .isEqualTo("Authentication code is invalid");
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select sum(attempt_count) from auth_challenges
+                where purpose = 'OPAQUE_COMPLETION'
+                """, Integer.class)).isOne();
     }
 
     @Test
