@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.infra.persistence.jpa;
 
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
 import com.hamcheeze.vote.task.application.idempotency.TaskSubmissionReceipt;
+import com.hamcheeze.vote.task.application.idempotency.TaskSubmissionReceiptStatus;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionReceiptRepository;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import jakarta.persistence.EntityManager;
@@ -62,6 +63,10 @@ public class TaskSubmissionReceiptJpaAdapter
         if (entity == null) {
             throw new IllegalStateException(
                     "task submission receipt disappeared during completion");
+        }
+        if (entity.status() != TaskSubmissionReceiptStatus.PROCESSING) {
+            throw new IllegalStateException(
+                    "completed task submission receipt is immutable");
         }
         entity.completeFrom(receipt);
         entityManager.flush();

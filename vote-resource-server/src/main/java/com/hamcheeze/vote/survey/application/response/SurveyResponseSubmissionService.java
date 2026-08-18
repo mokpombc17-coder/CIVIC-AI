@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.application.response;
 
+import com.hamcheeze.vote.shared.application.UserTransactionLock;
 import com.hamcheeze.vote.survey.application.idempotency.IdempotentSurveySubmissionExecutor;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyCommand;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyExecution;
@@ -40,6 +41,7 @@ public class SurveyResponseSubmissionService {
     private final SurveyContentVersionRepository contents;
     private final SurveyResponseRepository responses;
     private final PersonaGenerationRepository personaGenerations;
+    private final UserTransactionLock userTransactions;
     private final SurveySubmissionRequestHashFactory requestHashFactory =
             new SurveySubmissionRequestHashFactory();
     private final SurveySubmissionPolicy submissionPolicy =
@@ -53,10 +55,11 @@ public class SurveyResponseSubmissionService {
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
-            PersonaGenerationRepository personaGenerations
+            PersonaGenerationRepository personaGenerations,
+            UserTransactionLock userTransactions
     ) {
         this(idempotency, outcomeCodec, rounds, contents, responses,
-                personaGenerations, Clock.systemUTC());
+                personaGenerations, userTransactions, Clock.systemUTC());
     }
 
     SurveyResponseSubmissionService(
@@ -66,6 +69,7 @@ public class SurveyResponseSubmissionService {
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
             PersonaGenerationRepository personaGenerations,
+            UserTransactionLock userTransactions,
             Clock clock
     ) {
         this.idempotency = Objects.requireNonNull(
@@ -77,6 +81,8 @@ public class SurveyResponseSubmissionService {
         this.responses = Objects.requireNonNull(responses, "responses");
         this.personaGenerations = Objects.requireNonNull(
                 personaGenerations, "personaGenerations");
+        this.userTransactions = Objects.requireNonNull(
+                userTransactions, "userTransactions");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -109,6 +115,7 @@ public class SurveyResponseSubmissionService {
             SurveyUserId userId,
             SubmitSurveyResponseCommand command
     ) {
+        userTransactions.lock(userId.value());
         SurveyRound lockedRound = rounds
                 .findByIdForShare(command.roundId())
                 .orElse(null);

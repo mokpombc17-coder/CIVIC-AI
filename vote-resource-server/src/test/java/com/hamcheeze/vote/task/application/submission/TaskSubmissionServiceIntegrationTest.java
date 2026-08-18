@@ -1,0 +1,548 @@
+package com.hamcheeze.vote.task.application.submission;
+
+import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.shared.application.UserTransactionLock;
+import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyErrorCode;
+import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
+import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
+import com.hamcheeze.vote.task.domain.common.TaskActorId;
+import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
+import com.hamcheeze.vote.task.domain.common.TaskUserId;
+import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
+import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
+import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
+import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
+import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskQuestion;
+import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
+import com.hamcheeze.vote.task.domain.task.TaskStatus;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest(properties = {
+        "vote.survey.bootstrap.enabled=false",
+        "vote.task.lifecycle.enabled=false",
+        "vote.task.prediction.enabled=false"
+})
+@ActiveProfiles({"local", "test"})
+class TaskSubmissionServiceIntegrationTest {
+
+    private static final AtomicLong SURVEY_SEQUENCE =
+            new AtomicLong();
+    private static final TaskActorId ADMIN =
+            new TaskActorId("task-submission-test-admin");
+
+    @Autowired
+    private TaskSubmissionService service;
+
+    @Autowired
+    private TaskRepository tasks;
+
+    @Autowired
+    private TaskPredictionRepository predictions;
+
+    @Autowired
+    private TaskSubmissionRepository submissions;
+
+    @Autowired
+    private TaskAdministrationService administration;
+
+    @Autowired
+    private UserTransactionLock userTransactions;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void resetData() {
+        jdbcTemplate.execute("TRUNCATE TABLE tasks CASCADE");
+        jdbcTemplate.execute(
+                "TRUNCATE TABLE survey_content_versions CASCADE");
+    }
+
+    @Test
+    void successReplayWinsBeforeTaskClosureAndPersonaChange() {
+        Fixture fixture = fixture("replay-user");
+        String key = UUID.randomUUID().toString();
+        TaskSubmissionService.SubmitTaskCommand command =
+                command(fixture, "첫 제출");
+
+        TaskSubmissionService.SubmissionExecution first = service.submit(
+                fixture.userId(), key, command);
+        administration.closeEarly(
+                fixture.task().id(), "replay verification", ADMIN);
+        insertSucceededPersona(
+                fixture.userId().value(), Instant.now(), "new");
+
+        TaskSubmissionService.SubmissionExecution replay = service.submit(
+                fixture.userId(), key, command);
+
+        assertThat(first.replayed()).isFalse();
+        assertThat(first.outcome().succeeded()).isTrue();
+        assertThat(replay.replayed()).isTrue();
+        assertThat(replay.outcome()).isEqualTo(first.outcome());
+        assertThat(submissionCount(fixture)).isEqualTo(1);
+    }
+
+    @Test
+    void sameKeyDifferentBodyIsIdempotencyConflict() {
+        Fixture fixture = fixture("conflict-user");
+        String key = UUID.randomUUID().toString();
+        service.submit(fixture.userId(), key, command(fixture, "원본"));
+
+        assertThatThrownBy(() -> service.submit(
+                fixture.userId(), key, command(fixture, "변경")))
+                .isInstanceOfSatisfying(
+                        TaskIdempotencyException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo(TaskIdempotencyErrorCode
+                                        .IDEMPOTENCY_CONFLICT));
+        assertThat(submissionCount(fixture)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentSameKeyExecutesOnceAndReplays() throws Exception {
+        Fixture fixture = fixture("same-key-concurrent-user");
+        String key = UUID.randomUUID().toString();
+        TaskSubmissionService.SubmitTaskCommand command =
+                command(fixture, "동일 요청");
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<TaskSubmissionService.SubmissionExecution> first =
+                    executor.submit(() -> {
+                        start.await();
+                        return service.submit(
+                                fixture.userId(), key, command);
+                    });
+            Future<TaskSubmissionService.SubmissionExecution> second =
+                    executor.submit(() -> {
+                        start.await();
+                        return service.submit(
+                                fixture.userId(), key, command);
+                    });
+            start.countDown();
+            List<TaskSubmissionService.SubmissionExecution> results =
+                    List.of(
+                            first.get(15, TimeUnit.SECONDS),
+                            second.get(15, TimeUnit.SECONDS));
+
+            assertThat(results)
+                    .extracting(TaskSubmissionService.SubmissionExecution
+                            ::replayed)
+                    .containsExactlyInAnyOrder(false, true);
+            assertThat(results)
+                    .extracting(result -> result.outcome().submissionId())
+                    .containsOnly(results.getFirst().outcome().submissionId());
+        }
+        assertThat(submissionCount(fixture)).isEqualTo(1);
+    }
+
+    @Test
+    void differentKeysLeaveOneFinalSubmissionAndTwoStableReceipts()
+            throws Exception {
+        Fixture fixture = fixture("different-key-user");
+        TaskSubmissionService.SubmitTaskCommand command =
+                command(fixture, "동시 제출");
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<TaskSubmissionService.SubmissionExecution> first =
+                    executor.submit(() -> {
+                        start.await();
+                        return service.submit(
+                                fixture.userId(),
+                                UUID.randomUUID().toString(),
+                                command);
+                    });
+            Future<TaskSubmissionService.SubmissionExecution> second =
+                    executor.submit(() -> {
+                        start.await();
+                        return service.submit(
+                                fixture.userId(),
+                                UUID.randomUUID().toString(),
+                                command);
+                    });
+            start.countDown();
+            List<TaskSubmissionService.SubmissionExecution> results =
+                    List.of(
+                            first.get(15, TimeUnit.SECONDS),
+                            second.get(15, TimeUnit.SECONDS));
+
+            assertThat(results)
+                    .extracting(result -> result.outcome().httpStatus())
+                    .containsExactlyInAnyOrder(201, 409);
+            assertThat(results)
+                    .extracting(TaskSubmissionService.SubmissionExecution
+                            ::replayed)
+                    .containsOnly(false);
+        }
+        assertThat(submissionCount(fixture)).isEqualTo(1);
+        assertThat(receiptStatuses(fixture.userId()))
+                .containsExactlyInAnyOrder("SUCCEEDED", "REJECTED");
+    }
+
+    @Test
+    void invalidAnswerRejectionIsStoredAndReplayed() {
+        Fixture fixture = fixture("invalid-answer-user");
+        String key = UUID.randomUUID().toString();
+        TaskSubmissionService.SubmitTaskCommand invalid =
+                new TaskSubmissionService.SubmitTaskCommand(
+                        fixture.task().id(),
+                        fixture.prediction().id(),
+                        List.of());
+
+        TaskSubmissionService.SubmissionExecution first = service.submit(
+                fixture.userId(), key, invalid);
+        TaskSubmissionService.SubmissionExecution replay = service.submit(
+                fixture.userId(), key, invalid);
+
+        assertThat(first.outcome().httpStatus()).isEqualTo(422);
+        assertThat(first.outcome().code())
+                .isEqualTo("TASK_SUBMISSION_ANSWER_SET_INCOMPLETE");
+        assertThat(replay.replayed()).isTrue();
+        assertThat(replay.outcome()).isEqualTo(first.outcome());
+        assertThat(submissionCount(fixture)).isZero();
+    }
+
+    @Test
+    void closeCommittedFirstMakesSubmissionReject() throws Exception {
+        Fixture fixture = fixture("close-first-user");
+        CountDownLatch closedAndLocked = new CountDownLatch(1);
+        CountDownLatch releaseClose = new CountDownLatch(1);
+        TransactionTemplate transactions =
+                new TransactionTemplate(transactionManager);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<?> close = executor.submit(() -> transactions.execute(
+                    status -> {
+                        Task locked = tasks.findByIdForUpdate(
+                                        fixture.task().id())
+                                .orElseThrow();
+                        locked.closeEarly(
+                                new TaskLifecycleHistoryId(UUID.randomUUID()),
+                                ADMIN,
+                                "close first",
+                                Instant.now());
+                        tasks.save(locked);
+                        closedAndLocked.countDown();
+                        await(releaseClose);
+                        return null;
+                    }));
+            assertThat(closedAndLocked.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<TaskSubmissionService.SubmissionExecution> submit =
+                    executor.submit(() -> service.submit(
+                            fixture.userId(),
+                            UUID.randomUUID().toString(),
+                            command(fixture, "늦은 제출")));
+            assertThat(submit.isDone()).isFalse();
+
+            releaseClose.countDown();
+            close.get(10, TimeUnit.SECONDS);
+            TaskSubmissionService.SubmissionExecution result =
+                    submit.get(10, TimeUnit.SECONDS);
+
+            assertThat(result.outcome().httpStatus()).isEqualTo(409);
+            assertThat(result.outcome().code())
+                    .isEqualTo("TASK_SUBMISSION_TASK_NOT_OPEN");
+        }
+        assertThat(submissionCount(fixture)).isZero();
+    }
+
+    @Test
+    void submissionHoldingTaskLockCommitsBeforeClose() throws Exception {
+        Fixture fixture = fixture("submit-first-user");
+        CountDownLatch userLockHeld = new CountDownLatch(1);
+        CountDownLatch releaseUserLock = new CountDownLatch(1);
+        TransactionTemplate transactions =
+                new TransactionTemplate(transactionManager);
+
+        try (var executor = Executors.newFixedThreadPool(3)) {
+            Future<?> guard = executor.submit(() -> transactions.execute(
+                    status -> {
+                        userTransactions.lock(fixture.userId().value());
+                        userLockHeld.countDown();
+                        await(releaseUserLock);
+                        return null;
+                    }));
+            assertThat(userLockHeld.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<TaskSubmissionService.SubmissionExecution> submit =
+                    executor.submit(() -> service.submit(
+                            fixture.userId(),
+                            UUID.randomUUID().toString(),
+                            command(fixture, "먼저 시작한 제출")));
+            awaitAdvisoryWait();
+
+            Future<?> close = executor.submit(() -> administration.closeEarly(
+                    fixture.task().id(), "close after submit", ADMIN));
+            Thread.sleep(200);
+            assertThat(close.isDone()).isFalse();
+
+            releaseUserLock.countDown();
+            TaskSubmissionService.SubmissionExecution submitted =
+                    submit.get(10, TimeUnit.SECONDS);
+            close.get(10, TimeUnit.SECONDS);
+            guard.get(10, TimeUnit.SECONDS);
+
+            assertThat(submitted.outcome().succeeded()).isTrue();
+        }
+        assertThat(submissionCount(fixture)).isEqualTo(1);
+        assertThat(tasks.findById(fixture.task().id()))
+                .get()
+                .extracting(Task::status)
+                .isEqualTo(TaskStatus.CLOSED);
+    }
+
+    @Test
+    void personaTransitionCommittedFirstInvalidatesOldPrediction()
+            throws Exception {
+        Fixture fixture = fixture("persona-transition-user");
+        CountDownLatch transitionPrepared = new CountDownLatch(1);
+        CountDownLatch releaseTransition = new CountDownLatch(1);
+        TransactionTemplate transactions =
+                new TransactionTemplate(transactionManager);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<?> transition = executor.submit(() ->
+                    transactions.execute(status -> {
+                        userTransactions.lock(fixture.userId().value());
+                        insertSucceededPersona(
+                                fixture.userId().value(),
+                                Instant.now(),
+                                "transition");
+                        transitionPrepared.countDown();
+                        await(releaseTransition);
+                        return null;
+                    }));
+            assertThat(transitionPrepared.await(5, TimeUnit.SECONDS))
+                    .isTrue();
+            Future<TaskSubmissionService.SubmissionExecution> submit =
+                    executor.submit(() -> service.submit(
+                            fixture.userId(),
+                            UUID.randomUUID().toString(),
+                            command(fixture, "이전 persona 제출")));
+            assertThat(submit.isDone()).isFalse();
+
+            releaseTransition.countDown();
+            transition.get(10, TimeUnit.SECONDS);
+            TaskSubmissionService.SubmissionExecution result =
+                    submit.get(10, TimeUnit.SECONDS);
+
+            assertThat(result.outcome().httpStatus()).isEqualTo(409);
+            assertThat(result.outcome().code())
+                    .isEqualTo("TASK_SUBMISSION_PREDICTION_MISMATCH");
+        }
+        assertThat(submissionCount(fixture)).isZero();
+    }
+
+    private Fixture fixture(String userValue) {
+        Instant now = Instant.now();
+        TaskUserId userId = new TaskUserId(userValue);
+        TaskQuestion question = new TaskQuestion(
+                new TaskQuestionId(UUID.randomUUID()),
+                1,
+                TaskQuestionType.SHORT_TEXT,
+                "직접 답변 질문",
+                null,
+                ShortTextConstraint.defaults(),
+                List.of());
+        Task task = Task.draft(
+                new TaskId(UUID.randomUUID()),
+                "제출 통합 테스트 과업",
+                null,
+                List.of(question),
+                now.minus(10, ChronoUnit.SECONDS));
+        task.openImmediately(
+                new TaskLifecycleHistoryId(UUID.randomUUID()),
+                now.plus(1, ChronoUnit.HOURS),
+                ADMIN,
+                null,
+                now.minus(9, ChronoUnit.SECONDS));
+        task = tasks.save(task);
+        PersonaFixture persona = insertSucceededPersona(
+                userId.value(),
+                now.minus(20, ChronoUnit.SECONDS),
+                "initial");
+        TaskPrediction prediction = TaskPrediction.pending(
+                new TaskPredictionId(UUID.randomUUID()),
+                userId,
+                task.id(),
+                persona.generationId(),
+                persona.personaId(),
+                "candidate-policy-v1",
+                2,
+                now.minus(8, ChronoUnit.SECONDS));
+        TaskPredictionRetryPolicy retryPolicy =
+                new TaskPredictionRetryPolicy(
+                        Duration.ofSeconds(60),
+                        2,
+                        Duration.ofSeconds(30));
+        prediction.startProcessing(
+                retryPolicy, now.minus(7, ChronoUnit.SECONDS));
+        prediction.failPermanently(
+                new TaskPredictionError(
+                        "AI_UNAVAILABLE", "use direct answers"),
+                now.minus(6, ChronoUnit.SECONDS));
+        prediction = predictions.insert(prediction);
+        return new Fixture(userId, task, question, prediction);
+    }
+
+    private TaskSubmissionService.SubmitTaskCommand command(
+            Fixture fixture,
+            String answer
+    ) {
+        List<TaskSubmissionAnswerCommand> answers = List.of(
+                new UserAnsweredTaskQuestion(
+                        fixture.question().id(),
+                        new ShortTextValue(answer)));
+        return new TaskSubmissionService.SubmitTaskCommand(
+                fixture.task().id(), fixture.prediction().id(), answers);
+    }
+
+    private PersonaFixture insertSucceededPersona(
+            String userId,
+            Instant submittedAt,
+            String suffix
+    ) {
+        long sequence = SURVEY_SEQUENCE.incrementAndGet();
+        UUID contentId = UUID.randomUUID();
+        UUID roundId = UUID.randomUUID();
+        UUID responseId = UUID.randomUUID();
+        UUID generationId = UUID.randomUUID();
+        String personaId = "persona-" + suffix + "-" + generationId;
+        Timestamp timestamp = Timestamp.from(submittedAt);
+        jdbcTemplate.update("""
+                INSERT INTO survey_content_versions (
+                    content_version_id, version_number, status, row_version,
+                    name, created_by, created_at, last_modified_by,
+                    last_modified_at, published_by, published_at)
+                VALUES (?, ?, 'PUBLISHED', 0, ?, 'admin', ?, 'admin', ?,
+                    'admin', ?)
+                """, contentId, sequence,
+                "Task submission survey " + sequence,
+                timestamp, timestamp, timestamp);
+        jdbcTemplate.update("""
+                INSERT INTO survey_rounds (
+                    round_id, round_number, content_version_id, status,
+                    scheduled_at, canceled_at, created_by, created_at,
+                    row_version)
+                VALUES (?, ?, ?, 'CANCELED', ?, ?, 'admin', ?, 0)
+                """, roundId, sequence, contentId,
+                timestamp, timestamp, timestamp);
+        jdbcTemplate.update("""
+                INSERT INTO survey_responses (
+                    response_id, user_id, round_id,
+                    content_version_id, submitted_at)
+                VALUES (?, ?, ?, ?, ?)
+                """, responseId, userId, roundId, contentId, timestamp);
+        jdbcTemplate.update("""
+                INSERT INTO persona_generations (
+                    generation_id, survey_response_id, persona_id, status,
+                    attempt_count, created_at, processing_started_at,
+                    completed_at, updated_at)
+                VALUES (?, ?, ?, 'SUCCEEDED', 1, ?, ?, ?, ?)
+                """, generationId, responseId, personaId,
+                timestamp, timestamp, timestamp, timestamp);
+        return new PersonaFixture(
+                new TaskPersonaGenerationId(generationId),
+                new TaskPersonaId(personaId));
+    }
+
+    private int submissionCount(Fixture fixture) {
+        return jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM task_submissions
+                WHERE user_id = ? AND task_id = ?
+                """, Integer.class,
+                fixture.userId().value(), fixture.task().id().value());
+    }
+
+    private List<String> receiptStatuses(TaskUserId userId) {
+        return jdbcTemplate.queryForList("""
+                SELECT status
+                FROM task_submission_receipts
+                WHERE user_id = ?
+                """, String.class, userId.value());
+    }
+
+    private void awaitAdvisoryWait() throws Exception {
+        Instant deadline = Instant.now().plusSeconds(5);
+        while (Instant.now().isBefore(deadline)) {
+            Integer waiting = jdbcTemplate.queryForObject("""
+                    SELECT count(*)
+                    FROM pg_stat_activity
+                    WHERE datname = current_database()
+                      AND wait_event_type = 'Lock'
+                      AND wait_event = 'advisory'
+                    """, Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        throw new IllegalStateException(
+                "submission did not wait for the user advisory lock");
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("timed out waiting for latch");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private record Fixture(
+            TaskUserId userId,
+            Task task,
+            TaskQuestion question,
+            TaskPrediction prediction
+    ) {
+    }
+
+    private record PersonaFixture(
+            TaskPersonaGenerationId generationId,
+            TaskPersonaId personaId
+    ) {
+    }
+}

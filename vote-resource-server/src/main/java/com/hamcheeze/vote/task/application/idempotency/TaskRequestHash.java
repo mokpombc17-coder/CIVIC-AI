@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.task.application.idempotency;
 
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
 public final class TaskRequestHash {
@@ -15,6 +16,21 @@ public final class TaskRequestHash {
                     "request hash must be a 32-byte SHA-256 value");
         }
         this.value = Arrays.copyOf(value, value.length);
+    }
+
+    public static TaskRequestHash sha256(byte[] canonicalRequest) {
+        if (canonicalRequest == null) {
+            throw new IllegalArgumentException(
+                    "canonicalRequest must not be null");
+        }
+        try {
+            return new TaskRequestHash(
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(canonicalRequest));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(
+                    "SHA-256 must be available", exception);
+        }
     }
 
     public byte[] value() {
