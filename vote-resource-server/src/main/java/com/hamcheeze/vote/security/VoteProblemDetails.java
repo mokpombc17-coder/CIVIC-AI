@@ -16,7 +16,8 @@ final class VoteProblemDetails {
             VoteApiErrorCode code,
             String title,
             String detail,
-            URI instance
+            URI instance,
+            String traceId
     ) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 status,
@@ -30,6 +31,7 @@ final class VoteProblemDetails {
         problem.setProperty("code", code.name());
         problem.setProperty("replayed", false);
         problem.setProperty("retryable", false);
+        problem.setProperty("traceId", traceId);
         return problem;
     }
 }

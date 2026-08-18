@@ -8,6 +8,8 @@ public final class VoteScopes {
             "vote:survey-responses:write";
     public static final String TASKS_READ =
             "vote:tasks:read";
+    public static final String PREDICTIONS_WRITE =
+            "vote:predictions:write";
     public static final String SUBMISSIONS_READ =
             "vote:submissions:read";
     public static final String SUBMISSIONS_WRITE =

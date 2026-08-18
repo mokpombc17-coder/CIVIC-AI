@@ -65,6 +65,11 @@ public class VoteSecurityConfig {
                                 VoteScopes.SURVEY_RESPONSES_WRITE))
                         .requestMatchers(
                                 HttpMethod.POST,
+                                "/api/v1/me/tasks/*/prediction")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.PREDICTIONS_WRITE))
+                        .requestMatchers(
+                                HttpMethod.POST,
                                 "/api/v1/me/tasks/*/submission")
                         .hasAuthority(VoteScopes.authority(
                                 VoteScopes.SUBMISSIONS_WRITE))

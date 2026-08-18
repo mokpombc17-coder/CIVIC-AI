@@ -25,6 +25,8 @@ import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryServi
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.PENDING;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.PERSONA_NOT_READY;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.SUCCEEDED;
+import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.TASK_CLOSED;
+import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.TASK_UNPUBLISHED;
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.GENERATION;
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.NOW;
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.PERSONA;
@@ -155,6 +157,26 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.state()).isEqualTo(ALREADY_SUBMITTED);
         assertThat(view.submissionId()).isEqualTo(submission.id());
         assertThat(view.submissionAllowed()).isFalse();
+    }
+
+    @Test
+    void distinguishesUnpublishedTaskFromMissingTask() {
+        task = TaskQueryFixtures.draftTask("미공개 과업");
+        when(tasks.findById(task.id())).thenReturn(Optional.of(task));
+
+        var view = service.findCurrent(USER, task.id());
+
+        assertThat(view.state()).isEqualTo(TASK_UNPUBLISHED);
+    }
+
+    @Test
+    void distinguishesClosedTaskFromUnpublishedTask() {
+        task = TaskQueryFixtures.closedTask("마감 과업");
+        when(tasks.findById(task.id())).thenReturn(Optional.of(task));
+
+        var view = service.findCurrent(USER, task.id());
+
+        assertThat(view.state()).isEqualTo(TASK_CLOSED);
     }
 
     private void availableTask() {

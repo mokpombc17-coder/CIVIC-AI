@@ -68,7 +68,8 @@ public final class VoteApiSecurityProblemWriter
                 code,
                 title,
                 detail,
-                URI.create(request.getRequestURI()));
+                URI.create(request.getRequestURI()),
+                VoteRequestTraceId.resolve(request));
         response.setStatus(status.value());
         response.setContentType(
                 MediaType.APPLICATION_PROBLEM_JSON_VALUE);

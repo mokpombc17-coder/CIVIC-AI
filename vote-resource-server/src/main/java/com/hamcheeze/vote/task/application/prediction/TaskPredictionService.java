@@ -10,6 +10,7 @@ import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -114,9 +115,12 @@ public class TaskPredictionService {
                         "TASK_NOT_FOUND",
                         "taskId",
                         "task was not found"));
-        if (!task.isOpenAt(now)) {
+        TaskAvailability availability = task.availabilityAt(now);
+        if (availability != TaskAvailability.OPEN) {
+            String code = availability == TaskAvailability.CLOSED
+                    ? "TASK_CLOSED" : "TASK_UNPUBLISHED";
             throw TaskDomainException.invariant(
-                    "TASK_NOT_OPEN",
+                    code,
                     "taskId",
                     "prediction is available only for an open task");
         }

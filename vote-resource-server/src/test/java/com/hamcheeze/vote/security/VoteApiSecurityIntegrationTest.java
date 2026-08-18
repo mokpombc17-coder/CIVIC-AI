@@ -76,7 +76,8 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(jsonPath("$.detail")
                         .value("A valid Bearer token is required."))
                 .andExpect(jsonPath("$.instance")
-                        .value("/api/v1/test/current-user"));
+                        .value("/api/v1/test/current-user"))
+                .andExpect(jsonPath("$.traceId").isString());
     }
 
     @Test
@@ -210,18 +211,27 @@ class VoteApiSecurityIntegrationTest {
         String taskReadToken = scopedToken(
                 "user-a",
                 VoteScopes.TASKS_READ);
-        mockMvc.perform(get("/api/v1/me/tasks")
+        mockMvc.perform(get("/api/v1/me/tasks/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + taskReadToken))
                 .andExpect(status().isOk());
-        mockMvc.perform(get("/api/v1/me/tasks/task-1")
+        mockMvc.perform(get("/api/v1/me/tasks/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + taskReadToken))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/me/submissions")
+        mockMvc.perform(post(
+                        "/api/v1/me/tasks/security-probe/prediction")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.PREDICTIONS_WRITE)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/me/submissions/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + scopedToken(
@@ -230,7 +240,7 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(post(
-                        "/api/v1/me/tasks/task-1/submission")
+                        "/api/v1/me/tasks/security-probe/submission")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + scopedToken(
@@ -257,6 +267,16 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(jsonPath("$.code")
                         .value("ACCESS_DENIED"));
 
+        mockMvc.perform(post(
+                        "/api/v1/me/tasks/security-probe/prediction")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a", VoteScopes.TASKS_READ)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
+
         mockMvc.perform(get("/api/v1/me/surveys/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
@@ -276,10 +296,11 @@ class VoteApiSecurityIntegrationTest {
                 VoteScopes.SURVEYS_READ,
                 VoteScopes.SURVEY_RESPONSES_WRITE,
                 VoteScopes.TASKS_READ,
+                VoteScopes.PREDICTIONS_WRITE,
                 VoteScopes.SUBMISSIONS_READ,
                 VoteScopes.SUBMISSIONS_WRITE);
 
-        mockMvc.perform(get("/api/v1/admin/tasks")
+        mockMvc.perform(get("/api/v1/admin/tasks/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + allUserScopesToken))
@@ -439,10 +460,9 @@ class VoteApiSecurityIntegrationTest {
 
         @GetMapping({
                 "/api/v1/me/surveys/security-probe",
-                "/api/v1/me/tasks",
-                "/api/v1/me/tasks/{taskId}",
-                "/api/v1/me/submissions",
-                "/api/v1/admin/tasks"
+                "/api/v1/me/tasks/security-probe",
+                "/api/v1/me/submissions/security-probe",
+                "/api/v1/admin/tasks/security-probe"
         })
         Map<String, String> scopedGet() {
             return Map.of("status", "ok");
@@ -450,7 +470,8 @@ class VoteApiSecurityIntegrationTest {
 
         @PostMapping({
                 "/api/v1/me/survey-responses/security-probe",
-                "/api/v1/me/tasks/{taskId}/submission"
+                "/api/v1/me/tasks/security-probe/prediction",
+                "/api/v1/me/tasks/security-probe/submission"
         })
         Map<String, String> scopedPost() {
             return Map.of("status", "ok");

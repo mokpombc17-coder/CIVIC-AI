@@ -22,6 +22,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -130,13 +131,17 @@ public class TaskSubmissionService {
         }
 
         Instant submittedAt = clock.instant();
-        if (!task.isOpenAt(submittedAt)) {
+        TaskAvailability availability = task.availabilityAt(submittedAt);
+        if (availability != TaskAvailability.OPEN) {
+            String code = availability == TaskAvailability.CLOSED
+                    ? "TASK_SUBMISSION_TASK_CLOSED"
+                    : "TASK_SUBMISSION_TASK_UNPUBLISHED";
             return rejection(
                     409,
-                    "TASK_SUBMISSION_TASK_NOT_OPEN",
+                    code,
                     task.id(),
                     TaskViolation.of(
-                            "TASK_SUBMISSION_TASK_NOT_OPEN",
+                            code,
                             "task.status",
                             "submission is allowed only while task is open"));
         }

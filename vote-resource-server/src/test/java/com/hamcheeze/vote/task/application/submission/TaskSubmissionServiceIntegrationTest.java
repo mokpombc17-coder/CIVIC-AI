@@ -281,7 +281,7 @@ class TaskSubmissionServiceIntegrationTest {
 
             assertThat(result.outcome().httpStatus()).isEqualTo(409);
             assertThat(result.outcome().code())
-                    .isEqualTo("TASK_SUBMISSION_TASK_NOT_OPEN");
+                    .isEqualTo("TASK_SUBMISSION_TASK_CLOSED");
         }
         assertThat(submissionCount(fixture)).isZero();
     }

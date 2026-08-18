@@ -15,6 +15,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,9 +74,13 @@ public class TaskPredictionQueryService {
             return TaskPredictionView.unavailable(
                     taskId, TaskPredictionViewState.TASK_NOT_FOUND);
         }
-        if (!task.isOpenAt(clock.instant())) {
+        TaskAvailability availability = task.availabilityAt(clock.instant());
+        if (availability != TaskAvailability.OPEN) {
             return TaskPredictionView.unavailable(
-                    taskId, TaskPredictionViewState.TASK_NOT_OPEN);
+                    taskId,
+                    availability == TaskAvailability.CLOSED
+                            ? TaskPredictionViewState.TASK_CLOSED
+                            : TaskPredictionViewState.TASK_UNPUBLISHED);
         }
 
         var submission = submissions.findByUserAndTask(userId, taskId)
@@ -104,7 +109,8 @@ public class TaskPredictionQueryService {
 
     public enum TaskPredictionViewState {
         TASK_NOT_FOUND,
-        TASK_NOT_OPEN,
+        TASK_UNPUBLISHED,
+        TASK_CLOSED,
         ALREADY_SUBMITTED,
         PERSONA_NOT_READY,
         NOT_REQUESTED,

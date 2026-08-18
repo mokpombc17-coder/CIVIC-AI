@@ -328,6 +328,19 @@ public final class Task {
         return status == TaskStatus.OPEN && schedule.contains(instant);
     }
 
+    public TaskAvailability availabilityAt(Instant instant) {
+        Objects.requireNonNull(instant, "instant");
+        if (isOpenAt(instant)) {
+            return TaskAvailability.OPEN;
+        }
+        if (status == TaskStatus.CLOSED
+                || schedule != null
+                && !instant.isBefore(schedule.scheduledCloseAt())) {
+            return TaskAvailability.CLOSED;
+        }
+        return TaskAvailability.UNPUBLISHED;
+    }
+
     public boolean resultEligible() {
         return status == TaskStatus.CLOSED
                 && closureType != null
