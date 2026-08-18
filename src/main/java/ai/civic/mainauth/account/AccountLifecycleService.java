@@ -1,16 +1,20 @@
 package ai.civic.mainauth.account;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
+import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.SessionService;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 
 @Service
 public class AccountLifecycleService {
     private final JdbcTemplate jdbc;
     private final SessionService sessions;
+    private final Argon2PasswordEncoder passwords =
+            Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
 
     public AccountLifecycleService(JdbcTemplate jdbc, SessionService sessions) {
         this.jdbc = jdbc;
@@ -18,10 +22,12 @@ public class AccountLifecycleService {
     }
 
     @Transactional
-    public void deactivateSelf(UUID actorId, UUID subjectId) {
+    public void deactivateSelf(UUID actorId, UUID subjectId, String password) {
         if (actorId == null || !actorId.equals(subjectId)) {
             throw new AdminPolicyException("Account deactivation is self-service only");
         }
+        lockHighestAdminLifecycleChanges();
+        verifyPasswordUnderUserLock(subjectId, password);
         deactivate(subjectId, "SELF_DEACTIVATION");
     }
 
@@ -75,5 +81,24 @@ public class AccountLifecycleService {
         jdbc.queryForObject(
                 "select id from roles where code = 'SUPER_ADMIN' for update",
                 Integer.class);
+    }
+
+    private void verifyPasswordUnderUserLock(UUID subjectId, String password) {
+        var hashes = jdbc.query("""
+                select c.password_hash from users u
+                join credentials c on c.user_id = u.id
+                where u.id = ? for update of u, c
+                """, (rs, rowNum) -> rs.getString("password_hash"), subjectId);
+        var matches = false;
+        if (hashes.size() == 1 && password != null) {
+            try {
+                matches = passwords.matches(password, hashes.getFirst());
+            } catch (RuntimeException ignored) {
+                matches = false;
+            }
+        }
+        if (!matches) {
+            throw new AuthenticationException("Email or password is invalid");
+        }
     }
 }

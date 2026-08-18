@@ -11,6 +11,9 @@ import ai.civic.mainauth.auth.SessionService;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import jakarta.servlet.http.Cookie;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -142,5 +145,68 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from privacy_operations where subject_id = ?",
                 Integer.class, subjectId)).isZero();
+    }
+
+    @Test
+    void demotedHighestAdministratorCannotEnqueueAnInflightPrivacyDeletion() throws Exception {
+        var actorEmail = "privacy-racing-admin-" + UUID.randomUUID() + "@example.test";
+        var actorId = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state, email_verified_at)
+                values (?, ?, 'ADMIN_CREATED', 'ACTIVE', now()) returning id
+                """, UUID.class, actorEmail, actorEmail);
+        jdbc.update("insert into credentials(user_id, password_hash, must_change_password) values (?, 'test-hash', false)",
+                actorId);
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'SUPER_ADMIN'
+                """, actorId);
+        var actor = sessions.issue(actorId, SessionService.SessionRole.HIGHEST_ADMIN);
+
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement(
+                    "select id from roles where code = 'SUPER_ADMIN' for update")) {
+                lock.executeQuery();
+            }
+            var response = executor.submit(() -> mvc.perform(post("/api/v1/admin/privacy-operations")
+                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, actor.sessionId()))
+                            .header("X-CSRF-Token", actor.csrfToken())
+                            .header("Origin", "https://localhost")
+                            .header("Sec-Fetch-Site", "same-origin")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"external_request_evidence_id":"operator-evidence-race",
+                                     "subject_id":"%s","scopes":["ACCOUNT"]}
+                                    """.formatted(subjectId)))
+                    .andReturn().getResponse().getStatus());
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> response.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var demote = connection.prepareStatement("""
+                    update user_roles set revoked_at = now()
+                    where user_id = ? and revoked_at is null
+                      and role_id = (select id from roles where code = 'SUPER_ADMIN')
+                    """)) {
+                demote.setObject(1, actorId);
+                demote.executeUpdate();
+            }
+            connection.commit();
+
+            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(403);
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from privacy_operations
+                where external_request_evidence_id = 'operator-evidence-race'
+                """, Integer.class)).isZero();
+    }
+
+    @Test
+    void missingPrivacyOperationReturnsNotFound() throws Exception {
+        mvc.perform(get("/api/v1/admin/privacy-operations/{operationId}", UUID.randomUUID())
+                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId())))
+                .andExpect(status().isNotFound());
     }
 }

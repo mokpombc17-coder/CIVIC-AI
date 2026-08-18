@@ -9,6 +9,7 @@ import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.admin.AdminVersionConflictException;
 import ai.civic.mainauth.feature.FeatureGateDisabledException;
 import ai.civic.mainauth.notification.NotificationDeliveryException;
+import ai.civic.mainauth.privacy.PrivacyOperationNotFoundException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -36,6 +37,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(SignupConflictException.class)
     ProblemDetail conflict(SignupConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Request conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(PrivacyOperationNotFoundException.class)
+    ProblemDetail notFound(PrivacyOperationNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "Resource not found", exception.getMessage());
     }
 
     @ExceptionHandler(AdminPolicyException.class)

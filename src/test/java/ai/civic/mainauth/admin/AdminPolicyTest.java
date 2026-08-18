@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 
 @SpringBootTest(properties = "spring.main.lazy-initialization=true")
 class AdminPolicyTest extends PostgresIntegrationTest {
@@ -24,6 +25,8 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountLifecycleService lifecycle;
     @Autowired SessionService sessions;
+    private final Argon2PasswordEncoder passwords =
+            Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
     UUID bootstrapId;
 
     @BeforeEach
@@ -140,7 +143,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Test
     void accountDeactivationIsSelfServiceOnlyAndWritesOneVersionedEvent() {
         var participant = createParticipant("participant@example.com");
-        assertThatThrownBy(() -> lifecycle.deactivateSelf(bootstrapId, participant))
+        assertThatThrownBy(() -> lifecycle.deactivateSelf(bootstrapId, participant, "Valid123!"))
                 .isInstanceOf(AdminPolicyException.class);
         jdbc.update("""
                 insert into auth_challenges(
@@ -151,7 +154,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                           now() + interval '10 minutes', now(), now())
                 """, participant);
 
-        lifecycle.deactivateSelf(participant, participant);
+        lifecycle.deactivateSelf(participant, participant, "Valid123!");
 
         assertThat(jdbc.queryForObject("select state from users where id = ?", String.class, participant))
                 .isEqualTo("DEACTIVATED");
@@ -199,7 +202,8 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                 insert into users(email, normalized_email, origin, state, email_verified_at)
                 values (?, ?, 'ADMIN_CREATED', 'ACTIVE', now()) returning id
                 """, UUID.class, email, email);
-        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", id);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, ?)",
+                id, passwords.encode("Valid123!"));
         return id;
     }
 
@@ -208,7 +212,8 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                 insert into users(email, normalized_email, origin, state, email_verified_at)
                 values (?, ?, 'SIGNUP', 'ACTIVE', now()) returning id
                 """, UUID.class, email, email);
-        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", id);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, ?)",
+                id, passwords.encode("Valid123!"));
         jdbc.update("""
                 insert into user_roles(user_id, role_id)
                 select ?, id from roles where code = 'PARTICIPANT'
@@ -227,7 +232,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
 
     private boolean deactivateSelf(UUID subject) {
         try {
-            lifecycle.deactivateSelf(subject, subject);
+            lifecycle.deactivateSelf(subject, subject, "Valid123!");
             return true;
         } catch (AdminPolicyException exception) {
             return false;

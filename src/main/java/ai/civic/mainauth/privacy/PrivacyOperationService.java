@@ -1,5 +1,6 @@
 package ai.civic.mainauth.privacy;
 
+import ai.civic.mainauth.admin.AdminPolicyException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.util.Map;
@@ -21,7 +22,14 @@ public class PrivacyOperationService {
     }
 
     @Transactional
-    public UUID start(String evidenceId, UUID subjectId, Set<String> scopes, boolean requestVerified) {
+    public UUID start(
+            UUID actorId,
+            String evidenceId,
+            UUID subjectId,
+            Set<String> scopes,
+            boolean requestVerified) {
+        lockHighestAdminRoleChanges();
+        requireCurrentHighestAdministrator(actorId);
         if (!requestVerified || evidenceId == null || evidenceId.isBlank() || subjectId == null
                 || scopes == null || scopes.isEmpty() || !ALLOWED_SCOPES.containsAll(scopes)) {
             throw new IllegalArgumentException("Verified external request evidence and valid scope are required");
@@ -123,7 +131,12 @@ public class PrivacyOperationService {
 
     @Transactional(readOnly = true)
     public String status(UUID operationId) {
-        return jdbc.queryForObject("select status from privacy_operations where id = ?", String.class, operationId);
+        var statuses = jdbc.queryForList(
+                "select status from privacy_operations where id = ?", String.class, operationId);
+        if (statuses.size() != 1) {
+            throw new PrivacyOperationNotFoundException();
+        }
+        return statuses.getFirst();
     }
 
     private void enqueue(UUID operationId, UUID subjectId, String service, String evidenceId) throws Exception {
@@ -136,6 +149,26 @@ public class PrivacyOperationService {
                 insert into privacy_command_outbox(operation_id, service_code, command_payload)
                 values (?, ?, ?::jsonb)
                 """, operationId, service, payload);
+    }
+
+    private void lockHighestAdminRoleChanges() {
+        jdbc.queryForObject(
+                "select id from roles where code = 'SUPER_ADMIN' for update",
+                Integer.class);
+    }
+
+    private void requireCurrentHighestAdministrator(UUID actorId) {
+        Integer allowed = actorId == null ? 0 : jdbc.queryForObject("""
+                select count(*) from users u
+                join credentials c on c.user_id = u.id
+                join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
+                join roles r on r.id = ur.role_id
+                where u.id = ? and u.state = 'ACTIVE'
+                  and r.highest_admin and not c.must_change_password
+                """, Integer.class, actorId);
+        if (allowed == null || allowed != 1) {
+            throw new AdminPolicyException("Current highest administrator authority is required");
+        }
     }
 
     private record StoredOperation(UUID id, UUID subjectId, String requestedScopes) {}

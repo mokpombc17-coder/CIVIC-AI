@@ -25,6 +25,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Autowired PrivacyResultDispatcher resultDispatcher;
     @Autowired JdbcTemplate jdbc;
     @Autowired StringRedisTemplate redis;
+    UUID operatorId;
 
     @BeforeEach
     void cleanPrivacyOperations() {
@@ -34,12 +35,15 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
         redis.delete(PrivacyCommandDispatcher.RAG_COMMAND_STREAM);
         redis.delete(PrivacyResultDispatcher.RESULT_STREAM);
         redis.delete(PrivacyResultDispatcher.RESULT_DEAD_LETTER_STREAM);
+        operatorId = jdbc.queryForObject(
+                "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
+        jdbc.update("update credentials set must_change_password = false where user_id = ?", operatorId);
     }
 
     @Test
     void verifiedRequestDispatchesMainAndRagAndAggregatesIdempotentResults() {
         var subject = createSubject("privacy-both@example.com");
-        var operation = privacy.start("external-42", subject, Set.of("ACCOUNT", "RAG"), true);
+        var operation = privacy.start(operatorId, "external-42", subject, Set.of("ACCOUNT", "RAG"), true);
         assertThat(jdbc.queryForObject(
                 "select count(*) from privacy_command_outbox where operation_id = ?", Integer.class, operation))
                 .isEqualTo(2);
@@ -56,7 +60,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void concurrentServiceResultsAreSerializedIntoOneCompleteAggregate() throws Exception {
         var subject = createSubject("privacy-concurrent-results@example.com");
-        var operation = privacy.start(
+        var operation = privacy.start(operatorId,
                 "external-concurrent-results-42", subject, Set.of("ACCOUNT", "RAG"), true);
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
@@ -87,7 +91,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
 
     @Test
     void nonexistentPrivacySubjectIsRejectedBeforeAnyCommandIsQueued() {
-        assertThatThrownBy(() -> privacy.start(
+        assertThatThrownBy(() -> privacy.start(operatorId,
                 "external-missing-42", UUID.randomUUID(), Set.of("ACCOUNT"), true))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not exist");
@@ -99,15 +103,15 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     void idempotencyEvidenceMustMatchTheOriginalSubjectAndScopes() {
         var subject = createSubject("privacy-idempotent@example.com");
         var otherSubject = createSubject("privacy-idempotent-other@example.com");
-        var operation = privacy.start("external-idempotent-42", subject, Set.of("RAG"), true);
+        var operation = privacy.start(operatorId, "external-idempotent-42", subject, Set.of("RAG"), true);
 
-        assertThat(privacy.start("external-idempotent-42", subject, Set.of("RAG"), true))
+        assertThat(privacy.start(operatorId, "external-idempotent-42", subject, Set.of("RAG"), true))
                 .isEqualTo(operation);
-        assertThatThrownBy(() -> privacy.start(
+        assertThatThrownBy(() -> privacy.start(operatorId,
                 "external-idempotent-42", otherSubject, Set.of("RAG"), true))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not match");
-        assertThatThrownBy(() -> privacy.start(
+        assertThatThrownBy(() -> privacy.start(operatorId,
                 "external-idempotent-42", subject, Set.of("ACCOUNT", "RAG"), true))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not match");
@@ -122,12 +126,12 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
             var first = executor.submit(() -> {
                 ready.countDown();
                 start.await();
-                return privacy.start("external-concurrent-42", subject, Set.of("RAG"), true);
+                return privacy.start(operatorId, "external-concurrent-42", subject, Set.of("RAG"), true);
             });
             var second = executor.submit(() -> {
                 ready.countDown();
                 start.await();
-                return privacy.start("external-concurrent-42", subject, Set.of("RAG"), true);
+                return privacy.start(operatorId, "external-concurrent-42", subject, Set.of("RAG"), true);
             });
             assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
             start.countDown();
@@ -149,7 +153,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void resultForAServiceThatWasNotEnqueuedIsRejected() {
         var subject = createSubject("privacy-service-match@example.com");
-        var operation = privacy.start("external-service-match-42", subject, Set.of("ACCOUNT"), true);
+        var operation = privacy.start(operatorId, "external-service-match-42", subject, Set.of("ACCOUNT"), true);
 
         assertThatThrownBy(() -> privacy.recordResult(
                 operation, "RAG", "COMPLETE", "misrouted-rag-result"))
@@ -164,7 +168,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void workerWaitsForOffHostMainDeletionLedgerBeforeCompletingItsResult() {
         var subject = createSubject("privacy-worker@example.com");
-        var operation = privacy.start("external-worker-42", subject, Set.of("ACCOUNT"), true);
+        var operation = privacy.start(operatorId, "external-worker-42", subject, Set.of("ACCOUNT"), true);
 
         assertThat(dispatcher.dispatchMainOne()).isTrue();
 
@@ -212,7 +216,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
         var subject = jdbc.queryForObject(
                 "select id from users where normalized_email = 'bootstrap@example.test'",
                 UUID.class);
-        var operation = privacy.start(
+        var operation = privacy.start(operatorId,
                 "external-last-admin-42", subject, Set.of("ACCOUNT"), true);
 
         assertThat(dispatcher.dispatchMainOne()).isTrue();
@@ -233,7 +237,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void physicallyRemovedSubjectIsRecordedAsPermanentFailureWithoutPoisoningWorker() {
         var subject = createSubject("privacy-removed-before-worker@example.com");
-        var operation = privacy.start(
+        var operation = privacy.start(operatorId,
                 "external-removed-before-worker-42", subject, Set.of("ACCOUNT"), true);
         jdbc.update("delete from credentials where user_id = ?", subject);
         jdbc.update("delete from users where id = ?", subject);
@@ -254,7 +258,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void workerPublishesRagCommandAndConsumesDurableAggregateResult() {
         var subject = createSubject("privacy-rag@example.com");
-        var operation = privacy.start("external-rag-42", subject, Set.of("RAG"), true);
+        var operation = privacy.start(operatorId, "external-rag-42", subject, Set.of("RAG"), true);
 
         assertThat(dispatcher.dispatchRagOne()).isTrue();
         var commands = redis.opsForStream().range(
@@ -280,7 +284,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void permanentlyInvalidResultIsDeadLetteredBeforeTheNextResultIsConsumed() {
         var subject = createSubject("privacy-result-poison@example.com");
-        var operation = privacy.start("external-result-poison-42", subject, Set.of("RAG"), true);
+        var operation = privacy.start(operatorId, "external-result-poison-42", subject, Set.of("RAG"), true);
         redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
                 "operation_id", "not-a-uuid",
                 "service_code", "RAG",
@@ -307,7 +311,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void oversizedAggregateEvidenceIsDeadLetteredBeforeTheNextResultIsConsumed() {
         var subject = createSubject("privacy-result-oversized@example.com");
-        var operation = privacy.start("external-result-oversized-42", subject, Set.of("RAG"), true);
+        var operation = privacy.start(operatorId, "external-result-oversized-42", subject, Set.of("RAG"), true);
         redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
                 "operation_id", operation.toString(),
                 "service_code", "RAG",
@@ -332,7 +336,7 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     @Test
     void resultWithoutAggregateEvidenceIsDeadLetteredAndCannotCompleteTheOperation() {
         var subject = createSubject("privacy-result-no-evidence@example.com");
-        var operation = privacy.start("external-result-no-evidence-42", subject, Set.of("RAG"), true);
+        var operation = privacy.start(operatorId, "external-result-no-evidence-42", subject, Set.of("RAG"), true);
         redis.opsForStream().add(StreamRecords.mapBacked(java.util.Map.of(
                 "operation_id", operation.toString(),
                 "service_code", "RAG",
