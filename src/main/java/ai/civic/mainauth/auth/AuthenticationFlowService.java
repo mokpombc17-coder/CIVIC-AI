@@ -102,6 +102,10 @@ public class AuthenticationFlowService {
     public void changePassword(UUID userId, String currentPassword, String newPassword) {
         requireValidPassword(newPassword);
         lockUser(userId);
+        var states = jdbc.queryForList("select state from users where id = ?", String.class, userId);
+        if (states.size() != 1 || !"ACTIVE".equals(states.getFirst())) {
+            throw new AuthenticationException(PUBLIC_FAILURE);
+        }
         var encoded = jdbc.queryForObject(
                 "select password_hash from credentials where user_id = ? for update", String.class, userId);
         if (!safeMatches(currentPassword, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);

@@ -40,7 +40,10 @@ public class AdminRoleService {
         if (desiredRoles == null || desiredRoles.isEmpty() || !ALLOWED.containsAll(desiredRoles)) {
             throw new AdminPolicyException("At least one known role is required");
         }
-        var subject = jdbc.queryForMap("select row_version, state from users where id = ? for update", subjectId);
+        var subjects = jdbc.queryForList(
+                "select row_version, state from users where id = ? for update", subjectId);
+        if (subjects.size() != 1) throw new AdminUserNotFoundException();
+        var subject = subjects.getFirst();
         var currentVersion = ((Number) subject.get("row_version")).longValue();
         if (currentVersion != expectedVersion) throw new AdminVersionConflictException("User version is stale");
         var current = Set.copyOf(rolesOf(subjectId));

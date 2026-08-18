@@ -245,6 +245,46 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void passwordChangeRevalidatesActiveStateAfterAcquiringTheUserLifecycleLock() throws Exception {
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var response = executor.submit(() -> mvc.perform(put("/api/v1/account/password")
+                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
+                            .header("X-CSRF-Token", session.csrfToken())
+                            .header("Origin", "https://localhost")
+                            .header("Sec-Fetch-Site", "same-origin")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"current_password":"Valid123!","new_password":"Changed123!"}
+                                    """))
+                    .andReturn().getResponse().getStatus());
+
+            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var update = connection.prepareStatement(
+                    "update users set state = 'DEACTIVATED' where id = ?")) {
+                update.setObject(1, userId);
+                update.executeUpdate();
+            }
+            connection.commit();
+
+            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+        }
+
+        var encoded = jdbc.queryForObject(
+                "select password_hash from credentials where user_id = ?", String.class, userId);
+        assertThat(Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()
+                        .matches("Valid123!", encoded))
+                .isTrue();
+    }
+
+    @Test
     void disablingTwoFactorDeletesTheNowRevokedBrowserSession() throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
