@@ -127,7 +127,11 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestTwoFactorEnable(UUID userId, String email) {
-        return createChallenge(userId, normalize(email), "TWO_FACTOR_ENABLE");
+        var lockedIdentity = lockActiveUserIdentity(userId);
+        if (!lockedIdentity.equals(normalize(email))) {
+            throw new AuthenticationException(PUBLIC_FAILURE);
+        }
+        return createChallenge(userId, lockedIdentity, "TWO_FACTOR_ENABLE");
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)
@@ -198,18 +202,21 @@ public class AuthenticationFlowService {
     public UUID requestReactivation(String email, String password) {
         var normalized = normalize(email);
         var accounts = jdbc.query("""
-                select u.id, c.password_hash
+                select u.id, c.password_hash, u.normalized_email
                 from users u join credentials c on c.user_id = u.id
                 where u.normalized_email = ? and u.state = 'DEACTIVATED' and u.deleted_at is null
+                for update of u
                 """, (rs, rowNum) -> new ReactivationAccount(
-                rs.getObject("id", UUID.class), rs.getString("password_hash")), normalized);
+                rs.getObject("id", UUID.class), rs.getString("password_hash"),
+                rs.getString("normalized_email")), normalized);
         var eligible = accounts.size() == 1;
         var passwordHash = eligible ? accounts.getFirst().passwordHash() : dummyPasswordHash;
         var passwordMatches = password != null && safeMatches(password, passwordHash);
         if (!eligible || !passwordMatches) {
             return UUID.randomUUID();
         }
-        return createChallenge(accounts.getFirst().id(), normalized, "REACTIVATION");
+        return createChallenge(
+                accounts.getFirst().id(), accounts.getFirst().normalizedEmail(), "REACTIVATION");
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)
@@ -348,6 +355,16 @@ public class AuthenticationFlowService {
         var locked = jdbc.query("select id from users where id = ? for update",
                 (rs, rowNum) -> rs.getObject("id", UUID.class), userId);
         if (locked.size() != 1) throw new AuthenticationException(PUBLIC_FAILURE);
+    }
+
+    private String lockActiveUserIdentity(UUID userId) {
+        var identities = jdbc.query("""
+                select normalized_email from users
+                where id = ? and state = 'ACTIVE' and deleted_at is null
+                for update
+                """, (rs, rowNum) -> rs.getString("normalized_email"), userId);
+        if (identities.size() != 1) throw new AuthenticationException(PUBLIC_FAILURE);
+        return identities.getFirst();
     }
 
     private Account loadAccount(UUID userId) {
@@ -492,5 +509,5 @@ public class AuthenticationFlowService {
             UUID id, UUID userId, byte[] codeHash, int attemptCount, Instant expiresAt, boolean consumed) {}
 
     private record VerifiedChallenge(UUID userId) {}
-    private record ReactivationAccount(UUID id, String passwordHash) {}
+    private record ReactivationAccount(UUID id, String passwordHash, String normalizedEmail) {}
 }

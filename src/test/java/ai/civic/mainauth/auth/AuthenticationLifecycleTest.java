@@ -371,6 +371,42 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void requestingTwoFactorEnableWaitsForPrivacyDeletionAndDoesNotRestoreIdentity() throws Exception {
+        var challengesBefore = count("auth_challenges");
+        var notificationsBefore = count("notification_outbox");
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var request = executor.submit(
+                    () -> auth.requestTwoFactorEnable(userId, "person@example.com"));
+
+            assertThatThrownBy(() -> request.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var deleted = connection.prepareStatement("""
+                        update users set email = ?, normalized_email = ?, state = 'DELETED', deleted_at = now()
+                        where id = ?
+                    """)) {
+                var anonymized = "deleted+" + userId + "@invalid.local";
+                deleted.setString(1, anonymized);
+                deleted.setString(2, anonymized);
+                deleted.setObject(3, userId);
+                deleted.executeUpdate();
+            }
+            connection.commit();
+
+            assertThatThrownBy(() -> request.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AuthenticationException.class);
+        }
+
+        assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+        assertThat(count("notification_outbox")).isEqualTo(notificationsBefore);
+    }
+
+    @Test
     void twoFactorResendRefreshesTheAuthenticationFlowCookie() throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var login = auth.login("person@example.com", "Valid123!", "127.0.0.1");
@@ -492,6 +528,42 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(count("auth_challenges")).isEqualTo(challengesBefore + 1);
         assertThat(count("notification_outbox")).isEqualTo(notificationsBefore + 1);
         verify(smtp).sendChallenge(eq("person@example.com"), challengeCode(), eq("REACTIVATION"));
+    }
+
+    @Test
+    void requestingReactivationWaitsForPrivacyDeletionAndDoesNotRestoreIdentity() throws Exception {
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
+        var challengesBefore = count("auth_challenges");
+        var notificationsBefore = count("notification_outbox");
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
+                lock.setObject(1, userId);
+                lock.executeQuery();
+            }
+            var request = executor.submit(
+                    () -> auth.requestReactivation("person@example.com", "Valid123!"));
+
+            assertThatThrownBy(() -> request.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            try (var deleted = connection.prepareStatement("""
+                        update users set email = ?, normalized_email = ?, state = 'DELETED', deleted_at = now()
+                        where id = ?
+                    """)) {
+                var anonymized = "deleted+" + userId + "@invalid.local";
+                deleted.setString(1, anonymized);
+                deleted.setString(2, anonymized);
+                deleted.setObject(3, userId);
+                deleted.executeUpdate();
+            }
+            connection.commit();
+
+            assertThat(request.get(10, TimeUnit.SECONDS)).isNotNull();
+        }
+
+        assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+        assertThat(count("notification_outbox")).isEqualTo(notificationsBefore);
     }
 
     @Test
