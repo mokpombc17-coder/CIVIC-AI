@@ -303,6 +303,7 @@ public class AuthenticationFlowService {
             throw new AuthenticationException("Authentication code cannot be resent yet");
         }
         var code = verificationCode();
+        retirePendingChallengeNotifications(challenge.id(), purpose);
         jdbc.update("""
                 update auth_challenges set code_hash = ?, attempt_count = 0,
                     resend_count = ?, last_sent_at = ?, resend_window_started_at = ?,
@@ -360,6 +361,7 @@ public class AuthenticationFlowService {
 
     private UUID createChallenge(
             UUID userId, String targetIdentity, String purpose, boolean deliverSynchronously) {
+        retirePendingChallengeNotificationsForUser(userId, purpose);
         jdbc.update("""
                 update auth_challenges set consumed_at = now()
                 where user_id = ? and purpose = ? and consumed_at is null
@@ -378,6 +380,27 @@ public class AuthenticationFlowService {
                 Timestamp.from(now), Timestamp.from(now));
         enqueueChallengeMail(purpose, targetIdentity, challengeId, code, deliverSynchronously);
         return flow;
+    }
+
+    private void retirePendingChallengeNotifications(UUID challengeId, String purpose) {
+        jdbc.update("""
+                update notification_outbox set delivered_at = now(), leased_until = null,
+                    last_error_code = 'CHALLENGE_SUPERSEDED'
+                where delivered_at is null and event_type = ?
+                  and payload ->> 'challenge_id' = ?
+                """, purpose, challengeId.toString());
+    }
+
+    private void retirePendingChallengeNotificationsForUser(UUID userId, String purpose) {
+        jdbc.update("""
+                update notification_outbox notification set delivered_at = now(), leased_until = null,
+                    last_error_code = 'CHALLENGE_SUPERSEDED'
+                from auth_challenges challenge
+                where notification.delivered_at is null
+                  and notification.event_type = ?
+                  and challenge.user_id = ? and challenge.purpose = ?
+                  and notification.payload ->> 'challenge_id' = challenge.id::text
+                """, purpose, userId, purpose);
     }
 
     private VerifiedChallenge consumeChallenge(UUID flowId, String purpose, String code) {

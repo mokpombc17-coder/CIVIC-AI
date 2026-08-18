@@ -227,6 +227,34 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void resendingSignupVerificationRetiresTheObsoleteRetry() {
+        var flow = service.startSignup("resend-mail@example.com");
+        service.completeSignup(
+                flow.flowId(), validRequest("resend-mail@example.com", "Valid123!"));
+        jdbc.update("""
+                update auth_challenges set last_sent_at = now() - interval '2 minutes'
+                where purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """);
+        jdbc.update("""
+                update notification_outbox set attempt_count = 1,
+                    available_at = now() - interval '1 second',
+                    last_error_code = 'SMTP_DELIVERY_FAILED'
+                where event_type = 'SIGNUP_EMAIL_VERIFICATION'
+                """);
+
+        service.resendSignupVerification(flow.flowId());
+
+        assertThat(count("notification_outbox",
+                "event_type = 'SIGNUP_EMAIL_VERIFICATION' and delivered_at is null"
+                        + " and attempt_count = 0 and last_error_code is null"))
+                .isOne();
+        assertThat(count("notification_outbox",
+                "event_type = 'SIGNUP_EMAIL_VERIFICATION' and delivered_at is not null"
+                        + " and last_error_code = 'CHALLENGE_SUPERSEDED'"))
+                .isOne();
+    }
+
+    @Test
     void aliasAddressIsDistinctButCaseAndOuterWhitespaceAreNot() {
         var first = service.startSignup("person@example.com");
         service.completeSignup(first.flowId(), validRequest("person@example.com", "Valid123!"));

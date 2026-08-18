@@ -1035,6 +1035,28 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void replacingPasswordResetChallengeRetiresThePreviouslyQueuedMail() {
+        auth.requestPasswordReset("person@example.com");
+
+        auth.requestPasswordReset("person@example.com");
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from notification_outbox
+                where event_type = 'PASSWORD_RESET' and delivered_at is null
+                  and attempt_count = 0 and last_error_code is null
+                """, Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from notification_outbox
+                where event_type = 'PASSWORD_RESET' and delivered_at is not null
+                  and last_error_code = 'CHALLENGE_SUPERSEDED'
+                """, Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, Integer.class)).isOne();
+    }
+
+    @Test
     void fakeAndRealAuthenticationFlowsExposeTheSameInvalidCodeFailure() {
         var fakeReset = auth.requestPasswordReset("unknown@example.com");
         var realReset = auth.requestPasswordReset("person@example.com");

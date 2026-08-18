@@ -291,6 +291,7 @@ public class SignupFlowService {
             throw new SignupConflictException("Verification message cannot be resent yet");
         }
         var code = "%06d".formatted(RANDOM.nextInt(1_000_000));
+        retirePendingChallengeNotifications(challenge.id());
         jdbc.update("""
                 update auth_challenges set code_hash = ?, attempt_count = 0, resend_count = ?,
                     last_sent_at = ?, resend_window_started_at = ?, expires_at = ? where id = ?
@@ -305,6 +306,15 @@ public class SignupFlowService {
                 insert into notification_outbox(event_type, recipient, payload)
                 values ('SIGNUP_EMAIL_VERIFICATION', ?, ?::jsonb)
                 """, challenge.targetIdentity(), writeJson(notification));
+    }
+
+    private void retirePendingChallengeNotifications(UUID challengeId) {
+        jdbc.update("""
+                update notification_outbox set delivered_at = now(), leased_until = null,
+                    last_error_code = 'CHALLENGE_SUPERSEDED'
+                where delivered_at is null and event_type = 'SIGNUP_EMAIL_VERIFICATION'
+                  and payload ->> 'challenge_id' = ?
+                """, challengeId.toString());
     }
 
     private void validateCompletion(FlowRow flow, CompletionRequest request) {
