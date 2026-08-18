@@ -2,8 +2,12 @@ package ai.civic.mainauth.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -11,9 +15,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 import ai.civic.mainauth.notification.SmtpNotificationService;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -23,10 +30,12 @@ import static org.mockito.Mockito.verify;
         "spring.main.lazy-initialization=true",
         "civic.session.hmac-secret=test-session-hmac-secret-with-at-least-32-bytes"
 })
+@AutoConfigureMockMvc
 class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Autowired AuthenticationFlowService auth;
     @Autowired SessionService sessions;
     @Autowired JdbcTemplate jdbc;
+    @Autowired MockMvc mvc;
     @MockitoBean SmtpNotificationService smtp;
 
     private UUID userId;
@@ -120,6 +129,23 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from sessions where user_id = ? and revoked_at is null", Integer.class, userId))
                 .isZero();
+    }
+
+    @Test
+    void passwordChangeResponseDeletesTheNowRevokedBrowserSession() throws Exception {
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+
+        mvc.perform(put("/api/v1/account/password")
+                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
+                        .header("X-CSRF-Token", session.csrfToken())
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"current_password":"Valid123!","new_password":"Changed123!"}
+                                """))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge(SessionCookieFactory.SESSION_COOKIE, 0));
     }
 
     @Test

@@ -92,7 +92,9 @@ public class SignupController {
         requirePreSession(request);
         rateLimit(request, cookieFlow);
         signup.resendSignupVerification(UUID.fromString(cookieFlow));
-        return ResponseEntity.accepted().build();
+        return ResponseEntity.accepted()
+                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(cookieFlow).toString())
+                .build();
     }
 
     private void requireMatchingFlow(UUID flowId, String cookieFlow) {

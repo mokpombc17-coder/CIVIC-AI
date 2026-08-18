@@ -77,7 +77,9 @@ public class AccountController {
             HttpServletRequest request) {
         var session = requireMutation(sessionId, csrfToken, request);
         authentication.changePassword(session.userId(), body.currentPassword(), body.newPassword());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
+                .build();
     }
 
     @PostMapping("/2fa/enable")

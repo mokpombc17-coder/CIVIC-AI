@@ -107,14 +107,34 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                 .andExpect(cookie().secure("__Host-civic-auth-flow", true))
                 .andExpect(cookie().maxAge("__Host-civic-auth-flow", 600));
 
-        jdbc.update("update auth_challenges set last_sent_at = now() - interval '2 minutes'");
+        jdbc.update("""
+                update auth_challenges set expires_at = now() - interval '1 second',
+                    last_sent_at = now() - interval '2 minutes'
+                where flow_hash = digest(?, 'sha256')
+                """, flowId);
+        mvc.perform(post("/api/v1/signup/verification/resend")
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .cookie(flowCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict());
+
+        jdbc.update("""
+                update auth_challenges set expires_at = now() + interval '10 minutes',
+                    last_sent_at = now() - interval '2 minutes'
+                where flow_hash = digest(?, 'sha256')
+                """, flowId);
         mvc.perform(post("/api/v1/signup/verification/resend")
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
                         .cookie(flowCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(cookie().httpOnly("__Host-civic-auth-flow", true))
+                .andExpect(cookie().secure("__Host-civic-auth-flow", true))
+                .andExpect(cookie().maxAge("__Host-civic-auth-flow", 600));
 
         var protectedCode = json.readTree(jdbc.queryForObject("""
                 select payload::text from notification_outbox

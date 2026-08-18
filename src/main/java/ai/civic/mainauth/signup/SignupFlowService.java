@@ -261,7 +261,7 @@ public class SignupFlowService {
         var count = challenge.windowStartedAt() != null
                         && challenge.windowStartedAt().plus(1, ChronoUnit.HOURS).isAfter(now)
                 ? challenge.resendCount() : 0;
-        if (challenge.consumed() || count >= 5
+        if (challenge.consumed() || !challenge.expiresAt().isAfter(now) || count >= 5
                 || (challenge.lastSentAt() != null && challenge.lastSentAt().plusSeconds(60).isAfter(now))) {
             throw new SignupConflictException("Verification message cannot be resent yet");
         }
