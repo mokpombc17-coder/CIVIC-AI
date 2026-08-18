@@ -1,7 +1,6 @@
 package ai.civic.mainauth.auth;
 
 import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.util.Base64;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -9,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CsrfService {
-    private static final SecureRandom RANDOM = new SecureRandom();
     private final JdbcTemplate jdbc;
     private final SessionService sessions;
 
@@ -21,9 +19,8 @@ public class CsrfService {
     @Transactional
     public String issue(String rawSessionId) {
         sessions.require(rawSessionId);
-        var bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        var raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        var raw = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(sessions.hmac("csrf-token:" + rawSessionId));
         jdbc.update("update sessions set csrf_hash = ? where session_hash = ? and revoked_at is null",
                 sessions.hmac(raw), sessions.hmac(rawSessionId));
         return raw;

@@ -44,6 +44,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Autowired AuthenticationFlowService auth;
     @Autowired SessionService sessions;
+    @Autowired CsrfService csrf;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
     @MockitoBean SmtpNotificationService smtp;
@@ -296,6 +297,18 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 select count(*) from auth_challenges
                 where flow_hash = ? and consumed_at is not null
                 """, Integer.class, sha256(reset.toString()))).isOne();
+    }
+
+    @Test
+    void repeatedCsrfReadsKeepTheSessionTokenValidAcrossTabs() {
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+
+        var firstTab = csrf.issue(session.sessionId());
+        var secondTab = csrf.issue(session.sessionId());
+
+        assertThat(firstTab).isEqualTo(secondTab);
+        assertThat(csrf.matches(session.sessionId(), firstTab)).isTrue();
+        assertThat(csrf.matches(session.sessionId(), secondTab)).isTrue();
     }
 
     @Test
