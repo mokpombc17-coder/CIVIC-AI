@@ -54,6 +54,38 @@ class PrivacyOrchestratorTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void concurrentServiceResultsAreSerializedIntoOneCompleteAggregate() throws Exception {
+        var subject = createSubject("privacy-concurrent-results@example.com");
+        var operation = privacy.start(
+                "external-concurrent-results-42", subject, Set.of("ACCOUNT", "RAG"), true);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var main = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                privacy.recordResult(operation, "MAIN", "COMPLETE", "aggregate-main");
+                return null;
+            });
+            var rag = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                privacy.recordResult(operation, "RAG", "COMPLETE", "aggregate-rag");
+                return null;
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            main.get(10, TimeUnit.SECONDS);
+            rag.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(privacy.status(operation)).isEqualTo("COMPLETE");
+        assertThat(jdbc.queryForObject(
+                "select count(*) from privacy_results where operation_id = ?", Integer.class, operation))
+                .isEqualTo(2);
+    }
+
+    @Test
     void nonexistentPrivacySubjectIsRejectedBeforeAnyCommandIsQueued() {
         assertThatThrownBy(() -> privacy.start(
                 "external-missing-42", UUID.randomUUID(), Set.of("ACCOUNT"), true))

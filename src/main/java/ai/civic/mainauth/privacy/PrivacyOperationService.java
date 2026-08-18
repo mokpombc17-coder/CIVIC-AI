@@ -87,6 +87,12 @@ public class PrivacyOperationService {
                 || aggregateEvidence == null || aggregateEvidence.isBlank()) {
             throw new IllegalArgumentException("Aggregate privacy result is invalid");
         }
+        var operation = jdbc.query(
+                "select id from privacy_operations where id = ? for update",
+                (rs, rowNum) -> rs.getObject("id", UUID.class), operationId);
+        if (operation.size() != 1) {
+            throw new IllegalArgumentException("Privacy operation does not exist");
+        }
         var enqueued = jdbc.queryForObject("""
                 select count(*) from privacy_command_outbox
                 where operation_id = ? and service_code = ?

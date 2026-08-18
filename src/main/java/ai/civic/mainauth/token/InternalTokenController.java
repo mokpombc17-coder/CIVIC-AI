@@ -56,6 +56,9 @@ public class InternalTokenController {
             throw new SecurityException("Internal token request is invalid");
         }
         var session = sessions.require(sessionId);
+        if (session.mustChangePassword()) {
+            throw new SecurityException("Password rotation is required before issuing internal tokens");
+        }
         var permittedScopes = permittedRagScopes(session.role());
         if (request.scopes() == null || !permittedScopes.containsAll(request.scopes())) {
             throw new SecurityException("Requested RAG scopes are not permitted for this session");
