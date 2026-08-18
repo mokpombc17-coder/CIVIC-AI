@@ -137,7 +137,7 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestPasswordReset(String email) {
-        return requestAccountChallenge(email, "ACTIVE", "PASSWORD_RESET");
+        return requestAccountChallenge(email, "ACTIVE", "PASSWORD_RESET", false);
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)
@@ -227,18 +227,24 @@ public class AuthenticationFlowService {
                 """, sha256(code), count + 1, Timestamp.from(now),
                 Timestamp.from(count == 0 ? now : challenge.windowStartedAt()),
                 Timestamp.from(now.plus(Duration.ofMinutes(10))), challenge.id());
-        enqueueChallengeMail(purpose, challenge.targetIdentity(), challenge.id(), code);
+        enqueueChallengeMail(purpose, challenge.targetIdentity(), challenge.id(), code, true);
     }
 
-    private UUID requestAccountChallenge(String email, String requiredState, String purpose) {
+    private UUID requestAccountChallenge(
+            String email, String requiredState, String purpose, boolean deliverSynchronously) {
         var normalized = normalize(email);
         var ids = jdbc.query("select id from users where normalized_email = ? and state = ?",
                 (rs, rowNum) -> rs.getObject(1, UUID.class), normalized, requiredState);
         if (ids.isEmpty()) return UUID.randomUUID();
-        return createChallenge(ids.getFirst(), normalized, purpose);
+        return createChallenge(ids.getFirst(), normalized, purpose, deliverSynchronously);
     }
 
     private UUID createChallenge(UUID userId, String targetIdentity, String purpose) {
+        return createChallenge(userId, targetIdentity, purpose, true);
+    }
+
+    private UUID createChallenge(
+            UUID userId, String targetIdentity, String purpose, boolean deliverSynchronously) {
         jdbc.update("""
                 update auth_challenges set consumed_at = now()
                 where user_id = ? and purpose = ? and consumed_at is null
@@ -255,7 +261,7 @@ public class AuthenticationFlowService {
                 """, challengeId, sha256(flow.toString()), userId, purpose, targetIdentity,
                 sha256(code), Timestamp.from(now.plus(Duration.ofMinutes(10))),
                 Timestamp.from(now), Timestamp.from(now));
-        enqueueChallengeMail(purpose, targetIdentity, challengeId, code);
+        enqueueChallengeMail(purpose, targetIdentity, challengeId, code, deliverSynchronously);
         return flow;
     }
 
@@ -301,7 +307,8 @@ public class AuthenticationFlowService {
                 SessionService.SessionRole.valueOf(rs.getString("primary_role"))), userId);
     }
 
-    private void enqueueChallengeMail(String purpose, String target, UUID challengeId, String code) {
+    private void enqueueChallengeMail(
+            String purpose, String target, UUID challengeId, String code, boolean deliverSynchronously) {
         try {
             var payload = json.writeValueAsString(Map.of(
                     "challenge_id", challengeId.toString(),
@@ -311,6 +318,7 @@ public class AuthenticationFlowService {
                     insert into notification_outbox(event_type, recipient, payload)
                     values (?, ?, ?::jsonb) returning id
                     """, UUID.class, purpose, target, payload);
+            if (!deliverSynchronously) return;
             try {
                 smtp.sendChallenge(target, code, purpose);
                 jdbc.update("""

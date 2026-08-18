@@ -14,10 +14,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import ai.civic.mainauth.notification.SmtpNotificationService;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.eq;
-import ai.civic.mainauth.notification.NotificationDeliveryException;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest(properties = {
         "spring.main.lazy-initialization=true",
@@ -136,39 +135,40 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void passwordResetAndTwoFactorChallengesAttemptSynchronousDeliveryOnlyOnce() {
+    void passwordResetQueuesDeliveryWhileTwoFactorStillDeliversSynchronously() {
         auth.requestPasswordReset("person@example.com");
         auth.requestTwoFactorEnable(userId, "person@example.com");
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from notification_outbox
-                where event_type in ('PASSWORD_RESET', 'TWO_FACTOR_ENABLE')
-                  and attempt_count = 1 and delivered_at is not null
-                """, Integer.class)).isEqualTo(2);
-        verify(smtp).sendChallenge(
+                where event_type = 'PASSWORD_RESET'
+                  and attempt_count = 0 and delivered_at is null
+                """, Integer.class)).isOne();
+        verify(smtp, never()).sendChallenge(
                 eq("person@example.com"), challengeCode(), eq("PASSWORD_RESET"));
         verify(smtp).sendChallenge(
                 eq("person@example.com"), challengeCode(), eq("TWO_FACTOR_ENABLE"));
     }
 
     @Test
-    void synchronousDeliveryFailureIsReturnedAndTheFailedAttemptRemainsAuditable() {
-        doThrow(new IllegalStateException("synthetic SMTP outage"))
-                .when(smtp).sendChallenge(eq("person@example.com"), org.mockito.ArgumentMatchers.anyString(),
-                        eq("PASSWORD_RESET"));
+    void knownAndUnknownPasswordResetRequestsAreBothAcceptedWithoutSynchronousSmtp() {
+        var known = auth.requestPasswordReset("person@example.com");
+        var unknown = auth.requestPasswordReset("unknown@example.com");
 
-        assertThatThrownBy(() -> auth.requestPasswordReset("person@example.com"))
-                .isInstanceOf(NotificationDeliveryException.class)
-                .hasMessageContaining("request a resend");
+        assertThat(known).isNotNull();
+        assertThat(unknown).isNotNull().isNotEqualTo(known);
         assertThat(jdbc.queryForObject("""
                 select count(*) from notification_outbox
-                where event_type = 'PASSWORD_RESET' and attempt_count = 1
-                  and last_error_code = 'SMTP_DELIVERY_FAILED'
+                where event_type = 'PASSWORD_RESET' and attempt_count = 0
+                  and delivered_at is null and last_error_code is null
                 """, Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("""
                 select count(*) from auth_challenges
                 where purpose = 'PASSWORD_RESET' and consumed_at is null
                 """, Integer.class)).isEqualTo(1);
+        verify(smtp, never()).sendChallenge(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), eq("PASSWORD_RESET"));
     }
 
     @Test

@@ -32,14 +32,19 @@ public class SignupMailDispatcher {
     @Transactional
     public boolean dispatchOne() {
         var rows = jdbc.query("""
-                select id, recipient, payload::text, attempt_count
+                select id, event_type, recipient, payload::text, attempt_count
                 from notification_outbox
-                where event_type = 'SIGNUP_EMAIL_VERIFICATION'
-                  and delivered_at is null and available_at <= now() and attempt_count < 3
+                where event_type in (
+                    'SIGNUP_EMAIL_VERIFICATION', 'PASSWORD_RESET', 'TWO_FACTOR',
+                    'TWO_FACTOR_ENABLE', 'REACTIVATION'
+                  )
+                  and delivered_at is null and available_at <= now()
+                  and ((event_type = 'SIGNUP_EMAIL_VERIFICATION' and attempt_count < 3)
+                    or (event_type <> 'SIGNUP_EMAIL_VERIFICATION' and attempt_count = 0))
                   and (leased_until is null or leased_until < now())
                 order by created_at for update skip locked limit 1
-                """, (rs, rowNum) -> new Delivery(
-                rs.getObject("id", UUID.class), rs.getString("recipient"),
+        """, (rs, rowNum) -> new Delivery(
+                rs.getObject("id", UUID.class), rs.getString("event_type"), rs.getString("recipient"),
                 rs.getString("payload"), rs.getInt("attempt_count")));
         if (rows.isEmpty()) return false;
         var delivery = rows.getFirst();
@@ -47,15 +52,20 @@ public class SignupMailDispatcher {
                 delivery.id());
         try {
             JsonNode payload = json.readTree(delivery.payload());
-            smtp.sendSignupVerification(
-                    delivery.recipient(), protector.reveal(payload.path("protected_code").asText()));
+            var code = protector.reveal(payload.path("protected_code").asText());
+            if ("SIGNUP_EMAIL_VERIFICATION".equals(delivery.eventType())) {
+                smtp.sendSignupVerification(delivery.recipient(), code);
+            } else {
+                smtp.sendChallenge(delivery.recipient(), code, delivery.eventType());
+            }
             jdbc.update("""
                     update notification_outbox set delivered_at = now(), leased_until = null,
                         attempt_count = attempt_count + 1 where id = ?
                     """, delivery.id());
         } catch (Exception exception) {
             var attempt = delivery.attemptCount() + 1;
-            var next = Instant.now().plus(policy.retryDelay(attempt));
+            var next = policy.automaticRetryAllowed(delivery.eventType())
+                    ? Instant.now().plus(policy.retryDelay(attempt)) : Instant.now();
             jdbc.update("""
                     update notification_outbox set leased_until = null, attempt_count = ?,
                         available_at = ?, last_error_code = 'SMTP_DELIVERY_FAILED' where id = ?
@@ -64,5 +74,5 @@ public class SignupMailDispatcher {
         return true;
     }
 
-    private record Delivery(UUID id, String recipient, String payload, int attemptCount) {}
+    private record Delivery(UUID id, String eventType, String recipient, String payload, int attemptCount) {}
 }
