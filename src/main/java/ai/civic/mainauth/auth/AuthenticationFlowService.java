@@ -62,7 +62,10 @@ public class AuthenticationFlowService {
     public LoginResult login(String email, String password, String sourceIp) {
         var normalized = normalize(email);
         if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
-        var rows = jdbc.query("""
+        var identities = jdbc.query("""
+                select id from users where normalized_email = ? for update
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class), normalized);
+        var account = identities.size() == 1 ? jdbc.queryForObject("""
                 select u.id, u.state, c.password_hash, c.two_factor_enabled, c.must_change_password,
                        case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
@@ -73,13 +76,12 @@ public class AuthenticationFlowService {
                 from users u join credentials c on c.user_id = u.id
                 left join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
                 left join roles r on r.id = ur.role_id
-                where u.normalized_email = ?
+                where u.id = ?
                 group by u.id, u.state, c.password_hash, c.two_factor_enabled, c.must_change_password
                 """, (rs, rowNum) -> new Account(
                 rs.getObject("id", UUID.class), rs.getString("state"), rs.getString("password_hash"),
                 rs.getBoolean("two_factor_enabled"), rs.getBoolean("must_change_password"),
-                SessionService.SessionRole.valueOf(rs.getString("primary_role"))), normalized);
-        var account = rows.isEmpty() ? null : rows.getFirst();
+                SessionService.SessionRole.valueOf(rs.getString("primary_role"))), identities.getFirst()) : null;
         var eligible = account != null && "ACTIVE".equals(account.state());
         var passwordHash = eligible ? account.passwordHash() : dummyPasswordHash;
         var passwordMatches = password != null && safeMatches(password, passwordHash);
@@ -99,6 +101,7 @@ public class AuthenticationFlowService {
     @Transactional
     public void changePassword(UUID userId, String currentPassword, String newPassword) {
         requireValidPassword(newPassword);
+        lockUser(userId);
         var encoded = jdbc.queryForObject(
                 "select password_hash from credentials where user_id = ? for update", String.class, userId);
         if (!safeMatches(currentPassword, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
@@ -107,6 +110,7 @@ public class AuthenticationFlowService {
                     password_changed_at = now() where user_id = ?
                 """, passwords.encode(newPassword), userId);
         consumePendingLoginChallenges(userId);
+        consumePendingPasswordResetChallenges(userId);
         sessions.revokeAll(userId, "PASSWORD_CHANGED");
     }
 
@@ -131,6 +135,7 @@ public class AuthenticationFlowService {
 
     @Transactional
     public void disableTwoFactor(UUID userId, String password) {
+        lockUser(userId);
         confirmPassword(userId, password);
         jdbc.update("""
                 update credentials set two_factor_enabled = false,
@@ -148,6 +153,7 @@ public class AuthenticationFlowService {
     @Transactional(noRollbackFor = AuthenticationException.class)
     public void completePasswordReset(UUID flowId, String code, String newPassword) {
         requireValidPassword(newPassword);
+        lockChallengeUser(flowId, "PASSWORD_RESET");
         var verified = consumeChallenge(flowId, "PASSWORD_RESET", code);
         jdbc.update("""
                 update credentials set password_hash = ?, must_change_password = false,
@@ -161,6 +167,13 @@ public class AuthenticationFlowService {
         jdbc.update("""
                 update auth_challenges set consumed_at = now()
                 where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null
+                """, userId);
+    }
+
+    private void consumePendingPasswordResetChallenges(UUID userId) {
+        jdbc.update("""
+                update auth_challenges set consumed_at = now()
+                where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
                 """, userId);
     }
 
@@ -202,6 +215,7 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = AuthenticationException.class)
     public LoginResult verifyTwoFactor(UUID flowId, String code) {
+        lockChallengeUser(flowId, "TWO_FACTOR");
         var verified = consumeChallenge(flowId, "TWO_FACTOR", code);
         var account = loadAccount(verified.userId());
         if (!"ACTIVE".equals(account.state())) throw new AuthenticationException(PUBLIC_FAILURE);
@@ -300,6 +314,21 @@ public class AuthenticationFlowService {
         }
         jdbc.update("update auth_challenges set consumed_at = now() where id = ?", challenge.id());
         return new VerifiedChallenge(challenge.userId());
+    }
+
+    private UUID lockChallengeUser(UUID flowId, String purpose) {
+        var users = jdbc.query("""
+                select user_id from auth_challenges where flow_hash = ? and purpose = ?
+                """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), sha256(flowId.toString()), purpose);
+        if (users.size() != 1) throw new AuthenticationException("Authentication flow is invalid");
+        lockUser(users.getFirst());
+        return users.getFirst();
+    }
+
+    private void lockUser(UUID userId) {
+        var locked = jdbc.query("select id from users where id = ? for update",
+                (rs, rowNum) -> rs.getObject("id", UUID.class), userId);
+        if (locked.size() != 1) throw new AuthenticationException(PUBLIC_FAILURE);
     }
 
     private Account loadAccount(UUID userId) {

@@ -15,6 +15,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,6 +77,26 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(stored).doesNotContain(login.sessionId());
         assertThat(sessions.require(login.sessionId()).userId()).isEqualTo(userId);
         assertThat(login.toString()).doesNotContain("Bearer", "access_token", "refresh_token", "internal_token");
+    }
+
+    @Test
+    void loginWaitsForTheUserSecurityLockBeforeIssuingASession() throws Exception {
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var statement = connection.prepareStatement("select id from users where id = ? for update")) {
+                statement.setObject(1, userId);
+                statement.executeQuery();
+            }
+            var login = executor.submit(
+                    () -> auth.login("person@example.com", "Valid123!", "127.0.0.1"));
+
+            assertThatThrownBy(() -> login.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            connection.commit();
+
+            assertThat(login.get(10, TimeUnit.SECONDS).sessionId()).isNotBlank();
+        }
     }
 
     @Test
@@ -251,6 +272,24 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 """, Integer.class, userId)).isZero();
         assertThatThrownBy(() -> auth.verifyTwoFactor(
                 UUID.fromString(pendingLogin.authFlowId()), "123456"))
+                .isInstanceOf(AuthenticationException.class);
+    }
+
+    @Test
+    void authenticatedPasswordChangeConsumesPendingPasswordResetChallenges() throws Exception {
+        var reset = auth.requestPasswordReset("person@example.com");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, sha256("654321"), userId);
+
+        auth.changePassword(userId, "Valid123!", "Changed123!");
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
+                """, Integer.class, userId)).isZero();
+        assertThatThrownBy(() -> auth.completePasswordReset(reset, "654321", "Attacker123!"))
                 .isInstanceOf(AuthenticationException.class);
     }
 

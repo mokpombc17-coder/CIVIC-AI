@@ -121,6 +121,36 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void completionPersistsServerTimeInsteadOfClientSuppliedConsentTime() {
+        var flow = service.startSignup("server-consent-time@example.com");
+        var valid = validRequest("server-consent-time@example.com", "Valid123!");
+        var clientFuture = Instant.parse("2099-01-01T00:00:00Z");
+        var request = new SignupFlowService.CompletionRequest(
+                valid.email(), valid.password(), valid.preferredLanguage(), valid.ragAnswerDetail(),
+                valid.age14Confirmed(),
+                new SignupFlowService.Evidence(
+                        valid.termsEvidence().documentId(), valid.termsEvidence().documentVersion(),
+                        valid.termsEvidence().bodySha256(), clientFuture, valid.termsEvidence().path()),
+                new SignupFlowService.Evidence(
+                        valid.privacyEvidence().documentId(), valid.privacyEvidence().documentVersion(),
+                        valid.privacyEvidence().bodySha256(), clientFuture, valid.privacyEvidence().path()));
+        var before = Instant.now().minusSeconds(1);
+
+        service.completeSignup(flow.flowId(), request);
+
+        var accepted = jdbc.queryForList("""
+                select accepted_at from consent_evidence
+                where user_id = (select id from users where normalized_email = ?)
+                order by document_code
+                """, java.sql.Timestamp.class, "server-consent-time@example.com");
+        var after = Instant.now().plusSeconds(1);
+        assertThat(accepted).hasSize(2).allSatisfy(timestamp -> {
+            assertThat(timestamp.toInstant()).isBetween(before, after);
+            assertThat(timestamp.toInstant()).isNotEqualTo(clientFuture);
+        });
+    }
+
+    @Test
     void verifiedSignupPublishesInitialActiveAccountState() throws Exception {
         var flow = service.startSignup("verified@example.com");
         service.completeSignup(flow.flowId(), validRequest("verified@example.com", "Valid123!"));

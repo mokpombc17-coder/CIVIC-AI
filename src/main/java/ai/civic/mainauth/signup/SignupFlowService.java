@@ -155,8 +155,9 @@ public class SignupFlowService {
                 """, userId);
         insertAnswer(userId, flow.schemaId(), "preferred_language", request.preferredLanguage());
         insertAnswer(userId, flow.schemaId(), "rag_answer_detail", request.ragAnswerDetail());
-        consent.record(userId, request.termsEvidence());
-        consent.record(userId, request.privacyEvidence());
+        var acceptedAt = clock.instant();
+        consent.record(userId, serverAcceptedEvidence(request.termsEvidence(), acceptedAt));
+        consent.record(userId, serverAcceptedEvidence(request.privacyEvidence(), acceptedAt));
 
         var code = "%06d".formatted(RANDOM.nextInt(1_000_000));
         var challengeId = UUID.randomUUID();
@@ -314,6 +315,12 @@ public class SignupFlowService {
                 || !evidence.bodySha256().matches("^[0-9a-f]{64}$")) {
             invalid("Acceptance evidence does not match the pinned document");
         }
+    }
+
+    private Evidence serverAcceptedEvidence(Evidence evidence, Instant acceptedAt) {
+        return new Evidence(
+                evidence.documentId(), evidence.documentVersion(), evidence.bodySha256(),
+                acceptedAt, evidence.path());
     }
 
     private void insertAnswer(UUID userId, UUID schemaId, String question, String value) {
