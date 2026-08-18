@@ -32,6 +32,10 @@ public class MainPrivacyDeletionHandler {
                         rs.getString("normalized_email"), rs.getString("state")),
                 subjectId);
         if (users.isEmpty()) throw new IllegalArgumentException("Subject does not exist");
+        existing = jdbc.queryForObject(
+                "select count(*) from deletion_tombstones where subject_id = ?",
+                Integer.class, subjectId);
+        if (existing != null && existing > 0) return new DeletionResult(false, true);
         var user = users.getFirst();
         var originalEmail = user.normalizedEmail();
         var subjectIsActive = "ACTIVE".equals(user.state());

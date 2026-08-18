@@ -168,6 +168,36 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
                 Integer.class, user)).isOne();
     }
 
+    @Test
+    void deletionRechecksATombstoneCreatedWhileWaitingForTheUserLock() throws Exception {
+        var user = createUser();
+        try (var connection = jdbc.getDataSource().getConnection();
+                var executor = Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try (var userLock = connection.prepareStatement(
+                    "select id from users where id = ? for update")) {
+                userLock.setObject(1, user);
+                userLock.executeQuery();
+            }
+
+            var attempt = executor.submit(() -> deletion.delete(user, "queued-deletion"));
+            assertThatThrownBy(() -> attempt.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(java.util.concurrent.TimeoutException.class);
+
+            jdbc.update("""
+                    insert into deletion_tombstones(
+                        subject_id, external_request_evidence_id, deletion_version
+                    ) values (?, 'concurrent-deletion', 1)
+                    """, user);
+            connection.commit();
+
+            assertThat(attempt.get(10, TimeUnit.SECONDS))
+                    .extracting(MainPrivacyDeletionHandler.DeletionResult::deleted,
+                            MainPrivacyDeletionHandler.DeletionResult::alreadyDeleted)
+                    .containsExactly(false, true);
+        }
+    }
+
     private UUID createUser() {
         var id = jdbc.queryForObject("""
                 insert into users(email, normalized_email, origin, state, email_verified_at)
