@@ -75,6 +75,9 @@ public class AdminRoleService {
                 "select row_version, state from users where id = ? for update", subjectId);
         if (subjects.size() != 1) throw new AdminUserNotFoundException();
         var subject = subjects.getFirst();
+        if ("PENDING_EMAIL_VERIFICATION".equals(subject.get("state"))) {
+            throw new AdminPolicyException("Role changes require a verified account");
+        }
         var currentVersion = ((Number) subject.get("row_version")).longValue();
         if (currentVersion != expectedVersion) throw new AdminVersionConflictException("User version is stale");
         var current = Set.copyOf(rolesOf(subjectId));

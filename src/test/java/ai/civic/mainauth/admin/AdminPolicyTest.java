@@ -112,6 +112,36 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void pendingSignupAccountsCannotCreateDurableRoleAuditReferences() {
+        jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
+        var pending = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state)
+                values ('pending-role@example.com', 'pending-role@example.com',
+                        'SIGNUP', 'PENDING_EMAIL_VERIFICATION') returning id
+                """, UUID.class);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'pending-hash')", pending);
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'PARTICIPANT'
+                """, pending);
+
+        assertThatThrownBy(() -> roles.replaceRoles(
+                bootstrapId,
+                pending,
+                0,
+                Set.of("PARTICIPANT"),
+                "가입 대기 계정 역할 확인",
+                false))
+                .isInstanceOf(AdminPolicyException.class)
+                .hasMessageContaining("verified account");
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from audit_outbox where subject_user_id = ?",
+                Integer.class,
+                pending)).isZero();
+    }
+
+    @Test
     void concurrentCrossDemotionsCannotRemoveEveryHighestAdministrator() throws Exception {
         jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
         var first = createAdmin("concurrent-first@example.com");
