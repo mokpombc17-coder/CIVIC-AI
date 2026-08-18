@@ -6,6 +6,9 @@ import ai.civic.mainauth.auth.SessionService;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,6 +36,47 @@ class AccountProfileServiceTest extends PostgresIntegrationTest {
                 select count(*) from questionnaire_responses r
                 join questionnaire_schemas s on s.id = r.schema_id
                 where r.user_id = ? and r.active and s.active_for_new_signup
+                """, Integer.class, userId)).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentProfileUpdatesLeaveOneActiveVersionPerQuestion() throws Exception {
+        var email = "profile-concurrent-" + UUID.randomUUID() + "@example.test";
+        var userId = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state, email_verified_at)
+                values (?, ?, 'SIGNUP', 'ACTIVE', now()) returning id
+                """, UUID.class, email, email);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", userId);
+        var now = Instant.now();
+        var session = new SessionService.SessionView(
+                userId, SessionService.SessionRole.PARTICIPANT, "ACTIVE", 0,
+                now.plusSeconds(60), now.plusSeconds(120), now, false);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return profiles.update(session, "en", null);
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return profiles.update(session, "ko", null);
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select count(*) from questionnaire_responses
+                where user_id = ? and question_key = 'preferred_language' and active
+                """, Integer.class, userId)).isOne();
+        assertThat(jdbc.queryForObject("""
+                select count(distinct response_version) from questionnaire_responses
+                where user_id = ? and question_key = 'preferred_language'
                 """, Integer.class, userId)).isEqualTo(2);
     }
 }

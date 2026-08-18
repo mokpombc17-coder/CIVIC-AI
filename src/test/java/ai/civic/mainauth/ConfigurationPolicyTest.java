@@ -41,6 +41,9 @@ class ConfigurationPolicyTest {
             assertThat(sql).doesNotContain("@gmail.com", "@naver.com", "@daum.net");
         }
         assertThat(Files.readString(migrations.get(1)))
-                .contains("${bootstrap_admin_email}", "${bootstrap_admin_password_hash}");
+                .contains(
+                        "${bootstrap_admin_email_base64}",
+                        "${bootstrap_admin_password_hash_base64}")
+                .doesNotContain("'${bootstrap_admin_email}'", "'${bootstrap_admin_password_hash}'");
     }
 }

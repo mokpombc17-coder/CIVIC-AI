@@ -48,6 +48,8 @@ public class AccountProfileService {
                 && !java.util.Set.of("concise", "balanced", "detailed").contains(ragAnswerDetail)) {
             throw new IllegalArgumentException("RAG answer detail is invalid");
         }
+        jdbc.queryForObject(
+                "select id from users where id = ? for update", UUID.class, session.userId());
         var schemaIds = jdbc.query("""
                 select schema_id from questionnaire_responses where user_id = ? and active limit 1
                 """, (rs, rowNum) -> rs.getObject(1, UUID.class), session.userId());

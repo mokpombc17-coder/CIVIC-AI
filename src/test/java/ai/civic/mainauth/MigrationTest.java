@@ -8,6 +8,8 @@ import java.net.ServerSocket;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -43,8 +45,9 @@ class MigrationTest {
         Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
                 .placeholders(Map.of(
-                        "bootstrap_admin_email", "bootstrap@example.test",
-                        "bootstrap_admin_password_hash", "$argon2id$v=19$m=65536,t=3,p=1$test$test"))
+                        "bootstrap_admin_email_base64", encoded("o'connor@example.test"),
+                        "bootstrap_admin_password_hash_base64",
+                                encoded("$argon2id$v=19$m=65536,t=3,p=1$test$test")))
                 .load()
                 .migrate();
 
@@ -70,7 +73,7 @@ class MigrationTest {
                     join credentials c on c.user_id = u.id
                     join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
                     join roles r on r.id = ur.role_id
-                    where u.normalized_email = 'bootstrap@example.test'
+                    where u.normalized_email = 'o''connor@example.test'
                     """)) {
                 try (var row = admin.executeQuery()) {
                     assertThat(row.next()).isTrue();
@@ -86,7 +89,7 @@ class MigrationTest {
                     select o.account_state_version, o.state, o.event_payload->>'reason' as reason
                     from account_state_outbox o
                     join users u on u.id = o.user_id
-                    where u.normalized_email = 'bootstrap@example.test'
+                    where u.normalized_email = 'o''connor@example.test'
                     """)) {
                 try (var row = initialState.executeQuery()) {
                     assertThat(row.next()).isTrue();
@@ -116,5 +119,9 @@ class MigrationTest {
                 }
             }
         }
+    }
+
+    private static String encoded(String value) {
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 }
