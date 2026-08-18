@@ -9,7 +9,10 @@ import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.SessionService;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +30,19 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     void ids() {
         bootstrapId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
+    }
+
+    @AfterEach
+    void preserveBootstrapHighestAdmin() {
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'SUPER_ADMIN'
+                  and not exists (
+                    select 1 from user_roles active
+                    where active.user_id = ? and active.role_id = roles.id
+                      and active.revoked_at is null
+                  )
+                """, bootstrapId, bootstrapId);
     }
 
     @Test
@@ -79,6 +95,34 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void concurrentCrossDemotionsCannotRemoveEveryHighestAdministrator() throws Exception {
+        jdbc.update("update credentials set must_change_password = false where user_id = ?", bootstrapId);
+        var first = createAdmin("concurrent-first@example.com");
+        var second = createAdmin("concurrent-second@example.com");
+        roles.replaceRoles(bootstrapId, first, 0, Set.of("HIGHEST_ADMIN"), "동시성 관리자 1 지정", false);
+        roles.replaceRoles(bootstrapId, second, 0, Set.of("HIGHEST_ADMIN"), "동시성 관리자 2 지정", false);
+        jdbc.update("""
+                update user_roles set revoked_at = now()
+                where user_id = ? and role_id = (select id from roles where code = 'SUPER_ADMIN')
+                  and revoked_at is null
+                """, bootstrapId);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var firstResult = executor.submit(() -> demoteOther(first, second));
+            var secondResult = executor.submit(() -> demoteOther(second, first));
+            assertThat(Set.of(firstResult.get(10, TimeUnit.SECONDS), secondResult.get(10, TimeUnit.SECONDS)))
+                    .contains(false, true);
+        }
+
+        assertThat(jdbc.queryForObject("""
+                select count(distinct u.id) from users u
+                join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
+                join roles r on r.id = ur.role_id
+                where u.state = 'ACTIVE' and r.highest_admin
+                """, Integer.class)).isOne();
+    }
+
+    @Test
     void accountDeactivationIsSelfServiceOnlyAndWritesOneVersionedEvent() {
         var participant = createParticipant("participant@example.com");
         assertThatThrownBy(() -> lifecycle.deactivateSelf(bootstrapId, participant))
@@ -113,5 +157,14 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                 select ?, id from roles where code = 'PARTICIPANT'
                 """, id);
         return id;
+    }
+
+    private boolean demoteOther(UUID actor, UUID subject) {
+        try {
+            roles.replaceRoles(actor, subject, 1, Set.of("ADMIN"), "동시 교차 권한 회수", true);
+            return true;
+        } catch (AdminPolicyException exception) {
+            return false;
+        }
     }
 }

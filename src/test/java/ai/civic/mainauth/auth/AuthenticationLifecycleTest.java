@@ -172,6 +172,19 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void invalidAuthenticationCodeAttemptRemainsCommitted() {
+        var flow = auth.requestPasswordReset("person@example.com");
+
+        assertThatThrownBy(() -> auth.completePasswordReset(flow, "wrong-code", "Changed123!"))
+                .isInstanceOf(AuthenticationException.class);
+
+        assertThat(jdbc.queryForObject("""
+                select attempt_count from auth_challenges
+                where flow_hash is not null and purpose = 'PASSWORD_RESET'
+                """, Integer.class)).isOne();
+    }
+
+    @Test
     void reactivationDoesNotCreateAChallengeForAnActiveOrDeletedAccount() {
         var challengesBefore = count("auth_challenges");
 

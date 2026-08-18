@@ -2,6 +2,7 @@ package ai.civic.mainauth.worker;
 
 import ai.civic.mainauth.audit.AuditConsumer;
 import ai.civic.mainauth.notification.SignupMailDispatcher;
+import ai.civic.mainauth.privacy.PrivacyCommandDispatcher;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,11 +18,13 @@ class WorkerPollerConfiguration {
     List<OutboxPoller> outboxPollers(
             SignupMailDispatcher notifications,
             AuditConsumer audit,
-            AccountStateDispatcher accountState) {
+            AccountStateDispatcher accountState,
+            PrivacyCommandDispatcher privacy) {
         return List.of(
                 new NamedPoller("notification", notifications::dispatchOne),
                 new NamedPoller("audit", audit::consumeOne),
-                new NamedPoller("account-state", accountState::dispatchOne));
+                new NamedPoller("account-state", accountState::dispatchOne),
+                new NamedPoller("privacy-main", privacy::dispatchMainOne));
     }
 
     private record NamedPoller(String channel, BooleanSupplier operation) implements OutboxPoller {

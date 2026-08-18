@@ -118,7 +118,7 @@ public class AuthenticationFlowService {
         return createChallenge(userId, normalize(email), "TWO_FACTOR_ENABLE");
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public void enableTwoFactor(UUID userId, UUID flowId, String code) {
         var verified = consumeChallenge(flowId, "TWO_FACTOR_ENABLE", code);
         if (!userId.equals(verified.userId())) throw new AuthenticationException("Authentication flow subject mismatch");
@@ -140,7 +140,7 @@ public class AuthenticationFlowService {
         return requestAccountChallenge(email, "ACTIVE", "PASSWORD_RESET");
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public void completePasswordReset(UUID flowId, String code, String newPassword) {
         requireValidPassword(newPassword);
         var verified = consumeChallenge(flowId, "PASSWORD_RESET", code);
@@ -167,7 +167,7 @@ public class AuthenticationFlowService {
         return createChallenge(accounts.getFirst().id(), normalized, "REACTIVATION");
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public void completeReactivation(UUID flowId, String code) {
         var verified = consumeChallenge(flowId, "REACTIVATION", code);
         var changed = jdbc.update("""
@@ -185,7 +185,7 @@ public class AuthenticationFlowService {
                 """, verified.userId());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public LoginResult verifyTwoFactor(UUID flowId, String code) {
         var verified = consumeChallenge(flowId, "TWO_FACTOR", code);
         var account = loadAccount(verified.userId());

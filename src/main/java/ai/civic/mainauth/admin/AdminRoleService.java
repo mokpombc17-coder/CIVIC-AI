@@ -31,6 +31,7 @@ public class AdminRoleService {
             Set<String> desiredRoles,
             String reason,
             boolean impactConfirmed) {
+        lockHighestAdminRoleChanges();
         requireActiveHighestAdminWithRotatedPassword(actorId);
         var normalizedReason = reason == null ? "" : reason.strip();
         if (normalizedReason.isEmpty() || normalizedReason.length() > 1000) {
@@ -105,6 +106,12 @@ public class AdminRoleService {
                 join roles r on r.id = ur.role_id
                 where u.state = 'ACTIVE' and ur.revoked_at is null and r.highest_admin
                 """, Integer.class);
+    }
+
+    private void lockHighestAdminRoleChanges() {
+        jdbc.queryForObject(
+                "select id from roles where code = 'SUPER_ADMIN' for update",
+                Integer.class);
     }
 
     private void appendAudit(

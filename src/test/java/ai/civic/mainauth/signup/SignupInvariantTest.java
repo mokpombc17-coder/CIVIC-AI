@@ -125,6 +125,20 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void invalidSignupVerificationAttemptRemainsCommitted() {
+        var flow = service.startSignup("invalid-code@example.com");
+        service.completeSignup(flow.flowId(), validRequest("invalid-code@example.com", "Valid123!"));
+
+        assertThatThrownBy(() -> service.verifyEmail(flow.flowId(), "wrong-code"))
+                .isInstanceOf(SignupValidationException.class);
+
+        assertThat(jdbc.queryForObject("""
+                select attempt_count from auth_challenges
+                where purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """, Integer.class)).isOne();
+    }
+
+    @Test
     void aliasAddressIsDistinctButCaseAndOuterWhitespaceAreNot() {
         var first = service.startSignup("person@example.com");
         service.completeSignup(first.flowId(), validRequest("person@example.com", "Valid123!"));

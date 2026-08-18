@@ -167,7 +167,7 @@ public class SignupFlowService {
         return new CompletionResult("EMAIL_VERIFICATION");
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = SignupValidationException.class)
     public void verifyEmail(UUID flowId, String code) {
         var challenge = jdbc.queryForMap("""
                 select id, user_id, code_hash, attempt_count, expires_at, consumed_at
