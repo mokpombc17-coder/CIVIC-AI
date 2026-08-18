@@ -6,6 +6,9 @@ import ai.civic.mainauth.admin.AdminPolicyException;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -97,6 +100,38 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
                 select count(*) from account_state_outbox
                 where user_id = ? and state = 'DELETED' and account_state_version = 1
                 """, Integer.class, user)).isOne();
+    }
+
+    @Test
+    void concurrentDeletionRequestsRecheckTheTombstoneAfterSerialization() throws Exception {
+        var user = createUser();
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return deletion.delete(user, "concurrent-evidence-1");
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return deletion.delete(user, "concurrent-evidence-2");
+            });
+            assertThat(ready.await(2, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            var results = java.util.List.of(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS));
+            assertThat(results)
+                    .extracting(MainPrivacyDeletionHandler.DeletionResult::deleted)
+                    .containsExactlyInAnyOrder(true, false);
+            assertThat(results)
+                    .extracting(MainPrivacyDeletionHandler.DeletionResult::alreadyDeleted)
+                    .containsExactlyInAnyOrder(false, true);
+        }
+        assertThat(jdbc.queryForObject(
+                "select count(*) from deletion_tombstones where subject_id = ?",
+                Integer.class, user)).isOne();
     }
 
     private UUID createUser() {

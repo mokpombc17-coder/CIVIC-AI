@@ -110,7 +110,9 @@ public class AccountController {
             HttpServletRequest request) {
         var session = requireMutation(sessionId, csrfToken, request);
         authentication.disableTwoFactor(session.userId(), body.password());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
+                .build();
     }
 
     @PostMapping("/deactivate")

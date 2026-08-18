@@ -150,6 +150,24 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void disablingTwoFactorDeletesTheNowRevokedBrowserSession() throws Exception {
+        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
+        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+
+        mvc.perform(post("/api/v1/account/2fa/disable")
+                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
+                        .header("X-CSRF-Token", session.csrfToken())
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"password":"Valid123!"}
+                                """))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge(SessionCookieFactory.SESSION_COOKIE, 0));
+    }
+
+    @Test
     void twoFactorResendRefreshesTheAuthenticationFlowCookie() throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var login = auth.login("person@example.com", "Valid123!", "127.0.0.1");

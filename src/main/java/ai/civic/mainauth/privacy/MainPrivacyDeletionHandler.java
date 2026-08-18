@@ -16,11 +16,11 @@ public class MainPrivacyDeletionHandler {
 
     @Transactional(noRollbackFor = {AdminPolicyException.class, IllegalArgumentException.class})
     public DeletionResult delete(UUID subjectId, String externalRequestEvidenceId) {
+        lockHighestAdministratorChanges();
         var existing = jdbc.queryForObject(
                 "select count(*) from deletion_tombstones where subject_id = ?",
                 Integer.class, subjectId);
         if (existing != null && existing > 0) return new DeletionResult(false, true);
-        lockHighestAdministratorChanges();
         var users = jdbc.query(
                 "select normalized_email, state from users where id = ? for update",
                 (rs, rowNum) -> new LockedUser(
