@@ -48,4 +48,34 @@ class PreSessionRateLimitServiceTest extends PostgresIntegrationTest {
         assertThatCode(() -> rateLimits.checkAndRecord(email, "127.0.0.2"))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void changingIdentityCannotBypassTheSourceIpWindow() {
+        for (var attempt = 0; attempt < PreSessionRateLimitService.ATTEMPTS_PER_WINDOW; attempt++) {
+            rateLimits.checkAndRecord("rotated-" + attempt + "@example.test", "127.0.0.3");
+        }
+
+        assertThatThrownBy(() -> rateLimits.checkAndRecord(
+                "rotated-final@example.test", "127.0.0.3"))
+                .isInstanceOf(RateLimitExceededException.class);
+        assertThat(jdbc.queryForObject(
+                "select max(attempt_count) from pre_session_rate_limits where source_ip = '127.0.0.3'",
+                Integer.class)).isEqualTo(21);
+    }
+
+    @Test
+    void staleRateLimitRowsAreRemovedDuringTheNextCheck() {
+        rateLimits.checkAndRecord("stale@example.test", "127.0.0.4");
+        jdbc.update("""
+                update pre_session_rate_limits
+                set last_attempt_at = now() - interval '25 hours'
+                where source_ip = '127.0.0.4'
+                """);
+
+        rateLimits.checkAndRecord("fresh@example.test", "127.0.0.5");
+
+        assertThat(jdbc.queryForObject(
+                "select count(*) from pre_session_rate_limits where source_ip = '127.0.0.4'",
+                Integer.class)).isZero();
+    }
 }

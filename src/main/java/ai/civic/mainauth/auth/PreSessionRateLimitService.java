@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PreSessionRateLimitService {
     static final int ATTEMPTS_PER_WINDOW = 20;
+    private static final String SOURCE_BUCKET_IDENTITY = "<source-ip-bucket>";
     private static final Pattern UUID_TEXT = Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
     private final JdbcTemplate jdbc;
@@ -24,7 +25,16 @@ public class PreSessionRateLimitService {
 
     @Transactional(noRollbackFor = RateLimitExceededException.class)
     public void checkAndRecord(String suppliedIdentity, String sourceIp) {
+        jdbc.update("""
+                delete from pre_session_rate_limits
+                where last_attempt_at < now() - interval '24 hours'
+                """);
+        recordAttempt(SOURCE_BUCKET_IDENTITY, sourceIp);
         var identity = resolveAccountIdentity(suppliedIdentity);
+        recordAttempt(identity, sourceIp);
+    }
+
+    private void recordAttempt(String identity, String sourceIp) {
         var result = jdbc.queryForMap("""
                 insert into pre_session_rate_limits(
                     identity_hash, source_ip, attempt_count, window_started_at, last_attempt_at

@@ -74,7 +74,7 @@ public class SignupController {
     @PostMapping("/verification/verify")
     ResponseEntity<Void> verify(
             @CookieValue(FLOW_COOKIE) String cookieFlow,
-            @RequestBody CodeBody body,
+            @Valid @RequestBody CodeBody body,
             HttpServletRequest request) {
         requirePreSession(request);
         rateLimit(request, cookieFlow);

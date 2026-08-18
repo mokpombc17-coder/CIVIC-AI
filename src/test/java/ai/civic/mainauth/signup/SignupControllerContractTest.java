@@ -130,6 +130,20 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void verificationRejectsMissingOrNullCodeBeforeHashing() throws Exception {
+        for (var body : java.util.List.of("{}", "{\"code\":null}", "{\"code\":\"  \"}")) {
+            mvc.perform(post("/api/v1/signup/verification/verify")
+                            .header("Origin", "https://localhost")
+                            .header("Sec-Fetch-Site", "same-origin")
+                            .cookie(new jakarta.servlet.http.Cookie(
+                                    "__Host-civic-auth-flow", java.util.UUID.randomUUID().toString()))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     void crossSiteSignupMutationIsRejectedBeforeCreatingAFlow() throws Exception {
         mvc.perform(post("/api/v1/signup/flows")
                         .header("Origin", "https://evil.example")

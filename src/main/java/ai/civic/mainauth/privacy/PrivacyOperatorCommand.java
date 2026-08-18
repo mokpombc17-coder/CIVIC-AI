@@ -3,7 +3,9 @@ package ai.civic.mainauth.privacy;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.stereotype.Component;
 
+@Component
 public final class PrivacyOperatorCommand {
     public Request validate(Request request, Instant now) {
         if (request == null
