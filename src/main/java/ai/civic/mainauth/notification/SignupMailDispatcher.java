@@ -3,7 +3,6 @@ package ai.civic.mainauth.notification;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
-import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -42,16 +41,43 @@ public class SignupMailDispatcher {
                   and ((event_type = 'SIGNUP_EMAIL_VERIFICATION' and attempt_count < 3)
                     or (event_type <> 'SIGNUP_EMAIL_VERIFICATION' and attempt_count = 0))
                   and (leased_until is null or leased_until < now())
-                order by created_at for update skip locked limit 1
+                order by created_at limit 1
         """, (rs, rowNum) -> new Delivery(
                 rs.getObject("id", UUID.class), rs.getString("event_type"), rs.getString("recipient"),
                 rs.getString("payload"), rs.getInt("attempt_count")));
         if (rows.isEmpty()) return false;
-        var delivery = rows.getFirst();
+        var candidate = rows.getFirst();
+        JsonNode payload = null;
+        try {
+            payload = json.readTree(candidate.payload());
+        } catch (Exception ignored) {
+            // Malformed challenge payloads are retired after locking the outbox row below.
+        }
+        var currentChallenge = payload != null && isCurrentChallenge(payload, candidate);
+        var locked = jdbc.query("""
+                select id, event_type, recipient, payload::text, attempt_count
+                from notification_outbox
+                where id = ? and delivered_at is null and available_at <= now()
+                  and ((event_type = 'SIGNUP_EMAIL_VERIFICATION' and attempt_count < 3)
+                    or (event_type <> 'SIGNUP_EMAIL_VERIFICATION' and attempt_count = 0))
+                  and (leased_until is null or leased_until < now())
+                for update
+                """, (rs, rowNum) -> new Delivery(
+                rs.getObject("id", UUID.class), rs.getString("event_type"),
+                rs.getString("recipient"), rs.getString("payload"), rs.getInt("attempt_count")),
+                candidate.id());
+        if (locked.isEmpty()) return true;
+        var delivery = locked.getFirst();
         jdbc.update("update notification_outbox set leased_until = now() + interval '30 seconds' where id = ?",
                 delivery.id());
+        if (!currentChallenge) {
+            jdbc.update("""
+                    update notification_outbox set delivered_at = now(), leased_until = null,
+                        last_error_code = 'CHALLENGE_STALE' where id = ?
+                    """, delivery.id());
+            return true;
+        }
         try {
-            JsonNode payload = json.readTree(delivery.payload());
             var code = protector.reveal(payload.path("protected_code").asText());
             if ("SIGNUP_EMAIL_VERIFICATION".equals(delivery.eventType())) {
                 smtp.sendSignupVerification(delivery.recipient(), code);
@@ -72,6 +98,23 @@ public class SignupMailDispatcher {
                     """, attempt, Timestamp.from(next), delivery.id());
         }
         return true;
+    }
+
+    private boolean isCurrentChallenge(JsonNode payload, Delivery delivery) {
+        UUID challengeId;
+        try {
+            challengeId = UUID.fromString(payload.path("challenge_id").asText());
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+        return !jdbc.query("""
+                select id from auth_challenges
+                where id = ? and purpose = ?
+                  and lower(btrim(target_identity)) = lower(btrim(?))
+                  and consumed_at is null and expires_at > now()
+                for update
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class),
+                challengeId, delivery.eventType(), delivery.recipient()).isEmpty();
     }
 
     private record Delivery(UUID id, String eventType, String recipient, String payload, int attemptCount) {}
