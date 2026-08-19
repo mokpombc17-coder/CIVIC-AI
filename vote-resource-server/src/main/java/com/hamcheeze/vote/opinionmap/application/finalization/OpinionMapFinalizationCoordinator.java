@@ -2,11 +2,13 @@ package com.hamcheeze.vote.opinionmap.application.finalization;
 
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapFinalizationRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotRepository;
+import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotManifestRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSubmissionProjectionRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalization;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalizationRequest;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalizationStatus;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapSnapshot;
+import com.hamcheeze.vote.opinionmap.domain.OpinionMapSnapshotManifest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +24,9 @@ public class OpinionMapFinalizationCoordinator {
 
     private final OpinionMapFinalizationRepository finalizations;
     private final OpinionMapSnapshotRepository snapshots;
+    private final OpinionMapSnapshotManifestRepository manifests;
     private final OpinionMapSubmissionProjectionRepository submissions;
+    private final OpinionMapSnapshotManifestFactory manifestFactory;
     private final Clock clock;
     private final Supplier<UUID> snapshotIdSupplier;
 
@@ -30,24 +34,31 @@ public class OpinionMapFinalizationCoordinator {
     public OpinionMapFinalizationCoordinator(
             OpinionMapFinalizationRepository finalizations,
             OpinionMapSnapshotRepository snapshots,
-            OpinionMapSubmissionProjectionRepository submissions
+            OpinionMapSnapshotManifestRepository manifests,
+            OpinionMapSubmissionProjectionRepository submissions,
+            OpinionMapSnapshotManifestFactory manifestFactory
     ) {
-        this(finalizations, snapshots, submissions, Clock.systemUTC(),
-                UUID::randomUUID);
+        this(finalizations, snapshots, manifests, submissions,
+                manifestFactory, Clock.systemUTC(), UUID::randomUUID);
     }
 
     OpinionMapFinalizationCoordinator(
             OpinionMapFinalizationRepository finalizations,
             OpinionMapSnapshotRepository snapshots,
+            OpinionMapSnapshotManifestRepository manifests,
             OpinionMapSubmissionProjectionRepository submissions,
+            OpinionMapSnapshotManifestFactory manifestFactory,
             Clock clock,
             Supplier<UUID> snapshotIdSupplier
     ) {
         this.finalizations = Objects.requireNonNull(
                 finalizations, "finalizations");
         this.snapshots = Objects.requireNonNull(snapshots, "snapshots");
+        this.manifests = Objects.requireNonNull(manifests, "manifests");
         this.submissions = Objects.requireNonNull(
                 submissions, "submissions");
+        this.manifestFactory = Objects.requireNonNull(
+                manifestFactory, "manifestFactory");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.snapshotIdSupplier = Objects.requireNonNull(
                 snapshotIdSupplier, "snapshotIdSupplier");
@@ -132,23 +143,49 @@ public class OpinionMapFinalizationCoordinator {
                 != OpinionMapFinalizationStatus.READY_TO_FINALIZE) {
             return;
         }
+        OpinionMapSnapshot snapshot = resolveSnapshot(finalization);
+        OpinionMapSnapshotManifest generated = manifestFactory.create(
+                snapshot,
+                submissions.findAllByTaskId(finalization.taskId()));
+        Optional<OpinionMapSnapshotManifest> existingManifest =
+                manifests.findBySnapshotId(snapshot.snapshotId());
+        if (existingManifest.isPresent()) {
+            validateManifest(
+                    existingManifest.orElseThrow(), generated);
+            return;
+        }
+        if (manifests.insertIfAbsent(generated)) {
+            return;
+        }
+        OpinionMapSnapshotManifest conflicted = manifests.findBySnapshotId(
+                        snapshot.snapshotId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "opinion map snapshot manifest is unavailable after conflict"));
+        validateManifest(conflicted, generated);
+    }
+
+    private OpinionMapSnapshot resolveSnapshot(
+            OpinionMapFinalization finalization
+    ) {
         Optional<OpinionMapSnapshot> existing = snapshots.findByTaskId(
                 finalization.taskId());
         if (existing.isPresent()) {
-            validateSnapshot(existing.orElseThrow(), finalization);
-            return;
+            OpinionMapSnapshot snapshot = existing.orElseThrow();
+            validateSnapshot(snapshot, finalization);
+            return snapshot;
         }
 
         OpinionMapSnapshot snapshot = OpinionMapSnapshot.finalize(
                 snapshotIdSupplier.get(), finalization, clock.instant());
         if (snapshots.insertIfAbsent(snapshot)) {
-            return;
+            return snapshot;
         }
         OpinionMapSnapshot conflicted = snapshots.findByTaskId(
                         finalization.taskId())
                 .orElseThrow(() -> new IllegalStateException(
                         "opinion map snapshot is unavailable after conflict"));
         validateSnapshot(conflicted, finalization);
+        return conflicted;
     }
 
     private static void validateSnapshot(
@@ -158,6 +195,16 @@ public class OpinionMapFinalizationCoordinator {
         if (!snapshot.matches(finalization)) {
             throw new OpinionMapSnapshotConflictException(
                     finalization.taskId());
+        }
+    }
+
+    private static void validateManifest(
+            OpinionMapSnapshotManifest existing,
+            OpinionMapSnapshotManifest generated
+    ) {
+        if (!existing.equals(generated)) {
+            throw new OpinionMapSnapshotManifestConflictException(
+                    generated.snapshotId());
         }
     }
 }

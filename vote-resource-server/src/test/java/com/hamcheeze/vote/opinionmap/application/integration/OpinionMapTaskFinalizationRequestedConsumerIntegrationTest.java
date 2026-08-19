@@ -4,6 +4,8 @@ import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapFinalizationRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapInboxRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotRepository;
+import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotManifestRepository;
+import com.hamcheeze.vote.opinionmap.domain.OpinionMapOptionCount;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalizationStatus;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapSnapshot;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
@@ -45,6 +47,8 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
     @Autowired
     private OpinionMapSnapshotRepository snapshots;
     @Autowired
+    private OpinionMapSnapshotManifestRepository manifests;
+    @Autowired
     private OpinionMapInboxRepository inbox;
     @Autowired
     private IntegrationOutboxRepository outbox;
@@ -77,6 +81,8 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
         submissionConsumer.consume(submission);
         OpinionMapSnapshot firstSnapshot = snapshots.findByTaskId(taskId)
                 .orElseThrow();
+        var firstManifest = manifests.findBySnapshotId(
+                firstSnapshot.snapshotId()).orElseThrow();
         finalizationConsumer.consume(finalization);
 
         assertThat(finalizations.findByTaskId(taskId))
@@ -98,6 +104,16 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                 });
         assertThat(snapshots.findBySnapshotId(firstSnapshot.snapshotId()))
                 .contains(firstSnapshot);
+        assertThat(manifests.findBySnapshotId(firstSnapshot.snapshotId()))
+                .contains(firstManifest)
+                .get()
+                .satisfies(manifest -> {
+                    assertThat(manifest.responseHashSha256())
+                            .matches("[0-9a-f]{64}");
+                    assertThat(manifest.responseCount()).isOne();
+                    assertThat(manifest.optionCounts()).containsExactly(
+                            new OpinionMapOptionCount(uuid(4), 1));
+                });
         assertThat(inbox.find(
                 OpinionMapTaskFinalizationRequestedConsumer.CONSUMER_NAME,
                 finalization.eventId())).isPresent();
@@ -130,6 +146,15 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                     assertThat(snapshot.expectedSubmissionCount()).isOne();
                     assertThat(snapshot.responseCount()).isOne();
                 });
+        OpinionMapSnapshot snapshot = snapshots.findByTaskId(taskId)
+                .orElseThrow();
+        assertThat(manifests.findBySnapshotId(snapshot.snapshotId()))
+                .get()
+                .satisfies(manifest -> {
+                    assertThat(manifest.responseCount()).isOne();
+                    assertThat(manifest.optionCounts()).containsExactly(
+                            new OpinionMapOptionCount(uuid(13), 1));
+                });
     }
 
     @Test
@@ -158,6 +183,16 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                 .satisfies(snapshot -> {
                     assertThat(snapshot.expectedSubmissionCount()).isZero();
                     assertThat(snapshot.responseCount()).isZero();
+                });
+        OpinionMapSnapshot snapshot = snapshots.findByTaskId(taskId)
+                .orElseThrow();
+        assertThat(manifests.findBySnapshotId(snapshot.snapshotId()))
+                .get()
+                .satisfies(manifest -> {
+                    assertThat(manifest.responseCount()).isZero();
+                    assertThat(manifest.optionCounts()).isEmpty();
+                    assertThat(manifest.responseHashSha256())
+                            .matches("[0-9a-f]{64}");
                 });
     }
 
@@ -195,7 +230,7 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                UUID.randomUUID(),
+                submissionId,
                 ReasonSource.USER_WRITTEN,
                 null,
                 "직접 작성 이유",
