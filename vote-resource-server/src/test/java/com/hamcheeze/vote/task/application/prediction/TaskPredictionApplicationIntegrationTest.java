@@ -18,14 +18,14 @@ import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
@@ -167,7 +167,7 @@ class TaskPredictionApplicationIntegrationTest {
                 .orElseThrow();
         assertThat(completed.status())
                 .isEqualTo(TaskPredictionStatus.SUCCEEDED);
-        assertThat(completed.candidates()).hasSize(4);
+        assertThat(completed.predictedReasons()).hasSize(4);
         assertThat(predictions.findAttempts(first.id()))
                 .singleElement()
                 .extracting(TaskPredictionAttempt::outcome)
@@ -211,7 +211,7 @@ class TaskPredictionApplicationIntegrationTest {
 
         TaskPrediction succeeded = predictions.findById(prediction.id())
                 .orElseThrow();
-        TaskPredictionCandidate adopted = succeeded.candidates().getFirst();
+        TaskPredictedReason adopted = succeeded.predictedReasons().getFirst();
         var execution = submissionService.submit(
                 userId,
                 UUID.randomUUID().toString(),
@@ -238,7 +238,10 @@ class TaskPredictionApplicationIntegrationTest {
                                         .candidateId())
                                         .isEqualTo(adopted.id());
                                 assertThat(answer.finalAnswerValue())
-                                        .isEqualTo(adopted.answerValue());
+                                        .isEqualTo(new SingleChoiceValue(
+                                                new TaskOptionSelection(
+                                                        adopted.optionId(),
+                                                        null)));
                             });
                 });
     }
@@ -337,7 +340,7 @@ class TaskPredictionApplicationIntegrationTest {
             PredictionCreationCommand command
     ) {
         TaskQuestion question = command.task().questions().getFirst();
-        List<TaskPredictionCandidate> candidates = List.of(
+        List<TaskPredictedReason> candidates = List.of(
                 candidate(command, question, 0, 1),
                 candidate(command, question, 0, 2),
                 candidate(command, question, 1, 1),
@@ -351,19 +354,17 @@ class TaskPredictionApplicationIntegrationTest {
                         "{\"model\":\"fake-integration\"}"));
     }
 
-    private TaskPredictionCandidate candidate(
+    private TaskPredictedReason candidate(
             PredictionCreationCommand command,
             TaskQuestion question,
             int optionIndex,
             int order
     ) {
-        return new TaskPredictionCandidate(
-                new TaskPredictionCandidateId(UUID.randomUUID()),
+        return new TaskPredictedReason(
+                new TaskPredictedReasonId(UUID.randomUUID()),
                 command.requestId(),
-                question.id(),
+                question.options().get(optionIndex).id(),
                 order,
-                new SingleChoiceValue(new TaskOptionSelection(
-                        question.options().get(optionIndex).id(), null)),
                 "예상 근거 " + order);
     }
 }

@@ -8,13 +8,13 @@ import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswer;
@@ -85,9 +85,9 @@ public class MyTaskSubmissionQueryService {
                         "TASK_SUBMISSION_PREDICTION_NOT_FOUND",
                         "predictionId",
                         "submission prediction does not exist"));
-        Map<TaskPredictionCandidateId, TaskPredictionCandidate> candidates =
-                prediction.candidates().stream().collect(Collectors.toMap(
-                        TaskPredictionCandidate::id,
+        Map<TaskPredictedReasonId, TaskPredictedReason> candidates =
+                prediction.predictedReasons().stream().collect(Collectors.toMap(
+                        TaskPredictedReason::id,
                         Function.identity()));
         List<MyTaskSubmissionAnswer> answers = submission.answers().stream()
                 .map(answer -> toAnswer(task, candidates, answer))
@@ -106,13 +106,13 @@ public class MyTaskSubmissionQueryService {
 
     private MyTaskSubmissionAnswer toAnswer(
             Task task,
-            Map<TaskPredictionCandidateId, TaskPredictionCandidate> candidates,
+            Map<TaskPredictedReasonId, TaskPredictedReason> candidates,
             TaskSubmissionAnswer answer
     ) {
         TaskQuestion question = task.question(answer.questionId());
         AdoptedCandidate adopted = null;
         if (answer.adoptedPredictionCandidateId() != null) {
-            TaskPredictionCandidate candidate = candidates.get(
+            TaskPredictedReason candidate = candidates.get(
                     answer.adoptedPredictionCandidateId());
             if (candidate == null) {
                 throw missing(
@@ -122,8 +122,8 @@ public class MyTaskSubmissionQueryService {
             }
             adopted = new AdoptedCandidate(
                     candidate.id(),
-                    candidate.candidateOrder(),
-                    candidate.rationale());
+                    candidate.reasonOrder(),
+                    candidate.reason());
         }
         return new MyTaskSubmissionAnswer(
                 answer.questionId(),
@@ -182,7 +182,7 @@ public class MyTaskSubmissionQueryService {
     }
 
     public record AdoptedCandidate(
-            TaskPredictionCandidateId candidateId,
+            TaskPredictedReasonId candidateId,
             int candidateOrder,
             String rationale
     ) {

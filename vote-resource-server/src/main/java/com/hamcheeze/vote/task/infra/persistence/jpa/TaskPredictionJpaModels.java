@@ -1,10 +1,10 @@
 package com.hamcheeze.vote.task.infra.persistence.jpa;
 
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
+import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.task.TaskOptionKind;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
@@ -91,7 +91,7 @@ class TaskPredictionJpaEntity {
         personaVersionId = prediction.personaVersionId().value();
         personaId = prediction.personaId().value();
         candidatePolicyVersion = prediction.candidatePolicyVersion();
-        requestedCandidateCount = prediction.requestedCandidateCount();
+        requestedCandidateCount = TaskLimits.PREDICTED_REASONS_PER_OPTION;
         createdAt = prediction.createdAt();
         apply(prediction);
     }
@@ -117,7 +117,6 @@ class TaskPredictionJpaEntity {
     String personaId() { return personaId; }
     TaskPredictionStatus status() { return status; }
     String candidatePolicyVersion() { return candidatePolicyVersion; }
-    int requestedCandidateCount() { return requestedCandidateCount; }
     int attemptCount() { return attemptCount; }
     Instant nextRetryAt() { return nextRetryAt; }
     String lastErrorCode() { return lastErrorCode; }
@@ -171,22 +170,20 @@ class TaskPredictionCandidateJpaEntity {
 
     TaskPredictionCandidateJpaEntity(
             UUID taskId,
-            TaskPredictionCandidate candidate
+            UUID questionId,
+            TaskPredictedReason predictedReason
     ) {
-        TaskAnswerJpaCodec.EncodedAnswer answer =
-                TaskAnswerJpaCodec.encode(candidate.answerValue());
-        id = candidate.id().value();
-        predictionId = candidate.predictionId().value();
+        id = predictedReason.id().value();
+        predictionId = predictedReason.predictionId().value();
         this.taskId = taskId;
-        questionId = candidate.questionId().value();
-        candidateOrder = candidate.candidateOrder();
-        slotOptionId = candidate.answerValue() instanceof SingleChoiceValue single
-                ? single.selection().optionId().value() : null;
-        answerType = answer.type();
-        textValue = answer.textValue();
-        numberValue = answer.numberValue();
-        scaleValue = answer.scaleValue();
-        rationale = candidate.rationale();
+        this.questionId = questionId;
+        candidateOrder = predictedReason.reasonOrder();
+        slotOptionId = predictedReason.optionId().value();
+        answerType = TaskQuestionType.SINGLE_CHOICE;
+        textValue = null;
+        numberValue = null;
+        scaleValue = null;
+        rationale = predictedReason.reason();
     }
 
     UUID id() { return id; }
@@ -194,6 +191,7 @@ class TaskPredictionCandidateJpaEntity {
     UUID taskId() { return taskId; }
     UUID questionId() { return questionId; }
     int candidateOrder() { return candidateOrder; }
+    UUID slotOptionId() { return slotOptionId; }
     TaskQuestionType answerType() { return answerType; }
     String textValue() { return textValue; }
     BigDecimal numberValue() { return numberValue; }

@@ -16,7 +16,7 @@ import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
@@ -129,7 +129,7 @@ class TaskSubmissionCompletedOutboxPublisherTest {
         when(submission.answers()).thenReturn(List.of(
                 TaskSubmissionAnswer.aiAccepted(
                         questionId(),
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         new SingleChoiceValue(selection(null))),
                 TaskSubmissionAnswer.userAnswered(
                         questionId(),

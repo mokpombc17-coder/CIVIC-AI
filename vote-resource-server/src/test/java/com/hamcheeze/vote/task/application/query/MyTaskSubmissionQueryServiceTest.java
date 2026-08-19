@@ -67,11 +67,17 @@ class MyTaskSubmissionQueryServiceTest {
                     TaskAnswerSource.AI_ACCEPTED);
             assertThat(answer.adoptedCandidate()).isNotNull();
             assertThat(answer.adoptedCandidate().candidateId())
-                    .isEqualTo(prediction.candidates().getFirst().id());
+                    .isEqualTo(prediction.predictedReasons().getFirst().id());
             assertThat(answer.adoptedCandidate().rationale())
                     .isEqualTo("첫 번째 예상 근거");
             assertThat(answer.finalAnswerValue())
-                    .isEqualTo(prediction.candidates().getFirst().answerValue());
+                    .isEqualTo(new com.hamcheeze.vote.task.domain.answer
+                            .SingleChoiceValue(
+                            new com.hamcheeze.vote.task.domain.answer
+                                    .TaskOptionSelection(
+                                    prediction.predictedReasons().getFirst()
+                                            .optionId(),
+                                    null)));
         });
     }
 

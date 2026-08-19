@@ -51,7 +51,6 @@ class TaskPredictionServiceTest {
         TaskPredictionApplicationPolicy policy =
                 new TaskPredictionApplicationPolicy(
                         "candidate-policy-v1",
-                        2,
                         new com.hamcheeze.vote.task.domain.prediction
                                 .TaskPredictionRetryPolicy(
                                 Duration.ofSeconds(60),
@@ -98,7 +97,7 @@ class TaskPredictionServiceTest {
                 new TaskPredictionId(UUID.randomUUID()),
                 userId(), taskId(), personaGenerationId(), personaVersionId(),
                 personaId(),
-                "candidate-policy-v1", 2, NOW.plusSeconds(20));
+                "candidate-policy-v1", NOW.plusSeconds(20));
         when(predictions.findByIdentity(
                 userId(), taskId(), personaGenerationId()))
                 .thenReturn(Optional.empty(), Optional.of(winner));
@@ -159,7 +158,7 @@ class TaskPredictionServiceTest {
                 new TaskPredictionId(UUID.randomUUID()),
                 userId(), taskId(), nextGeneration, nextPersona.versionId(),
                 nextPersona.personaId(),
-                "candidate-policy-v1", 2, NOW.plusSeconds(20));
+                "candidate-policy-v1", NOW.plusSeconds(20));
         when(currentPersonas.findCurrentUsable(userId()))
                 .thenReturn(Optional.of(nextPersona));
         when(predictions.findByIdentity(

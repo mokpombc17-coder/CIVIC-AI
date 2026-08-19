@@ -46,7 +46,13 @@ class TaskSubmissionTest {
                 .extracting(TaskSubmissionAnswer::source)
                 .containsExactly(TaskAnswerSource.AI_ACCEPTED);
         assertThat(submission.answers().getFirst().finalAnswerValue())
-                .isEqualTo(prediction.candidate(candidateId(1)).answerValue());
+                .isEqualTo(new com.hamcheeze.vote.task.domain.answer
+                        .SingleChoiceValue(
+                        new com.hamcheeze.vote.task.domain.answer
+                                .TaskOptionSelection(
+                                prediction.predictedReason(candidateId(1))
+                                        .optionId(),
+                                null)));
         assertThatThrownBy(() -> submission.answers().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
     }
@@ -102,7 +108,7 @@ class TaskSubmissionTest {
                 .isInstanceOf(TaskDomainException.class);
 
         assertThatThrownBy(() -> TaskSubmission.create(
-                submissionId(), userId(), task, pendingPrediction(2),
+                submissionId(), userId(), task, pendingPrediction(),
                 personaGenerationId(), personaVersionId(), directAnswers(),
                 NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(

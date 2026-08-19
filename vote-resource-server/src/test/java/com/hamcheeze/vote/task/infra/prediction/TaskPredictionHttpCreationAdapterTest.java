@@ -82,9 +82,9 @@ class TaskPredictionHttpCreationAdapterTest {
 
         assertThat(result.requestId().value()).isEqualTo(REQUEST_ID);
         assertThat(result.taskId().value()).isEqualTo(TASK_ID);
-        assertThat(result.candidates()).hasSize(4);
-        assertThat(result.candidates())
-                .extracting(candidate -> candidate.rationale())
+        assertThat(result.predictedReasons()).hasSize(4);
+        assertThat(result.predictedReasons())
+                .extracting(candidate -> candidate.reason())
                 .containsExactly(
                         "A 첫 번째 이유", "A 두 번째 이유",
                         "B 첫 번째 이유", "B 두 번째 이유");
@@ -202,12 +202,12 @@ class TaskPredictionHttpCreationAdapterTest {
         var first = adapter().create(command(Duration.ofSeconds(1)));
         var duplicate = adapter().create(command(Duration.ofSeconds(1)));
 
-        assertThat(first.candidates())
+        assertThat(first.predictedReasons())
                 .extracting(candidate -> candidate.id().value())
                 .containsExactly(
                         firstCandidate, secondCandidate,
                         THIRD_CANDIDATE_ID, FOURTH_CANDIDATE_ID);
-        assertThat(duplicate.candidates())
+        assertThat(duplicate.predictedReasons())
                 .extracting(candidate -> candidate.id().value())
                 .containsExactly(
                         firstCandidate, secondCandidate,
@@ -247,7 +247,6 @@ class TaskPredictionHttpCreationAdapterTest {
                 new TaskPersonaId("persona-a"),
                 task,
                 "policy-v1",
-                2,
                 timeout);
     }
 

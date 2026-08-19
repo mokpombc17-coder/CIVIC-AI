@@ -13,13 +13,13 @@ import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
@@ -145,7 +145,7 @@ class TaskQueryServiceIntegrationTest {
         assertThat(beforeSubmission.allowedAnswerSources()).containsExactly(
                 TaskAnswerSource.AI_ACCEPTED,
                 TaskAnswerSource.USER_ANSWERED);
-        assertThat(beforeSubmission.candidates()).hasSize(4);
+        assertThat(beforeSubmission.predictedReasons()).hasSize(4);
 
         TaskSubmission submission = TaskSubmission.create(
                 new TaskSubmissionId(UUID.randomUUID()),
@@ -156,7 +156,7 @@ class TaskQueryServiceIntegrationTest {
                 persona.versionId(),
                 List.of(new AcceptTaskPredictionCandidate(
                         question.id(),
-                        prediction.candidates().getFirst().id())),
+                        prediction.predictedReasons().getFirst().id())),
                 now);
         submission = submissions.insert(submission);
 
@@ -201,7 +201,6 @@ class TaskQueryServiceIntegrationTest {
                 persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
-                2,
                 now.minus(15, ChronoUnit.SECONDS));
         prediction.startProcessing(
                 new TaskPredictionRetryPolicy(
@@ -220,21 +219,18 @@ class TaskQueryServiceIntegrationTest {
         return prediction;
     }
 
-    private TaskPredictionCandidate candidate(
+    private TaskPredictedReason candidate(
             TaskPredictionId predictionId,
             Task task,
             int optionIndex,
             int order
     ) {
-        return new TaskPredictionCandidate(
-                new TaskPredictionCandidateId(UUID.randomUUID()),
+        return new TaskPredictedReason(
+                new TaskPredictedReasonId(UUID.randomUUID()),
                 predictionId,
-                task.questions().getFirst().id(),
+                task.questions().getFirst().options()
+                        .get(optionIndex).id(),
                 order,
-                new SingleChoiceValue(new TaskOptionSelection(
-                        task.questions().getFirst().options()
-                                .get(optionIndex).id(),
-                        null)),
                 "통합 예상 근거 " + order);
     }
 

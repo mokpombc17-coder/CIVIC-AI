@@ -9,10 +9,11 @@ import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
 import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
+import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.task.LongTextConstraint;
 import com.hamcheeze.vote.task.domain.task.MultipleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.NumberConstraint;
@@ -50,7 +51,7 @@ final class TaskPredictionHttpModels {
                     command.requestId().value(),
                     command.personaId().value(),
                     command.candidatePolicyVersion(),
-                    command.requestedCandidateCount(),
+                    TaskLimits.PREDICTED_REASONS_PER_OPTION,
                     TaskPayload.from(command.task()));
         }
     }
@@ -163,7 +164,7 @@ final class TaskPredictionHttpModels {
             UUID taskId,
             List<CandidatePayload> candidates
     ) {
-        List<TaskPredictionCandidate> toDomain(
+        List<TaskPredictedReason> toDomain(
                 PredictionCreationCommand command
         ) {
             require(schemaVersion != null
@@ -189,20 +190,26 @@ final class TaskPredictionHttpModels {
             AnswerPayload answer,
             String rationale
     ) {
-        TaskPredictionCandidate toDomain(
+        TaskPredictedReason toDomain(
                 PredictionCreationCommand command
         ) {
             require(candidateId != null, "candidateId is required");
             require(questionId != null, "questionId is required");
+            require(questionId.equals(command.task().questions()
+                            .getFirst().id().value()),
+                    "questionId does not match task question");
             require(candidateOrder != null,
                     "candidateOrder is required");
             require(answer != null, "answer is required");
-            return new TaskPredictionCandidate(
-                    new TaskPredictionCandidateId(candidateId),
+            TaskAnswerValue answerValue = answer.toDomain();
+            require(answerValue instanceof SingleChoiceValue,
+                    "answer must be SINGLE_CHOICE");
+            SingleChoiceValue singleChoice = (SingleChoiceValue) answerValue;
+            return new TaskPredictedReason(
+                    new TaskPredictedReasonId(candidateId),
                     command.requestId(),
-                    new TaskQuestionId(questionId),
+                    singleChoice.selection().optionId(),
                     candidateOrder,
-                    answer.toDomain(),
                     rationale);
         }
     }

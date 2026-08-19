@@ -6,7 +6,6 @@ import java.util.Objects;
 
 public record TaskPredictionApplicationPolicy(
         String candidatePolicyVersion,
-        int requestedCandidateCount,
         TaskPredictionRetryPolicy retryPolicy,
         int batchSize
 ) {
@@ -17,10 +16,6 @@ public record TaskPredictionApplicationPolicy(
                     "candidatePolicyVersion must not be blank");
         }
         candidatePolicyVersion = candidatePolicyVersion.trim();
-        if (requestedCandidateCount < 1) {
-            throw new IllegalArgumentException(
-                    "requestedCandidateCount must be positive");
-        }
         Objects.requireNonNull(retryPolicy, "retryPolicy");
         if (batchSize < 1) {
             throw new IllegalArgumentException("batchSize must be positive");

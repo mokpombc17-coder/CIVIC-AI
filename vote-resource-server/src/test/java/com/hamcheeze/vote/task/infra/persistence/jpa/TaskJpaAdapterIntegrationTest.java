@@ -21,7 +21,7 @@ import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskReceiptId;
@@ -31,7 +31,7 @@ import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
@@ -160,10 +160,9 @@ class TaskJpaAdapterIntegrationTest {
 
         assertThat(inserted.status()).isEqualTo(TaskPredictionStatus.SUCCEEDED);
         assertThat(inserted.personaVersionId()).isEqualTo(persona.versionId());
-        assertThat(inserted.candidates()).hasSize(4);
-        assertThat(inserted.candidates().getFirst().answerValue())
-                .isEqualTo(new SingleChoiceValue(new TaskOptionSelection(
-                        fixture.firstOptionId(), null)));
+        assertThat(inserted.predictedReasons()).hasSize(4);
+        assertThat(inserted.predictedReasons().getFirst().optionId())
+                .isEqualTo(fixture.firstOptionId());
         assertThat(predictions.findAttempts(prediction.id()))
                 .singleElement()
                 .satisfies(saved -> {
@@ -200,7 +199,7 @@ class TaskJpaAdapterIntegrationTest {
         PersonaFixture persona = insertSucceededPersona(rawUserId);
         TaskPrediction prediction = predictions.insert(succeededPrediction(
                 fixture, userId, persona, UUID.randomUUID()));
-        TaskPredictionCandidate adopted = prediction.candidates().getFirst();
+        TaskPredictedReason adopted = prediction.predictedReasons().getFirst();
         TaskSubmission submission = TaskSubmission.restore(
                 new TaskSubmissionId(UUID.randomUUID()),
                 userId,
@@ -211,7 +210,8 @@ class TaskJpaAdapterIntegrationTest {
                 List.of(TaskSubmissionAnswer.aiAccepted(
                         fixture.choiceQuestionId(),
                         adopted.id(),
-                        adopted.answerValue())),
+                        new SingleChoiceValue(new TaskOptionSelection(
+                                adopted.optionId(), null)))),
                 NOW);
 
         TaskSubmission stored = submissions.insert(submission);
@@ -268,7 +268,6 @@ class TaskJpaAdapterIntegrationTest {
                 persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
-                2,
                 TaskPredictionStatus.FAILED,
                 1,
                 List.of(),
@@ -421,38 +420,30 @@ class TaskJpaAdapterIntegrationTest {
     ) {
         TaskPredictionId predictionId =
                 new TaskPredictionId(predictionUuid);
-        List<TaskPredictionCandidate> candidates = List.of(
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+        List<TaskPredictedReason> candidates = List.of(
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        fixture.choiceQuestionId(),
+                        fixture.firstOptionId(),
                         1,
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                fixture.firstOptionId(), null)),
                         "찬성을 선택할 가능성이 높습니다."),
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        fixture.choiceQuestionId(),
+                        fixture.firstOptionId(),
                         2,
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                fixture.firstOptionId(), null)),
                         "찬성의 두 번째 예상 이유입니다."),
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        fixture.choiceQuestionId(),
+                        fixture.secondOptionId(),
                         1,
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                fixture.secondOptionId(), null)),
                         "반대를 선택할 가능성도 있습니다."),
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        fixture.choiceQuestionId(),
+                        fixture.secondOptionId(),
                         2,
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                fixture.secondOptionId(), null)),
                         "반대의 두 번째 예상 이유입니다."));
         return TaskPrediction.restore(
                 predictionId,
@@ -462,7 +453,6 @@ class TaskJpaAdapterIntegrationTest {
                 persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
-                2,
                 TaskPredictionStatus.SUCCEEDED,
                 1,
                 candidates,

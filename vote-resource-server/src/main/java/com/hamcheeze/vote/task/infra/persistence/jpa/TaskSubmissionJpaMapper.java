@@ -5,7 +5,7 @@ import com.hamcheeze.vote.task.application.idempotency.TaskRequestHash;
 import com.hamcheeze.vote.task.application.idempotency.TaskSubmissionReceipt;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskReceiptId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -118,7 +118,7 @@ final class TaskSubmissionJpaMapper {
                 answer.source(),
                 answer.adoptedCandidateId() == null
                         ? null
-                        : new TaskPredictionCandidateId(
+                        : new TaskPredictedReasonId(
                                 answer.adoptedCandidateId()),
                 TaskAnswerJpaCodec.decode(
                         answer.answerType(),

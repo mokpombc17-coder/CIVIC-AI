@@ -4,22 +4,18 @@ import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
-import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.task.Task;
 import jakarta.persistence.EntityManager;
 
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 final class TaskPredictionJpaMapper {
 
@@ -50,26 +46,8 @@ final class TaskPredictionJpaMapper {
                                 TaskPredictionCandidateJpaEntity.class)
                         .setParameter("predictionId", entity.id())
                         .getResultList();
-        List<TaskPredictionCandidateSelectionJpaEntity> storedSelections =
-                entityManager.createQuery(
-                                """
-                                SELECT selection
-                                FROM TaskPredictionCandidateSelectionJpaEntity selection
-                                WHERE selection.predictionId = :predictionId
-                                ORDER BY selection.candidateId, selection.optionId
-                                """,
-                                TaskPredictionCandidateSelectionJpaEntity.class)
-                        .setParameter("predictionId", entity.id())
-                        .getResultList();
-        Map<UUID, List<TaskPredictionCandidateSelectionJpaEntity>>
-                selectionsByCandidate = storedSelections.stream()
-                .collect(Collectors.groupingBy(
-                        TaskPredictionCandidateSelectionJpaEntity::candidateId));
-        List<TaskPredictionCandidate> candidates = storedCandidates.stream()
-                .map(candidate -> toDomain(
-                        candidate,
-                        selectionsByCandidate.getOrDefault(
-                                candidate.id(), List.of())))
+        List<TaskPredictedReason> predictedReasons = storedCandidates.stream()
+                .map(TaskPredictionJpaMapper::toDomain)
                 .toList();
         TaskPredictionError lastError = entity.lastErrorCode() == null
                 ? null
@@ -83,10 +61,9 @@ final class TaskPredictionJpaMapper {
                 new TaskPersonaVersionId(entity.personaVersionId()),
                 new TaskPersonaId(entity.personaId()),
                 entity.candidatePolicyVersion(),
-                entity.requestedCandidateCount(),
                 entity.status(),
                 entity.attemptCount(),
-                candidates,
+                predictedReasons,
                 entity.nextRetryAt(),
                 lastError,
                 entity.createdAt(),
@@ -119,28 +96,15 @@ final class TaskPredictionJpaMapper {
                 entity.respondedAt());
     }
 
-    private static TaskPredictionCandidate toDomain(
-            TaskPredictionCandidateJpaEntity candidate,
-            List<TaskPredictionCandidateSelectionJpaEntity> selections
+    private static TaskPredictedReason toDomain(
+            TaskPredictionCandidateJpaEntity candidate
     ) {
-        List<TaskAnswerJpaCodec.StoredSelection> storedSelections =
-                selections.stream()
-                        .map(selection -> new TaskAnswerJpaCodec.StoredSelection(
-                                selection.optionId(),
-                                selection.optionKind(),
-                                selection.otherText()))
-                        .toList();
-        return new TaskPredictionCandidate(
-                new TaskPredictionCandidateId(candidate.id()),
+        return new TaskPredictedReason(
+                new TaskPredictedReasonId(candidate.id()),
                 new TaskPredictionId(candidate.predictionId()),
-                new TaskQuestionId(candidate.questionId()),
+                new com.hamcheeze.vote.task.domain.common.TaskOptionId(
+                        candidate.slotOptionId()),
                 candidate.candidateOrder(),
-                TaskAnswerJpaCodec.decode(
-                        candidate.answerType(),
-                        candidate.textValue(),
-                        candidate.numberValue(),
-                        candidate.scaleValue(),
-                        storedSelections),
                 candidate.rationale());
     }
 }

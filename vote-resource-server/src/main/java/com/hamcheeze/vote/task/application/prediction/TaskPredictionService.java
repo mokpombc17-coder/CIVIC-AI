@@ -80,7 +80,6 @@ public class TaskPredictionService {
                 persona.versionId(),
                 persona.personaId(),
                 policy.candidatePolicyVersion(),
-                policy.requestedCandidateCount(),
                 now);
         try {
             return EnsureTaskPredictionResult.of(

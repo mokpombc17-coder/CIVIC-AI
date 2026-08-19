@@ -13,7 +13,7 @@ import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
 import com.hamcheeze.vote.task.domain.task.TaskAvailability;
@@ -130,7 +130,7 @@ public class TaskPredictionQueryService {
             TaskPersonaId personaId,
             TaskPredictionId predictionId,
             TaskPredictionStatus predictionStatus,
-            List<TaskPredictionCandidate> candidates,
+            List<TaskPredictedReason> predictedReasons,
             boolean waiting,
             boolean predictionRequestAllowed,
             boolean submissionAllowed,
@@ -145,8 +145,8 @@ public class TaskPredictionQueryService {
         public TaskPredictionView {
             Objects.requireNonNull(taskId, "taskId");
             Objects.requireNonNull(state, "state");
-            candidates = List.copyOf(Objects.requireNonNull(
-                    candidates, "candidates"));
+            predictedReasons = List.copyOf(Objects.requireNonNull(
+                    predictedReasons, "predictedReasons"));
             allowedAnswerSources = List.copyOf(Objects.requireNonNull(
                     allowedAnswerSources, "allowedAnswerSources"));
         }
@@ -206,7 +206,7 @@ public class TaskPredictionQueryService {
                     persona.personaId(),
                     prediction.id(),
                     status,
-                    prediction.candidates(),
+                    prediction.predictedReasons(),
                     waiting,
                     false,
                     status.terminal(),
@@ -228,7 +228,7 @@ public class TaskPredictionQueryService {
                 TaskPersonaId personaId,
                 TaskPredictionId predictionId,
                 TaskPredictionStatus predictionStatus,
-                List<TaskPredictionCandidate> candidates,
+                List<TaskPredictedReason> predictedReasons,
                 boolean waiting,
                 boolean predictionRequestAllowed,
                 boolean submissionAllowed,
@@ -242,7 +242,8 @@ public class TaskPredictionQueryService {
         ) {
             return new TaskPredictionView(
                     taskId, state, personaGenerationId, personaVersionId,
-                    personaId, predictionId, predictionStatus, candidates,
+                    personaId, predictionId, predictionStatus,
+                    predictedReasons,
                     waiting,
                     predictionRequestAllowed, submissionAllowed,
                     predictedAnswerAllowed, directAnswerAllowed,

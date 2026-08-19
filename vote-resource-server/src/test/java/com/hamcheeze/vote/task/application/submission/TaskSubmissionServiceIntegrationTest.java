@@ -480,7 +480,6 @@ class TaskSubmissionServiceIntegrationTest {
                 persona.versionId(),
                 persona.personaId(),
                 "candidate-policy-v1",
-                2,
                 now.minus(8, ChronoUnit.SECONDS));
         TaskPredictionRetryPolicy retryPolicy =
                 new TaskPredictionRetryPolicy(

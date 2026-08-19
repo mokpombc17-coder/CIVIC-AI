@@ -81,7 +81,7 @@ class TaskUserControllerTest {
     @Test
     void predictionEnsureUsesJwtSubjectAndReturnsCreated()
             throws Exception {
-        TaskPrediction prediction = pendingPrediction(2);
+        TaskPrediction prediction = pendingPrediction();
         when(predictions.ensureTaskPrediction(any(), any()))
                 .thenReturn(new EnsureTaskPredictionResult(
                         prediction, true, false, false));

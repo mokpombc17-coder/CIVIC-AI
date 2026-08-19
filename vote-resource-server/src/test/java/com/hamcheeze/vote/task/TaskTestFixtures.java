@@ -10,13 +10,13 @@ import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
 import com.hamcheeze.vote.task.domain.task.MultipleChoiceConstraint;
@@ -54,8 +54,8 @@ public final class TaskTestFixtures {
     public static TaskPredictionId predictionId() {
         return new TaskPredictionId(uuid(4, 1));
     }
-    public static TaskPredictionCandidateId candidateId(int sequence) {
-        return new TaskPredictionCandidateId(uuid(5, sequence));
+    public static TaskPredictedReasonId candidateId(int sequence) {
+        return new TaskPredictedReasonId(uuid(5, sequence));
     }
     public static TaskPredictionAttemptId attemptId(int sequence) {
         return new TaskPredictionAttemptId(uuid(6, sequence));
@@ -121,23 +121,22 @@ public final class TaskTestFixtures {
         return task;
     }
 
-    public static TaskPrediction pendingPrediction(int candidateCount) {
+    public static TaskPrediction pendingPrediction() {
         return TaskPrediction.pending(
                 predictionId(), userId(), taskId(), personaGenerationId(),
                 personaVersionId(), personaId(), "candidate-policy-v1",
-                candidateCount,
                 NOW.plusSeconds(11));
     }
 
     public static TaskPrediction succeededPrediction(Task task) {
-        TaskPrediction prediction = pendingPrediction(2);
+        TaskPrediction prediction = pendingPrediction();
         prediction.startProcessing(RETRY_POLICY, NOW.plusSeconds(12));
         prediction.succeed(task, validCandidates(2), NOW.plusSeconds(20));
         return prediction;
     }
 
     public static TaskPrediction failedPrediction() {
-        TaskPrediction prediction = pendingPrediction(2);
+        TaskPrediction prediction = pendingPrediction();
         prediction.startProcessing(RETRY_POLICY, NOW.plusSeconds(12));
         prediction.failPermanently(
                 new TaskPredictionError("AI_REJECTED", "invalid request"),
@@ -145,8 +144,8 @@ public final class TaskTestFixtures {
         return prediction;
     }
 
-    public static List<TaskPredictionCandidate> validCandidates(int count) {
-        List<TaskPredictionCandidate> candidates = new ArrayList<>();
+    public static List<TaskPredictedReason> validCandidates(int count) {
+        List<TaskPredictedReason> candidates = new ArrayList<>();
         int id = 1;
         for (int order = 1; order <= count; order++) {
             candidates.add(candidate(
@@ -165,16 +164,17 @@ public final class TaskTestFixtures {
         return candidates;
     }
 
-    public static TaskPredictionCandidate candidate(
+    public static TaskPredictedReason candidate(
             int idSequence,
             TaskQuestionId questionId,
             int order,
             com.hamcheeze.vote.task.domain.answer.TaskAnswerValue answer,
             String rationale
     ) {
-        return new TaskPredictionCandidate(
-                candidateId(idSequence), predictionId(), questionId,
-                order, answer, rationale);
+        return new TaskPredictedReason(
+                candidateId(idSequence), predictionId(),
+                ((SingleChoiceValue) answer).selection().optionId(),
+                order, rationale);
     }
 
     private static UUID uuid(long high, long low) {

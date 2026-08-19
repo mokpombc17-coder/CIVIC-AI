@@ -13,7 +13,6 @@ public class TaskPredictionProperties {
     private String authToken;
     private Duration connectTimeout = Duration.ofSeconds(5);
     private String candidatePolicyVersion = "candidate-policy-v1";
-    private int requestedCandidateCount = 2;
     private Duration requestTimeout = Duration.ofSeconds(60);
     private int maximumAttempts = 2;
     private Duration retryDelay = Duration.ofSeconds(30);
@@ -35,10 +34,6 @@ public class TaskPredictionProperties {
     public String getCandidatePolicyVersion() { return candidatePolicyVersion; }
     public void setCandidatePolicyVersion(String value) {
         this.candidatePolicyVersion = value;
-    }
-    public int getRequestedCandidateCount() { return requestedCandidateCount; }
-    public void setRequestedCandidateCount(int value) {
-        this.requestedCandidateCount = value;
     }
     public Duration getRequestTimeout() { return requestTimeout; }
     public void setRequestTimeout(Duration value) { this.requestTimeout = value; }

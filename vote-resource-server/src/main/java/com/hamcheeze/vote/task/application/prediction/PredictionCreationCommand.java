@@ -12,7 +12,6 @@ public record PredictionCreationCommand(
         TaskPersonaId personaId,
         Task task,
         String candidatePolicyVersion,
-        int requestedCandidateCount,
         Duration requestTimeout
 ) {
     public PredictionCreationCommand {
@@ -25,10 +24,6 @@ public record PredictionCreationCommand(
                     "candidatePolicyVersion must not be blank");
         }
         candidatePolicyVersion = candidatePolicyVersion.trim();
-        if (requestedCandidateCount < 1) {
-            throw new IllegalArgumentException(
-                    "requestedCandidateCount must be positive");
-        }
         Objects.requireNonNull(requestTimeout, "requestTimeout");
         if (requestTimeout.isZero() || requestTimeout.isNegative()) {
             throw new IllegalArgumentException(

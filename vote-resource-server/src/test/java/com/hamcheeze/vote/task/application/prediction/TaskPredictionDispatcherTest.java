@@ -54,12 +54,11 @@ class TaskPredictionDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        prediction = pendingPrediction(2);
+        prediction = pendingPrediction();
         task = new AtomicReference<>(openTask());
         attempts = new LinkedHashMap<>();
         policy = new TaskPredictionApplicationPolicy(
                 "candidate-policy-v1",
-                2,
                 new TaskPredictionRetryPolicy(
                         Duration.ofSeconds(60),
                         2,
@@ -147,7 +146,7 @@ class TaskPredictionDispatcherTest {
 
         assertThat(prediction.status())
                 .isEqualTo(TaskPredictionStatus.SUCCEEDED);
-        assertThat(prediction.candidates()).hasSize(4);
+        assertThat(prediction.predictedReasons()).hasSize(4);
         assertThat(attempts.values())
                 .singleElement()
                 .extracting(TaskPredictionAttempt::outcome)
@@ -209,7 +208,7 @@ class TaskPredictionDispatcherTest {
         assertThat(task.get().status().name()).isEqualTo("CLOSED");
         assertThat(prediction.status())
                 .isEqualTo(TaskPredictionStatus.SUCCEEDED);
-        assertThat(prediction.candidates()).isNotEmpty();
+        assertThat(prediction.predictedReasons()).isNotEmpty();
     }
 
     @Test
@@ -248,7 +247,7 @@ class TaskPredictionDispatcherTest {
 
         assertThat(prediction.status())
                 .isEqualTo(TaskPredictionStatus.FAILED);
-        assertThat(prediction.candidates()).isEmpty();
+        assertThat(prediction.predictedReasons()).isEmpty();
         assertThat(prediction.lastError().code())
                 .isEqualTo("AI_RESPONSE_INVALID");
         assertThat(attempts.values())
@@ -265,7 +264,6 @@ class TaskPredictionDispatcherTest {
                 new TaskPersonaId("persona-" + UUID.randomUUID()),
                 openTask(),
                 policy.candidatePolicyVersion(),
-                policy.requestedCandidateCount(),
                 policy.retryPolicy().requestTimeout());
         return new TaskPredictionDispatchClaim(
                 predictionId,
@@ -283,7 +281,7 @@ class TaskPredictionDispatcherTest {
         return new PredictionCreationResult(
                 command.requestId(),
                 command.task().id(),
-                validCandidates(command.requestedCandidateCount()),
+                validCandidates(2),
                 status,
                 responsePayload());
     }

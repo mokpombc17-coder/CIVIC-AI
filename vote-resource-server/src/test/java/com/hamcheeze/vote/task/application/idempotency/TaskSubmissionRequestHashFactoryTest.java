@@ -6,7 +6,7 @@ import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
@@ -74,13 +74,13 @@ class TaskSubmissionRequestHashFactoryTest {
                 predictionId,
                 List.of(new AcceptTaskPredictionCandidate(
                         questionId,
-                        new TaskPredictionCandidateId(uuid(13)))));
+                        new TaskPredictedReasonId(uuid(13)))));
         TaskRequestHash anotherCandidate = hashes.hash(
                 taskId,
                 predictionId,
                 List.of(new AcceptTaskPredictionCandidate(
                         questionId,
-                        new TaskPredictionCandidateId(uuid(14)))));
+                        new TaskPredictedReasonId(uuid(14)))));
         TaskRequestHash direct = hashes.hash(
                 taskId,
                 predictionId,

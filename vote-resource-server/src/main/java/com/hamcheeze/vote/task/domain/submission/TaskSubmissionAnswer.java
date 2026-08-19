@@ -2,7 +2,7 @@ package com.hamcheeze.vote.task.domain.submission;
 
 import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 
 import java.util.Objects;
@@ -10,7 +10,7 @@ import java.util.Objects;
 public record TaskSubmissionAnswer(
         TaskQuestionId questionId,
         TaskAnswerSource source,
-        TaskPredictionCandidateId adoptedPredictionCandidateId,
+        TaskPredictedReasonId adoptedPredictionCandidateId,
         TaskAnswerValue finalAnswerValue
 ) {
     public TaskSubmissionAnswer {
@@ -33,7 +33,7 @@ public record TaskSubmissionAnswer(
 
     public static TaskSubmissionAnswer aiAccepted(
             TaskQuestionId questionId,
-            TaskPredictionCandidateId candidateId,
+            TaskPredictedReasonId candidateId,
             TaskAnswerValue exactCandidateAnswer
     ) {
         return new TaskSubmissionAnswer(

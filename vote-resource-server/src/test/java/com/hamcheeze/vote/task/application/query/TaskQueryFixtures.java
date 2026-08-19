@@ -7,13 +7,13 @@ import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
@@ -110,52 +110,42 @@ final class TaskQueryFixtures {
                 VERSION,
                 PERSONA,
                 "policy-v1",
-                2,
                 NOW.minusSeconds(40));
     }
 
     static TaskPrediction succeededPrediction(Task task) {
         TaskPredictionId predictionId = new TaskPredictionId(UUID.randomUUID());
         TaskQuestion question = task.questions().getFirst();
-        TaskQuestionId questionId = question.id();
         TaskOptionId firstOptionId = question.options().getFirst().id();
         TaskOptionId secondOptionId = question.options().getLast().id();
-        List<TaskPredictionCandidate> candidates = List.of(
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+        List<TaskPredictedReason> candidates = List.of(
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        questionId,
+                        firstOptionId,
                         1,
-                        new SingleChoiceValue(
-                                new TaskOptionSelection(firstOptionId, null)),
                         "첫 번째 예상 근거"),
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        questionId,
+                        firstOptionId,
                         2,
-                        new SingleChoiceValue(
-                                new TaskOptionSelection(firstOptionId, null)),
                         "두 번째 예상 근거"),
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        questionId,
+                        secondOptionId,
                         1,
-                        new SingleChoiceValue(
-                                new TaskOptionSelection(secondOptionId, null)),
                         "세 번째 예상 근거"),
-                new TaskPredictionCandidate(
-                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                new TaskPredictedReason(
+                        new TaskPredictedReasonId(UUID.randomUUID()),
                         predictionId,
-                        questionId,
+                        secondOptionId,
                         2,
-                        new SingleChoiceValue(
-                                new TaskOptionSelection(secondOptionId, null)),
                         "네 번째 예상 근거"));
         return TaskPrediction.restore(
                 predictionId, USER, task, GENERATION, VERSION, PERSONA,
-                "policy-v1", 2, TaskPredictionStatus.SUCCEEDED,
+                "policy-v1", TaskPredictionStatus.SUCCEEDED,
                 1, candidates, null, null,
                 NOW.minusSeconds(40), NOW.minusSeconds(30),
                 NOW.minusSeconds(20));
@@ -170,7 +160,6 @@ final class TaskQueryFixtures {
                 VERSION,
                 PERSONA,
                 "policy-v1",
-                2,
                 TaskPredictionStatus.FAILED,
                 1,
                 List.of(),
@@ -194,7 +183,7 @@ final class TaskQueryFixtures {
                 VERSION,
                 List.of(new AcceptTaskPredictionCandidate(
                         task.questions().getFirst().id(),
-                        prediction.candidates().getFirst().id())),
+                        prediction.predictedReasons().getFirst().id())),
                 NOW.minusSeconds(10));
     }
 

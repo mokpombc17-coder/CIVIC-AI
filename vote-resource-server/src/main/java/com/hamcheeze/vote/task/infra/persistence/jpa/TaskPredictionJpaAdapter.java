@@ -3,16 +3,14 @@ package com.hamcheeze.vote.task.infra.persistence.jpa;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionPersistenceException;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionPersistenceException.ErrorCode;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
-import com.hamcheeze.vote.task.domain.task.TaskOptionKind;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
@@ -37,7 +35,7 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
             TaskPredictionJpaEntity entity =
                     new TaskPredictionJpaEntity(prediction);
             entityManager.persist(entity);
-            persistCandidates(prediction);
+            persistPredictedReasons(prediction);
             entityManager.flush();
             return TaskPredictionJpaMapper.toDomain(entityManager, entity);
         } catch (RuntimeException exception) {
@@ -56,9 +54,9 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
             return insert(prediction);
         }
         entity.apply(prediction);
-        if (!prediction.candidates().isEmpty()
-                && candidateCount(prediction.id().value()) == 0) {
-            persistCandidates(prediction);
+        if (!prediction.predictedReasons().isEmpty()
+                && predictedReasonCount(prediction.id().value()) == 0) {
+            persistPredictedReasons(prediction);
         }
         entityManager.flush();
         return TaskPredictionJpaMapper.toDomain(entityManager, entity);
@@ -169,40 +167,42 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
                 .toList();
     }
 
-    private void persistCandidates(TaskPrediction prediction) {
-        for (TaskPredictionCandidate candidate : prediction.candidates()) {
+    private void persistPredictedReasons(TaskPrediction prediction) {
+        for (TaskPredictedReason predictedReason
+                : prediction.predictedReasons()) {
+            TaskOptionJpaEntity option = requireOption(
+                    predictedReason.optionId().value());
             TaskPredictionCandidateJpaEntity candidateEntity =
                     new TaskPredictionCandidateJpaEntity(
-                            prediction.taskId().value(), candidate);
+                            prediction.taskId().value(),
+                            option.questionId(),
+                            predictedReason);
             entityManager.persist(candidateEntity);
-            TaskAnswerJpaCodec.EncodedAnswer encoded =
-                    TaskAnswerJpaCodec.encode(candidate.answerValue());
-            for (TaskOptionSelection selection : encoded.selections()) {
-                entityManager.persist(
-                        new TaskPredictionCandidateSelectionJpaEntity(
-                                candidate.id().value(),
-                                prediction.id().value(),
-                                prediction.taskId().value(),
-                                candidate.questionId().value(),
-                                encoded.type(),
-                                selection.optionId().value(),
-                                optionKind(selection.optionId().value()),
-                                selection.otherText()));
-            }
+            entityManager.persist(
+                    new TaskPredictionCandidateSelectionJpaEntity(
+                            predictedReason.id().value(),
+                            prediction.id().value(),
+                            prediction.taskId().value(),
+                            option.questionId(),
+                            com.hamcheeze.vote.task.domain.task.TaskQuestionType
+                                    .SINGLE_CHOICE,
+                            predictedReason.optionId().value(),
+                            option.kind(),
+                            null));
         }
     }
 
-    private TaskOptionKind optionKind(UUID optionId) {
+    private TaskOptionJpaEntity requireOption(UUID optionId) {
         TaskOptionJpaEntity option = entityManager.find(
                 TaskOptionJpaEntity.class, optionId);
         if (option == null) {
             throw new IllegalStateException(
                     "prediction selection references a missing option");
         }
-        return option.kind();
+        return option;
     }
 
-    private long candidateCount(UUID predictionId) {
+    private long predictedReasonCount(UUID predictionId) {
         return entityManager.createQuery(
                         "SELECT COUNT(candidate) "
                                 + "FROM TaskPredictionCandidateJpaEntity candidate "

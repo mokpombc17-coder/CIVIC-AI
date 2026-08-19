@@ -38,12 +38,12 @@ class LocalTaskPredictionFakeCreationAdapterTest {
 
         assertThat(second.requestId()).isEqualTo(first.requestId());
         assertThat(second.taskId()).isEqualTo(first.taskId());
-        assertThat(second.candidates()).isEqualTo(first.candidates());
+        assertThat(second.predictedReasons()).isEqualTo(first.predictedReasons());
         assertThat(second.httpStatus()).isEqualTo(first.httpStatus());
         assertThat(second.responsePayload().value())
                 .isEqualTo(first.responsePayload().value());
-        assertThat(first.candidates()).hasSize(6);
-        assertThat(first.candidates())
+        assertThat(first.predictedReasons()).hasSize(6);
+        assertThat(first.predictedReasons())
                 .allSatisfy(candidate -> assertThat(
                         candidate.predictionId()).isEqualTo(REQUEST_ID));
 
@@ -60,7 +60,6 @@ class LocalTaskPredictionFakeCreationAdapterTest {
                         "13030000-0000-0000-0000-000000000003")),
                 new TaskPersonaId("local-persona"),
                 "candidate-policy-v1",
-                2,
                 Instant.parse("2026-08-18T00:00:01Z"));
         prediction.startProcessing(
                 new TaskPredictionRetryPolicy(
@@ -68,9 +67,9 @@ class LocalTaskPredictionFakeCreationAdapterTest {
                 Instant.parse("2026-08-18T00:00:02Z"));
         prediction.succeed(
                 task,
-                first.candidates(),
+                first.predictedReasons(),
                 Instant.parse("2026-08-18T00:00:03Z"));
-        assertThat(prediction.candidates()).hasSize(6);
+        assertThat(prediction.predictedReasons()).hasSize(6);
     }
 
     @Test
@@ -115,7 +114,6 @@ class LocalTaskPredictionFakeCreationAdapterTest {
                 new TaskPersonaId("local-persona"),
                 LocalTaskFixtureAccess.openTask(),
                 "candidate-policy-v1",
-                2,
                 Duration.ofSeconds(60));
     }
 

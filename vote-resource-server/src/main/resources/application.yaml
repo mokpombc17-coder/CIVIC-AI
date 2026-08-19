@@ -47,7 +47,6 @@ vote:
       path: /v1/task-predictions
       connect-timeout: 5s
       candidate-policy-version: candidate-policy-v1
-      requested-candidate-count: 2
       request-timeout: 60s
       maximum-attempts: 2
       retry-delay: 30s

@@ -7,6 +7,7 @@ import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
@@ -66,12 +67,7 @@ class TaskPredictionHttpModelsTest {
         var decoded = response.toDomain(command);
 
         assertThat(decoded)
-                .extracting(candidate -> candidate.answerValue()
-                        .getClass().getSimpleName())
-                .containsOnly(SingleChoiceValue.class.getSimpleName());
-        assertThat(decoded)
-                .extracting(candidate -> ((SingleChoiceValue)
-                        candidate.answerValue()).selection().optionId())
+                .extracting(TaskPredictedReason::optionId)
                 .containsExactly(
                         optionId(1), optionId(1),
                         optionId(2), optionId(2));
@@ -83,7 +79,6 @@ class TaskPredictionHttpModelsTest {
                 new TaskPersonaId("persona-a"),
                 task(),
                 "policy-v1",
-                2,
                 Duration.ofSeconds(60));
     }
 

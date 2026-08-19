@@ -15,11 +15,11 @@ import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
 import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
@@ -147,7 +147,7 @@ final class TaskApiModels {
                     }
                     yield new AcceptTaskPredictionCandidate(
                             resolvedQuestionId,
-                            new TaskPredictionCandidateId(required(
+                            new TaskPredictedReasonId(required(
                                     candidateId, "candidateId")));
                 }
                 case USER_ANSWERED -> {
@@ -387,7 +387,7 @@ final class TaskApiModels {
             boolean waiting,
             boolean predictedAnswerAllowed,
             boolean directAnswerAllowed,
-            List<PredictionCandidateResponse> candidates,
+            List<PredictedReasonResponse> predictedReasons,
             Instant nextRetryAt,
             Instant completedAt,
             String failureCode
@@ -404,8 +404,8 @@ final class TaskApiModels {
                     result.created(), !prediction.status().terminal(),
                     result.predictedAnswerAllowed(),
                     result.directAnswerAllowed(),
-                    prediction.candidates().stream()
-                            .map(PredictionCandidateResponse::from).toList(),
+                    prediction.predictedReasons().stream()
+                            .map(PredictedReasonResponse::from).toList(),
                     prediction.nextRetryAt(), prediction.completedAt(),
                     prediction.lastError() == null
                             ? null : prediction.lastError().code());
@@ -420,7 +420,7 @@ final class TaskApiModels {
             String personaId,
             UUID predictionId,
             TaskPredictionStatus predictionStatus,
-            List<PredictionCandidateResponse> candidates,
+            List<PredictedReasonResponse> predictedReasons,
             boolean waiting,
             boolean predictionRequestAllowed,
             boolean submissionAllowed,
@@ -446,8 +446,8 @@ final class TaskApiModels {
                     view.predictionId() == null ? null
                             : view.predictionId().value(),
                     view.predictionStatus(),
-                    view.candidates().stream()
-                            .map(PredictionCandidateResponse::from).toList(),
+                    view.predictedReasons().stream()
+                            .map(PredictedReasonResponse::from).toList(),
                     view.waiting(), view.predictionRequestAllowed(),
                     view.submissionAllowed(), view.predictedAnswerAllowed(),
                     view.directAnswerAllowed(), view.allowedAnswerSources(),
@@ -458,21 +458,20 @@ final class TaskApiModels {
         }
     }
 
-    record PredictionCandidateResponse(
+    record PredictedReasonResponse(
             UUID id,
-            UUID questionId,
-            int candidateOrder,
-            AnswerValueResponse answer,
-            String rationale
+            UUID optionId,
+            int reasonOrder,
+            String reason
     ) {
-        static PredictionCandidateResponse from(
-                TaskPredictionCandidate candidate
+        static PredictedReasonResponse from(
+                TaskPredictedReason predictedReason
         ) {
-            return new PredictionCandidateResponse(
-                    candidate.id().value(), candidate.questionId().value(),
-                    candidate.candidateOrder(),
-                    AnswerValueResponse.from(candidate.answerValue()),
-                    candidate.rationale());
+            return new PredictedReasonResponse(
+                    predictedReason.id().value(),
+                    predictedReason.optionId().value(),
+                    predictedReason.reasonOrder(),
+                    predictedReason.reason());
         }
     }
 

@@ -78,7 +78,6 @@ public class TaskPredictionStateService {
                 prediction.personaId(),
                 task,
                 prediction.candidatePolicyVersion(),
-                prediction.requestedCandidateCount(),
                 policy.retryPolicy().requestTimeout());
         SanitizedTaskPredictionPayload requestPayload =
                 TaskPredictionPayloads.request(command);
@@ -133,7 +132,7 @@ public class TaskPredictionStateService {
                 .orElseThrow(() -> new IllegalStateException(
                         "prediction references a missing task"));
         try {
-            prediction.succeed(task, result.candidates(), now);
+            prediction.succeed(task, result.predictedReasons(), now);
         } catch (TaskDomainException
                  | TaskValidationException
                  | IllegalArgumentException exception) {

@@ -1,6 +1,8 @@
 package com.hamcheeze.vote.task.domain.submission;
 
+import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
+import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
@@ -10,7 +12,7 @@ import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
@@ -161,16 +163,18 @@ public final class TaskSubmission {
                     "prediction.status",
                     "AI candidate requires succeeded prediction");
         }
-        TaskPredictionCandidate candidate = prediction.candidate(
+        TaskPredictedReason candidate = prediction.predictedReason(
                 accepted.candidateId());
-        if (!candidate.questionId().equals(question.id())) {
+        if (question.options().stream().noneMatch(option ->
+                option.id().equals(candidate.optionId()))) {
             throw TaskDomainException.invariant(
                     "TASK_SUBMISSION_CANDIDATE_QUESTION_MISMATCH",
                     "candidateId",
                     "candidate belongs to another question");
         }
         TaskAnswerValue exactAnswer = question.validateAndNormalize(
-                candidate.answerValue());
+                new SingleChoiceValue(new TaskOptionSelection(
+                        candidate.optionId(), null)));
         return TaskSubmissionAnswer.aiAccepted(
                 question.id(), candidate.id(), exactAnswer);
     }
@@ -202,10 +206,12 @@ public final class TaskSubmission {
                             "TASK_SUBMISSION_AI_ACCEPTANCE_NOT_AVAILABLE",
                             "AI answer requires succeeded prediction");
                 }
-                TaskPredictionCandidate candidate = prediction.candidate(
+                TaskPredictedReason candidate = prediction.predictedReason(
                         stored.adoptedPredictionCandidateId());
-                if (!candidate.questionId().equals(question.id())
-                        || !candidate.answerValue().equals(answer)) {
+                TaskAnswerValue expectedAnswer = question.validateAndNormalize(
+                        new SingleChoiceValue(new TaskOptionSelection(
+                                candidate.optionId(), null)));
+                if (!expectedAnswer.equals(answer)) {
                     throw invalidAnswerSet(
                             "TASK_SUBMISSION_AI_ANSWER_CHANGED",
                             "stored AI answer must equal adopted candidate");

@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.task.application.prediction;
 
+import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 
 final class TaskPredictionPayloads {
@@ -18,7 +19,7 @@ final class TaskPredictionPayloads {
                         + "\",\"candidatePolicyVersion\":\""
                         + escape(command.candidatePolicyVersion())
                         + "\",\"requestedCandidateCount\":"
-                        + command.requestedCandidateCount()
+                        + TaskLimits.PREDICTED_REASONS_PER_OPTION
                         + ",\"requestTimeoutMillis\":"
                         + command.requestTimeout().toMillis()
                         + ",\"questionCount\":"

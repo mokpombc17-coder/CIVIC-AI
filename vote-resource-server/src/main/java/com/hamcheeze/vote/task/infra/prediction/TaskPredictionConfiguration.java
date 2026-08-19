@@ -19,7 +19,6 @@ class TaskPredictionConfiguration {
     ) {
         return new TaskPredictionApplicationPolicy(
                 properties.getCandidatePolicyVersion(),
-                properties.getRequestedCandidateCount(),
                 new TaskPredictionRetryPolicy(
                         properties.getRequestTimeout(),
                         properties.getMaximumAttempts(),
