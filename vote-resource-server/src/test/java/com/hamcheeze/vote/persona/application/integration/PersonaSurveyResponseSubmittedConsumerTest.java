@@ -6,6 +6,7 @@ import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryP
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
@@ -65,7 +66,8 @@ class PersonaSurveyResponseSubmittedConsumerTest {
         when(sources.getByResponseId(
                 new PersonaSourceId(payload.responseId())))
                 .thenReturn(source);
-        when(generations.findBySourceResponseId(
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(payload.responseId())))
                 .thenReturn(Optional.empty());
 
@@ -83,7 +85,9 @@ class PersonaSurveyResponseSubmittedConsumerTest {
         ArgumentCaptor<PersonaGeneration> generation =
                 ArgumentCaptor.forClass(PersonaGeneration.class);
         verify(generations).insert(generation.capture());
-        assertThat(generation.getValue().sourceResponseId().value())
+        assertThat(generation.getValue().sourceType())
+                .isEqualTo(PersonaSourceType.SURVEY_RESPONSE);
+        assertThat(generation.getValue().sourceId().value())
                 .isEqualTo(payload.responseId());
         assertThat(generation.getValue().createdAt())
                 .isEqualTo(source.submittedAt());
@@ -109,7 +113,9 @@ class PersonaSurveyResponseSubmittedConsumerTest {
         when(inbox.recordIfAbsent(any())).thenReturn(true);
         when(sources.getByResponseId(any(PersonaSourceId.class)))
                 .thenReturn(source);
-        when(generations.findBySourceResponseId(
+        when(generations.findBySource(
+                org.mockito.ArgumentMatchers.eq(
+                        PersonaSourceType.SURVEY_RESPONSE),
                 any(PersonaSourceId.class)))
                 .thenReturn(Optional.of(mock(PersonaGeneration.class)));
 

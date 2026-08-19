@@ -8,6 +8,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -50,8 +51,10 @@ class CurrentPersonaQueryServiceTest {
         when(sources.findLatestSourceIdByUserId(USER))
                 .thenReturn(Optional.of(latestSourceId));
         PersonaGeneration pending = PersonaGeneration.pending(
-                generationId(), latestSourceId, NOW);
-        when(generations.findBySourceResponseId(latestSourceId))
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                latestSourceId, NOW);
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
                 .thenReturn(Optional.of(pending));
 
         var result = service.findCurrent(USER);
@@ -69,11 +72,13 @@ class CurrentPersonaQueryServiceTest {
         when(sources.findLatestSourceIdByUserId(USER))
                 .thenReturn(Optional.of(latestSourceId));
         PersonaGeneration succeeded = PersonaGeneration.pending(
-                generationId(), latestSourceId, NOW);
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                latestSourceId, NOW);
         succeeded.startProcessing(NOW.plusSeconds(1));
         succeeded.succeed(
                 new PersonaId("persona-current"), NOW.plusSeconds(2));
-        when(generations.findBySourceResponseId(latestSourceId))
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
                 .thenReturn(Optional.of(succeeded));
 
         var result = service.findCurrent(USER);

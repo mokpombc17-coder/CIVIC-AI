@@ -71,9 +71,10 @@ public class PersonaGenerationStateService {
         }
         PersonaGeneration generation = requireGeneration(generationId);
         PersonaSourceId sourceId = source.responseId();
-        if (!generation.sourceResponseId().equals(sourceId)) {
+        if (generation.sourceType() != PersonaSourceType.SURVEY_RESPONSE
+                || !generation.sourceId().equals(sourceId)) {
             throw new IllegalArgumentException(
-                    "source response ID must match generation source");
+                    "survey source must match generation source");
         }
         Instant succeededAt = clock.instant();
         generation.succeed(result.personaId(), succeededAt);

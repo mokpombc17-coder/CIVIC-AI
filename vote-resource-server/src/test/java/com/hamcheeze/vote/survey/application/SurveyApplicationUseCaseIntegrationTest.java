@@ -28,6 +28,7 @@ import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundEnforcementMode;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundStatus;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -138,7 +139,8 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(submitted.replayed()).isFalse();
         assertThat(submitted.outcome().succeeded()).isTrue();
         assertThat(submitted.outcome().submittedEvent()).isPresent();
-        assertThat(personaGenerations.findBySourceResponseId(
+        assertThat(personaGenerations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(
                         submitted.outcome().responseId().value()))).isEmpty();
         assertThat(jdbcTemplate.queryForObject(
@@ -156,7 +158,8 @@ class SurveyApplicationUseCaseIntegrationTest {
 
         assertThat(outboxDeliveries.deliverNext()).isTrue();
 
-        assertThat(personaGenerations.findBySourceResponseId(
+        assertThat(personaGenerations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(
                         submitted.outcome().responseId().value())))
                 .get()
@@ -166,7 +169,9 @@ class SurveyApplicationUseCaseIntegrationTest {
                     assertThat(generation.attemptCount()).isZero();
                 });
         var firstGeneration = personaGenerations
-                .findBySourceResponseId(new PersonaSourceId(
+                .findBySource(
+                        PersonaSourceType.SURVEY_RESPONSE,
+                        new PersonaSourceId(
                         submitted.outcome().responseId().value()))
                 .orElseThrow();
         firstGeneration.startProcessing(
@@ -238,7 +243,8 @@ class SurveyApplicationUseCaseIntegrationTest {
         SurveySubmissionOutcome nextSubmitted = submit(
                 nextRound, nextContent);
         assertThat(nextSubmitted.succeeded()).isTrue();
-        assertThat(personaGenerations.findBySourceResponseId(
+        assertThat(personaGenerations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(
                         nextSubmitted.responseId().value()))).isEmpty();
         assertThat(outboxDeliveries.deliverNext()).isTrue();

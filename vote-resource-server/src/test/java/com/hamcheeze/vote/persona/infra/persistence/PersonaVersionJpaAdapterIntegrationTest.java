@@ -111,7 +111,7 @@ class PersonaVersionJpaAdapterIntegrationTest {
                 new BigDecimal("1.01"),
                 "model-v3",
                 timestamp(NOW),
-                generation.sourceResponseId().value()))
+                generation.sourceId().value()))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining(
                         "ck_persona_version_predicted_adoption_rate");
@@ -124,6 +124,7 @@ class PersonaVersionJpaAdapterIntegrationTest {
         SurveyResponseId responseId = insertResponse(userId);
         PersonaGeneration generation = PersonaGeneration.pending(
                 new PersonaGenerationId(UUID.randomUUID()),
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(responseId.value()),
                 NOW.minusSeconds(10));
         generation.startProcessing(NOW.minusSeconds(5));
@@ -145,7 +146,7 @@ class PersonaVersionJpaAdapterIntegrationTest {
                 new PersonaModelVersion("model-v3"),
                 generatedAt,
                 PersonaSourceType.SURVEY_RESPONSE,
-                generation.sourceResponseId());
+                generation.sourceId());
     }
 
     private SurveyResponseId insertResponse(String userId) {

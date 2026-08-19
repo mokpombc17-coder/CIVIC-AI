@@ -49,6 +49,7 @@ class PersonaGenerationStateServiceTest {
         SurveyResponseId responseId = new SurveyResponseId(uuid(2));
         PersonaGeneration generation = PersonaGeneration.pending(
                 generationId,
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(responseId.value()),
                 NOW.minusSeconds(10));
         generation.startProcessing(NOW.minusSeconds(5));

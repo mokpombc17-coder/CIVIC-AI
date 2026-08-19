@@ -474,10 +474,10 @@ class TaskSubmissionServiceIntegrationTest {
                 """, responseId, userId, roundId, contentId, timestamp);
         jdbcTemplate.update("""
                 INSERT INTO persona_generations (
-                    generation_id, survey_response_id, persona_id, status,
+                    generation_id, source_type, source_id, persona_id, status,
                     attempt_count, created_at, processing_started_at,
                     completed_at, updated_at)
-                VALUES (?, ?, ?, 'SUCCEEDED', 1, ?, ?, ?, ?)
+                VALUES (?, 'SURVEY_RESPONSE', ?, ?, 'SUCCEEDED', 1, ?, ?, ?, ?)
                 """, generationId, responseId, personaId,
                 timestamp, timestamp, timestamp, timestamp);
         return new PersonaFixture(

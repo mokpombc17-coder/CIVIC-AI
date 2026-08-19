@@ -8,6 +8,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
@@ -71,17 +72,20 @@ public class PersonaGenerationJpaAdapter
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<PersonaGeneration> findBySourceResponseId(
-            PersonaSourceId responseId
+    public Optional<PersonaGeneration> findBySource(
+            PersonaSourceType sourceType,
+            PersonaSourceId sourceId
     ) {
         return single(entityManager.createQuery(
                         """
                         select generation
                         from PersonaGenerationJpaEntity generation
-                        where generation.sourceResponseId = :responseId
+                        where generation.sourceType = :sourceType
+                          and generation.sourceId = :sourceId
                         """,
                         PersonaGenerationJpaEntity.class)
-                .setParameter("responseId", responseId.value())
+                .setParameter("sourceType", sourceType)
+                .setParameter("sourceId", sourceId.value())
                 .getResultList());
     }
 
@@ -136,8 +140,8 @@ public class PersonaGenerationJpaAdapter
     ) {
         String messages = causeMessages(exception);
         ErrorCode code;
-        if (messages.contains("uq_persona_generation_response")) {
-            code = ErrorCode.RESPONSE_ALREADY_LINKED;
+        if (messages.contains("uq_persona_generation_source")) {
+            code = ErrorCode.SOURCE_ALREADY_LINKED;
         } else if (messages.contains("uq_persona_generation_persona")) {
             code = ErrorCode.PERSONA_ID_ALREADY_LINKED;
         } else if (!isConstraintFailure(exception)) {

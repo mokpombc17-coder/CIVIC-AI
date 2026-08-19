@@ -83,7 +83,7 @@ public class PersonaGenerationDispatcher {
     private void dispatch(PersonaGeneration generation) {
         try {
             PersonaSurveySource source = sources.getByResponseId(
-                    generation.sourceResponseId());
+                    generation.sourceId());
             PersonaCreationResult result = personaCreation.create(
                     new PersonaCreationCommand(
                             generation.id(),

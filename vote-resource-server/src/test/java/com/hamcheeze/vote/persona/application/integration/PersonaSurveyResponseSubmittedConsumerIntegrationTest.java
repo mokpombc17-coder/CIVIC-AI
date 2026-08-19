@@ -4,6 +4,7 @@ import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxMessage;
@@ -64,7 +65,8 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
         consumer.consume(firstEvent);
 
         PersonaSourceId sourceId = new PersonaSourceId(payload.responseId());
-        var firstGeneration = generations.findBySourceResponseId(sourceId)
+        var firstGeneration = generations.findBySource(
+                        PersonaSourceType.SURVEY_RESPONSE, sourceId)
                 .orElseThrow();
         assertThat(firstGeneration.status())
                 .isEqualTo(PersonaGenerationStatus.PENDING);
@@ -77,7 +79,8 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
         UUID secondEventId = UUID.randomUUID();
         consumer.consume(event(secondEventId, payload));
 
-        assertThat(generations.findBySourceResponseId(sourceId))
+        assertThat(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, sourceId))
                 .get()
                 .extracting(generation -> generation.id())
                 .isEqualTo(firstGeneration.id());
@@ -104,7 +107,8 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
                     assertThat(message.deadLettered()).isFalse();
                     assertThat(message.publishedAt()).isNotNull();
                 });
-        assertThat(generations.findBySourceResponseId(
+        assertThat(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(payload.responseId())))
                 .get()
                 .satisfies(generation -> assertThat(generation.status())

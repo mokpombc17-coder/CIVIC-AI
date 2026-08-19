@@ -55,7 +55,7 @@ public record CurrentPersonaStatus(
                 == PersonaGenerationStatus.SUCCEEDED
                 && generation.personaId().isPresent();
         return new CurrentPersonaStatus(
-                Optional.of(generation.sourceResponseId()),
+                Optional.of(generation.sourceId()),
                 Optional.of(generation.id()),
                 Status.valueOf(generation.status().name()),
                 generation.personaId(),

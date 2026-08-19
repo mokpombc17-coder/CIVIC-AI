@@ -11,7 +11,8 @@ import java.util.Optional;
 public final class PersonaGeneration {
 
     private final PersonaGenerationId id;
-    private final PersonaSourceId sourceResponseId;
+    private final PersonaSourceType sourceType;
+    private final PersonaSourceId sourceId;
     private PersonaGenerationStatus status;
     private int attemptCount;
     private PersonaId personaId;
@@ -24,7 +25,8 @@ public final class PersonaGeneration {
 
     private PersonaGeneration(
             PersonaGenerationId id,
-            PersonaSourceId sourceResponseId,
+            PersonaSourceType sourceType,
+            PersonaSourceId sourceId,
             PersonaGenerationStatus status,
             int attemptCount,
             PersonaId personaId,
@@ -36,8 +38,8 @@ public final class PersonaGeneration {
             Instant updatedAt
     ) {
         this.id = Objects.requireNonNull(id, "id");
-        this.sourceResponseId = Objects.requireNonNull(
-                sourceResponseId, "sourceResponseId");
+        this.sourceType = Objects.requireNonNull(sourceType, "sourceType");
+        this.sourceId = Objects.requireNonNull(sourceId, "sourceId");
         this.status = Objects.requireNonNull(status, "status");
         this.attemptCount = attemptCount;
         this.personaId = personaId;
@@ -52,13 +54,15 @@ public final class PersonaGeneration {
 
     public static PersonaGeneration pending(
             PersonaGenerationId id,
-            PersonaSourceId sourceResponseId,
+            PersonaSourceType sourceType,
+            PersonaSourceId sourceId,
             Instant createdAt
     ) {
         Objects.requireNonNull(createdAt, "createdAt");
         return new PersonaGeneration(
                 id,
-                sourceResponseId,
+                sourceType,
+                sourceId,
                 PersonaGenerationStatus.PENDING,
                 0,
                 null,
@@ -72,7 +76,8 @@ public final class PersonaGeneration {
 
     public static PersonaGeneration restore(
             PersonaGenerationId id,
-            PersonaSourceId sourceResponseId,
+            PersonaSourceType sourceType,
+            PersonaSourceId sourceId,
             PersonaGenerationStatus status,
             int attemptCount,
             PersonaId personaId,
@@ -84,7 +89,7 @@ public final class PersonaGeneration {
             Instant updatedAt
     ) {
         return new PersonaGeneration(
-                id, sourceResponseId, status, attemptCount, personaId,
+                id, sourceType, sourceId, status, attemptCount, personaId,
                 lastErrorCode, createdAt, processingStartedAt, completedAt,
                 nextAttemptAt, updatedAt);
     }
@@ -152,8 +157,12 @@ public final class PersonaGeneration {
         return id;
     }
 
-    public PersonaSourceId sourceResponseId() {
-        return sourceResponseId;
+    public PersonaSourceType sourceType() {
+        return sourceType;
+    }
+
+    public PersonaSourceId sourceId() {
+        return sourceId;
     }
 
     public PersonaGenerationStatus status() {

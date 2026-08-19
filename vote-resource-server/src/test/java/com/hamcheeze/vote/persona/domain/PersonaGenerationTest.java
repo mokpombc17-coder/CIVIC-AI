@@ -111,6 +111,7 @@ class PersonaGenerationTest {
     private static PersonaGeneration pending() {
         return PersonaGeneration.pending(
                 new PersonaGenerationId(UUID.randomUUID()),
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(UUID.randomUUID()),
                 CREATED_AT);
     }

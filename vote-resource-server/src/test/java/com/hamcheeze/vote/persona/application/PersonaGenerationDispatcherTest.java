@@ -10,6 +10,7 @@ import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.infra.PersonaGenerationProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -102,8 +103,8 @@ class PersonaGenerationDispatcherTest {
         PersonaGeneration generation = processing(
                 generationId(), responseId(), properties.getMaxAttempts());
         when(states.claimNext()).thenReturn(Optional.of(generation));
-        when(sources.getByResponseId(generation.sourceResponseId()))
-                .thenReturn(source(generation.sourceResponseId()));
+        when(sources.getByResponseId(generation.sourceId()))
+                .thenReturn(source(generation.sourceId()));
         when(personaCreation.create(org.mockito.ArgumentMatchers.any()))
                 .thenThrow(new PersonaCreationException(
                         PersonaCreationErrorCode.SERVER_ERROR,
@@ -124,7 +125,8 @@ class PersonaGenerationDispatcherTest {
             int attemptCount
     ) {
         PersonaGeneration generation = PersonaGeneration.pending(
-                generationId, new PersonaSourceId(responseId.value()),
+                generationId, PersonaSourceType.SURVEY_RESPONSE,
+                new PersonaSourceId(responseId.value()),
                 NOW.minusSeconds(100));
         for (int attempt = 1; attempt <= attemptCount; attempt++) {
             Instant started = NOW.minusSeconds(90 - attempt * 10L);

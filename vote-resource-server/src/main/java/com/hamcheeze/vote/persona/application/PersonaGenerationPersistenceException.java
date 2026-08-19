@@ -21,7 +21,7 @@ public final class PersonaGenerationPersistenceException
     }
 
     public enum ErrorCode {
-        RESPONSE_ALREADY_LINKED,
+        SOURCE_ALREADY_LINKED,
         PERSONA_ID_ALREADY_LINKED,
         INTEGRITY_CONSTRAINT_VIOLATION
     }

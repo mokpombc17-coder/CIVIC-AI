@@ -4,6 +4,7 @@ import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
@@ -47,6 +48,7 @@ class PersonaUserControllerTest {
     void exposesReadinessWithoutExternalPersonaId() throws Exception {
         PersonaGeneration generation = PersonaGeneration.pending(
                 new PersonaGenerationId(UUID.randomUUID()),
+                PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(UUID.randomUUID()),
                 Instant.parse("2026-08-14T00:00:00Z"));
         generation.startProcessing(

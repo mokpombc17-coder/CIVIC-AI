@@ -2,6 +2,7 @@ package com.hamcheeze.vote.persona.infra.persistence.jpa;
 
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -20,8 +21,12 @@ class PersonaGenerationJpaEntity {
     @Column(name = "generation_id", nullable = false)
     private UUID id;
 
-    @Column(name = "survey_response_id", nullable = false)
-    private UUID sourceResponseId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_type", nullable = false, length = 30)
+    private PersonaSourceType sourceType;
+
+    @Column(name = "source_id", nullable = false)
+    private UUID sourceId;
 
     @Column(name = "persona_id", length = 512)
     private String personaId;
@@ -64,7 +69,8 @@ class PersonaGenerationJpaEntity {
             throw new IllegalArgumentException("generation ID must match");
         }
         id = generationId;
-        sourceResponseId = generation.sourceResponseId().value();
+        sourceType = generation.sourceType();
+        sourceId = generation.sourceId().value();
         personaId = generation.personaId()
                 .map(value -> value.value()).orElse(null);
         status = generation.status();
@@ -81,8 +87,12 @@ class PersonaGenerationJpaEntity {
         return id;
     }
 
-    UUID sourceResponseId() {
-        return sourceResponseId;
+    PersonaSourceType sourceType() {
+        return sourceType;
+    }
+
+    UUID sourceId() {
+        return sourceId;
     }
 
     String personaId() {

@@ -7,6 +7,7 @@ import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryP
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
@@ -104,11 +105,13 @@ public class PersonaSurveyResponseSubmittedConsumer
         PersonaSourceId sourceId = new PersonaSourceId(payload.responseId());
         PersonaSurveySource source = loadSource(sourceId);
         validateSource(payload, source);
-        if (generations.findBySourceResponseId(sourceId).isPresent()) {
+        if (generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, sourceId).isPresent()) {
             return;
         }
         generations.insert(PersonaGeneration.pending(
                 new PersonaGenerationId(UUID.randomUUID()),
+                PersonaSourceType.SURVEY_RESPONSE,
                 sourceId,
                 source.submittedAt()));
     }

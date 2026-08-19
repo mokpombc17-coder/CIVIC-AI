@@ -4,6 +4,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -16,8 +17,9 @@ public interface PersonaGenerationRepository {
 
     Optional<PersonaGeneration> findById(PersonaGenerationId generationId);
 
-    Optional<PersonaGeneration> findBySourceResponseId(
-            PersonaSourceId responseId);
+    Optional<PersonaGeneration> findBySource(
+            PersonaSourceType sourceType,
+            PersonaSourceId sourceId);
 
     Optional<PersonaGeneration> findByPersonaId(PersonaId personaId);
 

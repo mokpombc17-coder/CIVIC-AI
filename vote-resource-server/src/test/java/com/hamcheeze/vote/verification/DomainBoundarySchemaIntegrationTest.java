@@ -71,4 +71,34 @@ class DomainBoundarySchemaIntegrationTest {
                 .as("cross-domain foreign keys")
                 .isEmpty();
     }
+
+    @Test
+    void personaGenerationOwnsItsSourceIdentity() {
+        List<String> sourceColumns = jdbcTemplate.queryForList("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'persona_generations'
+                  AND column_name IN (
+                    'source_type', 'source_id', 'survey_response_id')
+                ORDER BY column_name
+                """, String.class);
+        Integer sourceConstraintCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM pg_constraint
+                WHERE conname IN (
+                    'uq_persona_generation_source',
+                    'ck_persona_generation_source_type')
+                """, Integer.class);
+        Integer migrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '10' AND success = true
+                """, Integer.class);
+
+        assertThat(sourceColumns)
+                .containsExactly("source_id", "source_type");
+        assertThat(sourceConstraintCount).isEqualTo(2);
+        assertThat(migrationCount).isEqualTo(1);
+    }
 }

@@ -10,6 +10,7 @@ import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,7 +49,8 @@ class PersonaGenerationJpaAdapterIntegrationTest {
     void preservesLifecycleAndSupportsEveryIdentityLookup() {
         SurveyResponseId responseId = insertResponse("user-a");
         PersonaGeneration generation = PersonaGeneration.pending(
-                generationId(), sourceId(responseId), NOW);
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                sourceId(responseId), NOW);
 
         PersonaGeneration inserted = generations.insert(generation);
         inserted.startProcessing(NOW.plusSeconds(1));
@@ -66,7 +68,8 @@ class PersonaGenerationJpaAdapterIntegrationTest {
                     assertThat(restored.personaId())
                             .contains(new PersonaId("persona-a"));
                 });
-        assertThat(generations.findBySourceResponseId(sourceId(responseId)))
+        assertThat(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, sourceId(responseId)))
                 .get().extracting(PersonaGeneration::id)
                 .isEqualTo(inserted.id());
         assertThat(generations.findByPersonaId(
@@ -80,9 +83,11 @@ class PersonaGenerationJpaAdapterIntegrationTest {
         SurveyResponseId firstResponse = insertResponse("user-a");
         SurveyResponseId secondResponse = insertResponse("user-b");
         PersonaGeneration first = PersonaGeneration.pending(
-                generationId(), sourceId(firstResponse), NOW);
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                sourceId(firstResponse), NOW);
         PersonaGeneration second = PersonaGeneration.pending(
-                generationId(), sourceId(secondResponse), NOW.plusSeconds(1));
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                sourceId(secondResponse), NOW.plusSeconds(1));
         generations.insert(second);
         generations.insert(first);
 
@@ -93,30 +98,34 @@ class PersonaGenerationJpaAdapterIntegrationTest {
     }
 
     @Test
-    void translatesDuplicateResponseLinkToStableApplicationError() {
+    void translatesDuplicateSourceLinkToStableApplicationError() {
         SurveyResponseId responseId = insertResponse("user-a");
         generations.insert(PersonaGeneration.pending(
-                generationId(), sourceId(responseId), NOW));
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                sourceId(responseId), NOW));
 
         assertThatThrownBy(() -> generations.insert(
                 PersonaGeneration.pending(
-                        generationId(), sourceId(responseId), NOW)))
+                        generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                        sourceId(responseId), NOW)))
                 .isInstanceOfSatisfying(
                         PersonaGenerationPersistenceException.class,
                         exception -> assertThat(exception.errorCode())
                                 .isEqualTo(ErrorCode
-                                .RESPONSE_ALREADY_LINKED));
+                                .SOURCE_ALREADY_LINKED));
     }
 
     @Test
     void translatesDuplicatePersonaIdToStableApplicationError() {
         PersonaGeneration first = PersonaGeneration.pending(
-                generationId(), sourceId(insertResponse("user-a")), NOW);
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                sourceId(insertResponse("user-a")), NOW);
         first.startProcessing(NOW.plusSeconds(1));
         first.succeed(new PersonaId("same-persona"), NOW.plusSeconds(2));
         generations.insert(first);
         PersonaGeneration second = PersonaGeneration.pending(
-                generationId(), sourceId(insertResponse("user-b")), NOW);
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                sourceId(insertResponse("user-b")), NOW);
         second.startProcessing(NOW.plusSeconds(1));
         second.succeed(new PersonaId("same-persona"), NOW.plusSeconds(2));
 
@@ -134,15 +143,31 @@ class PersonaGenerationJpaAdapterIntegrationTest {
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO persona_generations (
-                    generation_id, survey_response_id, status,
+                    generation_id, source_type, source_id, status,
                     attempt_count, created_at, processing_started_at,
                     completed_at, updated_at)
-                VALUES (?, ?, 'SUCCEEDED', 1, ?, ?, ?, ?)
+                VALUES (?, 'SURVEY_RESPONSE', ?, 'SUCCEEDED', 1, ?, ?, ?, ?)
                 """,
                 UUID.randomUUID(), responseId.value(), timestamp(),
                 timestamp(), timestamp(), timestamp()))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_persona_generation_state");
+    }
+
+    @Test
+    void sourceDoesNotRequireARowInTheSurveyDomain() {
+        PersonaSourceId sourceId = new PersonaSourceId(UUID.randomUUID());
+        PersonaGeneration generation = PersonaGeneration.pending(
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                sourceId, NOW);
+
+        generations.insert(generation);
+
+        assertThat(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, sourceId))
+                .get()
+                .extracting(PersonaGeneration::id)
+                .isEqualTo(generation.id());
     }
 
     private SurveyResponseId insertResponse(String userId) {

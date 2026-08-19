@@ -13,7 +13,8 @@ final class PersonaGenerationJpaMapper {
     static PersonaGeneration toDomain(PersonaGenerationJpaEntity entity) {
         return PersonaGeneration.restore(
                 new PersonaGenerationId(entity.id()),
-                new PersonaSourceId(entity.sourceResponseId()),
+                entity.sourceType(),
+                new PersonaSourceId(entity.sourceId()),
                 entity.status(),
                 entity.attemptCount(),
                 entity.personaId() == null
