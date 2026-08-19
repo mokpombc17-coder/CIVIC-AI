@@ -23,11 +23,11 @@ class TaskArchitectureTest {
             "org.hibernate.",
             "com.hamcheeze.vote.survey.domain.",
             "com.hamcheeze.vote.persona.",
-            "com.hamcheeze.vote.result.");
+            "com.hamcheeze.vote.opinionmap.");
     private static final String PERSISTENCE_PACKAGE =
             "com.hamcheeze.vote.task.infra.persistence";
-    private static final String RESULT_BRIDGE_PACKAGE =
-            "com.hamcheeze.vote.task.infra.result";
+    private static final String OPINION_MAP_BRIDGE_PACKAGE =
+            "com.hamcheeze.vote.task.infra.opinionmap";
 
     @Test
     void domainClassesHaveNoSpringJpaOrWebDependencies()
@@ -37,12 +37,12 @@ class TaskArchitectureTest {
     }
 
     @Test
-    void applicationDoesNotDependOnPersonaOrResult() throws Exception {
+    void applicationDoesNotDependOnPersonaOrOpinionMap() throws Exception {
         assertPackageHasNoDependencies(
                 APPLICATION_PACKAGE,
                 List.of(
                         "com.hamcheeze.vote.persona.",
-                        "com.hamcheeze.vote.result."));
+                        "com.hamcheeze.vote.opinionmap."));
     }
 
     @Test
@@ -58,24 +58,24 @@ class TaskArchitectureTest {
     }
 
     @Test
-    void persistenceDoesNotDependOnPersonaOrResultImplementation()
+    void persistenceDoesNotDependOnPersonaOrOpinionMapImplementation()
             throws Exception {
         assertPackageHasNoDependencies(
                 PERSISTENCE_PACKAGE,
                 List.of(
                         "com.hamcheeze.vote.persona.",
-                        "com.hamcheeze.vote.result."));
+                        "com.hamcheeze.vote.opinionmap."));
     }
 
     @Test
-    void resultBridgeDependsOnlyOnResultApplicationContract()
+    void opinionMapBridgeDependsOnlyOnOpinionMapApplicationContract()
             throws Exception {
         assertPackageHasNoDependencies(
-                RESULT_BRIDGE_PACKAGE,
+                OPINION_MAP_BRIDGE_PACKAGE,
                 List.of(
-                        "com.hamcheeze.vote.result.domain.",
-                        "com.hamcheeze.vote.result.infra.",
-                        "com.hamcheeze.vote.result.api."));
+                        "com.hamcheeze.vote.opinionmap.domain.",
+                        "com.hamcheeze.vote.opinionmap.infra.",
+                        "com.hamcheeze.vote.opinionmap.api."));
     }
 
     private void assertPackageHasNoDependencies(

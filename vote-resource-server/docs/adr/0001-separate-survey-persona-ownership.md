@@ -5,8 +5,8 @@
 - 적용 대상: `vote-resource-server`
 - 구현 상태: 완료
 - 후속 구현: Persona 패키지 독립, Transactional Outbox, Persona Inbox,
-  Persona 버전, Task 결합 제거, Result 제출 Projection
-- 관련 결정: `0002-result-submission-projection.md`
+  Persona 버전, Task 결합 제거, OpinionMap 제출 Projection
+- 관련 결정: `0002-opinion-map-submission-projection.md`
 
 ## 배경
 
@@ -65,7 +65,7 @@ com.hamcheeze.vote
 | 사용자별 예상 응답 채택률 | Persona | Persona 버전 생성 시점의 모델 추정치 |
 | 실제 이유 채택 이력 | Task | `AI_ACCEPTED/USER_WRITTEN` 원천 기록 |
 | Task 제출 이벤트 | Task | Outbox까지 Task 제출 트랜잭션이 책임짐 |
-| Task 제출 Projection과 실제 AI 이유 채택률 집계 | Result | Persona 원본을 직접 수정하지 않음 |
+| Task 제출 Projection과 실제 AI 이유 채택률 집계 | OpinionMap | Persona 원본을 직접 수정하지 않음 |
 
 Survey는 Persona 자체나 Persona 생성 상태를 소유하지 않는다. Persona는 Survey
 Aggregate를 직접 참조하지 않고, 제출된 응답을 나타내는 외부 식별자와 불변 입력
@@ -195,14 +195,14 @@ sourceId
 - `modelVersion`은 비어 있지 않아야 한다.
 - 과거 버전을 덮어쓰지 않는다.
 - 사용자의 현재 Persona는 가장 최근에 성공한 `PersonaVersion`이다.
-- 동일 사용자에게 새 버전을 생성해도 이전 버전을 Task/Result 감사 목적으로 보존한다.
+- 동일 사용자에게 새 버전을 생성해도 이전 버전을 Task/OpinionMap 감사 목적으로 보존한다.
 
 외부 Persona Provider의 다음 계약 버전은 성공 결과에 `providerPersonaId`,
 `predictedAdoptionRate`, `modelVersion`을 반환해야 한다. 이 값이 없거나 범위를
 벗어나면 생성 성공으로 기록하지 않는다.
 
 예상 채택률은 PersonaVersion의 모델 추정치다. 실제 채택률은 Task 제출 이벤트에서
-계산되는 별도 Result Projection이며, PersonaVersion을 소급 수정하지 않는다.
+계산되는 별도 OpinionMap Projection이며, PersonaVersion을 소급 수정하지 않는다.
 
 ### 7. Persona 조회 API와 보안
 
@@ -242,11 +242,11 @@ Task의 `TaskPredictedReason`은 선택지, 이유 문구와 선택지별 순서
 ### 9. 실제 채택률
 
 실제 채택의 원천 데이터는 Task의 `TaskReasonSource`와 채택된 예상 이유 ID다.
-Result는 `TaskSubmissionCompletedV2` Integration Event를 소비해 Result 소유의 불변
+OpinionMap는 `TaskSubmissionCompletedV2` Integration Event를 소비해 OpinionMap 소유의 불변
 제출 Projection을 만든다. Projection은 선택지와 최종 이유 스냅샷을 보존하지만 Task
 질문·선택지 문구를 중복 저장하거나 Task 테이블에 외래 키를 만들지 않는다.
 
-투표 단위 실제 AI 이유 채택률의 분모는 Result Projection에 저장된 유효 제출 수,
+투표 단위 실제 AI 이유 채택률의 분모는 OpinionMap Projection에 저장된 유효 제출 수,
 분자는 그중 `AI_ACCEPTED`인 제출 수다.
 
 ```text
@@ -254,9 +254,9 @@ actualAdoptionRate = aiAcceptedSubmissionCount / validSubmissionCount
 ```
 
 Task 하나에는 질문이 하나뿐이므로 사용자별 제출의 이유 출처는 `AI_ACCEPTED` 또는
-`USER_WRITTEN`이라는 단일 사실로 보존된다. 집계 지표는 Result가 소유하며 구체적인
-화면 노출 여부는 Result 조회 API 설계에서 결정한다. PersonaVersion의
-`predictedAdoptionRate`와는 별도 값이고, 예상 채택률은 사용자 Result 화면에 노출하지
+`USER_WRITTEN`이라는 단일 사실로 보존된다. 집계 지표는 OpinionMap가 소유하며 구체적인
+화면 노출 여부는 OpinionMap 조회 API 설계에서 결정한다. PersonaVersion의
+`predictedAdoptionRate`와는 별도 값이고, 예상 채택률은 사용자 OpinionMap 화면에 노출하지
 않으며 후속 관리자 export에서 실제 채택률과 비교할 provenance로 사용한다.
 
 ### 10. 마이그레이션 원칙
@@ -268,8 +268,8 @@ Task 하나에는 질문이 하나뿐이므로 사용자별 제출의 이유 출
 - Outbox 전환 후 Survey가 `PersonaGenerationRepository`에 의존하지 않는 것을
   Architecture Test로 검증한다.
 - Persona가 Survey JPA 타입에 의존하지 않는 것을 Architecture Test로 검증한다.
-- Result가 Task Repository·JPA 타입에 의존하지 않는 것을 Architecture Test로
-  검증한다. Task 내용이 필요할 때는 Result 소유 `ResultTaskQueryPort`를 사용한다.
+- OpinionMap가 Task Repository·JPA 타입에 의존하지 않는 것을 Architecture Test로
+  검증한다. Task 내용이 필요할 때는 OpinionMap 소유 `OpinionMapTaskQueryPort`를 사용한다.
 - 외부 API URI는 가능한 한 유지하고 소유 구현만 이동한다.
 
 ## 단계별 완료 조건
@@ -291,8 +291,8 @@ Task 하나에는 질문이 하나뿐이므로 사용자별 제출의 이유 출
 ### 3단계 이후: 완료
 
 Outbox/Inbox와 PersonaVersion schema, 이벤트 소비자, Survey Producer 전환, API 소유권
-이동, Task 외래 키 제거를 독립 변경으로 완료했다. 이어서 Task 제출 Outbox, Result
-Inbox, Result 제출 Projection과 Result 소유 Task 조회 Port를 추가했다.
+이동, Task 외래 키 제거를 독립 변경으로 완료했다. 이어서 Task 제출 Outbox, OpinionMap
+Inbox, OpinionMap 제출 Projection과 OpinionMap 소유 Task 조회 Port를 추가했다.
 
 ## 결과와 트레이드오프
 
@@ -302,7 +302,7 @@ Inbox, Result 제출 Projection과 Result 소유 Task 조회 Port를 추가했�
 - Persona 재시도와 모델 버전을 Survey 변경 없이 확장할 수 있다.
 - 사용자별 예상 채택률의 버전과 출처를 추적할 수 있다.
 - 향후 Persona를 별도 서비스로 옮길 수 있는 경계가 생긴다.
-- Task와 Result가 Persona의 내부 테이블 대신 안정적인 식별자를 사용한다.
+- Task와 OpinionMap가 Persona의 내부 테이블 대신 안정적인 식별자를 사용한다.
 
 ### 비용
 
@@ -320,8 +320,8 @@ Persona 상태 API는 이 짧은 구간을 정상 상태로 취급하고 `PENDIN
 
 - Kafka 등 외부 메시지 브로커 도입
 - Persona 별도 배포 서비스 구축
-- 사용자용 Result 조회 API와 정성적 의견 지도
+- 사용자용 OpinionMap 조회 API와 정성적 의견 지도
 - 관리자 export API의 권한·파일 형식·전달 방식
 
-Survey 질문 `required` 강제는 V9, Result 제출 Projection은 V12~V13 후속 작업으로
+Survey 질문 `required` 강제는 V9, OpinionMap 제출 Projection은 V12~V13 후속 작업으로
 반영했다. 나머지 항목은 각 후속 단계의 별도 스펙과 테스트에서 다룬다.

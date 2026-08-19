@@ -2,8 +2,8 @@
 
 - 상태: Accepted
 - 결정일: 2026-08-19
-- 적용 대상: `vote-resource-server` Task·Result/OpinionMap 경계
-- 선행 결정: `0002-result-submission-projection.md`
+- 적용 대상: `vote-resource-server` Task·OpinionMap 경계
+- 선행 결정: `0002-opinion-map-submission-projection.md`
 
 ## 배경
 
@@ -13,7 +13,7 @@
 
 AI는 질문 전체에 대한 독립 답안을 만드는 것이 아니라 선택지마다 예상 선택 이유를
 두 개씩 만든다. 사용자는 선택한 선택지에 속한 예상 이유 하나를 채택하거나 직접
-이유를 작성한다. 최종 제출은 수정할 수 없고 Result/OpinionMap의 불변 원천이 된다.
+이유를 작성한다. 최종 제출은 수정할 수 없고 OpinionMap의 불변 원천이 된다.
 
 현재 보존해야 할 Task·Prediction·Submission 데이터는 없다. 따라서 기존 다중 질문
 계약을 호환하거나 레거시 데이터를 변환하는 것보다 새 정책에 맞게 모델과 스키마를
@@ -83,7 +83,7 @@ TaskSubmission
 채택한 경우에도 식별자만 보존하지 않고 당시 문구를 함께 저장해 외부 생성 결과나
 조회 모델의 변경과 무관한 불변 스냅샷을 만든다.
 
-### 4. Result/OpinionMap 전달 계약
+### 4. OpinionMap 전달 계약
 
 Task는 최종 제출 사실을 schema version 2의 `TaskSubmissionCompletedV2` Outbox
 이벤트로 전달하며 다음 값을 제공한다.
@@ -95,10 +95,10 @@ questionId, selectedOptionId
 reasonSource, acceptedPredictedReasonId, finalReason
 ```
 
-Result/OpinionMap은 `taskId`로 질문·선택지 문맥을 명시적 조회 Port를 통해 조회한다.
+OpinionMap은 `taskId`로 질문·선택지 문맥을 명시적 조회 Port를 통해 조회한다.
 Task Repository·JPA Entity·교차 도메인 외래 키는 사용하지 않는다.
 
-Result Consumer는 V2만 수용한다. 보존할 기존 제출 데이터가 없으므로 V1 호환 경로를
+OpinionMap Consumer는 V2만 수용한다. 보존할 기존 제출 데이터가 없으므로 V1 호환 경로를
 유지하지 않으며, V1 이벤트가 들어오면 비재시도 오류로 거부한다.
 
 ## 구현 순서
@@ -109,7 +109,7 @@ Result Consumer는 V2만 수용한다. 보존할 기존 제출 데이터가 없�
 - [x] Submission을 선택지 하나와 이유 하나의 불변 스냅샷으로 변경한다.
 - [x] 새 Flyway migration과 JPA 매핑을 적용한다.
 - [x] AI·관리자·사용자 API 계약을 변경한다.
-- [x] 소비자 우선으로 제출 이벤트와 Result Projection을 전환한다.
+- [x] 소비자 우선으로 제출 이벤트와 OpinionMap Projection을 전환한다.
 - [x] 로컬 fixture·smoke·문서를 정리하고 회귀 테스트를 수행한다.
 
 ## 결과와 트레이드오프

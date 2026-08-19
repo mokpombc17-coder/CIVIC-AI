@@ -34,16 +34,14 @@ class DomainBoundarySchemaIntegrationTest {
                                WHEN source_table.relname ~ '^persona_' THEN 'persona'
                                WHEN source_table.relname = 'tasks'
                                  OR source_table.relname ~ '^task_' THEN 'task'
-                               WHEN source_table.relname = 'results'
-                                 OR source_table.relname ~ '^result_' THEN 'result'
+                               WHEN source_table.relname ~ '^opinion_map_' THEN 'opinionmap'
                            END AS source_domain,
                            CASE
                                WHEN target_table.relname ~ '^survey_' THEN 'survey'
                                WHEN target_table.relname ~ '^persona_' THEN 'persona'
                                WHEN target_table.relname = 'tasks'
                                  OR target_table.relname ~ '^task_' THEN 'task'
-                               WHEN target_table.relname = 'results'
-                                 OR target_table.relname ~ '^result_' THEN 'result'
+                               WHEN target_table.relname ~ '^opinion_map_' THEN 'opinionmap'
                            END AS target_domain
                     FROM pg_constraint constraint_definition
                     JOIN pg_class source_table
