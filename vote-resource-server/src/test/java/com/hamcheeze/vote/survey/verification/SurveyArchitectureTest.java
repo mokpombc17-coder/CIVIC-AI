@@ -2,20 +2,16 @@ package com.hamcheeze.vote.survey.verification;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.net.URI;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static com.hamcheeze.vote.verification.ArchitectureTestSupport.assertNoDependencies;
+import static com.hamcheeze.vote.verification.ArchitectureTestSupport.assertNoDependenciesMatching;
 
 class SurveyArchitectureTest {
 
+    private static final String APPLICATION_PACKAGE =
+            "com.hamcheeze.vote.survey.application";
     private static final String DOMAIN_PACKAGE =
             "com.hamcheeze.vote.survey.domain";
     private static final List<String> FORBIDDEN_DEPENDENCIES = List.of(
@@ -32,10 +28,22 @@ class SurveyArchitectureTest {
     }
 
     @Test
-    void responseApplicationDoesNotDependOnPersona() throws Exception {
+    void applicationDoesNotDependOnPersona() throws Exception {
         assertNoDependencies(
-                "com.hamcheeze.vote.survey.application.response",
+                APPLICATION_PACKAGE,
                 List.of("com.hamcheeze.vote.persona."));
+    }
+
+    @Test
+    void surveyDoesNotDependOnPersonaRepositoryOrPersistence()
+            throws Exception {
+        assertNoDependenciesMatching(
+                "com.hamcheeze.vote.survey",
+                List.of(
+                        Pattern.compile(
+                                "com/hamcheeze/vote/persona/[\\w/$]+Repository"),
+                        Pattern.compile(
+                                "com/hamcheeze/vote/persona/infra/persistence/")));
     }
 
     @Test
@@ -45,49 +53,4 @@ class SurveyArchitectureTest {
                 List.of("com.hamcheeze.vote.persona."));
     }
 
-    private void assertNoDependencies(
-            String packageName,
-            List<String> forbiddenDependencies
-    ) throws Exception {
-        for (Path root : classPathRoots(packageName)) {
-            try (var paths = Files.walk(root)) {
-                for (Path classFile : paths
-                        .filter(path -> path.toString().endsWith(".class"))
-                        .toList()) {
-                    byte[] bytecode = Files.readAllBytes(classFile);
-                    String constants = new String(
-                            bytecode, java.nio.charset.StandardCharsets.ISO_8859_1);
-                    assertThat(forbiddenDependencies.stream()
-                            .map(value -> value.replace('.', '/'))
-                            .noneMatch(constants::contains))
-                            .as("forbidden dependency in %s", classFile)
-                            .isTrue();
-                }
-            }
-        }
-    }
-
-    private List<Path> classPathRoots(String packageName) throws Exception {
-        URI uri = getClass().getClassLoader().getResource(
-                        packageName.replace('.', '/'))
-                .toURI();
-        if ("file".equals(uri.getScheme())) {
-            Path packagePath = Path.of(uri);
-            return List.of(packagePath);
-        }
-        if ("jar".equals(uri.getScheme())) {
-            return withJarFileSystem(uri, () -> List.of(Path.of(uri)));
-        }
-        throw new IllegalStateException("unsupported classpath: " + uri);
-    }
-
-    private <T> T withJarFileSystem(
-            URI uri,
-            Supplier<T> action
-    ) throws IOException {
-        try (FileSystem ignored = FileSystems.newFileSystem(
-                uri, new HashMap<>())) {
-            return action.get();
-        }
-    }
 }
