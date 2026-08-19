@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.application.submission;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
+import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyErrorCode;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
@@ -33,8 +34,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -52,12 +55,15 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
         "vote.survey.bootstrap.enabled=false",
         "vote.task.lifecycle.enabled=false",
-        "vote.task.prediction.enabled=false"
+        "vote.task.prediction.enabled=false",
+        "vote.task.submission-outbox.enabled=true"
 })
 @ActiveProfiles({"local", "test"})
 class TaskSubmissionServiceIntegrationTest {
@@ -85,6 +91,9 @@ class TaskSubmissionServiceIntegrationTest {
     @Autowired
     private UserTransactionLock userTransactions;
 
+    @MockitoSpyBean
+    private IntegrationOutboxRepository outbox;
+
     @Autowired
     private PlatformTransactionManager transactionManager;
 
@@ -93,6 +102,7 @@ class TaskSubmissionServiceIntegrationTest {
 
     @BeforeEach
     void resetData() {
+        jdbcTemplate.execute("TRUNCATE TABLE integration_outbox");
         jdbcTemplate.execute("TRUNCATE TABLE tasks CASCADE");
         jdbcTemplate.execute(
                 "TRUNCATE TABLE survey_content_versions CASCADE");
@@ -120,6 +130,54 @@ class TaskSubmissionServiceIntegrationTest {
         assertThat(replay.replayed()).isTrue();
         assertThat(replay.outcome()).isEqualTo(first.outcome());
         assertThat(submissionCount(fixture)).isEqualTo(1);
+        assertThat(outboxCount(first.outcome().submissionId().value()))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void successfulSubmissionStoresCompleteResultHandoffEvent() {
+        Fixture fixture = fixture("outbox-payload-user");
+
+        TaskSubmissionService.SubmissionExecution result = service.submit(
+                fixture.userId(),
+                UUID.randomUUID().toString(),
+                command(fixture, "Result 집계 답변"));
+
+        String payload = jdbcTemplate.queryForObject("""
+                SELECT payload::text
+                FROM integration_outbox
+                WHERE aggregate_id = ?
+                  AND event_type = 'task.submission-completed'
+                """, String.class, result.outcome().submissionId().value());
+        assertThat(payload)
+                .contains(result.outcome().submissionId().value().toString())
+                .contains(fixture.task().id().value().toString())
+                .contains(fixture.prediction().id().value().toString())
+                .contains(fixture.prediction()
+                        .personaGenerationId().value().toString())
+                .contains(fixture.prediction()
+                        .personaVersionId().value().toString())
+                .contains("Result 집계 답변")
+                .contains("USER_ANSWERED")
+                .contains("SHORT_TEXT");
+    }
+
+    @Test
+    void outboxFailureRollsBackSubmissionAndReceiptTogether() {
+        Fixture fixture = fixture("outbox-rollback-user");
+        doThrow(new IllegalStateException("forced task outbox failure"))
+                .when(outbox).insert(any());
+
+        assertThatThrownBy(() -> service.submit(
+                fixture.userId(),
+                UUID.randomUUID().toString(),
+                command(fixture, "rollback")))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseMessage("forced task outbox failure");
+
+        assertThat(submissionCount(fixture)).isZero();
+        assertThat(outboxCountForTask(fixture.task().id().value())).isZero();
+        assertThat(receiptStatuses(fixture.userId())).isEmpty();
     }
 
     @Test
@@ -174,6 +232,8 @@ class TaskSubmissionServiceIntegrationTest {
                     .containsOnly(results.getFirst().outcome().submissionId());
         }
         assertThat(submissionCount(fixture)).isEqualTo(1);
+        assertThat(outboxCountForTask(fixture.task().id().value()))
+                .isEqualTo(1);
     }
 
     @Test
@@ -216,6 +276,8 @@ class TaskSubmissionServiceIntegrationTest {
                     .containsOnly(false);
         }
         assertThat(submissionCount(fixture)).isEqualTo(1);
+        assertThat(outboxCountForTask(fixture.task().id().value()))
+                .isEqualTo(1);
         assertThat(receiptStatuses(fixture.userId()))
                 .containsExactlyInAnyOrder("SUCCEEDED", "REJECTED");
     }
@@ -241,6 +303,7 @@ class TaskSubmissionServiceIntegrationTest {
         assertThat(replay.replayed()).isTrue();
         assertThat(replay.outcome()).isEqualTo(first.outcome());
         assertThat(submissionCount(fixture)).isZero();
+        assertThat(outboxCountForTask(fixture.task().id().value())).isZero();
     }
 
     @Test
@@ -505,6 +568,24 @@ class TaskSubmissionServiceIntegrationTest {
                 WHERE user_id = ? AND task_id = ?
                 """, Integer.class,
                 fixture.userId().value(), fixture.task().id().value());
+    }
+
+    private int outboxCount(UUID submissionId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM integration_outbox
+                WHERE aggregate_id = ?
+                  AND event_type = 'task.submission-completed'
+                """, Integer.class, submissionId);
+    }
+
+    private int outboxCountForTask(UUID taskId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM integration_outbox
+                WHERE payload ->> 'taskId' = ?
+                  AND event_type = 'task.submission-completed'
+                """, Integer.class, taskId.toString());
     }
 
     private List<String> receiptStatuses(TaskUserId userId) {

@@ -32,6 +32,8 @@ vote:
     max-attempts: ${vote.survey.persona.max-attempts:3}
     batch-size: ${vote.survey.persona.batch-size:10}
   task:
+    submission-outbox:
+      enabled: ${VOTE_TASK_SUBMISSION_OUTBOX_ENABLED:false}
     bootstrap:
       enabled: false
     lifecycle:

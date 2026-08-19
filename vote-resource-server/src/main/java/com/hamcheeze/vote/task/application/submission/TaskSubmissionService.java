@@ -11,6 +11,7 @@ import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskSubmissionCompletedEventPublisher;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
@@ -41,6 +42,7 @@ public class TaskSubmissionService {
     private final CurrentTaskPersonaQueryPort currentPersonas;
     private final TaskPredictionRepository predictions;
     private final TaskSubmissionRepository submissions;
+    private final TaskSubmissionCompletedEventPublisher completedEvents;
     private final UserTransactionLock userTransactions;
     private final TaskSubmissionRequestHashFactory requestHashFactory =
             new TaskSubmissionRequestHashFactory();
@@ -54,10 +56,11 @@ public class TaskSubmissionService {
             CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionRepository predictions,
             TaskSubmissionRepository submissions,
+            TaskSubmissionCompletedEventPublisher completedEvents,
             UserTransactionLock userTransactions
     ) {
         this(idempotency, outcomeCodec, tasks, currentPersonas,
-                predictions, submissions, userTransactions,
+                predictions, submissions, completedEvents, userTransactions,
                 Clock.systemUTC());
     }
 
@@ -68,6 +71,7 @@ public class TaskSubmissionService {
             CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionRepository predictions,
             TaskSubmissionRepository submissions,
+            TaskSubmissionCompletedEventPublisher completedEvents,
             UserTransactionLock userTransactions,
             Clock clock
     ) {
@@ -82,6 +86,8 @@ public class TaskSubmissionService {
                 predictions, "predictions");
         this.submissions = Objects.requireNonNull(
                 submissions, "submissions");
+        this.completedEvents = Objects.requireNonNull(
+                completedEvents, "completedEvents");
         this.userTransactions = Objects.requireNonNull(
                 userTransactions, "userTransactions");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -196,8 +202,9 @@ public class TaskSubmissionService {
                     currentPersona.versionId(),
                     command.answers(),
                     submittedAt);
-            return TaskSubmissionOutcome.submitted(
-                    submissions.insert(submission));
+            TaskSubmission stored = submissions.insert(submission);
+            completedEvents.publish(stored);
+            return TaskSubmissionOutcome.submitted(stored);
         } catch (TaskValidationException exception) {
             return TaskSubmissionOutcome.rejected(
                     422,
