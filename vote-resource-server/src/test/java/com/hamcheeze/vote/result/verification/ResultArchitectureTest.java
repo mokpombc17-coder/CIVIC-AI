@@ -14,12 +14,30 @@ class ResultArchitectureTest {
             "com.hamcheeze.vote.result";
     private static final String APPLICATION_PACKAGE =
             "com.hamcheeze.vote.result.application";
+    private static final String DOMAIN_PACKAGE =
+            "com.hamcheeze.vote.result.domain";
     private static final String PERSISTENCE_PACKAGE =
             "com.hamcheeze.vote.result.infra.persistence";
     private static final List<String> OTHER_DOMAIN_IMPLEMENTATIONS = List.of(
             "com.hamcheeze.vote.survey.",
             "com.hamcheeze.vote.persona.",
             "com.hamcheeze.vote.task.");
+
+    @Test
+    void domainHasNoSpringJpaWebOrSharedContractDependencies()
+            throws Exception {
+        assertNoDependencies(
+                DOMAIN_PACKAGE,
+                List.of(
+                        "org.springframework.",
+                        "jakarta.persistence.",
+                        "jakarta.servlet.",
+                        "org.hibernate.",
+                        "com.hamcheeze.vote.shared.",
+                        "com.hamcheeze.vote.survey.",
+                        "com.hamcheeze.vote.persona.",
+                        "com.hamcheeze.vote.task."));
+    }
 
     @Test
     void applicationDependsOnSharedContractsNotOtherImplementations()

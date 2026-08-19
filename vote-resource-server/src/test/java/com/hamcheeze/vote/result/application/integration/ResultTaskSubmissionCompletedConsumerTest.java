@@ -1,6 +1,8 @@
 package com.hamcheeze.vote.result.application.integration;
 
 import com.hamcheeze.vote.result.application.port.out.ResultInboxRepository;
+import com.hamcheeze.vote.result.application.port.out.ResultSubmissionRepository;
+import com.hamcheeze.vote.result.domain.ResultSubmission;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1;
@@ -32,15 +34,20 @@ class ResultTaskSubmissionCompletedConsumerTest {
 
     private final ResultInboxRepository inbox =
             mock(ResultInboxRepository.class);
+    private final ResultSubmissionRepository submissions =
+            mock(ResultSubmissionRepository.class);
     private final ResultTaskSubmissionCompletedConsumer consumer =
             new ResultTaskSubmissionCompletedConsumer(
                     inbox,
+                    submissions,
                     new ObjectMapper(),
                     Clock.fixed(PROCESSED_AT, ZoneOffset.UTC));
 
     @Test
     void recordsValidatedSubmissionEventInResultInbox() {
         IntegrationEventEnvelope event = event(uuid(1), "user-a");
+        when(inbox.find(any(), any())).thenReturn(Optional.empty());
+        when(submissions.insertIfAbsent(any())).thenReturn(true);
         when(inbox.recordIfAbsent(any())).thenReturn(true);
 
         consumer.consume(event);
@@ -53,33 +60,44 @@ class ResultTaskSubmissionCompletedConsumerTest {
                         ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
                         event,
                         PROCESSED_AT));
-        verify(inbox, never()).find(any(), any());
+        ArgumentCaptor<ResultSubmission> submission =
+                ArgumentCaptor.forClass(ResultSubmission.class);
+        verify(submissions).insertIfAbsent(submission.capture());
+        assertThat(submission.getValue().submissionId()).isEqualTo(uuid(2));
+        assertThat(submission.getValue().taskId()).isEqualTo(uuid(3));
+        assertThat(submission.getValue().personaGenerationId())
+                .isEqualTo(uuid(5));
+        assertThat(submission.getValue().personaVersionId())
+                .isEqualTo(uuid(6));
+        assertThat(submission.getValue().submittedAnswerCount()).isEqualTo(1);
+        assertThat(submission.getValue().aiAcceptedAnswerCount()).isZero();
     }
 
     @Test
-    void ignoresIdenticalRedeliveryAfterVerifyingStoredEvent() {
+    void identicalInboxRedeliveryBackfillsMissingProjection() {
         IntegrationEventEnvelope event = event(uuid(1), "user-a");
         ResultInboxReceipt existing = ResultInboxReceipt.from(
                 ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
                 event,
                 PROCESSED_AT);
-        when(inbox.recordIfAbsent(any())).thenReturn(false);
         when(inbox.find(
                 ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
                 event.eventId())).thenReturn(Optional.of(existing));
+        when(submissions.insertIfAbsent(any())).thenReturn(true);
 
         consumer.consume(event);
 
         verify(inbox).find(
                 ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
                 event.eventId());
+        verify(submissions).insertIfAbsent(any());
+        verify(inbox, never()).recordIfAbsent(any());
     }
 
     @Test
     void rejectsEventIdRedeliveredWithDifferentPayload() {
         IntegrationEventEnvelope first = event(uuid(1), "user-a");
         IntegrationEventEnvelope conflicting = event(uuid(1), "user-b");
-        when(inbox.recordIfAbsent(any())).thenReturn(false);
         when(inbox.find(
                 ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
                 first.eventId())).thenReturn(Optional.of(
@@ -97,6 +115,8 @@ class ResultTaskSubmissionCompletedConsumerTest {
                                     "RESULT_INBOX_EVENT_CONFLICT");
                             assertThat(exception.retryable()).isFalse();
                         });
+        verifyNoInteractions(submissions);
+        verify(inbox, never()).recordIfAbsent(any());
     }
 
     @Test
@@ -119,7 +139,7 @@ class ResultTaskSubmissionCompletedConsumerTest {
                                     "RESULT_EVENT_AGGREGATE_MISMATCH");
                             assertThat(exception.retryable()).isFalse();
                         });
-        verifyNoInteractions(inbox);
+        verifyNoInteractions(inbox, submissions);
     }
 
     @Test
@@ -141,7 +161,21 @@ class ResultTaskSubmissionCompletedConsumerTest {
                                     "RESULT_EVENT_PAYLOAD_INVALID");
                             assertThat(exception.retryable()).isFalse();
                         });
-        verifyNoInteractions(inbox);
+        verifyNoInteractions(inbox, submissions);
+    }
+
+    @Test
+    void projectionFailureDoesNotRecordSuccessfulInboxReceipt() {
+        IntegrationEventEnvelope event = event(uuid(1), "user-a");
+        when(inbox.find(any(), any())).thenReturn(Optional.empty());
+        when(submissions.insertIfAbsent(any())).thenThrow(
+                new IllegalStateException("projection unavailable"));
+
+        assertThatThrownBy(() -> consumer.consume(event))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("projection unavailable");
+
+        verify(inbox, never()).recordIfAbsent(any());
     }
 
     private static IntegrationEventEnvelope event(

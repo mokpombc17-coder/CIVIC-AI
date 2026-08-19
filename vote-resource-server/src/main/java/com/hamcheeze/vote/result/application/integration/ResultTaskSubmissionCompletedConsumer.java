@@ -1,6 +1,12 @@
 package com.hamcheeze.vote.result.application.integration;
 
 import com.hamcheeze.vote.result.application.port.out.ResultInboxRepository;
+import com.hamcheeze.vote.result.application.port.out.ResultSubmissionRepository;
+import com.hamcheeze.vote.result.domain.ResultAnswerSelection;
+import com.hamcheeze.vote.result.domain.ResultAnswerSource;
+import com.hamcheeze.vote.result.domain.ResultAnswerType;
+import com.hamcheeze.vote.result.domain.ResultSubmission;
+import com.hamcheeze.vote.result.domain.ResultSubmissionAnswer;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumer;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
@@ -12,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Objects;
 
 @Component
@@ -22,23 +29,28 @@ public class ResultTaskSubmissionCompletedConsumer
             "result-task-submission-completed-v1";
 
     private final ResultInboxRepository inbox;
+    private final ResultSubmissionRepository submissions;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
     @Autowired
     public ResultTaskSubmissionCompletedConsumer(
             ResultInboxRepository inbox,
+            ResultSubmissionRepository submissions,
             ObjectMapper objectMapper
     ) {
-        this(inbox, objectMapper, Clock.systemUTC());
+        this(inbox, submissions, objectMapper, Clock.systemUTC());
     }
 
     ResultTaskSubmissionCompletedConsumer(
             ResultInboxRepository inbox,
+            ResultSubmissionRepository submissions,
             ObjectMapper objectMapper,
             Clock clock
     ) {
         this.inbox = Objects.requireNonNull(inbox, "inbox");
+        this.submissions = Objects.requireNonNull(
+                submissions, "submissions");
         this.objectMapper = Objects.requireNonNull(
                 objectMapper, "objectMapper");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -62,6 +74,26 @@ public class ResultTaskSubmissionCompletedConsumer
         TaskSubmissionCompletedV1 payload = decodePayload(event);
         validateCorrelation(event, payload);
 
+        boolean receiptAlreadyRecorded = hasRecordedReceipt(event);
+
+        ResultSubmission submission = mapSubmission(payload);
+        if (!submissions.insertIfAbsent(submission)) {
+            ResultSubmission existing = submissions.findBySubmissionId(
+                            submission.submissionId())
+                    .orElseThrow(() -> retryable(
+                            "RESULT_SUBMISSION_UNAVAILABLE",
+                            "result submission is unavailable after conflict"));
+            if (!existing.equals(submission)) {
+                throw nonRetryable(
+                        "RESULT_SUBMISSION_CONFLICT",
+                        "submissionId was delivered with different facts");
+            }
+        }
+
+        if (receiptAlreadyRecorded) {
+            return;
+        }
+
         ResultInboxReceipt receipt = ResultInboxReceipt.from(
                 CONSUMER_NAME, event, clock.instant());
         if (inbox.recordIfAbsent(receipt)) {
@@ -79,6 +111,68 @@ public class ResultTaskSubmissionCompletedConsumer
                     "RESULT_INBOX_EVENT_CONFLICT",
                     "eventId was redelivered with different event content");
         }
+    }
+
+    private boolean hasRecordedReceipt(IntegrationEventEnvelope event) {
+        return inbox.find(CONSUMER_NAME, event.eventId())
+                .map(existing -> {
+                    if (!existing.hasSameEvent(event)) {
+                        throw nonRetryable(
+                                "RESULT_INBOX_EVENT_CONFLICT",
+                                "eventId was redelivered with different "
+                                        + "event content");
+                    }
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    private static ResultSubmission mapSubmission(
+            TaskSubmissionCompletedV1 payload
+    ) {
+        try {
+            return toSubmission(payload);
+        } catch (IllegalArgumentException exception) {
+            throw new IntegrationEventConsumptionException(
+                    "RESULT_EVENT_PAYLOAD_INVALID",
+                    false,
+                    "task submission completed payload is invalid",
+                    exception);
+        }
+    }
+
+    private static ResultSubmission toSubmission(
+            TaskSubmissionCompletedV1 payload
+    ) {
+        return new ResultSubmission(
+                payload.submissionId(),
+                payload.userId(),
+                payload.taskId(),
+                payload.predictionId(),
+                payload.personaGenerationId(),
+                payload.personaVersionId(),
+                payload.submittedAt(),
+                payload.answers().stream()
+                        .map(ResultTaskSubmissionCompletedConsumer::toAnswer)
+                        .toList());
+    }
+
+    private static ResultSubmissionAnswer toAnswer(
+            TaskSubmissionCompletedV1.AnswerV1 answer
+    ) {
+        List<ResultAnswerSelection> selections = answer.selections().stream()
+                .map(selection -> new ResultAnswerSelection(
+                        selection.optionId(), selection.otherText()))
+                .toList();
+        return new ResultSubmissionAnswer(
+                answer.questionId(),
+                ResultAnswerType.valueOf(answer.answerType().name()),
+                ResultAnswerSource.valueOf(answer.source().name()),
+                answer.adoptedPredictionCandidateId(),
+                answer.textValue(),
+                answer.numberValue(),
+                answer.scaleValue(),
+                selections);
     }
 
     private static void validateEnvelope(IntegrationEventEnvelope event) {
@@ -140,5 +234,13 @@ public class ResultTaskSubmissionCompletedConsumer
     ) {
         return new IntegrationEventConsumptionException(
                 errorCode, false, message);
+    }
+
+    private static IntegrationEventConsumptionException retryable(
+            String errorCode,
+            String message
+    ) {
+        return new IntegrationEventConsumptionException(
+                errorCode, true, message);
     }
 }
