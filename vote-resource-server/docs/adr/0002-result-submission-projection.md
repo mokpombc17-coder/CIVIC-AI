@@ -7,9 +7,10 @@
 
 ## 배경
 
-Task는 사용자의 불변 최종 제출과 질문별 답안 출처를 소유한다. Result는 이 사실을
-바탕으로 실제 선택 분포와 채택률을 계산해야 하지만, Task Repository·JPA Entity를
-직접 사용하거나 Task 테이블에 교차 도메인 외래 키를 만들면 경계가 흐려진다.
+Task는 사용자의 불변 최종 제출, 선택한 선택지와 최종 이유의 출처를 소유한다.
+Result는 이 사실을 바탕으로 실제 선택 분포와 AI 이유 채택률을 계산해야 하지만,
+Task Repository·JPA Entity를 직접 사용하거나 Task 테이블에 교차 도메인 외래 키를
+만들면 경계가 흐려진다.
 
 Result 화면에는 Task 제목·질문·선택지가 필요하므로, Task 내용을 Result 테이블에
 스냅샷으로 복제할지 필요할 때 조회할지도 결정해야 한다. 또한 Persona의 모델 추정치와
@@ -19,12 +20,12 @@ Result 화면에는 Task 제목·질문·선택지가 필요하므로, Task 내�
 
 ### 1. Task 제출 Integration Event
 
-Task 제출 트랜잭션은 Submission·답변·멱등성 Receipt와 함께
-`TaskSubmissionCompletedV1` Outbox 이벤트를 원자적으로 저장한다.
+Task 제출 트랜잭션은 Submission·멱등성 Receipt와 함께
+`TaskSubmissionCompletedV2` Outbox 이벤트를 원자적으로 저장한다.
 
 ```text
 eventType     "task.submission-completed"
-schemaVersion 1
+schemaVersion 2
 aggregateType "TASK_SUBMISSION"
 aggregateId   submissionId
 ```
@@ -39,16 +40,17 @@ predictionId
 personaGenerationId
 personaVersionId
 submittedAt
-answers[]
-  questionId
-  answerType
-  source
-  adoptedPredictionCandidateId
-  typed final value
+questionId
+selectedOptionId
+reasonSource
+acceptedPredictedReasonId (nullable)
+finalReason
 ```
 
-Task 질문·선택지의 문구와 제약은 이벤트에 넣지 않는다. Result가 보존하는 답변 값은
-Task 내용을 복제한 스냅샷이 아니라 최종 제출이라는 원천 사실이다.
+`AI_ACCEPTED`는 `acceptedPredictedReasonId`가 필수이고, `USER_WRITTEN`은 이 값이
+없어야 한다. 두 경우 모두 `finalReason`에는 제출 시점의 이유 문구를 넣어 외부 AI
+결과가 바뀌어도 최종 결과가 변하지 않게 한다. Task 질문·선택지의 문구와 제약은
+이벤트에 넣지 않는다.
 
 ### 2. Result Inbox와 제출 Projection
 
@@ -58,8 +60,6 @@ Result Consumer는 이벤트 Envelope와 payload의 schema·aggregate·발생 �
 ```text
 result_inbox
 result_submissions
-result_submission_answers
-result_submission_answer_selections
 ```
 
 - 전달 보장은 at-least-once다.
@@ -68,7 +68,8 @@ result_submission_answer_selections
 - 다른 `eventId`로 같은 `submissionId`가 전달돼도 동일 사실이면 하나의 Projection만
   유지하고, 내용이 다르면 충돌로 거부한다.
 - Projection 저장 실패는 Inbox 성공으로 기록하지 않는다.
-- V13 migration은 V12 Inbox만 먼저 운영된 경우 payload에서 Projection을 backfill한다.
+- V15 migration은 보존할 운영 데이터가 없다는 ADR 0003의 전제 아래 기존 다중 답변
+  자식 테이블을 제거하고 단일 선택·이유 스냅샷 컬럼으로 교체한다.
 
 Result 테이블은 Survey·Persona·Task 테이블에 외래 키를 만들지 않는다.
 
@@ -83,16 +84,17 @@ Result 테이블은 Survey·Persona·Task 테이블에 외래 키를 만들지 �
 
 ### 4. 실제 채택률
 
-실제 채택률의 계산 단위는 제출된 답변이다.
+실제 AI 이유 채택률의 계산 단위는 투표의 유효 제출이다.
 
 ```text
-submittedAnswerCount = ResultSubmission의 전체 답변 수
-aiAcceptedAnswerCount = source가 AI_ACCEPTED인 답변 수
-actualAdoptionRate = aiAcceptedAnswerCount / submittedAnswerCount
+validSubmissionCount = 해당 투표의 유효 ResultSubmission 수
+aiAcceptedSubmissionCount = reasonSource가 AI_ACCEPTED인 제출 수
+actualAdoptionRate = aiAcceptedSubmissionCount / validSubmissionCount
 ```
 
-비율은 0~1 범위이며 소수점 넷째 자리까지 반올림한다. 정상 TaskSubmission은 모든
-질문에 답하므로 분모가 0일 수 없다.
+비율은 0~1 범위이며 집계 대상 제출이 있을 때 계산한다. 개별 제출은 하나의 선택과
+하나의 이유 출처만 가지므로 사용자 단위의 원천 사실은 비율이 아니라
+`reasonSource`다.
 
 이 값은 Result가 소유하는 실제 지표이며 PersonaVersion의
 `predictedAdoptionRate`를 수정하지 않는다. 실제 채택률의 화면 노출 여부는 후속
@@ -115,14 +117,14 @@ Application·Domain·Persistence도 Result에 의존하지 않으며, 허용된 
 
 - Task 제출 Outbox Producer
 - Result Inbox Consumer와 중복 검증
-- Result 제출·typed answer Projection
-- 실제 채택률 계산
+- Result 단일 선택·최종 이유 불변 Projection
+- AI 채택 이유 ID와 이유 문구 스냅샷 보존
 - Result 소유 Task 조회 Port와 Task Adapter
 - 패키지 의존성과 교차 도메인 FK 방지 테스트
 
 후속 범위:
 
-- 종료된 Task의 전체 선택 분포와 개인 위치 집계
+- 종료된 Task의 전체 선택 분포와 실제 AI 이유 채택률 집계
 - 정성적 의견 지도 분석
 - 사용자 Result 조회 API와 접근 권한
 - 예상·실제 채택률과 provenance를 제공하는 관리자 export API 및 개인정보 정책

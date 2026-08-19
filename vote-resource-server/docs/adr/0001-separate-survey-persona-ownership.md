@@ -63,9 +63,9 @@ com.hamcheeze.vote
 | Persona 재시도와 외부 Provider 호출 | Persona | 최대 시도, backoff, 오류 분류 포함 |
 | Persona 생성 결과와 버전 | Persona | 사용자별 최신 성공 버전 제공 |
 | 사용자별 예상 응답 채택률 | Persona | Persona 버전 생성 시점의 모델 추정치 |
-| 실제 응답 채택 이력 | Task | `AI_ACCEPTED/USER_ANSWERED` 원천 기록 |
+| 실제 이유 채택 이력 | Task | `AI_ACCEPTED/USER_WRITTEN` 원천 기록 |
 | Task 제출 이벤트 | Task | Outbox까지 Task 제출 트랜잭션이 책임짐 |
-| Task 제출 Projection과 실제 채택률 집계 | Result | Persona 원본을 직접 수정하지 않음 |
+| Task 제출 Projection과 실제 AI 이유 채택률 집계 | Result | Persona 원본을 직접 수정하지 않음 |
 
 Survey는 Persona 자체나 Persona 생성 상태를 소유하지 않는다. Persona는 Survey
 Aggregate를 직접 참조하지 않고, 제출된 응답을 나타내는 외부 식별자와 불변 입력
@@ -235,29 +235,29 @@ V4에서 생성된 `task_predictions`의 `persona_generations` 외래 키는 전
 V3/V4 migration은 수정하지 않는다. V11 migration은 Prediction과 Submission에
 `personaVersionId`를 backfill한 뒤 필수 provenance로 고정한다.
 
-Task의 `TaskPredictionCandidate`는 현재 답변 값, 순서, 설명을 소유한다. 후보별
-채택 확률이 추후 필요하면 Task Prediction의 별도 필드로 추가하며, 사용자 수준의
-`predictedAdoptionRate`와 혼합하지 않는다.
+Task의 `TaskPredictedReason`은 선택지, 이유 문구와 선택지별 순서를 소유한다. 이유별
+채택 확률이 추후 필요하면 Task Prediction의 별도 필드로 추가하며, Persona가 소유하는
+사용자 수준의 `predictedAdoptionRate`와 혼합하지 않는다.
 
 ### 9. 실제 채택률
 
-실제 채택의 원천 데이터는 Task의 `TaskAnswerSource`와 채택된 Candidate ID다.
-Result는 `TaskSubmissionCompletedV1` Integration Event를 소비해 Result 소유의 불변
-제출 Projection을 만들고 실제 채택률을 계산한다. Projection은 Task 질문·선택지
-문구를 중복 저장하거나 Task 테이블에 외래 키를 만들지 않는다.
+실제 채택의 원천 데이터는 Task의 `TaskReasonSource`와 채택된 예상 이유 ID다.
+Result는 `TaskSubmissionCompletedV2` Integration Event를 소비해 Result 소유의 불변
+제출 Projection을 만든다. Projection은 선택지와 최종 이유 스냅샷을 보존하지만 Task
+질문·선택지 문구를 중복 저장하거나 Task 테이블에 외래 키를 만들지 않는다.
 
-분모는 Result Projection에 저장된 제출 답변 수, 분자는 그중 `AI_ACCEPTED`인 답변
-수다. 따라서 사용자별 실제 채택률은 다음과 같다.
+투표 단위 실제 AI 이유 채택률의 분모는 Result Projection에 저장된 유효 제출 수,
+분자는 그중 `AI_ACCEPTED`인 제출 수다.
 
 ```text
-actualAdoptionRate = aiAcceptedAnswerCount / submittedAnswerCount
+actualAdoptionRate = aiAcceptedSubmissionCount / validSubmissionCount
 ```
 
-Task는 모든 질문의 답변을 요구하므로 정상 Submission의 분모는 0보다 크다. 이 지표는
-Result가 소유하며 구체적인 화면 노출 여부는 Result 조회 API 설계에서 결정한다.
-PersonaVersion의 `predictedAdoptionRate`와는 별도 값이고, 예상 채택률은 사용자 Result
-화면에 노출하지 않으며 후속 관리자 export에서 실제 채택률과 비교할 provenance로
-사용한다.
+Task 하나에는 질문이 하나뿐이므로 사용자별 제출의 이유 출처는 `AI_ACCEPTED` 또는
+`USER_WRITTEN`이라는 단일 사실로 보존된다. 집계 지표는 Result가 소유하며 구체적인
+화면 노출 여부는 Result 조회 API 설계에서 결정한다. PersonaVersion의
+`predictedAdoptionRate`와는 별도 값이고, 예상 채택률은 사용자 Result 화면에 노출하지
+않으며 후속 관리자 export에서 실제 채택률과 비교할 provenance로 사용한다.
 
 ### 10. 마이그레이션 원칙
 

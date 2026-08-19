@@ -85,8 +85,8 @@ TaskSubmission
 
 ### 4. Result/OpinionMap 전달 계약
 
-Task는 최종 제출 사실을 Outbox 이벤트로 전달한다. 후속 이벤트 버전은 최소한 다음
-값을 제공한다.
+Task는 최종 제출 사실을 schema version 2의 `TaskSubmissionCompletedV2` Outbox
+이벤트로 전달하며 다음 값을 제공한다.
 
 ```text
 submissionId, userId, taskId, predictionId
@@ -98,16 +98,19 @@ reasonSource, acceptedPredictedReasonId, finalReason
 Result/OpinionMap은 `taskId`로 질문·선택지 문맥을 명시적 조회 Port를 통해 조회한다.
 Task Repository·JPA Entity·교차 도메인 외래 키는 사용하지 않는다.
 
+Result Consumer는 V2만 수용한다. 보존할 기존 제출 데이터가 없으므로 V1 호환 경로를
+유지하지 않으며, V1 이벤트가 들어오면 비재시도 오류로 거부한다.
+
 ## 구현 순서
 
-1. 이 결정과 게시 경계의 도메인 테스트를 고정한다.
-2. Task 질문·선택지 모델과 API를 단일 질문 정책으로 단순화한다.
-3. Prediction Candidate를 선택지별 예상 이유 모델로 변경한다.
-4. Submission을 선택지 하나와 이유 하나의 불변 스냅샷으로 변경한다.
-5. 새 Flyway migration과 JPA 매핑을 적용한다.
-6. AI·관리자·사용자 API 계약을 변경한다.
-7. 소비자 우선으로 제출 이벤트와 Result Projection을 전환한다.
-8. 로컬 fixture·smoke·문서를 정리하고 회귀 테스트를 수행한다.
+- [x] 이 결정과 게시 경계의 도메인 테스트를 고정한다.
+- [x] Task 질문·선택지 모델과 API를 단일 질문 정책으로 단순화한다.
+- [x] Prediction Candidate를 선택지별 예상 이유 모델로 변경한다.
+- [x] Submission을 선택지 하나와 이유 하나의 불변 스냅샷으로 변경한다.
+- [x] 새 Flyway migration과 JPA 매핑을 적용한다.
+- [x] AI·관리자·사용자 API 계약을 변경한다.
+- [x] 소비자 우선으로 제출 이벤트와 Result Projection을 전환한다.
+- [x] 로컬 fixture·smoke·문서를 정리하고 회귀 테스트를 수행한다.
 
 ## 결과와 트레이드오프
 

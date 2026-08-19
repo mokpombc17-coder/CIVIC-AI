@@ -155,6 +155,9 @@ done
 curl --fail --silent --show-error "${auth[@]}" \
   "$API_BASE/api/v1/me/tasks" >"$work_dir/tasks.json"
 
+curl --fail --silent --show-error "${auth[@]}" \
+  "$API_BASE/api/v1/me/tasks/$TASK_ID" >"$work_dir/task.json"
+
 already_submitted="$(python3 - "$work_dir/tasks.json" "$TASK_ID" <<'PY'
 import json
 import sys
@@ -188,25 +191,30 @@ PY
     exit 1
   }
 
-  python3 - "$work_dir/prediction.json" "$work_dir/task-submit.json" <<'PY'
+  python3 - "$work_dir/prediction.json" "$work_dir/task.json" \
+    "$work_dir/task-submit.json" <<'PY'
 import json
 import sys
 
 prediction = json.load(open(sys.argv[1]))
-first_by_question = {}
-for candidate in prediction["candidates"]:
-    first_by_question.setdefault(candidate["questionId"], candidate)
-answers = [
-    {
-        "questionId": question_id,
-        "source": "AI_ACCEPTED",
-        "candidateId": candidate["id"],
-    }
-    for question_id, candidate in first_by_question.items()
-]
+task = json.load(open(sys.argv[2]))["task"]
+question = task["question"]
+predicted_reasons = prediction["predictedReasons"]
+if not predicted_reasons:
+    raise SystemExit("prediction did not return predicted reasons")
+predicted_reason = predicted_reasons[0]
+option_ids = {option["id"] for option in question["options"]}
+if predicted_reason["optionId"] not in option_ids:
+    raise SystemExit("predicted reason option is not part of the Task")
 json.dump(
-    {"predictionId": prediction["predictionId"], "answers": answers},
-    open(sys.argv[2], "w"),
+    {
+        "predictionId": prediction["predictionId"],
+        "questionId": question["id"],
+        "selectedOptionId": predicted_reason["optionId"],
+        "reasonSource": "AI_ACCEPTED",
+        "acceptedPredictedReasonId": predicted_reason["id"],
+    },
+    open(sys.argv[3], "w"),
     separators=(",", ":"),
 )
 PY
@@ -222,12 +230,24 @@ curl --fail --silent --show-error "${auth[@]}" \
   "$API_BASE/api/v1/me/submissions?taskId=$TASK_ID" \
   >"$work_dir/submission-result.json"
 
-python3 - "$work_dir/submission-result.json" <<'PY'
+python3 - "$work_dir/submission-result.json" "$work_dir/task-submit.json" <<'PY'
 import json
+import os
 import sys
 submission = json.load(open(sys.argv[1]))
+if submission["reasonSource"] not in {"AI_ACCEPTED", "USER_WRITTEN"}:
+    raise SystemExit("unexpected reasonSource")
+if not submission["finalReason"].strip():
+    raise SystemExit("finalReason is empty")
+if os.path.exists(sys.argv[2]):
+    submitted_request = json.load(open(sys.argv[2]))
+    if submission["selectedOptionId"] != submitted_request["selectedOptionId"]:
+        raise SystemExit("selected option snapshot does not match the request")
+    if submission["acceptedPredictedReasonId"] != submitted_request["acceptedPredictedReasonId"]:
+        raise SystemExit("accepted predicted reason snapshot does not match the request")
 print("local Task smoke passed")
 print("taskId=" + submission["taskId"])
 print("submissionId=" + submission["submissionId"])
-print("answers=" + str(len(submission["answers"])))
+print("selectedOptionId=" + submission["selectedOptionId"])
+print("reasonSource=" + submission["reasonSource"])
 PY
