@@ -5,11 +5,6 @@ import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
-import com.hamcheeze.vote.task.domain.task.LongTextConstraint;
-import com.hamcheeze.vote.task.domain.task.MultipleChoiceConstraint;
-import com.hamcheeze.vote.task.domain.task.NumberConstraint;
-import com.hamcheeze.vote.task.domain.task.ScaleConstraint;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskLifecycleEventType;
@@ -20,7 +15,6 @@ import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.hamcheeze.vote.task.domain.task.TaskStatus;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -41,7 +35,7 @@ public final class LocalTaskFixture {
             "2099-12-31T23:59:59Z");
     public static final String TITLE = "우리 동네 생활 개선 과업";
     public static final String DESCRIPTION =
-            "6개 질문 유형과 AI 예상 답변 흐름을 확인하기 위한 local 전용 과업입니다.";
+            "단일 선택과 선택지별 AI 예상 이유 흐름을 확인하기 위한 local 전용 투표입니다.";
     public static final String OPEN_REASON = "local bootstrap fixture";
 
     private LocalTaskFixture() {
@@ -58,50 +52,11 @@ public final class LocalTaskFixture {
                         questionId(1), 1, TaskQuestionType.SINGLE_CHOICE,
                         "우리 동네에서 가장 먼저 개선되었으면 하는 분야는 무엇인가요?",
                         "하나만 선택해 주세요.",
-                        new SingleChoiceConstraint(),
+                                new SingleChoiceConstraint(),
                         List.of(
                                 standardOption(1, 1, 1, "교통"),
                                 standardOption(1, 2, 2, "주거 환경"),
-                                standardOption(1, 3, 3, "문화·여가"),
-                                otherOption(1, 4, 4))),
-                new TaskQuestion(
-                        questionId(2), 2, TaskQuestionType.MULTIPLE_CHOICE,
-                        "평소 자주 이용하는 동네 시설을 선택해 주세요.",
-                        "최소 1개, 최대 3개까지 선택할 수 있습니다.",
-                        new MultipleChoiceConstraint(1, 3),
-                        List.of(
-                                standardOption(2, 1, 1, "공원"),
-                                standardOption(2, 2, 2, "도서관"),
-                                standardOption(2, 3, 3, "체육 시설"),
-                                standardOption(2, 4, 4, "복지 시설"),
-                                otherOption(2, 5, 5))),
-                new TaskQuestion(
-                        questionId(3), 3, TaskQuestionType.SHORT_TEXT,
-                        "우리 동네를 한 단어로 표현한다면 무엇인가요?",
-                        "100자 이내로 입력해 주세요.",
-                        new ShortTextConstraint(100),
-                        List.of()),
-                new TaskQuestion(
-                        questionId(4), 4, TaskQuestionType.LONG_TEXT,
-                        "동네 생활에서 개선되었으면 하는 점을 자유롭게 적어 주세요.",
-                        "구체적인 경험을 포함해도 좋습니다.",
-                        new LongTextConstraint(1_000),
-                        List.of()),
-                new TaskQuestion(
-                        questionId(5), 5, TaskQuestionType.NUMBER,
-                        "현재 동네 생활 만족도를 0점부터 100점 사이로 입력해 주세요.",
-                        "소수점 입력도 가능합니다.",
-                        new NumberConstraint(
-                                BigDecimal.ZERO,
-                                new BigDecimal("100"),
-                                true),
-                        List.of()),
-                new TaskQuestion(
-                        questionId(6), 6, TaskQuestionType.SCALE,
-                        "동네 생활을 다른 사람에게 추천하고 싶은 정도는 어떤가요?",
-                        "1점부터 5점까지 선택해 주세요.",
-                        new ScaleConstraint(1, 5, "전혀 추천하지 않음", "매우 추천함"),
-                        List.of()));
+                                standardOption(1, 3, 3, "문화·여가"))));
     }
 
     public static boolean matches(Task task) {
@@ -147,28 +102,7 @@ public final class LocalTaskFixture {
             TaskQuestion actual,
             TaskQuestion expected
     ) {
-        if (actual.constraint() instanceof NumberConstraint actualNumber
-                && expected.constraint()
-                instanceof NumberConstraint expectedNumber) {
-            return sameNumber(
-                    actualNumber.minimumValue(),
-                    expectedNumber.minimumValue())
-                    && sameNumber(
-                    actualNumber.maximumValue(),
-                    expectedNumber.maximumValue())
-                    && actualNumber.decimalAllowed()
-                    == expectedNumber.decimalAllowed();
-        }
         return actual.constraint().equals(expected.constraint());
-    }
-
-    private static boolean sameNumber(
-            BigDecimal actual,
-            BigDecimal expected
-    ) {
-        return actual == null || expected == null
-                ? actual == expected
-                : actual.compareTo(expected) == 0;
     }
 
     public static boolean matches(TaskLifecycleHistory history) {
@@ -201,15 +135,6 @@ public final class LocalTaskFixture {
     ) {
         return TaskOption.standard(
                 optionId(question, option), displayOrder, content);
-    }
-
-    private static TaskOption otherOption(
-            int question,
-            int option,
-            int displayOrder
-    ) {
-        return TaskOption.other(
-                optionId(question, option), displayOrder);
     }
 
     private static TaskOptionId optionId(int question, int option) {

@@ -9,10 +9,12 @@ import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
+import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
+import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
@@ -24,8 +26,9 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
 import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
+import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.hamcheeze.vote.task.domain.task.TaskStatus;
@@ -157,9 +160,10 @@ class TaskSubmissionServiceIntegrationTest {
                         .personaGenerationId().value().toString())
                 .contains(fixture.prediction()
                         .personaVersionId().value().toString())
-                .contains("Result 집계 답변")
+                .contains(fixture.question().options().getFirst()
+                        .id().value().toString())
                 .contains("USER_ANSWERED")
-                .contains("SHORT_TEXT");
+                .contains("SINGLE_CHOICE");
     }
 
     @Test
@@ -442,11 +446,15 @@ class TaskSubmissionServiceIntegrationTest {
         TaskQuestion question = new TaskQuestion(
                 new TaskQuestionId(UUID.randomUUID()),
                 1,
-                TaskQuestionType.SHORT_TEXT,
-                "직접 답변 질문",
+                TaskQuestionType.SINGLE_CHOICE,
+                "하나를 선택할 질문",
                 null,
-                ShortTextConstraint.defaults(),
-                List.of());
+                new SingleChoiceConstraint(),
+                List.of(
+                        TaskOption.standard(
+                                new TaskOptionId(UUID.randomUUID()), 1, "A"),
+                        TaskOption.standard(
+                                new TaskOptionId(UUID.randomUUID()), 2, "B")));
         Task task = Task.draft(
                 new TaskId(UUID.randomUUID()),
                 "제출 통합 테스트 과업",
@@ -493,10 +501,13 @@ class TaskSubmissionServiceIntegrationTest {
             Fixture fixture,
             String answer
     ) {
+        int optionIndex = "변경".equals(answer) ? 1 : 0;
         List<TaskSubmissionAnswerCommand> answers = List.of(
                 new UserAnsweredTaskQuestion(
                         fixture.question().id(),
-                        new ShortTextValue(answer)));
+                        new SingleChoiceValue(new TaskOptionSelection(
+                                fixture.question().options().get(optionIndex).id(),
+                                null))));
         return new TaskSubmissionService.SubmitTaskCommand(
                 fixture.task().id(), fixture.prediction().id(), answers);
     }

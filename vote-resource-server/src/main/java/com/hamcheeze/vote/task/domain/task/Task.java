@@ -450,14 +450,27 @@ public final class Task {
 
     private void validatePublishable() {
         List<TaskViolation> violations = new ArrayList<>();
-        if (questions.isEmpty()) {
+        if (questions.size() != 1) {
             violations.add(TaskViolation.of(
-                    "TASK_QUESTIONS_REQUIRED",
+                    "TASK_QUESTION_COUNT_INVALID",
                     "questions",
-                    "published task must have at least one question"));
+                    "published task must have exactly one question"));
         }
         for (int index = 0; index < questions.size(); index++) {
             TaskQuestion question = questions.get(index);
+            if (question.type() != TaskQuestionType.SINGLE_CHOICE) {
+                violations.add(TaskViolation.of(
+                        "TASK_QUESTION_TYPE_NOT_SUPPORTED",
+                        "questions[" + index + "].type",
+                        "published task question must be SINGLE_CHOICE"));
+            }
+            if (question.options().stream().anyMatch(
+                    option -> option.kind() == TaskOptionKind.OTHER)) {
+                violations.add(TaskViolation.of(
+                        "TASK_OTHER_OPTION_NOT_ALLOWED",
+                        "questions[" + index + "].options",
+                        "published task must not contain OTHER option"));
+            }
             if (question.displayOrder() != index + 1) {
                 violations.add(TaskViolation.of(
                         "TASK_QUESTION_ORDER_NOT_CONTINUOUS",

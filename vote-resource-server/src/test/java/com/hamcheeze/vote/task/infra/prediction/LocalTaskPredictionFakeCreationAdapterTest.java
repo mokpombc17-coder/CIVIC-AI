@@ -42,7 +42,7 @@ class LocalTaskPredictionFakeCreationAdapterTest {
         assertThat(second.httpStatus()).isEqualTo(first.httpStatus());
         assertThat(second.responsePayload().value())
                 .isEqualTo(first.responsePayload().value());
-        assertThat(first.candidates()).hasSize(18);
+        assertThat(first.candidates()).hasSize(6);
         assertThat(first.candidates())
                 .allSatisfy(candidate -> assertThat(
                         candidate.predictionId()).isEqualTo(REQUEST_ID));
@@ -70,7 +70,7 @@ class LocalTaskPredictionFakeCreationAdapterTest {
                 task,
                 first.candidates(),
                 Instant.parse("2026-08-18T00:00:03Z"));
-        assertThat(prediction.candidates()).hasSize(18);
+        assertThat(prediction.candidates()).hasSize(6);
     }
 
     @Test

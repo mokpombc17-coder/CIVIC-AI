@@ -11,12 +11,7 @@ import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionReceiptRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionPersistenceException;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.LongTextValue;
-import com.hamcheeze.vote.task.domain.answer.MultipleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.NumberValue;
-import com.hamcheeze.vote.task.domain.answer.ScaleValue;
 import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -41,12 +36,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswer;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
-import com.hamcheeze.vote.task.domain.task.LongTextConstraint;
-import com.hamcheeze.vote.task.domain.task.MultipleChoiceConstraint;
-import com.hamcheeze.vote.task.domain.task.NumberConstraint;
-import com.hamcheeze.vote.task.domain.task.ScaleConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
@@ -65,7 +55,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -128,7 +117,7 @@ class TaskJpaAdapterIntegrationTest {
         Task restored = tasks.findById(storedScheduled.id()).orElseThrow();
         assertThat(restored.status()).isEqualTo(TaskStatus.SCHEDULED);
         assertThat(restored.title()).isEqualTo("사용자 선호 과업");
-        assertThat(restored.questions()).hasSize(2);
+        assertThat(restored.questions()).hasSize(1);
         assertThat(restored.questions().getFirst().options())
                 .extracting(TaskOption::content)
                 .containsExactly("찬성", "반대");
@@ -171,7 +160,7 @@ class TaskJpaAdapterIntegrationTest {
 
         assertThat(inserted.status()).isEqualTo(TaskPredictionStatus.SUCCEEDED);
         assertThat(inserted.personaVersionId()).isEqualTo(persona.versionId());
-        assertThat(inserted.candidates()).hasSize(3);
+        assertThat(inserted.candidates()).hasSize(4);
         assertThat(inserted.candidates().getFirst().answerValue())
                 .isEqualTo(new SingleChoiceValue(new TaskOptionSelection(
                         fixture.firstOptionId(), null)));
@@ -219,23 +208,17 @@ class TaskJpaAdapterIntegrationTest {
                 prediction,
                 persona.generationId(),
                 persona.versionId(),
-                List.of(
-                        TaskSubmissionAnswer.aiAccepted(
-                                fixture.choiceQuestionId(),
-                                adopted.id(),
-                                adopted.answerValue()),
-                        TaskSubmissionAnswer.userAnswered(
-                                fixture.textQuestionId(),
-                                new ShortTextValue("직접 작성한 최종 답변"))),
+                List.of(TaskSubmissionAnswer.aiAccepted(
+                        fixture.choiceQuestionId(),
+                        adopted.id(),
+                        adopted.answerValue())),
                 NOW);
 
         TaskSubmission stored = submissions.insert(submission);
         assertThat(stored.personaVersionId()).isEqualTo(persona.versionId());
-        assertThat(stored.answers()).hasSize(2);
+        assertThat(stored.answers()).hasSize(1);
         assertThat(stored.answers().getFirst()
                 .adoptedPredictionCandidateId()).isEqualTo(adopted.id());
-        assertThat(stored.answers().get(1).finalAnswerValue())
-                .isEqualTo(new ShortTextValue("직접 작성한 최종 답변"));
 
         TaskSubmissionReceipt receipt = TaskSubmissionReceipt.processing(
                 new TaskReceiptId(UUID.randomUUID()),
@@ -271,10 +254,10 @@ class TaskJpaAdapterIntegrationTest {
     }
 
     @Test
-    void roundTripsAllSixDirectAnswerTypesIncludingOtherInput() {
-        TypedTaskFixture fixture = typedOpenTask();
+    void roundTripsDirectSingleChoiceAnswerWithoutOtherInput() {
+        TaskFixture fixture = openTask();
         tasks.save(fixture.task());
-        String rawUserId = "typed-" + UUID.randomUUID();
+        String rawUserId = "direct-choice-" + UUID.randomUUID();
         TaskUserId userId = new TaskUserId(rawUserId);
         PersonaFixture persona = insertSucceededPersona(rawUserId);
         TaskPrediction prediction = predictions.insert(TaskPrediction.restore(
@@ -296,29 +279,9 @@ class TaskJpaAdapterIntegrationTest {
                 NOW.minusSeconds(3)));
         List<TaskSubmissionAnswer> answers = List.of(
                 TaskSubmissionAnswer.userAnswered(
-                        fixture.questionIds().get(0),
+                        fixture.choiceQuestionId(),
                         new SingleChoiceValue(new TaskOptionSelection(
-                                fixture.optionIds().get(0), null))),
-                TaskSubmissionAnswer.userAnswered(
-                        fixture.questionIds().get(1),
-                        new MultipleChoiceValue(List.of(
-                                new TaskOptionSelection(
-                                        fixture.optionIds().get(2), null),
-                                new TaskOptionSelection(
-                                        fixture.optionIds().get(4),
-                                        "직접 입력한 기타 선택")))),
-                TaskSubmissionAnswer.userAnswered(
-                        fixture.questionIds().get(2),
-                        new ShortTextValue("짧은 답변")),
-                TaskSubmissionAnswer.userAnswered(
-                        fixture.questionIds().get(3),
-                        new LongTextValue("충분히 자세하게 작성한 긴 답변")),
-                TaskSubmissionAnswer.userAnswered(
-                        fixture.questionIds().get(4),
-                        new NumberValue(new BigDecimal("12.5"))),
-                TaskSubmissionAnswer.userAnswered(
-                        fixture.questionIds().get(5),
-                        new ScaleValue(4)));
+                                fixture.firstOptionId(), null))));
         TaskSubmission submission = TaskSubmission.restore(
                 new TaskSubmissionId(UUID.randomUUID()),
                 userId,
@@ -336,10 +299,6 @@ class TaskJpaAdapterIntegrationTest {
                 .containsExactlyElementsOf(answers.stream()
                         .map(TaskSubmissionAnswer::finalAnswerValue)
                         .toList());
-        MultipleChoiceValue multiple = (MultipleChoiceValue) stored.answers()
-                .get(1).finalAnswerValue();
-        assertThat(multiple.selections().get(1).otherText())
-                .isEqualTo("직접 입력한 기타 선택");
     }
 
     @Test
@@ -406,8 +365,6 @@ class TaskJpaAdapterIntegrationTest {
         TaskId taskId = new TaskId(UUID.randomUUID());
         TaskQuestionId choiceQuestionId =
                 new TaskQuestionId(UUID.randomUUID());
-        TaskQuestionId textQuestionId =
-                new TaskQuestionId(UUID.randomUUID());
         TaskOptionId firstOptionId = new TaskOptionId(UUID.randomUUID());
         TaskOptionId secondOptionId = new TaskOptionId(UUID.randomUUID());
         List<TaskQuestion> questions = List.of(
@@ -420,15 +377,7 @@ class TaskJpaAdapterIntegrationTest {
                         new SingleChoiceConstraint(),
                         List.of(
                                 TaskOption.standard(firstOptionId, 1, "찬성"),
-                                TaskOption.standard(secondOptionId, 2, "반대"))),
-                new TaskQuestion(
-                        textQuestionId,
-                        2,
-                        TaskQuestionType.SHORT_TEXT,
-                        "선택 이유를 알려주세요.",
-                        null,
-                        new ShortTextConstraint(300),
-                        List.of()));
+                                TaskOption.standard(secondOptionId, 2, "반대"))));
         return new TaskFixture(
                 Task.draft(
                         taskId,
@@ -437,7 +386,6 @@ class TaskJpaAdapterIntegrationTest {
                         questions,
                         NOW.minusSeconds(30)),
                 choiceQuestionId,
-                textQuestionId,
                 firstOptionId,
                 secondOptionId);
     }
@@ -461,79 +409,8 @@ class TaskJpaAdapterIntegrationTest {
         return new TaskFixture(
                 open,
                 draft.choiceQuestionId(),
-                draft.textQuestionId(),
                 draft.firstOptionId(),
                 draft.secondOptionId());
-    }
-
-    private TypedTaskFixture typedOpenTask() {
-        TaskId taskId = new TaskId(UUID.randomUUID());
-        List<TaskQuestionId> questionIds = java.util.stream.IntStream
-                .range(0, 6)
-                .mapToObj(ignored -> new TaskQuestionId(UUID.randomUUID()))
-                .toList();
-        List<TaskOptionId> optionIds = java.util.stream.IntStream
-                .range(0, 5)
-                .mapToObj(ignored -> new TaskOptionId(UUID.randomUUID()))
-                .toList();
-        List<TaskQuestion> questions = List.of(
-                new TaskQuestion(
-                        questionIds.get(0), 1,
-                        TaskQuestionType.SINGLE_CHOICE,
-                        "단일 선택 질문", null,
-                        new SingleChoiceConstraint(),
-                        List.of(
-                                TaskOption.standard(optionIds.get(0), 1, "A"),
-                                TaskOption.standard(optionIds.get(1), 2, "B"))),
-                new TaskQuestion(
-                        questionIds.get(1), 2,
-                        TaskQuestionType.MULTIPLE_CHOICE,
-                        "복수 선택 질문", null,
-                        new MultipleChoiceConstraint(1, 3),
-                        List.of(
-                                TaskOption.standard(optionIds.get(2), 1, "C"),
-                                TaskOption.standard(optionIds.get(3), 2, "D"),
-                                TaskOption.other(optionIds.get(4), 3))),
-                new TaskQuestion(
-                        questionIds.get(2), 3,
-                        TaskQuestionType.SHORT_TEXT,
-                        "짧은 텍스트 질문", null,
-                        new ShortTextConstraint(300), List.of()),
-                new TaskQuestion(
-                        questionIds.get(3), 4,
-                        TaskQuestionType.LONG_TEXT,
-                        "긴 텍스트 질문", null,
-                        new LongTextConstraint(2000), List.of()),
-                new TaskQuestion(
-                        questionIds.get(4), 5,
-                        TaskQuestionType.NUMBER,
-                        "숫자 질문", null,
-                        new NumberConstraint(
-                                BigDecimal.ZERO,
-                                new BigDecimal("100"),
-                                true),
-                        List.of()),
-                new TaskQuestion(
-                        questionIds.get(5), 6,
-                        TaskQuestionType.SCALE,
-                        "척도 질문", null,
-                        new ScaleConstraint(1, 5, "낮음", "높음"),
-                        List.of()));
-        Task task = Task.restore(
-                taskId,
-                "모든 답변 유형 과업",
-                null,
-                questions,
-                TaskStatus.OPEN,
-                new TaskSchedule(
-                        NOW.minusSeconds(20), NOW.plusSeconds(3600)),
-                NOW.minusSeconds(30),
-                NOW.minusSeconds(20),
-                null,
-                null,
-                NOW.minusSeconds(40),
-                NOW.minusSeconds(20));
-        return new TypedTaskFixture(task, questionIds, optionIds);
     }
 
     private TaskPrediction succeededPrediction(
@@ -557,6 +434,14 @@ class TaskJpaAdapterIntegrationTest {
                         new TaskPredictionCandidateId(UUID.randomUUID()),
                         predictionId,
                         fixture.choiceQuestionId(),
+                        2,
+                        new SingleChoiceValue(new TaskOptionSelection(
+                                fixture.firstOptionId(), null)),
+                        "찬성의 두 번째 예상 이유입니다."),
+                new TaskPredictionCandidate(
+                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                        predictionId,
+                        fixture.choiceQuestionId(),
                         1,
                         new SingleChoiceValue(new TaskOptionSelection(
                                 fixture.secondOptionId(), null)),
@@ -564,10 +449,11 @@ class TaskJpaAdapterIntegrationTest {
                 new TaskPredictionCandidate(
                         new TaskPredictionCandidateId(UUID.randomUUID()),
                         predictionId,
-                        fixture.textQuestionId(),
-                        1,
-                        new ShortTextValue("개인 성향에 가장 가까운 선택입니다."),
-                        "설문 응답의 핵심 선호를 반영했습니다."));
+                        fixture.choiceQuestionId(),
+                        2,
+                        new SingleChoiceValue(new TaskOptionSelection(
+                                fixture.secondOptionId(), null)),
+                        "반대의 두 번째 예상 이유입니다."));
         return TaskPrediction.restore(
                 predictionId,
                 userId,
@@ -576,7 +462,7 @@ class TaskJpaAdapterIntegrationTest {
                 persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
-                1,
+                2,
                 TaskPredictionStatus.SUCCEEDED,
                 1,
                 candidates,
@@ -646,7 +532,6 @@ class TaskJpaAdapterIntegrationTest {
     private record TaskFixture(
             Task task,
             TaskQuestionId choiceQuestionId,
-            TaskQuestionId textQuestionId,
             TaskOptionId firstOptionId,
             TaskOptionId secondOptionId
     ) {
@@ -656,13 +541,6 @@ class TaskJpaAdapterIntegrationTest {
             TaskPersonaGenerationId generationId,
             TaskPersonaVersionId versionId,
             TaskPersonaId personaId
-    ) {
-    }
-
-    private record TypedTaskFixture(
-            Task task,
-            List<TaskQuestionId> questionIds,
-            List<TaskOptionId> optionIds
     ) {
     }
 }

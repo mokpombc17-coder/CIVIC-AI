@@ -38,7 +38,7 @@ class TaskPredictionTest {
         assertThat(prediction.candidatePolicyVersion())
                 .isEqualTo("candidate-policy-v1");
         assertThat(prediction.requestedCandidateCount()).isEqualTo(3);
-        assertThat(prediction.candidates()).hasSize(12);
+        assertThat(prediction.candidates()).hasSize(6);
         assertThatThrownBy(() -> prediction.candidates().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> prediction.failPermanently(

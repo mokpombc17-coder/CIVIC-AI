@@ -12,6 +12,8 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.NOW;
 import static com.hamcheeze.vote.task.TaskTestFixtures.actorId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.draftTask;
 import static com.hamcheeze.vote.task.TaskTestFixtures.historyId;
+import static com.hamcheeze.vote.task.TaskTestFixtures.optionId;
+import static com.hamcheeze.vote.task.TaskTestFixtures.questionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.singleQuestion;
 import static com.hamcheeze.vote.task.TaskTestFixtures.taskId;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -126,7 +128,7 @@ class TaskTest {
     }
 
     @Test
-    void draftAllowsZeroToFiftyQuestionsButPublicationRequiresOne() {
+    void draftMayBeIncompleteBeforePublicationAndKeepsLegacySizeGuard() {
         Task empty = Task.draft(
                 taskId(), "빈 초안", null, List.of(), NOW);
         assertThat(empty.questions()).isEmpty();
@@ -161,6 +163,44 @@ class TaskTest {
         assertThatThrownBy(() -> Task.draft(
                 taskId(), "초과", null, fifty, NOW))
                 .isInstanceOf(TaskDomainException.class);
+    }
+
+    @Test
+    void publicationRequiresExactlyOneSingleChoiceQuestionWithoutOther() {
+        TaskQuestion second = new TaskQuestion(
+                questionId(2), 2, TaskQuestionType.SINGLE_CHOICE,
+                "두 번째 질문", null, new SingleChoiceConstraint(),
+                List.of(
+                        TaskOption.standard(optionId(3), 1, "C"),
+                        TaskOption.standard(optionId(4), 2, "D")));
+        assertPublicationViolation(
+                Task.draft(
+                        taskId(), "복수 질문", null,
+                        List.of(singleQuestion(), second), NOW),
+                "TASK_QUESTION_COUNT_INVALID");
+
+        TaskQuestion shortText = new TaskQuestion(
+                questionId(1), 1, TaskQuestionType.SHORT_TEXT,
+                "직접 입력 질문", null,
+                ShortTextConstraint.defaults(), List.of());
+        assertPublicationViolation(
+                Task.draft(
+                        taskId(), "지원하지 않는 유형", null,
+                        List.of(shortText), NOW),
+                "TASK_QUESTION_TYPE_NOT_SUPPORTED");
+
+        TaskQuestion withOther = new TaskQuestion(
+                questionId(1), 1, TaskQuestionType.SINGLE_CHOICE,
+                "기타가 있는 질문", null, new SingleChoiceConstraint(),
+                List.of(
+                        TaskOption.standard(optionId(1), 1, "A"),
+                        TaskOption.standard(optionId(2), 2, "B"),
+                        TaskOption.other(optionId(3), 3)));
+        assertPublicationViolation(
+                Task.draft(
+                        taskId(), "기타 선택지", null,
+                        List.of(withOther), NOW),
+                "TASK_OTHER_OPTION_NOT_ALLOWED");
     }
 
     @Test
@@ -213,5 +253,21 @@ class TaskTest {
                 historyId(5), TaskLifecycleTrigger.ADMIN,
                 actorId(), null, NOW.plusSeconds(80)))
                 .isInstanceOf(TaskDomainException.class);
+    }
+
+    private static void assertPublicationViolation(
+            Task task,
+            String expectedCode
+    ) {
+        assertThatThrownBy(() -> task.schedule(
+                historyId(99),
+                new TaskSchedule(
+                        NOW.plusSeconds(100), NOW.plusSeconds(200)),
+                actorId(), null, NOW.plusSeconds(10)))
+                .isInstanceOfSatisfying(
+                        TaskValidationException.class,
+                        exception -> assertThat(exception.violations())
+                                .extracting(violation -> violation.code())
+                                .contains(expectedCode));
     }
 }

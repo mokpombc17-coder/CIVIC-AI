@@ -57,17 +57,7 @@ class LocalTaskBootstrapIntegrationTest {
                 .extracting(question -> question.type())
                 .containsExactly(
                         com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                .SINGLE_CHOICE,
-                        com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                .MULTIPLE_CHOICE,
-                        com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                .SHORT_TEXT,
-                        com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                .LONG_TEXT,
-                        com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                .NUMBER,
-                        com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                .SCALE);
+                                .SINGLE_CHOICE);
         assertThat(tasks.findLifecycleHistory(LocalTaskFixture.TASK_ID))
                 .singleElement()
                 .matches(LocalTaskFixture::matches);

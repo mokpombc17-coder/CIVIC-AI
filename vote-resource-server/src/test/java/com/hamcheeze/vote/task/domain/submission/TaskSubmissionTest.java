@@ -1,7 +1,5 @@
 package com.hamcheeze.vote.task.domain.submission;
 
-import com.hamcheeze.vote.task.domain.answer.MultipleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
@@ -31,38 +29,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TaskSubmissionTest {
 
     @Test
-    void submitsMixedSourcesAndCopiesExactCandidateSnapshot() {
+    void acceptsAiCandidateAndCopiesExactCandidateSnapshot() {
         Task task = openTask();
         TaskPrediction prediction = succeededPrediction(task);
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, prediction,
                 personaGenerationId(), personaVersionId(),
-                List.of(
-                        new AcceptTaskPredictionCandidate(
-                                questionId(1), candidateId(1)),
-                        new AcceptTaskPredictionCandidate(
-                                questionId(2), candidateId(5)),
-                        new UserAnsweredTaskQuestion(
-                                questionId(3),
-                                new ShortTextValue("  직접 답변  "))),
+                List.of(new AcceptTaskPredictionCandidate(
+                        questionId(1), candidateId(1))),
                 NOW.plusSeconds(30));
 
         assertThat(submission.personaVersionId())
                 .isEqualTo(personaVersionId());
         assertThat(submission.answers())
                 .extracting(TaskSubmissionAnswer::source)
-                .containsExactly(
-                        TaskAnswerSource.AI_ACCEPTED,
-                        TaskAnswerSource.AI_ACCEPTED,
-                        TaskAnswerSource.USER_ANSWERED);
+                .containsExactly(TaskAnswerSource.AI_ACCEPTED);
         assertThat(submission.answers().getFirst().finalAnswerValue())
                 .isEqualTo(prediction.candidate(candidateId(1)).answerValue());
-        assertThat(submission.answers().get(1).finalAnswerValue())
-                .isEqualTo(new MultipleChoiceValue(List.of(
-                        new TaskOptionSelection(optionId(3), null))));
-        assertThat(submission.answers().getLast().finalAnswerValue())
-                .isEqualTo(new ShortTextValue("직접 답변"));
         assertThatThrownBy(() -> submission.answers().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
     }
@@ -83,10 +67,8 @@ class TaskSubmissionTest {
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, failed,
                 personaGenerationId(), personaVersionId(),
-                List.of(
-                        new AcceptTaskPredictionCandidate(
-                                questionId(1), candidateId(1)),
-                        directAnswers().get(1), directAnswers().get(2)),
+                List.of(new AcceptTaskPredictionCandidate(
+                        questionId(1), candidateId(1))),
                 NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
@@ -99,8 +81,7 @@ class TaskSubmissionTest {
     void rejectsMissingDuplicatePendingAndStalePersonaSubmission() {
         Task task = openTask();
         TaskPrediction succeeded = succeededPrediction(task);
-        List<TaskSubmissionAnswerCommand> missing =
-                directAnswers().subList(0, 2);
+        List<TaskSubmissionAnswerCommand> missing = List.of();
 
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, succeeded,
@@ -113,8 +94,7 @@ class TaskSubmissionTest {
                                         "TASK_SUBMISSION_ANSWER_SET_INCOMPLETE"));
 
         List<TaskSubmissionAnswerCommand> duplicate = List.of(
-                directAnswers().getFirst(), directAnswers().getFirst(),
-                directAnswers().get(1), directAnswers().get(2));
+                directAnswers().getFirst(), directAnswers().getFirst());
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, succeeded,
                 personaGenerationId(), personaVersionId(), duplicate,
@@ -144,28 +124,23 @@ class TaskSubmissionTest {
     }
 
     @Test
-    void modifiedMultipleChoiceIsPreservedAsUserAnswered() {
+    void directChoiceIsPreservedAsUserAnswered() {
         Task task = openTask();
         TaskPrediction prediction = succeededPrediction(task);
         List<TaskSubmissionAnswerCommand> answers = List.of(
-                new AcceptTaskPredictionCandidate(
-                        questionId(1), candidateId(1)),
                 new UserAnsweredTaskQuestion(
-                        questionId(2),
-                        new MultipleChoiceValue(List.of(
-                                new TaskOptionSelection(optionId(3), null),
-                                new TaskOptionSelection(optionId(4), null)))),
-                new UserAnsweredTaskQuestion(
-                        questionId(3), new ShortTextValue("직접")));
+                        questionId(1),
+                        new SingleChoiceValue(
+                                new TaskOptionSelection(optionId(2), null))));
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, prediction,
                 personaGenerationId(), personaVersionId(), answers,
                 NOW.plusSeconds(30));
 
-        assertThat(submission.answers().get(1).source())
+        assertThat(submission.answers().getFirst().source())
                 .isEqualTo(TaskAnswerSource.USER_ANSWERED);
-        assertThat(submission.answers().get(1)
+        assertThat(submission.answers().getFirst()
                 .adoptedPredictionCandidateId()).isNull();
     }
 
@@ -177,13 +152,7 @@ class TaskSubmissionTest {
                 TaskSubmissionAnswer.aiAccepted(
                         questionId(1), candidateId(1),
                         new SingleChoiceValue(
-                                new TaskOptionSelection(optionId(2), null))),
-                TaskSubmissionAnswer.userAnswered(
-                        questionId(2),
-                        new MultipleChoiceValue(List.of(
-                                new TaskOptionSelection(optionId(3), null)))),
-                TaskSubmissionAnswer.userAnswered(
-                        questionId(3), new ShortTextValue("직접")));
+                                new TaskOptionSelection(optionId(2), null))));
 
         assertThatThrownBy(() -> TaskSubmission.restore(
                 submissionId(), userId(), task, prediction,
@@ -200,12 +169,6 @@ class TaskSubmissionTest {
                 new UserAnsweredTaskQuestion(
                         questionId(1),
                         new SingleChoiceValue(
-                                new TaskOptionSelection(optionId(1), null))),
-                new UserAnsweredTaskQuestion(
-                        questionId(2),
-                        new MultipleChoiceValue(List.of(
-                                new TaskOptionSelection(optionId(3), null)))),
-                new UserAnsweredTaskQuestion(
-                        questionId(3), new ShortTextValue("직접 답변")));
+                                new TaskOptionSelection(optionId(1), null))));
     }
 }

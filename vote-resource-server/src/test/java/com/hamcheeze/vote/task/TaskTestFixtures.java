@@ -1,7 +1,5 @@
 package com.hamcheeze.vote.task;
 
-import com.hamcheeze.vote.task.domain.answer.MultipleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
@@ -111,8 +109,7 @@ public final class TaskTestFixtures {
     public static Task draftTask() {
         return Task.draft(
                 taskId(), "테스트 과업", "설명",
-                List.of(singleQuestion(), multipleQuestion(),
-                        shortTextQuestion()),
+                List.of(singleQuestion()),
                 NOW);
     }
 
@@ -164,23 +161,6 @@ public final class TaskTestFixtures {
                     new SingleChoiceValue(
                             new TaskOptionSelection(optionId(2), null)),
                     "B 이유 " + order));
-        }
-        for (int order = 1; order <= count; order++) {
-            List<TaskOptionSelection> selections = order % 2 == 1
-                    ? List.of(new TaskOptionSelection(optionId(3), null))
-                    : List.of(
-                            new TaskOptionSelection(optionId(4), null),
-                            new TaskOptionSelection(optionId(5), null));
-            candidates.add(candidate(
-                    id++, questionId(2), order,
-                    new MultipleChoiceValue(selections),
-                    "복수 이유 " + order));
-        }
-        for (int order = 1; order <= count; order++) {
-            candidates.add(candidate(
-                    id++, questionId(3), order,
-                    new ShortTextValue("예상 " + order),
-                    "텍스트 이유 " + order));
         }
         return candidates;
     }

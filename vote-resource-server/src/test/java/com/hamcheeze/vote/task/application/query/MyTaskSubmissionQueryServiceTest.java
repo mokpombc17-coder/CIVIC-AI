@@ -62,7 +62,7 @@ class MyTaskSubmissionQueryServiceTest {
         assertThat(result.submittedAt()).isEqualTo(NOW.minusSeconds(10));
         assertThat(result.answers()).singleElement().satisfies(answer -> {
             assertThat(answer.question().content())
-                    .isEqualTo("질문에 답해주세요.");
+                    .isEqualTo("하나를 선택해주세요.");
             assertThat(answer.source()).isEqualTo(
                     TaskAnswerSource.AI_ACCEPTED);
             assertThat(answer.adoptedCandidate()).isNotNull();

@@ -43,17 +43,13 @@ class ResultTaskQueryAdapterTest {
                     assertThat(view.status()).isEqualTo(Status.OPEN);
                     assertThat(view.openedAt()).isEqualTo(task.openedAt());
                     assertThat(view.closedAt()).isNull();
-                    assertThat(view.questions()).hasSize(3);
+                    assertThat(view.questions()).hasSize(1);
                     assertThat(view.questions().getFirst().answerType())
                             .isEqualTo(AnswerType.SINGLE_CHOICE);
                     assertThat(view.questions().getFirst().options())
                             .hasSize(2)
                             .allSatisfy(option -> assertThat(option.kind())
                                     .isEqualTo(OptionKind.STANDARD));
-                    assertThat(view.questions().get(1).answerType())
-                            .isEqualTo(AnswerType.MULTIPLE_CHOICE);
-                    assertThat(view.questions().get(2).answerType())
-                            .isEqualTo(AnswerType.SHORT_TEXT);
                 });
     }
 }

@@ -147,7 +147,7 @@ class TaskPredictionDispatcherTest {
 
         assertThat(prediction.status())
                 .isEqualTo(TaskPredictionStatus.SUCCEEDED);
-        assertThat(prediction.candidates()).hasSize(8);
+        assertThat(prediction.candidates()).hasSize(4);
         assertThat(attempts.values())
                 .singleElement()
                 .extracting(TaskPredictionAttempt::outcome)

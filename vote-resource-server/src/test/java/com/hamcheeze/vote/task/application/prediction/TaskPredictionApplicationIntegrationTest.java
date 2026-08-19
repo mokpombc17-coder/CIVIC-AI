@@ -9,10 +9,12 @@ import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
+import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
+import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
@@ -27,8 +29,9 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
+import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.hamcheeze.vote.task.domain.task.TaskSchedule;
@@ -164,7 +167,7 @@ class TaskPredictionApplicationIntegrationTest {
                 .orElseThrow();
         assertThat(completed.status())
                 .isEqualTo(TaskPredictionStatus.SUCCEEDED);
-        assertThat(completed.candidates()).hasSize(2);
+        assertThat(completed.candidates()).hasSize(4);
         assertThat(predictions.findAttempts(first.id()))
                 .singleElement()
                 .extracting(TaskPredictionAttempt::outcome)
@@ -262,11 +265,15 @@ class TaskPredictionApplicationIntegrationTest {
         return new TaskQuestion(
                 new TaskQuestionId(UUID.randomUUID()),
                 1,
-                TaskQuestionType.SHORT_TEXT,
-                "예상 답변을 작성할 질문",
+                TaskQuestionType.SINGLE_CHOICE,
+                "예상 이유를 만들 선택 질문",
                 null,
-                ShortTextConstraint.defaults(),
-                List.of());
+                new SingleChoiceConstraint(),
+                List.of(
+                        TaskOption.standard(
+                                new TaskOptionId(UUID.randomUUID()), 1, "A"),
+                        TaskOption.standard(
+                                new TaskOptionId(UUID.randomUUID()), 2, "B")));
     }
 
     private CurrentTaskPersona insertSucceededPersona(String userId) {
@@ -331,8 +338,10 @@ class TaskPredictionApplicationIntegrationTest {
     ) {
         TaskQuestion question = command.task().questions().getFirst();
         List<TaskPredictionCandidate> candidates = List.of(
-                candidate(command, question, 1),
-                candidate(command, question, 2));
+                candidate(command, question, 0, 1),
+                candidate(command, question, 0, 2),
+                candidate(command, question, 1, 1),
+                candidate(command, question, 1, 2));
         return new PredictionCreationResult(
                 command.requestId(),
                 command.task().id(),
@@ -345,6 +354,7 @@ class TaskPredictionApplicationIntegrationTest {
     private TaskPredictionCandidate candidate(
             PredictionCreationCommand command,
             TaskQuestion question,
+            int optionIndex,
             int order
     ) {
         return new TaskPredictionCandidate(
@@ -352,7 +362,8 @@ class TaskPredictionApplicationIntegrationTest {
                 command.requestId(),
                 question.id(),
                 order,
-                new ShortTextValue("예상 답변 " + order),
+                new SingleChoiceValue(new TaskOptionSelection(
+                        question.options().get(optionIndex).id(), null)),
                 "예상 근거 " + order);
     }
 }

@@ -1,7 +1,9 @@
 package com.hamcheeze.vote.task.application.query;
 
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
+import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
+import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
@@ -17,9 +19,10 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
+import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
+import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.hamcheeze.vote.task.domain.task.TaskSchedule;
@@ -113,22 +116,43 @@ final class TaskQueryFixtures {
 
     static TaskPrediction succeededPrediction(Task task) {
         TaskPredictionId predictionId = new TaskPredictionId(UUID.randomUUID());
-        TaskQuestionId questionId = task.questions().getFirst().id();
+        TaskQuestion question = task.questions().getFirst();
+        TaskQuestionId questionId = question.id();
+        TaskOptionId firstOptionId = question.options().getFirst().id();
+        TaskOptionId secondOptionId = question.options().getLast().id();
         List<TaskPredictionCandidate> candidates = List.of(
                 new TaskPredictionCandidate(
                         new TaskPredictionCandidateId(UUID.randomUUID()),
                         predictionId,
                         questionId,
                         1,
-                        new ShortTextValue("AI 예상 답변 1"),
+                        new SingleChoiceValue(
+                                new TaskOptionSelection(firstOptionId, null)),
                         "첫 번째 예상 근거"),
                 new TaskPredictionCandidate(
                         new TaskPredictionCandidateId(UUID.randomUUID()),
                         predictionId,
                         questionId,
                         2,
-                        new ShortTextValue("AI 예상 답변 2"),
-                        "두 번째 예상 근거"));
+                        new SingleChoiceValue(
+                                new TaskOptionSelection(firstOptionId, null)),
+                        "두 번째 예상 근거"),
+                new TaskPredictionCandidate(
+                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                        predictionId,
+                        questionId,
+                        1,
+                        new SingleChoiceValue(
+                                new TaskOptionSelection(secondOptionId, null)),
+                        "세 번째 예상 근거"),
+                new TaskPredictionCandidate(
+                        new TaskPredictionCandidateId(UUID.randomUUID()),
+                        predictionId,
+                        questionId,
+                        2,
+                        new SingleChoiceValue(
+                                new TaskOptionSelection(secondOptionId, null)),
+                        "네 번째 예상 근거"));
         return TaskPrediction.restore(
                 predictionId, USER, task, GENERATION, VERSION, PERSONA,
                 "policy-v1", 2, TaskPredictionStatus.SUCCEEDED,
@@ -187,7 +211,10 @@ final class TaskQueryFixtures {
                 VERSION,
                 List.of(new UserAnsweredTaskQuestion(
                         task.questions().getFirst().id(),
-                        new ShortTextValue("사용자 직접 답변"))),
+                        new SingleChoiceValue(new TaskOptionSelection(
+                                task.questions().getFirst().options()
+                                        .getFirst().id(),
+                                null)))),
                 NOW.minusSeconds(10));
     }
 
@@ -195,10 +222,14 @@ final class TaskQueryFixtures {
         return new TaskQuestion(
                 new TaskQuestionId(UUID.randomUUID()),
                 1,
-                TaskQuestionType.SHORT_TEXT,
-                "질문에 답해주세요.",
+                TaskQuestionType.SINGLE_CHOICE,
+                "하나를 선택해주세요.",
                 null,
-                ShortTextConstraint.defaults(),
-                List.of());
+                new SingleChoiceConstraint(),
+                List.of(
+                        TaskOption.standard(
+                                new TaskOptionId(UUID.randomUUID()), 1, "A"),
+                        TaskOption.standard(
+                                new TaskOptionId(UUID.randomUUID()), 2, "B")));
     }
 }

@@ -247,7 +247,7 @@ class TaskAdministrationIntegrationTest {
                 new TaskAdministrationService.CreateDraftCommand(
                         title,
                         null,
-                        List.of(shortTextQuestion("응답을 입력해주세요."))),
+                        List.of(choiceQuestion("하나를 선택해주세요."))),
                 ADMIN);
     }
 
@@ -261,7 +261,7 @@ class TaskAdministrationIntegrationTest {
                 new TaskId(UUID.randomUUID()),
                 "scheduler 대상 " + UUID.randomUUID(),
                 null,
-                List.of(shortTextQuestion("scheduler 질문")),
+                List.of(choiceQuestion("scheduler 질문")),
                 status,
                 new TaskSchedule(openAt, closeAt),
                 createdAt.plus(1, ChronoUnit.MINUTES),
@@ -291,11 +291,15 @@ class TaskAdministrationIntegrationTest {
     }
 
     private static TaskQuestion choiceQuestion() {
+        return choiceQuestion("하나를 선택해주세요.");
+    }
+
+    private static TaskQuestion choiceQuestion(String content) {
         return new TaskQuestion(
                 new TaskQuestionId(UUID.randomUUID()),
                 1,
                 TaskQuestionType.SINGLE_CHOICE,
-                "하나를 선택해주세요.",
+                content,
                 null,
                 new SingleChoiceConstraint(),
                 List.of(

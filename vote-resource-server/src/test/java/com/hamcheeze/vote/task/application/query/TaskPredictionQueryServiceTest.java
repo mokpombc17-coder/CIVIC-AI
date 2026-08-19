@@ -123,7 +123,7 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.allowedAnswerSources()).containsExactly(
                 TaskAnswerSource.AI_ACCEPTED,
                 TaskAnswerSource.USER_ANSWERED);
-        assertThat(view.candidates()).hasSize(2);
+        assertThat(view.candidates()).hasSize(4);
     }
 
     @Test
