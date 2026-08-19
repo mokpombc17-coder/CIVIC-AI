@@ -33,7 +33,7 @@ vote:
     batch-size: ${vote.survey.persona.batch-size:10}
   task:
     submission-outbox:
-      enabled: ${VOTE_TASK_SUBMISSION_OUTBOX_ENABLED:false}
+      enabled: ${VOTE_TASK_SUBMISSION_OUTBOX_ENABLED:true}
     bootstrap:
       enabled: false
     lifecycle:
