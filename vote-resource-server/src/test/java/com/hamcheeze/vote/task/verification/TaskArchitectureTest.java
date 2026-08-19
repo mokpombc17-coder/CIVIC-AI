@@ -23,12 +23,31 @@ class TaskArchitectureTest {
             "jakarta.persistence.",
             "jakarta.servlet.",
             "org.hibernate.",
-            "com.hamcheeze.vote.survey.domain.");
+            "com.hamcheeze.vote.survey.domain.",
+            "com.hamcheeze.vote.persona.");
+    private static final String PERSISTENCE_PACKAGE =
+            "com.hamcheeze.vote.task.infra.persistence";
 
     @Test
     void domainClassesHaveNoSpringJpaOrWebDependencies()
             throws Exception {
-        for (Path root : classPathRoots()) {
+        assertPackageHasNoDependencies(
+                DOMAIN_PACKAGE, FORBIDDEN_DEPENDENCIES);
+    }
+
+    @Test
+    void persistenceDoesNotDependOnPersonaImplementation()
+            throws Exception {
+        assertPackageHasNoDependencies(
+                PERSISTENCE_PACKAGE,
+                List.of("com.hamcheeze.vote.persona."));
+    }
+
+    private void assertPackageHasNoDependencies(
+            String packageName,
+            List<String> forbiddenDependencies
+    ) throws Exception {
+        for (Path root : classPathRoots(packageName)) {
             try (var paths = Files.walk(root)) {
                 for (Path classFile : paths
                         .filter(path -> path.toString().endsWith(".class"))
@@ -37,7 +56,7 @@ class TaskArchitectureTest {
                     String constants = new String(
                             bytecode,
                             java.nio.charset.StandardCharsets.ISO_8859_1);
-                    assertThat(FORBIDDEN_DEPENDENCIES.stream()
+                    assertThat(forbiddenDependencies.stream()
                             .map(value -> value.replace('.', '/'))
                             .noneMatch(constants::contains))
                             .as("forbidden dependency in %s", classFile)
@@ -47,9 +66,9 @@ class TaskArchitectureTest {
         }
     }
 
-    private List<Path> classPathRoots() throws Exception {
+    private List<Path> classPathRoots(String packageName) throws Exception {
         URI uri = getClass().getClassLoader().getResource(
-                        DOMAIN_PACKAGE.replace('.', '/'))
+                        packageName.replace('.', '/'))
                 .toURI();
         if ("file".equals(uri.getScheme())) {
             return List.of(Path.of(uri));

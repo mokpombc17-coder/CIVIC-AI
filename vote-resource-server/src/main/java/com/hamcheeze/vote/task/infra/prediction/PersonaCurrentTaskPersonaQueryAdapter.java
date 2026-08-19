@@ -13,12 +13,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 @Component
-public class SurveyCurrentTaskPersonaQueryAdapter
+public class PersonaCurrentTaskPersonaQueryAdapter
         implements CurrentTaskPersonaQueryPort {
 
     private final CurrentPersonaQueryService currentPersonas;
 
-    public SurveyCurrentTaskPersonaQueryAdapter(
+    public PersonaCurrentTaskPersonaQueryAdapter(
             CurrentPersonaQueryService currentPersonas
     ) {
         this.currentPersonas = Objects.requireNonNull(

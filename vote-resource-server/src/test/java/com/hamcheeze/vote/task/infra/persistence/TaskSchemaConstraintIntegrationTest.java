@@ -176,23 +176,57 @@ class TaskSchemaConstraintIntegrationTest {
     }
 
     @Test
-    void rejectsPredictionPersonaIdThatDoesNotMatchGeneration() {
+    void storesPersonaIdentityWithoutDependingOnPersonaTables() {
         UUID taskId = insertDraftTask();
-        PersonaFixture persona = insertSucceededPersona("user-persona");
+        UUID generationId = UUID.randomUUID();
+        String personaId = "external-persona";
 
-        assertThatThrownBy(() -> jdbcTemplate.update("""
+        UUID predictionId = UUID.randomUUID();
+        jdbcTemplate.update("""
                 INSERT INTO task_predictions (
                     prediction_id, user_id, task_id,
                     persona_generation_id, persona_id, status,
                     candidate_policy_version, requested_candidate_count,
                     attempt_count, created_at)
-                VALUES (?, ?, ?, ?, 'another-persona', 'PENDING',
+                VALUES (?, ?, ?, ?, ?, 'PENDING',
                     'policy-v1', 2, 0, ?)
                 """,
-                UUID.randomUUID(), "user-persona", taskId,
-                persona.generationId(), timestamp(NOW)))
-                .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("fk_task_prediction_persona");
+                predictionId, "user-persona", taskId,
+                generationId, personaId, timestamp(NOW));
+
+        Integer personaRows = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM persona_generations
+                WHERE generation_id = ?
+                """, Integer.class, generationId);
+        Integer crossContextForeignKeys = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM pg_constraint constraint_definition
+                JOIN pg_class source_table
+                  ON source_table.oid = constraint_definition.conrelid
+                JOIN pg_class target_table
+                  ON target_table.oid = constraint_definition.confrelid
+                WHERE constraint_definition.contype = 'f'
+                  AND source_table.relname = 'task_predictions'
+                  AND target_table.relname = 'persona_generations'
+                """, Integer.class);
+        var storedIdentity = jdbcTemplate.queryForMap("""
+                SELECT persona_generation_id, persona_id
+                FROM task_predictions
+                WHERE prediction_id = ?
+                """, predictionId);
+        Integer migrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '8' AND success = true
+                """, Integer.class);
+
+        assertThat(personaRows).isZero();
+        assertThat(crossContextForeignKeys).isZero();
+        assertThat(storedIdentity)
+                .containsEntry("persona_generation_id", generationId)
+                .containsEntry("persona_id", personaId);
+        assertThat(migrationCount).isEqualTo(1);
     }
 
     @Test

@@ -2,8 +2,8 @@ package com.hamcheeze.vote.task.infra.prediction;
 
 import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
-import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import org.junit.jupiter.api.Test;
@@ -17,10 +17,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class SurveyCurrentTaskPersonaQueryAdapterTest {
+class PersonaCurrentTaskPersonaQueryAdapterTest {
 
     @Test
-    void mapsOnlyReadyCurrentSurveyPersonaIntoTaskIdentity() {
+    void mapsOnlyReadyCurrentPersonaIntoTaskIdentity() {
         CurrentPersonaQueryService query =
                 mock(CurrentPersonaQueryService.class);
         UUID generationId = UUID.randomUUID();
@@ -32,8 +32,8 @@ class SurveyCurrentTaskPersonaQueryAdapterTest {
                 Optional.empty(),
                 true,
                 Set.of()));
-        SurveyCurrentTaskPersonaQueryAdapter adapter =
-                new SurveyCurrentTaskPersonaQueryAdapter(query);
+        PersonaCurrentTaskPersonaQueryAdapter adapter =
+                new PersonaCurrentTaskPersonaQueryAdapter(query);
 
         Optional<CurrentTaskPersona> result = adapter.findCurrentUsable(
                 new TaskUserId("user-a"));
@@ -53,7 +53,7 @@ class SurveyCurrentTaskPersonaQueryAdapterTest {
         when(query.findCurrent(any())).thenReturn(
                 CurrentPersonaStatus.notSubmitted());
 
-        assertThat(new SurveyCurrentTaskPersonaQueryAdapter(query)
+        assertThat(new PersonaCurrentTaskPersonaQueryAdapter(query)
                 .findCurrentUsable(new TaskUserId("user-a")))
                 .isEmpty();
     }

@@ -223,9 +223,10 @@ Task는 예측에 사용한 `personaVersionId` 또는 과도기 동안의 `gener
 `providerPersonaId`를 값으로 보관할 수 있다. 그러나 Persona 테이블에 대한 JPA 연관,
 Repository 직접 호출, 장기적인 데이터베이스 외래 키를 가지지 않는다.
 
-현재 `task_predictions`의 `persona_generations` 외래 키는 전환 기간의 기술 부채로
-분류한다. Persona 조회 포트와 데이터 backfill이 준비된 후 새 Flyway migration에서
-제거한다. 기존 V3/V4 migration은 수정하지 않는다.
+V4에서 생성된 `task_predictions`의 `persona_generations` 외래 키는 전환 기간의
+기술 부채로 분류했으며, Persona 조회 포트 전환 후 V8 Flyway migration에서 제거했다.
+추적용 `generationId`와 `providerPersonaId` 값은 유지하고 기존 V3/V4 migration은
+수정하지 않는다.
 
 Task의 `TaskPredictionCandidate`는 현재 답변 값, 순서, 설명을 소유한다. 후보별
 채택 확률이 추후 필요하면 Task Prediction의 별도 필드로 추가하며, 사용자 수준의
