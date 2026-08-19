@@ -22,9 +22,12 @@ class TaskArchitectureTest {
             "jakarta.servlet.",
             "org.hibernate.",
             "com.hamcheeze.vote.survey.domain.",
-            "com.hamcheeze.vote.persona.");
+            "com.hamcheeze.vote.persona.",
+            "com.hamcheeze.vote.result.");
     private static final String PERSISTENCE_PACKAGE =
             "com.hamcheeze.vote.task.infra.persistence";
+    private static final String RESULT_BRIDGE_PACKAGE =
+            "com.hamcheeze.vote.task.infra.result";
 
     @Test
     void domainClassesHaveNoSpringJpaOrWebDependencies()
@@ -34,10 +37,12 @@ class TaskArchitectureTest {
     }
 
     @Test
-    void applicationDoesNotDependOnPersona() throws Exception {
+    void applicationDoesNotDependOnPersonaOrResult() throws Exception {
         assertPackageHasNoDependencies(
                 APPLICATION_PACKAGE,
-                List.of("com.hamcheeze.vote.persona."));
+                List.of(
+                        "com.hamcheeze.vote.persona.",
+                        "com.hamcheeze.vote.result."));
     }
 
     @Test
@@ -53,11 +58,24 @@ class TaskArchitectureTest {
     }
 
     @Test
-    void persistenceDoesNotDependOnPersonaImplementation()
+    void persistenceDoesNotDependOnPersonaOrResultImplementation()
             throws Exception {
         assertPackageHasNoDependencies(
                 PERSISTENCE_PACKAGE,
-                List.of("com.hamcheeze.vote.persona."));
+                List.of(
+                        "com.hamcheeze.vote.persona.",
+                        "com.hamcheeze.vote.result."));
+    }
+
+    @Test
+    void resultBridgeDependsOnlyOnResultApplicationContract()
+            throws Exception {
+        assertPackageHasNoDependencies(
+                RESULT_BRIDGE_PACKAGE,
+                List.of(
+                        "com.hamcheeze.vote.result.domain.",
+                        "com.hamcheeze.vote.result.infra.",
+                        "com.hamcheeze.vote.result.api."));
     }
 
     private void assertPackageHasNoDependencies(
