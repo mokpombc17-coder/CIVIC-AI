@@ -56,6 +56,9 @@ vote:
       batch-size: 10
       fake:
         scenario: success
+  opinionmap:
+    snapshot-finalized-outbox:
+      enabled: ${VOTE_OPINION_MAP_SNAPSHOT_FINALIZED_OUTBOX_ENABLED:false}
   survey:
     bootstrap:
       enabled: false

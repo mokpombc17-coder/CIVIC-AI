@@ -3,6 +3,7 @@ package com.hamcheeze.vote.opinionmap.application.finalization;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapFinalizationRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotManifestRepository;
+import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotFinalizedEventPublisher;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSubmissionProjectionRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalization;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalizationRequest;
@@ -25,6 +26,7 @@ public class OpinionMapFinalizationCoordinator {
     private final OpinionMapFinalizationRepository finalizations;
     private final OpinionMapSnapshotRepository snapshots;
     private final OpinionMapSnapshotManifestRepository manifests;
+    private final OpinionMapSnapshotFinalizedEventPublisher finalizedEvents;
     private final OpinionMapSubmissionProjectionRepository submissions;
     private final OpinionMapSnapshotManifestFactory manifestFactory;
     private final Clock clock;
@@ -35,10 +37,11 @@ public class OpinionMapFinalizationCoordinator {
             OpinionMapFinalizationRepository finalizations,
             OpinionMapSnapshotRepository snapshots,
             OpinionMapSnapshotManifestRepository manifests,
+            OpinionMapSnapshotFinalizedEventPublisher finalizedEvents,
             OpinionMapSubmissionProjectionRepository submissions,
             OpinionMapSnapshotManifestFactory manifestFactory
     ) {
-        this(finalizations, snapshots, manifests, submissions,
+        this(finalizations, snapshots, manifests, finalizedEvents, submissions,
                 manifestFactory, Clock.systemUTC(), UUID::randomUUID);
     }
 
@@ -46,6 +49,7 @@ public class OpinionMapFinalizationCoordinator {
             OpinionMapFinalizationRepository finalizations,
             OpinionMapSnapshotRepository snapshots,
             OpinionMapSnapshotManifestRepository manifests,
+            OpinionMapSnapshotFinalizedEventPublisher finalizedEvents,
             OpinionMapSubmissionProjectionRepository submissions,
             OpinionMapSnapshotManifestFactory manifestFactory,
             Clock clock,
@@ -55,6 +59,8 @@ public class OpinionMapFinalizationCoordinator {
                 finalizations, "finalizations");
         this.snapshots = Objects.requireNonNull(snapshots, "snapshots");
         this.manifests = Objects.requireNonNull(manifests, "manifests");
+        this.finalizedEvents = Objects.requireNonNull(
+                finalizedEvents, "finalizedEvents");
         this.submissions = Objects.requireNonNull(
                 submissions, "submissions");
         this.manifestFactory = Objects.requireNonNull(
@@ -152,16 +158,14 @@ public class OpinionMapFinalizationCoordinator {
         if (existingManifest.isPresent()) {
             validateManifest(
                     existingManifest.orElseThrow(), generated);
-            return;
+        } else if (!manifests.insertIfAbsent(generated)) {
+            OpinionMapSnapshotManifest conflicted =
+                    manifests.findBySnapshotId(snapshot.snapshotId())
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "opinion map snapshot manifest is unavailable after conflict"));
+            validateManifest(conflicted, generated);
         }
-        if (manifests.insertIfAbsent(generated)) {
-            return;
-        }
-        OpinionMapSnapshotManifest conflicted = manifests.findBySnapshotId(
-                        snapshot.snapshotId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "opinion map snapshot manifest is unavailable after conflict"));
-        validateManifest(conflicted, generated);
+        finalizedEvents.publish(snapshot, generated);
     }
 
     private OpinionMapSnapshot resolveSnapshot(

@@ -15,11 +15,13 @@ import com.hamcheeze.vote.shared.integration.task.TaskOpinionMapFinalizationRequ
 import com.hamcheeze.vote.shared.integration.task.TaskOpinionMapFinalizationRequestedV1.ClosureType;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2.ReasonSource;
+import com.hamcheeze.vote.shared.integration.opinionmap.OpinionMapSnapshotFinalizedV1;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliveryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -30,7 +32,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
+@SpringBootTest(properties =
+        "vote.opinionmap.snapshot-finalized-outbox.enabled=true")
 @ActiveProfiles({"local", "test"})
 @Transactional
 class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
@@ -54,6 +57,8 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
     private IntegrationOutboxRepository outbox;
     @Autowired
     private IntegrationOutboxDeliveryService deliveries;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -114,6 +119,22 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                     assertThat(manifest.optionCounts()).containsExactly(
                             new OpinionMapOptionCount(uuid(4), 1));
                 });
+        assertThat(finalizedEventCount(firstSnapshot.snapshotId())).isOne();
+        String payloadJson = jdbcTemplate.queryForObject("""
+                SELECT payload
+                FROM integration_outbox
+                WHERE event_type = ? AND aggregate_id = ?
+                """, String.class,
+                OpinionMapSnapshotFinalizedV1.EVENT_TYPE,
+                firstSnapshot.snapshotId());
+        OpinionMapSnapshotFinalizedV1 finalizedPayload =
+                objectMapper.readValue(
+                        payloadJson,
+                        OpinionMapSnapshotFinalizedV1.class);
+        assertThat(finalizedPayload.responseHashSha256()).isEqualTo(
+                firstManifest.responseHashSha256());
+        assertThat(finalizedPayload.optionCounts()).containsExactly(
+                new OpinionMapSnapshotFinalizedV1.OptionCount(uuid(4), 1));
         assertThat(inbox.find(
                 OpinionMapTaskFinalizationRequestedConsumer.CONSUMER_NAME,
                 finalization.eventId())).isPresent();
@@ -248,5 +269,16 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
     private static UUID uuid(long suffix) {
         return UUID.fromString(
                 "13110000-0000-0000-0000-%012d".formatted(suffix));
+    }
+
+    private int finalizedEventCount(UUID snapshotId) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM integration_outbox
+                WHERE event_type = ? AND aggregate_id = ?
+                """, Integer.class,
+                OpinionMapSnapshotFinalizedV1.EVENT_TYPE,
+                snapshotId);
+        return java.util.Objects.requireNonNull(count, "event count");
     }
 }

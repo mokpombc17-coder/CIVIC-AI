@@ -3,6 +3,7 @@ package com.hamcheeze.vote.opinionmap.application.finalization;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapFinalizationRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotManifestRepository;
+import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotFinalizedEventPublisher;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSubmissionProjectionRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalization;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalizationRequest;
@@ -52,6 +53,8 @@ class OpinionMapFinalizationCoordinatorTest {
             mock(OpinionMapSnapshotRepository.class);
     private final OpinionMapSnapshotManifestRepository manifests =
             mock(OpinionMapSnapshotManifestRepository.class);
+    private final OpinionMapSnapshotFinalizedEventPublisher finalizedEvents =
+            mock(OpinionMapSnapshotFinalizedEventPublisher.class);
     private final OpinionMapSubmissionProjectionRepository submissions =
             mock(OpinionMapSubmissionProjectionRepository.class);
     private final OpinionMapSnapshotManifestFactory manifestFactory =
@@ -61,6 +64,7 @@ class OpinionMapFinalizationCoordinatorTest {
                     finalizations,
                     snapshots,
                     manifests,
+                    finalizedEvents,
                     submissions,
                     manifestFactory,
                     Clock.fixed(EVALUATED_AT, ZoneOffset.UTC),
@@ -114,6 +118,7 @@ class OpinionMapFinalizationCoordinatorTest {
                 2,
                 2,
                 EVALUATED_AT));
+        verify(finalizedEvents).publish(snapshot.getValue(), manifest(2));
     }
 
     @Test
@@ -167,6 +172,7 @@ class OpinionMapFinalizationCoordinatorTest {
 
         verify(snapshots, never()).insertIfAbsent(any());
         verify(manifests, never()).insertIfAbsent(any());
+        verify(finalizedEvents).publish(existing, manifest);
     }
 
     @Test
