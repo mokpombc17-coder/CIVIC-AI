@@ -1,17 +1,17 @@
 package com.hamcheeze.vote.persona.application;
 
-import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 
 import java.util.Objects;
 
 public final class PersonaSurveySourceException extends RuntimeException {
 
     private final PersonaSurveySourceErrorCode code;
-    private final SurveyResponseId responseId;
+    private final PersonaSourceId responseId;
 
     private PersonaSurveySourceException(
             PersonaSurveySourceErrorCode code,
-            SurveyResponseId responseId,
+            PersonaSourceId responseId,
             String message
     ) {
         super(message);
@@ -20,7 +20,7 @@ public final class PersonaSurveySourceException extends RuntimeException {
     }
 
     public static PersonaSurveySourceException notFound(
-            SurveyResponseId responseId
+            PersonaSourceId responseId
     ) {
         return new PersonaSurveySourceException(
                 PersonaSurveySourceErrorCode.PERSONA_SURVEY_SOURCE_NOT_FOUND,
@@ -29,7 +29,7 @@ public final class PersonaSurveySourceException extends RuntimeException {
     }
 
     public static PersonaSurveySourceException integrityViolation(
-            SurveyResponseId responseId,
+            PersonaSourceId responseId,
             String detail
     ) {
         if (detail == null || detail.isBlank()) {
@@ -46,7 +46,7 @@ public final class PersonaSurveySourceException extends RuntimeException {
         return code;
     }
 
-    public SurveyResponseId responseId() {
+    public PersonaSourceId responseId() {
         return responseId;
     }
 }

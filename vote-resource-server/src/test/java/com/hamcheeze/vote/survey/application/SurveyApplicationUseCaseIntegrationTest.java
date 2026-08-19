@@ -3,8 +3,9 @@ package com.hamcheeze.vote.survey.application;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliveryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
-import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
@@ -203,10 +204,13 @@ class SurveyApplicationUseCaseIntegrationTest {
                 new SurveyUserId("another-user"),
                 submitted.outcome().responseId())).isEmpty();
         var personaSource = personaSurveySourceQuery.getByResponseId(
-                submitted.outcome().responseId());
+                new PersonaSourceId(
+                        submitted.outcome().responseId().value()));
         assertThat(personaSurveySourceQuery.getByResponseId(
-                submitted.outcome().responseId())).isEqualTo(personaSource);
-        assertThat(personaSource.userId()).isEqualTo(USER);
+                new PersonaSourceId(
+                        submitted.outcome().responseId().value())))
+                .isEqualTo(personaSource);
+        assertThat(personaSource.userId().value()).isEqualTo(USER.value());
         assertThat(personaSource.answers()).hasSize(1);
         assertThat(personaSource.answers().getFirst().question().prompt())
                 .isEqualTo("자신을 한 문장으로 표현해주세요.");
@@ -250,9 +254,10 @@ class SurveyApplicationUseCaseIntegrationTest {
                 });
 
         var restoredFirst = personaSurveySourceQuery.getByResponseId(
-                submitted.outcome().responseId());
+                new PersonaSourceId(
+                        submitted.outcome().responseId().value()));
         assertThat(restoredFirst.contentVersionId())
-                .isEqualTo(content.value().id());
+                .isEqualTo(content.value().id().value());
         assertThat(restoredFirst.answers().getFirst().question().prompt())
                 .isEqualTo("자신을 한 문장으로 표현해주세요.");
         assertThat(restoredFirst.answers().getFirst().value())

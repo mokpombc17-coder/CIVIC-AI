@@ -70,8 +70,7 @@ public class PersonaGenerationStateService {
                     "result generation ID must match");
         }
         PersonaGeneration generation = requireGeneration(generationId);
-        PersonaSourceId sourceId = new PersonaSourceId(
-                source.responseId().value());
+        PersonaSourceId sourceId = source.responseId();
         if (!generation.sourceResponseId().equals(sourceId)) {
             throw new IllegalArgumentException(
                     "source response ID must match generation source");
@@ -82,7 +81,7 @@ public class PersonaGenerationStateService {
         return versions.insert(new PersonaVersion(
                 new PersonaVersionId(UUID.randomUUID()),
                 generation.id(),
-                new PersonaUserId(source.userId().value()),
+                source.userId(),
                 result.personaId(),
                 result.predictedAdoptionRate(),
                 result.modelVersion(),

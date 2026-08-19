@@ -1,31 +1,22 @@
 package com.hamcheeze.vote.persona.application;
 
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
-import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
-import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
-import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 public record PersonaSurveySource(
-        SurveyResponseId responseId,
-        SurveyUserId userId,
-        SurveyRoundId roundId,
-        SurveyRoundNumber roundNumber,
-        SurveyContentVersionId contentVersionId,
-        SurveyContentVersionNumber contentVersionNumber,
+        PersonaSourceId responseId,
+        PersonaUserId userId,
+        UUID roundId,
+        int roundNumber,
+        UUID contentVersionId,
+        int contentVersionNumber,
         Instant submittedAt,
         List<PersonaSurveyAnswer> answers
 ) {
@@ -34,10 +25,15 @@ public record PersonaSurveySource(
         Objects.requireNonNull(responseId, "responseId");
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(roundId, "roundId");
-        Objects.requireNonNull(roundNumber, "roundNumber");
         Objects.requireNonNull(contentVersionId, "contentVersionId");
-        Objects.requireNonNull(
-                contentVersionNumber, "contentVersionNumber");
+        if (roundNumber < 1) {
+            throw new IllegalArgumentException(
+                    "roundNumber must be positive");
+        }
+        if (contentVersionNumber < 1) {
+            throw new IllegalArgumentException(
+                    "contentVersionNumber must be positive");
+        }
         Objects.requireNonNull(submittedAt, "submittedAt");
         answers = immutableList(answers, "answers");
     }
@@ -54,9 +50,9 @@ public record PersonaSurveySource(
     }
 
     public record PersonaSurveyQuestion(
-            SurveyQuestionId questionId,
-            SurveyQuestionLineageKey questionLineageId,
-            SurveyQuestionType type,
+            UUID questionId,
+            UUID questionLineageId,
+            QuestionType type,
             String prompt,
             Optional<String> description,
             int displayOrder
@@ -125,9 +121,9 @@ public record PersonaSurveySource(
     }
 
     public record PersonaSurveyOption(
-            SurveyOptionId optionId,
-            SurveyOptionLineageKey optionLineageId,
-            SurveyOptionKind kind,
+            UUID optionId,
+            UUID optionLineageId,
+            OptionKind kind,
             String label,
             int displayOrder,
             Optional<String> inputText
@@ -143,16 +139,30 @@ public record PersonaSurveySource(
                         "displayOrder must be positive");
             }
             inputText = Objects.requireNonNull(inputText, "inputText");
-            if (kind == SurveyOptionKind.STANDARD && inputText.isPresent()) {
+            if (kind == OptionKind.STANDARD && inputText.isPresent()) {
                 throw new IllegalArgumentException(
                         "STANDARD option cannot contain inputText");
             }
-            if (kind == SurveyOptionKind.OTHER
+            if (kind == OptionKind.OTHER
                     && inputText.filter(value -> !value.isBlank()).isEmpty()) {
                 throw new IllegalArgumentException(
                         "OTHER option requires inputText");
             }
         }
+    }
+
+    public enum QuestionType {
+        SINGLE_CHOICE,
+        MULTIPLE_CHOICE,
+        SHORT_TEXT,
+        LONG_TEXT,
+        NUMBER,
+        SCALE
+    }
+
+    public enum OptionKind {
+        STANDARD,
+        OTHER
     }
 
     private static <T> List<T> immutableList(

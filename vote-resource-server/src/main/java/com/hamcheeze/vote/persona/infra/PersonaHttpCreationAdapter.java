@@ -245,10 +245,10 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
         static SurveySourcePayload from(PersonaSurveySource source) {
             return new SurveySourcePayload(
                     source.responseId().value(),
-                    source.roundId().value(),
-                    source.roundNumber().value(),
-                    source.contentVersionId().value(),
-                    source.contentVersionNumber().value(),
+                    source.roundId(),
+                    source.roundNumber(),
+                    source.contentVersionId(),
+                    source.contentVersionNumber(),
                     source.submittedAt(),
                     source.answers().stream()
                             .map(AnswerPayload::from)
@@ -268,8 +268,8 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
         static AnswerPayload from(PersonaSurveyAnswer answer) {
             var question = answer.question();
             return new AnswerPayload(
-                    question.questionId().value(),
-                    question.questionLineageId().value(),
+                    question.questionId(),
+                    question.questionLineageId(),
                     question.type().name(),
                     question.prompt(),
                     question.description().orElse(null),
@@ -328,8 +328,8 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
     ) {
         static OptionPayload from(PersonaSurveyOption option) {
             return new OptionPayload(
-                    option.optionId().value(),
-                    option.optionLineageId().value(),
+                    option.optionId(),
+                    option.optionLineageId(),
                     option.kind().name(),
                     option.label(),
                     option.displayOrder(),

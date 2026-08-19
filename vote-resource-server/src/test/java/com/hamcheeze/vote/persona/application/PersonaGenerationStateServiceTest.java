@@ -10,12 +10,8 @@ import com.hamcheeze.vote.persona.domain.PersonaVersion;
 import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -88,12 +84,12 @@ class PersonaGenerationStateServiceTest {
 
     private static PersonaSurveySource source(SurveyResponseId responseId) {
         return new PersonaSurveySource(
-                responseId,
-                new SurveyUserId("user-1"),
-                new SurveyRoundId(uuid(3)),
-                new SurveyRoundNumber(1),
-                new SurveyContentVersionId(uuid(4)),
-                new SurveyContentVersionNumber(1),
+                new PersonaSourceId(responseId.value()),
+                new PersonaUserId("user-1"),
+                uuid(3),
+                1,
+                uuid(4),
+                1,
                 NOW.minusSeconds(20),
                 List.of());
     }

@@ -1,6 +1,6 @@
 package com.hamcheeze.vote.persona.application;
 
-import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;

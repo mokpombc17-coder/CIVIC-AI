@@ -5,18 +5,8 @@ import com.hamcheeze.vote.persona.application.PersonaCreationErrorCode;
 import com.hamcheeze.vote.persona.application.PersonaCreationException;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
-import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
-import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
-import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -186,27 +176,27 @@ class PersonaHttpCreationAdapterTest {
     private static PersonaCreationCommand command() {
         PersonaSurveySource.PersonaSurveyOption other =
                 new PersonaSurveySource.PersonaSurveyOption(
-                        new SurveyOptionId(UUID.randomUUID()),
-                        new SurveyOptionLineageKey(UUID.randomUUID()),
-                        SurveyOptionKind.OTHER,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        PersonaSurveySource.OptionKind.OTHER,
                         "직접 입력",
                         1,
                         Optional.of("창작"));
         PersonaSurveySource.PersonaSurveyQuestion question =
                 new PersonaSurveySource.PersonaSurveyQuestion(
-                        new SurveyQuestionId(UUID.randomUUID()),
-                        new SurveyQuestionLineageKey(UUID.randomUUID()),
-                        SurveyQuestionType.MULTIPLE_CHOICE,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        PersonaSurveySource.QuestionType.MULTIPLE_CHOICE,
                         "세부 성향",
                         Optional.of("복수 선택"),
                         1);
         PersonaSurveySource source = new PersonaSurveySource(
-                new SurveyResponseId(UUID.randomUUID()),
-                new SurveyUserId("user-a"),
-                new SurveyRoundId(UUID.randomUUID()),
-                new SurveyRoundNumber(1),
-                new SurveyContentVersionId(UUID.randomUUID()),
-                new SurveyContentVersionNumber(1),
+                new PersonaSourceId(UUID.randomUUID()),
+                new PersonaUserId("user-a"),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                1,
                 Instant.parse("2026-08-14T00:00:00Z"),
                 List.of(new PersonaSurveySource.PersonaSurveyAnswer(
                         question,

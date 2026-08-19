@@ -3,7 +3,7 @@ package com.hamcheeze.vote.persona.application.integration;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
-import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
@@ -171,9 +171,8 @@ public class PersonaSurveyResponseSubmittedConsumer
         boolean matches = source.responseId().value()
                 .equals(payload.responseId())
                 && source.userId().value().equals(payload.userId())
-                && source.roundId().value().equals(payload.roundId())
-                && source.contentVersionId().value()
-                .equals(payload.contentVersionId())
+                && source.roundId().equals(payload.roundId())
+                && source.contentVersionId().equals(payload.contentVersionId())
                 && source.submittedAt().truncatedTo(ChronoUnit.MICROS)
                 .equals(payload.submittedAt()
                         .truncatedTo(ChronoUnit.MICROS));

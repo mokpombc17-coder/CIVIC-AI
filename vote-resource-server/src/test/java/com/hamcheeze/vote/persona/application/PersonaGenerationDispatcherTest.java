@@ -1,15 +1,11 @@
 package com.hamcheeze.vote.persona.application;
 
-import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
@@ -144,18 +140,26 @@ class PersonaGenerationDispatcherTest {
 
     private static PersonaSurveySource source(SurveyResponseId responseId) {
         return new PersonaSurveySource(
-                responseId,
-                new SurveyUserId("user-a"),
-                new SurveyRoundId(UUID.randomUUID()),
-                new SurveyRoundNumber(1),
-                new SurveyContentVersionId(UUID.randomUUID()),
-                new SurveyContentVersionNumber(1),
+                new PersonaSourceId(responseId.value()),
+                new PersonaUserId("user-a"),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                1,
                 NOW.minusSeconds(100),
                 List.of());
     }
 
     private static PersonaSurveySource source(PersonaSourceId sourceId) {
-        return source(new SurveyResponseId(sourceId.value()));
+        return new PersonaSurveySource(
+                sourceId,
+                new PersonaUserId("user-a"),
+                UUID.randomUUID(),
+                1,
+                UUID.randomUUID(),
+                1,
+                NOW.minusSeconds(100),
+                List.of());
     }
 
     private static PersonaSourceId sourceId(SurveyResponseId responseId) {

@@ -1,8 +1,8 @@
-package com.hamcheeze.vote.survey.application.query;
+package com.hamcheeze.vote.survey.infra.persona;
 
-import com.hamcheeze.vote.persona.application.PersonaSurveySourceAssembler;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class PersonaSurveySourceQueryServiceTest {
+class PersonaSurveySourceQueryAdapterTest {
 
     private final SurveyResponseRepository responses =
             mock(SurveyResponseRepository.class);
@@ -36,15 +36,15 @@ class PersonaSurveySourceQueryServiceTest {
             mock(SurveyRoundRepository.class);
     private final SurveyContentVersionRepository contents =
             mock(SurveyContentVersionRepository.class);
-    private PersonaSurveySourceQueryService service;
+    private PersonaSurveySourceQueryAdapter adapter;
 
     @BeforeEach
     void setUp() {
-        service = new PersonaSurveySourceQueryService(
+        adapter = new PersonaSurveySourceQueryAdapter(
                 responses,
                 rounds,
                 contents,
-                new PersonaSurveySourceAssembler());
+                new PersonaSurveySourceMapper());
     }
 
     @Test
@@ -53,7 +53,7 @@ class PersonaSurveySourceQueryServiceTest {
         when(responses.findById(responseId)).thenReturn(Optional.empty());
 
         assertCode(
-                () -> service.getByResponseId(responseId),
+                () -> adapter.getByResponseId(sourceId(responseId)),
                 PersonaSurveySourceErrorCode
                         .PERSONA_SURVEY_SOURCE_NOT_FOUND);
     }
@@ -68,7 +68,7 @@ class PersonaSurveySourceQueryServiceTest {
                 .thenReturn(Optional.empty());
 
         assertCode(
-                () -> service.getByResponseId(responseId),
+                () -> adapter.getByResponseId(sourceId(responseId)),
                 PersonaSurveySourceErrorCode
                         .PERSONA_SURVEY_SOURCE_INTEGRITY_VIOLATION);
     }
@@ -85,7 +85,7 @@ class PersonaSurveySourceQueryServiceTest {
                 .thenReturn(Optional.empty());
 
         assertCode(
-                () -> service.getByResponseId(responseId),
+                () -> adapter.getByResponseId(sourceId(responseId)),
                 PersonaSurveySourceErrorCode
                         .PERSONA_SURVEY_SOURCE_INTEGRITY_VIOLATION);
     }
@@ -131,6 +131,12 @@ class PersonaSurveySourceQueryServiceTest {
 
     private static SurveyResponseId responseId() {
         return new SurveyResponseId(uuid(1));
+    }
+
+    private static PersonaSourceId sourceId(
+            SurveyResponseId responseId
+    ) {
+        return new PersonaSourceId(responseId.value());
     }
 
     private static UUID uuid(long value) {

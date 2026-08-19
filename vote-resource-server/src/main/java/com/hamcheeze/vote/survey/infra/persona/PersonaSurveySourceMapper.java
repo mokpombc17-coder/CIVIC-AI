@@ -1,5 +1,9 @@
-package com.hamcheeze.vote.persona.application;
+package com.hamcheeze.vote.survey.infra.persona;
 
+import com.hamcheeze.vote.persona.application.PersonaSurveySource;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
@@ -30,18 +34,20 @@ import java.util.Optional;
 
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MultipleChoiceValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.NumberValue;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.OptionKind;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyAnswer;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyAnswerValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyOption;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyQuestion;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.QuestionType;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.ScaleValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.SingleChoiceValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.TextValue;
 
 @Component
-public final class PersonaSurveySourceAssembler {
+public final class PersonaSurveySourceMapper {
 
-    public PersonaSurveySource assemble(
+    public PersonaSurveySource map(
             SurveyResponse response,
             SurveyRound round,
             SurveyContentVersion content
@@ -80,12 +86,12 @@ public final class PersonaSurveySourceAssembler {
                 answer -> answer.question().displayOrder()));
 
         return new PersonaSurveySource(
-                response.id(),
-                response.userId(),
-                response.roundId(),
-                response.roundNumber(),
-                response.contentVersionId(),
-                versionNumber,
+                new PersonaSourceId(response.id().value()),
+                new PersonaUserId(response.userId().value()),
+                response.roundId().value(),
+                response.roundNumber().value(),
+                response.contentVersionId().value(),
+                versionNumber.value(),
                 response.submittedAt(),
                 answers);
     }
@@ -121,9 +127,9 @@ public final class PersonaSurveySourceAssembler {
             SurveyQuestion question
     ) {
         return new PersonaSurveyQuestion(
-                question.id(),
-                question.lineageKey(),
-                question.type(),
+                question.id().value(),
+                question.lineageKey().value(),
+                QuestionType.valueOf(question.type().name()),
                 question.prompt(),
                 Optional.ofNullable(question.description()),
                 question.displayOrder());
@@ -193,9 +199,9 @@ public final class PersonaSurveySourceAssembler {
             }
         }
         return new PersonaSurveyOption(
-                option.id(),
-                option.lineageKey(),
-                option.kind(),
+                option.id().value(),
+                option.lineageKey().value(),
+                OptionKind.valueOf(option.kind().name()),
                 option.label(),
                 option.displayOrder(),
                 inputText);
@@ -228,6 +234,6 @@ public final class PersonaSurveySourceAssembler {
             String detail
     ) {
         return PersonaSurveySourceException.integrityViolation(
-                response.id(), detail);
+                new PersonaSourceId(response.id().value()), detail);
     }
 }

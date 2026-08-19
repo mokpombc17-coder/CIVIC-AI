@@ -1,5 +1,9 @@
-package com.hamcheeze.vote.persona.application;
+package com.hamcheeze.vote.survey.infra.persona;
 
+import com.hamcheeze.vote.persona.application.PersonaSurveySource;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
+import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.domain.common.SurveyActorId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
@@ -47,7 +51,7 @@ import static com.hamcheeze.vote.persona.application.PersonaSurveySource.TextVal
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class PersonaSurveySourceAssemblerTest {
+class PersonaSurveySourceMapperTest {
 
     private static final Instant NOW =
             Instant.parse("2026-08-13T00:00:00Z");
@@ -60,19 +64,20 @@ class PersonaSurveySourceAssemblerTest {
     private static final SurveyResponseId RESPONSE_ID =
             new SurveyResponseId(uuid(3));
 
-    private final PersonaSurveySourceAssembler assembler =
-            new PersonaSurveySourceAssembler();
+    private final PersonaSurveySourceMapper mapper =
+            new PersonaSurveySourceMapper();
 
     @Test
     void assemblesTypedValuesInQuestionAndOptionDisplayOrder() {
         Fixture fixture = fixture();
 
-        PersonaSurveySource source = assembler.assemble(
+        PersonaSurveySource source = mapper.map(
                 fixture.response(), fixture.round(), fixture.content());
 
-        assertThat(source.responseId()).isEqualTo(RESPONSE_ID);
+        assertThat(source.responseId())
+                .isEqualTo(new PersonaSourceId(RESPONSE_ID.value()));
         assertThat(source.contentVersionNumber())
-                .isEqualTo(new SurveyContentVersionNumber(7));
+                .isEqualTo(7);
         assertThat(source.answers())
                 .extracting(answer -> answer.question().displayOrder())
                 .containsExactly(1, 2, 3, 4, 5);
@@ -105,7 +110,7 @@ class PersonaSurveySourceAssemblerTest {
         SurveyRound differentRound = round(
                 new SurveyContentVersionId(uuid(999)));
 
-        assertIntegrityViolation(() -> assembler.assemble(
+        assertIntegrityViolation(() -> mapper.map(
                 fixture.response(), differentRound, fixture.content()));
     }
 
@@ -115,7 +120,7 @@ class PersonaSurveySourceAssemblerTest {
         SurveyResponse response = response(List.of(new ShortTextAnswer(
                 new SurveyQuestionId(uuid(999)), "value")));
 
-        assertIntegrityViolation(() -> assembler.assemble(
+        assertIntegrityViolation(() -> mapper.map(
                 response, fixture.round(), fixture.content()));
     }
 
@@ -127,7 +132,7 @@ class PersonaSurveySourceAssemblerTest {
                 single.id(),
                 new OptionSelection(new SurveyOptionId(uuid(999)), null))));
 
-        assertIntegrityViolation(() -> assembler.assemble(
+        assertIntegrityViolation(() -> mapper.map(
                 response, fixture.round(), fixture.content()));
     }
 
@@ -138,7 +143,7 @@ class PersonaSurveySourceAssemblerTest {
         SurveyResponse response = response(List.of(new ShortTextAnswer(
                 single.id(), "wrong type")));
 
-        assertIntegrityViolation(() -> assembler.assemble(
+        assertIntegrityViolation(() -> mapper.map(
                 response, fixture.round(), fixture.content()));
     }
 

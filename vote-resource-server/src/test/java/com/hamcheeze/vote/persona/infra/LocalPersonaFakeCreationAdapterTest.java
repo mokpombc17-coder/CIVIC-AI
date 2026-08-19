@@ -3,12 +3,8 @@ package com.hamcheeze.vote.persona.infra;
 import com.hamcheeze.vote.persona.application.PersonaCreationCommand;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -39,15 +35,15 @@ class LocalPersonaFakeCreationAdapterTest {
         UUID generationId = UUID.fromString(
                 "13040000-0000-0000-0000-000000000001");
         PersonaSurveySource source = new PersonaSurveySource(
-                new SurveyResponseId(UUID.fromString(
+                new PersonaSourceId(UUID.fromString(
                         "13040000-0000-0000-0000-000000000002")),
-                new SurveyUserId("local-user"),
-                new SurveyRoundId(UUID.fromString(
-                        "13040000-0000-0000-0000-000000000003")),
-                new SurveyRoundNumber(1),
-                new SurveyContentVersionId(UUID.fromString(
-                        "13040000-0000-0000-0000-000000000004")),
-                new SurveyContentVersionNumber(1),
+                new PersonaUserId("local-user"),
+                UUID.fromString(
+                        "13040000-0000-0000-0000-000000000003"),
+                1,
+                UUID.fromString(
+                        "13040000-0000-0000-0000-000000000004"),
+                1,
                 Instant.parse("2026-08-18T00:00:00Z"),
                 List.of());
         return new PersonaCreationCommand(

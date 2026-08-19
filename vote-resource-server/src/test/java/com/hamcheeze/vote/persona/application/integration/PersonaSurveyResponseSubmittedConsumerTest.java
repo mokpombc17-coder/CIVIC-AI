@@ -2,21 +2,16 @@ package com.hamcheeze.vote.persona.application.integration;
 
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
-import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.survey.SurveyResponseSubmittedV1;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
-import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
@@ -154,7 +149,7 @@ class PersonaSurveyResponseSubmittedConsumerTest {
         when(inbox.recordIfAbsent(any())).thenReturn(true);
         when(sources.getByResponseId(any(PersonaSourceId.class))).thenThrow(
                 PersonaSurveySourceException.notFound(
-                        new SurveyResponseId(payload.responseId())));
+                        new PersonaSourceId(payload.responseId())));
 
         assertThatThrownBy(() -> consumer.consume(event(uuid(5), payload)))
                 .isInstanceOfSatisfying(
@@ -198,12 +193,12 @@ class PersonaSurveyResponseSubmittedConsumerTest {
             SurveyResponseSubmittedV1 payload
     ) {
         return new PersonaSurveySource(
-                new SurveyResponseId(payload.responseId()),
-                new SurveyUserId(payload.userId()),
-                new SurveyRoundId(payload.roundId()),
-                new SurveyRoundNumber(1),
-                new SurveyContentVersionId(payload.contentVersionId()),
-                new SurveyContentVersionNumber(1),
+                new PersonaSourceId(payload.responseId()),
+                new PersonaUserId(payload.userId()),
+                payload.roundId(),
+                1,
+                payload.contentVersionId(),
+                1,
                 payload.submittedAt().plusNanos(999),
                 List.of());
     }
