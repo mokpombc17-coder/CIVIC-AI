@@ -20,7 +20,7 @@
 | `GET` | `/api/v1/me/survey-responses/{responseId}` | 자신의 특정 응답 원문을 조회한다. 다른 사용자의 응답도 `404`로 숨긴다. |
 | `GET` | `/api/v1/me/service-eligibility` | 현재 서비스 이용 가능 여부와 capability를 조회한다. |
 
-현재 Survey 응답은 `round`, `content`, `submitted`, `eligibility`로 구성한다. `content.questions[]`는 질문 ID·lineage key·유형·문구·설명·순서·필수 여부·규칙·선택지를 포함한다. 선택지는 `kind=STANDARD|OTHER`를 가지며 `OTHER`의 표시 문구는 `기타`다. 사용자용 `content`에는 관리자 actor와 내부 변경 audit 정보가 포함되지 않는다.
+현재 Survey 응답은 `round`, `content`, `submitted`, `eligibility`로 구성한다. `content.questions[]`는 질문 ID·lineage key·유형·문구·설명·순서·필수 여부·규칙·선택지를 포함하며 `required`는 항상 `true`다. 선택지는 `kind=STANDARD|OTHER`를 가지며 `OTHER`의 표시 문구는 `기타`다. 사용자용 `content`에는 관리자 actor와 내부 변경 audit 정보가 포함되지 않는다.
 
 활성 회차가 정확히 하나 존재하지 않는 경우는 사용자 미완료 상태가 아니라 운영 오류다. 현재 Survey와 Eligibility API는 `503 SURVEY_ACTIVE_ROUND_UNAVAILABLE`을 반환한다. 정상 활성 회차 안에서 `eligibility.eligible=false`인 경우만 사용자의 Survey 미완료 상태다.
 
@@ -76,7 +76,7 @@
 | `GET` | `/api/v1/admin/survey-content-versions` | 내용 버전 목록 |
 | `GET` | `/api/v1/admin/survey-content-versions/{id}` | 내용 버전 상세 |
 
-생성·교체 body는 `name`, `description`, `questions[]`를 가진다. question/option의 `id`와 `lineageKey`는 생략하면 서버가 UUID를 만든다. 수정 시 같은 질문·선택지 계보를 유지하려면 기존 `lineageKey`를 보낸다. 선택 질문의 `allowOther=true`는 작성 편의 입력이며 Aggregate가 실제 `kind=OTHER`, `label=기타` 선택지로 물질화한다. 플래그 자체는 저장하지 않고 조회 DTO에서 물질화된 선택지를 기준으로 다시 계산한다. 규칙 필드는 질문 유형에 따라 `minimumSelections`, `maximumSelections`, `maxLength`, `minimum`, `maximum`, `decimalAllowed`, `decimalScale`, `minimumLabel`, `maximumLabel`을 사용한다.
+생성·교체 body는 `name`, `description`, `questions[]`를 가진다. 모든 질문은 필수이므로 question의 `required`는 생략하면 `true`로 처리하며, 호환 입력으로 명시할 때도 `true`만 허용한다. question/option의 `id`와 `lineageKey`는 생략하면 서버가 UUID를 만든다. 수정 시 같은 질문·선택지 계보를 유지하려면 기존 `lineageKey`를 보낸다. 선택 질문의 `allowOther=true`는 작성 편의 입력이며 Aggregate가 실제 `kind=OTHER`, `label=기타` 선택지로 물질화한다. 플래그 자체는 저장하지 않고 조회 DTO에서 물질화된 선택지를 기준으로 다시 계산한다. 규칙 필드는 질문 유형에 따라 `minimumSelections`, `maximumSelections`, `maxLength`, `minimum`, `maximum`, `decimalAllowed`, `decimalScale`, `minimumLabel`, `maximumLabel`을 사용한다.
 
 ### 회차
 

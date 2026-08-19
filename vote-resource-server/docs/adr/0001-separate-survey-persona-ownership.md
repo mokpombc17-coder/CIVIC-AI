@@ -303,6 +303,6 @@ Persona 상태 API는 이 짧은 구간을 정상 상태로 취급하고 `PENDIN
 - Persona 별도 배포 서비스 구축
 - 실제 응답 채택률의 분모 정책
 - Result Projection 구현
-- Survey 질문 `required` API 변경
+- Survey 질문 `required` API 변경(본 ADR 이후 V9 후속 작업으로 반영)
 
 이 항목들은 각 후속 단계의 별도 스펙과 테스트에서 다룬다.

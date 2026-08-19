@@ -61,7 +61,13 @@ public final class SurveyQuestion {
                     "question displayOrder must be positive");
         }
         this.displayOrder = displayOrder;
-        this.required = required;
+        if (!required) {
+            throw SurveyDomainException.invariant(
+                    "SURVEY_QUESTION_MUST_BE_REQUIRED",
+                    "question.required",
+                    "all survey questions must be required");
+        }
+        this.required = true;
         this.rule = Objects.requireNonNull(rule, "rule");
         if (rule.questionType() != type) {
             throw SurveyDomainException.invariant(

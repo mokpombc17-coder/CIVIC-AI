@@ -67,7 +67,7 @@ final class SurveyApiModels {
             @NotBlank String prompt,
             String description,
             @Positive int displayOrder,
-            boolean required,
+            Boolean required,
             @NotNull @Valid RuleRequest rule,
             boolean allowOther,
             List<@Valid OptionWriteRequest> options
@@ -94,7 +94,7 @@ final class SurveyApiModels {
                         prompt,
                         description,
                         displayOrder,
-                        required,
+                        requiredOrDefault(),
                         rule.toDomain(type),
                         standardOptions,
                         allowOther || otherOption != null,
@@ -112,9 +112,17 @@ final class SurveyApiModels {
                     prompt,
                     description,
                     displayOrder,
-                    required,
+                    requiredOrDefault(),
                     rule.toDomain(type),
                     mappedOptions);
+        }
+
+        private boolean requiredOrDefault() {
+            if (Boolean.FALSE.equals(required)) {
+                throw new IllegalArgumentException(
+                        "required must be true for every survey question");
+            }
+            return true;
         }
     }
 

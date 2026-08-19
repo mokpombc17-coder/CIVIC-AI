@@ -155,6 +155,41 @@ class SurveySchemaConstraintIntegrationTest {
                 .hasMessageContaining("ck_survey_question_rules");
     }
 
+    @Test
+    void requiresEverySurveyQuestionAtTheDatabaseBoundary() {
+        UUID contentId = insertPublishedContent(1);
+        UUID defaultedQuestionId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO survey_questions (
+                    question_id, content_version_id, question_lineage_id,
+                    type, prompt, display_order, text_max_length)
+                VALUES (?, ?, ?, 'SHORT_TEXT', '기본 필수 질문', 1, 200)
+                """, defaultedQuestionId, contentId, UUID.randomUUID());
+        Boolean defaultedRequired = jdbcTemplate.queryForObject("""
+                SELECT is_required
+                FROM survey_questions
+                WHERE question_id = ?
+                """, Boolean.class, defaultedQuestionId);
+        Integer migrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '9' AND success = true
+                """, Integer.class);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO survey_questions (
+                    question_id, content_version_id, question_lineage_id,
+                    type, prompt, display_order, is_required,
+                    text_max_length)
+                VALUES (?, ?, ?, 'SHORT_TEXT', '질문', 2, false, 200)
+                """, UUID.randomUUID(), contentId, UUID.randomUUID()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_survey_question_required");
+
+        assertThat(defaultedRequired).isTrue();
+        assertThat(migrationCount).isEqualTo(1);
+    }
+
     private UUID insertPublishedContent(long versionNumber) {
         UUID contentId = UUID.randomUUID();
         Timestamp timestamp = Timestamp.from(NOW);

@@ -190,42 +190,6 @@ class SurveySubmissionPolicyTest {
     }
 
     @Test
-    void currentPolicyRequiresEveryQuestionEvenIfFlagIsOptional() {
-        SurveyContentVersion optionalQuestionContent =
-                optionalQuestionContent();
-        SurveyRound round = SurveyRound.rehydrate(
-                ROUND_ID,
-                activeRound().roundNumber(),
-                optionalQuestionContent.id(),
-                SurveyRoundStatus.ACTIVE,
-                SurveyRoundEnforcementMode.REQUIRED,
-                null,
-                NOW.plusSeconds(2),
-                null,
-                null,
-                null,
-                actorId(),
-                NOW,
-                0);
-
-        assertThatThrownBy(() -> policy.submitFinalResponse(
-                responseId(),
-                new SurveyUserId("user-a"),
-                ROUND_ID,
-                round,
-                optionalQuestionContent,
-                false,
-                List.of(),
-                NOW.plusSeconds(10)))
-                .isInstanceOfSatisfying(
-                        SurveyValidationException.class,
-                        exception -> assertThat(exception.violations())
-                                .extracting(violation -> violation.code())
-                                .containsExactly(
-                                        "SURVEY_REQUIRED_ANSWER_MISSING"));
-    }
-
-    @Test
     void collectsSelectionAndOtherInputViolations() {
         List<SurveyAnswer> invalid = new ArrayList<>(validAnswers());
         invalid.set(4, new MultipleChoiceAnswer(
@@ -351,31 +315,4 @@ class SurveySubmissionPolicyTest {
                 .contentVersion();
     }
 
-    private static SurveyContentVersion optionalQuestionContent() {
-        SurveyContentVersionId id =
-                new SurveyContentVersionId(new UUID(92, 1));
-        SurveyQuestion question = new SurveyQuestion(
-                new SurveyQuestionId(new UUID(92, 2)),
-                new com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey(
-                        new UUID(92, 3)),
-                SurveyQuestionType.SHORT_TEXT,
-                "현재 정책에서는 필수인 질문",
-                null,
-                1,
-                false,
-                ShortTextRule.defaults(),
-                List.of());
-        return SurveyContentVersion.createDraft(
-                        id,
-                        "Optional flag compatibility",
-                        null,
-                        List.of(question),
-                        actorId(),
-                        NOW)
-                .publish(
-                        new SurveyContentVersionNumber(3),
-                        actorId(),
-                        NOW.plusSeconds(1))
-                .contentVersion();
-    }
 }

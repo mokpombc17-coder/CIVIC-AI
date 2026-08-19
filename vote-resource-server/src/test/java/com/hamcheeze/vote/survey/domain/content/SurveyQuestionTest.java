@@ -97,6 +97,22 @@ class SurveyQuestionTest {
     }
 
     @Test
+    void rejectsOptionalQuestion() {
+        assertThatThrownBy(() -> new SurveyQuestion(
+                questionId(),
+                questionLineageKey(),
+                SurveyQuestionType.SHORT_TEXT,
+                "질문",
+                null,
+                1,
+                false,
+                ShortTextRule.defaults(),
+                List.of()))
+                .isInstanceOf(SurveyDomainException.class)
+                .hasMessageContaining("must be required");
+    }
+
+    @Test
     void rejectsOptionsForNonChoiceQuestion() {
         assertThatThrownBy(() -> new SurveyQuestion(
                 questionId(),
