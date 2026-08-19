@@ -5,6 +5,7 @@ import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliv
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
@@ -53,6 +54,8 @@ class SurveyApplicationUseCaseIntegrationTest {
             new SurveyActorId("local-admin");
     private static final SurveyUserId USER =
             new SurveyUserId("survey-user-1");
+    private static final PersonaUserId PERSONA_USER =
+            new PersonaUserId(USER.value());
 
     @Autowired
     private SurveyContentVersionService contentService;
@@ -139,7 +142,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM integration_outbox",
                 Integer.class)).isEqualTo(1);
-        assertThat(currentPersonaQuery.findCurrent(USER))
+        assertThat(currentPersonaQuery.findCurrent(PERSONA_USER))
                 .satisfies(currentPersona -> {
                     assertThat(currentPersona.personaReady()).isFalse();
                     assertThat(currentPersona.sourceResponseId())
@@ -167,7 +170,7 @@ class SurveyApplicationUseCaseIntegrationTest {
                 new PersonaId("persona-first"),
                 firstGeneration.createdAt().plusSeconds(2));
         personaGenerations.save(firstGeneration);
-        assertThat(currentPersonaQuery.findCurrent(USER).personaReady())
+        assertThat(currentPersonaQuery.findCurrent(PERSONA_USER).personaReady())
                 .isTrue();
 
         var replayed = submissionService.submit(
@@ -237,7 +240,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM persona_generations",
                 Integer.class)).isEqualTo(2);
-        assertThat(currentPersonaQuery.findCurrent(USER))
+        assertThat(currentPersonaQuery.findCurrent(PERSONA_USER))
                 .satisfies(currentPersona -> {
                     assertThat(currentPersona.personaReady()).isFalse();
                     assertThat(currentPersona.sourceResponseId())

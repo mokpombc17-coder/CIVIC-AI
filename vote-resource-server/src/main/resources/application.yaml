@@ -19,6 +19,18 @@ vote:
       batch-size: 20
   security:
     local-admin-api-enabled: false
+  persona:
+    enabled: ${vote.survey.persona.enabled:false}
+    provider: ${vote.survey.persona.provider:http}
+    base-url: ${vote.survey.persona.base-url:http://localhost:8090}
+    auth-token: ${vote.survey.persona.auth-token:}
+    connect-timeout: ${vote.survey.persona.connect-timeout:5s}
+    request-timeout: ${vote.survey.persona.request-timeout:60s}
+    dispatcher-delay: ${vote.survey.persona.dispatcher-delay:5s}
+    retry-initial-delay: ${vote.survey.persona.retry-initial-delay:30s}
+    retry-max-delay: ${vote.survey.persona.retry-max-delay:2m}
+    max-attempts: ${vote.survey.persona.max-attempts:3}
+    batch-size: ${vote.survey.persona.batch-size:10}
   task:
     bootstrap:
       enabled: false
@@ -44,14 +56,3 @@ vote:
   survey:
     bootstrap:
       enabled: false
-    persona:
-      enabled: false
-      provider: http
-      base-url: http://localhost:8090
-      connect-timeout: 5s
-      request-timeout: 60s
-      dispatcher-delay: 5s
-      retry-initial-delay: 30s
-      retry-max-delay: 2m
-      max-attempts: 3
-      batch-size: 10

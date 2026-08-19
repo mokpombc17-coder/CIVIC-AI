@@ -2,7 +2,6 @@ package com.hamcheeze.vote.survey.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
-import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
@@ -41,7 +40,6 @@ final class SurveyUserController {
     private final SurveyResponseSubmissionService submissions;
     private final MySurveyResponseQueryService responses;
     private final SurveyEligibilityQueryService eligibility;
-    private final CurrentPersonaQueryService currentPersona;
     private final SurveyContentVersionService contents;
 
     SurveyUserController(
@@ -50,7 +48,6 @@ final class SurveyUserController {
             SurveyResponseSubmissionService submissions,
             MySurveyResponseQueryService responses,
             SurveyEligibilityQueryService eligibility,
-            CurrentPersonaQueryService currentPersona,
             SurveyContentVersionService contents
     ) {
         this.userIds = userIds;
@@ -58,7 +55,6 @@ final class SurveyUserController {
         this.submissions = submissions;
         this.responses = responses;
         this.eligibility = eligibility;
-        this.currentPersona = currentPersona;
         this.contents = contents;
     }
 
@@ -158,14 +154,6 @@ final class SurveyUserController {
             throw activeRoundUnavailable();
         }
         return SurveyApiModels.EligibilityResponse.from(decision);
-    }
-
-    @GetMapping("/persona-status")
-    SurveyApiModels.PersonaStatusResponse personaStatus(
-            Authentication authentication
-    ) {
-        return SurveyApiModels.PersonaStatusResponse.from(
-                currentPersona.findCurrent(userId(authentication)));
     }
 
     private SurveyUserId userId(Authentication authentication) {

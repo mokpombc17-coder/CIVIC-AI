@@ -18,7 +18,7 @@ import java.util.UUID;
 @Component
 @Profile("local")
 @ConditionalOnProperty(
-        prefix = "vote.survey.persona",
+        prefix = "vote.persona",
         name = "provider",
         havingValue = "fake")
 public class LocalPersonaFakeCreationAdapter

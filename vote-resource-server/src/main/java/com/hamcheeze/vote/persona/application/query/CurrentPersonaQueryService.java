@@ -2,6 +2,7 @@ package com.hamcheeze.vote.persona.application.query;
 
 import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import org.springframework.stereotype.Service;
@@ -25,9 +26,9 @@ public class CurrentPersonaQueryService {
     }
 
     @Transactional(readOnly = true)
-    public CurrentPersonaStatus findCurrent(SurveyUserId userId) {
+    public CurrentPersonaStatus findCurrent(PersonaUserId userId) {
         Objects.requireNonNull(userId, "userId");
-        return responses.findLatestByUserId(userId)
+        return responses.findLatestByUserId(new SurveyUserId(userId.value()))
                 .map(response -> generations
                         .findBySourceResponseId(response.id())
                         .map(CurrentPersonaStatus::from)

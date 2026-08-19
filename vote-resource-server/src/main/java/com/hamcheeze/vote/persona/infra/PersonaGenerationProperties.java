@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
 
-@ConfigurationProperties("vote.survey.persona")
+@ConfigurationProperties("vote.persona")
 public class PersonaGenerationProperties {
 
     private boolean enabled;

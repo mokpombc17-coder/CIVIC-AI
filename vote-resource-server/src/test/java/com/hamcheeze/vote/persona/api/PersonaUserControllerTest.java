@@ -1,0 +1,74 @@
+package com.hamcheeze.vote.persona.api;
+
+import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
+import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
+import com.hamcheeze.vote.persona.domain.PersonaGeneration;
+import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
+import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.security.core.Authentication;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+class PersonaUserControllerTest {
+
+    private final AuthenticatedUserIdResolver userIds =
+            mock(AuthenticatedUserIdResolver.class);
+    private final CurrentPersonaQueryService currentPersona =
+            mock(CurrentPersonaQueryService.class);
+    private final Authentication authentication = mock(Authentication.class);
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        when(userIds.resolve(authentication)).thenReturn("user-a");
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                        new PersonaUserController(userIds, currentPersona))
+                .build();
+    }
+
+    @Test
+    void exposesReadinessWithoutExternalPersonaId() throws Exception {
+        PersonaGeneration generation = PersonaGeneration.pending(
+                new PersonaGenerationId(UUID.randomUUID()),
+                new PersonaSourceId(UUID.randomUUID()),
+                Instant.parse("2026-08-14T00:00:00Z"));
+        generation.startProcessing(
+                Instant.parse("2026-08-14T00:00:01Z"));
+        generation.succeed(
+                new PersonaId("external-persona-secret"),
+                Instant.parse("2026-08-14T00:00:02Z"));
+        when(currentPersona.findCurrent(new PersonaUserId("user-a")))
+                .thenReturn(CurrentPersonaStatus.from(generation));
+
+        mockMvc.perform(get("/api/v1/me/persona-status")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.personaReady").value(true))
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.capabilities[0]").value(
+                        "USE_PERSONALIZED_SERVICE"))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(
+                                org.hamcrest.Matchers.containsString(
+                                        "external-persona-secret"))));
+
+        verify(currentPersona).findCurrent(new PersonaUserId("user-a"));
+    }
+}

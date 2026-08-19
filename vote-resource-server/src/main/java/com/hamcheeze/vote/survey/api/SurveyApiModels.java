@@ -1,6 +1,5 @@
 package com.hamcheeze.vote.survey.api;
 
-import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
@@ -499,27 +498,6 @@ final class SurveyApiModels {
                     value.nextAction().map(Enum::name).orElse(null),
                     value.activeRoundId().map(id -> id.value()).orElse(null),
                     value.evaluatedAt(),
-                    value.capabilities().stream().map(Enum::name).sorted()
-                            .toList());
-        }
-    }
-
-    record PersonaStatusResponse(
-            boolean personaReady,
-            String status,
-            UUID sourceResponseId,
-            UUID generationId,
-            String lastErrorCode,
-            List<String> capabilities
-    ) {
-        static PersonaStatusResponse from(CurrentPersonaStatus value) {
-            return new PersonaStatusResponse(
-                    value.personaReady(),
-                    value.status().name(),
-                    value.sourceResponseId().map(id -> id.value())
-                            .orElse(null),
-                    value.generationId().map(id -> id.value()).orElse(null),
-                    value.lastErrorCode().orElse(null),
                     value.capabilities().stream().map(Enum::name).sorted()
                             .toList());
         }

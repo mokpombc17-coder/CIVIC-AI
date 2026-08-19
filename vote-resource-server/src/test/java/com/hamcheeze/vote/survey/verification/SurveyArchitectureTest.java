@@ -38,6 +38,13 @@ class SurveyArchitectureTest {
                 List.of("com.hamcheeze.vote.persona."));
     }
 
+    @Test
+    void apiDoesNotDependOnPersona() throws Exception {
+        assertNoDependencies(
+                "com.hamcheeze.vote.survey.api",
+                List.of("com.hamcheeze.vote.persona."));
+    }
+
     private void assertNoDependencies(
             String packageName,
             List<String> forbiddenDependencies

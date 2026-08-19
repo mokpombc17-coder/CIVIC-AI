@@ -36,7 +36,7 @@ import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(
-        prefix = "vote.survey.persona",
+        prefix = "vote.persona",
         name = "provider",
         havingValue = "http",
         matchIfMissing = true)

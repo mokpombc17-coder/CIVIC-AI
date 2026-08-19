@@ -208,6 +208,14 @@ class VoteApiSecurityIntegrationTest {
                                                 .SURVEY_RESPONSES_WRITE)))
                 .andExpect(status().isOk());
 
+        mockMvc.perform(get("/api/v1/me/persona-status")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.PERSONAS_READ)))
+                .andExpect(status().isOk());
+
         String taskReadToken = scopedToken(
                 "user-a",
                 VoteScopes.TASKS_READ);
@@ -267,6 +275,16 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(jsonPath("$.code")
                         .value("ACCESS_DENIED"));
 
+        mockMvc.perform(get("/api/v1/me/persona-status")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.SURVEYS_READ)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
+
         mockMvc.perform(post(
                         "/api/v1/me/tasks/security-probe/prediction")
                         .header(
@@ -295,6 +313,7 @@ class VoteApiSecurityIntegrationTest {
                 "user-a",
                 VoteScopes.SURVEYS_READ,
                 VoteScopes.SURVEY_RESPONSES_WRITE,
+                VoteScopes.PERSONAS_READ,
                 VoteScopes.TASKS_READ,
                 VoteScopes.PREDICTIONS_WRITE,
                 VoteScopes.SUBMISSIONS_READ,

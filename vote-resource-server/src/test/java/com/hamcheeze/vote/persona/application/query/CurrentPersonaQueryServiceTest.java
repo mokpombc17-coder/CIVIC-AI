@@ -5,6 +5,7 @@ import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationReposito
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceCapability;
@@ -25,7 +26,9 @@ class CurrentPersonaQueryServiceTest {
 
     private static final Instant NOW =
             Instant.parse("2026-08-14T00:00:00Z");
-    private static final SurveyUserId USER = new SurveyUserId("user-a");
+    private static final PersonaUserId USER = new PersonaUserId("user-a");
+    private static final SurveyUserId SURVEY_USER =
+            new SurveyUserId(USER.value());
 
     private final SurveyResponseRepository responses =
             mock(SurveyResponseRepository.class);
@@ -36,7 +39,8 @@ class CurrentPersonaQueryServiceTest {
 
     @Test
     void noResponseMeansPersonaIsNotReady() {
-        when(responses.findLatestByUserId(USER)).thenReturn(Optional.empty());
+        when(responses.findLatestByUserId(SURVEY_USER))
+                .thenReturn(Optional.empty());
 
         var result = service.findCurrent(USER);
 
@@ -50,7 +54,7 @@ class CurrentPersonaQueryServiceTest {
         SurveyResponse latest = mock(SurveyResponse.class);
         SurveyResponseId latestResponseId = responseId();
         when(latest.id()).thenReturn(latestResponseId);
-        when(responses.findLatestByUserId(USER))
+        when(responses.findLatestByUserId(SURVEY_USER))
                 .thenReturn(Optional.of(latest));
         PersonaGeneration pending = PersonaGeneration.pending(
                 generationId(), sourceId(latestResponseId), NOW);
@@ -71,7 +75,7 @@ class CurrentPersonaQueryServiceTest {
         SurveyResponse latest = mock(SurveyResponse.class);
         SurveyResponseId latestResponseId = responseId();
         when(latest.id()).thenReturn(latestResponseId);
-        when(responses.findLatestByUserId(USER))
+        when(responses.findLatestByUserId(SURVEY_USER))
                 .thenReturn(Optional.of(latest));
         PersonaGeneration succeeded = PersonaGeneration.pending(
                 generationId(), sourceId(latestResponseId), NOW);

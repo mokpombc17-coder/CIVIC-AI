@@ -11,6 +11,12 @@ vote:
   integration:
     outbox:
       enabled: ${VOTE_INTEGRATION_OUTBOX_ENABLED:true}
+  persona:
+    enabled: ${VOTE_PERSONA_ENABLED:${VOTE_SURVEY_PERSONA_ENABLED:true}}
+    provider: ${VOTE_PERSONA_PROVIDER:${VOTE_SURVEY_PERSONA_PROVIDER:fake}}
+    base-url: ${VOTE_PERSONA_BASE_URL:${VOTE_SURVEY_PERSONA_BASE_URL:http://localhost:8090}}
+    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}}
+    dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:500ms}}
   task:
     bootstrap:
       enabled: ${VOTE_TASK_BOOTSTRAP_ENABLED:true}
@@ -31,12 +37,6 @@ vote:
   survey:
     bootstrap:
       enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}
-    persona:
-      enabled: ${VOTE_SURVEY_PERSONA_ENABLED:true}
-      provider: ${VOTE_SURVEY_PERSONA_PROVIDER:fake}
-      base-url: ${VOTE_SURVEY_PERSONA_BASE_URL:http://localhost:8090}
-      auth-token: ${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}
-      dispatcher-delay: ${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:500ms}
   security:
     local-admin-api-enabled: true
     cookie-authentication-enabled: true

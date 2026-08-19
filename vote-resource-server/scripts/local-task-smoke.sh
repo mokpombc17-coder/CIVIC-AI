@@ -43,6 +43,7 @@ payload = encode({
     "scope": " ".join([
         "vote:surveys:read",
         "vote:survey-responses:write",
+        "vote:personas:read",
         "vote:tasks:read",
         "vote:predictions:write",
         "vote:submissions:read",

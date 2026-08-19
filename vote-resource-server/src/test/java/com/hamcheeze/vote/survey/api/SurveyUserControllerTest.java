@@ -2,21 +2,15 @@ package com.hamcheeze.vote.survey.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
-import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
-import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.response.SurveySubmissionOutcome;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
-import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
-import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
-import com.hamcheeze.vote.persona.domain.PersonaGeneration;
-import com.hamcheeze.vote.persona.domain.PersonaId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -52,8 +46,6 @@ class SurveyUserControllerTest {
             mock(MySurveyResponseQueryService.class);
     private final SurveyEligibilityQueryService eligibility =
             mock(SurveyEligibilityQueryService.class);
-    private final CurrentPersonaQueryService currentPersona =
-            mock(CurrentPersonaQueryService.class);
     private final Authentication authentication = mock(Authentication.class);
     private final SurveyContentVersionService contents =
             mock(SurveyContentVersionService.class);
@@ -69,7 +61,6 @@ class SurveyUserControllerTest {
                         submissions,
                         responses,
                         eligibility,
-                        currentPersona,
                         contents))
                 .setControllerAdvice(new SurveyApiExceptionHandler())
                 .build();
@@ -108,34 +99,6 @@ class SurveyUserControllerTest {
                 eq(new com.hamcheeze.vote.survey.domain.common
                         .SurveyUserId("user-a")),
                 eq(new SurveyResponseId(responseId)));
-    }
-
-    @Test
-    void personaStatusExposesReadinessWithoutExternalPersonaId()
-            throws Exception {
-        PersonaGeneration generation = PersonaGeneration.pending(
-                new PersonaGenerationId(UUID.randomUUID()),
-                new PersonaSourceId(UUID.randomUUID()),
-                Instant.parse("2026-08-14T00:00:00Z"));
-        generation.startProcessing(
-                Instant.parse("2026-08-14T00:00:01Z"));
-        generation.succeed(
-                new PersonaId("external-persona-secret"),
-                Instant.parse("2026-08-14T00:00:02Z"));
-        when(currentPersona.findCurrent(any()))
-                .thenReturn(CurrentPersonaStatus.from(generation));
-
-        mockMvc.perform(get("/api/v1/me/persona-status")
-                        .principal(authentication))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.personaReady").value(true))
-                .andExpect(jsonPath("$.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.capabilities[0]").value(
-                        "USE_PERSONALIZED_SERVICE"))
-                .andExpect(content().string(
-                        org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString(
-                                        "external-persona-secret"))));
     }
 
     @Test

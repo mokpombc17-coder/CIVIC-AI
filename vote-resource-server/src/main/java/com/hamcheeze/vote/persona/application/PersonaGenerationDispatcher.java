@@ -20,7 +20,7 @@ import java.util.Optional;
 
 @Component
 @ConditionalOnProperty(
-        prefix = "vote.survey.persona",
+        prefix = "vote.persona",
         name = "enabled",
         havingValue = "true")
 public class PersonaGenerationDispatcher {
@@ -62,7 +62,7 @@ public class PersonaGenerationDispatcher {
     }
 
     @Scheduled(fixedDelayString =
-            "${vote.survey.persona.dispatcher-delay:5s}")
+            "${vote.persona.dispatcher-delay:5s}")
     public void dispatchScheduled() {
         dispatchAvailable();
     }

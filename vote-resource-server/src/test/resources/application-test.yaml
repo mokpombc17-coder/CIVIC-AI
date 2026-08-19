@@ -8,6 +8,8 @@ vote:
   integration:
     outbox:
       enabled: false
+  persona:
+    enabled: false
   task:
     bootstrap:
       enabled: false
@@ -17,6 +19,4 @@ vote:
       enabled: false
   survey:
     bootstrap:
-      enabled: false
-    persona:
       enabled: false

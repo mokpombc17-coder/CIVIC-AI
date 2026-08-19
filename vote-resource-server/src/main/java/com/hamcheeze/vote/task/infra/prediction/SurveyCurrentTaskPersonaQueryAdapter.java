@@ -2,7 +2,7 @@ package com.hamcheeze.vote.task.infra.prediction;
 
 import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
@@ -31,7 +31,7 @@ public class SurveyCurrentTaskPersonaQueryAdapter
     ) {
         Objects.requireNonNull(userId, "userId");
         CurrentPersonaStatus current = currentPersonas.findCurrent(
-                new SurveyUserId(userId.value()));
+                new PersonaUserId(userId.value()));
         if (!current.personaReady()) {
             return Optional.empty();
         }
