@@ -31,6 +31,7 @@ import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.GENERA
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.NOW;
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.PERSONA;
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.USER;
+import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
@@ -86,6 +87,7 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.state()).isEqualTo(NOT_REQUESTED);
         assertThat(view.predictionRequestAllowed()).isTrue();
         assertThat(view.personaGenerationId()).isEqualTo(GENERATION);
+        assertThat(view.personaVersionId()).isEqualTo(VERSION);
     }
 
     @Test
@@ -189,6 +191,6 @@ class TaskPredictionQueryServiceTest {
         availableTask();
         when(currentPersonas.findCurrentUsable(USER))
                 .thenReturn(Optional.of(new CurrentTaskPersona(
-                        GENERATION, PERSONA)));
+                        GENERATION, VERSION, PERSONA)));
     }
 }

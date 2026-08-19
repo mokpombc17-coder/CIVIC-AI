@@ -10,6 +10,7 @@ import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
@@ -145,6 +146,7 @@ class TaskQueryServiceIntegrationTest {
                 storedTask,
                 prediction,
                 persona.generationId(),
+                persona.versionId(),
                 List.of(new AcceptTaskPredictionCandidate(
                         question.id(),
                         prediction.candidates().getFirst().id())),
@@ -189,6 +191,7 @@ class TaskQueryServiceIntegrationTest {
                 userId,
                 task.id(),
                 persona.generationId(),
+                persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
                 2,
@@ -231,6 +234,7 @@ class TaskQueryServiceIntegrationTest {
         UUID roundId = UUID.randomUUID();
         UUID responseId = UUID.randomUUID();
         UUID generationId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
         String personaId = "persona-" + generationId;
         Timestamp timestamp = Timestamp.from(submittedAt);
         jdbcTemplate.update("""
@@ -265,13 +269,24 @@ class TaskQueryServiceIntegrationTest {
                 VALUES (?, 'SURVEY_RESPONSE', ?, ?, 'SUCCEEDED', 1, ?, ?, ?, ?)
                 """, generationId, responseId, personaId,
                 timestamp, timestamp, timestamp, timestamp);
+        jdbcTemplate.update("""
+                INSERT INTO persona_versions (
+                    persona_version_id, generation_id, user_id,
+                    provider_persona_id, predicted_adoption_rate,
+                    model_version, generated_at, source_type, source_id)
+                VALUES (?, ?, ?, ?, 0.5, 'test-model-v1', ?,
+                    'SURVEY_RESPONSE', ?)
+                """, versionId, generationId, userId, personaId,
+                timestamp, responseId);
         return new PersonaFixture(
                 new TaskPersonaGenerationId(generationId),
+                new TaskPersonaVersionId(versionId),
                 new TaskPersonaId(personaId));
     }
 
     private record PersonaFixture(
             TaskPersonaGenerationId generationId,
+            TaskPersonaVersionId versionId,
             TaskPersonaId personaId
     ) {
     }

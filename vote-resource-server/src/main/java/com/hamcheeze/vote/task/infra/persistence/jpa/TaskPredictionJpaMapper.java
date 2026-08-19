@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.infra.persistence.jpa;
 
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
@@ -79,6 +80,7 @@ final class TaskPredictionJpaMapper {
                 new TaskUserId(entity.userId()),
                 task,
                 new TaskPersonaGenerationId(entity.personaGenerationId()),
+                new TaskPersonaVersionId(entity.personaVersionId()),
                 new TaskPersonaId(entity.personaId()),
                 entity.candidatePolicyVersion(),
                 entity.requestedCandidateCount(),

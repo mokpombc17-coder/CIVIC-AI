@@ -24,6 +24,7 @@ import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
@@ -169,6 +170,7 @@ class TaskJpaAdapterIntegrationTest {
         predictions.saveAttempt(attempt);
 
         assertThat(inserted.status()).isEqualTo(TaskPredictionStatus.SUCCEEDED);
+        assertThat(inserted.personaVersionId()).isEqualTo(persona.versionId());
         assertThat(inserted.candidates()).hasSize(3);
         assertThat(inserted.candidates().getFirst().answerValue())
                 .isEqualTo(new SingleChoiceValue(new TaskOptionSelection(
@@ -216,6 +218,7 @@ class TaskJpaAdapterIntegrationTest {
                 fixture.task(),
                 prediction,
                 persona.generationId(),
+                persona.versionId(),
                 List.of(
                         TaskSubmissionAnswer.aiAccepted(
                                 fixture.choiceQuestionId(),
@@ -227,6 +230,7 @@ class TaskJpaAdapterIntegrationTest {
                 NOW);
 
         TaskSubmission stored = submissions.insert(submission);
+        assertThat(stored.personaVersionId()).isEqualTo(persona.versionId());
         assertThat(stored.answers()).hasSize(2);
         assertThat(stored.answers().getFirst()
                 .adoptedPredictionCandidateId()).isEqualTo(adopted.id());
@@ -278,6 +282,7 @@ class TaskJpaAdapterIntegrationTest {
                 userId,
                 fixture.task(),
                 persona.generationId(),
+                persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
                 2,
@@ -320,6 +325,7 @@ class TaskJpaAdapterIntegrationTest {
                 fixture.task(),
                 prediction,
                 persona.generationId(),
+                persona.versionId(),
                 answers,
                 NOW);
 
@@ -567,6 +573,7 @@ class TaskJpaAdapterIntegrationTest {
                 userId,
                 fixture.task(),
                 persona.generationId(),
+                persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
                 1,
@@ -621,6 +628,7 @@ class TaskJpaAdapterIntegrationTest {
                 createdAt, createdAt, createdAt, createdAt);
         return new PersonaFixture(
                 new TaskPersonaGenerationId(generationId),
+                new TaskPersonaVersionId(UUID.randomUUID()),
                 new TaskPersonaId(personaId));
     }
 
@@ -646,6 +654,7 @@ class TaskJpaAdapterIntegrationTest {
 
     private record PersonaFixture(
             TaskPersonaGenerationId generationId,
+            TaskPersonaVersionId versionId,
             TaskPersonaId personaId
     ) {
     }

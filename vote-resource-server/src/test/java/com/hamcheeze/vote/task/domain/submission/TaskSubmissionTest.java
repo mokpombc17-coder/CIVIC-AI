@@ -20,6 +20,7 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.openTask;
 import static com.hamcheeze.vote.task.TaskTestFixtures.optionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.pendingPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaGenerationId;
+import static com.hamcheeze.vote.task.TaskTestFixtures.personaVersionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.questionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.submissionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.succeededPrediction;
@@ -36,7 +37,7 @@ class TaskSubmissionTest {
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, prediction,
-                personaGenerationId(),
+                personaGenerationId(), personaVersionId(),
                 List.of(
                         new AcceptTaskPredictionCandidate(
                                 questionId(1), candidateId(1)),
@@ -47,6 +48,8 @@ class TaskSubmissionTest {
                                 new ShortTextValue("  직접 답변  "))),
                 NOW.plusSeconds(30));
 
+        assertThat(submission.personaVersionId())
+                .isEqualTo(personaVersionId());
         assertThat(submission.answers())
                 .extracting(TaskSubmissionAnswer::source)
                 .containsExactly(
@@ -71,7 +74,7 @@ class TaskSubmissionTest {
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, failed,
-                personaGenerationId(), directAnswers(),
+                personaGenerationId(), personaVersionId(), directAnswers(),
                 NOW.plusSeconds(30));
 
         assertThat(submission.answers())
@@ -79,7 +82,7 @@ class TaskSubmissionTest {
                         answer.source() == TaskAnswerSource.USER_ANSWERED);
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, failed,
-                personaGenerationId(),
+                personaGenerationId(), personaVersionId(),
                 List.of(
                         new AcceptTaskPredictionCandidate(
                                 questionId(1), candidateId(1)),
@@ -101,7 +104,8 @@ class TaskSubmissionTest {
 
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, succeeded,
-                personaGenerationId(), missing, NOW.plusSeconds(30)))
+                personaGenerationId(), personaVersionId(), missing,
+                NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
                         exception -> assertThat(exception.violation().code())
@@ -113,12 +117,13 @@ class TaskSubmissionTest {
                 directAnswers().get(1), directAnswers().get(2));
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, succeeded,
-                personaGenerationId(), duplicate, NOW.plusSeconds(30)))
+                personaGenerationId(), personaVersionId(), duplicate,
+                NOW.plusSeconds(30)))
                 .isInstanceOf(TaskDomainException.class);
 
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, pendingPrediction(2),
-                personaGenerationId(), directAnswers(),
+                personaGenerationId(), personaVersionId(), directAnswers(),
                 NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
@@ -129,6 +134,7 @@ class TaskSubmissionTest {
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, succeeded,
                 new TaskPersonaGenerationId(new UUID(90, 1)),
+                personaVersionId(),
                 directAnswers(), NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
@@ -154,7 +160,8 @@ class TaskSubmissionTest {
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, prediction,
-                personaGenerationId(), answers, NOW.plusSeconds(30));
+                personaGenerationId(), personaVersionId(), answers,
+                NOW.plusSeconds(30));
 
         assertThat(submission.answers().get(1).source())
                 .isEqualTo(TaskAnswerSource.USER_ANSWERED);
@@ -180,7 +187,8 @@ class TaskSubmissionTest {
 
         assertThatThrownBy(() -> TaskSubmission.restore(
                 submissionId(), userId(), task, prediction,
-                personaGenerationId(), corrupted, NOW.plusSeconds(30)))
+                personaGenerationId(), personaVersionId(), corrupted,
+                NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
                         exception -> assertThat(exception.violation().code())

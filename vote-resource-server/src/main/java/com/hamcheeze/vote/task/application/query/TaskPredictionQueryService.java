@@ -8,6 +8,7 @@ import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -125,6 +126,7 @@ public class TaskPredictionQueryService {
             TaskId taskId,
             TaskPredictionViewState state,
             TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             TaskPredictionId predictionId,
             TaskPredictionStatus predictionStatus,
@@ -153,7 +155,7 @@ public class TaskPredictionQueryService {
                 TaskId taskId,
                 TaskPredictionViewState state
         ) {
-            return base(taskId, state, null, null,
+            return base(taskId, state, null, null, null,
                     null, null, List.of(), false, false,
                     false, false, false, List.of(), null,
                     null, null, null);
@@ -164,7 +166,7 @@ public class TaskPredictionQueryService {
                 TaskSubmissionId submissionId
         ) {
             return base(taskId, TaskPredictionViewState.ALREADY_SUBMITTED,
-                    null, null, null, null, List.of(), false,
+                    null, null, null, null, null, List.of(), false,
                     false, false, false, false, List.of(),
                     submissionId, null, null, null);
         }
@@ -174,7 +176,8 @@ public class TaskPredictionQueryService {
                 CurrentTaskPersona persona
         ) {
             return base(taskId, TaskPredictionViewState.NOT_REQUESTED,
-                    persona.generationId(), persona.personaId(),
+                    persona.generationId(), persona.versionId(),
+                    persona.personaId(),
                     null, null, List.of(), false, true,
                     false, false, false, List.of(), null,
                     null, null, null);
@@ -199,6 +202,7 @@ public class TaskPredictionQueryService {
                     taskId,
                     TaskPredictionViewState.valueOf(status.name()),
                     persona.generationId(),
+                    persona.versionId(),
                     persona.personaId(),
                     prediction.id(),
                     status,
@@ -220,6 +224,7 @@ public class TaskPredictionQueryService {
                 TaskId taskId,
                 TaskPredictionViewState state,
                 TaskPersonaGenerationId personaGenerationId,
+                TaskPersonaVersionId personaVersionId,
                 TaskPersonaId personaId,
                 TaskPredictionId predictionId,
                 TaskPredictionStatus predictionStatus,
@@ -236,8 +241,9 @@ public class TaskPredictionQueryService {
                 String failureCode
         ) {
             return new TaskPredictionView(
-                    taskId, state, personaGenerationId, personaId,
-                    predictionId, predictionStatus, candidates, waiting,
+                    taskId, state, personaGenerationId, personaVersionId,
+                    personaId, predictionId, predictionStatus, candidates,
+                    waiting,
                     predictionRequestAllowed, submissionAllowed,
                     predictedAnswerAllowed, directAnswerAllowed,
                     allowedAnswerSources, submissionId, nextRetryAt,

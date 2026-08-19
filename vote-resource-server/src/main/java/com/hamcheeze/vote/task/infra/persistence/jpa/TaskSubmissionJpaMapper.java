@@ -4,6 +4,7 @@ import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
 import com.hamcheeze.vote.task.application.idempotency.TaskRequestHash;
 import com.hamcheeze.vote.task.application.idempotency.TaskSubmissionReceipt;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
 import com.hamcheeze.vote.task.domain.common.TaskReceiptId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
@@ -76,6 +77,7 @@ final class TaskSubmissionJpaMapper {
                 task,
                 prediction,
                 new TaskPersonaGenerationId(entity.personaGenerationId()),
+                new TaskPersonaVersionId(entity.personaVersionId()),
                 answers,
                 entity.submittedAt());
     }

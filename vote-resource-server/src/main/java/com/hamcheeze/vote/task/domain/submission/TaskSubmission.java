@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.domain.submission;
 import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
@@ -29,6 +30,7 @@ public final class TaskSubmission {
     private final TaskUserId userId;
     private final TaskId taskId;
     private final TaskPersonaGenerationId personaGenerationId;
+    private final TaskPersonaVersionId personaVersionId;
     private final TaskPredictionId predictionId;
     private final List<TaskSubmissionAnswer> answers;
     private final Instant submittedAt;
@@ -38,6 +40,7 @@ public final class TaskSubmission {
             TaskUserId userId,
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
             TaskPredictionId predictionId,
             List<TaskSubmissionAnswer> answers,
             Instant submittedAt
@@ -47,6 +50,8 @@ public final class TaskSubmission {
         this.taskId = Objects.requireNonNull(taskId, "taskId");
         this.personaGenerationId = Objects.requireNonNull(
                 personaGenerationId, "personaGenerationId");
+        this.personaVersionId = Objects.requireNonNull(
+                personaVersionId, "personaVersionId");
         this.predictionId = Objects.requireNonNull(predictionId, "predictionId");
         this.answers = immutableAnswers(answers);
         this.submittedAt = Objects.requireNonNull(submittedAt, "submittedAt");
@@ -58,6 +63,7 @@ public final class TaskSubmission {
             Task task,
             TaskPrediction prediction,
             TaskPersonaGenerationId currentPersonaGenerationId,
+            TaskPersonaVersionId currentPersonaVersionId,
             List<TaskSubmissionAnswerCommand> answerCommands,
             Instant submittedAt
     ) {
@@ -71,12 +77,14 @@ public final class TaskSubmission {
                     "submission is allowed only while task is open");
         }
         validatePredictionIdentity(
-                userId, task, prediction, currentPersonaGenerationId);
+                userId, task, prediction, currentPersonaGenerationId,
+                currentPersonaVersionId);
         List<TaskSubmissionAnswer> answers = createAnswers(
                 task, prediction, answerCommands);
         return new TaskSubmission(
                 id, userId, task.id(), currentPersonaGenerationId,
-                prediction.id(), answers, submittedAt);
+                currentPersonaVersionId, prediction.id(), answers,
+                submittedAt);
     }
 
     public static TaskSubmission restore(
@@ -85,24 +93,27 @@ public final class TaskSubmission {
             Task task,
             TaskPrediction prediction,
             TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
             List<TaskSubmissionAnswer> storedAnswers,
             Instant submittedAt
     ) {
         Objects.requireNonNull(task, "task");
         Objects.requireNonNull(prediction, "prediction");
         validatePredictionIdentity(
-                userId, task, prediction, personaGenerationId);
+                userId, task, prediction, personaGenerationId,
+                personaVersionId);
         List<TaskSubmissionAnswer> answers = validateStoredAnswers(
                 task, prediction, storedAnswers);
         return new TaskSubmission(
                 id, userId, task.id(), personaGenerationId,
-                prediction.id(), answers, submittedAt);
+                personaVersionId, prediction.id(), answers, submittedAt);
     }
 
     public TaskSubmissionId id() { return id; }
     public TaskUserId userId() { return userId; }
     public TaskId taskId() { return taskId; }
     public TaskPersonaGenerationId personaGenerationId() { return personaGenerationId; }
+    public TaskPersonaVersionId personaVersionId() { return personaVersionId; }
     public TaskPredictionId predictionId() { return predictionId; }
     public List<TaskSubmissionAnswer> answers() { return answers; }
     public Instant submittedAt() { return submittedAt; }
@@ -246,15 +257,18 @@ public final class TaskSubmission {
             TaskUserId userId,
             Task task,
             TaskPrediction prediction,
-            TaskPersonaGenerationId personaGenerationId
+            TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId
     ) {
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(personaGenerationId, "personaGenerationId");
-        if (!prediction.matches(userId, task.id(), personaGenerationId)) {
+        Objects.requireNonNull(personaVersionId, "personaVersionId");
+        if (!prediction.matches(
+                userId, task.id(), personaGenerationId, personaVersionId)) {
             throw TaskDomainException.invariant(
                     "TASK_SUBMISSION_PREDICTION_MISMATCH",
                     "predictionId",
-                    "prediction user, task or persona generation is stale");
+                    "prediction user, task or persona version is stale");
         }
         if (!prediction.status().terminal()) {
             throw TaskDomainException.invariant(

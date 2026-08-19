@@ -39,6 +39,9 @@ class TaskSubmissionJpaEntity {
     @Column(name = "persona_generation_id", nullable = false)
     private UUID personaGenerationId;
 
+    @Column(name = "persona_version_id", nullable = false)
+    private UUID personaVersionId;
+
     @Column(name = "prediction_id", nullable = false)
     private UUID predictionId;
 
@@ -53,6 +56,7 @@ class TaskSubmissionJpaEntity {
         userId = submission.userId().value();
         taskId = submission.taskId().value();
         personaGenerationId = submission.personaGenerationId().value();
+        personaVersionId = submission.personaVersionId().value();
         predictionId = submission.predictionId().value();
         submittedAt = submission.submittedAt();
     }
@@ -61,6 +65,7 @@ class TaskSubmissionJpaEntity {
     String userId() { return userId; }
     UUID taskId() { return taskId; }
     UUID personaGenerationId() { return personaGenerationId; }
+    UUID personaVersionId() { return personaVersionId; }
     UUID predictionId() { return predictionId; }
     Instant submittedAt() { return submittedAt; }
 }

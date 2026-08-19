@@ -42,6 +42,9 @@ class TaskPredictionJpaEntity {
     @Column(name = "persona_generation_id", nullable = false)
     private UUID personaGenerationId;
 
+    @Column(name = "persona_version_id", nullable = false)
+    private UUID personaVersionId;
+
     @Column(name = "persona_id", nullable = false, length = 512)
     private String personaId;
 
@@ -85,6 +88,7 @@ class TaskPredictionJpaEntity {
         userId = prediction.userId().value();
         taskId = prediction.taskId().value();
         personaGenerationId = prediction.personaGenerationId().value();
+        personaVersionId = prediction.personaVersionId().value();
         personaId = prediction.personaId().value();
         candidatePolicyVersion = prediction.candidatePolicyVersion();
         requestedCandidateCount = prediction.requestedCandidateCount();
@@ -109,6 +113,7 @@ class TaskPredictionJpaEntity {
     String userId() { return userId; }
     UUID taskId() { return taskId; }
     UUID personaGenerationId() { return personaGenerationId; }
+    UUID personaVersionId() { return personaVersionId; }
     String personaId() { return personaId; }
     TaskPredictionStatus status() { return status; }
     String candidatePolicyVersion() { return candidatePolicyVersion; }

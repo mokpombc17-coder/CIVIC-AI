@@ -193,6 +193,7 @@ public class TaskSubmissionService {
                     task,
                     prediction,
                     currentPersona.generationId(),
+                    currentPersona.versionId(),
                     command.answers(),
                     submittedAt);
             return TaskSubmissionOutcome.submitted(

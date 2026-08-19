@@ -3,19 +3,26 @@ package com.hamcheeze.vote.persona.application.query;
 import com.hamcheeze.vote.persona.application.CurrentPersonaStatus.Status;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
+import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
+import com.hamcheeze.vote.persona.domain.PersonaVersion;
+import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
+import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static com.hamcheeze.vote.persona.application.CurrentPersonaStatus.Capability;
@@ -30,8 +37,10 @@ class CurrentPersonaQueryServiceTest {
             mock(PersonaSurveySourceQueryPort.class);
     private final PersonaGenerationRepository generations =
             mock(PersonaGenerationRepository.class);
+    private final PersonaVersionRepository versions =
+            mock(PersonaVersionRepository.class);
     private final CurrentPersonaQueryService service =
-            new CurrentPersonaQueryService(sources, generations);
+            new CurrentPersonaQueryService(sources, generations, versions);
 
     @Test
     void noResponseMeansPersonaIsNotReady() {
@@ -80,6 +89,9 @@ class CurrentPersonaQueryServiceTest {
         when(generations.findBySource(
                 PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
                 .thenReturn(Optional.of(succeeded));
+        PersonaVersion version = version(succeeded, latestSourceId);
+        when(versions.findByGenerationId(succeeded.id()))
+                .thenReturn(Optional.of(version));
 
         var result = service.findCurrent(USER);
 
@@ -87,8 +99,32 @@ class CurrentPersonaQueryServiceTest {
         assertThat(result.personaReady()).isTrue();
         assertThat(result.personaId()).contains(
                 new PersonaId("persona-current"));
+        assertThat(result.personaVersionId())
+                .contains(version.personaVersionId());
         assertThat(result.capabilities()).containsExactly(
                 Capability.USE_PERSONALIZED_SERVICE);
+    }
+
+    @Test
+    void succeededGenerationWithoutVersionIsRejectedAsCorruptedState() {
+        PersonaSourceId latestSourceId = sourceId();
+        PersonaGeneration succeeded = PersonaGeneration.pending(
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                latestSourceId, NOW);
+        succeeded.startProcessing(NOW.plusSeconds(1));
+        succeeded.succeed(
+                new PersonaId("persona-current"), NOW.plusSeconds(2));
+        when(sources.findLatestSourceIdByUserId(USER))
+                .thenReturn(Optional.of(latestSourceId));
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
+                .thenReturn(Optional.of(succeeded));
+        when(versions.findByGenerationId(succeeded.id()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.findCurrent(USER))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("no version");
     }
 
     private static PersonaSourceId sourceId() {
@@ -97,6 +133,22 @@ class CurrentPersonaQueryServiceTest {
 
     private static PersonaGenerationId generationId() {
         return new PersonaGenerationId(UUID.randomUUID());
+    }
+
+    private static PersonaVersion version(
+            PersonaGeneration generation,
+            PersonaSourceId sourceId
+    ) {
+        return new PersonaVersion(
+                new PersonaVersionId(UUID.randomUUID()),
+                generation.id(),
+                USER,
+                generation.personaId().orElseThrow(),
+                new PredictedAdoptionRate(new BigDecimal("0.7")),
+                new PersonaModelVersion("model-v1"),
+                NOW.plusSeconds(2),
+                PersonaSourceType.SURVEY_RESPONSE,
+                sourceId);
     }
 
 }

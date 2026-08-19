@@ -29,6 +29,7 @@ import java.util.Optional;
 import static com.hamcheeze.vote.task.TaskTestFixtures.NOW;
 import static com.hamcheeze.vote.task.TaskTestFixtures.pendingPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaGenerationId;
+import static com.hamcheeze.vote.task.TaskTestFixtures.personaVersionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.predictionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.questionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.shortTextQuestion;
@@ -94,6 +95,8 @@ class TaskUserControllerTest {
                                 + "/prediction"))
                 .andExpect(jsonPath("$.created").value(true))
                 .andExpect(jsonPath("$.waiting").value(true))
+                .andExpect(jsonPath("$.personaVersionId")
+                        .value(personaVersionId().value().toString()))
                 .andExpect(jsonPath("$.personaId").value("persona-a"));
 
         verify(predictions).ensureTaskPrediction(
@@ -108,6 +111,7 @@ class TaskUserControllerTest {
                         TaskPredictionQueryService.TaskPredictionViewState
                                 .PENDING,
                         personaGenerationId(),
+                        personaVersionId(),
                         new com.hamcheeze.vote.task.domain.common
                                 .TaskPersonaId("persona-a"),
                         predictionId(),
@@ -123,6 +127,8 @@ class TaskUserControllerTest {
                         taskId().value()).principal(authentication))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("PENDING"))
+                .andExpect(jsonPath("$.personaVersionId")
+                        .value(personaVersionId().value().toString()))
                 .andExpect(jsonPath("$.waiting").value(true))
                 .andExpect(jsonPath("$.predictionRequestAllowed")
                         .value(false));
@@ -226,7 +232,8 @@ class TaskUserControllerTest {
         MyTaskSubmissionQueryService.MyTaskSubmission view =
                 new MyTaskSubmissionQueryService.MyTaskSubmission(
                         submissionId(), taskId(), "테스트 과업", "설명",
-                        personaGenerationId(), predictionId(),
+                        personaGenerationId(), personaVersionId(),
+                        predictionId(),
                         NOW.plusSeconds(30),
                         List.of(new MyTaskSubmissionQueryService
                                 .MyTaskSubmissionAnswer(
@@ -241,6 +248,8 @@ class TaskUserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.submissionId")
                         .value(submissionId().value().toString()))
+                .andExpect(jsonPath("$.personaVersionId")
+                        .value(personaVersionId().value().toString()))
                 .andExpect(jsonPath("$.answers[0].source")
                         .value("USER_ANSWERED"));
 
@@ -270,7 +279,7 @@ class TaskUserControllerTest {
             TaskPredictionQueryService.TaskPredictionViewState state
     ) {
         return new TaskPredictionQueryService.TaskPredictionView(
-                taskId(), state, null, null, null, null,
+                taskId(), state, null, null, null, null, null,
                 List.of(), false, false, false, false, false,
                 List.of(), null, null, null, null);
     }

@@ -5,8 +5,13 @@ import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliv
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
+import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
+import com.hamcheeze.vote.persona.domain.PersonaVersion;
+import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
+import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
@@ -39,6 +44,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -82,6 +88,9 @@ class SurveyApplicationUseCaseIntegrationTest {
 
     @Autowired
     private PersonaGenerationRepository personaGenerations;
+
+    @Autowired
+    private PersonaVersionRepository personaVersions;
 
     @Autowired
     private IntegrationOutboxDeliveryService outboxDeliveries;
@@ -180,6 +189,16 @@ class SurveyApplicationUseCaseIntegrationTest {
                 new PersonaId("persona-first"),
                 firstGeneration.createdAt().plusSeconds(2));
         personaGenerations.save(firstGeneration);
+        personaVersions.insert(new PersonaVersion(
+                new PersonaVersionId(UUID.randomUUID()),
+                firstGeneration.id(),
+                PERSONA_USER,
+                firstGeneration.personaId().orElseThrow(),
+                new PredictedAdoptionRate(new BigDecimal("0.5")),
+                new PersonaModelVersion("test-model-v1"),
+                firstGeneration.createdAt().plusSeconds(2),
+                PersonaSourceType.SURVEY_RESPONSE,
+                firstGeneration.sourceId()));
         assertThat(currentPersonaQuery.findCurrent(PERSONA_USER).personaReady())
                 .isTrue();
 

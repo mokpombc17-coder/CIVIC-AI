@@ -6,6 +6,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import org.springframework.stereotype.Component;
 
@@ -38,6 +39,8 @@ public class PersonaCurrentTaskPersonaQueryAdapter
         return Optional.of(new CurrentTaskPersona(
                 new TaskPersonaGenerationId(
                         current.generationId().orElseThrow().value()),
+                new TaskPersonaVersionId(
+                        current.personaVersionId().orElseThrow().value()),
                 new TaskPersonaId(
                         current.personaId().orElseThrow().value())));
     }

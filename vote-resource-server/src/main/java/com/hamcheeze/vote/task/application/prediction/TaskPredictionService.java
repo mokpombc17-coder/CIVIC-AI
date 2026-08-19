@@ -77,6 +77,7 @@ public class TaskPredictionService {
                 userId,
                 task.id(),
                 persona.generationId(),
+                persona.versionId(),
                 persona.personaId(),
                 policy.candidatePolicyVersion(),
                 policy.requestedCandidateCount(),

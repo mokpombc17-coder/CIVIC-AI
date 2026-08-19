@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.application.prediction.PredictionCreationCommand;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationException;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationResult;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
@@ -55,6 +56,8 @@ class LocalTaskPredictionFakeCreationAdapterTest {
                 new com.hamcheeze.vote.task.domain.common
                         .TaskPersonaGenerationId(UUID.fromString(
                         "13030000-0000-0000-0000-000000000002")),
+                new TaskPersonaVersionId(UUID.fromString(
+                        "13030000-0000-0000-0000-000000000003")),
                 new TaskPersonaId("local-persona"),
                 "candidate-policy-v1",
                 2,

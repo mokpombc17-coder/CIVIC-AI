@@ -4,6 +4,7 @@ import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import org.junit.jupiter.api.Test;
@@ -24,9 +25,11 @@ class PersonaCurrentTaskPersonaQueryAdapterTest {
         CurrentPersonaQueryService query =
                 mock(CurrentPersonaQueryService.class);
         UUID generationId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
         when(query.findCurrent(any())).thenReturn(new CurrentPersonaStatus(
                 Optional.empty(),
                 Optional.of(new PersonaGenerationId(generationId)),
+                Optional.of(new PersonaVersionId(versionId)),
                 CurrentPersonaStatus.Status.SUCCEEDED,
                 Optional.of(new PersonaId("persona-external")),
                 Optional.empty(),
@@ -41,6 +44,7 @@ class PersonaCurrentTaskPersonaQueryAdapterTest {
         assertThat(result).get().satisfies(persona -> {
             assertThat(persona.generationId().value())
                     .isEqualTo(generationId);
+            assertThat(persona.versionId().value()).isEqualTo(versionId);
             assertThat(persona.personaId().value())
                     .isEqualTo("persona-external");
         });

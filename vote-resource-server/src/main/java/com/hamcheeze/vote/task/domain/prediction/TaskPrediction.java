@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
@@ -33,6 +34,7 @@ public final class TaskPrediction {
     private final TaskUserId userId;
     private final TaskId taskId;
     private final TaskPersonaGenerationId personaGenerationId;
+    private final TaskPersonaVersionId personaVersionId;
     private final TaskPersonaId personaId;
     private final String candidatePolicyVersion;
     private final int requestedCandidateCount;
@@ -50,6 +52,7 @@ public final class TaskPrediction {
             TaskUserId userId,
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             String candidatePolicyVersion,
             int requestedCandidateCount,
@@ -67,6 +70,8 @@ public final class TaskPrediction {
         this.taskId = Objects.requireNonNull(taskId, "taskId");
         this.personaGenerationId = Objects.requireNonNull(
                 personaGenerationId, "personaGenerationId");
+        this.personaVersionId = Objects.requireNonNull(
+                personaVersionId, "personaVersionId");
         this.personaId = Objects.requireNonNull(personaId, "personaId");
         this.candidatePolicyVersion = TaskText.required(
                 candidatePolicyVersion,
@@ -102,13 +107,15 @@ public final class TaskPrediction {
             TaskUserId userId,
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             String candidatePolicyVersion,
             int requestedCandidateCount,
             Instant createdAt
     ) {
         return new TaskPrediction(
-                id, userId, taskId, personaGenerationId, personaId,
+                id, userId, taskId, personaGenerationId, personaVersionId,
+                personaId,
                 candidatePolicyVersion, requestedCandidateCount,
                 TaskPredictionStatus.PENDING, 0, List.of(), null, null,
                 createdAt, null, null);
@@ -119,6 +126,7 @@ public final class TaskPrediction {
             TaskUserId userId,
             Task task,
             TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             String candidatePolicyVersion,
             int requestedCandidateCount,
@@ -133,7 +141,8 @@ public final class TaskPrediction {
     ) {
         Objects.requireNonNull(task, "task");
         TaskPrediction restored = new TaskPrediction(
-                id, userId, task.id(), personaGenerationId, personaId,
+                id, userId, task.id(), personaGenerationId, personaVersionId,
+                personaId,
                 candidatePolicyVersion, requestedCandidateCount, status,
                 attemptCount, candidates, nextRetryAt, lastError,
                 createdAt, startedAt, completedAt);
@@ -248,11 +257,13 @@ public final class TaskPrediction {
     public boolean matches(
             TaskUserId expectedUserId,
             TaskId expectedTaskId,
-            TaskPersonaGenerationId expectedPersonaGenerationId
+            TaskPersonaGenerationId expectedPersonaGenerationId,
+            TaskPersonaVersionId expectedPersonaVersionId
     ) {
         return userId.equals(expectedUserId)
                 && taskId.equals(expectedTaskId)
-                && personaGenerationId.equals(expectedPersonaGenerationId);
+                && personaGenerationId.equals(expectedPersonaGenerationId)
+                && personaVersionId.equals(expectedPersonaVersionId);
     }
 
     public TaskPredictionId id() { return id; }
@@ -260,6 +271,7 @@ public final class TaskPrediction {
     public TaskUserId userId() { return userId; }
     public TaskId taskId() { return taskId; }
     public TaskPersonaGenerationId personaGenerationId() { return personaGenerationId; }
+    public TaskPersonaVersionId personaVersionId() { return personaVersionId; }
     public TaskPersonaId personaId() { return personaId; }
     public String candidatePolicyVersion() { return candidatePolicyVersion; }
     public int requestedCandidateCount() { return requestedCandidateCount; }

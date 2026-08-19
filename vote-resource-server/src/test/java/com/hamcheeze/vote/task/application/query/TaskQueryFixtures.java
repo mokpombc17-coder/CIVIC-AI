@@ -4,6 +4,7 @@ import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionCandidateId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
@@ -34,6 +35,8 @@ final class TaskQueryFixtures {
     static final TaskUserId USER = new TaskUserId("query-user");
     static final TaskPersonaGenerationId GENERATION =
             new TaskPersonaGenerationId(UUID.randomUUID());
+    static final TaskPersonaVersionId VERSION =
+            new TaskPersonaVersionId(UUID.randomUUID());
     static final TaskPersonaId PERSONA = new TaskPersonaId("persona-query");
 
     private TaskQueryFixtures() {
@@ -101,6 +104,7 @@ final class TaskQueryFixtures {
                 USER,
                 task.id(),
                 GENERATION,
+                VERSION,
                 PERSONA,
                 "policy-v1",
                 2,
@@ -126,7 +130,7 @@ final class TaskQueryFixtures {
                         new ShortTextValue("AI 예상 답변 2"),
                         "두 번째 예상 근거"));
         return TaskPrediction.restore(
-                predictionId, USER, task, GENERATION, PERSONA,
+                predictionId, USER, task, GENERATION, VERSION, PERSONA,
                 "policy-v1", 2, TaskPredictionStatus.SUCCEEDED,
                 1, candidates, null, null,
                 NOW.minusSeconds(40), NOW.minusSeconds(30),
@@ -139,6 +143,7 @@ final class TaskQueryFixtures {
                 USER,
                 task,
                 GENERATION,
+                VERSION,
                 PERSONA,
                 "policy-v1",
                 2,
@@ -162,6 +167,7 @@ final class TaskQueryFixtures {
                 task,
                 prediction,
                 GENERATION,
+                VERSION,
                 List.of(new AcceptTaskPredictionCandidate(
                         task.questions().getFirst().id(),
                         prediction.candidates().getFirst().id())),
@@ -178,6 +184,7 @@ final class TaskQueryFixtures {
                 task,
                 prediction,
                 GENERATION,
+                VERSION,
                 List.of(new UserAnsweredTaskQuestion(
                         task.questions().getFirst().id(),
                         new ShortTextValue("사용자 직접 답변"))),

@@ -15,6 +15,7 @@ final class PersonaApiModels {
             String status,
             UUID sourceResponseId,
             UUID generationId,
+            UUID personaVersionId,
             String lastErrorCode,
             List<String> capabilities
     ) {
@@ -25,6 +26,8 @@ final class PersonaApiModels {
                     value.sourceResponseId().map(id -> id.value())
                             .orElse(null),
                     value.generationId().map(id -> id.value()).orElse(null),
+                    value.personaVersionId().map(id -> id.value())
+                            .orElse(null),
                     value.lastErrorCode().orElse(null),
                     value.capabilities().stream().map(Enum::name).sorted()
                             .toList());
