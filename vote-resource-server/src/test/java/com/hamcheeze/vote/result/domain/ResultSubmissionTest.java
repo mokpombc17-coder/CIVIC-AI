@@ -2,10 +2,8 @@ package com.hamcheeze.vote.result.domain;
 
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,79 +12,51 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ResultSubmissionTest {
 
     @Test
-    void calculatesActualAdoptionFromAllSubmittedAnswers() {
-        List<ResultSubmissionAnswer> answers = new ArrayList<>(List.of(
-                textAnswer(uuid(9), ResultAnswerSource.USER_ANSWERED, null),
-                textAnswer(uuid(8), ResultAnswerSource.AI_ACCEPTED, uuid(20)),
-                textAnswer(uuid(7), ResultAnswerSource.AI_ACCEPTED, uuid(21))));
+    void preservesAcceptedReasonSnapshotAndNormalizesTimestamp() {
+        ResultSubmission submission = submission(
+                ResultReasonSource.AI_ACCEPTED, uuid(9), "채택 당시 이유");
 
-        ResultSubmission submission = submission(answers);
-        answers.clear();
-
-        assertThat(submission.submittedAnswerCount()).isEqualTo(3);
-        assertThat(submission.aiAcceptedAnswerCount()).isEqualTo(2);
-        assertThat(submission.actualAdoptionRate())
-                .isEqualByComparingTo(new BigDecimal("0.6667"));
-        assertThat(submission.answers())
-                .extracting(ResultSubmissionAnswer::questionId)
-                .containsExactly(uuid(7), uuid(8), uuid(9));
-        assertThatThrownBy(() -> submission.answers().clear())
-                .isInstanceOf(UnsupportedOperationException.class);
+        assertThat(submission.acceptedPredictedReason()).isTrue();
+        assertThat(submission.questionId()).isEqualTo(uuid(7));
+        assertThat(submission.selectedOptionId()).isEqualTo(uuid(8));
+        assertThat(submission.acceptedPredictedReasonId()).isEqualTo(uuid(9));
+        assertThat(submission.finalReason()).isEqualTo("채택 당시 이유");
+        assertThat(submission.submittedAt()).isEqualTo(
+                Instant.parse("2026-08-19T00:00:00.123456789Z")
+                        .truncatedTo(ChronoUnit.MICROS));
     }
 
     @Test
-    void rejectsDuplicateQuestionOrInvalidAnswerShape() {
-        ResultSubmissionAnswer answer = textAnswer(
-                uuid(7), ResultAnswerSource.USER_ANSWERED, null);
+    void userWrittenReasonMustNotReferencePredictedReason() {
+        assertThatThrownBy(() -> submission(
+                ResultReasonSource.USER_WRITTEN, uuid(9), "직접 작성"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not have predicted reason ID");
+    }
 
-        assertThatThrownBy(() -> submission(List.of(answer, answer)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("duplicate questionId");
-        assertThatThrownBy(() -> new ResultSubmissionAnswer(
-                uuid(8),
-                ResultAnswerType.SINGLE_CHOICE,
-                ResultAnswerSource.USER_ANSWERED,
-                null,
-                "not a selection",
-                null,
-                null,
-                List.of()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("answerType");
+    @Test
+    void finalReasonMustBeNonBlankAndTrimmed() {
+        assertThatThrownBy(() -> submission(
+                ResultReasonSource.USER_WRITTEN, null, " "))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> submission(
+                ResultReasonSource.USER_WRITTEN, null, " 이유 "))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private static ResultSubmission submission(
-            List<ResultSubmissionAnswer> answers
+            ResultReasonSource source,
+            UUID acceptedReasonId,
+            String finalReason
     ) {
         return new ResultSubmission(
-                uuid(1),
-                "user-a",
-                uuid(2),
-                uuid(3),
-                uuid(4),
-                uuid(5),
-                Instant.parse("2026-08-19T00:00:00.123456789Z"),
-                answers);
-    }
-
-    private static ResultSubmissionAnswer textAnswer(
-            UUID questionId,
-            ResultAnswerSource source,
-            UUID candidateId
-    ) {
-        return new ResultSubmissionAnswer(
-                questionId,
-                ResultAnswerType.SHORT_TEXT,
-                source,
-                candidateId,
-                "answer",
-                null,
-                null,
-                List.of());
+                uuid(1), "user-a", uuid(2), uuid(3), uuid(4), uuid(5),
+                uuid(7), uuid(8), source, acceptedReasonId, finalReason,
+                Instant.parse("2026-08-19T00:00:00.123456789Z"));
     }
 
     private static UUID uuid(long suffix) {
         return UUID.fromString(
-                "13100000-0000-0000-0000-%012d".formatted(suffix));
+                "13110000-0000-0000-0000-%012d".formatted(suffix));
     }
 }

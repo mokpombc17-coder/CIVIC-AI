@@ -1,6 +1,6 @@
 package com.hamcheeze.vote.result.domain;
 
-public enum ResultAnswerSource {
+public enum ResultReasonSource {
     AI_ACCEPTED,
-    USER_ANSWERED
+    USER_WRITTEN
 }

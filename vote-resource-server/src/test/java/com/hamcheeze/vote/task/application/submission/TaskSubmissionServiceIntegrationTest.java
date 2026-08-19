@@ -157,10 +157,11 @@ class TaskSubmissionServiceIntegrationTest {
                         .personaGenerationId().value().toString())
                 .contains(fixture.prediction()
                         .personaVersionId().value().toString())
+                .contains(fixture.question().id().value().toString())
                 .contains(fixture.question().options().getFirst()
                         .id().value().toString())
-                .contains("USER_ANSWERED")
-                .contains("SINGLE_CHOICE");
+                .contains("USER_WRITTEN")
+                .contains("Result 집계 답변");
     }
 
     @Test

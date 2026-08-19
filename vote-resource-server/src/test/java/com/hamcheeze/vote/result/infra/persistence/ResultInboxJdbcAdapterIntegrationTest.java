@@ -4,7 +4,7 @@ import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.result.application.integration.ResultInboxReceipt;
 import com.hamcheeze.vote.result.application.port.out.ResultInboxRepository;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,10 +37,10 @@ class ResultInboxJdbcAdapterIntegrationTest {
         String payload = "{\"submissionId\":\"" + uuid(2) + "\"}";
         IntegrationEventEnvelope event = new IntegrationEventEnvelope(
                 eventId,
-                TaskSubmissionCompletedV1.EVENT_TYPE,
-                TaskSubmissionCompletedV1.SCHEMA_VERSION,
+                TaskSubmissionCompletedV2.EVENT_TYPE,
+                TaskSubmissionCompletedV2.SCHEMA_VERSION,
                 OCCURRED_AT,
-                TaskSubmissionCompletedV1.AGGREGATE_TYPE,
+                TaskSubmissionCompletedV2.AGGREGATE_TYPE,
                 uuid(2),
                 payload);
         ResultInboxReceipt receipt = ResultInboxReceipt.from(

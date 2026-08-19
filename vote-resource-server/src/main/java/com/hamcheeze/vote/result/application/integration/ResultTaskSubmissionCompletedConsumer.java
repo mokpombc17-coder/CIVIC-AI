@@ -2,15 +2,12 @@ package com.hamcheeze.vote.result.application.integration;
 
 import com.hamcheeze.vote.result.application.port.out.ResultInboxRepository;
 import com.hamcheeze.vote.result.application.port.out.ResultSubmissionRepository;
-import com.hamcheeze.vote.result.domain.ResultAnswerSelection;
-import com.hamcheeze.vote.result.domain.ResultAnswerSource;
-import com.hamcheeze.vote.result.domain.ResultAnswerType;
+import com.hamcheeze.vote.result.domain.ResultReasonSource;
 import com.hamcheeze.vote.result.domain.ResultSubmission;
-import com.hamcheeze.vote.result.domain.ResultSubmissionAnswer;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumer;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +15,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Objects;
 
 @Component
@@ -26,7 +22,7 @@ public class ResultTaskSubmissionCompletedConsumer
         implements IntegrationEventConsumer {
 
     public static final String CONSUMER_NAME =
-            "result-task-submission-completed-v1";
+            "result-task-submission-completed-v2";
 
     private final ResultInboxRepository inbox;
     private final ResultSubmissionRepository submissions;
@@ -63,7 +59,7 @@ public class ResultTaskSubmissionCompletedConsumer
 
     @Override
     public String eventType() {
-        return TaskSubmissionCompletedV1.EVENT_TYPE;
+        return TaskSubmissionCompletedV2.EVENT_TYPE;
     }
 
     @Override
@@ -71,11 +67,10 @@ public class ResultTaskSubmissionCompletedConsumer
     public void consume(IntegrationEventEnvelope event) {
         Objects.requireNonNull(event, "event");
         validateEnvelope(event);
-        TaskSubmissionCompletedV1 payload = decodePayload(event);
+        TaskSubmissionCompletedV2 payload = decodePayload(event);
         validateCorrelation(event, payload);
 
         boolean receiptAlreadyRecorded = hasRecordedReceipt(event);
-
         ResultSubmission submission = mapSubmission(payload);
         if (!submissions.insertIfAbsent(submission)) {
             ResultSubmission existing = submissions.findBySubmissionId(
@@ -128,10 +123,22 @@ public class ResultTaskSubmissionCompletedConsumer
     }
 
     private static ResultSubmission mapSubmission(
-            TaskSubmissionCompletedV1 payload
+            TaskSubmissionCompletedV2 payload
     ) {
         try {
-            return toSubmission(payload);
+            return new ResultSubmission(
+                    payload.submissionId(),
+                    payload.userId(),
+                    payload.taskId(),
+                    payload.predictionId(),
+                    payload.personaGenerationId(),
+                    payload.personaVersionId(),
+                    payload.questionId(),
+                    payload.selectedOptionId(),
+                    ResultReasonSource.valueOf(payload.reasonSource().name()),
+                    payload.acceptedPredictedReasonId(),
+                    payload.finalReason(),
+                    payload.submittedAt());
         } catch (IllegalArgumentException exception) {
             throw new IntegrationEventConsumptionException(
                     "RESULT_EVENT_PAYLOAD_INVALID",
@@ -141,54 +148,20 @@ public class ResultTaskSubmissionCompletedConsumer
         }
     }
 
-    private static ResultSubmission toSubmission(
-            TaskSubmissionCompletedV1 payload
-    ) {
-        return new ResultSubmission(
-                payload.submissionId(),
-                payload.userId(),
-                payload.taskId(),
-                payload.predictionId(),
-                payload.personaGenerationId(),
-                payload.personaVersionId(),
-                payload.submittedAt(),
-                payload.answers().stream()
-                        .map(ResultTaskSubmissionCompletedConsumer::toAnswer)
-                        .toList());
-    }
-
-    private static ResultSubmissionAnswer toAnswer(
-            TaskSubmissionCompletedV1.AnswerV1 answer
-    ) {
-        List<ResultAnswerSelection> selections = answer.selections().stream()
-                .map(selection -> new ResultAnswerSelection(
-                        selection.optionId(), selection.otherText()))
-                .toList();
-        return new ResultSubmissionAnswer(
-                answer.questionId(),
-                ResultAnswerType.valueOf(answer.answerType().name()),
-                ResultAnswerSource.valueOf(answer.source().name()),
-                answer.adoptedPredictionCandidateId(),
-                answer.textValue(),
-                answer.numberValue(),
-                answer.scaleValue(),
-                selections);
-    }
-
     private static void validateEnvelope(IntegrationEventEnvelope event) {
-        if (!TaskSubmissionCompletedV1.EVENT_TYPE.equals(event.eventType())) {
+        if (!TaskSubmissionCompletedV2.EVENT_TYPE.equals(event.eventType())) {
             throw nonRetryable(
                     "RESULT_EVENT_TYPE_UNSUPPORTED",
                     "unsupported event type: " + event.eventType());
         }
         if (event.schemaVersion()
-                != TaskSubmissionCompletedV1.SCHEMA_VERSION) {
+                != TaskSubmissionCompletedV2.SCHEMA_VERSION) {
             throw nonRetryable(
                     "RESULT_EVENT_SCHEMA_UNSUPPORTED",
                     "unsupported event schema version: "
                             + event.schemaVersion());
         }
-        if (!TaskSubmissionCompletedV1.AGGREGATE_TYPE.equals(
+        if (!TaskSubmissionCompletedV2.AGGREGATE_TYPE.equals(
                 event.aggregateType())) {
             throw nonRetryable(
                     "RESULT_EVENT_AGGREGATE_TYPE_UNSUPPORTED",
@@ -196,12 +169,12 @@ public class ResultTaskSubmissionCompletedConsumer
         }
     }
 
-    private TaskSubmissionCompletedV1 decodePayload(
+    private TaskSubmissionCompletedV2 decodePayload(
             IntegrationEventEnvelope event
     ) {
         try {
             return objectMapper.readValue(
-                    event.payload(), TaskSubmissionCompletedV1.class);
+                    event.payload(), TaskSubmissionCompletedV2.class);
         } catch (Exception exception) {
             throw new IntegrationEventConsumptionException(
                     "RESULT_EVENT_PAYLOAD_INVALID",
@@ -213,7 +186,7 @@ public class ResultTaskSubmissionCompletedConsumer
 
     private static void validateCorrelation(
             IntegrationEventEnvelope event,
-            TaskSubmissionCompletedV1 payload
+            TaskSubmissionCompletedV2 payload
     ) {
         if (!event.aggregateId().equals(payload.submissionId())) {
             throw nonRetryable(

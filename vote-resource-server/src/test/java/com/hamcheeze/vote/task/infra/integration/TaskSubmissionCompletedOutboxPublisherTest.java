@@ -2,9 +2,8 @@ package com.hamcheeze.vote.task.infra.integration;
 
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxMessage;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerSource;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerType;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2.ReasonSource;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
@@ -21,7 +20,6 @@ import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,7 +40,7 @@ class TaskSubmissionCompletedOutboxPublisherTest {
             new TaskSubmissionCompletedOutboxPublisher(outbox, objectMapper);
 
     @Test
-    void mapsReasonSnapshotIntoBackwardCompatiblePendingV1Event()
+    void mapsImmutableReasonSnapshotIntoPendingV2Event()
             throws Exception {
         TaskSubmission submission = submission();
         when(objectMapper.writeValueAsString(any()))
@@ -55,7 +53,7 @@ class TaskSubmissionCompletedOutboxPublisherTest {
         verify(objectMapper).writeValueAsString(serialized.capture());
         assertThat(serialized.getValue())
                 .isInstanceOfSatisfying(
-                        TaskSubmissionCompletedV1.class,
+                        TaskSubmissionCompletedV2.class,
                         payload -> {
                             assertThat(payload.userId()).isEqualTo("user-a");
                             assertThat(payload.submissionId())
@@ -70,23 +68,19 @@ class TaskSubmissionCompletedOutboxPublisherTest {
                             assertThat(payload.personaVersionId())
                                     .isEqualTo(submission
                                             .personaVersionId().value());
-                            assertThat(payload.answers()).singleElement()
-                                    .extracting(answer -> answer.answerType())
-                                    .isEqualTo(AnswerType.SINGLE_CHOICE);
-                            assertThat(payload.answers().getFirst().source())
-                                    .isEqualTo(AnswerSource.AI_ACCEPTED);
-                            assertThat(payload.answers().getFirst()
-                                    .adoptedPredictionCandidateId())
-                                    .isNotNull();
-                            assertThat(payload.answers().getFirst().selections())
-                                    .singleElement()
-                                    .satisfies(selection -> {
-                                        assertThat(selection.optionId())
-                                                .isEqualTo(submission
-                                                        .selectedOptionId()
-                                                        .value());
-                                        assertThat(selection.otherText()).isNull();
-                                    });
+                            assertThat(payload.questionId())
+                                    .isEqualTo(submission.questionId().value());
+                            assertThat(payload.selectedOptionId())
+                                    .isEqualTo(submission
+                                            .selectedOptionId().value());
+                            assertThat(payload.reasonSource())
+                                    .isEqualTo(ReasonSource.AI_ACCEPTED);
+                            assertThat(payload.acceptedPredictedReasonId())
+                                    .isEqualTo(submission
+                                            .acceptedPredictedReasonId()
+                                            .value());
+                            assertThat(payload.finalReason())
+                                    .isEqualTo(submission.finalReason());
                         });
 
         ArgumentCaptor<IntegrationOutboxMessage> message =
@@ -95,9 +89,11 @@ class TaskSubmissionCompletedOutboxPublisherTest {
         assertThat(message.getValue()).satisfies(pending -> {
             assertThat(pending.nextAttemptAt()).isEqualTo(SUBMITTED_AT);
             assertThat(pending.event().eventType())
-                    .isEqualTo(TaskSubmissionCompletedV1.EVENT_TYPE);
+                    .isEqualTo(TaskSubmissionCompletedV2.EVENT_TYPE);
+            assertThat(pending.event().schemaVersion())
+                    .isEqualTo(TaskSubmissionCompletedV2.SCHEMA_VERSION);
             assertThat(pending.event().aggregateType())
-                    .isEqualTo(TaskSubmissionCompletedV1.AGGREGATE_TYPE);
+                    .isEqualTo(TaskSubmissionCompletedV2.AGGREGATE_TYPE);
             assertThat(pending.event().aggregateId())
                     .isEqualTo(submission.id().value());
             assertThat(pending.event().payload())

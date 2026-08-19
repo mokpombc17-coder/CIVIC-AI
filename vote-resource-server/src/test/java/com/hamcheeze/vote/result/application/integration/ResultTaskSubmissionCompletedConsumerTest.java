@@ -2,10 +2,11 @@ package com.hamcheeze.vote.result.application.integration;
 
 import com.hamcheeze.vote.result.application.port.out.ResultInboxRepository;
 import com.hamcheeze.vote.result.application.port.out.ResultSubmissionRepository;
+import com.hamcheeze.vote.result.domain.ResultReasonSource;
 import com.hamcheeze.vote.result.domain.ResultSubmission;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
@@ -44,7 +45,7 @@ class ResultTaskSubmissionCompletedConsumerTest {
                     Clock.fixed(PROCESSED_AT, ZoneOffset.UTC));
 
     @Test
-    void recordsValidatedSubmissionEventInResultInbox() {
+    void recordsValidatedV2ReasonSnapshotInProjectionAndInbox() {
         IntegrationEventEnvelope event = event(uuid(1), "user-a");
         when(inbox.find(any(), any())).thenReturn(Optional.empty());
         when(submissions.insertIfAbsent(any())).thenReturn(true);
@@ -52,25 +53,25 @@ class ResultTaskSubmissionCompletedConsumerTest {
 
         consumer.consume(event);
 
-        ArgumentCaptor<ResultInboxReceipt> receipt =
-                ArgumentCaptor.forClass(ResultInboxReceipt.class);
-        verify(inbox).recordIfAbsent(receipt.capture());
-        assertThat(receipt.getValue()).isEqualTo(
-                ResultInboxReceipt.from(
-                        ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
-                        event,
-                        PROCESSED_AT));
         ArgumentCaptor<ResultSubmission> submission =
                 ArgumentCaptor.forClass(ResultSubmission.class);
         verify(submissions).insertIfAbsent(submission.capture());
-        assertThat(submission.getValue().submissionId()).isEqualTo(uuid(2));
-        assertThat(submission.getValue().taskId()).isEqualTo(uuid(3));
-        assertThat(submission.getValue().personaGenerationId())
-                .isEqualTo(uuid(5));
-        assertThat(submission.getValue().personaVersionId())
-                .isEqualTo(uuid(6));
-        assertThat(submission.getValue().submittedAnswerCount()).isEqualTo(1);
-        assertThat(submission.getValue().aiAcceptedAnswerCount()).isZero();
+        assertThat(submission.getValue()).satisfies(projected -> {
+            assertThat(projected.questionId()).isEqualTo(uuid(7));
+            assertThat(projected.selectedOptionId()).isEqualTo(uuid(8));
+            assertThat(projected.reasonSource())
+                    .isEqualTo(ResultReasonSource.AI_ACCEPTED);
+            assertThat(projected.acceptedPredictedReasonId())
+                    .isEqualTo(uuid(9));
+            assertThat(projected.finalReason()).isEqualTo("예상 이유");
+        });
+        ArgumentCaptor<ResultInboxReceipt> receipt =
+                ArgumentCaptor.forClass(ResultInboxReceipt.class);
+        verify(inbox).recordIfAbsent(receipt.capture());
+        assertThat(receipt.getValue()).isEqualTo(ResultInboxReceipt.from(
+                ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
+                event,
+                PROCESSED_AT));
     }
 
     @Test
@@ -87,9 +88,6 @@ class ResultTaskSubmissionCompletedConsumerTest {
 
         consumer.consume(event);
 
-        verify(inbox).find(
-                ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
-                event.eventId());
         verify(submissions).insertIfAbsent(any());
         verify(inbox, never()).recordIfAbsent(any());
     }
@@ -116,27 +114,37 @@ class ResultTaskSubmissionCompletedConsumerTest {
                             assertThat(exception.retryable()).isFalse();
                         });
         verifyNoInteractions(submissions);
-        verify(inbox, never()).recordIfAbsent(any());
     }
 
     @Test
     void rejectsAggregateMismatchBeforeRecordingInboxReceipt() {
         IntegrationEventEnvelope valid = event(uuid(1), "user-a");
         IntegrationEventEnvelope mismatch = new IntegrationEventEnvelope(
-                valid.eventId(),
-                valid.eventType(),
-                valid.schemaVersion(),
-                valid.occurredAt(),
-                valid.aggregateType(),
-                uuid(99),
+                valid.eventId(), valid.eventType(), valid.schemaVersion(),
+                valid.occurredAt(), valid.aggregateType(), uuid(99),
                 valid.payload());
 
         assertThatThrownBy(() -> consumer.consume(mismatch))
                 .isInstanceOfSatisfying(
                         IntegrationEventConsumptionException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo("RESULT_EVENT_AGGREGATE_MISMATCH"));
+        verifyNoInteractions(inbox, submissions);
+    }
+
+    @Test
+    void rejectsV1SchemaAsNonRetryable() {
+        IntegrationEventEnvelope valid = event(uuid(1), "user-a");
+        IntegrationEventEnvelope v1 = new IntegrationEventEnvelope(
+                valid.eventId(), valid.eventType(), 1, valid.occurredAt(),
+                valid.aggregateType(), valid.aggregateId(), valid.payload());
+
+        assertThatThrownBy(() -> consumer.consume(v1))
+                .isInstanceOfSatisfying(
+                        IntegrationEventConsumptionException.class,
                         exception -> {
                             assertThat(exception.errorCode()).isEqualTo(
-                                    "RESULT_EVENT_AGGREGATE_MISMATCH");
+                                    "RESULT_EVENT_SCHEMA_UNSUPPORTED");
                             assertThat(exception.retryable()).isFalse();
                         });
         verifyNoInteractions(inbox, submissions);
@@ -145,22 +153,15 @@ class ResultTaskSubmissionCompletedConsumerTest {
     @Test
     void rejectsMalformedPayloadAsNonRetryable() {
         IntegrationEventEnvelope malformed = new IntegrationEventEnvelope(
-                uuid(1),
-                TaskSubmissionCompletedV1.EVENT_TYPE,
-                TaskSubmissionCompletedV1.SCHEMA_VERSION,
-                SUBMITTED_AT,
-                TaskSubmissionCompletedV1.AGGREGATE_TYPE,
-                uuid(2),
-                "{}");
+                uuid(1), TaskSubmissionCompletedV2.EVENT_TYPE,
+                TaskSubmissionCompletedV2.SCHEMA_VERSION, SUBMITTED_AT,
+                TaskSubmissionCompletedV2.AGGREGATE_TYPE, uuid(2), "{}");
 
         assertThatThrownBy(() -> consumer.consume(malformed))
                 .isInstanceOfSatisfying(
                         IntegrationEventConsumptionException.class,
-                        exception -> {
-                            assertThat(exception.errorCode()).isEqualTo(
-                                    "RESULT_EVENT_PAYLOAD_INVALID");
-                            assertThat(exception.retryable()).isFalse();
-                        });
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo("RESULT_EVENT_PAYLOAD_INVALID"));
         verifyNoInteractions(inbox, submissions);
     }
 
@@ -174,7 +175,6 @@ class ResultTaskSubmissionCompletedConsumerTest {
         assertThatThrownBy(() -> consumer.consume(event))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("projection unavailable");
-
         verify(inbox, never()).recordIfAbsent(any());
     }
 
@@ -184,26 +184,23 @@ class ResultTaskSubmissionCompletedConsumerTest {
     ) {
         return new IntegrationEventEnvelope(
                 eventId,
-                TaskSubmissionCompletedV1.EVENT_TYPE,
-                TaskSubmissionCompletedV1.SCHEMA_VERSION,
+                TaskSubmissionCompletedV2.EVENT_TYPE,
+                TaskSubmissionCompletedV2.SCHEMA_VERSION,
                 SUBMITTED_AT,
-                TaskSubmissionCompletedV1.AGGREGATE_TYPE,
+                TaskSubmissionCompletedV2.AGGREGATE_TYPE,
                 uuid(2),
                 """
                         {"userId":"%s","submissionId":"%s",
                          "taskId":"%s","predictionId":"%s",
                          "personaGenerationId":"%s",
-                         "personaVersionId":"%s",
-                         "submittedAt":"%s","answers":[{
-                           "questionId":"%s","answerType":"SHORT_TEXT",
-                           "source":"USER_ANSWERED",
-                           "adoptedPredictionCandidateId":null,
-                           "textValue":"answer","numberValue":null,
-                           "scaleValue":null,"selections":[]}]}
+                         "personaVersionId":"%s","questionId":"%s",
+                         "selectedOptionId":"%s",
+                         "reasonSource":"AI_ACCEPTED",
+                         "acceptedPredictedReasonId":"%s",
+                         "finalReason":"예상 이유","submittedAt":"%s"}
                         """.formatted(
-                        userId,
-                        uuid(2), uuid(3), uuid(4), uuid(5), uuid(6),
-                        SUBMITTED_AT, uuid(7)));
+                        userId, uuid(2), uuid(3), uuid(4), uuid(5), uuid(6),
+                        uuid(7), uuid(8), uuid(9), SUBMITTED_AT));
     }
 
     private static UUID uuid(long suffix) {

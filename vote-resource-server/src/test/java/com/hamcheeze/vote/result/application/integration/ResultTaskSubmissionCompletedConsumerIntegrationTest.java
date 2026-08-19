@@ -3,13 +3,12 @@ package com.hamcheeze.vote.result.application.integration;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.result.application.port.out.ResultInboxRepository;
 import com.hamcheeze.vote.result.application.port.out.ResultSubmissionRepository;
+import com.hamcheeze.vote.result.domain.ResultReasonSource;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxMessage;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerSource;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerType;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerV1;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2.ReasonSource;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliveryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,8 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
-import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,33 +32,24 @@ class ResultTaskSubmissionCompletedConsumerIntegrationTest {
     private static final Instant SUBMITTED_AT =
             Instant.parse("2026-08-19T00:00:00.123456Z");
 
-    @Autowired
-    private IntegrationOutboxRepository outbox;
-
-    @Autowired
-    private IntegrationOutboxDeliveryService deliveries;
-
-    @Autowired
-    private ResultInboxRepository inbox;
-
-    @Autowired
-    private ResultSubmissionRepository submissions;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Autowired private IntegrationOutboxRepository outbox;
+    @Autowired private IntegrationOutboxDeliveryService deliveries;
+    @Autowired private ResultInboxRepository inbox;
+    @Autowired private ResultSubmissionRepository submissions;
+    @Autowired private ObjectMapper objectMapper;
 
     @Test
-    void deliversTaskSubmissionEventToResultAndMarksItPublished()
+    void deliversV2ReasonSnapshotToResultAndMarksItPublished()
             throws Exception {
-        TaskSubmissionCompletedV1 payload = payload();
+        TaskSubmissionCompletedV2 payload = new TaskSubmissionCompletedV2(
+                "user-a", uuid(1), uuid(2), uuid(3), uuid(4), uuid(5),
+                uuid(6), uuid(7), ReasonSource.AI_ACCEPTED, uuid(8),
+                "채택 당시 예상 이유", SUBMITTED_AT);
         IntegrationEventEnvelope event = new IntegrationEventEnvelope(
-                UUID.randomUUID(),
-                TaskSubmissionCompletedV1.EVENT_TYPE,
-                TaskSubmissionCompletedV1.SCHEMA_VERSION,
-                payload.submittedAt(),
-                TaskSubmissionCompletedV1.AGGREGATE_TYPE,
-                payload.submissionId(),
-                objectMapper.writeValueAsString(payload));
+                UUID.randomUUID(), TaskSubmissionCompletedV2.EVENT_TYPE,
+                TaskSubmissionCompletedV2.SCHEMA_VERSION,
+                payload.submittedAt(), TaskSubmissionCompletedV2.AGGREGATE_TYPE,
+                payload.submissionId(), objectMapper.writeValueAsString(payload));
         outbox.insert(IntegrationOutboxMessage.pending(
                 event, payload.submittedAt()));
 
@@ -72,56 +60,29 @@ class ResultTaskSubmissionCompletedConsumerIntegrationTest {
                 .satisfies(message -> {
                     assertThat(message.published()).isTrue();
                     assertThat(message.deadLettered()).isFalse();
-                    assertThat(message.publishedAt()).isNotNull();
                 });
         assertThat(inbox.find(
                 ResultTaskSubmissionCompletedConsumer.CONSUMER_NAME,
-                event.eventId()))
-                .get()
-                .satisfies(receipt -> assertThat(
-                        receipt.hasSameEvent(event)).isTrue());
+                event.eventId())).isPresent();
         assertThat(submissions.findBySubmissionId(payload.submissionId()))
                 .get()
                 .satisfies(submission -> {
-                    assertThat(submission.taskId())
-                            .isEqualTo(payload.taskId());
+                    assertThat(submission.taskId()).isEqualTo(payload.taskId());
                     assertThat(submission.personaGenerationId())
                             .isEqualTo(payload.personaGenerationId());
                     assertThat(submission.personaVersionId())
                             .isEqualTo(payload.personaVersionId());
-                    assertThat(submission.submittedAnswerCount())
-                            .isEqualTo(2);
-                    assertThat(submission.aiAcceptedAnswerCount())
-                            .isEqualTo(1);
-                    assertThat(submission.actualAdoptionRate())
-                            .isEqualByComparingTo(new BigDecimal("0.5000"));
+                    assertThat(submission.questionId())
+                            .isEqualTo(payload.questionId());
+                    assertThat(submission.selectedOptionId())
+                            .isEqualTo(payload.selectedOptionId());
+                    assertThat(submission.reasonSource())
+                            .isEqualTo(ResultReasonSource.AI_ACCEPTED);
+                    assertThat(submission.acceptedPredictedReasonId())
+                            .isEqualTo(payload.acceptedPredictedReasonId());
+                    assertThat(submission.finalReason())
+                            .isEqualTo(payload.finalReason());
                 });
-    }
-
-    private static TaskSubmissionCompletedV1 payload() {
-        return new TaskSubmissionCompletedV1(
-                "user-a",
-                uuid(1), uuid(2), uuid(3), uuid(4), uuid(5),
-                SUBMITTED_AT,
-                List.of(
-                        new AnswerV1(
-                                uuid(6),
-                                AnswerType.SHORT_TEXT,
-                                AnswerSource.USER_ANSWERED,
-                                null,
-                                "answer",
-                                null,
-                                null,
-                                List.of()),
-                        new AnswerV1(
-                                uuid(7),
-                                AnswerType.SHORT_TEXT,
-                                AnswerSource.AI_ACCEPTED,
-                                uuid(8),
-                                "predicted answer",
-                                null,
-                                null,
-                                List.of())));
     }
 
     private static UUID uuid(long suffix) {

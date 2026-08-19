@@ -1,12 +1,7 @@
 package com.hamcheeze.vote.result.domain;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -17,60 +12,48 @@ public record ResultSubmission(
         UUID predictionId,
         UUID personaGenerationId,
         UUID personaVersionId,
-        Instant submittedAt,
-        List<ResultSubmissionAnswer> answers
+        UUID questionId,
+        UUID selectedOptionId,
+        ResultReasonSource reasonSource,
+        UUID acceptedPredictedReasonId,
+        String finalReason,
+        Instant submittedAt
 ) {
 
     public ResultSubmission {
         Objects.requireNonNull(submissionId, "submissionId");
-        userId = requireText(userId, "userId");
+        userId = requireText(userId, 255, "userId");
         Objects.requireNonNull(taskId, "taskId");
         Objects.requireNonNull(predictionId, "predictionId");
-        Objects.requireNonNull(
-                personaGenerationId, "personaGenerationId");
+        Objects.requireNonNull(personaGenerationId, "personaGenerationId");
         Objects.requireNonNull(personaVersionId, "personaVersionId");
+        Objects.requireNonNull(questionId, "questionId");
+        Objects.requireNonNull(selectedOptionId, "selectedOptionId");
+        Objects.requireNonNull(reasonSource, "reasonSource");
+        finalReason = requireText(finalReason, 500, "finalReason");
         Objects.requireNonNull(submittedAt, "submittedAt");
         submittedAt = submittedAt.truncatedTo(ChronoUnit.MICROS);
-        Objects.requireNonNull(answers, "answers");
-        if (answers.isEmpty()) {
-            throw new IllegalArgumentException("answers must not be empty");
-        }
-        if (answers.stream().anyMatch(Objects::isNull)) {
+        if (reasonSource == ResultReasonSource.AI_ACCEPTED
+                && acceptedPredictedReasonId == null) {
             throw new IllegalArgumentException(
-                    "answers must not contain null");
+                    "AI_ACCEPTED submission requires predicted reason ID");
         }
-        answers = answers.stream()
-                .sorted(Comparator.comparing(
-                        ResultSubmissionAnswer::questionId))
-                .toList();
-        if (new HashSet<>(answers.stream()
-                .map(ResultSubmissionAnswer::questionId)
-                .toList()).size() != answers.size()) {
+        if (reasonSource == ResultReasonSource.USER_WRITTEN
+                && acceptedPredictedReasonId != null) {
             throw new IllegalArgumentException(
-                    "answers must not contain duplicate questionId");
+                    "USER_WRITTEN submission must not have predicted reason ID");
         }
     }
 
-    public int submittedAnswerCount() {
-        return answers.size();
+    public boolean acceptedPredictedReason() {
+        return reasonSource == ResultReasonSource.AI_ACCEPTED;
     }
 
-    public int aiAcceptedAnswerCount() {
-        return (int) answers.stream()
-                .filter(answer -> answer.source()
-                        == ResultAnswerSource.AI_ACCEPTED)
-                .count();
-    }
-
-    public BigDecimal actualAdoptionRate() {
-        return BigDecimal.valueOf(aiAcceptedAnswerCount())
-                .divide(
-                        BigDecimal.valueOf(submittedAnswerCount()),
-                        4,
-                        RoundingMode.HALF_UP);
-    }
-
-    private static String requireText(String value, String field) {
+    private static String requireText(
+            String value,
+            int maxLength,
+            String field
+    ) {
         Objects.requireNonNull(value, field);
         if (value.isBlank()) {
             throw new IllegalArgumentException(field + " must not be blank");
@@ -78,6 +61,10 @@ public record ResultSubmission(
         if (!value.equals(value.strip())) {
             throw new IllegalArgumentException(
                     field + " must not contain surrounding whitespace");
+        }
+        if (value.codePointCount(0, value.length()) > maxLength) {
+            throw new IllegalArgumentException(
+                    field + " must not exceed " + maxLength + " characters");
         }
         return value;
     }
