@@ -3,7 +3,9 @@ package com.hamcheeze.vote.opinionmap.application.integration;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapFinalizationRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapInboxRepository;
+import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSnapshotRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapFinalizationStatus;
+import com.hamcheeze.vote.opinionmap.domain.OpinionMapSnapshot;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxMessage;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
@@ -41,6 +43,8 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
     @Autowired
     private OpinionMapFinalizationRepository finalizations;
     @Autowired
+    private OpinionMapSnapshotRepository snapshots;
+    @Autowired
     private OpinionMapInboxRepository inbox;
     @Autowired
     private IntegrationOutboxRepository outbox;
@@ -66,10 +70,13 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                                     .WAITING_FOR_SUBMISSIONS);
                     assertThat(state.projectedSubmissionCount()).isZero();
                 });
+        assertThat(snapshots.findByTaskId(taskId)).isEmpty();
 
         IntegrationEventEnvelope submission = submissionEvent(
                 uuid(3), taskId, uuid(4));
         submissionConsumer.consume(submission);
+        OpinionMapSnapshot firstSnapshot = snapshots.findByTaskId(taskId)
+                .orElseThrow();
         finalizationConsumer.consume(finalization);
 
         assertThat(finalizations.findByTaskId(taskId))
@@ -79,6 +86,18 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                             OpinionMapFinalizationStatus.READY_TO_FINALIZE);
                     assertThat(state.projectedSubmissionCount()).isOne();
                 });
+        assertThat(snapshots.findByTaskId(taskId))
+                .contains(firstSnapshot)
+                .get()
+                .satisfies(snapshot -> {
+                    assertThat(snapshot.taskId()).isEqualTo(taskId);
+                    assertThat(snapshot.expectedSubmissionCount()).isOne();
+                    assertThat(snapshot.responseCount()).isOne();
+                    assertThat(snapshot.finalizedAt())
+                            .isAfterOrEqualTo(snapshot.closedAt());
+                });
+        assertThat(snapshots.findBySnapshotId(firstSnapshot.snapshotId()))
+                .contains(firstSnapshot);
         assertThat(inbox.find(
                 OpinionMapTaskFinalizationRequestedConsumer.CONSUMER_NAME,
                 finalization.eventId())).isPresent();
@@ -105,6 +124,12 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                     assertThat(state.expectedSubmissionCount()).isOne();
                     assertThat(state.projectedSubmissionCount()).isOne();
                 });
+        assertThat(snapshots.findByTaskId(taskId))
+                .get()
+                .satisfies(snapshot -> {
+                    assertThat(snapshot.expectedSubmissionCount()).isOne();
+                    assertThat(snapshot.responseCount()).isOne();
+                });
     }
 
     @Test
@@ -128,6 +153,12 @@ class OpinionMapTaskFinalizationRequestedConsumerIntegrationTest {
                 .get()
                 .extracting(state -> state.status())
                 .isEqualTo(OpinionMapFinalizationStatus.READY_TO_FINALIZE);
+        assertThat(snapshots.findByTaskId(taskId))
+                .get()
+                .satisfies(snapshot -> {
+                    assertThat(snapshot.expectedSubmissionCount()).isZero();
+                    assertThat(snapshot.responseCount()).isZero();
+                });
     }
 
     private IntegrationEventEnvelope finalizationEvent(

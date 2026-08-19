@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.opinionmap.application.integration;
 
 import com.hamcheeze.vote.opinionmap.application.finalization.OpinionMapFinalizationCoordinator;
+import com.hamcheeze.vote.opinionmap.application.finalization.OpinionMapSnapshotAlreadyFinalizedException;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapInboxRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSubmissionProjectionRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapReasonSource;
@@ -79,6 +80,16 @@ public class OpinionMapTaskSubmissionCompletedConsumer
 
         boolean receiptAlreadyRecorded = hasRecordedReceipt(event);
         OpinionMapSubmissionProjection submission = mapSubmission(payload);
+        try {
+            finalizations.prepareProjection(
+                    submission.taskId(), submission.submissionId());
+        } catch (OpinionMapSnapshotAlreadyFinalizedException exception) {
+            throw new IntegrationEventConsumptionException(
+                    "OPINION_MAP_SNAPSHOT_ALREADY_FINALIZED",
+                    false,
+                    "submission cannot be projected after snapshot finalization",
+                    exception);
+        }
         if (!submissions.insertIfAbsent(submission)) {
             OpinionMapSubmissionProjection existing = submissions.findBySubmissionId(
                             submission.submissionId())

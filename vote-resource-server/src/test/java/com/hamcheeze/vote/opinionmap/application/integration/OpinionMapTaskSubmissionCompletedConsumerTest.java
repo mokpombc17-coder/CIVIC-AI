@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.opinionmap.application.integration;
 
 import com.hamcheeze.vote.opinionmap.application.finalization.OpinionMapFinalizationCoordinator;
+import com.hamcheeze.vote.opinionmap.application.finalization.OpinionMapSnapshotAlreadyFinalizedException;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapInboxRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSubmissionProjectionRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapReasonSource;
@@ -22,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -60,6 +63,9 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
         ArgumentCaptor<OpinionMapSubmissionProjection> submission =
                 ArgumentCaptor.forClass(OpinionMapSubmissionProjection.class);
         verify(submissions).insertIfAbsent(submission.capture());
+        var ordered = inOrder(finalizations, submissions);
+        ordered.verify(finalizations).prepareProjection(uuid(3), uuid(2));
+        ordered.verify(submissions).insertIfAbsent(any());
         verify(finalizations).reassess(uuid(3));
         assertThat(submission.getValue()).satisfies(projected -> {
             assertThat(projected.questionId()).isEqualTo(uuid(7));
@@ -93,6 +99,7 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
 
         consumer.consume(event);
 
+        verify(finalizations).prepareProjection(uuid(3), uuid(2));
         verify(submissions).insertIfAbsent(any());
         verify(finalizations).reassess(uuid(3));
         verify(inbox, never()).recordIfAbsent(any());
@@ -181,6 +188,26 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
         assertThatThrownBy(() -> consumer.consume(event))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("projection unavailable");
+        verify(inbox, never()).recordIfAbsent(any());
+    }
+
+    @Test
+    void rejectsLateProjectionAfterSnapshotFinalization() {
+        IntegrationEventEnvelope event = event(uuid(1), "user-a");
+        when(inbox.find(any(), any())).thenReturn(Optional.empty());
+        doThrow(new OpinionMapSnapshotAlreadyFinalizedException(uuid(3)))
+                .when(finalizations)
+                .prepareProjection(uuid(3), uuid(2));
+
+        assertThatThrownBy(() -> consumer.consume(event))
+                .isInstanceOfSatisfying(
+                        IntegrationEventConsumptionException.class,
+                        exception -> {
+                            assertThat(exception.errorCode()).isEqualTo(
+                                    "OPINION_MAP_SNAPSHOT_ALREADY_FINALIZED");
+                            assertThat(exception.retryable()).isFalse();
+                        });
+        verify(submissions, never()).insertIfAbsent(any());
         verify(inbox, never()).recordIfAbsent(any());
     }
 
