@@ -50,7 +50,8 @@ public class TaskAdministrationService {
                 new TaskId(UUID.randomUUID()),
                 command.title(),
                 command.description(),
-                command.questions(),
+                command.question() == null
+                        ? List.of() : List.of(command.question()),
                 clock.instant()));
     }
 
@@ -66,7 +67,8 @@ public class TaskAdministrationService {
         task.replaceContent(
                 command.title(),
                 command.description(),
-                command.questions(),
+                command.question() == null
+                        ? List.of() : List.of(command.question()),
                 clock.instant());
         return tasks.save(task);
     }
@@ -260,22 +262,14 @@ public class TaskAdministrationService {
     public record CreateDraftCommand(
             String title,
             String description,
-            List<TaskQuestion> questions
+            TaskQuestion question
     ) {
-        public CreateDraftCommand {
-            questions = List.copyOf(Objects.requireNonNull(
-                    questions, "questions"));
-        }
     }
 
     public record ReplaceDraftCommand(
             String title,
             String description,
-            List<TaskQuestion> questions
+            TaskQuestion question
     ) {
-        public ReplaceDraftCommand {
-            questions = List.copyOf(Objects.requireNonNull(
-                    questions, "questions"));
-        }
     }
 }

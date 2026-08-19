@@ -128,7 +128,7 @@ class TaskTest {
     }
 
     @Test
-    void draftMayBeIncompleteBeforePublicationAndKeepsLegacySizeGuard() {
+    void draftMayBeIncompleteButCannotContainMultipleQuestions() {
         Task empty = Task.draft(
                 taskId(), "빈 초안", null, List.of(), NOW);
         assertThat(empty.questions()).isEmpty();
@@ -139,55 +139,35 @@ class TaskTest {
                 actorId(), null, NOW.plusSeconds(10)))
                 .isInstanceOf(TaskValidationException.class);
 
-        List<TaskQuestion> fifty = new ArrayList<>();
-        for (int order = 1; order <= 50; order++) {
-            fifty.add(new TaskQuestion(
-                    new com.hamcheeze.vote.task.domain.common.TaskQuestionId(
-                            new java.util.UUID(40, order)),
-                    order,
-                    TaskQuestionType.SHORT_TEXT,
-                    "질문 " + order,
-                    null,
-                    ShortTextConstraint.defaults(),
-                    List.of()));
-        }
-        Task maximum = Task.draft(
-                taskId(), "최대 문항", null, fifty, NOW);
-        assertThat(maximum.questions()).hasSize(50);
-
-        fifty.add(new TaskQuestion(
-                new com.hamcheeze.vote.task.domain.common.TaskQuestionId(
-                        new java.util.UUID(40, 51)),
-                51, TaskQuestionType.SHORT_TEXT, "질문 51", null,
-                ShortTextConstraint.defaults(), List.of()));
-        assertThatThrownBy(() -> Task.draft(
-                taskId(), "초과", null, fifty, NOW))
-                .isInstanceOf(TaskDomainException.class);
-    }
-
-    @Test
-    void publicationRequiresExactlyOneSingleChoiceQuestionWithoutOther() {
         TaskQuestion second = new TaskQuestion(
                 questionId(2), 2, TaskQuestionType.SINGLE_CHOICE,
                 "두 번째 질문", null, new SingleChoiceConstraint(),
                 List.of(
                         TaskOption.standard(optionId(3), 1, "C"),
                         TaskOption.standard(optionId(4), 2, "D")));
-        assertPublicationViolation(
-                Task.draft(
-                        taskId(), "복수 질문", null,
-                        List.of(singleQuestion(), second), NOW),
-                "TASK_QUESTION_COUNT_INVALID");
+        assertThatThrownBy(() -> Task.draft(
+                taskId(), "복수 질문", null,
+                List.of(singleQuestion(), second), NOW))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo("TASK_QUESTION_COUNT_INVALID"));
+    }
 
+    @Test
+    void draftRejectsUnsupportedQuestionTypeAndOtherOption() {
         TaskQuestion shortText = new TaskQuestion(
                 questionId(1), 1, TaskQuestionType.SHORT_TEXT,
                 "직접 입력 질문", null,
                 ShortTextConstraint.defaults(), List.of());
-        assertPublicationViolation(
-                Task.draft(
-                        taskId(), "지원하지 않는 유형", null,
-                        List.of(shortText), NOW),
-                "TASK_QUESTION_TYPE_NOT_SUPPORTED");
+        assertThatThrownBy(() -> Task.draft(
+                taskId(), "지원하지 않는 유형", null,
+                List.of(shortText), NOW))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo(
+                                        "TASK_QUESTION_TYPE_NOT_SUPPORTED"));
 
         TaskQuestion withOther = new TaskQuestion(
                 questionId(1), 1, TaskQuestionType.SINGLE_CHOICE,
@@ -196,29 +176,25 @@ class TaskTest {
                         TaskOption.standard(optionId(1), 1, "A"),
                         TaskOption.standard(optionId(2), 2, "B"),
                         TaskOption.other(optionId(3), 3)));
-        assertPublicationViolation(
-                Task.draft(
-                        taskId(), "기타 선택지", null,
-                        List.of(withOther), NOW),
-                "TASK_OTHER_OPTION_NOT_ALLOWED");
+        assertThatThrownBy(() -> Task.draft(
+                taskId(), "기타 선택지", null,
+                List.of(withOther), NOW))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo("TASK_OTHER_OPTION_NOT_ALLOWED"));
     }
 
     @Test
-    void rejectsDuplicateQuestionIdentityAndNonContinuousPublicationOrder() {
-        TaskQuestion first = singleQuestion();
-        TaskQuestion duplicateId = new TaskQuestion(
-                first.id(), 2, first.type(), "다른 내용", null,
-                first.constraint(), first.options());
-        assertThatThrownBy(() -> Task.draft(
-                taskId(), "중복", null,
-                List.of(first, duplicateId), NOW))
-                .isInstanceOf(TaskDomainException.class);
-
+    void rejectsNonContinuousQuestionOrderAtPublication() {
         TaskQuestion startsAtTwo = new TaskQuestion(
                 new com.hamcheeze.vote.task.domain.common.TaskQuestionId(
                         new java.util.UUID(41, 1)),
-                2, TaskQuestionType.SHORT_TEXT, "질문", null,
-                ShortTextConstraint.defaults(), List.of());
+                2, TaskQuestionType.SINGLE_CHOICE, "질문", null,
+                new SingleChoiceConstraint(),
+                List.of(
+                        TaskOption.standard(optionId(1), 1, "A"),
+                        TaskOption.standard(optionId(2), 2, "B")));
         Task nonContinuous = Task.draft(
                 taskId(), "비연속", null, List.of(startsAtTwo), NOW);
         assertThatThrownBy(() -> nonContinuous.openImmediately(

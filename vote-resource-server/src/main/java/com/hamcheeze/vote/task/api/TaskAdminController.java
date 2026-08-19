@@ -47,7 +47,7 @@ final class TaskAdminController {
                 administration.createDraft(
                         new TaskAdministrationService.CreateDraftCommand(
                                 request.title(), request.description(),
-                                request.toQuestions()),
+                                request.toQuestion()),
                         actor(authentication)));
         return ResponseEntity.created(URI.create(
                         "/api/v1/admin/tasks/" + response.id()))
@@ -64,7 +64,7 @@ final class TaskAdminController {
                 id(taskId),
                 new TaskAdministrationService.ReplaceDraftCommand(
                         request.title(), request.description(),
-                        request.toQuestions()),
+                        request.toQuestion()),
                 actor(authentication)));
     }
 

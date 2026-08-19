@@ -25,11 +25,6 @@ import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
 import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
 import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
-import com.hamcheeze.vote.task.domain.task.LongTextConstraint;
-import com.hamcheeze.vote.task.domain.task.MultipleChoiceConstraint;
-import com.hamcheeze.vote.task.domain.task.NumberConstraint;
-import com.hamcheeze.vote.task.domain.task.ScaleConstraint;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -37,9 +32,7 @@ import com.hamcheeze.vote.task.domain.task.TaskLifecycleEventType;
 import com.hamcheeze.vote.task.domain.task.TaskLifecycleHistory;
 import com.hamcheeze.vote.task.domain.task.TaskLifecycleTrigger;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
-import com.hamcheeze.vote.task.domain.task.TaskOptionKind;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
-import com.hamcheeze.vote.task.domain.task.TaskQuestionConstraint;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.hamcheeze.vote.task.domain.task.TaskSchedule;
 import com.hamcheeze.vote.task.domain.task.TaskStatus;
@@ -47,12 +40,12 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 final class TaskApiModels {
 
@@ -62,87 +55,42 @@ final class TaskApiModels {
     record TaskWriteRequest(
             @NotBlank String title,
             String description,
-            @NotNull List<@Valid QuestionWriteRequest> questions
+            @Valid QuestionWriteRequest question
     ) {
-        List<TaskQuestion> toQuestions() {
-            return questions.stream()
-                    .map(QuestionWriteRequest::toDomain)
-                    .toList();
+        TaskQuestion toQuestion() {
+            return question == null ? null : question.toDomain();
         }
     }
 
     record QuestionWriteRequest(
             UUID id,
-            @Positive int displayOrder,
-            @NotNull TaskQuestionType type,
             @NotBlank String content,
             String description,
-            @NotNull @Valid ConstraintRequest constraint,
-            List<@Valid OptionWriteRequest> options
+            @NotEmpty List<@Valid OptionWriteRequest> options
     ) {
         TaskQuestion toDomain() {
             return new TaskQuestion(
                     new TaskQuestionId(id == null ? UUID.randomUUID() : id),
-                    displayOrder,
-                    type,
+                    1,
+                    TaskQuestionType.SINGLE_CHOICE,
                     content,
                     description,
-                    constraint.toDomain(type),
-                    options == null ? List.of() : options.stream()
-                            .map(OptionWriteRequest::toDomain)
+                    new SingleChoiceConstraint(),
+                    IntStream.range(0, options.size())
+                            .mapToObj(index -> options.get(index)
+                                    .toDomain(index + 1))
                             .toList());
         }
     }
 
     record OptionWriteRequest(
             UUID id,
-            @Positive int displayOrder,
-            TaskOptionKind kind,
-            String content
+            @NotBlank String content
     ) {
-        TaskOption toDomain() {
+        TaskOption toDomain(int displayOrder) {
             TaskOptionId optionId = new TaskOptionId(
                     id == null ? UUID.randomUUID() : id);
-            TaskOptionKind resolvedKind = kind == null
-                    ? TaskOptionKind.STANDARD : kind;
-            return resolvedKind == TaskOptionKind.OTHER
-                    ? TaskOption.other(optionId, displayOrder)
-                    : TaskOption.standard(optionId, displayOrder, content);
-        }
-    }
-
-    record ConstraintRequest(
-            Integer minimumSelections,
-            Integer maximumSelections,
-            Integer maxLength,
-            BigDecimal minimumValue,
-            BigDecimal maximumValue,
-            Boolean decimalAllowed,
-            Integer scaleMinimum,
-            Integer scaleMaximum,
-            String minimumLabel,
-            String maximumLabel
-    ) {
-        TaskQuestionConstraint toDomain(TaskQuestionType type) {
-            return switch (type) {
-                case SINGLE_CHOICE -> new SingleChoiceConstraint();
-                case MULTIPLE_CHOICE -> new MultipleChoiceConstraint(
-                        required(minimumSelections, "minimumSelections"),
-                        required(maximumSelections, "maximumSelections"));
-                case SHORT_TEXT -> new ShortTextConstraint(
-                        required(maxLength, "maxLength"));
-                case LONG_TEXT -> new LongTextConstraint(
-                        required(maxLength, "maxLength"));
-                case NUMBER -> new NumberConstraint(
-                        minimumValue,
-                        maximumValue,
-                        required(decimalAllowed, "decimalAllowed"));
-                case SCALE -> new ScaleConstraint(
-                        required(scaleMinimum, "scaleMinimum"),
-                        required(scaleMaximum, "scaleMaximum"),
-                        minimumLabel,
-                        maximumLabel);
-            };
+            return TaskOption.standard(optionId, displayOrder, content);
         }
     }
 
@@ -257,7 +205,7 @@ final class TaskApiModels {
             UUID id,
             String title,
             String description,
-            List<QuestionResponse> questions,
+            QuestionResponse question,
             TaskStatus status,
             ScheduleResponse schedule,
             Instant publishedAt,
@@ -270,8 +218,9 @@ final class TaskApiModels {
         static TaskResponse from(Task task) {
             return new TaskResponse(
                     task.id().value(), task.title(), task.description(),
-                    task.questions().stream()
-                            .map(QuestionResponse::from).toList(),
+                    task.questions().isEmpty() ? null
+                            : QuestionResponse.from(
+                                    task.questions().getFirst()),
                     task.status(), ScheduleResponse.from(task.schedule()),
                     task.publishedAt(), task.openedAt(), task.closedAt(),
                     task.closureType(), task.createdAt(), task.updatedAt());
@@ -280,87 +229,28 @@ final class TaskApiModels {
 
     record QuestionResponse(
             UUID id,
-            int displayOrder,
-            TaskQuestionType type,
             String content,
             String description,
-            ConstraintResponse constraint,
             List<OptionResponse> options
     ) {
         static QuestionResponse from(TaskQuestion question) {
             return new QuestionResponse(
-                    question.id().value(), question.displayOrder(),
-                    question.type(), question.content(),
+                    question.id().value(), question.content(),
                     question.description(),
-                    ConstraintResponse.from(question.constraint()),
                     question.options().stream()
                             .map(OptionResponse::from).toList());
-        }
-    }
-
-    record ConstraintResponse(
-            TaskQuestionType type,
-            Integer minimumSelections,
-            Integer maximumSelections,
-            Integer maxLength,
-            BigDecimal minimumValue,
-            BigDecimal maximumValue,
-            Boolean decimalAllowed,
-            Integer scaleMinimum,
-            Integer scaleMaximum,
-            String minimumLabel,
-            String maximumLabel
-    ) {
-        static ConstraintResponse from(TaskQuestionConstraint constraint) {
-            return switch (constraint) {
-                case SingleChoiceConstraint ignored -> empty(
-                        TaskQuestionType.SINGLE_CHOICE);
-                case MultipleChoiceConstraint multiple ->
-                        new ConstraintResponse(
-                                TaskQuestionType.MULTIPLE_CHOICE,
-                                multiple.minimumSelections(),
-                                multiple.maximumSelections(),
-                                null, null, null, null,
-                                null, null, null, null);
-                case ShortTextConstraint text -> new ConstraintResponse(
-                        TaskQuestionType.SHORT_TEXT,
-                        null, null, text.maxLength(), null, null, null,
-                        null, null, null, null);
-                case LongTextConstraint text -> new ConstraintResponse(
-                        TaskQuestionType.LONG_TEXT,
-                        null, null, text.maxLength(), null, null, null,
-                        null, null, null, null);
-                case NumberConstraint number -> new ConstraintResponse(
-                        TaskQuestionType.NUMBER,
-                        null, null, null,
-                        number.minimumValue(), number.maximumValue(),
-                        number.decimalAllowed(),
-                        null, null, null, null);
-                case ScaleConstraint scale -> new ConstraintResponse(
-                        TaskQuestionType.SCALE,
-                        null, null, null, null, null, null,
-                        scale.minimumValue(), scale.maximumValue(),
-                        scale.minimumLabel(), scale.maximumLabel());
-            };
-        }
-
-        private static ConstraintResponse empty(TaskQuestionType type) {
-            return new ConstraintResponse(
-                    type, null, null, null, null, null, null,
-                    null, null, null, null);
         }
     }
 
     record OptionResponse(
             UUID id,
             int displayOrder,
-            TaskOptionKind kind,
             String content
     ) {
         static OptionResponse from(TaskOption option) {
             return new OptionResponse(
                     option.id().value(), option.displayOrder(),
-                    option.kind(), option.content());
+                    option.content());
         }
     }
 
@@ -408,7 +298,6 @@ final class TaskApiModels {
             Instant openedAt,
             Instant closedAt,
             TaskClosureType closureType,
-            int questionCount,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -420,8 +309,7 @@ final class TaskApiModels {
                     summary.status(), ScheduleResponse.from(summary.schedule()),
                     summary.publishedAt(), summary.openedAt(),
                     summary.closedAt(), summary.closureType(),
-                    summary.questionCount(), summary.createdAt(),
-                    summary.updatedAt());
+                    summary.createdAt(), summary.updatedAt());
         }
     }
 
@@ -443,7 +331,6 @@ final class TaskApiModels {
             UUID taskId,
             String title,
             String description,
-            int questionCount,
             Instant openedAt,
             Instant closesAt,
             SubmissionStateResponse submission
@@ -453,8 +340,8 @@ final class TaskApiModels {
         ) {
             return new UserTaskSummaryResponse(
                     summary.taskId().value(), summary.title(),
-                    summary.description(), summary.questionCount(),
-                    summary.openedAt(), summary.closesAt(),
+                    summary.description(), summary.openedAt(),
+                    summary.closesAt(),
                     SubmissionStateResponse.from(summary.submission()));
         }
     }

@@ -500,11 +500,11 @@ public final class Task {
         }
         if (questions.size() > TaskLimits.MAX_QUESTIONS) {
             throw TaskDomainException.invariant(
-                    "TASK_QUESTIONS_TOO_MANY",
+                    "TASK_QUESTION_COUNT_INVALID",
                     "questions",
-                    "task must not exceed " + TaskLimits.MAX_QUESTIONS
-                            + " questions");
+                    "task must not contain more than one question");
         }
+        questions.forEach(Task::validateQuestionPolicy);
         List<TaskQuestion> normalized = questions.stream()
                 .sorted(Comparator.comparingInt(TaskQuestion::displayOrder))
                 .toList();
@@ -513,6 +513,22 @@ public final class Task {
         ensureUnique(normalized, TaskQuestion::displayOrder,
                 "TASK_QUESTION_DISPLAY_ORDER_DUPLICATED");
         return normalized;
+    }
+
+    private static void validateQuestionPolicy(TaskQuestion question) {
+        if (question.type() != TaskQuestionType.SINGLE_CHOICE) {
+            throw TaskDomainException.invariant(
+                    "TASK_QUESTION_TYPE_NOT_SUPPORTED",
+                    "question.type",
+                    "task question must be SINGLE_CHOICE");
+        }
+        if (question.options().stream().anyMatch(
+                option -> option.kind() == TaskOptionKind.OTHER)) {
+            throw TaskDomainException.invariant(
+                    "TASK_OTHER_OPTION_NOT_ALLOWED",
+                    "question.options",
+                    "task question must not contain OTHER option");
+        }
     }
 
     private static <T> void ensureUnique(

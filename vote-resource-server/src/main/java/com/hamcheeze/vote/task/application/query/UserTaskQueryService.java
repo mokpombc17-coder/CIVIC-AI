@@ -88,7 +88,6 @@ public class UserTaskQueryService {
                 task.id(),
                 task.title(),
                 task.description(),
-                task.questions().size(),
                 task.openedAt(),
                 task.schedule().scheduledCloseAt(),
                 submission);
@@ -98,7 +97,6 @@ public class UserTaskQueryService {
             TaskId taskId,
             String title,
             String description,
-            int questionCount,
             Instant openedAt,
             Instant closesAt,
             SubmissionState submission
@@ -106,10 +104,6 @@ public class UserTaskQueryService {
         public UserTaskSummary {
             Objects.requireNonNull(taskId, "taskId");
             Objects.requireNonNull(title, "title");
-            if (questionCount < 1) {
-                throw new IllegalArgumentException(
-                        "questionCount must be positive");
-            }
             Objects.requireNonNull(openedAt, "openedAt");
             Objects.requireNonNull(closesAt, "closesAt");
             Objects.requireNonNull(submission, "submission");

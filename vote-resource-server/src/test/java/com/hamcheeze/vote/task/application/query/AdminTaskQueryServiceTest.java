@@ -61,7 +61,7 @@ class AdminTaskQueryServiceTest {
                         TaskStatus.CLOSED);
         assertThat(result.getLast().closureType())
                 .isEqualTo(TaskClosureType.DEADLINE_REACHED);
-        assertThat(result.getFirst().questionCount()).isZero();
+        assertThat(result.getFirst().status()).isEqualTo(TaskStatus.DRAFT);
     }
 
     @Test

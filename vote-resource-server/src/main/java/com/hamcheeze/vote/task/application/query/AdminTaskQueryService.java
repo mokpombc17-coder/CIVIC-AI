@@ -49,7 +49,6 @@ public class AdminTaskQueryService {
             Instant openedAt,
             Instant closedAt,
             TaskClosureType closureType,
-            int questionCount,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -57,10 +56,6 @@ public class AdminTaskQueryService {
             Objects.requireNonNull(taskId, "taskId");
             Objects.requireNonNull(title, "title");
             Objects.requireNonNull(status, "status");
-            if (questionCount < 0) {
-                throw new IllegalArgumentException(
-                        "questionCount must not be negative");
-            }
             Objects.requireNonNull(createdAt, "createdAt");
             Objects.requireNonNull(updatedAt, "updatedAt");
         }
@@ -69,8 +64,7 @@ public class AdminTaskQueryService {
             return new AdminTaskSummary(
                     task.id(), task.title(), task.status(), task.schedule(),
                     task.publishedAt(), task.openedAt(), task.closedAt(),
-                    task.closureType(), task.questions().size(),
-                    task.createdAt(), task.updatedAt());
+                    task.closureType(), task.createdAt(), task.updatedAt());
         }
     }
 

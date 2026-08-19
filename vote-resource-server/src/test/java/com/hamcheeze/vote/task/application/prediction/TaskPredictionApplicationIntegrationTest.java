@@ -182,7 +182,7 @@ class TaskPredictionApplicationIntegrationTest {
                 new TaskAdministrationService.CreateDraftCommand(
                         "Task 종단 검증 과업",
                         "관리자 작성부터 AI 예상 답변 채택까지 검증합니다.",
-                        List.of(question)),
+                        question),
                 admin);
         Instant scheduledOpenAt = Instant.now().plus(1, ChronoUnit.HOURS);
         administration.schedule(

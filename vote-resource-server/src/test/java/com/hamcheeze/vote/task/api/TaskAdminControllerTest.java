@@ -7,8 +7,11 @@ import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskOptionKind;
+import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,6 +23,7 @@ import java.util.Optional;
 import static com.hamcheeze.vote.task.TaskTestFixtures.actorId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.draftTask;
 import static com.hamcheeze.vote.task.TaskTestFixtures.taskId;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -54,7 +58,7 @@ class TaskAdminControllerTest {
     }
 
     @Test
-    void createsDraftWithAuthenticatedActorAndTypedContent()
+    void createsDraftWithAuthenticatedActorAndSingleQuestionContent()
             throws Exception {
         Task task = draftTask();
         when(administration.createDraft(any(), any())).thenReturn(task);
@@ -66,13 +70,13 @@ class TaskAdminControllerTest {
                                 {
                                   "title": "테스트 과업",
                                   "description": "설명",
-                                  "questions": [{
-                                    "displayOrder": 1,
-                                    "type": "SHORT_TEXT",
-                                    "content": "의견을 입력하세요",
-                                    "constraint": {"maxLength": 200},
-                                    "options": []
-                                  }]
+                                  "question": {
+                                    "content": "하나를 선택하세요",
+                                    "options": [
+                                      {"content": "A"},
+                                      {"content": "B"}
+                                    ]
+                                  }
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -80,10 +84,26 @@ class TaskAdminControllerTest {
                         "/api/v1/admin/tasks/" + task.id().value()))
                 .andExpect(jsonPath("$.id")
                         .value(task.id().value().toString()))
-                .andExpect(jsonPath("$.questions[0].type")
-                        .value("SINGLE_CHOICE"));
+                .andExpect(jsonPath("$.question.content")
+                        .value("하나를 선택하세요"))
+                .andExpect(jsonPath("$.question.options[0].displayOrder")
+                        .value(1))
+                .andExpect(jsonPath("$.question.type").doesNotExist())
+                .andExpect(jsonPath("$.questions").doesNotExist());
 
-        verify(administration).createDraft(any(), eq(actorId()));
+        ArgumentCaptor<TaskAdministrationService.CreateDraftCommand> command =
+                ArgumentCaptor.forClass(
+                        TaskAdministrationService.CreateDraftCommand.class);
+        verify(administration).createDraft(command.capture(), eq(actorId()));
+        assertThat(command.getValue().question().type())
+                .isEqualTo(TaskQuestionType.SINGLE_CHOICE);
+        assertThat(command.getValue().question().displayOrder()).isEqualTo(1);
+        assertThat(command.getValue().question().options())
+                .extracting(option -> option.kind())
+                .containsOnly(TaskOptionKind.STANDARD);
+        assertThat(command.getValue().question().options())
+                .extracting(option -> option.displayOrder())
+                .containsExactly(1, 2);
     }
 
     @Test

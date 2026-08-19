@@ -3,12 +3,14 @@ package com.hamcheeze.vote.task.infra.prediction;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationCommand;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
+import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.sun.net.httpserver.HttpExchange;
@@ -35,6 +37,10 @@ class TaskPredictionHttpCreationAdapterTest {
     private static final UUID TASK_ID = new UUID(1, 1);
     private static final UUID QUESTION_ID = new UUID(2, 1);
     private static final UUID REQUEST_ID = new UUID(3, 1);
+    private static final UUID FIRST_OPTION_ID = new UUID(5, 1);
+    private static final UUID SECOND_OPTION_ID = new UUID(5, 2);
+    private static final UUID THIRD_CANDIDATE_ID = new UUID(4, 3);
+    private static final UUID FOURTH_CANDIDATE_ID = new UUID(4, 4);
 
     private HttpServer server;
     private TaskPredictionProperties properties;
@@ -76,10 +82,12 @@ class TaskPredictionHttpCreationAdapterTest {
 
         assertThat(result.requestId().value()).isEqualTo(REQUEST_ID);
         assertThat(result.taskId().value()).isEqualTo(TASK_ID);
-        assertThat(result.candidates()).hasSize(2);
+        assertThat(result.candidates()).hasSize(4);
         assertThat(result.candidates())
                 .extracting(candidate -> candidate.rationale())
-                .containsExactly("첫 번째 이유", "두 번째 이유");
+                .containsExactly(
+                        "A 첫 번째 이유", "A 두 번째 이유",
+                        "B 첫 번째 이유", "B 두 번째 이유");
         assertThat(authorization.get()).isEqualTo("Bearer test-ai-token");
         assertThat(requestBody.get())
                 .contains(
@@ -89,8 +97,9 @@ class TaskPredictionHttpCreationAdapterTest {
                         "\"candidatePolicyVersion\":\"policy-v1\"",
                         "\"requestedCandidateCount\":2",
                         "\"taskId\":\"" + TASK_ID + "\"",
-                        "의견을 입력하세요",
-                        "\"maxLength\":200")
+                        "하나를 선택하세요",
+                        "선택지 A",
+                        "선택지 B")
                 .doesNotContain("user-a", "userId");
     }
 
@@ -195,10 +204,14 @@ class TaskPredictionHttpCreationAdapterTest {
 
         assertThat(first.candidates())
                 .extracting(candidate -> candidate.id().value())
-                .containsExactly(firstCandidate, secondCandidate);
+                .containsExactly(
+                        firstCandidate, secondCandidate,
+                        THIRD_CANDIDATE_ID, FOURTH_CANDIDATE_ID);
         assertThat(duplicate.candidates())
                 .extracting(candidate -> candidate.id().value())
-                .containsExactly(firstCandidate, secondCandidate);
+                .containsExactly(
+                        firstCandidate, secondCandidate,
+                        THIRD_CANDIDATE_ID, FOURTH_CANDIDATE_ID);
     }
 
     private TaskPredictionHttpCreationAdapter adapter() {
@@ -210,11 +223,19 @@ class TaskPredictionHttpCreationAdapterTest {
         TaskQuestion question = new TaskQuestion(
                 new TaskQuestionId(QUESTION_ID),
                 1,
-                TaskQuestionType.SHORT_TEXT,
-                "의견을 입력하세요",
+                TaskQuestionType.SINGLE_CHOICE,
+                "하나를 선택하세요",
                 "구체적인 이유도 함께 생각해 주세요",
-                new ShortTextConstraint(200),
-                List.of());
+                new SingleChoiceConstraint(),
+                List.of(
+                        TaskOption.standard(
+                                new TaskOptionId(FIRST_OPTION_ID),
+                                1,
+                                "선택지 A"),
+                        TaskOption.standard(
+                                new TaskOptionId(SECOND_OPTION_ID),
+                                2,
+                                "선택지 B")));
         Task task = Task.draft(
                 new TaskId(TASK_ID),
                 "테스트 과업",
@@ -269,20 +290,40 @@ class TaskPredictionHttpCreationAdapterTest {
                       "questionId": "%s",
                       "candidateOrder": 1,
                       "answer": {
-                        "type": "SHORT_TEXT",
-                        "text": "첫 번째 예상"
+                        "type": "SINGLE_CHOICE",
+                        "selection": {"optionId": "%s"}
                       },
-                      "rationale": "첫 번째 이유"
+                      "rationale": "A 첫 번째 이유"
                     },
                     {
                       "candidateId": "%s",
                       "questionId": "%s",
                       "candidateOrder": 2,
                       "answer": {
-                        "type": "SHORT_TEXT",
-                        "text": "두 번째 예상"
+                        "type": "SINGLE_CHOICE",
+                        "selection": {"optionId": "%s"}
                       },
-                      "rationale": "두 번째 이유"
+                      "rationale": "A 두 번째 이유"
+                    },
+                    {
+                      "candidateId": "%s",
+                      "questionId": "%s",
+                      "candidateOrder": 1,
+                      "answer": {
+                        "type": "SINGLE_CHOICE",
+                        "selection": {"optionId": "%s"}
+                      },
+                      "rationale": "B 첫 번째 이유"
+                    },
+                    {
+                      "candidateId": "%s",
+                      "questionId": "%s",
+                      "candidateOrder": 2,
+                      "answer": {
+                        "type": "SINGLE_CHOICE",
+                        "selection": {"optionId": "%s"}
+                      },
+                      "rationale": "B 두 번째 이유"
                     }
                   ]
                 }
@@ -291,8 +332,16 @@ class TaskPredictionHttpCreationAdapterTest {
                         taskId,
                         firstCandidate,
                         QUESTION_ID,
+                        FIRST_OPTION_ID,
                         secondCandidate,
-                        QUESTION_ID);
+                        QUESTION_ID,
+                        FIRST_OPTION_ID,
+                        THIRD_CANDIDATE_ID,
+                        QUESTION_ID,
+                        SECOND_OPTION_ID,
+                        FOURTH_CANDIDATE_ID,
+                        QUESTION_ID,
+                        SECOND_OPTION_ID);
     }
 
     private static void assertFailure(

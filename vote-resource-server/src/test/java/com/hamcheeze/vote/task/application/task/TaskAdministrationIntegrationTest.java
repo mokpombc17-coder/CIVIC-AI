@@ -7,7 +7,6 @@ import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskValidationException;
-import com.hamcheeze.vote.task.domain.task.ShortTextConstraint;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -57,14 +56,14 @@ class TaskAdministrationIntegrationTest {
                 new TaskAdministrationService.CreateDraftCommand(
                         "초안 과업",
                         null,
-                        List.of(shortTextQuestion("초기 질문"))),
+                        choiceQuestion("초기 질문")),
                 ADMIN);
         Task replaced = administration.replaceDraft(
                 created.id(),
                 new TaskAdministrationService.ReplaceDraftCommand(
                         "수정된 초안 과업",
                         "전체 내용을 교체했습니다.",
-                        List.of(choiceQuestion())),
+                        choiceQuestion()),
                 ADMIN);
 
         assertThat(replaced.title()).isEqualTo("수정된 초안 과업");
@@ -82,7 +81,7 @@ class TaskAdministrationIntegrationTest {
 
         Task emptyDraft = administration.createDraft(
                 new TaskAdministrationService.CreateDraftCommand(
-                        "작성 중인 빈 초안", null, List.of()),
+                        "작성 중인 빈 초안", null, null),
                 ADMIN);
         assertThatThrownBy(() -> administration.schedule(
                 emptyDraft.id(),
@@ -247,7 +246,7 @@ class TaskAdministrationIntegrationTest {
                 new TaskAdministrationService.CreateDraftCommand(
                         title,
                         null,
-                        List.of(choiceQuestion("하나를 선택해주세요."))),
+                        choiceQuestion("하나를 선택해주세요.")),
                 ADMIN);
     }
 
@@ -277,17 +276,6 @@ class TaskAdministrationIntegrationTest {
     private static TaskSchedule futureSchedule() {
         Instant openAt = Instant.now().plus(1, ChronoUnit.HOURS);
         return new TaskSchedule(openAt, openAt.plus(1, ChronoUnit.HOURS));
-    }
-
-    private static TaskQuestion shortTextQuestion(String content) {
-        return new TaskQuestion(
-                new TaskQuestionId(UUID.randomUUID()),
-                1,
-                TaskQuestionType.SHORT_TEXT,
-                content,
-                null,
-                ShortTextConstraint.defaults(),
-                List.of());
     }
 
     private static TaskQuestion choiceQuestion() {
