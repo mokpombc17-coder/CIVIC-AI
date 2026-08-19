@@ -8,14 +8,13 @@ import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -25,6 +24,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static com.hamcheeze.vote.task.TaskTestFixtures.NOW;
 import static com.hamcheeze.vote.task.TaskTestFixtures.pendingPrediction;
@@ -235,11 +235,12 @@ class TaskUserControllerTest {
                         personaGenerationId(), personaVersionId(),
                         predictionId(),
                         NOW.plusSeconds(30),
-                        List.of(new MyTaskSubmissionQueryService
-                                .MyTaskSubmissionAnswer(
-                                questionId(3), shortTextQuestion(),
-                                TaskAnswerSource.USER_ANSWERED,
-                                null, new ShortTextValue("직접 답변"))));
+                        questionId(3), shortTextQuestion(),
+                        new com.hamcheeze.vote.task.domain.common.TaskOptionId(
+                                UUID.randomUUID()),
+                        TaskReasonSource.USER_WRITTEN,
+                        null,
+                        "직접 작성한 이유");
         when(submissionQueries.findById(any(), any()))
                 .thenReturn(Optional.of(view));
 
@@ -250,8 +251,10 @@ class TaskUserControllerTest {
                         .value(submissionId().value().toString()))
                 .andExpect(jsonPath("$.personaVersionId")
                         .value(personaVersionId().value().toString()))
-                .andExpect(jsonPath("$.answers[0].source")
-                        .value("USER_ANSWERED"));
+                .andExpect(jsonPath("$.reasonSource")
+                        .value("USER_WRITTEN"))
+                .andExpect(jsonPath("$.finalReason")
+                        .value("직접 작성한 이유"));
 
         verify(submissionQueries).findById(
                 eq(new TaskUserId("user-a")),
@@ -262,17 +265,14 @@ class TaskUserControllerTest {
         return """
                 {
                   "predictionId": "%s",
-                  "answers": [{
-                    "questionId": "%s",
-                    "source": "USER_ANSWERED",
-                    "answer": {
-                      "type": "SHORT_TEXT",
-                      "text": "직접 답변"
-                    }
-                  }]
+                  "questionId": "%s",
+                  "selectedOptionId": "%s",
+                  "reasonSource": "USER_WRITTEN",
+                  "reason": "직접 작성한 이유"
                 }
                 """.formatted(
-                        predictionId().value(), questionId(3).value());
+                        predictionId().value(), questionId(3).value(),
+                        UUID.randomUUID());
     }
 
     private static TaskPredictionQueryService.TaskPredictionView unavailable(

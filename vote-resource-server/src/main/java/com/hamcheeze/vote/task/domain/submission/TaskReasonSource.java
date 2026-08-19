@@ -1,6 +1,6 @@
 package com.hamcheeze.vote.task.domain.submission;
 
-public enum TaskAnswerSource {
+public enum TaskReasonSource {
     AI_ACCEPTED,
-    USER_ANSWERED
+    USER_WRITTEN
 }

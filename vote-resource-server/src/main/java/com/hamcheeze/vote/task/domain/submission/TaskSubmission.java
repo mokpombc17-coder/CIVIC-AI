@@ -1,30 +1,26 @@
 package com.hamcheeze.vote.task.domain.submission;
 
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
+import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
+import com.hamcheeze.vote.task.domain.common.TaskText;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
-import com.hamcheeze.vote.task.domain.common.TaskId;
-import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
+import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+
+import static com.hamcheeze.vote.task.domain.common.TaskLimits.MAX_REASON_LENGTH;
 
 public final class TaskSubmission {
 
@@ -34,7 +30,11 @@ public final class TaskSubmission {
     private final TaskPersonaGenerationId personaGenerationId;
     private final TaskPersonaVersionId personaVersionId;
     private final TaskPredictionId predictionId;
-    private final List<TaskSubmissionAnswer> answers;
+    private final TaskQuestionId questionId;
+    private final TaskOptionId selectedOptionId;
+    private final TaskReasonSource reasonSource;
+    private final TaskPredictedReasonId acceptedPredictedReasonId;
+    private final String finalReason;
     private final Instant submittedAt;
 
     private TaskSubmission(
@@ -44,7 +44,11 @@ public final class TaskSubmission {
             TaskPersonaGenerationId personaGenerationId,
             TaskPersonaVersionId personaVersionId,
             TaskPredictionId predictionId,
-            List<TaskSubmissionAnswer> answers,
+            TaskQuestionId questionId,
+            TaskOptionId selectedOptionId,
+            TaskReasonSource reasonSource,
+            TaskPredictedReasonId acceptedPredictedReasonId,
+            String finalReason,
             Instant submittedAt
     ) {
         this.id = Objects.requireNonNull(id, "id");
@@ -55,8 +59,14 @@ public final class TaskSubmission {
         this.personaVersionId = Objects.requireNonNull(
                 personaVersionId, "personaVersionId");
         this.predictionId = Objects.requireNonNull(predictionId, "predictionId");
-        this.answers = immutableAnswers(answers);
+        this.questionId = Objects.requireNonNull(questionId, "questionId");
+        this.selectedOptionId = Objects.requireNonNull(
+                selectedOptionId, "selectedOptionId");
+        this.reasonSource = Objects.requireNonNull(reasonSource, "reasonSource");
+        this.acceptedPredictedReasonId = acceptedPredictedReasonId;
+        this.finalReason = normalizeReason(finalReason);
         this.submittedAt = Objects.requireNonNull(submittedAt, "submittedAt");
+        validateReasonSource();
     }
 
     public static TaskSubmission create(
@@ -66,11 +76,12 @@ public final class TaskSubmission {
             TaskPrediction prediction,
             TaskPersonaGenerationId currentPersonaGenerationId,
             TaskPersonaVersionId currentPersonaVersionId,
-            List<TaskSubmissionAnswerCommand> answerCommands,
+            TaskSubmissionAnswerCommand answerCommand,
             Instant submittedAt
     ) {
         Objects.requireNonNull(task, "task");
         Objects.requireNonNull(prediction, "prediction");
+        Objects.requireNonNull(answerCommand, "answerCommand");
         Objects.requireNonNull(submittedAt, "submittedAt");
         if (!task.isOpenAt(submittedAt)) {
             throw TaskDomainException.invariant(
@@ -81,12 +92,17 @@ public final class TaskSubmission {
         validatePredictionIdentity(
                 userId, task, prediction, currentPersonaGenerationId,
                 currentPersonaVersionId);
-        List<TaskSubmissionAnswer> answers = createAnswers(
-                task, prediction, answerCommands);
-        return new TaskSubmission(
-                id, userId, task.id(), currentPersonaGenerationId,
-                currentPersonaVersionId, prediction.id(), answers,
-                submittedAt);
+        TaskQuestion question = validateChoice(task, answerCommand);
+        return switch (answerCommand) {
+            case AcceptTaskPredictedReason accepted -> createAiAccepted(
+                    id, userId, task, prediction, currentPersonaGenerationId,
+                    currentPersonaVersionId, question, accepted, submittedAt);
+            case WriteTaskReason written -> new TaskSubmission(
+                    id, userId, task.id(), currentPersonaGenerationId,
+                    currentPersonaVersionId, prediction.id(), question.id(),
+                    written.selectedOptionId(), TaskReasonSource.USER_WRITTEN,
+                    null, written.reason(), submittedAt);
+        };
     }
 
     public static TaskSubmission restore(
@@ -96,7 +112,11 @@ public final class TaskSubmission {
             TaskPrediction prediction,
             TaskPersonaGenerationId personaGenerationId,
             TaskPersonaVersionId personaVersionId,
-            List<TaskSubmissionAnswer> storedAnswers,
+            TaskQuestionId questionId,
+            TaskOptionId selectedOptionId,
+            TaskReasonSource reasonSource,
+            TaskPredictedReasonId acceptedPredictedReasonId,
+            String finalReason,
             Instant submittedAt
     ) {
         Objects.requireNonNull(task, "task");
@@ -104,11 +124,16 @@ public final class TaskSubmission {
         validatePredictionIdentity(
                 userId, task, prediction, personaGenerationId,
                 personaVersionId);
-        List<TaskSubmissionAnswer> answers = validateStoredAnswers(
-                task, prediction, storedAnswers);
+        TaskQuestion question = requireTaskQuestion(task, questionId);
+        requireTaskOption(question, selectedOptionId);
+        if (reasonSource == TaskReasonSource.AI_ACCEPTED) {
+            validateAcceptedReason(
+                    prediction, selectedOptionId, acceptedPredictedReasonId);
+        }
         return new TaskSubmission(
-                id, userId, task.id(), personaGenerationId,
-                personaVersionId, prediction.id(), answers, submittedAt);
+                id, userId, task.id(), personaGenerationId, personaVersionId,
+                prediction.id(), questionId, selectedOptionId, reasonSource,
+                acceptedPredictedReasonId, finalReason, submittedAt);
     }
 
     public TaskSubmissionId id() { return id; }
@@ -117,145 +142,98 @@ public final class TaskSubmission {
     public TaskPersonaGenerationId personaGenerationId() { return personaGenerationId; }
     public TaskPersonaVersionId personaVersionId() { return personaVersionId; }
     public TaskPredictionId predictionId() { return predictionId; }
-    public List<TaskSubmissionAnswer> answers() { return answers; }
+    public TaskQuestionId questionId() { return questionId; }
+    public TaskOptionId selectedOptionId() { return selectedOptionId; }
+    public TaskReasonSource reasonSource() { return reasonSource; }
+    public TaskPredictedReasonId acceptedPredictedReasonId() {
+        return acceptedPredictedReasonId;
+    }
+    public String finalReason() { return finalReason; }
     public Instant submittedAt() { return submittedAt; }
 
-    private static List<TaskSubmissionAnswer> createAnswers(
+    private static TaskSubmission createAiAccepted(
+            TaskSubmissionId id,
+            TaskUserId userId,
             Task task,
             TaskPrediction prediction,
-            List<TaskSubmissionAnswerCommand> commands
+            TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
+            TaskQuestion question,
+            AcceptTaskPredictedReason accepted,
+            Instant submittedAt
     ) {
-        Map<TaskQuestionId, TaskSubmissionAnswerCommand> byQuestion =
-                indexCommands(task, commands);
-        List<TaskSubmissionAnswer> answers = new ArrayList<>();
-        for (TaskQuestion question : task.questions()) {
-            TaskSubmissionAnswerCommand command = byQuestion.get(question.id());
-            TaskSubmissionAnswer answer = switch (command) {
-                case AcceptTaskPredictionCandidate accepted ->
-                        acceptCandidate(question, prediction, accepted);
-                case UserAnsweredTaskQuestion direct ->
-                        TaskSubmissionAnswer.userAnswered(
-                                question.id(),
-                                question.validateAndNormalize(
-                                        direct.answerValue()));
-            };
-            answers.add(answer);
-        }
-        if (prediction.status() == TaskPredictionStatus.FAILED
-                && answers.stream().anyMatch(answer ->
-                answer.source() == TaskAnswerSource.AI_ACCEPTED)) {
-            throw TaskDomainException.invariant(
-                    "TASK_SUBMISSION_FAILED_PREDICTION_REQUIRES_DIRECT_ANSWERS",
-                    "answers",
-                    "failed prediction permits only USER_ANSWERED answers");
-        }
-        return List.copyOf(answers);
+        TaskPredictedReason reason = validateAcceptedReason(
+                prediction,
+                accepted.selectedOptionId(),
+                accepted.predictedReasonId());
+        return new TaskSubmission(
+                id, userId, task.id(), personaGenerationId, personaVersionId,
+                prediction.id(), question.id(), accepted.selectedOptionId(),
+                TaskReasonSource.AI_ACCEPTED, reason.id(), reason.reason(),
+                submittedAt);
     }
 
-    private static TaskSubmissionAnswer acceptCandidate(
-            TaskQuestion question,
+    private static TaskPredictedReason validateAcceptedReason(
             TaskPrediction prediction,
-            AcceptTaskPredictionCandidate accepted
+            TaskOptionId selectedOptionId,
+            TaskPredictedReasonId predictedReasonId
     ) {
         if (prediction.status() != TaskPredictionStatus.SUCCEEDED) {
             throw TaskDomainException.invariant(
                     "TASK_SUBMISSION_AI_ACCEPTANCE_NOT_AVAILABLE",
                     "prediction.status",
-                    "AI candidate requires succeeded prediction");
+                    "AI reason requires succeeded prediction");
         }
-        TaskPredictedReason candidate = prediction.predictedReason(
-                accepted.candidateId());
-        if (question.options().stream().noneMatch(option ->
-                option.id().equals(candidate.optionId()))) {
+        if (predictedReasonId == null) {
             throw TaskDomainException.invariant(
-                    "TASK_SUBMISSION_CANDIDATE_QUESTION_MISMATCH",
-                    "candidateId",
-                    "candidate belongs to another question");
+                    "TASK_SUBMISSION_ACCEPTED_REASON_REQUIRED",
+                    "acceptedPredictedReasonId",
+                    "AI_ACCEPTED submission requires predicted reason ID");
         }
-        TaskAnswerValue exactAnswer = question.validateAndNormalize(
-                new SingleChoiceValue(new TaskOptionSelection(
-                        candidate.optionId(), null)));
-        return TaskSubmissionAnswer.aiAccepted(
-                question.id(), candidate.id(), exactAnswer);
+        TaskPredictedReason reason = prediction.predictedReason(predictedReasonId);
+        if (!reason.optionId().equals(selectedOptionId)) {
+            throw TaskDomainException.invariant(
+                    "TASK_SUBMISSION_REASON_OPTION_MISMATCH",
+                    "acceptedPredictedReasonId",
+                    "predicted reason belongs to another option");
+        }
+        return reason;
     }
 
-    private static List<TaskSubmissionAnswer> validateStoredAnswers(
+    private static TaskQuestion validateChoice(
             Task task,
-            TaskPrediction prediction,
-            List<TaskSubmissionAnswer> storedAnswers
+            TaskSubmissionAnswerCommand command
     ) {
-        Objects.requireNonNull(storedAnswers, "storedAnswers");
-        Map<TaskQuestionId, TaskSubmissionAnswer> byQuestion = new HashMap<>();
-        for (TaskSubmissionAnswer answer : storedAnswers) {
-            Objects.requireNonNull(answer, "stored answer");
-            if (byQuestion.put(answer.questionId(), answer) != null) {
-                throw invalidAnswerSet(
-                        "TASK_SUBMISSION_ANSWER_DUPLICATED",
-                        "duplicate answer for question");
-            }
-        }
-        requireExactQuestionSet(task, byQuestion.keySet());
-        List<TaskSubmissionAnswer> normalized = new ArrayList<>();
-        for (TaskQuestion question : task.questions()) {
-            TaskSubmissionAnswer stored = byQuestion.get(question.id());
-            TaskAnswerValue answer = question.validateAndNormalize(
-                    stored.finalAnswerValue());
-            if (stored.source() == TaskAnswerSource.AI_ACCEPTED) {
-                if (prediction.status() != TaskPredictionStatus.SUCCEEDED) {
-                    throw invalidAnswerSet(
-                            "TASK_SUBMISSION_AI_ACCEPTANCE_NOT_AVAILABLE",
-                            "AI answer requires succeeded prediction");
-                }
-                TaskPredictedReason candidate = prediction.predictedReason(
-                        stored.adoptedPredictionCandidateId());
-                TaskAnswerValue expectedAnswer = question.validateAndNormalize(
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                candidate.optionId(), null)));
-                if (!expectedAnswer.equals(answer)) {
-                    throw invalidAnswerSet(
-                            "TASK_SUBMISSION_AI_ANSWER_CHANGED",
-                            "stored AI answer must equal adopted candidate");
-                }
-                normalized.add(TaskSubmissionAnswer.aiAccepted(
-                        question.id(), candidate.id(), answer));
-            } else {
-                normalized.add(TaskSubmissionAnswer.userAnswered(
-                        question.id(), answer));
-            }
-        }
-        return List.copyOf(normalized);
+        TaskQuestion question = requireTaskQuestion(task, command.questionId());
+        requireTaskOption(question, command.selectedOptionId());
+        return question;
     }
 
-    private static Map<TaskQuestionId, TaskSubmissionAnswerCommand> indexCommands(
+    private static TaskQuestion requireTaskQuestion(
             Task task,
-            List<TaskSubmissionAnswerCommand> commands
+            TaskQuestionId questionId
     ) {
-        Objects.requireNonNull(commands, "answerCommands");
-        Map<TaskQuestionId, TaskSubmissionAnswerCommand> byQuestion =
-                new HashMap<>();
-        for (TaskSubmissionAnswerCommand command : commands) {
-            Objects.requireNonNull(command, "answer command");
-            if (byQuestion.put(command.questionId(), command) != null) {
-                throw invalidAnswerSet(
-                        "TASK_SUBMISSION_ANSWER_DUPLICATED",
-                        "duplicate answer for question");
-            }
+        Objects.requireNonNull(questionId, "questionId");
+        if (task.questions().size() != 1
+                || !task.questions().getFirst().id().equals(questionId)) {
+            throw TaskDomainException.invariant(
+                    "TASK_SUBMISSION_QUESTION_MISMATCH",
+                    "questionId",
+                    "question does not belong to the task");
         }
-        requireExactQuestionSet(task, byQuestion.keySet());
-        return byQuestion;
+        return task.questions().getFirst();
     }
 
-    private static void requireExactQuestionSet(
-            Task task,
-            Set<TaskQuestionId> answerQuestionIds
+    private static void requireTaskOption(
+            TaskQuestion question,
+            TaskOptionId selectedOptionId
     ) {
-        Set<TaskQuestionId> taskQuestionIds = new HashSet<>();
-        task.questions().forEach(question ->
-                taskQuestionIds.add(question.id()));
-        if (!answerQuestionIds.equals(taskQuestionIds)) {
-            throw invalidAnswerSet(
-                    "TASK_SUBMISSION_ANSWER_SET_INCOMPLETE",
-                    "answers must cover every task question exactly once");
+        Objects.requireNonNull(selectedOptionId, "selectedOptionId");
+        if (!question.hasOption(selectedOptionId)) {
+            throw TaskDomainException.invariant(
+                    "TASK_SUBMISSION_OPTION_MISMATCH",
+                    "selectedOptionId",
+                    "selected option does not belong to the question");
         }
     }
 
@@ -284,21 +262,28 @@ public final class TaskSubmission {
         }
     }
 
-    private static List<TaskSubmissionAnswer> immutableAnswers(
-            List<TaskSubmissionAnswer> answers
-    ) {
-        Objects.requireNonNull(answers, "answers");
-        if (answers.stream().anyMatch(Objects::isNull)) {
-            throw new IllegalArgumentException(
-                    "answers must not contain null");
+    private void validateReasonSource() {
+        if (reasonSource == TaskReasonSource.AI_ACCEPTED
+                && acceptedPredictedReasonId == null) {
+            throw TaskDomainException.invariant(
+                    "TASK_SUBMISSION_ACCEPTED_REASON_REQUIRED",
+                    "acceptedPredictedReasonId",
+                    "AI_ACCEPTED submission requires predicted reason ID");
         }
-        return List.copyOf(answers);
+        if (reasonSource == TaskReasonSource.USER_WRITTEN
+                && acceptedPredictedReasonId != null) {
+            throw TaskDomainException.invariant(
+                    "TASK_SUBMISSION_ACCEPTED_REASON_NOT_ALLOWED",
+                    "acceptedPredictedReasonId",
+                    "USER_WRITTEN submission must not have predicted reason ID");
+        }
     }
 
-    private static TaskDomainException invalidAnswerSet(
-            String code,
-            String message
-    ) {
-        return TaskDomainException.invariant(code, "answers", message);
+    private static String normalizeReason(String reason) {
+        return TaskText.required(
+                reason,
+                MAX_REASON_LENGTH,
+                "TASK_SUBMISSION_REASON",
+                "finalReason");
     }
 }

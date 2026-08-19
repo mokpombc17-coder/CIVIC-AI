@@ -1,21 +1,14 @@
 package com.hamcheeze.vote.task.application.idempotency;
 
-import com.hamcheeze.vote.task.domain.answer.MultipleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.NumberValue;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
-import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
-import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
+import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,69 +19,49 @@ class TaskSubmissionRequestHashFactoryTest {
             new TaskSubmissionRequestHashFactory();
 
     @Test
-    void equivalentOrderingTextAndNumbersProduceTheSameHash() {
+    void equivalentReasonLineEndingsProduceTheSameHash() {
         TaskId taskId = new TaskId(uuid(1));
         TaskPredictionId predictionId = new TaskPredictionId(uuid(2));
-        TaskQuestionId choiceQuestion = new TaskQuestionId(uuid(3));
-        TaskQuestionId textQuestion = new TaskQuestionId(uuid(4));
-        TaskQuestionId numberQuestion = new TaskQuestionId(uuid(5));
-        TaskOptionSelection first = new TaskOptionSelection(
-                new TaskOptionId(uuid(6)), null);
-        TaskOptionSelection second = new TaskOptionSelection(
-                new TaskOptionId(uuid(7)), "  직접\r\n입력  ");
-        List<TaskSubmissionAnswerCommand> original = List.of(
-                new UserAnsweredTaskQuestion(
-                        choiceQuestion,
-                        new MultipleChoiceValue(List.of(first, second))),
-                new UserAnsweredTaskQuestion(
-                        textQuestion,
-                        new ShortTextValue("  첫째\r\n둘째  ")),
-                new UserAnsweredTaskQuestion(
-                        numberQuestion,
-                        new NumberValue(new BigDecimal("1.00"))));
-        List<TaskSubmissionAnswerCommand> equivalent = List.of(
-                new UserAnsweredTaskQuestion(
-                        numberQuestion,
-                        new NumberValue(new BigDecimal("1"))),
-                new UserAnsweredTaskQuestion(
-                        textQuestion,
-                        new ShortTextValue("첫째\n둘째")),
-                new UserAnsweredTaskQuestion(
-                        choiceQuestion,
-                        new MultipleChoiceValue(List.of(
-                                new TaskOptionSelection(
-                                        second.optionId(), "직접\n입력"),
-                                first))));
+        TaskQuestionId questionId = new TaskQuestionId(uuid(3));
+        TaskOptionId optionId = new TaskOptionId(uuid(4));
 
-        assertThat(hashes.hash(taskId, predictionId, original))
-                .isEqualTo(hashes.hash(taskId, predictionId, equivalent));
+        assertThat(hashes.hash(
+                taskId, predictionId,
+                new WriteTaskReason(
+                        questionId, optionId, "첫째\r\n둘째")))
+                .isEqualTo(hashes.hash(
+                        taskId, predictionId,
+                        new WriteTaskReason(
+                                questionId, optionId, "첫째\n둘째")));
     }
 
     @Test
-    void answerSourceCandidateAndBodyArePartOfTheHash() {
+    void optionSourceReasonIdAndReasonBodyArePartOfTheHash() {
         TaskId taskId = new TaskId(uuid(10));
         TaskPredictionId predictionId = new TaskPredictionId(uuid(11));
         TaskQuestionId questionId = new TaskQuestionId(uuid(12));
+        TaskOptionId optionId = new TaskOptionId(uuid(13));
         TaskRequestHash accepted = hashes.hash(
-                taskId,
-                predictionId,
-                List.of(new AcceptTaskPredictionCandidate(
-                        questionId,
-                        new TaskPredictedReasonId(uuid(13)))));
-        TaskRequestHash anotherCandidate = hashes.hash(
-                taskId,
-                predictionId,
-                List.of(new AcceptTaskPredictionCandidate(
-                        questionId,
-                        new TaskPredictedReasonId(uuid(14)))));
-        TaskRequestHash direct = hashes.hash(
-                taskId,
-                predictionId,
-                List.of(new UserAnsweredTaskQuestion(
-                        questionId, new ShortTextValue("answer"))));
+                taskId, predictionId,
+                new AcceptTaskPredictedReason(
+                        questionId, optionId,
+                        new TaskPredictedReasonId(uuid(14))));
+        TaskRequestHash anotherReason = hashes.hash(
+                taskId, predictionId,
+                new AcceptTaskPredictedReason(
+                        questionId, optionId,
+                        new TaskPredictedReasonId(uuid(15))));
+        TaskRequestHash written = hashes.hash(
+                taskId, predictionId,
+                new WriteTaskReason(questionId, optionId, "직접 작성"));
+        TaskRequestHash anotherOption = hashes.hash(
+                taskId, predictionId,
+                new WriteTaskReason(
+                        questionId, new TaskOptionId(uuid(16)), "직접 작성"));
 
-        assertThat(accepted).isNotEqualTo(anotherCandidate);
-        assertThat(accepted).isNotEqualTo(direct);
+        assertThat(accepted).isNotEqualTo(anotherReason);
+        assertThat(accepted).isNotEqualTo(written);
+        assertThat(written).isNotEqualTo(anotherOption);
     }
 
     private static UUID uuid(long value) {

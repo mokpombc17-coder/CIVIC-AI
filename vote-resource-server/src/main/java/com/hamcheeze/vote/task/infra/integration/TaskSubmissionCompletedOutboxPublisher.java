@@ -9,21 +9,12 @@ import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.Answ
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerV1;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.SelectionV1;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionCompletedEventPublisher;
-import com.hamcheeze.vote.task.domain.answer.LongTextValue;
-import com.hamcheeze.vote.task.domain.answer.MultipleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.NumberValue;
-import com.hamcheeze.vote.task.domain.answer.ScaleValue;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -64,43 +55,24 @@ public class TaskSubmissionCompletedOutboxPublisher
                 submission.personaGenerationId().value(),
                 submission.personaVersionId().value(),
                 submission.submittedAt(),
-                submission.answers().stream().map(this::answer).toList());
+                List.of(answer(submission)));
     }
 
-    private AnswerV1 answer(TaskSubmissionAnswer answer) {
-        TaskAnswerValue value = answer.finalAnswerValue();
-        String textValue = switch (value) {
-            case ShortTextValue text -> text.value();
-            case LongTextValue text -> text.value();
-            default -> null;
-        };
-        BigDecimal numberValue = value instanceof NumberValue number
-                ? number.value() : null;
-        Integer scaleValue = value instanceof ScaleValue scale
-                ? scale.value() : null;
-        List<SelectionV1> selections = switch (value) {
-            case SingleChoiceValue single -> List.of(
-                    selection(single.selection()));
-            case MultipleChoiceValue multiple -> multiple.selections()
-                    .stream().map(this::selection).toList();
-            default -> List.of();
-        };
+    private AnswerV1 answer(TaskSubmission submission) {
         return new AnswerV1(
-                answer.questionId().value(),
-                AnswerType.valueOf(value.questionType().name()),
-                AnswerSource.valueOf(answer.source().name()),
-                answer.adoptedPredictionCandidateId() == null
+                submission.questionId().value(),
+                AnswerType.SINGLE_CHOICE,
+                submission.reasonSource() == TaskReasonSource.AI_ACCEPTED
+                        ? AnswerSource.AI_ACCEPTED
+                        : AnswerSource.USER_ANSWERED,
+                submission.acceptedPredictedReasonId() == null
                         ? null
-                        : answer.adoptedPredictionCandidateId().value(),
-                textValue,
-                numberValue,
-                scaleValue,
-                selections);
-    }
-
-    private SelectionV1 selection(TaskOptionSelection selection) {
-        return new SelectionV1(
-                selection.optionId().value(), selection.otherText());
+                        : submission.acceptedPredictedReasonId().value(),
+                null,
+                null,
+                null,
+                List.of(new SelectionV1(
+                        submission.selectedOptionId().value(), null)));
     }
 
     private IntegrationEventEnvelope envelope(

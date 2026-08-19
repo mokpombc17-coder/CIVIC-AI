@@ -1,14 +1,11 @@
 package com.hamcheeze.vote.task.domain.submission;
 
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.task.Task;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.UUID;
 
 import static com.hamcheeze.vote.task.TaskTestFixtures.NOW;
@@ -29,52 +26,47 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TaskSubmissionTest {
 
     @Test
-    void acceptsAiCandidateAndCopiesExactCandidateSnapshot() {
+    void acceptsPredictedReasonAndCopiesExactReasonSnapshot() {
         Task task = openTask();
         TaskPrediction prediction = succeededPrediction(task);
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, prediction,
                 personaGenerationId(), personaVersionId(),
-                List.of(new AcceptTaskPredictionCandidate(
-                        questionId(1), candidateId(1))),
+                new AcceptTaskPredictedReason(
+                        questionId(1), optionId(1), candidateId(1)),
                 NOW.plusSeconds(30));
 
-        assertThat(submission.personaVersionId())
-                .isEqualTo(personaVersionId());
-        assertThat(submission.answers())
-                .extracting(TaskSubmissionAnswer::source)
-                .containsExactly(TaskAnswerSource.AI_ACCEPTED);
-        assertThat(submission.answers().getFirst().finalAnswerValue())
-                .isEqualTo(new com.hamcheeze.vote.task.domain.answer
-                        .SingleChoiceValue(
-                        new com.hamcheeze.vote.task.domain.answer
-                                .TaskOptionSelection(
-                                prediction.predictedReason(candidateId(1))
-                                        .optionId(),
-                                null)));
-        assertThatThrownBy(() -> submission.answers().clear())
-                .isInstanceOf(UnsupportedOperationException.class);
+        assertThat(submission.personaVersionId()).isEqualTo(personaVersionId());
+        assertThat(submission.reasonSource())
+                .isEqualTo(TaskReasonSource.AI_ACCEPTED);
+        assertThat(submission.selectedOptionId()).isEqualTo(optionId(1));
+        assertThat(submission.acceptedPredictedReasonId())
+                .isEqualTo(candidateId(1));
+        assertThat(submission.finalReason())
+                .isEqualTo(prediction.predictedReason(candidateId(1)).reason());
     }
 
     @Test
-    void failedPredictionAllowsOnlyCompleteDirectAnswers() {
+    void failedPredictionAllowsUserWrittenReasonOnly() {
         Task task = openTask();
         TaskPrediction failed = failedPrediction();
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, failed,
-                personaGenerationId(), personaVersionId(), directAnswers(),
-                NOW.plusSeconds(30));
+                personaGenerationId(), personaVersionId(),
+                written("직접 작성한 이유"), NOW.plusSeconds(30));
 
-        assertThat(submission.answers())
-                .allMatch(answer ->
-                        answer.source() == TaskAnswerSource.USER_ANSWERED);
+        assertThat(submission.reasonSource())
+                .isEqualTo(TaskReasonSource.USER_WRITTEN);
+        assertThat(submission.finalReason()).isEqualTo("직접 작성한 이유");
+        assertThat(submission.acceptedPredictedReasonId()).isNull();
+
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, failed,
                 personaGenerationId(), personaVersionId(),
-                List.of(new AcceptTaskPredictionCandidate(
-                        questionId(1), candidateId(1))),
+                new AcceptTaskPredictedReason(
+                        questionId(1), optionId(1), candidateId(1)),
                 NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
@@ -84,32 +76,30 @@ class TaskSubmissionTest {
     }
 
     @Test
-    void rejectsMissingDuplicatePendingAndStalePersonaSubmission() {
+    void rejectsReasonThatBelongsToAnotherOption() {
         Task task = openTask();
-        TaskPrediction succeeded = succeededPrediction(task);
-        List<TaskSubmissionAnswerCommand> missing = List.of();
+        TaskPrediction prediction = succeededPrediction(task);
 
         assertThatThrownBy(() -> TaskSubmission.create(
-                submissionId(), userId(), task, succeeded,
-                personaGenerationId(), personaVersionId(), missing,
+                submissionId(), userId(), task, prediction,
+                personaGenerationId(), personaVersionId(),
+                new AcceptTaskPredictedReason(
+                        questionId(1), optionId(2), candidateId(1)),
                 NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
                         exception -> assertThat(exception.violation().code())
                                 .isEqualTo(
-                                        "TASK_SUBMISSION_ANSWER_SET_INCOMPLETE"));
+                                        "TASK_SUBMISSION_REASON_OPTION_MISMATCH"));
+    }
 
-        List<TaskSubmissionAnswerCommand> duplicate = List.of(
-                directAnswers().getFirst(), directAnswers().getFirst());
-        assertThatThrownBy(() -> TaskSubmission.create(
-                submissionId(), userId(), task, succeeded,
-                personaGenerationId(), personaVersionId(), duplicate,
-                NOW.plusSeconds(30)))
-                .isInstanceOf(TaskDomainException.class);
+    @Test
+    void rejectsPendingAndStalePersonaSubmission() {
+        Task task = openTask();
 
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, pendingPrediction(),
-                personaGenerationId(), personaVersionId(), directAnswers(),
+                personaGenerationId(), personaVersionId(), written("이유"),
                 NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
@@ -118,10 +108,9 @@ class TaskSubmissionTest {
                                         "TASK_SUBMISSION_PREDICTION_NOT_READY"));
 
         assertThatThrownBy(() -> TaskSubmission.create(
-                submissionId(), userId(), task, succeeded,
+                submissionId(), userId(), task, succeededPrediction(task),
                 new TaskPersonaGenerationId(new UUID(90, 1)),
-                personaVersionId(),
-                directAnswers(), NOW.plusSeconds(30)))
+                personaVersionId(), written("이유"), NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
                         exception -> assertThat(exception.violation().code())
@@ -130,51 +119,20 @@ class TaskSubmissionTest {
     }
 
     @Test
-    void directChoiceIsPreservedAsUserAnswered() {
+    void restoreKeepsStoredFinalReasonAsImmutableSnapshot() {
         Task task = openTask();
         TaskPrediction prediction = succeededPrediction(task);
-        List<TaskSubmissionAnswerCommand> answers = List.of(
-                new UserAnsweredTaskQuestion(
-                        questionId(1),
-                        new SingleChoiceValue(
-                                new TaskOptionSelection(optionId(2), null))));
 
-        TaskSubmission submission = TaskSubmission.create(
+        TaskSubmission restored = TaskSubmission.restore(
                 submissionId(), userId(), task, prediction,
-                personaGenerationId(), personaVersionId(), answers,
-                NOW.plusSeconds(30));
+                personaGenerationId(), personaVersionId(), questionId(1),
+                optionId(1), TaskReasonSource.AI_ACCEPTED, candidateId(1),
+                "저장 당시 이유", NOW.plusSeconds(30));
 
-        assertThat(submission.answers().getFirst().source())
-                .isEqualTo(TaskAnswerSource.USER_ANSWERED);
-        assertThat(submission.answers().getFirst()
-                .adoptedPredictionCandidateId()).isNull();
+        assertThat(restored.finalReason()).isEqualTo("저장 당시 이유");
     }
 
-    @Test
-    void restoreRejectsChangedAiSnapshot() {
-        Task task = openTask();
-        TaskPrediction prediction = succeededPrediction(task);
-        List<TaskSubmissionAnswer> corrupted = List.of(
-                TaskSubmissionAnswer.aiAccepted(
-                        questionId(1), candidateId(1),
-                        new SingleChoiceValue(
-                                new TaskOptionSelection(optionId(2), null))));
-
-        assertThatThrownBy(() -> TaskSubmission.restore(
-                submissionId(), userId(), task, prediction,
-                personaGenerationId(), personaVersionId(), corrupted,
-                NOW.plusSeconds(30)))
-                .isInstanceOfSatisfying(
-                        TaskDomainException.class,
-                        exception -> assertThat(exception.violation().code())
-                                .isEqualTo("TASK_SUBMISSION_AI_ANSWER_CHANGED"));
-    }
-
-    private static List<TaskSubmissionAnswerCommand> directAnswers() {
-        return List.of(
-                new UserAnsweredTaskQuestion(
-                        questionId(1),
-                        new SingleChoiceValue(
-                                new TaskOptionSelection(optionId(1), null))));
+    private static WriteTaskReason written(String reason) {
+        return new WriteTaskReason(questionId(1), optionId(1), reason);
     }
 }

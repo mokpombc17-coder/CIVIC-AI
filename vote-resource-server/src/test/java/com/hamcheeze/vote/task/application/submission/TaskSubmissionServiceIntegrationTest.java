@@ -9,8 +9,6 @@ import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
@@ -24,8 +22,7 @@ import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
-import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
+import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
@@ -294,7 +291,10 @@ class TaskSubmissionServiceIntegrationTest {
                 new TaskSubmissionService.SubmitTaskCommand(
                         fixture.task().id(),
                         fixture.prediction().id(),
-                        List.of());
+                        new WriteTaskReason(
+                                new TaskQuestionId(UUID.randomUUID()),
+                                fixture.question().options().getFirst().id(),
+                                "유효한 이유"));
 
         TaskSubmissionService.SubmissionExecution first = service.submit(
                 fixture.userId(), key, invalid);
@@ -303,7 +303,7 @@ class TaskSubmissionServiceIntegrationTest {
 
         assertThat(first.outcome().httpStatus()).isEqualTo(422);
         assertThat(first.outcome().code())
-                .isEqualTo("TASK_SUBMISSION_ANSWER_SET_INCOMPLETE");
+                .isEqualTo("TASK_SUBMISSION_QUESTION_MISMATCH");
         assertThat(replay.replayed()).isTrue();
         assertThat(replay.outcome()).isEqualTo(first.outcome());
         assertThat(submissionCount(fixture)).isZero();
@@ -501,14 +501,12 @@ class TaskSubmissionServiceIntegrationTest {
             String answer
     ) {
         int optionIndex = "변경".equals(answer) ? 1 : 0;
-        List<TaskSubmissionAnswerCommand> answers = List.of(
-                new UserAnsweredTaskQuestion(
-                        fixture.question().id(),
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                fixture.question().options().get(optionIndex).id(),
-                                null))));
         return new TaskSubmissionService.SubmitTaskCommand(
-                fixture.task().id(), fixture.prediction().id(), answers);
+                fixture.task().id(), fixture.prediction().id(),
+                new WriteTaskReason(
+                        fixture.question().id(),
+                        fixture.question().options().get(optionIndex).id(),
+                        answer + " 이유"));
     }
 
     private PersonaFixture insertSucceededPersona(

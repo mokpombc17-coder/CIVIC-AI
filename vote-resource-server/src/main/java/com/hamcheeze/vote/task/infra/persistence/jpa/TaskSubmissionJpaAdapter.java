@@ -3,20 +3,16 @@ package com.hamcheeze.vote.task.infra.persistence.jpa;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionPersistenceException;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionPersistenceException.ErrorCode;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswer;
-import com.hamcheeze.vote.task.domain.task.TaskOptionKind;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
-import java.util.UUID;
 
 @Repository
 public class TaskSubmissionJpaAdapter implements TaskSubmissionRepository {
@@ -37,21 +33,6 @@ public class TaskSubmissionJpaAdapter implements TaskSubmissionRepository {
             TaskSubmissionJpaEntity entity =
                     new TaskSubmissionJpaEntity(submission);
             entityManager.persist(entity);
-            for (TaskSubmissionAnswer answer : submission.answers()) {
-                entityManager.persist(
-                        new TaskSubmissionAnswerJpaEntity(submission, answer));
-                TaskAnswerJpaCodec.EncodedAnswer encoded =
-                        TaskAnswerJpaCodec.encode(answer.finalAnswerValue());
-                for (TaskOptionSelection selection : encoded.selections()) {
-                    entityManager.persist(
-                            new TaskSubmissionAnswerSelectionJpaEntity(
-                                    submission,
-                                    answer,
-                                    selection.optionId().value(),
-                                    optionKind(selection.optionId().value()),
-                                    selection.otherText()));
-                }
-            }
             entityManager.flush();
             return TaskSubmissionJpaMapper.toDomain(entityManager, entity);
         } catch (RuntimeException exception) {
@@ -93,16 +74,6 @@ public class TaskSubmissionJpaAdapter implements TaskSubmissionRepository {
         return Optional.ofNullable(entity)
                 .map(stored -> TaskSubmissionJpaMapper.toDomain(
                         entityManager, stored));
-    }
-
-    private TaskOptionKind optionKind(UUID optionId) {
-        TaskOptionJpaEntity option = entityManager.find(
-                TaskOptionJpaEntity.class, optionId);
-        if (option == null) {
-            throw new IllegalStateException(
-                    "submission selection references a missing option");
-        }
-        return option.kind();
     }
 
     private static RuntimeException translateConstraint(

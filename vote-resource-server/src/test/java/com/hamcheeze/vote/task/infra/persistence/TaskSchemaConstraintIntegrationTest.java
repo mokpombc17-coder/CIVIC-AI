@@ -34,19 +34,16 @@ class TaskSchemaConstraintIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void migratesCompleteTaskSchemaAtVersionFour() {
+    void migratesCurrentTaskSchema() {
         List<String> expectedTables = List.of(
                 "tasks",
                 "task_questions",
                 "task_options",
                 "task_lifecycle_history",
                 "task_predictions",
-                "task_prediction_candidates",
-                "task_prediction_candidate_selections",
+                "task_predicted_reasons",
                 "task_prediction_attempts",
                 "task_submissions",
-                "task_submission_answers",
-                "task_submission_answer_selections",
                 "task_submission_receipts");
 
         List<String> actualTables = jdbcTemplate.queryForList("""
@@ -58,7 +55,7 @@ class TaskSchemaConstraintIntegrationTest {
         Integer migrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM flyway_schema_history
-                WHERE version = '4' AND success = true
+                WHERE version = '14' AND success = true
                 """, Integer.class);
 
         assertThat(actualTables)
@@ -75,36 +72,35 @@ class TaskSchemaConstraintIntegrationTest {
         CandidateFixture selected = insertSingleChoiceCandidate(
                 predictionId, task, task.firstOptionId(), 1);
         insertSingleChoiceCandidate(
+                predictionId, task, task.firstOptionId(), 2);
+        insertSingleChoiceCandidate(
                 predictionId, task, task.secondOptionId(), 1);
-        insertShortTextCandidate(predictionId, task, 1);
+        insertSingleChoiceCandidate(
+                predictionId, task, task.secondOptionId(), 2);
         insertSuccessfulAttempt(predictionId, 1);
 
         UUID submissionId = UUID.randomUUID();
-        insertSubmission(
+        insertAiAcceptedSubmission(
                 submissionId, "user-valid", task.taskId(), persona,
-                predictionId);
-        insertAiAcceptedAnswer(
-                submissionId, predictionId, task,
+                predictionId, task.singleQuestionId(), task.firstOptionId(),
                 selected.candidateId());
-        insertDirectShortTextAnswer(
-                submissionId, predictionId, task, "직접 답변");
         insertSucceededReceipt("user-valid", submissionId);
 
         Integer tasks = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM tasks WHERE task_id = ?",
                 Integer.class, task.taskId());
         Integer candidates = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM task_prediction_candidates "
+                "SELECT count(*) FROM task_predicted_reasons "
                         + "WHERE prediction_id = ?",
                 Integer.class, predictionId);
-        Integer answers = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM task_submission_answers "
+        String finalReason = jdbcTemplate.queryForObject(
+                "SELECT final_reason FROM task_submissions "
                         + "WHERE submission_id = ?",
-                Integer.class, submissionId);
+                String.class, submissionId);
 
         assertThat(tasks).isEqualTo(1);
-        assertThat(candidates).isEqualTo(3);
-        assertThat(answers).isEqualTo(2);
+        assertThat(candidates).isEqualTo(4);
+        assertThat(finalReason).startsWith("선택 이유");
     }
 
     @Test
@@ -126,13 +122,13 @@ class TaskSchemaConstraintIntegrationTest {
     }
 
     @Test
-    void rejectsDuplicateQuestionOrderWithinTask() {
+    void rejectsSecondQuestionWithinTask() {
         UUID taskId = insertDraftTask();
-        insertShortTextQuestion(taskId, 1);
+        insertSingleChoiceQuestion(taskId, 1);
 
-        assertThatThrownBy(() -> insertShortTextQuestion(taskId, 1))
+        assertThatThrownBy(() -> insertSingleChoiceQuestion(taskId, 2))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("uq_task_question_order");
+                .hasMessageContaining("ck_task_question_order");
     }
 
     @Test
@@ -149,18 +145,27 @@ class TaskSchemaConstraintIntegrationTest {
     }
 
     @Test
-    void rejectsOptionsAttachedToNonChoiceQuestion() {
+    void rejectsNonSingleChoiceQuestion() {
         UUID taskId = insertDraftTask();
-        UUID questionId = insertShortTextQuestion(taskId, 1);
+
+        assertThatThrownBy(() -> insertShortTextQuestion(taskId, 1))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_task_question_type");
+    }
+
+    @Test
+    void rejectsOtherOption() {
+        UUID taskId = insertDraftTask();
+        UUID questionId = insertSingleChoiceQuestion(taskId, 1);
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO task_options (
                     option_id, task_id, question_id, question_type,
                     kind, content, display_order)
-                VALUES (?, ?, ?, 'SINGLE_CHOICE', 'STANDARD', 'A', 1)
+                VALUES (?, ?, ?, 'SINGLE_CHOICE', 'OTHER', '기타', 1)
                 """, UUID.randomUUID(), taskId, questionId))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("fk_task_option_question");
+                .hasMessageContaining("ck_task_option_kind");
     }
 
     @Test
@@ -188,10 +193,10 @@ class TaskSchemaConstraintIntegrationTest {
                     prediction_id, user_id, task_id,
                     persona_generation_id, persona_version_id,
                     persona_id, status,
-                    candidate_policy_version, requested_candidate_count,
+                    candidate_policy_version,
                     attempt_count, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, 'PENDING',
-                    'policy-v1', 2, 0, ?)
+                    'policy-v1', 0, ?)
                 """,
                 predictionId, "user-persona", taskId,
                 generationId, versionId, personaId, timestamp(NOW));
@@ -242,9 +247,9 @@ class TaskSchemaConstraintIntegrationTest {
                     prediction_id, user_id, task_id,
                     persona_generation_id, persona_version_id,
                     persona_id, status,
-                    candidate_policy_version, requested_candidate_count,
+                    candidate_policy_version,
                     attempt_count, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 2, 1, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 1, ?)
                 """,
                 UUID.randomUUID(), "user-state", taskId,
                 persona.generationId(), persona.versionId(),
@@ -255,61 +260,57 @@ class TaskSchemaConstraintIntegrationTest {
     }
 
     @Test
-    void rejectsCandidateAnswerTypeDifferentFromQuestionType() {
-        UUID taskId = insertDraftTask();
-        UUID questionId = insertShortTextQuestion(taskId, 1);
+    void rejectsPredictedReasonForMissingOption() {
+        TaskFixture task = insertOpenTaskWithQuestions();
         PersonaFixture persona = insertSucceededPersona("user-type");
         UUID predictionId = insertProcessingPrediction(
-                "user-type", taskId, persona);
+                "user-type", task.taskId(), persona);
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO task_prediction_candidates (
-                    candidate_id, prediction_id, task_id, question_id,
-                    candidate_order, answer_type, number_value, rationale)
-                VALUES (?, ?, ?, ?, 1, 'NUMBER', 3, '이유')
+                INSERT INTO task_predicted_reasons (
+                    predicted_reason_id, prediction_id, option_id,
+                    reason_order, reason)
+                VALUES (?, ?, ?, 1, '이유')
                 """,
-                UUID.randomUUID(), predictionId, taskId, questionId))
+                UUID.randomUUID(), predictionId, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining(
-                        "fk_task_prediction_candidate_question");
+                .hasMessageContaining("fk_task_predicted_reason_option");
     }
 
     @Test
     void rejectsDuplicateCandidateOrderWithinQuestionSlot() {
-        UUID taskId = insertDraftTask();
-        UUID questionId = insertShortTextQuestion(taskId, 1);
+        TaskFixture task = insertOpenTaskWithQuestions();
         PersonaFixture persona = insertSucceededPersona("user-candidate");
         UUID predictionId = insertProcessingPrediction(
-                "user-candidate", taskId, persona);
-        insertShortTextCandidate(
-                predictionId, taskId, questionId, 1, "첫 후보");
+                "user-candidate", task.taskId(), persona);
+        insertSingleChoiceCandidate(
+                predictionId, task, task.firstOptionId(), 1);
 
-        assertThatThrownBy(() -> insertShortTextCandidate(
-                predictionId, taskId, questionId, 1, "두 번째 후보"))
+        assertThatThrownBy(() -> insertSingleChoiceCandidate(
+                predictionId, task, task.firstOptionId(), 1))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining(
-                        "uq_task_prediction_candidate_question_order");
+                        "uq_task_predicted_reason_option_order");
     }
 
     @Test
-    void rejectsDuplicatePredictionCandidateId() {
-        UUID taskId = insertDraftTask();
-        UUID questionId = insertShortTextQuestion(taskId, 1);
+    void rejectsDuplicatePredictedReasonId() {
+        TaskFixture task = insertOpenTaskWithQuestions();
         PersonaFixture persona = insertSucceededPersona("user-candidate-id");
         UUID predictionId = insertProcessingPrediction(
-                "user-candidate-id", taskId, persona);
-        UUID candidateId = insertShortTextCandidate(
-                predictionId, taskId, questionId, 1, "첫 후보");
+                "user-candidate-id", task.taskId(), persona);
+        UUID candidateId = insertSingleChoiceCandidate(
+                predictionId, task, task.firstOptionId(), 1).candidateId();
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO task_prediction_candidates (
-                    candidate_id, prediction_id, task_id, question_id,
-                    candidate_order, answer_type, text_value, rationale)
-                VALUES (?, ?, ?, ?, 2, 'SHORT_TEXT', '두 번째 후보', '이유')
+                INSERT INTO task_predicted_reasons (
+                    predicted_reason_id, prediction_id, option_id,
+                    reason_order, reason)
+                VALUES (?, ?, ?, 2, '두 번째 이유')
                 """,
-                candidateId, predictionId, taskId, questionId))
+                candidateId, predictionId, task.firstOptionId()))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("task_prediction_candidates_pkey");
+                .hasMessageContaining("task_predicted_reasons_pkey");
     }
 
     @Test
@@ -327,49 +328,51 @@ class TaskSchemaConstraintIntegrationTest {
 
     @Test
     void rejectsSecondSubmissionForSameUserAndTask() {
-        UUID taskId = insertDraftTask();
+        TaskFixture task = insertOpenTaskWithQuestions();
         PersonaFixture firstPersona = insertSucceededPersona("user-submit");
         UUID firstPrediction = insertSucceededPrediction(
-                "user-submit", taskId, firstPersona);
+                "user-submit", task.taskId(), firstPersona);
         insertSubmission(
-                UUID.randomUUID(), "user-submit", taskId,
+                UUID.randomUUID(), "user-submit", task.taskId(),
                 firstPersona, firstPrediction);
         PersonaFixture nextPersona = insertSucceededPersonaInActiveRound(
                 "persona-source-user");
         UUID nextPrediction = insertSucceededPrediction(
-                "user-submit", taskId, nextPersona);
+                "user-submit", task.taskId(), nextPersona);
 
         assertThatThrownBy(() -> insertSubmission(
-                UUID.randomUUID(), "user-submit", taskId,
+                UUID.randomUUID(), "user-submit", task.taskId(),
                 nextPersona, nextPrediction))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("uq_task_submission_user_task");
     }
 
     @Test
-    void rejectsAdoptedCandidateFromAnotherQuestion() {
+    void rejectsAcceptedReasonFromAnotherSelectedOption() {
         TaskFixture task = insertOpenTaskWithQuestions();
         PersonaFixture persona = insertSucceededPersona("user-owner");
         UUID predictionId = insertSucceededPrediction(
                 "user-owner", task.taskId(), persona);
-        UUID shortCandidateId = insertShortTextCandidate(
-                predictionId, task, 1);
-        UUID submissionId = UUID.randomUUID();
-        insertSubmission(
-                submissionId, "user-owner", task.taskId(), persona,
-                predictionId);
+        UUID firstOptionReasonId = insertSingleChoiceCandidate(
+                predictionId, task, task.firstOptionId(), 1).candidateId();
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO task_submission_answers (
-                    submission_id, task_id, prediction_id, question_id,
-                    source, adopted_candidate_id, answer_type)
-                VALUES (?, ?, ?, ?, 'AI_ACCEPTED', ?, 'SINGLE_CHOICE')
+                INSERT INTO task_submissions (
+                    submission_id, user_id, task_id,
+                    persona_generation_id, persona_version_id,
+                    prediction_id, question_id, selected_option_id,
+                    reason_source, accepted_predicted_reason_id,
+                    final_reason, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'AI_ACCEPTED', ?, ?, ?)
                 """,
-                submissionId, task.taskId(), predictionId,
-                task.singleQuestionId(), shortCandidateId))
+                UUID.randomUUID(), "user-owner", task.taskId(),
+                persona.generationId(), persona.versionId(), predictionId,
+                task.singleQuestionId(), task.secondOptionId(),
+                firstOptionReasonId, "다른 선택지의 이유",
+                timestamp(NOW.plusSeconds(10))))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining(
-                        "fk_task_submission_answer_candidate");
+                        "fk_task_submission_accepted_reason");
     }
 
     @Test
@@ -385,13 +388,13 @@ class TaskSchemaConstraintIntegrationTest {
 
     @Test
     void restrictsDeletingSubmissionReferencedByReceipt() {
-        UUID taskId = insertDraftTask();
+        TaskFixture task = insertOpenTaskWithQuestions();
         PersonaFixture persona = insertSucceededPersona("user-delete");
         UUID predictionId = insertSucceededPrediction(
-                "user-delete", taskId, persona);
+                "user-delete", task.taskId(), persona);
         UUID submissionId = UUID.randomUUID();
         insertSubmission(
-                submissionId, "user-delete", taskId, persona,
+                submissionId, "user-delete", task.taskId(), persona,
                 predictionId);
         insertSucceededReceipt("user-delete", submissionId);
 
@@ -405,13 +408,13 @@ class TaskSchemaConstraintIntegrationTest {
 
     @Test
     void rejectsReceiptWhoseUserDoesNotOwnSubmission() {
-        UUID taskId = insertDraftTask();
+        TaskFixture task = insertOpenTaskWithQuestions();
         PersonaFixture persona = insertSucceededPersona("user-owner-receipt");
         UUID predictionId = insertSucceededPrediction(
-                "user-owner-receipt", taskId, persona);
+                "user-owner-receipt", task.taskId(), persona);
         UUID submissionId = UUID.randomUUID();
         insertSubmission(
-                submissionId, "user-owner-receipt", taskId, persona,
+                submissionId, "user-owner-receipt", task.taskId(), persona,
                 predictionId);
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
@@ -461,10 +464,8 @@ class TaskSchemaConstraintIntegrationTest {
                 taskId, singleQuestionId, 1, "A");
         UUID secondOptionId = insertOption(
                 taskId, singleQuestionId, 2, "B");
-        UUID shortQuestionId = insertShortTextQuestion(taskId, 2);
         return new TaskFixture(
-                taskId, singleQuestionId, shortQuestionId,
-                firstOptionId, secondOptionId);
+                taskId, singleQuestionId, firstOptionId, secondOptionId);
     }
 
     private UUID insertDraftTask() {
@@ -603,9 +604,9 @@ class TaskSchemaConstraintIntegrationTest {
                     prediction_id, user_id, task_id,
                     persona_generation_id, persona_version_id,
                     persona_id, status,
-                    candidate_policy_version, requested_candidate_count,
+                    candidate_policy_version,
                     attempt_count, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 2, 0, ?)
+                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 0, ?)
                 """,
                 predictionId, userId, taskId,
                 persona.generationId(), persona.versionId(),
@@ -624,9 +625,9 @@ class TaskSchemaConstraintIntegrationTest {
                     prediction_id, user_id, task_id,
                     persona_generation_id, persona_version_id,
                     persona_id, status,
-                    candidate_policy_version, requested_candidate_count,
+                    candidate_policy_version,
                     attempt_count, created_at, started_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'PROCESSING', 'policy-v1', 2, 1,
+                VALUES (?, ?, ?, ?, ?, ?, 'PROCESSING', 'policy-v1', 1,
                     ?, ?)
                 """,
                 predictionId, userId, taskId,
@@ -647,9 +648,9 @@ class TaskSchemaConstraintIntegrationTest {
                     prediction_id, user_id, task_id,
                     persona_generation_id, persona_version_id,
                     persona_id, status,
-                    candidate_policy_version, requested_candidate_count,
+                    candidate_policy_version,
                     attempt_count, created_at, started_at, completed_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'SUCCEEDED', 'policy-v1', 1, 1,
+                VALUES (?, ?, ?, ?, ?, ?, 'SUCCEEDED', 'policy-v1', 1,
                     ?, ?, ?)
                 """,
                 predictionId, userId, taskId,
@@ -668,53 +669,14 @@ class TaskSchemaConstraintIntegrationTest {
     ) {
         UUID candidateId = UUID.randomUUID();
         jdbcTemplate.update("""
-                INSERT INTO task_prediction_candidates (
-                    candidate_id, prediction_id, task_id, question_id,
-                    candidate_order, slot_option_id, answer_type, rationale)
-                VALUES (?, ?, ?, ?, ?, ?, 'SINGLE_CHOICE', ?)
+                INSERT INTO task_predicted_reasons (
+                    predicted_reason_id, prediction_id, option_id,
+                    reason_order, reason)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                candidateId, predictionId, task.taskId(),
-                task.singleQuestionId(), order, optionId,
+                candidateId, predictionId, optionId, order,
                 "선택 이유 " + optionId);
-        jdbcTemplate.update("""
-                INSERT INTO task_prediction_candidate_selections (
-                    selection_id, candidate_id, prediction_id,
-                    task_id, question_id, answer_type,
-                    option_id, option_kind)
-                VALUES (?, ?, ?, ?, ?, 'SINGLE_CHOICE', ?, 'STANDARD')
-                """,
-                UUID.randomUUID(), candidateId, predictionId,
-                task.taskId(), task.singleQuestionId(), optionId);
         return new CandidateFixture(candidateId);
-    }
-
-    private UUID insertShortTextCandidate(
-            UUID predictionId,
-            TaskFixture task,
-            int order
-    ) {
-        return insertShortTextCandidate(
-                predictionId, task.taskId(), task.shortQuestionId(),
-                order, "예상 답변");
-    }
-
-    private UUID insertShortTextCandidate(
-            UUID predictionId,
-            UUID taskId,
-            UUID questionId,
-            int order,
-            String value
-    ) {
-        UUID candidateId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO task_prediction_candidates (
-                    candidate_id, prediction_id, task_id, question_id,
-                    candidate_order, answer_type, text_value, rationale)
-                VALUES (?, ?, ?, ?, ?, 'SHORT_TEXT', ?, ?)
-                """,
-                candidateId, predictionId, taskId, questionId,
-                order, value, "텍스트 이유 " + candidateId);
-        return candidateId;
     }
 
     private void insertInProgressAttempt(
@@ -755,56 +717,57 @@ class TaskSchemaConstraintIntegrationTest {
             PersonaFixture persona,
             UUID predictionId
     ) {
+        UUID questionId = jdbcTemplate.queryForObject("""
+                SELECT question_id
+                FROM task_options
+                WHERE task_id = ?
+                ORDER BY display_order
+                LIMIT 1
+                """, UUID.class, taskId);
+        UUID optionId = jdbcTemplate.queryForObject("""
+                SELECT option_id
+                FROM task_options
+                WHERE task_id = ? AND question_id = ?
+                ORDER BY display_order
+                LIMIT 1
+                """, UUID.class, taskId, questionId);
         jdbcTemplate.update("""
                 INSERT INTO task_submissions (
                     submission_id, user_id, task_id,
                     persona_generation_id, persona_version_id,
-                    prediction_id, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    prediction_id, question_id, selected_option_id,
+                    reason_source, final_reason, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'USER_WRITTEN', ?, ?)
                 """,
                 submissionId, userId, taskId, persona.generationId(),
-                persona.versionId(), predictionId,
+                persona.versionId(), predictionId, questionId, optionId,
+                "직접 작성한 이유",
                 timestamp(NOW.plusSeconds(10)));
     }
 
-    private void insertAiAcceptedAnswer(
+    private void insertAiAcceptedSubmission(
             UUID submissionId,
+            String userId,
+            UUID taskId,
+            PersonaFixture persona,
             UUID predictionId,
-            TaskFixture task,
-            UUID candidateId
+            UUID questionId,
+            UUID optionId,
+            UUID predictedReasonId
     ) {
         jdbcTemplate.update("""
-                INSERT INTO task_submission_answers (
-                    submission_id, task_id, prediction_id, question_id,
-                    source, adopted_candidate_id, answer_type)
-                VALUES (?, ?, ?, ?, 'AI_ACCEPTED', ?, 'SINGLE_CHOICE')
+                INSERT INTO task_submissions (
+                    submission_id, user_id, task_id,
+                    persona_generation_id, persona_version_id,
+                    prediction_id, question_id, selected_option_id,
+                    reason_source, accepted_predicted_reason_id,
+                    final_reason, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'AI_ACCEPTED', ?, ?, ?)
                 """,
-                submissionId, task.taskId(), predictionId,
-                task.singleQuestionId(), candidateId);
-        jdbcTemplate.update("""
-                INSERT INTO task_submission_answer_selections (
-                    submission_id, task_id, prediction_id, question_id,
-                    answer_type, option_id, option_kind)
-                VALUES (?, ?, ?, ?, 'SINGLE_CHOICE', ?, 'STANDARD')
-                """,
-                submissionId, task.taskId(), predictionId,
-                task.singleQuestionId(), task.firstOptionId());
-    }
-
-    private void insertDirectShortTextAnswer(
-            UUID submissionId,
-            UUID predictionId,
-            TaskFixture task,
-            String value
-    ) {
-        jdbcTemplate.update("""
-                INSERT INTO task_submission_answers (
-                    submission_id, task_id, prediction_id, question_id,
-                    source, answer_type, text_value)
-                VALUES (?, ?, ?, ?, 'USER_ANSWERED', 'SHORT_TEXT', ?)
-                """,
-                submissionId, task.taskId(), predictionId,
-                task.shortQuestionId(), value);
+                submissionId, userId, taskId, persona.generationId(),
+                persona.versionId(), predictionId, questionId, optionId,
+                predictedReasonId, "선택 이유 " + optionId,
+                timestamp(NOW.plusSeconds(10)));
     }
 
     private void insertProcessingReceipt(String userId, UUID key) {
@@ -852,7 +815,6 @@ class TaskSchemaConstraintIntegrationTest {
     private record TaskFixture(
             UUID taskId,
             UUID singleQuestionId,
-            UUID shortQuestionId,
             UUID firstOptionId,
             UUID secondOptionId
     ) {

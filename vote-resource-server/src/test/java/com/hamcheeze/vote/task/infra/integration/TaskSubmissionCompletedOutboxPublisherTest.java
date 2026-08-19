@@ -5,13 +5,6 @@ import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerSource;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV1.AnswerType;
-import com.hamcheeze.vote.task.domain.answer.LongTextValue;
-import com.hamcheeze.vote.task.domain.answer.MultipleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.NumberValue;
-import com.hamcheeze.vote.task.domain.answer.ScaleValue;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
@@ -22,12 +15,11 @@ import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswer;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -50,7 +42,7 @@ class TaskSubmissionCompletedOutboxPublisherTest {
             new TaskSubmissionCompletedOutboxPublisher(outbox, objectMapper);
 
     @Test
-    void mapsSubmissionProvenanceAndAllAnswerShapesIntoPendingV1Event()
+    void mapsReasonSnapshotIntoBackwardCompatiblePendingV1Event()
             throws Exception {
         TaskSubmission submission = submission();
         when(objectMapper.writeValueAsString(any()))
@@ -78,23 +70,23 @@ class TaskSubmissionCompletedOutboxPublisherTest {
                             assertThat(payload.personaVersionId())
                                     .isEqualTo(submission
                                             .personaVersionId().value());
-                            assertThat(payload.answers())
+                            assertThat(payload.answers()).singleElement()
                                     .extracting(answer -> answer.answerType())
-                                    .containsExactly(
-                                            AnswerType.SINGLE_CHOICE,
-                                            AnswerType.MULTIPLE_CHOICE,
-                                            AnswerType.SHORT_TEXT,
-                                            AnswerType.LONG_TEXT,
-                                            AnswerType.NUMBER,
-                                            AnswerType.SCALE);
+                                    .isEqualTo(AnswerType.SINGLE_CHOICE);
                             assertThat(payload.answers().getFirst().source())
                                     .isEqualTo(AnswerSource.AI_ACCEPTED);
                             assertThat(payload.answers().getFirst()
                                     .adoptedPredictionCandidateId())
                                     .isNotNull();
-                            assertThat(payload.answers().get(1).selections())
-                                    .extracting(selection -> selection.otherText())
-                                    .containsExactly(null, "기타 입력");
+                            assertThat(payload.answers().getFirst().selections())
+                                    .singleElement()
+                                    .satisfies(selection -> {
+                                        assertThat(selection.optionId())
+                                                .isEqualTo(submission
+                                                        .selectedOptionId()
+                                                        .value());
+                                        assertThat(selection.otherText()).isNull();
+                                    });
                         });
 
         ArgumentCaptor<IntegrationOutboxMessage> message =
@@ -125,25 +117,15 @@ class TaskSubmissionCompletedOutboxPublisherTest {
                 new TaskPersonaGenerationId(UUID.randomUUID()));
         when(submission.personaVersionId()).thenReturn(
                 new TaskPersonaVersionId(UUID.randomUUID()));
+        when(submission.questionId()).thenReturn(questionId());
+        when(submission.selectedOptionId()).thenReturn(
+                new TaskOptionId(UUID.randomUUID()));
+        when(submission.reasonSource()).thenReturn(
+                TaskReasonSource.AI_ACCEPTED);
+        when(submission.acceptedPredictedReasonId()).thenReturn(
+                new TaskPredictedReasonId(UUID.randomUUID()));
+        when(submission.finalReason()).thenReturn("채택한 예상 이유");
         when(submission.submittedAt()).thenReturn(SUBMITTED_AT);
-        when(submission.answers()).thenReturn(List.of(
-                TaskSubmissionAnswer.aiAccepted(
-                        questionId(),
-                        new TaskPredictedReasonId(UUID.randomUUID()),
-                        new SingleChoiceValue(selection(null))),
-                TaskSubmissionAnswer.userAnswered(
-                        questionId(),
-                        new MultipleChoiceValue(List.of(
-                                selection(null), selection("기타 입력")))),
-                TaskSubmissionAnswer.userAnswered(
-                        questionId(), new ShortTextValue("짧은 답변")),
-                TaskSubmissionAnswer.userAnswered(
-                        questionId(), new LongTextValue("긴 답변")),
-                TaskSubmissionAnswer.userAnswered(
-                        questionId(), new NumberValue(
-                                new BigDecimal("12.5"))),
-                TaskSubmissionAnswer.userAnswered(
-                        questionId(), new ScaleValue(4))));
         return submission;
     }
 
@@ -151,8 +133,4 @@ class TaskSubmissionCompletedOutboxPublisherTest {
         return new TaskQuestionId(UUID.randomUUID());
     }
 
-    private static TaskOptionSelection selection(String otherText) {
-        return new TaskOptionSelection(
-                new TaskOptionId(UUID.randomUUID()), otherText);
-    }
 }

@@ -1,7 +1,5 @@
 package com.hamcheeze.vote.task.application.query;
 
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
@@ -16,9 +14,9 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
-import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
-import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
+import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -181,9 +179,10 @@ final class TaskQueryFixtures {
                 prediction,
                 GENERATION,
                 VERSION,
-                List.of(new AcceptTaskPredictionCandidate(
+                new AcceptTaskPredictedReason(
                         task.questions().getFirst().id(),
-                        prediction.predictedReasons().getFirst().id())),
+                        task.questions().getFirst().options().getFirst().id(),
+                        prediction.predictedReasons().getFirst().id()),
                 NOW.minusSeconds(10));
     }
 
@@ -198,12 +197,10 @@ final class TaskQueryFixtures {
                 prediction,
                 GENERATION,
                 VERSION,
-                List.of(new UserAnsweredTaskQuestion(
+                new WriteTaskReason(
                         task.questions().getFirst().id(),
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                task.questions().getFirst().options()
-                                        .getFirst().id(),
-                                null)))),
+                        task.questions().getFirst().options().getFirst().id(),
+                        "직접 작성한 이유"),
                 NOW.minusSeconds(10));
     }
 

@@ -15,7 +15,7 @@ import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
-import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -136,7 +136,7 @@ public class TaskPredictionQueryService {
             boolean submissionAllowed,
             boolean predictedAnswerAllowed,
             boolean directAnswerAllowed,
-            List<TaskAnswerSource> allowedAnswerSources,
+            List<TaskReasonSource> allowedReasonSources,
             TaskSubmissionId submissionId,
             Instant nextRetryAt,
             Instant completedAt,
@@ -147,8 +147,8 @@ public class TaskPredictionQueryService {
             Objects.requireNonNull(state, "state");
             predictedReasons = List.copyOf(Objects.requireNonNull(
                     predictedReasons, "predictedReasons"));
-            allowedAnswerSources = List.copyOf(Objects.requireNonNull(
-                    allowedAnswerSources, "allowedAnswerSources"));
+            allowedReasonSources = List.copyOf(Objects.requireNonNull(
+                    allowedReasonSources, "allowedReasonSources"));
         }
 
         static TaskPredictionView unavailable(
@@ -192,11 +192,11 @@ public class TaskPredictionQueryService {
             boolean succeeded = status == TaskPredictionStatus.SUCCEEDED;
             boolean failed = status == TaskPredictionStatus.FAILED;
             boolean waiting = !status.terminal();
-            List<TaskAnswerSource> sources = succeeded
-                    ? List.of(TaskAnswerSource.AI_ACCEPTED,
-                    TaskAnswerSource.USER_ANSWERED)
+            List<TaskReasonSource> sources = succeeded
+                    ? List.of(TaskReasonSource.AI_ACCEPTED,
+                    TaskReasonSource.USER_WRITTEN)
                     : failed
-                    ? List.of(TaskAnswerSource.USER_ANSWERED)
+                    ? List.of(TaskReasonSource.USER_WRITTEN)
                     : List.of();
             return base(
                     taskId,
@@ -234,7 +234,7 @@ public class TaskPredictionQueryService {
                 boolean submissionAllowed,
                 boolean predictedAnswerAllowed,
                 boolean directAnswerAllowed,
-                List<TaskAnswerSource> allowedAnswerSources,
+                List<TaskReasonSource> allowedReasonSources,
                 TaskSubmissionId submissionId,
                 Instant nextRetryAt,
                 Instant completedAt,
@@ -247,7 +247,7 @@ public class TaskPredictionQueryService {
                     waiting,
                     predictionRequestAllowed, submissionAllowed,
                     predictedAnswerAllowed, directAnswerAllowed,
-                    allowedAnswerSources, submissionId, nextRetryAt,
+                    allowedReasonSources, submissionId, nextRetryAt,
                     completedAt, failureCode);
         }
     }

@@ -27,8 +27,8 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
-import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
-import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
@@ -218,8 +218,9 @@ class TaskPredictionApplicationIntegrationTest {
                 new TaskSubmissionService.SubmitTaskCommand(
                         openTask.id(),
                         succeeded.id(),
-                        List.of(new AcceptTaskPredictionCandidate(
-                                question.id(), adopted.id()))));
+                        new AcceptTaskPredictedReason(
+                                question.id(), adopted.optionId(),
+                                adopted.id())));
 
         assertThat(execution.replayed()).isFalse();
         assertThat(execution.outcome().code())
@@ -229,20 +230,14 @@ class TaskPredictionApplicationIntegrationTest {
                 .satisfies(submission -> {
                     assertThat(submission.predictionId())
                             .isEqualTo(succeeded.id());
-                    assertThat(submission.answers())
-                            .singleElement()
-                            .satisfies(answer -> {
-                                assertThat(answer.source())
-                                        .isEqualTo(TaskAnswerSource.AI_ACCEPTED);
-                                assertThat(answer.adoptedCandidate()
-                                        .candidateId())
-                                        .isEqualTo(adopted.id());
-                                assertThat(answer.finalAnswerValue())
-                                        .isEqualTo(new SingleChoiceValue(
-                                                new TaskOptionSelection(
-                                                        adopted.optionId(),
-                                                        null)));
-                            });
+                    assertThat(submission.reasonSource())
+                            .isEqualTo(TaskReasonSource.AI_ACCEPTED);
+                    assertThat(submission.acceptedPredictedReasonId())
+                            .isEqualTo(adopted.id());
+                    assertThat(submission.selectedOptionId())
+                            .isEqualTo(adopted.optionId());
+                    assertThat(submission.finalReason())
+                            .isEqualTo(adopted.reason());
                 });
     }
 

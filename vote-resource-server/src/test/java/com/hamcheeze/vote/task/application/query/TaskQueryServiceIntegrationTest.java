@@ -21,8 +21,8 @@ import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
-import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
-import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
@@ -142,9 +142,9 @@ class TaskQueryServiceIntegrationTest {
         });
         assertThat(beforeSubmission.state()).isEqualTo(SUCCEEDED);
         assertThat(beforeSubmission.submissionAllowed()).isTrue();
-        assertThat(beforeSubmission.allowedAnswerSources()).containsExactly(
-                TaskAnswerSource.AI_ACCEPTED,
-                TaskAnswerSource.USER_ANSWERED);
+        assertThat(beforeSubmission.allowedReasonSources()).containsExactly(
+                TaskReasonSource.AI_ACCEPTED,
+                TaskReasonSource.USER_WRITTEN);
         assertThat(beforeSubmission.predictedReasons()).hasSize(4);
 
         TaskSubmission submission = TaskSubmission.create(
@@ -154,9 +154,10 @@ class TaskQueryServiceIntegrationTest {
                 prediction,
                 persona.generationId(),
                 persona.versionId(),
-                List.of(new AcceptTaskPredictionCandidate(
+                new AcceptTaskPredictedReason(
                         question.id(),
-                        prediction.predictedReasons().getFirst().id())),
+                        prediction.predictedReasons().getFirst().optionId(),
+                        prediction.predictedReasons().getFirst().id()),
                 now);
         submission = submissions.insert(submission);
 
@@ -173,14 +174,10 @@ class TaskQueryServiceIntegrationTest {
                 .isEqualTo(submission.id());
         assertThat(predictionAfter.state()).isEqualTo(ALREADY_SUBMITTED);
         assertThat(predictionAfter.submissionId()).isEqualTo(submission.id());
-        assertThat(mine.answers()).singleElement().satisfies(answer -> {
-            assertThat(answer.question().content())
-                    .isEqualTo("통합 조회 질문");
-            assertThat(answer.source()).isEqualTo(
-                    TaskAnswerSource.AI_ACCEPTED);
-            assertThat(answer.adoptedCandidate().rationale())
-                    .isEqualTo("통합 예상 근거 1");
-        });
+        assertThat(mine.question().content()).isEqualTo("통합 조회 질문");
+        assertThat(mine.reasonSource())
+                .isEqualTo(TaskReasonSource.AI_ACCEPTED);
+        assertThat(mine.finalReason()).isEqualTo("통합 예상 근거 1");
         assertThat(admin.task().id()).isEqualTo(storedTask.id());
         assertThat(admin.lifecycleHistory()).singleElement()
                 .isEqualTo(opened);

@@ -33,20 +33,20 @@ final class TaskPredictionJpaMapper {
                     "task disappeared while restoring prediction");
         }
         Task task = TaskJpaMapper.toDomain(entityManager, taskEntity);
-        List<TaskPredictionCandidateJpaEntity> storedCandidates =
+        List<TaskPredictedReasonJpaEntity> storedReasons =
                 entityManager.createQuery(
                                 """
-                                SELECT candidate
-                                FROM TaskPredictionCandidateJpaEntity candidate
-                                WHERE candidate.predictionId = :predictionId
-                                ORDER BY candidate.questionId,
-                                         candidate.candidateOrder,
-                                         candidate.id
+                                SELECT reason
+                                FROM TaskPredictedReasonJpaEntity reason
+                                WHERE reason.predictionId = :predictionId
+                                ORDER BY reason.optionId,
+                                         reason.reasonOrder,
+                                         reason.id
                                 """,
-                                TaskPredictionCandidateJpaEntity.class)
+                                TaskPredictedReasonJpaEntity.class)
                         .setParameter("predictionId", entity.id())
                         .getResultList();
-        List<TaskPredictedReason> predictedReasons = storedCandidates.stream()
+        List<TaskPredictedReason> predictedReasons = storedReasons.stream()
                 .map(TaskPredictionJpaMapper::toDomain)
                 .toList();
         TaskPredictionError lastError = entity.lastErrorCode() == null
@@ -97,14 +97,14 @@ final class TaskPredictionJpaMapper {
     }
 
     private static TaskPredictedReason toDomain(
-            TaskPredictionCandidateJpaEntity candidate
+            TaskPredictedReasonJpaEntity reason
     ) {
         return new TaskPredictedReason(
-                new TaskPredictedReasonId(candidate.id()),
-                new TaskPredictionId(candidate.predictionId()),
+                new TaskPredictedReasonId(reason.id()),
+                new TaskPredictionId(reason.predictionId()),
                 new com.hamcheeze.vote.task.domain.common.TaskOptionId(
-                        candidate.slotOptionId()),
-                candidate.candidateOrder(),
-                candidate.rationale());
+                        reason.optionId()),
+                reason.reasonOrder(),
+                reason.reason());
     }
 }

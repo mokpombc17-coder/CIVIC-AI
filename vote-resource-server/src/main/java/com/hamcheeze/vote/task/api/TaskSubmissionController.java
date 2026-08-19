@@ -57,7 +57,7 @@ final class TaskSubmissionController {
                         new TaskSubmissionService.SubmitTaskCommand(
                                 new TaskId(taskId),
                                 new TaskPredictionId(request.predictionId()),
-                                request.toAnswers()));
+                                request.toAnswer()));
         TaskSubmissionOutcome outcome = execution.outcome();
         if (!outcome.succeeded()) {
             return TaskApiExceptionHandler.response(

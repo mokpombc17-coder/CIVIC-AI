@@ -4,10 +4,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
-import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
-import com.hamcheeze.vote.task.domain.task.TaskOptionKind;
-import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -17,7 +14,6 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import org.hibernate.annotations.ColumnTransformer;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -55,9 +51,6 @@ class TaskPredictionJpaEntity {
     @Column(name = "candidate_policy_version", nullable = false, length = 100)
     private String candidatePolicyVersion;
 
-    @Column(name = "requested_candidate_count", nullable = false)
-    private int requestedCandidateCount;
-
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
@@ -91,7 +84,6 @@ class TaskPredictionJpaEntity {
         personaVersionId = prediction.personaVersionId().value();
         personaId = prediction.personaId().value();
         candidatePolicyVersion = prediction.candidatePolicyVersion();
-        requestedCandidateCount = TaskLimits.PREDICTED_REASONS_PER_OPTION;
         createdAt = prediction.createdAt();
         apply(prediction);
     }
@@ -127,140 +119,41 @@ class TaskPredictionJpaEntity {
 }
 
 @Entity
-@Table(name = "task_prediction_candidates")
-class TaskPredictionCandidateJpaEntity {
+@Table(name = "task_predicted_reasons")
+class TaskPredictedReasonJpaEntity {
 
     @Id
-    @Column(name = "candidate_id", nullable = false)
+    @Column(name = "predicted_reason_id", nullable = false)
     private UUID id;
 
     @Column(name = "prediction_id", nullable = false)
     private UUID predictionId;
-
-    @Column(name = "task_id", nullable = false)
-    private UUID taskId;
-
-    @Column(name = "question_id", nullable = false)
-    private UUID questionId;
-
-    @Column(name = "candidate_order", nullable = false)
-    private int candidateOrder;
-
-    @Column(name = "slot_option_id")
-    private UUID slotOptionId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "answer_type", nullable = false, length = 30)
-    private TaskQuestionType answerType;
-
-    @Column(name = "text_value", length = 5000)
-    private String textValue;
-
-    @Column(name = "number_value", precision = 25, scale = 6)
-    private BigDecimal numberValue;
-
-    @Column(name = "scale_value")
-    private Integer scaleValue;
-
-    @Column(name = "rationale", nullable = false, length = 500)
-    private String rationale;
-
-    protected TaskPredictionCandidateJpaEntity() {
-    }
-
-    TaskPredictionCandidateJpaEntity(
-            UUID taskId,
-            UUID questionId,
-            TaskPredictedReason predictedReason
-    ) {
-        id = predictedReason.id().value();
-        predictionId = predictedReason.predictionId().value();
-        this.taskId = taskId;
-        this.questionId = questionId;
-        candidateOrder = predictedReason.reasonOrder();
-        slotOptionId = predictedReason.optionId().value();
-        answerType = TaskQuestionType.SINGLE_CHOICE;
-        textValue = null;
-        numberValue = null;
-        scaleValue = null;
-        rationale = predictedReason.reason();
-    }
-
-    UUID id() { return id; }
-    UUID predictionId() { return predictionId; }
-    UUID taskId() { return taskId; }
-    UUID questionId() { return questionId; }
-    int candidateOrder() { return candidateOrder; }
-    UUID slotOptionId() { return slotOptionId; }
-    TaskQuestionType answerType() { return answerType; }
-    String textValue() { return textValue; }
-    BigDecimal numberValue() { return numberValue; }
-    Integer scaleValue() { return scaleValue; }
-    String rationale() { return rationale; }
-}
-
-@Entity
-@Table(name = "task_prediction_candidate_selections")
-class TaskPredictionCandidateSelectionJpaEntity {
-
-    @Id
-    @Column(name = "selection_id", nullable = false)
-    private UUID id;
-
-    @Column(name = "candidate_id", nullable = false)
-    private UUID candidateId;
-
-    @Column(name = "prediction_id", nullable = false)
-    private UUID predictionId;
-
-    @Column(name = "task_id", nullable = false)
-    private UUID taskId;
-
-    @Column(name = "question_id", nullable = false)
-    private UUID questionId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "answer_type", nullable = false, length = 30)
-    private TaskQuestionType answerType;
 
     @Column(name = "option_id", nullable = false)
     private UUID optionId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "option_kind", nullable = false, length = 30)
-    private TaskOptionKind optionKind;
+    @Column(name = "reason_order", nullable = false)
+    private int reasonOrder;
 
-    @Column(name = "other_text", length = 500)
-    private String otherText;
+    @Column(name = "reason", nullable = false, length = 500)
+    private String reason;
 
-    protected TaskPredictionCandidateSelectionJpaEntity() {
+    protected TaskPredictedReasonJpaEntity() {
     }
 
-    TaskPredictionCandidateSelectionJpaEntity(
-            UUID candidateId,
-            UUID predictionId,
-            UUID taskId,
-            UUID questionId,
-            TaskQuestionType answerType,
-            UUID optionId,
-            TaskOptionKind optionKind,
-            String otherText
-    ) {
-        id = UUID.randomUUID();
-        this.candidateId = candidateId;
-        this.predictionId = predictionId;
-        this.taskId = taskId;
-        this.questionId = questionId;
-        this.answerType = answerType;
-        this.optionId = optionId;
-        this.optionKind = optionKind;
-        this.otherText = otherText;
+    TaskPredictedReasonJpaEntity(TaskPredictedReason predictedReason) {
+        id = predictedReason.id().value();
+        predictionId = predictedReason.predictionId().value();
+        optionId = predictedReason.optionId().value();
+        reasonOrder = predictedReason.reasonOrder();
+        reason = predictedReason.reason();
     }
 
-    UUID candidateId() { return candidateId; }
+    UUID id() { return id; }
+    UUID predictionId() { return predictionId; }
     UUID optionId() { return optionId; }
-    TaskOptionKind optionKind() { return optionKind; }
-    String otherText() { return otherText; }
+    int reasonOrder() { return reasonOrder; }
+    String reason() { return reason; }
 }
 
 @Entity

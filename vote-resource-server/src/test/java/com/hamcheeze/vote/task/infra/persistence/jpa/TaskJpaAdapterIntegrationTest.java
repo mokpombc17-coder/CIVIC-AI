@@ -11,8 +11,6 @@ import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionReceiptRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionPersistenceException;
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
@@ -35,7 +33,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswer;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
@@ -191,7 +189,7 @@ class TaskJpaAdapterIntegrationTest {
     }
 
     @Test
-    void roundTripsSubmissionTypedAnswersAndReceiptReplayData() {
+    void roundTripsSubmissionReasonSnapshotAndReceiptReplayData() {
         TaskFixture fixture = openTask();
         tasks.save(fixture.task());
         String rawUserId = "submission-" + UUID.randomUUID();
@@ -207,18 +205,18 @@ class TaskJpaAdapterIntegrationTest {
                 prediction,
                 persona.generationId(),
                 persona.versionId(),
-                List.of(TaskSubmissionAnswer.aiAccepted(
-                        fixture.choiceQuestionId(),
-                        adopted.id(),
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                adopted.optionId(), null)))),
+                fixture.choiceQuestionId(),
+                adopted.optionId(),
+                TaskReasonSource.AI_ACCEPTED,
+                adopted.id(),
+                adopted.reason(),
                 NOW);
 
         TaskSubmission stored = submissions.insert(submission);
         assertThat(stored.personaVersionId()).isEqualTo(persona.versionId());
-        assertThat(stored.answers()).hasSize(1);
-        assertThat(stored.answers().getFirst()
-                .adoptedPredictionCandidateId()).isEqualTo(adopted.id());
+        assertThat(stored.acceptedPredictedReasonId()).isEqualTo(adopted.id());
+        assertThat(stored.selectedOptionId()).isEqualTo(adopted.optionId());
+        assertThat(stored.finalReason()).isEqualTo(adopted.reason());
 
         TaskSubmissionReceipt receipt = TaskSubmissionReceipt.processing(
                 new TaskReceiptId(UUID.randomUUID()),
@@ -254,7 +252,7 @@ class TaskJpaAdapterIntegrationTest {
     }
 
     @Test
-    void roundTripsDirectSingleChoiceAnswerWithoutOtherInput() {
+    void roundTripsUserWrittenReasonSnapshot() {
         TaskFixture fixture = openTask();
         tasks.save(fixture.task());
         String rawUserId = "direct-choice-" + UUID.randomUUID();
@@ -276,11 +274,6 @@ class TaskJpaAdapterIntegrationTest {
                 NOW.minusSeconds(5),
                 NOW.minusSeconds(4),
                 NOW.minusSeconds(3)));
-        List<TaskSubmissionAnswer> answers = List.of(
-                TaskSubmissionAnswer.userAnswered(
-                        fixture.choiceQuestionId(),
-                        new SingleChoiceValue(new TaskOptionSelection(
-                                fixture.firstOptionId(), null))));
         TaskSubmission submission = TaskSubmission.restore(
                 new TaskSubmissionId(UUID.randomUUID()),
                 userId,
@@ -288,16 +281,19 @@ class TaskJpaAdapterIntegrationTest {
                 prediction,
                 persona.generationId(),
                 persona.versionId(),
-                answers,
+                fixture.choiceQuestionId(),
+                fixture.firstOptionId(),
+                TaskReasonSource.USER_WRITTEN,
+                null,
+                "직접 작성한 이유",
                 NOW);
 
         TaskSubmission stored = submissions.insert(submission);
 
-        assertThat(stored.answers())
-                .extracting(TaskSubmissionAnswer::finalAnswerValue)
-                .containsExactlyElementsOf(answers.stream()
-                        .map(TaskSubmissionAnswer::finalAnswerValue)
-                        .toList());
+        assertThat(stored.reasonSource())
+                .isEqualTo(TaskReasonSource.USER_WRITTEN);
+        assertThat(stored.selectedOptionId()).isEqualTo(fixture.firstOptionId());
+        assertThat(stored.finalReason()).isEqualTo("직접 작성한 이유");
     }
 
     @Test

@@ -1,11 +1,10 @@
 package com.hamcheeze.vote.task.application.query;
 
-import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.task.Task;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,15 +30,11 @@ class MyTaskSubmissionQueryServiceTest {
     @Mock
     private TaskRepository tasks;
 
-    @Mock
-    private TaskPredictionRepository predictions;
-
     private MyTaskSubmissionQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new MyTaskSubmissionQueryService(
-                submissions, tasks, predictions);
+        service = new MyTaskSubmissionQueryService(submissions, tasks);
     }
 
     @Test
@@ -53,32 +48,20 @@ class MyTaskSubmissionQueryServiceTest {
         when(submissions.findByUserAndTask(USER, task.id()))
                 .thenReturn(Optional.of(submission));
         when(tasks.findById(task.id())).thenReturn(Optional.of(task));
-        when(predictions.findById(prediction.id()))
-                .thenReturn(Optional.of(prediction));
 
         var result = service.findByTask(USER, task.id()).orElseThrow();
 
         assertThat(result.submissionId()).isEqualTo(submission.id());
         assertThat(result.submittedAt()).isEqualTo(NOW.minusSeconds(10));
-        assertThat(result.answers()).singleElement().satisfies(answer -> {
-            assertThat(answer.question().content())
-                    .isEqualTo("하나를 선택해주세요.");
-            assertThat(answer.source()).isEqualTo(
-                    TaskAnswerSource.AI_ACCEPTED);
-            assertThat(answer.adoptedCandidate()).isNotNull();
-            assertThat(answer.adoptedCandidate().candidateId())
-                    .isEqualTo(prediction.predictedReasons().getFirst().id());
-            assertThat(answer.adoptedCandidate().rationale())
-                    .isEqualTo("첫 번째 예상 근거");
-            assertThat(answer.finalAnswerValue())
-                    .isEqualTo(new com.hamcheeze.vote.task.domain.answer
-                            .SingleChoiceValue(
-                            new com.hamcheeze.vote.task.domain.answer
-                                    .TaskOptionSelection(
-                                    prediction.predictedReasons().getFirst()
-                                            .optionId(),
-                                    null)));
-        });
+        assertThat(result.question().content())
+                .isEqualTo("하나를 선택해주세요.");
+        assertThat(result.reasonSource())
+                .isEqualTo(TaskReasonSource.AI_ACCEPTED);
+        assertThat(result.acceptedPredictedReasonId())
+                .isEqualTo(prediction.predictedReasons().getFirst().id());
+        assertThat(result.selectedOptionId())
+                .isEqualTo(prediction.predictedReasons().getFirst().optionId());
+        assertThat(result.finalReason()).isEqualTo("첫 번째 예상 근거");
     }
 
     @Test
@@ -93,6 +76,6 @@ class MyTaskSubmissionQueryServiceTest {
                 .thenReturn(Optional.of(submission));
 
         assertThat(service.findById(otherUser, submission.id())).isEmpty();
-        verifyNoInteractions(tasks, predictions);
+        verifyNoInteractions(tasks);
     }
 }

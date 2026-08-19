@@ -170,43 +170,16 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
     private void persistPredictedReasons(TaskPrediction prediction) {
         for (TaskPredictedReason predictedReason
                 : prediction.predictedReasons()) {
-            TaskOptionJpaEntity option = requireOption(
-                    predictedReason.optionId().value());
-            TaskPredictionCandidateJpaEntity candidateEntity =
-                    new TaskPredictionCandidateJpaEntity(
-                            prediction.taskId().value(),
-                            option.questionId(),
-                            predictedReason);
-            entityManager.persist(candidateEntity);
             entityManager.persist(
-                    new TaskPredictionCandidateSelectionJpaEntity(
-                            predictedReason.id().value(),
-                            prediction.id().value(),
-                            prediction.taskId().value(),
-                            option.questionId(),
-                            com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                    .SINGLE_CHOICE,
-                            predictedReason.optionId().value(),
-                            option.kind(),
-                            null));
+                    new TaskPredictedReasonJpaEntity(predictedReason));
         }
-    }
-
-    private TaskOptionJpaEntity requireOption(UUID optionId) {
-        TaskOptionJpaEntity option = entityManager.find(
-                TaskOptionJpaEntity.class, optionId);
-        if (option == null) {
-            throw new IllegalStateException(
-                    "prediction selection references a missing option");
-        }
-        return option;
     }
 
     private long predictedReasonCount(UUID predictionId) {
         return entityManager.createQuery(
-                        "SELECT COUNT(candidate) "
-                                + "FROM TaskPredictionCandidateJpaEntity candidate "
-                                + "WHERE candidate.predictionId = :predictionId",
+                        "SELECT COUNT(reason) "
+                                + "FROM TaskPredictedReasonJpaEntity reason "
+                                + "WHERE reason.predictionId = :predictionId",
                         Long.class)
                 .setParameter("predictionId", predictionId)
                 .getSingleResult();

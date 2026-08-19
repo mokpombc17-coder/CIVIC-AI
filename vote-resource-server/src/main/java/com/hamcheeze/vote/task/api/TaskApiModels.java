@@ -6,14 +6,6 @@ import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
-import com.hamcheeze.vote.task.domain.answer.LongTextValue;
-import com.hamcheeze.vote.task.domain.answer.MultipleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.NumberValue;
-import com.hamcheeze.vote.task.domain.answer.ScaleValue;
-import com.hamcheeze.vote.task.domain.answer.ShortTextValue;
-import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
-import com.hamcheeze.vote.task.domain.answer.TaskAnswerValue;
-import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
@@ -21,10 +13,10 @@ import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
-import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictionCandidate;
-import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
-import com.hamcheeze.vote.task.domain.submission.UserAnsweredTaskQuestion;
+import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -41,7 +33,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -121,83 +112,40 @@ final class TaskApiModels {
 
     record SubmitRequest(
             @NotNull UUID predictionId,
-            @NotEmpty List<@Valid SubmissionAnswerRequest> answers
-    ) {
-        List<TaskSubmissionAnswerCommand> toAnswers() {
-            return answers.stream()
-                    .map(SubmissionAnswerRequest::toDomain)
-                    .toList();
-        }
-    }
-
-    record SubmissionAnswerRequest(
             @NotNull UUID questionId,
-            @NotNull TaskAnswerSource source,
-            UUID candidateId,
-            @Valid AnswerValueRequest answer
+            @NotNull UUID selectedOptionId,
+            @NotNull TaskReasonSource reasonSource,
+            UUID acceptedPredictedReasonId,
+            String reason
     ) {
-        TaskSubmissionAnswerCommand toDomain() {
-            TaskQuestionId resolvedQuestionId =
-                    new TaskQuestionId(questionId);
-            return switch (source) {
+        TaskSubmissionAnswerCommand toAnswer() {
+            TaskQuestionId resolvedQuestionId = new TaskQuestionId(questionId);
+            TaskOptionId resolvedOptionId = new TaskOptionId(selectedOptionId);
+            return switch (reasonSource) {
                 case AI_ACCEPTED -> {
-                    if (answer != null) {
+                    if (reason != null) {
                         throw new IllegalArgumentException(
-                                "answer is not allowed for AI_ACCEPTED");
+                                "reason is not allowed for AI_ACCEPTED");
                     }
-                    yield new AcceptTaskPredictionCandidate(
+                    yield new AcceptTaskPredictedReason(
                             resolvedQuestionId,
+                            resolvedOptionId,
                             new TaskPredictedReasonId(required(
-                                    candidateId, "candidateId")));
+                                    acceptedPredictedReasonId,
+                                    "acceptedPredictedReasonId")));
                 }
-                case USER_ANSWERED -> {
-                    if (candidateId != null) {
+                case USER_WRITTEN -> {
+                    if (acceptedPredictedReasonId != null) {
                         throw new IllegalArgumentException(
-                                "candidateId is not allowed for USER_ANSWERED");
+                                "acceptedPredictedReasonId is not allowed "
+                                        + "for USER_WRITTEN");
                     }
-                    yield new UserAnsweredTaskQuestion(
+                    yield new WriteTaskReason(
                             resolvedQuestionId,
-                            required(answer, "answer").toDomain());
+                            resolvedOptionId,
+                            required(reason, "reason"));
                 }
             };
-        }
-    }
-
-    record AnswerValueRequest(
-            @NotNull TaskQuestionType type,
-            SelectionRequest selection,
-            List<@Valid SelectionRequest> selections,
-            String text,
-            BigDecimal number,
-            Integer scale
-    ) {
-        TaskAnswerValue toDomain() {
-            return switch (type) {
-                case SINGLE_CHOICE -> new SingleChoiceValue(
-                        required(selection, "selection").toDomain());
-                case MULTIPLE_CHOICE -> new MultipleChoiceValue(
-                        required(selections, "selections").stream()
-                                .map(SelectionRequest::toDomain)
-                                .toList());
-                case SHORT_TEXT -> new ShortTextValue(
-                        required(text, "text"));
-                case LONG_TEXT -> new LongTextValue(
-                        required(text, "text"));
-                case NUMBER -> new NumberValue(
-                        required(number, "number"));
-                case SCALE -> new ScaleValue(
-                        required(scale, "scale"));
-            };
-        }
-    }
-
-    record SelectionRequest(
-            @NotNull UUID optionId,
-            String otherText
-    ) {
-        TaskOptionSelection toDomain() {
-            return new TaskOptionSelection(
-                    new TaskOptionId(optionId), otherText);
         }
     }
 
@@ -426,7 +374,7 @@ final class TaskApiModels {
             boolean submissionAllowed,
             boolean predictedAnswerAllowed,
             boolean directAnswerAllowed,
-            List<TaskAnswerSource> allowedAnswerSources,
+            List<TaskReasonSource> allowedReasonSources,
             UUID submissionId,
             Instant nextRetryAt,
             Instant completedAt,
@@ -450,7 +398,7 @@ final class TaskApiModels {
                             .map(PredictedReasonResponse::from).toList(),
                     view.waiting(), view.predictionRequestAllowed(),
                     view.submissionAllowed(), view.predictedAnswerAllowed(),
-                    view.directAnswerAllowed(), view.allowedAnswerSources(),
+                    view.directAnswerAllowed(), view.allowedReasonSources(),
                     view.submissionId() == null ? null
                             : view.submissionId().value(),
                     view.nextRetryAt(),
@@ -501,7 +449,12 @@ final class TaskApiModels {
             UUID personaVersionId,
             UUID predictionId,
             Instant submittedAt,
-            List<MySubmissionAnswerResponse> answers
+            UUID questionId,
+            QuestionResponse question,
+            UUID selectedOptionId,
+            TaskReasonSource reasonSource,
+            UUID acceptedPredictedReasonId,
+            String finalReason
     ) {
         static MySubmissionResponse from(
                 MyTaskSubmissionQueryService.MyTaskSubmission submission
@@ -512,84 +465,14 @@ final class TaskApiModels {
                     submission.taskDescription(),
                     submission.personaGenerationId().value(),
                     submission.personaVersionId().value(),
-                    submission.predictionId().value(),
-                    submission.submittedAt(),
-                    submission.answers().stream()
-                            .map(MySubmissionAnswerResponse::from).toList());
-        }
-    }
-
-    record MySubmissionAnswerResponse(
-            UUID questionId,
-            QuestionResponse question,
-            TaskAnswerSource source,
-            AdoptedCandidateResponse adoptedCandidate,
-            AnswerValueResponse finalAnswer
-    ) {
-        static MySubmissionAnswerResponse from(
-                MyTaskSubmissionQueryService.MyTaskSubmissionAnswer answer
-        ) {
-            return new MySubmissionAnswerResponse(
-                    answer.questionId().value(),
-                    QuestionResponse.from(answer.question()), answer.source(),
-                    AdoptedCandidateResponse.from(answer.adoptedCandidate()),
-                    AnswerValueResponse.from(answer.finalAnswerValue()));
-        }
-    }
-
-    record AdoptedCandidateResponse(
-            UUID candidateId,
-            int candidateOrder,
-            String rationale
-    ) {
-        static AdoptedCandidateResponse from(
-                MyTaskSubmissionQueryService.AdoptedCandidate candidate
-        ) {
-            return candidate == null ? null : new AdoptedCandidateResponse(
-                    candidate.candidateId().value(),
-                    candidate.candidateOrder(), candidate.rationale());
-        }
-    }
-
-    record AnswerValueResponse(
-            TaskQuestionType type,
-            SelectionResponse selection,
-            List<SelectionResponse> selections,
-            String text,
-            BigDecimal number,
-            Integer scale
-    ) {
-        static AnswerValueResponse from(TaskAnswerValue value) {
-            return switch (value) {
-                case SingleChoiceValue single -> new AnswerValueResponse(
-                        value.questionType(),
-                        SelectionResponse.from(single.selection()),
-                        null, null, null, null);
-                case MultipleChoiceValue multiple -> new AnswerValueResponse(
-                        value.questionType(), null,
-                        multiple.selections().stream()
-                                .map(SelectionResponse::from).toList(),
-                        null, null, null);
-                case ShortTextValue text -> new AnswerValueResponse(
-                        value.questionType(), null, null,
-                        text.value(), null, null);
-                case LongTextValue text -> new AnswerValueResponse(
-                        value.questionType(), null, null,
-                        text.value(), null, null);
-                case NumberValue number -> new AnswerValueResponse(
-                        value.questionType(), null, null,
-                        null, number.value(), null);
-                case ScaleValue scale -> new AnswerValueResponse(
-                        value.questionType(), null, null,
-                        null, null, scale.value());
-            };
-        }
-    }
-
-    record SelectionResponse(UUID optionId, String otherText) {
-        static SelectionResponse from(TaskOptionSelection selection) {
-            return new SelectionResponse(
-                    selection.optionId().value(), selection.otherText());
+                    submission.predictionId().value(), submission.submittedAt(),
+                    submission.questionId().value(),
+                    QuestionResponse.from(submission.question()),
+                    submission.selectedOptionId().value(),
+                    submission.reasonSource(),
+                    submission.acceptedPredictedReasonId() == null ? null
+                            : submission.acceptedPredictedReasonId().value(),
+                    submission.finalReason());
         }
     }
 

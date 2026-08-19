@@ -107,7 +107,7 @@ public class TaskSubmissionService {
                         requestHashFactory.hash(
                                 command.taskId(),
                                 command.predictionId(),
-                                command.answers()),
+                                command.answer()),
                         TaskSubmissionOutcomeCodec.SCHEMA_VERSION);
         TaskIdempotencyExecution<TaskSubmissionOutcome> execution =
                 idempotency.execute(
@@ -200,7 +200,7 @@ public class TaskSubmissionService {
                     prediction,
                     currentPersona.generationId(),
                     currentPersona.versionId(),
-                    command.answers(),
+                    command.answer(),
                     submittedAt);
             TaskSubmission stored = submissions.insert(submission);
             completedEvents.publish(stored);
@@ -232,20 +232,20 @@ public class TaskSubmissionService {
     }
 
     private static int domainStatus(String code) {
-        return code.contains("ANSWER") || code.contains("CANDIDATE")
+        return code.contains("ANSWER") || code.contains("REASON")
+                || code.contains("OPTION") || code.contains("QUESTION")
                 ? 422 : 409;
     }
 
     public record SubmitTaskCommand(
             TaskId taskId,
             TaskPredictionId predictionId,
-            List<TaskSubmissionAnswerCommand> answers
+            TaskSubmissionAnswerCommand answer
     ) {
         public SubmitTaskCommand {
             Objects.requireNonNull(taskId, "taskId");
             Objects.requireNonNull(predictionId, "predictionId");
-            answers = List.copyOf(Objects.requireNonNull(
-                    answers, "answers"));
+            Objects.requireNonNull(answer, "answer");
         }
     }
 

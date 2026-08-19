@@ -6,7 +6,7 @@ import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
-import com.hamcheeze.vote.task.domain.submission.TaskAnswerSource;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.task.Task;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,7 +102,7 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.state()).isEqualTo(PENDING);
         assertThat(view.waiting()).isTrue();
         assertThat(view.submissionAllowed()).isFalse();
-        assertThat(view.allowedAnswerSources()).isEmpty();
+        assertThat(view.allowedReasonSources()).isEmpty();
     }
 
     @Test
@@ -120,9 +120,9 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.submissionAllowed()).isTrue();
         assertThat(view.predictedAnswerAllowed()).isTrue();
         assertThat(view.directAnswerAllowed()).isTrue();
-        assertThat(view.allowedAnswerSources()).containsExactly(
-                TaskAnswerSource.AI_ACCEPTED,
-                TaskAnswerSource.USER_ANSWERED);
+        assertThat(view.allowedReasonSources()).containsExactly(
+                TaskReasonSource.AI_ACCEPTED,
+                TaskReasonSource.USER_WRITTEN);
         assertThat(view.predictedReasons()).hasSize(4);
     }
 
@@ -140,8 +140,8 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.submissionAllowed()).isTrue();
         assertThat(view.predictedAnswerAllowed()).isFalse();
         assertThat(view.directAnswerAllowed()).isTrue();
-        assertThat(view.allowedAnswerSources())
-                .containsExactly(TaskAnswerSource.USER_ANSWERED);
+        assertThat(view.allowedReasonSources())
+                .containsExactly(TaskReasonSource.USER_WRITTEN);
         assertThat(view.failureCode()).isEqualTo("AI_TIMEOUT");
     }
 
