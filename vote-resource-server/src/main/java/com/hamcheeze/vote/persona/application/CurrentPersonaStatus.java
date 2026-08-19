@@ -1,8 +1,7 @@
 package com.hamcheeze.vote.persona.application;
 
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
-import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
-import com.hamcheeze.vote.survey.domain.eligibility.ServiceCapability;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
 import com.hamcheeze.vote.persona.domain.PersonaId;
@@ -12,17 +11,17 @@ import java.util.Objects;
 import java.util.Set;
 
 public record CurrentPersonaStatus(
-        Optional<SurveyResponseId> sourceResponseId,
+        Optional<PersonaSourceId> sourceResponseId,
         Optional<PersonaGenerationId> generationId,
         Status status,
         Optional<PersonaId> personaId,
         Optional<String> lastErrorCode,
         boolean personaReady,
-        Set<ServiceCapability> capabilities
+        Set<Capability> capabilities
 ) {
 
-    private static final Set<ServiceCapability> READY_CAPABILITIES =
-            Set.of(ServiceCapability.USE_PERSONALIZED_SERVICE);
+    private static final Set<Capability> READY_CAPABILITIES =
+            Set.of(Capability.USE_PERSONALIZED_SERVICE);
 
     public CurrentPersonaStatus {
         sourceResponseId = Objects.requireNonNull(
@@ -43,7 +42,7 @@ public record CurrentPersonaStatus(
     }
 
     public static CurrentPersonaStatus generationMissing(
-            SurveyResponseId responseId
+            PersonaSourceId responseId
     ) {
         return new CurrentPersonaStatus(
                 Optional.of(responseId), Optional.empty(),
@@ -56,14 +55,17 @@ public record CurrentPersonaStatus(
                 == PersonaGenerationStatus.SUCCEEDED
                 && generation.personaId().isPresent();
         return new CurrentPersonaStatus(
-                Optional.of(new SurveyResponseId(
-                        generation.sourceResponseId().value())),
+                Optional.of(generation.sourceResponseId()),
                 Optional.of(generation.id()),
                 Status.valueOf(generation.status().name()),
                 generation.personaId(),
                 generation.lastErrorCode(),
                 ready,
                 ready ? READY_CAPABILITIES : Set.of());
+    }
+
+    public enum Capability {
+        USE_PERSONALIZED_SERVICE
     }
 
     public enum Status {

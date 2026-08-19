@@ -4,10 +4,12 @@ import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
+import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.response.SurveyResponse;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
+import java.util.Optional;
 
 @Component
 public class PersonaSurveySourceQueryAdapter
@@ -56,6 +59,17 @@ public class PersonaSurveySourceQueryAdapter
                         responseId,
                         "referenced content version does not exist"));
         return mapper.map(response, round, content);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<PersonaSourceId> findLatestSourceIdByUserId(
+            PersonaUserId userId
+    ) {
+        Objects.requireNonNull(userId, "userId");
+        return responses.findLatestByUserId(new SurveyUserId(userId.value()))
+                .map(response -> new PersonaSourceId(
+                        response.id().value()));
     }
 
     private static PersonaSurveySourceException integrity(

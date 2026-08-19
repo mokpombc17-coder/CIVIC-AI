@@ -3,6 +3,7 @@ package com.hamcheeze.vote.survey.infra.persona;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,6 +58,18 @@ class PersonaSurveySourceQueryAdapterTest {
                 () -> adapter.getByResponseId(sourceId(responseId)),
                 PersonaSurveySourceErrorCode
                         .PERSONA_SURVEY_SOURCE_NOT_FOUND);
+    }
+
+    @Test
+    void findsLatestSourceIdByPersonaUserId() {
+        PersonaUserId userId = new PersonaUserId("user-1");
+        SurveyResponse response = response(responseId());
+        when(responses.findLatestByUserId(
+                new SurveyUserId(userId.value())))
+                .thenReturn(Optional.of(response));
+
+        assertThat(adapter.findLatestSourceIdByUserId(userId))
+                .contains(sourceId(response.id()));
     }
 
     @Test

@@ -139,7 +139,8 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(submitted.outcome().succeeded()).isTrue();
         assertThat(submitted.outcome().submittedEvent()).isPresent();
         assertThat(personaGenerations.findBySourceResponseId(
-                submitted.outcome().responseId())).isEmpty();
+                new PersonaSourceId(
+                        submitted.outcome().responseId().value()))).isEmpty();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM integration_outbox",
                 Integer.class)).isEqualTo(1);
@@ -147,7 +148,8 @@ class SurveyApplicationUseCaseIntegrationTest {
                 .satisfies(currentPersona -> {
                     assertThat(currentPersona.personaReady()).isFalse();
                     assertThat(currentPersona.sourceResponseId())
-                            .contains(submitted.outcome().responseId());
+                            .contains(new PersonaSourceId(
+                                    submitted.outcome().responseId().value()));
                     assertThat(currentPersona.status().name())
                             .isEqualTo("GENERATION_MISSING");
                 });
@@ -155,7 +157,8 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(outboxDeliveries.deliverNext()).isTrue();
 
         assertThat(personaGenerations.findBySourceResponseId(
-                submitted.outcome().responseId()))
+                new PersonaSourceId(
+                        submitted.outcome().responseId().value())))
                 .get()
                 .satisfies(generation -> {
                     assertThat(generation.status().name())
@@ -163,7 +166,8 @@ class SurveyApplicationUseCaseIntegrationTest {
                     assertThat(generation.attemptCount()).isZero();
                 });
         var firstGeneration = personaGenerations
-                .findBySourceResponseId(submitted.outcome().responseId())
+                .findBySourceResponseId(new PersonaSourceId(
+                        submitted.outcome().responseId().value()))
                 .orElseThrow();
         firstGeneration.startProcessing(
                 firstGeneration.createdAt().plusSeconds(1));
@@ -235,7 +239,8 @@ class SurveyApplicationUseCaseIntegrationTest {
                 nextRound, nextContent);
         assertThat(nextSubmitted.succeeded()).isTrue();
         assertThat(personaGenerations.findBySourceResponseId(
-                nextSubmitted.responseId())).isEmpty();
+                new PersonaSourceId(
+                        nextSubmitted.responseId().value()))).isEmpty();
         assertThat(outboxDeliveries.deliverNext()).isTrue();
         assertThat(eligibilityQuery.evaluate(USER).eligible()).isTrue();
         assertThat(myResponseQuery.findLatest(USER).orElseThrow().id())
@@ -248,7 +253,8 @@ class SurveyApplicationUseCaseIntegrationTest {
                 .satisfies(currentPersona -> {
                     assertThat(currentPersona.personaReady()).isFalse();
                     assertThat(currentPersona.sourceResponseId())
-                            .contains(nextSubmitted.responseId());
+                            .contains(new PersonaSourceId(
+                                    nextSubmitted.responseId().value()));
                     assertThat(currentPersona.status().name())
                             .isEqualTo("PENDING");
                 });

@@ -66,7 +66,7 @@ class PersonaGenerationJpaAdapterIntegrationTest {
                     assertThat(restored.personaId())
                             .contains(new PersonaId("persona-a"));
                 });
-        assertThat(generations.findBySourceResponseId(responseId))
+        assertThat(generations.findBySourceResponseId(sourceId(responseId)))
                 .get().extracting(PersonaGeneration::id)
                 .isEqualTo(inserted.id());
         assertThat(generations.findByPersonaId(

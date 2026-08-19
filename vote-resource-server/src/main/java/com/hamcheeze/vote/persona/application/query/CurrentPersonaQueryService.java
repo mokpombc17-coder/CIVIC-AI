@@ -2,9 +2,8 @@ package com.hamcheeze.vote.persona.application.query;
 
 import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
-import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
-import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,14 +12,14 @@ import java.util.Objects;
 @Service
 public class CurrentPersonaQueryService {
 
-    private final SurveyResponseRepository responses;
+    private final PersonaSurveySourceQueryPort sources;
     private final PersonaGenerationRepository generations;
 
     public CurrentPersonaQueryService(
-            SurveyResponseRepository responses,
+            PersonaSurveySourceQueryPort sources,
             PersonaGenerationRepository generations
     ) {
-        this.responses = Objects.requireNonNull(responses, "responses");
+        this.sources = Objects.requireNonNull(sources, "sources");
         this.generations = Objects.requireNonNull(
                 generations, "generations");
     }
@@ -28,12 +27,12 @@ public class CurrentPersonaQueryService {
     @Transactional(readOnly = true)
     public CurrentPersonaStatus findCurrent(PersonaUserId userId) {
         Objects.requireNonNull(userId, "userId");
-        return responses.findLatestByUserId(new SurveyUserId(userId.value()))
-                .map(response -> generations
-                        .findBySourceResponseId(response.id())
+        return sources.findLatestSourceIdByUserId(userId)
+                .map(sourceId -> generations
+                        .findBySourceResponseId(sourceId)
                         .map(CurrentPersonaStatus::from)
                         .orElseGet(() -> CurrentPersonaStatus
-                                .generationMissing(response.id())))
+                                .generationMissing(sourceId)))
                 .orElseGet(CurrentPersonaStatus::notSubmitted);
     }
 }
