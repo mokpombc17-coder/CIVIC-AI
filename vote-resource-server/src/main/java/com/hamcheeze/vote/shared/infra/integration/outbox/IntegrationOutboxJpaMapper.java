@@ -23,6 +23,7 @@ final class IntegrationOutboxJpaMapper {
                 entity.attemptCount(),
                 entity.nextAttemptAt(),
                 entity.publishedAt(),
+                entity.deadLetteredAt(),
                 entity.lastError(),
                 entity.createdAt());
     }

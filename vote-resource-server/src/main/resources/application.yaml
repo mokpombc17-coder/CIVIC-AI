@@ -9,6 +9,14 @@ spring:
     open-in-view: false
 
 vote:
+  integration:
+    outbox:
+      enabled: false
+      poller-delay: 1s
+      retry-initial-delay: 5s
+      retry-max-delay: 5m
+      max-attempts: 10
+      batch-size: 20
   security:
     local-admin-api-enabled: false
   task:

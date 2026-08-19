@@ -46,6 +46,9 @@ class IntegrationOutboxJpaEntity {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    @Column(name = "dead_lettered_at")
+    private Instant deadLetteredAt;
+
     @Column(name = "last_error", length = 1000)
     private String lastError;
 
@@ -56,7 +59,15 @@ class IntegrationOutboxJpaEntity {
     }
 
     IntegrationOutboxJpaEntity(IntegrationOutboxMessage message) {
-        eventId = message.event().eventId();
+        updateFrom(message);
+    }
+
+    void updateFrom(IntegrationOutboxMessage message) {
+        UUID messageEventId = message.event().eventId();
+        if (eventId != null && !eventId.equals(messageEventId)) {
+            throw new IllegalArgumentException("event ID must match");
+        }
+        eventId = messageEventId;
         eventType = message.event().eventType();
         schemaVersion = message.event().schemaVersion();
         occurredAt = message.event().occurredAt();
@@ -66,6 +77,7 @@ class IntegrationOutboxJpaEntity {
         attemptCount = message.attemptCount();
         nextAttemptAt = message.nextAttemptAt();
         publishedAt = message.publishedAt();
+        deadLetteredAt = message.deadLetteredAt();
         lastError = message.lastError();
         createdAt = message.createdAt();
     }
@@ -108,6 +120,10 @@ class IntegrationOutboxJpaEntity {
 
     Instant publishedAt() {
         return publishedAt;
+    }
+
+    Instant deadLetteredAt() {
+        return deadLetteredAt;
     }
 
     String lastError() {

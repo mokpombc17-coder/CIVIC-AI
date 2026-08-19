@@ -87,6 +87,48 @@ class IntegrationOutboxJpaAdapterIntegrationTest {
     }
 
     @Test
+    void locksReadyEventAndPreservesRetryPublishLifecycle() throws Exception {
+        IntegrationOutboxMessage pending = message(UUID.randomUUID());
+        outbox.insert(pending);
+
+        assertThat(outbox.findNextReadyForUpdate(NOW.minusSeconds(1)))
+                .isEmpty();
+        assertThat(outbox.findNextReadyForUpdate(NOW))
+                .get()
+                .extracting(message -> message.event().eventId())
+                .isEqualTo(pending.event().eventId());
+
+        Instant retryAt = NOW.plusSeconds(10);
+        IntegrationOutboxMessage failed = outbox.save(
+                pending.recordFailure("TEMPORARY", NOW, retryAt));
+        assertThat(failed.attemptCount()).isEqualTo(1);
+        assertThat(failed.nextAttemptAt()).isEqualTo(retryAt);
+        assertThat(outbox.findNextReadyForUpdate(NOW)).isEmpty();
+        assertThat(outbox.findNextReadyForUpdate(retryAt)).contains(failed);
+
+        IntegrationOutboxMessage published = outbox.save(
+                failed.markPublished(retryAt));
+        assertThat(published.published()).isTrue();
+        assertThat(published.deadLettered()).isFalse();
+        assertThat(outbox.findNextReadyForUpdate(retryAt.plusSeconds(1)))
+                .isEmpty();
+    }
+
+    @Test
+    void deadLetteredEventIsTerminalAndNotDispatchable() throws Exception {
+        IntegrationOutboxMessage pending = message(UUID.randomUUID());
+        outbox.insert(pending);
+
+        IntegrationOutboxMessage deadLettered = outbox.save(
+                pending.recordFailure("INVALID_EVENT", NOW, null));
+
+        assertThat(deadLettered.deadLettered()).isTrue();
+        assertThat(deadLettered.nextAttemptAt()).isNull();
+        assertThat(outbox.findNextReadyForUpdate(NOW.plusSeconds(1)))
+                .isEmpty();
+    }
+
+    @Test
     void databaseRejectsNonObjectPayload() {
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO integration_outbox (
@@ -106,5 +148,25 @@ class IntegrationOutboxJpaAdapterIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining(
                         "ck_integration_outbox_payload_object");
+    }
+
+    private IntegrationOutboxMessage message(UUID eventId) throws Exception {
+        UUID responseId = UUID.randomUUID();
+        SurveyResponseSubmittedV1 payload = new SurveyResponseSubmittedV1(
+                "user-a",
+                responseId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                NOW);
+        return IntegrationOutboxMessage.pending(
+                new IntegrationEventEnvelope(
+                        eventId,
+                        SurveyResponseSubmittedV1.EVENT_TYPE,
+                        SurveyResponseSubmittedV1.SCHEMA_VERSION,
+                        NOW,
+                        SurveyResponseSubmittedV1.AGGREGATE_TYPE,
+                        responseId,
+                        objectMapper.writeValueAsString(payload)),
+                NOW);
     }
 }

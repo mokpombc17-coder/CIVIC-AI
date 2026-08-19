@@ -6,7 +6,10 @@ import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
+import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxMessage;
+import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.shared.integration.survey.SurveyResponseSubmittedV1;
+import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliveryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +42,12 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
 
     @Autowired
     private PersonaInboxRepository inbox;
+
+    @Autowired
+    private IntegrationOutboxRepository outbox;
+
+    @Autowired
+    private IntegrationOutboxDeliveryService deliveries;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -75,6 +84,34 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
         assertThat(inbox.exists(
                 PersonaSurveyResponseSubmittedConsumer.CONSUMER_NAME,
                 secondEventId)).isTrue();
+    }
+
+    @Test
+    void deliversOutboxEventToPersonaAndMarksItPublished() throws Exception {
+        SurveyResponseSubmittedV1 payload = insertSurveyResponse("user-b");
+        IntegrationEventEnvelope integrationEvent =
+                event(UUID.randomUUID(), payload);
+        outbox.insert(IntegrationOutboxMessage.pending(
+                integrationEvent,
+                payload.submittedAt()));
+
+        assertThat(deliveries.deliverNext()).isTrue();
+
+        assertThat(outbox.findByEventIdForUpdate(integrationEvent.eventId()))
+                .get()
+                .satisfies(message -> {
+                    assertThat(message.published()).isTrue();
+                    assertThat(message.deadLettered()).isFalse();
+                    assertThat(message.publishedAt()).isNotNull();
+                });
+        assertThat(generations.findBySourceResponseId(
+                new PersonaSourceId(payload.responseId())))
+                .get()
+                .satisfies(generation -> assertThat(generation.status())
+                        .isEqualTo(PersonaGenerationStatus.PENDING));
+        assertThat(inbox.exists(
+                PersonaSurveyResponseSubmittedConsumer.CONSUMER_NAME,
+                integrationEvent.eventId())).isTrue();
     }
 
     private IntegrationEventEnvelope event(
