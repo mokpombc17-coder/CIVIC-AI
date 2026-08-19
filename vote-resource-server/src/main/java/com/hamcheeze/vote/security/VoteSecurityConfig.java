@@ -90,6 +90,12 @@ public class VoteSecurityConfig {
                                 "/api/v1/me/submissions/**")
                         .hasAuthority(VoteScopes.authority(
                                 VoteScopes.SUBMISSIONS_READ))
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/opinion-map/snapshots",
+                                "/api/v1/opinion-map/snapshots/**")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.OPINION_MAPS_READ))
                         .requestMatchers("/api/v1/**")
                         .authenticated()
                         .anyRequest()
