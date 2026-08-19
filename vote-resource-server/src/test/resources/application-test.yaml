@@ -5,6 +5,9 @@ spring:
     password: ${VOTE_TEST_DB_PASSWORD:vote}
 
 vote:
+  integration:
+    outbox:
+      enabled: false
   task:
     bootstrap:
       enabled: false

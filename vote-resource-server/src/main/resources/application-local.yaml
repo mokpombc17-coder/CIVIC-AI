@@ -8,6 +8,9 @@ server:
   port: ${SERVER_PORT:8083}
 
 vote:
+  integration:
+    outbox:
+      enabled: ${VOTE_INTEGRATION_OUTBOX_ENABLED:true}
   task:
     bootstrap:
       enabled: ${VOTE_TASK_BOOTSTRAP_ENABLED:true}

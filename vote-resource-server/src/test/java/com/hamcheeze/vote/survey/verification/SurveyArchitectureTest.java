@@ -28,7 +28,21 @@ class SurveyArchitectureTest {
     @Test
     void domainClassesHaveNoInfrastructureOrPersonaDependencies()
             throws Exception {
-        for (Path root : classPathRoots()) {
+        assertNoDependencies(DOMAIN_PACKAGE, FORBIDDEN_DEPENDENCIES);
+    }
+
+    @Test
+    void responseApplicationDoesNotDependOnPersona() throws Exception {
+        assertNoDependencies(
+                "com.hamcheeze.vote.survey.application.response",
+                List.of("com.hamcheeze.vote.persona."));
+    }
+
+    private void assertNoDependencies(
+            String packageName,
+            List<String> forbiddenDependencies
+    ) throws Exception {
+        for (Path root : classPathRoots(packageName)) {
             try (var paths = Files.walk(root)) {
                 for (Path classFile : paths
                         .filter(path -> path.toString().endsWith(".class"))
@@ -36,7 +50,7 @@ class SurveyArchitectureTest {
                     byte[] bytecode = Files.readAllBytes(classFile);
                     String constants = new String(
                             bytecode, java.nio.charset.StandardCharsets.ISO_8859_1);
-                    assertThat(FORBIDDEN_DEPENDENCIES.stream()
+                    assertThat(forbiddenDependencies.stream()
                             .map(value -> value.replace('.', '/'))
                             .noneMatch(constants::contains))
                             .as("forbidden dependency in %s", classFile)
@@ -46,9 +60,9 @@ class SurveyArchitectureTest {
         }
     }
 
-    private List<Path> classPathRoots() throws Exception {
+    private List<Path> classPathRoots(String packageName) throws Exception {
         URI uri = getClass().getClassLoader().getResource(
-                        DOMAIN_PACKAGE.replace('.', '/'))
+                        packageName.replace('.', '/'))
                 .toURI();
         if ("file".equals(uri.getScheme())) {
             Path packagePath = Path.of(uri);

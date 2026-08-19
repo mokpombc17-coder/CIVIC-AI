@@ -1,9 +1,8 @@
 package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
-import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceException;
-import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.round.SurveyRoundService;
 import com.hamcheeze.vote.survey.domain.common.SurveyActorId;
@@ -20,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.doThrow;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @ActiveProfiles({"local", "test"})
-class SurveySubmissionPersonaAtomicityIntegrationTest {
+class SurveySubmissionOutboxAtomicityIntegrationTest {
 
     private static final SurveyActorId ADMIN = new SurveyActorId("admin");
     private static final SurveyUserId USER = new SurveyUserId("user-a");
@@ -50,7 +50,7 @@ class SurveySubmissionPersonaAtomicityIntegrationTest {
     private SurveyResponseSubmissionService submissions;
 
     @MockitoSpyBean
-    private PersonaGenerationRepository generations;
+    private IntegrationOutboxRepository outbox;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -59,6 +59,8 @@ class SurveySubmissionPersonaAtomicityIntegrationTest {
     void resetSurveyData() {
         jdbcTemplate.execute("""
                 TRUNCATE TABLE
+                    integration_outbox,
+                    persona_inbox,
                     survey_content_versions,
                     survey_round_control
                 CASCADE
@@ -75,7 +77,7 @@ class SurveySubmissionPersonaAtomicityIntegrationTest {
     }
 
     @Test
-    void generationFailureRollsBackResponseAndReceiptTogether() {
+    void outboxFailureRollsBackResponseAndReceiptTogether() {
         SurveyQuestion question = new SurveyQuestion(
                 new SurveyQuestionId(UUID.randomUUID()),
                 new SurveyQuestionLineageKey(UUID.randomUUID()),
@@ -94,12 +96,8 @@ class SurveySubmissionPersonaAtomicityIntegrationTest {
         var active = rounds.startPublishedContentNow(
                         published.id(), null, ADMIN)
                 .targetRound();
-        doThrow(new PersonaGenerationPersistenceException(
-                PersonaGenerationPersistenceException.ErrorCode
-                        .INTEGRITY_CONSTRAINT_VIOLATION,
-                "forced generation failure",
-                null))
-                .when(generations).insert(any());
+        doThrow(new IllegalStateException("forced outbox failure"))
+                .when(outbox).insert(any());
 
         assertThatThrownBy(() -> submissions.submit(
                 USER,
@@ -109,9 +107,11 @@ class SurveySubmissionPersonaAtomicityIntegrationTest {
                         active.id(),
                         List.of(new ShortTextAnswer(
                                 question.id(), "answer")))))
-                .isInstanceOf(PersonaGenerationPersistenceException.class);
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseMessage("forced outbox failure");
 
         assertThat(count("survey_responses")).isZero();
+        assertThat(count("integration_outbox")).isZero();
         assertThat(count("persona_generations")).isZero();
         assertThat(count("survey_idempotency_receipts")).isZero();
     }

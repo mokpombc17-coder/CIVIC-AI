@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliveryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.persona.application.port.in.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
@@ -78,6 +79,9 @@ class SurveyApplicationUseCaseIntegrationTest {
     private PersonaGenerationRepository personaGenerations;
 
     @Autowired
+    private IntegrationOutboxDeliveryService outboxDeliveries;
+
+    @Autowired
     private SurveyResponseSubmissionService submissionService;
 
     @Autowired
@@ -87,6 +91,8 @@ class SurveyApplicationUseCaseIntegrationTest {
     void resetSurveyData() {
         jdbcTemplate.execute("""
                 TRUNCATE TABLE
+                    integration_outbox,
+                    persona_inbox,
                     survey_content_versions,
                     survey_round_control
                 CASCADE
@@ -129,6 +135,22 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(submitted.outcome().succeeded()).isTrue();
         assertThat(submitted.outcome().submittedEvent()).isPresent();
         assertThat(personaGenerations.findBySourceResponseId(
+                submitted.outcome().responseId())).isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM integration_outbox",
+                Integer.class)).isEqualTo(1);
+        assertThat(currentPersonaQuery.findCurrent(USER))
+                .satisfies(currentPersona -> {
+                    assertThat(currentPersona.personaReady()).isFalse();
+                    assertThat(currentPersona.sourceResponseId())
+                            .contains(submitted.outcome().responseId());
+                    assertThat(currentPersona.status().name())
+                            .isEqualTo("GENERATION_MISSING");
+                });
+
+        assertThat(outboxDeliveries.deliverNext()).isTrue();
+
+        assertThat(personaGenerations.findBySourceResponseId(
                 submitted.outcome().responseId()))
                 .get()
                 .satisfies(generation -> {
@@ -154,6 +176,9 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(replayed.outcome()).isEqualTo(submitted.outcome());
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM persona_generations",
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM integration_outbox",
                 Integer.class)).isEqualTo(1);
 
         var duplicate = submissionService.submit(
@@ -202,6 +227,9 @@ class SurveyApplicationUseCaseIntegrationTest {
         SurveySubmissionOutcome nextSubmitted = submit(
                 nextRound, nextContent);
         assertThat(nextSubmitted.succeeded()).isTrue();
+        assertThat(personaGenerations.findBySourceResponseId(
+                nextSubmitted.responseId())).isEmpty();
+        assertThat(outboxDeliveries.deliverNext()).isTrue();
         assertThat(eligibilityQuery.evaluate(USER).eligible()).isTrue();
         assertThat(myResponseQuery.findLatest(USER).orElseThrow().id())
                 .isEqualTo(nextSubmitted.responseId());

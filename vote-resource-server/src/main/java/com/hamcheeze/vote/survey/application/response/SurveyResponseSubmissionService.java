@@ -8,11 +8,9 @@ import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyKey;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyOperation;
 import com.hamcheeze.vote.survey.application.idempotency.SurveySubmissionRequestHashFactory;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
-import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
+import com.hamcheeze.vote.survey.application.port.out.SurveyResponseSubmittedEventPublisher;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
-import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
-import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
@@ -20,7 +18,6 @@ import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyValidationException;
 import com.hamcheeze.vote.survey.domain.common.SurveyViolation;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
-import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.survey.domain.response.SurveyAnswer;
 import com.hamcheeze.vote.survey.domain.response.SurveySubmissionPolicy;
 import com.hamcheeze.vote.survey.domain.response.SurveySubmissionResult;
@@ -41,7 +38,7 @@ public class SurveyResponseSubmissionService {
     private final SurveyRoundRepository rounds;
     private final SurveyContentVersionRepository contents;
     private final SurveyResponseRepository responses;
-    private final PersonaGenerationRepository personaGenerations;
+    private final SurveyResponseSubmittedEventPublisher submittedEvents;
     private final UserTransactionLock userTransactions;
     private final SurveySubmissionRequestHashFactory requestHashFactory =
             new SurveySubmissionRequestHashFactory();
@@ -56,11 +53,11 @@ public class SurveyResponseSubmissionService {
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
-            PersonaGenerationRepository personaGenerations,
+            SurveyResponseSubmittedEventPublisher submittedEvents,
             UserTransactionLock userTransactions
     ) {
         this(idempotency, outcomeCodec, rounds, contents, responses,
-                personaGenerations, userTransactions, Clock.systemUTC());
+                submittedEvents, userTransactions, Clock.systemUTC());
     }
 
     SurveyResponseSubmissionService(
@@ -69,7 +66,7 @@ public class SurveyResponseSubmissionService {
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
-            PersonaGenerationRepository personaGenerations,
+            SurveyResponseSubmittedEventPublisher submittedEvents,
             UserTransactionLock userTransactions,
             Clock clock
     ) {
@@ -80,8 +77,8 @@ public class SurveyResponseSubmissionService {
         this.rounds = Objects.requireNonNull(rounds, "rounds");
         this.contents = Objects.requireNonNull(contents, "contents");
         this.responses = Objects.requireNonNull(responses, "responses");
-        this.personaGenerations = Objects.requireNonNull(
-                personaGenerations, "personaGenerations");
+        this.submittedEvents = Objects.requireNonNull(
+                submittedEvents, "submittedEvents");
         this.userTransactions = Objects.requireNonNull(
                 userTransactions, "userTransactions");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -157,10 +154,7 @@ public class SurveyResponseSubmissionService {
                             command.answers(),
                             clock.instant());
             responses.insert(result.response());
-        personaGenerations.insert(PersonaGeneration.pending(
-                new PersonaGenerationId(UUID.randomUUID()),
-                new PersonaSourceId(result.response().id().value()),
-                result.response().submittedAt()));
+            submittedEvents.publish(userId, result.event());
             return SurveySubmissionOutcome.submitted(result.event());
         } catch (SurveyValidationException exception) {
             return SurveySubmissionOutcome.rejected(
