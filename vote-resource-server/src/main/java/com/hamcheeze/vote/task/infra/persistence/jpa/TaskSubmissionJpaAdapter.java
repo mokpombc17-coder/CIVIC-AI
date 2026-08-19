@@ -70,6 +70,19 @@ public class TaskSubmissionJpaAdapter implements TaskSubmissionRepository {
                 .flatMap(this::map);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public long countByTaskId(TaskId taskId) {
+        return entityManager.createQuery(
+                        """
+                        SELECT count(submission)
+                        FROM TaskSubmissionJpaEntity submission
+                        WHERE submission.taskId = :taskId
+                        """, Long.class)
+                .setParameter("taskId", taskId.value())
+                .getSingleResult();
+    }
+
     private Optional<TaskSubmission> map(TaskSubmissionJpaEntity entity) {
         return Optional.ofNullable(entity)
                 .map(stored -> TaskSubmissionJpaMapper.toDomain(

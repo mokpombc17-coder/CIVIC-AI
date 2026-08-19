@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.application.submission;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
+import com.hamcheeze.vote.shared.integration.task.TaskOpinionMapFinalizationRequestedV1;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyErrorCode;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
@@ -63,7 +64,8 @@ import static org.mockito.Mockito.doThrow;
         "vote.survey.bootstrap.enabled=false",
         "vote.task.lifecycle.enabled=false",
         "vote.task.prediction.enabled=false",
-        "vote.task.submission-outbox.enabled=true"
+        "vote.task.submission-outbox.enabled=true",
+        "vote.task.opinion-map-finalization-outbox.enabled=true"
 })
 @ActiveProfiles({"local", "test"})
 class TaskSubmissionServiceIntegrationTest {
@@ -397,6 +399,33 @@ class TaskSubmissionServiceIntegrationTest {
                 .get()
                 .extracting(Task::status)
                 .isEqualTo(TaskStatus.CLOSED);
+        Integer expectedSubmissionCount = jdbcTemplate.queryForObject("""
+                SELECT (payload::jsonb ->> 'expectedSubmissionCount')::integer
+                FROM integration_outbox
+                WHERE aggregate_id = ?
+                  AND event_type = ?
+                """, Integer.class,
+                fixture.task().id().value(),
+                TaskOpinionMapFinalizationRequestedV1.EVENT_TYPE);
+        assertThat(expectedSubmissionCount).isEqualTo(1);
+    }
+
+    @Test
+    void finalizationOutboxFailureRollsBackTaskClosure() {
+        Fixture fixture = fixture("close-outbox-rollback-user");
+        doThrow(new IllegalStateException("forced close outbox failure"))
+                .when(outbox).insert(any());
+
+        assertThatThrownBy(() -> administration.closeEarly(
+                fixture.task().id(), "rollback close", ADMIN))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseMessage("forced close outbox failure");
+
+        assertThat(tasks.findById(fixture.task().id()))
+                .get()
+                .extracting(Task::status)
+                .isEqualTo(TaskStatus.OPEN);
+        assertThat(outboxCountForTask(fixture.task().id().value())).isZero();
     }
 
     @Test

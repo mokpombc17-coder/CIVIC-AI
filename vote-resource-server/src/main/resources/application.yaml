@@ -34,6 +34,8 @@ vote:
   task:
     submission-outbox:
       enabled: ${VOTE_TASK_SUBMISSION_OUTBOX_ENABLED:true}
+    opinion-map-finalization-outbox:
+      enabled: ${VOTE_TASK_OPINION_MAP_FINALIZATION_OUTBOX_ENABLED:false}
     bootstrap:
       enabled: false
     lifecycle:

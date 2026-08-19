@@ -16,4 +16,6 @@ public interface TaskSubmissionRepository {
     Optional<TaskSubmission> findByUserAndTask(
             TaskUserId userId,
             TaskId taskId);
+
+    long countByTaskId(TaskId taskId);
 }
