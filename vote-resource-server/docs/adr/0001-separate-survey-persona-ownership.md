@@ -3,11 +3,14 @@
 - 상태: Accepted
 - 결정일: 2026-08-18
 - 적용 대상: `vote-resource-server`
-- 후속 구현: Persona 패키지 독립, Transactional Outbox, Persona Inbox, Persona 버전, Task 결합 제거
+- 구현 상태: 완료
+- 후속 구현: Persona 패키지 독립, Transactional Outbox, Persona Inbox,
+  Persona 버전, Task 결합 제거, Result 제출 Projection
+- 관련 결정: `0002-result-submission-projection.md`
 
 ## 배경
 
-현재 Survey 응답 제출 유스케이스는 Survey 응답과 답변을 저장하는 트랜잭션 안에서
+결정 당시 Survey 응답 제출 유스케이스는 Survey 응답과 답변을 저장하는 트랜잭션 안에서
 `PersonaGeneration(PENDING)`도 함께 생성한다. Persona 생성 상태, 재시도 정책, 외부
 Persona API 호출, 현재 Persona 조회 역시 `com.hamcheeze.vote.survey` 아래에 있다.
 
@@ -15,7 +18,7 @@ Persona API 호출, 현재 Persona 조회 역시 `com.hamcheeze.vote.survey` 아
 사용자별 예상 응답 채택률과 모델 버전을 보유하고 Task 예측의 입력으로도 사용된다.
 따라서 Persona 생성 생명주기와 결과는 Survey와 독립적으로 발전해야 한다.
 
-현재 Task 영속성은 `task_predictions`에서 `persona_generations`로 직접 외래 키를
+결정 당시 Task 영속성은 `task_predictions`에서 `persona_generations`로 직접 외래 키를
 가지므로, 코드 패키지만 이동해서는 경계가 완성되지 않는다. 이벤트 전달 보장,
 중복 소비, 기존 데이터 이전, Task 참조 방식까지 함께 정의해야 한다.
 
@@ -39,6 +42,7 @@ com.hamcheeze.vote
 │   ├── application
 │   └── infra
 ├── task
+├── result
 └── shared
     └── integration
         └── outbox
@@ -60,7 +64,8 @@ com.hamcheeze.vote
 | Persona 생성 결과와 버전 | Persona | 사용자별 최신 성공 버전 제공 |
 | 사용자별 예상 응답 채택률 | Persona | Persona 버전 생성 시점의 모델 추정치 |
 | 실제 응답 채택 이력 | Task | `AI_ACCEPTED/USER_ANSWERED` 원천 기록 |
-| 실제 응답 채택률 집계 | Result Read Model | Persona 원본을 직접 수정하지 않음 |
+| Task 제출 이벤트 | Task | Outbox까지 Task 제출 트랜잭션이 책임짐 |
+| Task 제출 Projection과 실제 채택률 집계 | Result | Persona 원본을 직접 수정하지 않음 |
 
 Survey는 Persona 자체나 Persona 생성 상태를 소유하지 않는다. Persona는 Survey
 Aggregate를 직접 참조하지 않고, 제출된 응답을 나타내는 외부 식별자와 불변 입력
@@ -117,7 +122,7 @@ record SurveyResponseSubmittedV1(
 - 이벤트 필드는 V1에서 삭제하거나 의미를 변경하지 않는다. 호환되지 않는 변경은
   새 `schemaVersion`을 사용한다.
 
-Persona 소비자는 `responseId`를 이용해 `SurveyResponseSourceReader` 포트에서 불변
+Persona 소비자는 `responseId`를 이용해 `PersonaSurveySourceQueryPort`에서 불변
 입력 스냅샷을 조회하고, 외부 Provider 호출 전에 Persona 소유 데이터로 복사한다.
 향후 별도 서비스로 분리할 때 이 포트의 Adapter를 내부 HTTP 또는 스냅샷 이벤트로
 교체할 수 있다.
@@ -219,14 +224,16 @@ Controller와 Query Service의 소유권만 Persona로 이동한다.
 
 ### 8. Task와 Persona의 관계
 
-Task는 예측에 사용한 `personaVersionId` 또는 과도기 동안의 `generationId`와
-`providerPersonaId`를 값으로 보관할 수 있다. 그러나 Persona 테이블에 대한 JPA 연관,
-Repository 직접 호출, 장기적인 데이터베이스 외래 키를 가지지 않는다.
+Task는 예측과 제출에 사용한 `personaGenerationId`, `personaVersionId`를 값으로
+보관하고 Prediction에는 외부 실행용 `providerPersonaId`도 보존한다. 그러나 Persona
+테이블에 대한 JPA 연관, Repository 직접 호출, 장기적인 데이터베이스 외래 키를
+가지지 않는다.
 
 V4에서 생성된 `task_predictions`의 `persona_generations` 외래 키는 전환 기간의
 기술 부채로 분류했으며, Persona 조회 포트 전환 후 V8 Flyway migration에서 제거했다.
-추적용 `generationId`와 `providerPersonaId` 값은 유지하고 기존 V3/V4 migration은
-수정하지 않는다.
+추적용 `generationId`, `personaVersionId`, `providerPersonaId` 값은 유지하고 기존
+V3/V4 migration은 수정하지 않는다. V11 migration은 Prediction과 Submission에
+`personaVersionId`를 backfill한 뒤 필수 provenance로 고정한다.
 
 Task의 `TaskPredictionCandidate`는 현재 답변 값, 순서, 설명을 소유한다. 후보별
 채택 확률이 추후 필요하면 Task Prediction의 별도 필드로 추가하며, 사용자 수준의
@@ -235,12 +242,22 @@ Task의 `TaskPredictionCandidate`는 현재 답변 값, 순서, 설명을 소유
 ### 9. 실제 채택률
 
 실제 채택의 원천 데이터는 Task의 `TaskAnswerSource`와 채택된 Candidate ID다.
-Result Read Model은 향후 `TaskSubmissionCompleted` Integration Event를 소비해 실제
-채택률을 계산한다.
+Result는 `TaskSubmissionCompletedV1` Integration Event를 소비해 Result 소유의 불변
+제출 Projection을 만들고 실제 채택률을 계산한다. Projection은 Task 질문·선택지
+문구를 중복 저장하거나 Task 테이블에 외래 키를 만들지 않는다.
 
-분모 정의는 Result 기능을 구현할 때 별도 정책으로 결정한다. 후보 예측이 제공된
-질문 수, 실제 제출 질문 수, 전체 Task 질문 수를 서로 혼용하지 않는다. 이 결정은
-Persona 분리 작업의 완료 조건에는 포함하지 않는다.
+분모는 Result Projection에 저장된 제출 답변 수, 분자는 그중 `AI_ACCEPTED`인 답변
+수다. 따라서 사용자별 실제 채택률은 다음과 같다.
+
+```text
+actualAdoptionRate = aiAcceptedAnswerCount / submittedAnswerCount
+```
+
+Task는 모든 질문의 답변을 요구하므로 정상 Submission의 분모는 0보다 크다. 이 지표는
+Result가 소유하며 구체적인 화면 노출 여부는 Result 조회 API 설계에서 결정한다.
+PersonaVersion의 `predictedAdoptionRate`와는 별도 값이고, 예상 채택률은 사용자 Result
+화면에 노출하지 않으며 후속 관리자 export에서 실제 채택률과 비교할 provenance로
+사용한다.
 
 ### 10. 마이그레이션 원칙
 
@@ -251,6 +268,8 @@ Persona 분리 작업의 완료 조건에는 포함하지 않는다.
 - Outbox 전환 후 Survey가 `PersonaGenerationRepository`에 의존하지 않는 것을
   Architecture Test로 검증한다.
 - Persona가 Survey JPA 타입에 의존하지 않는 것을 Architecture Test로 검증한다.
+- Result가 Task Repository·JPA 타입에 의존하지 않는 것을 Architecture Test로
+  검증한다. Task 내용이 필요할 때는 Result 소유 `ResultTaskQueryPort`를 사용한다.
 - 외부 API URI는 가능한 한 유지하고 소유 구현만 이동한다.
 
 ## 단계별 완료 조건
@@ -269,11 +288,11 @@ Persona 분리 작업의 완료 조건에는 포함하지 않는다.
 - Survey 도메인 코드가 Persona 도메인 타입을 참조하지 않는다.
 - 전체 기존 테스트가 통과한다.
 
-### 3단계 이후
+### 3단계 이후: 완료
 
 Outbox/Inbox와 PersonaVersion schema, 이벤트 소비자, Survey Producer 전환, API 소유권
-이동, Task 외래 키 제거를 순차적으로 진행한다. 각 단계는 이전 단계의 테스트를
-깨뜨리지 않는 독립 변경이어야 한다.
+이동, Task 외래 키 제거를 독립 변경으로 완료했다. 이어서 Task 제출 Outbox, Result
+Inbox, Result 제출 Projection과 Result 소유 Task 조회 Port를 추가했다.
 
 ## 결과와 트레이드오프
 
@@ -297,12 +316,12 @@ Persona 상태 API는 이 짧은 구간을 정상 상태로 취급하고 `PENDIN
 
 ## 제외 범위
 
-이 ADR은 다음 항목을 구현하지 않는다.
+후속 구현까지 완료한 현재도 다음 항목은 범위 밖이다.
 
 - Kafka 등 외부 메시지 브로커 도입
 - Persona 별도 배포 서비스 구축
-- 실제 응답 채택률의 분모 정책
-- Result Projection 구현
-- Survey 질문 `required` API 변경(본 ADR 이후 V9 후속 작업으로 반영)
+- 사용자용 Result 조회 API와 정성적 의견 지도
+- 관리자 export API의 권한·파일 형식·전달 방식
 
-이 항목들은 각 후속 단계의 별도 스펙과 테스트에서 다룬다.
+Survey 질문 `required` 강제는 V9, Result 제출 Projection은 V12~V13 후속 작업으로
+반영했다. 나머지 항목은 각 후속 단계의 별도 스펙과 테스트에서 다룬다.
