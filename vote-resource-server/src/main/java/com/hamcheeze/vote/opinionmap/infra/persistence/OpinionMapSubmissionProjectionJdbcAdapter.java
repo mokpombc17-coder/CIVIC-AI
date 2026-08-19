@@ -83,4 +83,16 @@ public class OpinionMapSubmissionProjectionJdbcAdapter
                         resultSet.getTimestamp("submitted_at").toInstant()),
                 submissionId).stream().findFirst();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByTaskId(UUID taskId) {
+        Objects.requireNonNull(taskId, "taskId");
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM opinion_map_submission_projections
+                WHERE task_id = ?
+                """, Long.class, taskId);
+        return Objects.requireNonNull(count, "projection count");
+    }
 }

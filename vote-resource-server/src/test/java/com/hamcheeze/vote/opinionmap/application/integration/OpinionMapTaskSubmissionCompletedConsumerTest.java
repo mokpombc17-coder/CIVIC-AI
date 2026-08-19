@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.opinionmap.application.integration;
 
+import com.hamcheeze.vote.opinionmap.application.finalization.OpinionMapFinalizationCoordinator;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapInboxRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSubmissionProjectionRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapReasonSource;
@@ -37,10 +38,13 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
             mock(OpinionMapInboxRepository.class);
     private final OpinionMapSubmissionProjectionRepository submissions =
             mock(OpinionMapSubmissionProjectionRepository.class);
+    private final OpinionMapFinalizationCoordinator finalizations =
+            mock(OpinionMapFinalizationCoordinator.class);
     private final OpinionMapTaskSubmissionCompletedConsumer consumer =
             new OpinionMapTaskSubmissionCompletedConsumer(
                     inbox,
                     submissions,
+                    finalizations,
                     new ObjectMapper(),
                     Clock.fixed(PROCESSED_AT, ZoneOffset.UTC));
 
@@ -56,6 +60,7 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
         ArgumentCaptor<OpinionMapSubmissionProjection> submission =
                 ArgumentCaptor.forClass(OpinionMapSubmissionProjection.class);
         verify(submissions).insertIfAbsent(submission.capture());
+        verify(finalizations).reassess(uuid(3));
         assertThat(submission.getValue()).satisfies(projected -> {
             assertThat(projected.questionId()).isEqualTo(uuid(7));
             assertThat(projected.selectedOptionId()).isEqualTo(uuid(8));
@@ -89,6 +94,7 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
         consumer.consume(event);
 
         verify(submissions).insertIfAbsent(any());
+        verify(finalizations).reassess(uuid(3));
         verify(inbox, never()).recordIfAbsent(any());
     }
 
@@ -113,7 +119,7 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
                                     "OPINION_MAP_INBOX_EVENT_CONFLICT");
                             assertThat(exception.retryable()).isFalse();
                         });
-        verifyNoInteractions(submissions);
+        verifyNoInteractions(submissions, finalizations);
     }
 
     @Test
@@ -129,7 +135,7 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
                         IntegrationEventConsumptionException.class,
                         exception -> assertThat(exception.errorCode())
                                 .isEqualTo("OPINION_MAP_EVENT_AGGREGATE_MISMATCH"));
-        verifyNoInteractions(inbox, submissions);
+        verifyNoInteractions(inbox, submissions, finalizations);
     }
 
     @Test
@@ -147,7 +153,7 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
                                     "OPINION_MAP_EVENT_SCHEMA_UNSUPPORTED");
                             assertThat(exception.retryable()).isFalse();
                         });
-        verifyNoInteractions(inbox, submissions);
+        verifyNoInteractions(inbox, submissions, finalizations);
     }
 
     @Test
@@ -162,7 +168,7 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
                         IntegrationEventConsumptionException.class,
                         exception -> assertThat(exception.errorCode())
                                 .isEqualTo("OPINION_MAP_EVENT_PAYLOAD_INVALID"));
-        verifyNoInteractions(inbox, submissions);
+        verifyNoInteractions(inbox, submissions, finalizations);
     }
 
     @Test

@@ -10,4 +10,6 @@ public interface OpinionMapSubmissionProjectionRepository {
     boolean insertIfAbsent(OpinionMapSubmissionProjection submission);
 
     Optional<OpinionMapSubmissionProjection> findBySubmissionId(UUID submissionId);
+
+    long countByTaskId(UUID taskId);
 }

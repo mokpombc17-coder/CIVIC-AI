@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.opinionmap.application.integration;
 
+import com.hamcheeze.vote.opinionmap.application.finalization.OpinionMapFinalizationCoordinator;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapInboxRepository;
 import com.hamcheeze.vote.opinionmap.application.port.out.OpinionMapSubmissionProjectionRepository;
 import com.hamcheeze.vote.opinionmap.domain.OpinionMapReasonSource;
@@ -26,6 +27,7 @@ public class OpinionMapTaskSubmissionCompletedConsumer
 
     private final OpinionMapInboxRepository inbox;
     private final OpinionMapSubmissionProjectionRepository submissions;
+    private final OpinionMapFinalizationCoordinator finalizations;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -33,20 +35,25 @@ public class OpinionMapTaskSubmissionCompletedConsumer
     public OpinionMapTaskSubmissionCompletedConsumer(
             OpinionMapInboxRepository inbox,
             OpinionMapSubmissionProjectionRepository submissions,
+            OpinionMapFinalizationCoordinator finalizations,
             ObjectMapper objectMapper
     ) {
-        this(inbox, submissions, objectMapper, Clock.systemUTC());
+        this(inbox, submissions, finalizations, objectMapper,
+                Clock.systemUTC());
     }
 
     OpinionMapTaskSubmissionCompletedConsumer(
             OpinionMapInboxRepository inbox,
             OpinionMapSubmissionProjectionRepository submissions,
+            OpinionMapFinalizationCoordinator finalizations,
             ObjectMapper objectMapper,
             Clock clock
     ) {
         this.inbox = Objects.requireNonNull(inbox, "inbox");
         this.submissions = Objects.requireNonNull(
                 submissions, "submissions");
+        this.finalizations = Objects.requireNonNull(
+                finalizations, "finalizations");
         this.objectMapper = Objects.requireNonNull(
                 objectMapper, "objectMapper");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -84,6 +91,8 @@ public class OpinionMapTaskSubmissionCompletedConsumer
                         "submissionId was delivered with different facts");
             }
         }
+
+        finalizations.reassess(submission.taskId());
 
         if (receiptAlreadyRecorded) {
             return;
