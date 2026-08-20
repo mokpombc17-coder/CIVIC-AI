@@ -60,8 +60,6 @@ class PersonaGenerationMetricsTest {
             metrics.staleCompletionIgnored();
             metrics.manualRetryScheduled();
             metrics.manualRetryIdempotent();
-            metrics.inputBackfillSucceeded();
-            metrics.inputBackfillFailed();
             metrics.inputFingerprintMismatch();
             metrics.persistenceIntegrityFailure();
 
@@ -83,10 +81,6 @@ class PersonaGenerationMetricsTest {
                     "vote.persona.generation.manual.retry.scheduled", 1);
             assertCounter(registry,
                     "vote.persona.generation.manual.retry.idempotent", 1);
-            assertCounter(registry,
-                    "vote.persona.generation.input.backfill.success", 1);
-            assertCounter(registry,
-                    "vote.persona.generation.input.backfill.failure", 1);
             assertCounter(registry,
                     "vote.persona.generation.input.fingerprint.mismatch", 1);
             assertCounter(registry,

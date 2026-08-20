@@ -1,7 +1,6 @@
 package com.hamcheeze.vote.persona.infra;
 
 import com.hamcheeze.vote.persona.application.PersonaGenerationDispatcher;
-import com.hamcheeze.vote.persona.application.PersonaGenerationInputBackfillPoller;
 import com.hamcheeze.vote.persona.application.PersonaGenerationLeaseReaper;
 import com.hamcheeze.vote.persona.application.PersonaGenerationWorker;
 import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
@@ -20,8 +19,7 @@ class PersonaProviderConfigurationTest {
                             PersonaGenerationConfiguration.class,
                             PersonaGenerationWorker.class,
                             PersonaGenerationDispatcher.class,
-                            PersonaGenerationLeaseReaper.class,
-                            PersonaGenerationInputBackfillPoller.class)
+                            PersonaGenerationLeaseReaper.class)
                     .withBean(PersonaGenerationProperties.class)
                     .withBean(ObjectMapper.class);
 
@@ -41,8 +39,6 @@ class PersonaProviderConfigurationTest {
                             PersonaGenerationDispatcher.class);
                     assertThat(context).doesNotHaveBean(
                             PersonaGenerationLeaseReaper.class);
-                    assertThat(context).doesNotHaveBean(
-                            PersonaGenerationInputBackfillPoller.class);
                     assertThat(context).doesNotHaveBean(
                             "personaGenerationScheduler");
                     assertThat(context).doesNotHaveBean(

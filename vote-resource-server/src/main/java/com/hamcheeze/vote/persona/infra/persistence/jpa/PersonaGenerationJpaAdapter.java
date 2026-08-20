@@ -160,33 +160,6 @@ public class PersonaGenerationJpaAdapter
                 now);
     }
 
-    @Override
-    @Transactional
-    public Optional<PersonaGeneration> findNextMissingInputForUpdate() {
-        @SuppressWarnings("unchecked")
-        List<UUID> ids = entityManager.createNativeQuery(
-                        """
-                        SELECT generation_id
-                        FROM persona_generations generation
-                        WHERE NOT EXISTS (
-                            SELECT 1
-                            FROM persona_generation_inputs input
-                            WHERE input.generation_id = generation.generation_id
-                        )
-                        ORDER BY generation.created_at, generation.generation_id
-                        LIMIT 1
-                        FOR UPDATE SKIP LOCKED
-                        """,
-                        UUID.class)
-                .getResultList();
-        return ids.stream().findFirst()
-                .map(id -> entityManager.find(
-                        PersonaGenerationJpaEntity.class,
-                        id,
-                        LockModeType.PESSIMISTIC_WRITE))
-                .map(PersonaGenerationJpaMapper::toDomain);
-    }
-
     private Optional<PersonaGeneration> findLockedByNativeQuery(
             String sql,
             String parameterName,

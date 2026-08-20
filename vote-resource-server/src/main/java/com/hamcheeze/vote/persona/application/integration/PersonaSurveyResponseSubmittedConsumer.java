@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.persona.application.integration;
 
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
+import com.hamcheeze.vote.persona.application.PersonaGenerationInputException;
 import com.hamcheeze.vote.persona.application.PersonaGenerationInputSnapshot;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputSnapshotFactory;
@@ -120,7 +121,7 @@ public class PersonaSurveyResponseSubmittedConsumer
         var existing = generations.findBySource(
                 PersonaSourceType.SURVEY_RESPONSE, sourceId);
         if (existing.isPresent()) {
-            ensureInput(existing.orElseThrow(), source);
+            validateExistingInput(existing.orElseThrow(), source);
             return;
         }
         PersonaGeneration generation = PersonaGeneration.pending(
@@ -134,15 +135,43 @@ public class PersonaSurveyResponseSubmittedConsumer
         inputs.insert(input);
     }
 
-    private void ensureInput(
+    private void validateExistingInput(
             PersonaGeneration generation,
             PersonaSurveySource source
     ) {
-        if (inputs.findByGenerationId(generation.id()).isPresent()) {
-            return;
+        final PersonaGenerationInputSnapshot input;
+        try {
+            input = inputs.findByGenerationId(generation.id())
+                    .orElseThrow(() -> inputInvariantViolation(
+                            "Persona generation input snapshot is missing"));
+        } catch (PersonaGenerationInputException exception) {
+            throw inputInvariantViolation(
+                    "Persona generation input snapshot is invalid",
+                    exception);
         }
-        inputs.insert(inputSnapshots.create(
-                generation.id(), source, clock.instant()));
+        boolean matches = input.generationId().equals(generation.id())
+                && input.sourceId().equals(generation.sourceId())
+                && input.sourceId().equals(source.responseId())
+                && input.userId().equals(source.userId());
+        if (!matches) {
+            throw inputInvariantViolation(
+                    "Persona generation input snapshot metadata does not match generation and source");
+        }
+    }
+
+    private static IntegrationEventConsumptionException
+            inputInvariantViolation(String message) {
+        return nonRetryable(
+                "PERSONA_GENERATION_INPUT_INVARIANT_VIOLATION", message);
+    }
+
+    private static IntegrationEventConsumptionException
+            inputInvariantViolation(String message, Throwable cause) {
+        return new IntegrationEventConsumptionException(
+                "PERSONA_GENERATION_INPUT_INVARIANT_VIOLATION",
+                false,
+                message,
+                cause);
     }
 
     private static void validateEnvelope(IntegrationEventEnvelope event) {

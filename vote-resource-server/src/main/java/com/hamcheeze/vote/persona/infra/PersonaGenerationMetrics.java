@@ -22,8 +22,6 @@ public class PersonaGenerationMetrics {
     private final Counter staleCompletion;
     private final Counter manualRetryScheduled;
     private final Counter manualRetryIdempotent;
-    private final Counter inputBackfillSuccess;
-    private final Counter inputBackfillFailure;
     private final Counter inputFingerprintMismatch;
     private final Counter persistenceIntegrityFailure;
 
@@ -52,10 +50,6 @@ public class PersonaGenerationMetrics {
                 "vote.persona.generation.manual.retry.scheduled");
         manualRetryIdempotent = registry.counter(
                 "vote.persona.generation.manual.retry.idempotent");
-        inputBackfillSuccess = registry.counter(
-                "vote.persona.generation.input.backfill.success");
-        inputBackfillFailure = registry.counter(
-                "vote.persona.generation.input.backfill.failure");
         inputFingerprintMismatch = registry.counter(
                 "vote.persona.generation.input.fingerprint.mismatch");
         persistenceIntegrityFailure = registry.counter(
@@ -114,8 +108,6 @@ public class PersonaGenerationMetrics {
     public void staleCompletionIgnored() { staleCompletion.increment(); }
     public void manualRetryScheduled() { manualRetryScheduled.increment(); }
     public void manualRetryIdempotent() { manualRetryIdempotent.increment(); }
-    public void inputBackfillSucceeded() { inputBackfillSuccess.increment(); }
-    public void inputBackfillFailed() { inputBackfillFailure.increment(); }
     public void inputFingerprintMismatch() { inputFingerprintMismatch.increment(); }
     public void persistenceIntegrityFailure() { persistenceIntegrityFailure.increment(); }
 }

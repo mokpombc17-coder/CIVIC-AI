@@ -1,14 +1,19 @@
 package com.hamcheeze.vote.persona.application.integration;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.persona.application.PersonaGenerationInputSnapshot;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.domain.PersonaGeneration;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
+import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.survey.SurveyResponseSubmittedV1;
 import org.junit.jupiter.api.AfterEach;
@@ -30,7 +35,10 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -82,7 +90,7 @@ class PersonaGenerationInputAtomicityIntegrationTest {
 
     @Test
     void inputInsertFailureRollsBackInboxGenerationAndInput() throws Exception {
-        IntegrationEventEnvelope event = arrangeSource();
+        IntegrationEventEnvelope event = arrangeSource().event();
         doThrow(new IllegalStateException("forced input failure"))
                 .when(inputs).insert(any());
 
@@ -94,7 +102,7 @@ class PersonaGenerationInputAtomicityIntegrationTest {
 
     @Test
     void generationInsertFailureLeavesNeitherInboxNorInput() throws Exception {
-        IntegrationEventEnvelope event = arrangeSource();
+        IntegrationEventEnvelope event = arrangeSource().event();
         doThrow(new IllegalStateException("forced generation failure"))
                 .when(generations).insert(any());
 
@@ -106,7 +114,7 @@ class PersonaGenerationInputAtomicityIntegrationTest {
 
     @Test
     void inboxFailureCreatesNeitherGenerationNorInput() throws Exception {
-        IntegrationEventEnvelope event = arrangeSource();
+        IntegrationEventEnvelope event = arrangeSource().event();
         doThrow(new IllegalStateException("forced inbox failure"))
                 .when(inbox).recordIfAbsent(any());
 
@@ -116,19 +124,86 @@ class PersonaGenerationInputAtomicityIntegrationTest {
         assertAllAtomicRowsAbsent();
     }
 
-    private IntegrationEventEnvelope arrangeSource() throws Exception {
+    @Test
+    void existingGenerationWithoutInputRollsBackNewInboxReceipt()
+            throws Exception {
+        Fixture fixture = arrangeSource();
+        PersonaGeneration generation = generations.insert(
+                PersonaGeneration.pending(
+                        new PersonaGenerationId(UUID.randomUUID()),
+                        PersonaSourceType.SURVEY_RESPONSE,
+                        fixture.source().responseId(),
+                        fixture.source().submittedAt()));
+        clearInvocations(generations, inputs);
+
+        assertThatThrownBy(() -> consumer.consume(fixture.event()))
+                .isInstanceOfSatisfying(
+                        IntegrationEventConsumptionException.class,
+                        exception -> {
+                            assertThat(exception.errorCode()).isEqualTo(
+                                    "PERSONA_GENERATION_INPUT_INVARIANT_VIOLATION");
+                            assertThat(exception.retryable()).isFalse();
+                        });
+
+        assertThat(count("persona_inbox")).isZero();
+        assertThat(count("persona_generations")).isEqualTo(1);
+        assertThat(count("persona_generation_inputs")).isZero();
+        assertThat(generations.findById(generation.id())).isPresent();
+        verify(generations, never()).insert(any());
+        verify(inputs, never()).insert(any());
+    }
+
+    @Test
+    void existingInputMetadataMismatchRollsBackInboxWithoutOverwrite()
+            throws Exception {
+        Fixture fixture = arrangeSource();
+        PersonaGeneration generation = generations.insert(
+                PersonaGeneration.pending(
+                        new PersonaGenerationId(UUID.randomUUID()),
+                        PersonaSourceType.SURVEY_RESPONSE,
+                        fixture.source().responseId(),
+                        fixture.source().submittedAt()));
+        inputs.insert(PersonaGenerationInputSnapshot.create(
+                generation.id(),
+                generation.sourceId(),
+                new PersonaUserId("different-user"),
+                1,
+                "{\"generationId\":\"" + generation.id().value() + "\"}",
+                SUBMITTED_AT));
+        clearInvocations(generations, inputs);
+
+        assertThatThrownBy(() -> consumer.consume(fixture.event()))
+                .isInstanceOfSatisfying(
+                        IntegrationEventConsumptionException.class,
+                        exception -> assertThat(exception.errorCode())
+                                .isEqualTo(
+                                        "PERSONA_GENERATION_INPUT_INVARIANT_VIOLATION"));
+
+        assertThat(count("persona_inbox")).isZero();
+        assertThat(count("persona_generations")).isEqualTo(1);
+        assertThat(count("persona_generation_inputs")).isEqualTo(1);
+        assertThat(inputs.findByGenerationId(generation.id()))
+                .get()
+                .extracting(input -> input.userId().value())
+                .isEqualTo("different-user");
+        verify(generations, never()).insert(any());
+        verify(inputs, never()).insert(any());
+    }
+
+    private Fixture arrangeSource() throws Exception {
         SurveyResponseSubmittedV1 payload = new SurveyResponseSubmittedV1(
                 "user-atomic", UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), SUBMITTED_AT);
+        PersonaSurveySource source = new PersonaSurveySource(
+                new PersonaSourceId(payload.responseId()),
+                new PersonaUserId(payload.userId()),
+                payload.roundId(), 1,
+                payload.contentVersionId(), 1,
+                payload.submittedAt(), List.of());
         when(sources.getByResponseId(
                 new PersonaSourceId(payload.responseId())))
-                .thenReturn(new PersonaSurveySource(
-                        new PersonaSourceId(payload.responseId()),
-                        new PersonaUserId(payload.userId()),
-                        payload.roundId(), 1,
-                        payload.contentVersionId(), 1,
-                        payload.submittedAt(), List.of()));
-        return new IntegrationEventEnvelope(
+                .thenReturn(source);
+        IntegrationEventEnvelope event = new IntegrationEventEnvelope(
                 UUID.randomUUID(),
                 SurveyResponseSubmittedV1.EVENT_TYPE,
                 SurveyResponseSubmittedV1.SCHEMA_VERSION,
@@ -136,6 +211,7 @@ class PersonaGenerationInputAtomicityIntegrationTest {
                 SurveyResponseSubmittedV1.AGGREGATE_TYPE,
                 payload.responseId(),
                 objectMapper.writeValueAsString(payload));
+        return new Fixture(event, source);
     }
 
     private void assertAllAtomicRowsAbsent() {
@@ -147,5 +223,11 @@ class PersonaGenerationInputAtomicityIntegrationTest {
     private long count(String table) {
         return jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM " + table, Long.class);
+    }
+
+    private record Fixture(
+            IntegrationEventEnvelope event,
+            PersonaSurveySource source
+    ) {
     }
 }

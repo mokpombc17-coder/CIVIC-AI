@@ -8,6 +8,7 @@ import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceExcept
 import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceException.ErrorCode;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.infra.PersonaGenerationStatusQuery;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
@@ -111,7 +112,7 @@ class PersonaGenerationJpaAdapterIntegrationTest {
     }
 
     @Test
-    void generationWithoutInputIsReconciledBeforeItCanBeClaimed() {
+    void generationWithoutInputCannotBeClaimedAndIsObservable() {
         PersonaGeneration generation = generations.insert(
                 PersonaGeneration.pending(
                         generationId(),
@@ -120,18 +121,17 @@ class PersonaGenerationJpaAdapterIntegrationTest {
                         NOW));
 
         assertThat(generations.findNextDispatchableForUpdate(NOW)).isEmpty();
-        assertThat(generations.findNextMissingInputForUpdate())
-                .get()
-                .extracting(PersonaGeneration::id)
-                .isEqualTo(generation.id());
+        assertThat(new PersonaGenerationStatusQuery(jdbcTemplate)
+                .snapshot().missingInputCount()).isEqualTo(1);
 
-        inputs.insert(input(generation, "legacy-user"));
+        inputs.insert(input(generation, "user-a"));
 
         assertThat(generations.findNextDispatchableForUpdate(NOW))
                 .get()
                 .extracting(PersonaGeneration::id)
                 .isEqualTo(generation.id());
-        assertThat(generations.findNextMissingInputForUpdate()).isEmpty();
+        assertThat(new PersonaGenerationStatusQuery(jdbcTemplate)
+                .snapshot().missingInputCount()).isZero();
     }
 
     @Test

@@ -155,7 +155,7 @@ class PersonaSurveyResponseSubmittedConsumerTest {
     }
 
     @Test
-    void differentEventBackfillsMissingInputForLegacyGeneration() {
+    void existingGenerationWithoutInputViolatesInvariant() {
         SurveyResponseSubmittedV1 payload = payload();
         PersonaSurveySource source = source(payload);
         PersonaGeneration existing = PersonaGeneration.pending(
@@ -171,13 +171,68 @@ class PersonaSurveyResponseSubmittedConsumerTest {
         when(inputs.findByGenerationId(existing.id()))
                 .thenReturn(Optional.empty());
 
-        consumer.consume(event(uuid(7), payload));
+        assertThatThrownBy(() -> consumer.consume(event(uuid(7), payload)))
+                .isInstanceOfSatisfying(
+                        IntegrationEventConsumptionException.class,
+                        exception -> {
+                            assertThat(exception.errorCode()).isEqualTo(
+                                    "PERSONA_GENERATION_INPUT_INVARIANT_VIOLATION");
+                            assertThat(exception.retryable()).isFalse();
+                        });
 
-        ArgumentCaptor<PersonaGenerationInputSnapshot> input =
-                ArgumentCaptor.forClass(
-                        PersonaGenerationInputSnapshot.class);
-        verify(inputs).insert(input.capture());
-        assertThat(input.getValue().generationId()).isEqualTo(existing.id());
+        verify(inputs, never()).insert(any());
+        verify(generations, never()).insert(any());
+    }
+
+    @Test
+    void rejectsEachExistingInputMetadataMismatch() {
+        SurveyResponseSubmittedV1 payload = payload();
+        PersonaSurveySource source = source(payload);
+        PersonaGeneration existing = PersonaGeneration.pending(
+                new PersonaGenerationId(uuid(8)),
+                PersonaSourceType.SURVEY_RESPONSE,
+                source.responseId(),
+                source.submittedAt());
+        PersonaGenerationInputSnapshot valid = inputSnapshots.create(
+                existing.id(), source, existing.createdAt());
+        List<PersonaGenerationInputSnapshot> mismatches = List.of(
+                new PersonaGenerationInputSnapshot(
+                        new PersonaGenerationId(uuid(9)),
+                        valid.sourceId(), valid.userId(),
+                        valid.requestSchemaVersion(), valid.requestPayload(),
+                        valid.requestFingerprint(), valid.createdAt()),
+                new PersonaGenerationInputSnapshot(
+                        valid.generationId(), new PersonaSourceId(uuid(10)),
+                        valid.userId(), valid.requestSchemaVersion(),
+                        valid.requestPayload(), valid.requestFingerprint(),
+                        valid.createdAt()),
+                new PersonaGenerationInputSnapshot(
+                        valid.generationId(), valid.sourceId(),
+                        new PersonaUserId("different-user"),
+                        valid.requestSchemaVersion(), valid.requestPayload(),
+                        valid.requestFingerprint(), valid.createdAt()));
+        when(inbox.recordIfAbsent(any())).thenReturn(true);
+        when(sources.getByResponseId(source.responseId())).thenReturn(source);
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, source.responseId()))
+                .thenReturn(Optional.of(existing));
+        when(inputs.findByGenerationId(existing.id())).thenReturn(
+                Optional.of(mismatches.get(0)),
+                Optional.of(mismatches.get(1)),
+                Optional.of(mismatches.get(2)));
+
+        for (int index = 0; index < mismatches.size(); index++) {
+            IntegrationEventEnvelope mismatchedEvent = event(
+                    uuid(20 + index), payload);
+            assertThatThrownBy(() -> consumer.consume(mismatchedEvent))
+                    .isInstanceOfSatisfying(
+                            IntegrationEventConsumptionException.class,
+                            exception -> assertThat(exception.errorCode())
+                                    .isEqualTo(
+                                            "PERSONA_GENERATION_INPUT_INVARIANT_VIOLATION"));
+        }
+
+        verify(inputs, never()).insert(any());
         verify(generations, never()).insert(any());
     }
 
