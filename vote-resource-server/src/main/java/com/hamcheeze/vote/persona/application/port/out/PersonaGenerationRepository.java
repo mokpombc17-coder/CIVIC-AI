@@ -17,6 +17,9 @@ public interface PersonaGenerationRepository {
 
     Optional<PersonaGeneration> findById(PersonaGenerationId generationId);
 
+    Optional<PersonaGeneration> findByIdForUpdate(
+            PersonaGenerationId generationId);
+
     Optional<PersonaGeneration> findBySource(
             PersonaSourceType sourceType,
             PersonaSourceId sourceId);
@@ -24,4 +27,6 @@ public interface PersonaGenerationRepository {
     Optional<PersonaGeneration> findByPersonaId(PersonaId personaId);
 
     Optional<PersonaGeneration> findNextDispatchableForUpdate(Instant readyAt);
+
+    Optional<PersonaGeneration> findNextExpiredLeaseForUpdate(Instant now);
 }

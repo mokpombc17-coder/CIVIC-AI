@@ -5,6 +5,7 @@ import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceExcept
 import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceException.ErrorCode;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
@@ -53,9 +54,11 @@ class PersonaGenerationJpaAdapterIntegrationTest {
                 sourceId(responseId), NOW);
 
         PersonaGeneration inserted = generations.insert(generation);
-        inserted.startProcessing(NOW.plusSeconds(1));
+        PersonaGenerationClaimToken token = claim(
+                inserted, NOW.plusSeconds(1));
         generations.save(inserted);
         inserted.succeed(
+                token,
                 new PersonaId("persona-a"), NOW.plusSeconds(2));
         generations.save(inserted);
 
@@ -120,14 +123,18 @@ class PersonaGenerationJpaAdapterIntegrationTest {
         PersonaGeneration first = PersonaGeneration.pending(
                 generationId(), PersonaSourceType.SURVEY_RESPONSE,
                 sourceId(insertResponse("user-a")), NOW);
-        first.startProcessing(NOW.plusSeconds(1));
-        first.succeed(new PersonaId("same-persona"), NOW.plusSeconds(2));
+        PersonaGenerationClaimToken firstToken = claim(
+                first, NOW.plusSeconds(1));
+        first.succeed(firstToken, new PersonaId("same-persona"),
+                NOW.plusSeconds(2));
         generations.insert(first);
         PersonaGeneration second = PersonaGeneration.pending(
                 generationId(), PersonaSourceType.SURVEY_RESPONSE,
                 sourceId(insertResponse("user-b")), NOW);
-        second.startProcessing(NOW.plusSeconds(1));
-        second.succeed(new PersonaId("same-persona"), NOW.plusSeconds(2));
+        PersonaGenerationClaimToken secondToken = claim(
+                second, NOW.plusSeconds(1));
+        second.succeed(secondToken, new PersonaId("same-persona"),
+                NOW.plusSeconds(2));
 
         assertThatThrownBy(() -> generations.insert(second))
                 .isInstanceOfSatisfying(
@@ -214,6 +221,16 @@ class PersonaGenerationJpaAdapterIntegrationTest {
 
     private static PersonaGenerationId generationId() {
         return new PersonaGenerationId(UUID.randomUUID());
+    }
+
+    private static PersonaGenerationClaimToken claim(
+            PersonaGeneration generation,
+            Instant startedAt
+    ) {
+        PersonaGenerationClaimToken token =
+                new PersonaGenerationClaimToken(UUID.randomUUID());
+        generation.claim(token, startedAt, startedAt.plusSeconds(60));
+        return token;
     }
 
     private static PersonaSourceId sourceId(SurveyResponseId responseId) {

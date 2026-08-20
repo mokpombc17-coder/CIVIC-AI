@@ -6,6 +6,7 @@ import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
@@ -53,9 +54,12 @@ class PersonaUserControllerTest {
                 PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(UUID.randomUUID()),
                 Instant.parse("2026-08-14T00:00:00Z"));
-        generation.startProcessing(
-                Instant.parse("2026-08-14T00:00:01Z"));
+        Instant startedAt = Instant.parse("2026-08-14T00:00:01Z");
+        PersonaGenerationClaimToken token =
+                new PersonaGenerationClaimToken(UUID.randomUUID());
+        generation.claim(token, startedAt, startedAt.plusSeconds(60));
         generation.succeed(
+                token,
                 new PersonaId("external-persona-secret"),
                 Instant.parse("2026-08-14T00:00:02Z"));
         PersonaVersionId versionId = new PersonaVersionId(UUID.randomUUID());

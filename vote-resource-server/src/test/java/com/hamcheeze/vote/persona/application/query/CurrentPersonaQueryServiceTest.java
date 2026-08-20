@@ -8,6 +8,7 @@ import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PersonaVersion;
 import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
@@ -55,6 +56,23 @@ class CurrentPersonaQueryServiceTest {
     }
 
     @Test
+    void latestResponseWithoutGenerationIsReportedExplicitly() {
+        PersonaSourceId latestSourceId = sourceId();
+        when(sources.findLatestSourceIdByUserId(USER))
+                .thenReturn(Optional.of(latestSourceId));
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
+                .thenReturn(Optional.empty());
+
+        var result = service.findCurrent(USER);
+
+        assertThat(result.status()).isEqualTo(Status.GENERATION_MISSING);
+        assertThat(result.sourceResponseId()).contains(latestSourceId);
+        assertThat(result.personaReady()).isFalse();
+        assertThat(result.capabilities()).isEmpty();
+    }
+
+    @Test
     void onlyTheLatestResponseGenerationCanBecomeCurrent() {
         PersonaSourceId latestSourceId = sourceId();
         when(sources.findLatestSourceIdByUserId(USER))
@@ -69,10 +87,62 @@ class CurrentPersonaQueryServiceTest {
         var result = service.findCurrent(USER);
 
         assertThat(result.status()).isEqualTo(Status.PENDING);
+        assertThat(result.attemptCount()).isZero();
+        assertThat(result.nextAttemptAt()).contains(NOW);
+        assertThat(result.automaticRetryScheduled()).isFalse();
+        assertThat(result.terminalFailure()).isFalse();
         assertThat(result.personaReady()).isFalse();
         assertThat(result.personaId()).isEmpty();
         assertThat(result.capabilities()).doesNotContain(
                 Capability.USE_PERSONALIZED_SERVICE);
+    }
+
+    @Test
+    void retryWaitAndTerminalFailureAreDistinguished() {
+        PersonaSourceId latestSourceId = sourceId();
+        when(sources.findLatestSourceIdByUserId(USER))
+                .thenReturn(Optional.of(latestSourceId));
+        PersonaGeneration failed = PersonaGeneration.pending(
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                latestSourceId, NOW);
+        PersonaGenerationClaimToken token = claim(
+                failed, NOW.plusSeconds(1));
+        Instant retryAt = NOW.plusSeconds(30);
+        failed.fail(token, "PERSONA_REMOTE_TIMEOUT",
+                NOW.plusSeconds(2), retryAt);
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
+                .thenReturn(Optional.of(failed));
+
+        var retrying = service.findCurrent(USER);
+
+        assertThat(retrying.status()).isEqualTo(Status.FAILED);
+        assertThat(retrying.attemptCount()).isEqualTo(1);
+        assertThat(retrying.nextAttemptAt()).contains(retryAt);
+        assertThat(retrying.automaticRetryScheduled()).isTrue();
+        assertThat(retrying.terminalFailure()).isFalse();
+        assertThat(retrying.personaReady()).isFalse();
+        assertThat(retrying.capabilities()).isEmpty();
+
+        PersonaGeneration terminal = PersonaGeneration.pending(
+                generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                latestSourceId, NOW);
+        PersonaGenerationClaimToken terminalToken = claim(
+                terminal, NOW.plusSeconds(1));
+        terminal.fail(terminalToken, "PERSONA_REMOTE_INVALID_RESPONSE",
+                NOW.plusSeconds(2), null);
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
+                .thenReturn(Optional.of(terminal));
+
+        var stopped = service.findCurrent(USER);
+
+        assertThat(stopped.status()).isEqualTo(Status.FAILED);
+        assertThat(stopped.nextAttemptAt()).isEmpty();
+        assertThat(stopped.automaticRetryScheduled()).isFalse();
+        assertThat(stopped.terminalFailure()).isTrue();
+        assertThat(stopped.personaReady()).isFalse();
+        assertThat(stopped.capabilities()).isEmpty();
     }
 
     @Test
@@ -83,8 +153,10 @@ class CurrentPersonaQueryServiceTest {
         PersonaGeneration succeeded = PersonaGeneration.pending(
                 generationId(), PersonaSourceType.SURVEY_RESPONSE,
                 latestSourceId, NOW);
-        succeeded.startProcessing(NOW.plusSeconds(1));
+        PersonaGenerationClaimToken token = claim(
+                succeeded, NOW.plusSeconds(1));
         succeeded.succeed(
+                token,
                 new PersonaId("persona-current"), NOW.plusSeconds(2));
         when(generations.findBySource(
                 PersonaSourceType.SURVEY_RESPONSE, latestSourceId))
@@ -111,8 +183,10 @@ class CurrentPersonaQueryServiceTest {
         PersonaGeneration succeeded = PersonaGeneration.pending(
                 generationId(), PersonaSourceType.SURVEY_RESPONSE,
                 latestSourceId, NOW);
-        succeeded.startProcessing(NOW.plusSeconds(1));
+        PersonaGenerationClaimToken token = claim(
+                succeeded, NOW.plusSeconds(1));
         succeeded.succeed(
+                token,
                 new PersonaId("persona-current"), NOW.plusSeconds(2));
         when(sources.findLatestSourceIdByUserId(USER))
                 .thenReturn(Optional.of(latestSourceId));
@@ -133,6 +207,16 @@ class CurrentPersonaQueryServiceTest {
 
     private static PersonaGenerationId generationId() {
         return new PersonaGenerationId(UUID.randomUUID());
+    }
+
+    private static PersonaGenerationClaimToken claim(
+            PersonaGeneration generation,
+            Instant startedAt
+    ) {
+        PersonaGenerationClaimToken token =
+                new PersonaGenerationClaimToken(UUID.randomUUID());
+        generation.claim(token, startedAt, startedAt.plusSeconds(60));
+        return token;
     }
 
     private static PersonaVersion version(

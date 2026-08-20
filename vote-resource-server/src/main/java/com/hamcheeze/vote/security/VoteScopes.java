@@ -8,6 +8,8 @@ public final class VoteScopes {
             "vote:survey-responses:write";
     public static final String SURVEY_OUTBOX_REPLAYS_WRITE =
             "vote:survey-outbox-replays:write";
+    public static final String PERSONA_GENERATION_RETRIES_WRITE =
+            "vote:persona-generation-retries:write";
     public static final String PERSONAS_READ =
             "vote:personas:read";
     public static final String TASKS_READ =

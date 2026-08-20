@@ -10,6 +10,7 @@ import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.PersonaVersion;
 import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
@@ -127,8 +128,11 @@ class PersonaVersionJpaAdapterIntegrationTest {
                 PersonaSourceType.SURVEY_RESPONSE,
                 new PersonaSourceId(responseId.value()),
                 NOW.minusSeconds(10));
-        generation.startProcessing(NOW.minusSeconds(5));
-        generation.succeed(new PersonaId(personaId), NOW);
+        PersonaGenerationClaimToken token =
+                new PersonaGenerationClaimToken(UUID.randomUUID());
+        generation.claim(token, NOW.minusSeconds(5),
+                NOW.plusSeconds(55));
+        generation.succeed(token, new PersonaId(personaId), NOW);
         return generations.insert(generation);
     }
 

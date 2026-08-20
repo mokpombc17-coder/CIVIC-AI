@@ -26,8 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "vote.security.local-admin-api-enabled=true",
         "vote.survey.bootstrap.enabled=false",
-        "vote.survey.persona.enabled=false",
-        "vote.survey.persona.provider=none",
+        "vote.persona.enabled=false",
+        "vote.persona.provider=none",
         "vote.task.bootstrap.enabled=false",
         "vote.task.lifecycle.enabled=false",
         "vote.task.prediction.enabled=false",

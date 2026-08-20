@@ -1,7 +1,8 @@
 package com.hamcheeze.vote.persona.domain;
 
-import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaDomainException;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 
 import java.time.Instant;
@@ -21,6 +22,8 @@ public final class PersonaGeneration {
     private Instant processingStartedAt;
     private Instant completedAt;
     private Instant nextAttemptAt;
+    private PersonaGenerationClaimToken claimToken;
+    private Instant leaseExpiresAt;
     private Instant updatedAt;
 
     private PersonaGeneration(
@@ -35,6 +38,8 @@ public final class PersonaGeneration {
             Instant processingStartedAt,
             Instant completedAt,
             Instant nextAttemptAt,
+            PersonaGenerationClaimToken claimToken,
+            Instant leaseExpiresAt,
             Instant updatedAt
     ) {
         this.id = Objects.requireNonNull(id, "id");
@@ -48,6 +53,8 @@ public final class PersonaGeneration {
         this.processingStartedAt = processingStartedAt;
         this.completedAt = completedAt;
         this.nextAttemptAt = nextAttemptAt;
+        this.claimToken = claimToken;
+        this.leaseExpiresAt = leaseExpiresAt;
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
         validateConsistency();
     }
@@ -58,20 +65,10 @@ public final class PersonaGeneration {
             PersonaSourceId sourceId,
             Instant createdAt
     ) {
-        Objects.requireNonNull(createdAt, "createdAt");
         return new PersonaGeneration(
-                id,
-                sourceType,
-                sourceId,
-                PersonaGenerationStatus.PENDING,
-                0,
-                null,
-                null,
-                createdAt,
-                null,
-                null,
-                createdAt,
-                createdAt);
+                id, sourceType, sourceId, PersonaGenerationStatus.PENDING,
+                0, null, null, createdAt, null, null, createdAt,
+                null, null, createdAt);
     }
 
     public static PersonaGeneration restore(
@@ -86,48 +83,77 @@ public final class PersonaGeneration {
             Instant processingStartedAt,
             Instant completedAt,
             Instant nextAttemptAt,
+            PersonaGenerationClaimToken claimToken,
+            Instant leaseExpiresAt,
             Instant updatedAt
     ) {
         return new PersonaGeneration(
                 id, sourceType, sourceId, status, attemptCount, personaId,
                 lastErrorCode, createdAt, processingStartedAt, completedAt,
-                nextAttemptAt, updatedAt);
+                nextAttemptAt, claimToken, leaseExpiresAt, updatedAt);
     }
 
-    public void startProcessing(Instant startedAt) {
+    public void claim(
+            PersonaGenerationClaimToken token,
+            Instant startedAt,
+            Instant expiresAt
+    ) {
+        Objects.requireNonNull(token, "token");
         Objects.requireNonNull(startedAt, "startedAt");
+        Objects.requireNonNull(expiresAt, "expiresAt");
         if (!isDispatchableAt(startedAt)) {
-            throw invalidTransition("generation is not ready for processing");
+            throw invalidTransition("generation is not dispatchable");
+        }
+        if (!expiresAt.isAfter(startedAt)) {
+            throw PersonaDomainException.invariant(
+                    "PERSONA_GENERATION_LEASE_INVALID",
+                    "leaseExpiresAt",
+                    "leaseExpiresAt must be after processingStartedAt");
         }
         status = PersonaGenerationStatus.PROCESSING;
         attemptCount++;
+        personaId = null;
+        lastErrorCode = null;
         processingStartedAt = startedAt;
         completedAt = null;
         nextAttemptAt = null;
-        lastErrorCode = null;
+        claimToken = token;
+        leaseExpiresAt = expiresAt;
         updatedAt = startedAt;
         validateConsistency();
     }
 
-    public void succeed(PersonaId issuedPersonaId, Instant succeededAt) {
-        Objects.requireNonNull(issuedPersonaId, "issuedPersonaId");
-        requireProcessing();
+    public boolean succeed(
+            PersonaGenerationClaimToken token,
+            PersonaId succeededPersonaId,
+            Instant succeededAt
+    ) {
+        if (!ownsActiveClaim(token)) {
+            return false;
+        }
+        Objects.requireNonNull(succeededPersonaId, "succeededPersonaId");
         requireNotBeforeProcessing(succeededAt, "succeededAt");
         status = PersonaGenerationStatus.SUCCEEDED;
-        personaId = issuedPersonaId;
+        personaId = succeededPersonaId;
         lastErrorCode = null;
         completedAt = succeededAt;
         nextAttemptAt = null;
+        claimToken = null;
+        leaseExpiresAt = null;
         updatedAt = succeededAt;
         validateConsistency();
+        return true;
     }
 
-    public void fail(
+    public boolean fail(
+            PersonaGenerationClaimToken token,
             String errorCode,
             Instant failedAt,
             Instant retryAt
     ) {
-        requireProcessing();
+        if (!ownsActiveClaim(token)) {
+            return false;
+        }
         requireNotBeforeProcessing(failedAt, "failedAt");
         String normalizedError = requireText(errorCode, "errorCode");
         if (retryAt != null && retryAt.isBefore(failedAt)) {
@@ -141,8 +167,55 @@ public final class PersonaGeneration {
         lastErrorCode = normalizedError;
         completedAt = null;
         nextAttemptAt = retryAt;
+        claimToken = null;
+        leaseExpiresAt = null;
         updatedAt = failedAt;
         validateConsistency();
+        return true;
+    }
+
+    public boolean expireLease(
+            PersonaGenerationClaimToken token,
+            Instant observedAt,
+            Instant retryAt
+    ) {
+        Objects.requireNonNull(observedAt, "observedAt");
+        if (!ownsActiveClaim(token)
+                || leaseExpiresAt == null
+                || leaseExpiresAt.isAfter(observedAt)) {
+            return false;
+        }
+        return fail(
+                token,
+                "PERSONA_PROCESSING_LEASE_EXPIRED",
+                observedAt,
+                retryAt);
+    }
+
+    public void scheduleManualRetry(Instant requestedAt) {
+        Objects.requireNonNull(requestedAt, "requestedAt");
+        if (status != PersonaGenerationStatus.FAILED
+                || nextAttemptAt != null
+                || claimToken != null
+                || leaseExpiresAt != null) {
+            throw invalidTransition(
+                    "only terminal FAILED generation can be retried");
+        }
+        if (requestedAt.isBefore(updatedAt)) {
+            throw PersonaDomainException.invariant(
+                    "PERSONA_GENERATION_RETRY_TIME_INVALID",
+                    "requestedAt",
+                    "requestedAt must not be before updatedAt");
+        }
+        nextAttemptAt = requestedAt;
+        updatedAt = requestedAt;
+        validateConsistency();
+    }
+
+    public boolean ownsActiveClaim(PersonaGenerationClaimToken token) {
+        return status == PersonaGenerationStatus.PROCESSING
+                && token != null
+                && token.equals(claimToken);
     }
 
     public boolean isDispatchableAt(Instant instant) {
@@ -151,78 +224,6 @@ public final class PersonaGeneration {
                 || status == PersonaGenerationStatus.FAILED)
                 && nextAttemptAt != null
                 && !nextAttemptAt.isAfter(instant);
-    }
-
-    public PersonaGenerationId id() {
-        return id;
-    }
-
-    public PersonaSourceType sourceType() {
-        return sourceType;
-    }
-
-    public PersonaSourceId sourceId() {
-        return sourceId;
-    }
-
-    public PersonaGenerationStatus status() {
-        return status;
-    }
-
-    public int attemptCount() {
-        return attemptCount;
-    }
-
-    public Optional<PersonaId> personaId() {
-        return Optional.ofNullable(personaId);
-    }
-
-    public Optional<String> lastErrorCode() {
-        return Optional.ofNullable(lastErrorCode);
-    }
-
-    public Instant createdAt() {
-        return createdAt;
-    }
-
-    public Optional<Instant> processingStartedAt() {
-        return Optional.ofNullable(processingStartedAt);
-    }
-
-    public Optional<Instant> completedAt() {
-        return Optional.ofNullable(completedAt);
-    }
-
-    public Optional<Instant> nextAttemptAt() {
-        return Optional.ofNullable(nextAttemptAt);
-    }
-
-    public Instant updatedAt() {
-        return updatedAt;
-    }
-
-    private void requireProcessing() {
-        if (status != PersonaGenerationStatus.PROCESSING) {
-            throw invalidTransition("generation must be processing");
-        }
-    }
-
-    private void requireNotBeforeProcessing(Instant instant, String field) {
-        Objects.requireNonNull(instant, field);
-        if (processingStartedAt == null
-                || instant.isBefore(processingStartedAt)) {
-            throw PersonaDomainException.invariant(
-                    "PERSONA_GENERATION_TIME_INVALID",
-                    field,
-                    field + " must not be before processingStartedAt");
-        }
-    }
-
-    private PersonaDomainException invalidTransition(String message) {
-        return PersonaDomainException.invariant(
-                "PERSONA_GENERATION_TRANSITION_NOT_ALLOWED",
-                "status",
-                message);
     }
 
     private void validateConsistency() {
@@ -248,37 +249,50 @@ public final class PersonaGeneration {
     private void validatePending() {
         if (attemptCount != 0 || personaId != null || lastErrorCode != null
                 || processingStartedAt != null || completedAt != null
-                || nextAttemptAt == null) {
-            throw inconsistent("pending generation fields are inconsistent");
+                || nextAttemptAt == null || claimToken != null
+                || leaseExpiresAt != null) {
+            throw inconsistent("pending fields are inconsistent");
         }
     }
 
     private void validateProcessing() {
         if (attemptCount < 1 || personaId != null || lastErrorCode != null
                 || processingStartedAt == null || completedAt != null
-                || nextAttemptAt != null) {
-            throw inconsistent(
-                    "processing generation fields are inconsistent");
+                || nextAttemptAt != null || claimToken == null
+                || leaseExpiresAt == null
+                || !leaseExpiresAt.isAfter(processingStartedAt)) {
+            throw inconsistent("processing fields are inconsistent");
         }
     }
 
     private void validateSucceeded() {
         if (attemptCount < 1 || personaId == null || lastErrorCode != null
                 || processingStartedAt == null || completedAt == null
-                || nextAttemptAt != null
-                || completedAt.isBefore(processingStartedAt)) {
-            throw inconsistent("succeeded generation fields are inconsistent");
+                || completedAt.isBefore(processingStartedAt)
+                || nextAttemptAt != null || claimToken != null
+                || leaseExpiresAt != null) {
+            throw inconsistent("succeeded fields are inconsistent");
         }
     }
 
     private void validateFailed() {
         if (attemptCount < 1 || personaId != null || lastErrorCode == null
-                || lastErrorCode.isBlank() || processingStartedAt == null
-                || completedAt != null) {
-            throw inconsistent("failed generation fields are inconsistent");
+                || processingStartedAt == null || completedAt != null
+                || claimToken != null || leaseExpiresAt != null
+                || (nextAttemptAt != null
+                && nextAttemptAt.isBefore(updatedAt))) {
+            throw inconsistent("failed fields are inconsistent");
         }
-        if (nextAttemptAt != null && nextAttemptAt.isBefore(updatedAt)) {
-            throw inconsistent("nextAttemptAt must not be before updatedAt");
+    }
+
+    private void requireNotBeforeProcessing(Instant instant, String field) {
+        Objects.requireNonNull(instant, field);
+        if (processingStartedAt == null
+                || instant.isBefore(processingStartedAt)) {
+            throw PersonaDomainException.invariant(
+                    "PERSONA_GENERATION_TIME_INVALID",
+                    field,
+                    field + " must not be before processingStartedAt");
         }
     }
 
@@ -289,13 +303,42 @@ public final class PersonaGeneration {
                     field,
                     field + " must not be blank");
         }
-        return value;
+        String normalized = value.trim();
+        if (!normalized.equals(value)) {
+            throw PersonaDomainException.invariant(
+                    "PERSONA_GENERATION_TEXT_INVALID",
+                    field,
+                    field + " must not contain surrounding whitespace");
+        }
+        return normalized;
+    }
+
+    private PersonaDomainException invalidTransition(String message) {
+        return PersonaDomainException.invariant(
+                "PERSONA_GENERATION_TRANSITION_NOT_ALLOWED",
+                "status",
+                message);
     }
 
     private static PersonaDomainException inconsistent(String message) {
         return PersonaDomainException.invariant(
-                "PERSONA_GENERATION_STATE_INCONSISTENT",
+                "PERSONA_GENERATION_STATE_INVALID",
                 "status",
                 message);
     }
+
+    public PersonaGenerationId id() { return id; }
+    public PersonaSourceType sourceType() { return sourceType; }
+    public PersonaSourceId sourceId() { return sourceId; }
+    public PersonaGenerationStatus status() { return status; }
+    public int attemptCount() { return attemptCount; }
+    public Optional<PersonaId> personaId() { return Optional.ofNullable(personaId); }
+    public Optional<String> lastErrorCode() { return Optional.ofNullable(lastErrorCode); }
+    public Instant createdAt() { return createdAt; }
+    public Optional<Instant> processingStartedAt() { return Optional.ofNullable(processingStartedAt); }
+    public Optional<Instant> completedAt() { return Optional.ofNullable(completedAt); }
+    public Optional<Instant> nextAttemptAt() { return Optional.ofNullable(nextAttemptAt); }
+    public Optional<PersonaGenerationClaimToken> claimToken() { return Optional.ofNullable(claimToken); }
+    public Optional<Instant> leaseExpiresAt() { return Optional.ofNullable(leaseExpiresAt); }
+    public Instant updatedAt() { return updatedAt; }
 }

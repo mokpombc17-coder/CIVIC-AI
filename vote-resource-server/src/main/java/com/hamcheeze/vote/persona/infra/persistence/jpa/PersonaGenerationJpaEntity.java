@@ -3,6 +3,7 @@ package com.hamcheeze.vote.persona.infra.persistence.jpa;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -53,6 +54,12 @@ class PersonaGenerationJpaEntity {
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
 
+    @Column(name = "claim_token")
+    private UUID claimToken;
+
+    @Column(name = "lease_expires_at")
+    private Instant leaseExpiresAt;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -80,6 +87,9 @@ class PersonaGenerationJpaEntity {
         processingStartedAt = generation.processingStartedAt().orElse(null);
         completedAt = generation.completedAt().orElse(null);
         nextAttemptAt = generation.nextAttemptAt().orElse(null);
+        claimToken = generation.claimToken()
+                .map(PersonaGenerationClaimToken::value).orElse(null);
+        leaseExpiresAt = generation.leaseExpiresAt().orElse(null);
         updatedAt = generation.updatedAt();
     }
 
@@ -125,6 +135,14 @@ class PersonaGenerationJpaEntity {
 
     Instant nextAttemptAt() {
         return nextAttemptAt;
+    }
+
+    UUID claimToken() {
+        return claimToken;
+    }
+
+    Instant leaseExpiresAt() {
+        return leaseExpiresAt;
     }
 
     Instant updatedAt() {

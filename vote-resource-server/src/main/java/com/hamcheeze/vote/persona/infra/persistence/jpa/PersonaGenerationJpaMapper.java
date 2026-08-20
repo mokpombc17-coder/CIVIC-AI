@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.persona.infra.persistence.jpa;
 
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
@@ -24,6 +25,11 @@ final class PersonaGenerationJpaMapper {
                 entity.processingStartedAt(),
                 entity.completedAt(),
                 entity.nextAttemptAt(),
+                entity.claimToken() == null
+                        ? null
+                        : new PersonaGenerationClaimToken(
+                                entity.claimToken()),
+                entity.leaseExpiresAt(),
                 entity.updatedAt());
     }
 }

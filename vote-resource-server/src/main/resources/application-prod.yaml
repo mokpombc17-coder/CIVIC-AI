@@ -15,6 +15,23 @@ vote:
   integration:
     outbox:
       enabled: ${VOTE_INTEGRATION_OUTBOX_ENABLED:true}
+  persona:
+    enabled: ${VOTE_PERSONA_ENABLED:true}
+    provider: ${VOTE_PERSONA_PROVIDER:http}
+    base-url: ${VOTE_PERSONA_BASE_URL:}
+    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:}
+    connect-timeout: ${VOTE_PERSONA_CONNECT_TIMEOUT:5s}
+    request-timeout: ${VOTE_PERSONA_REQUEST_TIMEOUT:60s}
+    dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:5s}
+    processing-lease-duration: ${VOTE_PERSONA_PROCESSING_LEASE_DURATION:90s}
+    lease-reaper-delay: ${VOTE_PERSONA_LEASE_REAPER_DELAY:10s}
+    retry-initial-delay: ${VOTE_PERSONA_RETRY_INITIAL_DELAY:30s}
+    retry-max-delay: ${VOTE_PERSONA_RETRY_MAX_DELAY:2m}
+    max-attempts: ${VOTE_PERSONA_MAX_ATTEMPTS:3}
+    batch-size: ${VOTE_PERSONA_BATCH_SIZE:10}
+    worker-pool-size: ${VOTE_PERSONA_WORKER_POOL_SIZE:4}
+    worker-queue-capacity: ${VOTE_PERSONA_WORKER_QUEUE_CAPACITY:20}
+    worker-shutdown-await: ${VOTE_PERSONA_WORKER_SHUTDOWN_AWAIT:30s}
   task:
     lifecycle:
       enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}

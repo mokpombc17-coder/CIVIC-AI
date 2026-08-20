@@ -19,6 +19,7 @@ import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -49,6 +50,7 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
     private final HttpClient httpClient;
     private final URI endpoint;
 
+    @Autowired
     public PersonaHttpCreationAdapter(
             PersonaGenerationProperties properties,
             ObjectMapper objectMapper
@@ -135,11 +137,11 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
             HttpResponse<String> response
     ) {
         int status = response.statusCode();
-        if (status == 201) {
+        if (status == 200 || status == 201) {
             return decodeSuccess(command, response.body());
         }
-        if (status == 409
-                && response.body().contains("IDEMPOTENCY_CONFLICT")) {
+        if (status == 409 && "IDEMPOTENCY_CONFLICT".equals(
+                decodeErrorCode(response.body()))) {
             throw failure(
                     PersonaCreationErrorCode.IDEMPOTENCY_CONFLICT,
                     false,
@@ -161,6 +163,15 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
                 PersonaCreationErrorCode.CLIENT_ERROR,
                 false,
                 "persona creation rejected by remote server");
+    }
+
+    private String decodeErrorCode(String responseBody) {
+        try {
+            return objectMapper.readValue(
+                    responseBody, RemoteErrorResponse.class).code();
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private PersonaCreationResult decodeSuccess(
@@ -343,5 +354,8 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
             BigDecimal predictedAdoptionRate,
             String modelVersion
     ) {
+    }
+
+    record RemoteErrorResponse(String code) {
     }
 }

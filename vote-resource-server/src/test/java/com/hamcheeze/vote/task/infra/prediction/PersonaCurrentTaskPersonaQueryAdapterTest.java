@@ -33,6 +33,10 @@ class PersonaCurrentTaskPersonaQueryAdapterTest {
                 CurrentPersonaStatus.Status.SUCCEEDED,
                 Optional.of(new PersonaId("persona-external")),
                 Optional.empty(),
+                1,
+                Optional.empty(),
+                false,
+                false,
                 true,
                 Set.of()));
         PersonaCurrentTaskPersonaQueryAdapter adapter =

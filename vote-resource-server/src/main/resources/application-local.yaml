@@ -17,6 +17,11 @@ vote:
     base-url: ${VOTE_PERSONA_BASE_URL:${VOTE_SURVEY_PERSONA_BASE_URL:http://localhost:8090}}
     auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}}
     dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:500ms}}
+    processing-lease-duration: ${VOTE_PERSONA_PROCESSING_LEASE_DURATION:90s}
+    lease-reaper-delay: ${VOTE_PERSONA_LEASE_REAPER_DELAY:5s}
+    worker-pool-size: ${VOTE_PERSONA_WORKER_POOL_SIZE:2}
+    worker-queue-capacity: ${VOTE_PERSONA_WORKER_QUEUE_CAPACITY:10}
+    worker-shutdown-await: ${VOTE_PERSONA_WORKER_SHUTDOWN_AWAIT:10s}
   task:
     bootstrap:
       enabled: ${VOTE_TASK_BOOTSTRAP_ENABLED:true}

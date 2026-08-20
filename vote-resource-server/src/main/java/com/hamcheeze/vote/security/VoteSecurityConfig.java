@@ -43,6 +43,13 @@ public class VoteSecurityConfig {
                         .hasAuthority(VoteScopes.authority(
                                 VoteScopes.SURVEY_OUTBOX_REPLAYS_WRITE))
                         .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/operations/persona/generations/*/retries")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.PERSONA_GENERATION_RETRIES_WRITE))
+                        .requestMatchers("/api/v1/operations/**")
+                        .denyAll()
+                        .requestMatchers(
                                 "/api/v1/admin",
                                 "/api/v1/admin/**")
                         .access((authentication, context) ->

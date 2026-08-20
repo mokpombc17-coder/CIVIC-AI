@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "vote.task.bootstrap.enabled=false",
         "vote.task.prediction.enabled=false",
         "vote.survey.bootstrap.enabled=false",
-        "vote.survey.persona.enabled=false"
+        "vote.persona.enabled=false"
 })
 @ActiveProfiles({"local", "test"})
 class LocalTaskBootstrapIntegrationTest {

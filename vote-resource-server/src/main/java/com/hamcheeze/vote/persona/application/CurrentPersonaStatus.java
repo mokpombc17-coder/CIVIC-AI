@@ -10,6 +10,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.time.Instant;
 
 public record CurrentPersonaStatus(
         Optional<PersonaSourceId> sourceResponseId,
@@ -18,6 +19,10 @@ public record CurrentPersonaStatus(
         Status status,
         Optional<PersonaId> personaId,
         Optional<String> lastErrorCode,
+        int attemptCount,
+        Optional<Instant> nextAttemptAt,
+        boolean automaticRetryScheduled,
+        boolean terminalFailure,
         boolean personaReady,
         Set<Capability> capabilities
 ) {
@@ -35,6 +40,12 @@ public record CurrentPersonaStatus(
         personaId = Objects.requireNonNull(personaId, "personaId");
         lastErrorCode = Objects.requireNonNull(
                 lastErrorCode, "lastErrorCode");
+        if (attemptCount < 0) {
+            throw new IllegalArgumentException(
+                    "attemptCount must not be negative");
+        }
+        nextAttemptAt = Objects.requireNonNull(
+                nextAttemptAt, "nextAttemptAt");
         capabilities = Set.copyOf(Objects.requireNonNull(
                 capabilities, "capabilities"));
     }
@@ -43,7 +54,8 @@ public record CurrentPersonaStatus(
         return new CurrentPersonaStatus(
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Status.NOT_SUBMITTED,
-                Optional.empty(), Optional.empty(), false, Set.of());
+                Optional.empty(), Optional.empty(), 0, Optional.empty(),
+                false, false, false, Set.of());
     }
 
     public static CurrentPersonaStatus generationMissing(
@@ -52,7 +64,8 @@ public record CurrentPersonaStatus(
         return new CurrentPersonaStatus(
                 Optional.of(responseId), Optional.empty(),
                 Optional.empty(), Status.GENERATION_MISSING, Optional.empty(),
-                Optional.empty(), false, Set.of());
+                Optional.empty(), 0, Optional.empty(), false, false,
+                false, Set.of());
     }
 
     public static CurrentPersonaStatus from(
@@ -75,6 +88,12 @@ public record CurrentPersonaStatus(
                 Status.valueOf(generation.status().name()),
                 generation.personaId(),
                 generation.lastErrorCode(),
+                generation.attemptCount(),
+                generation.nextAttemptAt(),
+                generation.status() == PersonaGenerationStatus.FAILED
+                        && generation.nextAttemptAt().isPresent(),
+                generation.status() == PersonaGenerationStatus.FAILED
+                        && generation.nextAttemptAt().isEmpty(),
                 ready,
                 ready ? READY_CAPABILITIES : Set.of());
     }

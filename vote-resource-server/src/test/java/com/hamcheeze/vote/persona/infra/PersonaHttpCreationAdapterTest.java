@@ -22,6 +22,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -77,6 +79,38 @@ class PersonaHttpCreationAdapterTest {
         assertThat(requestBody.get())
                 .contains("OTHER", "직접 입력", "세부 성향", "창작")
                 .doesNotContain("user-a", "userId");
+    }
+
+    @Test
+    void recoversLostResponseWithSameRequestAndReplayedOkResult() {
+        AtomicInteger calls = new AtomicInteger();
+        List<String> bodies = new CopyOnWriteArrayList<>();
+        server.createContext("/v1/personas", exchange -> {
+            String body = readBody(exchange);
+            bodies.add(body);
+            if (calls.getAndIncrement() == 0) {
+                exchange.close();
+                return;
+            }
+            respond(exchange, 200, """
+                    {"generationId":"%s","personaId":"persona-42",
+                     "predictedAdoptionRate":0.72,"modelVersion":"model-v3"}
+                    """.formatted(generationId(body)));
+        });
+        PersonaCreationCommand command = command();
+
+        assertFailure(
+                () -> adapter().create(command),
+                PersonaCreationErrorCode.NETWORK_ERROR,
+                true);
+        var replayed = adapter().create(command);
+
+        assertThat(replayed.generationId()).isEqualTo(command.generationId());
+        assertThat(replayed.personaId().value()).isEqualTo("persona-42");
+        assertThat(bodies).hasSize(2);
+        assertThat(bodies.get(1)).isEqualTo(bodies.get(0));
+        assertThat(generationId(bodies.get(1)))
+                .isEqualTo(command.generationId().value());
     }
 
     @Test
@@ -166,6 +200,26 @@ class PersonaHttpCreationAdapterTest {
                 () -> adapter().create(command()),
                 PersonaCreationErrorCode.TIMEOUT,
                 true);
+    }
+
+    @Test
+    void classifiesRateLimitAsRetryableAndUsesStructuredConflictCode() {
+        server.createContext("/v1/personas", exchange -> respond(
+                exchange, 429, "{}"));
+        assertFailure(
+                () -> adapter().create(command()),
+                PersonaCreationErrorCode.RATE_LIMITED,
+                true);
+
+        server.removeContext("/v1/personas");
+        server.createContext("/v1/personas", exchange -> respond(
+                exchange, 409,
+                "{\"code\":\"OTHER_CONFLICT\","
+                        + "\"detail\":\"IDEMPOTENCY_CONFLICT\"}"));
+        assertFailure(
+                () -> adapter().create(command()),
+                PersonaCreationErrorCode.CLIENT_ERROR,
+                false);
     }
 
     private PersonaHttpCreationAdapter adapter() {

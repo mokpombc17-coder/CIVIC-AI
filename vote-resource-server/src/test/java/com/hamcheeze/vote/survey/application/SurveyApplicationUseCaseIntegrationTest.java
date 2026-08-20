@@ -10,6 +10,7 @@ import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PersonaVersion;
 import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
@@ -183,9 +184,14 @@ class SurveyApplicationUseCaseIntegrationTest {
                         new PersonaSourceId(
                         submitted.outcome().responseId().value()))
                 .orElseThrow();
-        firstGeneration.startProcessing(
-                firstGeneration.createdAt().plusSeconds(1));
+        PersonaGenerationClaimToken claimToken =
+                new PersonaGenerationClaimToken(UUID.randomUUID());
+        firstGeneration.claim(
+                claimToken,
+                firstGeneration.createdAt().plusSeconds(1),
+                firstGeneration.createdAt().plusSeconds(61));
         firstGeneration.succeed(
+                claimToken,
                 new PersonaId("persona-first"),
                 firstGeneration.createdAt().plusSeconds(2));
         personaGenerations.save(firstGeneration);

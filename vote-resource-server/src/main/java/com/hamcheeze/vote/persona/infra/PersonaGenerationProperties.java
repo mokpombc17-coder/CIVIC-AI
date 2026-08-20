@@ -8,6 +8,7 @@ import java.time.Duration;
 public class PersonaGenerationProperties {
 
     private boolean enabled;
+    private String provider = "http";
     private String baseUrl = "http://localhost:8090";
     private String authToken;
     private Duration connectTimeout = Duration.ofSeconds(5);
@@ -17,6 +18,11 @@ public class PersonaGenerationProperties {
     private Duration retryMaxDelay = Duration.ofMinutes(2);
     private int maxAttempts = 3;
     private int batchSize = 10;
+    private Duration processingLeaseDuration = Duration.ofSeconds(90);
+    private Duration leaseReaperDelay = Duration.ofSeconds(10);
+    private int workerPoolSize = 4;
+    private int workerQueueCapacity = 20;
+    private Duration workerShutdownAwait = Duration.ofSeconds(30);
 
     public boolean isEnabled() {
         return enabled;
@@ -24,6 +30,14 @@ public class PersonaGenerationProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
     }
 
     public String getBaseUrl() {
@@ -96,5 +110,45 @@ public class PersonaGenerationProperties {
 
     public void setBatchSize(int batchSize) {
         this.batchSize = batchSize;
+    }
+
+    public Duration getProcessingLeaseDuration() {
+        return processingLeaseDuration;
+    }
+
+    public void setProcessingLeaseDuration(Duration processingLeaseDuration) {
+        this.processingLeaseDuration = processingLeaseDuration;
+    }
+
+    public Duration getLeaseReaperDelay() {
+        return leaseReaperDelay;
+    }
+
+    public void setLeaseReaperDelay(Duration leaseReaperDelay) {
+        this.leaseReaperDelay = leaseReaperDelay;
+    }
+
+    public int getWorkerPoolSize() {
+        return workerPoolSize;
+    }
+
+    public void setWorkerPoolSize(int workerPoolSize) {
+        this.workerPoolSize = workerPoolSize;
+    }
+
+    public int getWorkerQueueCapacity() {
+        return workerQueueCapacity;
+    }
+
+    public void setWorkerQueueCapacity(int workerQueueCapacity) {
+        this.workerQueueCapacity = workerQueueCapacity;
+    }
+
+    public Duration getWorkerShutdownAwait() {
+        return workerShutdownAwait;
+    }
+
+    public void setWorkerShutdownAwait(Duration workerShutdownAwait) {
+        this.workerShutdownAwait = workerShutdownAwait;
     }
 }

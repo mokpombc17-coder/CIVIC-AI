@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class PersonaGenerationJpaAdapter
@@ -71,6 +72,18 @@ public class PersonaGenerationJpaAdapter
     }
 
     @Override
+    @Transactional
+    public Optional<PersonaGeneration> findByIdForUpdate(
+            PersonaGenerationId generationId
+    ) {
+        return Optional.ofNullable(entityManager.find(
+                        PersonaGenerationJpaEntity.class,
+                        generationId.value(),
+                        LockModeType.PESSIMISTIC_WRITE))
+                .map(PersonaGenerationJpaMapper::toDomain);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<PersonaGeneration> findBySource(
             PersonaSourceType sourceType,
@@ -108,24 +121,55 @@ public class PersonaGenerationJpaAdapter
     public Optional<PersonaGeneration> findNextDispatchableForUpdate(
             Instant readyAt
     ) {
-        List<PersonaGenerationJpaEntity> matches = entityManager.createQuery(
-                        """
-                        select generation
-                        from PersonaGenerationJpaEntity generation
-                        where generation.status in :statuses
-                          and generation.nextAttemptAt is not null
-                          and generation.nextAttemptAt <= :readyAt
-                        order by generation.nextAttemptAt, generation.createdAt
-                        """,
-                        PersonaGenerationJpaEntity.class)
-                .setParameter("readyAt", readyAt)
-                .setParameter("statuses", List.of(
-                        PersonaGenerationStatus.PENDING,
-                        PersonaGenerationStatus.FAILED))
-                .setMaxResults(1)
-                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+        return findLockedByNativeQuery(
+                """
+                SELECT generation_id
+                FROM persona_generations
+                WHERE status IN ('PENDING', 'FAILED')
+                  AND next_attempt_at IS NOT NULL
+                  AND next_attempt_at <= :readyAt
+                ORDER BY next_attempt_at, created_at, generation_id
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+                """,
+                "readyAt",
+                readyAt);
+    }
+
+    @Override
+    @Transactional
+    public Optional<PersonaGeneration> findNextExpiredLeaseForUpdate(
+            Instant now
+    ) {
+        return findLockedByNativeQuery(
+                """
+                SELECT generation_id
+                FROM persona_generations
+                WHERE status = 'PROCESSING'
+                  AND lease_expires_at <= :now
+                ORDER BY lease_expires_at, generation_id
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+                """,
+                "now",
+                now);
+    }
+
+    private Optional<PersonaGeneration> findLockedByNativeQuery(
+            String sql,
+            String parameterName,
+            Instant parameterValue
+    ) {
+        @SuppressWarnings("unchecked")
+        List<UUID> ids = entityManager.createNativeQuery(sql, UUID.class)
+                .setParameter(parameterName, parameterValue)
                 .getResultList();
-        return single(matches);
+        return ids.stream().findFirst()
+                .map(id -> entityManager.find(
+                        PersonaGenerationJpaEntity.class,
+                        id,
+                        LockModeType.PESSIMISTIC_WRITE))
+                .map(PersonaGenerationJpaMapper::toDomain);
     }
 
     private static Optional<PersonaGeneration> single(
