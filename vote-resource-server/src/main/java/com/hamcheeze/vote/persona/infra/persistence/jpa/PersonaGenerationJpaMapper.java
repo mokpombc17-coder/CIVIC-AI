@@ -25,6 +25,7 @@ final class PersonaGenerationJpaMapper {
                 entity.processingStartedAt(),
                 entity.completedAt(),
                 entity.nextAttemptAt(),
+                entity.retryTrigger(),
                 entity.claimToken() == null
                         ? null
                         : new PersonaGenerationClaimToken(

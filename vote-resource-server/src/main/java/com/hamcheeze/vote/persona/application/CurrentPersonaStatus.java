@@ -2,6 +2,7 @@ package com.hamcheeze.vote.persona.application;
 
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
+import com.hamcheeze.vote.persona.domain.PersonaGenerationRetryTrigger;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
@@ -21,6 +22,8 @@ public record CurrentPersonaStatus(
         Optional<String> lastErrorCode,
         int attemptCount,
         Optional<Instant> nextAttemptAt,
+        boolean retryScheduled,
+        Optional<PersonaGenerationRetryTrigger> retryTrigger,
         boolean automaticRetryScheduled,
         boolean terminalFailure,
         boolean personaReady,
@@ -46,6 +49,7 @@ public record CurrentPersonaStatus(
         }
         nextAttemptAt = Objects.requireNonNull(
                 nextAttemptAt, "nextAttemptAt");
+        retryTrigger = Objects.requireNonNull(retryTrigger, "retryTrigger");
         capabilities = Set.copyOf(Objects.requireNonNull(
                 capabilities, "capabilities"));
     }
@@ -55,7 +59,7 @@ public record CurrentPersonaStatus(
                 Optional.empty(), Optional.empty(), Optional.empty(),
                 Status.NOT_SUBMITTED,
                 Optional.empty(), Optional.empty(), 0, Optional.empty(),
-                false, false, false, Set.of());
+                false, Optional.empty(), false, false, false, Set.of());
     }
 
     public static CurrentPersonaStatus generationMissing(
@@ -64,8 +68,8 @@ public record CurrentPersonaStatus(
         return new CurrentPersonaStatus(
                 Optional.of(responseId), Optional.empty(),
                 Optional.empty(), Status.GENERATION_MISSING, Optional.empty(),
-                Optional.empty(), 0, Optional.empty(), false, false,
-                false, Set.of());
+                Optional.empty(), 0, Optional.empty(), false,
+                Optional.empty(), false, false, false, Set.of());
     }
 
     public static CurrentPersonaStatus from(
@@ -90,8 +94,11 @@ public record CurrentPersonaStatus(
                 generation.lastErrorCode(),
                 generation.attemptCount(),
                 generation.nextAttemptAt(),
-                generation.status() == PersonaGenerationStatus.FAILED
-                        && generation.nextAttemptAt().isPresent(),
+                generation.retryTrigger().isPresent(),
+                generation.retryTrigger(),
+                generation.retryTrigger().filter(trigger -> trigger
+                        == PersonaGenerationRetryTrigger.AUTOMATIC)
+                        .isPresent(),
                 generation.status() == PersonaGenerationStatus.FAILED
                         && generation.nextAttemptAt().isEmpty(),
                 ready,

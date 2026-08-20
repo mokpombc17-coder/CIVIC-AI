@@ -10,6 +10,8 @@ import com.hamcheeze.vote.persona.infra.PersonaGenerationMetrics;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -74,7 +76,7 @@ public class PersonaGenerationRetryService {
                         ErrorCode.PERSONA_GENERATION_RETRY_IDEMPOTENCY_CONFLICT,
                         "Idempotency-Key was already used for a different retry request");
             }
-            metrics.manualRetryIdempotent();
+            afterCommit(metrics::manualRetryIdempotent);
             return new RetryExecution(request, false);
         }
         requireTerminalFailure(generation);
@@ -92,8 +94,24 @@ public class PersonaGenerationRetryService {
         generation.scheduleManualRetry(requestedAt);
         generations.save(generation);
         retries.insert(request);
-        metrics.manualRetryScheduled();
+        afterCommit(metrics::manualRetryScheduled);
         return new RetryExecution(request, true);
+    }
+
+    private static void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager
+                .isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            action.run();
+                        }
+                    });
+            return;
+        }
+        action.run();
     }
 
     private static void requireTerminalFailure(

@@ -83,7 +83,7 @@ class PersonaGenerationStatusQueryIntegrationTest {
 
         assertThat(query.snapshot()).isEqualTo(
                 new PersonaGenerationStatusQuery.Snapshot(
-                        1, 1, 1, 1, 1, 120, 60));
+                        1, 1, 1, 1, 1, 4, 120, 60));
     }
 
     private static PersonaGeneration pending(Instant createdAt) {

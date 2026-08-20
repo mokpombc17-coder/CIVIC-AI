@@ -15,6 +15,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
+import com.hamcheeze.vote.persona.domain.PersonaGenerationRetryTrigger;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -119,6 +120,9 @@ class CurrentPersonaQueryServiceTest {
         assertThat(retrying.status()).isEqualTo(Status.FAILED);
         assertThat(retrying.attemptCount()).isEqualTo(1);
         assertThat(retrying.nextAttemptAt()).contains(retryAt);
+        assertThat(retrying.retryScheduled()).isTrue();
+        assertThat(retrying.retryTrigger())
+                .contains(PersonaGenerationRetryTrigger.AUTOMATIC);
         assertThat(retrying.automaticRetryScheduled()).isTrue();
         assertThat(retrying.terminalFailure()).isFalse();
         assertThat(retrying.personaReady()).isFalse();
@@ -143,6 +147,16 @@ class CurrentPersonaQueryServiceTest {
         assertThat(stopped.terminalFailure()).isTrue();
         assertThat(stopped.personaReady()).isFalse();
         assertThat(stopped.capabilities()).isEmpty();
+
+        Instant manualRetryAt = NOW.plusSeconds(60);
+        terminal.scheduleManualRetry(manualRetryAt);
+        var manual = service.findCurrent(USER);
+        assertThat(manual.nextAttemptAt()).contains(manualRetryAt);
+        assertThat(manual.retryScheduled()).isTrue();
+        assertThat(manual.retryTrigger())
+                .contains(PersonaGenerationRetryTrigger.MANUAL);
+        assertThat(manual.automaticRetryScheduled()).isFalse();
+        assertThat(manual.terminalFailure()).isFalse();
     }
 
     @Test

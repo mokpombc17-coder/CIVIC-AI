@@ -1,12 +1,17 @@
 package com.hamcheeze.vote.persona.infra.persistence;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.persona.application.PersonaCreationCommand;
+import com.hamcheeze.vote.persona.application.PersonaGenerationInputSnapshot;
+import com.hamcheeze.vote.persona.application.PersonaGenerationInputException;
 import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceException;
 import com.hamcheeze.vote.persona.application.PersonaGenerationPersistenceException.ErrorCode;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
@@ -39,6 +44,9 @@ class PersonaGenerationJpaAdapterIntegrationTest {
 
     @Autowired
     private PersonaGenerationRepository generations;
+
+    @Autowired
+    private PersonaGenerationInputRepository inputs;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -93,11 +101,58 @@ class PersonaGenerationJpaAdapterIntegrationTest {
                 sourceId(secondResponse), NOW.plusSeconds(1));
         generations.insert(second);
         generations.insert(first);
+        inputs.insert(input(first, "user-a"));
+        inputs.insert(input(second, "user-b"));
 
         assertThat(generations.findNextDispatchableForUpdate(
                 NOW.plusSeconds(1)))
                 .get().extracting(PersonaGeneration::id)
                 .isEqualTo(first.id());
+    }
+
+    @Test
+    void generationWithoutInputIsReconciledBeforeItCanBeClaimed() {
+        PersonaGeneration generation = generations.insert(
+                PersonaGeneration.pending(
+                        generationId(),
+                        PersonaSourceType.SURVEY_RESPONSE,
+                        new PersonaSourceId(UUID.randomUUID()),
+                        NOW));
+
+        assertThat(generations.findNextDispatchableForUpdate(NOW)).isEmpty();
+        assertThat(generations.findNextMissingInputForUpdate())
+                .get()
+                .extracting(PersonaGeneration::id)
+                .isEqualTo(generation.id());
+
+        inputs.insert(input(generation, "legacy-user"));
+
+        assertThat(generations.findNextDispatchableForUpdate(NOW))
+                .get()
+                .extracting(PersonaGeneration::id)
+                .isEqualTo(generation.id());
+        assertThat(generations.findNextMissingInputForUpdate()).isEmpty();
+    }
+
+    @Test
+    void corruptedStoredFingerprintIsDetectedBeforeDispatch() {
+        PersonaGeneration generation = generations.insert(
+                PersonaGeneration.pending(
+                        generationId(), PersonaSourceType.SURVEY_RESPONSE,
+                        new PersonaSourceId(UUID.randomUUID()), NOW));
+        inputs.insert(input(generation, "user-a"));
+        jdbcTemplate.update("""
+                UPDATE persona_generation_inputs
+                SET request_fingerprint = ?
+                WHERE generation_id = ?
+                """, "0".repeat(64), generation.id().value());
+
+        assertThatThrownBy(() -> inputs.findByGenerationId(generation.id()))
+                .isInstanceOfSatisfying(
+                        PersonaGenerationInputException.class,
+                        exception -> assertThat(exception.code())
+                                .isEqualTo(PersonaGenerationInputException
+                                        .ErrorCode.FINGERPRINT_MISMATCH));
     }
 
     @Test
@@ -235,6 +290,20 @@ class PersonaGenerationJpaAdapterIntegrationTest {
 
     private static PersonaSourceId sourceId(SurveyResponseId responseId) {
         return new PersonaSourceId(responseId.value());
+    }
+
+    private static PersonaGenerationInputSnapshot input(
+            PersonaGeneration generation,
+            String userId
+    ) {
+        return PersonaGenerationInputSnapshot.create(
+                generation.id(),
+                generation.sourceId(),
+                new PersonaUserId(userId),
+                PersonaCreationCommand.CURRENT_SCHEMA_VERSION,
+                "{\"generationId\":\"" + generation.id().value()
+                        + "\"}",
+                NOW);
     }
 
     private static Timestamp timestamp() {

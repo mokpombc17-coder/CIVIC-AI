@@ -2,6 +2,7 @@ package com.hamcheeze.vote.persona.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationAttemptRepository;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
@@ -25,6 +26,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -37,6 +40,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -60,6 +64,9 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
     @Autowired
     private PersonaGenerationRepository generations;
 
+    @Autowired
+    private PersonaGenerationInputRepository inputs;
+
     @MockitoSpyBean
     private PersonaVersionRepository versions;
 
@@ -68,6 +75,9 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     @AfterEach
@@ -85,7 +95,7 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
     @Test
     void processExitLeaseRecoveryNewAttemptAndLateCompletionAreFenced() {
-        PersonaGeneration generation = generations.insert(pending());
+        PersonaGeneration generation = insertPending();
         var first = states.claimNext("instance-a:worker-1").orElseThrow();
 
         clock.set(first.leaseExpiresAt().plusSeconds(1));
@@ -99,13 +109,13 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
         assertThat(second.claimToken()).isNotEqualTo(first.claimToken());
         assertThat(second.attemptNumber()).isEqualTo(2);
 
-        PersonaSurveySource source = source(generation.sourceId());
+        PersonaGenerationInputSnapshot input = input(generation);
         assertThat(states.succeed(
-                generation.id(), second.claimToken(), source,
+                generation.id(), second.claimToken(), input,
                 result(generation.id())))
                 .isEqualTo(PersonaGenerationStateService.CompletionResult.APPLIED);
         assertThat(states.succeed(
-                generation.id(), first.claimToken(), source,
+                generation.id(), first.claimToken(), input,
                 result(generation.id())))
                 .isEqualTo(PersonaGenerationStateService.CompletionResult
                         .IGNORED_STALE_CLAIM);
@@ -123,14 +133,14 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
     @Test
     void personaVersionFailureRollsBackGenerationSuccessAndAttempt() {
-        PersonaGeneration generation = generations.insert(pending());
+        PersonaGeneration generation = insertPending();
         var claim = states.claimNext("instance-a:worker-1").orElseThrow();
         doThrow(new IllegalStateException("forced version failure"))
                 .when(versions).insert(any());
 
         assertThatThrownBy(() -> states.succeed(
                 generation.id(), claim.claimToken(),
-                source(generation.sourceId()), result(generation.id())))
+                input(generation), result(generation.id())))
                 .hasRootCauseMessage("forced version failure");
 
         PersonaGeneration persisted = generations.findById(
@@ -146,7 +156,7 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
     @Test
     void concurrentWorkersClaimOneGenerationOnce() throws Exception {
-        generations.insert(pending());
+        insertPending();
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
             Future<Boolean> first = executor.submit(() -> {
@@ -170,7 +180,7 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
     @Test
     void concurrentReapersExpireOneLeaseOnce() throws Exception {
-        generations.insert(pending());
+        insertPending();
         var claim = states.claimNext("instance-a:worker-1").orElseThrow();
         clock.set(claim.leaseExpiresAt().plusSeconds(1));
         CountDownLatch start = new CountDownLatch(1);
@@ -200,8 +210,8 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
     @Test
     void concurrentWorkersCanClaimDifferentGenerations() throws Exception {
-        generations.insert(pending());
-        generations.insert(pending());
+        insertPending();
+        insertPending();
         CountDownLatch start = new CountDownLatch(1);
 
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -225,6 +235,112 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
                 """, Long.class)).isEqualTo(2);
     }
 
+    @Test
+    void completionHoldingRowLockWinsAgainstExpiredLeaseReaper()
+            throws Exception {
+        PersonaGeneration generation = insertPending();
+        var claim = states.claimNext("completion-first").orElseThrow();
+        clock.set(claim.leaseExpiresAt().plusSeconds(1));
+        CountDownLatch completionLocked = new CountDownLatch(1);
+        CountDownLatch reaperFinished = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<PersonaGenerationStateService.CompletionResult> completion =
+                    executor.submit(() -> new TransactionTemplate(
+                            transactionManager).execute(status -> {
+                        generations.findByIdForUpdate(generation.id())
+                                .orElseThrow();
+                        completionLocked.countDown();
+                        try {
+                            assertThat(reaperFinished.await(
+                                    10, TimeUnit.SECONDS)).isTrue();
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(exception);
+                        }
+                        return states.succeed(
+                                generation.id(), claim.claimToken(),
+                                input(generation), result(generation.id()));
+                    }));
+            Future<Integer> reaper = executor.submit(() -> {
+                assertThat(completionLocked.await(
+                        10, TimeUnit.SECONDS)).isTrue();
+                int count = states.reapExpired(10);
+                reaperFinished.countDown();
+                return count;
+            });
+
+            assertThat(reaper.get(10, TimeUnit.SECONDS)).isZero();
+            assertThat(completion.get(10, TimeUnit.SECONDS))
+                    .isEqualTo(PersonaGenerationStateService.CompletionResult
+                            .APPLIED);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(generations.findById(generation.id()).orElseThrow()
+                .status().name()).isEqualTo("SUCCEEDED");
+        assertThat(count("persona_versions")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT outcome FROM persona_generation_attempts
+                WHERE generation_id = ? AND attempt_number = 1
+                """, String.class, generation.id().value()))
+                .isEqualTo("SUCCEEDED");
+    }
+
+    @Test
+    void reaperHoldingRowLockFencesLateCompletion() throws Exception {
+        PersonaGeneration generation = insertPending();
+        var claim = states.claimNext("reaper-first").orElseThrow();
+        clock.set(claim.leaseExpiresAt().plusSeconds(1));
+        CountDownLatch reaperLocked = new CountDownLatch(1);
+        CountDownLatch completionStarted = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> reaper = executor.submit(() ->
+                    new TransactionTemplate(transactionManager).execute(
+                            status -> {
+                                generations.findByIdForUpdate(generation.id())
+                                        .orElseThrow();
+                                reaperLocked.countDown();
+                                try {
+                                    assertThat(completionStarted.await(
+                                            10, TimeUnit.SECONDS)).isTrue();
+                                } catch (InterruptedException exception) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(exception);
+                                }
+                                return states.reapExpired(10);
+                            }));
+            Future<PersonaGenerationStateService.CompletionResult> completion =
+                    executor.submit(() -> {
+                        assertThat(reaperLocked.await(
+                                10, TimeUnit.SECONDS)).isTrue();
+                        completionStarted.countDown();
+                        return states.succeed(
+                                generation.id(), claim.claimToken(),
+                                input(generation), result(generation.id()));
+                    });
+
+            assertThat(reaper.get(10, TimeUnit.SECONDS)).isEqualTo(1);
+            assertThat(completion.get(10, TimeUnit.SECONDS))
+                    .isEqualTo(PersonaGenerationStateService.CompletionResult
+                            .IGNORED_STALE_CLAIM);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(generations.findById(generation.id()).orElseThrow()
+                .status().name()).isEqualTo("FAILED");
+        assertThat(count("persona_versions")).isZero();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM persona_generation_attempts
+                WHERE generation_id = ?
+                  AND outcome = 'LEASE_EXPIRED'
+                  AND late_completion_observed_at IS NOT NULL
+                """, Long.class, generation.id().value())).isEqualTo(1);
+    }
+
     private static PersonaGeneration pending() {
         return PersonaGeneration.pending(
                 new PersonaGenerationId(UUID.randomUUID()),
@@ -233,11 +349,31 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
                 INITIAL);
     }
 
+    private PersonaGeneration insertPending() {
+        PersonaGeneration generation = generations.insert(pending());
+        inputs.insert(input(generation));
+        return generation;
+    }
+
     private static PersonaSurveySource source(PersonaSourceId sourceId) {
         return new PersonaSurveySource(
                 sourceId, new PersonaUserId("user-a"),
                 UUID.randomUUID(), 1, UUID.randomUUID(), 1,
                 INITIAL, List.of());
+    }
+
+    private static PersonaGenerationInputSnapshot input(
+            PersonaGeneration generation
+    ) {
+        PersonaSurveySource source = source(generation.sourceId());
+        return PersonaGenerationInputSnapshot.create(
+                generation.id(),
+                source.responseId(),
+                source.userId(),
+                PersonaCreationCommand.CURRENT_SCHEMA_VERSION,
+                "{\"generationId\":\"" + generation.id().value()
+                        + "\"}",
+                INITIAL);
     }
 
     private static PersonaCreationResult result(

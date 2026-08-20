@@ -16,13 +16,13 @@ vote:
     outbox:
       enabled: ${VOTE_INTEGRATION_OUTBOX_ENABLED:true}
   persona:
-    enabled: ${VOTE_PERSONA_ENABLED:true}
-    provider: ${VOTE_PERSONA_PROVIDER:http}
-    base-url: ${VOTE_PERSONA_BASE_URL:}
-    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:}
+    enabled: ${VOTE_PERSONA_ENABLED:${VOTE_SURVEY_PERSONA_ENABLED:true}}
+    provider: ${VOTE_PERSONA_PROVIDER:${VOTE_SURVEY_PERSONA_PROVIDER:http}}
+    base-url: ${VOTE_PERSONA_BASE_URL:${VOTE_SURVEY_PERSONA_BASE_URL:}}
+    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}}
     connect-timeout: ${VOTE_PERSONA_CONNECT_TIMEOUT:5s}
     request-timeout: ${VOTE_PERSONA_REQUEST_TIMEOUT:60s}
-    dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:5s}
+    dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:5s}}
     processing-lease-duration: ${VOTE_PERSONA_PROCESSING_LEASE_DURATION:90s}
     lease-reaper-delay: ${VOTE_PERSONA_LEASE_REAPER_DELAY:10s}
     retry-initial-delay: ${VOTE_PERSONA_RETRY_INITIAL_DELAY:30s}

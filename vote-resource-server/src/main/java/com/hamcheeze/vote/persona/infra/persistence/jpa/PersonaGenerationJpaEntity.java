@@ -2,6 +2,7 @@ package com.hamcheeze.vote.persona.infra.persistence.jpa;
 
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
+import com.hamcheeze.vote.persona.domain.PersonaGenerationRetryTrigger;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import jakarta.persistence.Column;
@@ -54,6 +55,10 @@ class PersonaGenerationJpaEntity {
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "retry_trigger", length = 20)
+    private PersonaGenerationRetryTrigger retryTrigger;
+
     @Column(name = "claim_token")
     private UUID claimToken;
 
@@ -87,6 +92,7 @@ class PersonaGenerationJpaEntity {
         processingStartedAt = generation.processingStartedAt().orElse(null);
         completedAt = generation.completedAt().orElse(null);
         nextAttemptAt = generation.nextAttemptAt().orElse(null);
+        retryTrigger = generation.retryTrigger().orElse(null);
         claimToken = generation.claimToken()
                 .map(PersonaGenerationClaimToken::value).orElse(null);
         leaseExpiresAt = generation.leaseExpiresAt().orElse(null);
@@ -135,6 +141,10 @@ class PersonaGenerationJpaEntity {
 
     Instant nextAttemptAt() {
         return nextAttemptAt;
+    }
+
+    PersonaGenerationRetryTrigger retryTrigger() {
+        return retryTrigger;
     }
 
     UUID claimToken() {

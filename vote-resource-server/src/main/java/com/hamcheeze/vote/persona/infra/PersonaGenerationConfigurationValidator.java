@@ -41,7 +41,6 @@ public class PersonaGenerationConfigurationValidator
             return;
         }
         warnLegacyAliases();
-        validateNumericSettings();
         boolean production = environment.acceptsProfiles(
                 Profiles.of("prod"));
         if (production && outboxEnabled && !properties.isEnabled()) {
@@ -55,6 +54,7 @@ public class PersonaGenerationConfigurationValidator
         if (!properties.isEnabled()) {
             return;
         }
+        validateNumericSettings();
         String provider = properties.getProvider();
         if (!"http".equalsIgnoreCase(provider)
                 && !"fake".equalsIgnoreCase(provider)) {
@@ -128,8 +128,10 @@ public class PersonaGenerationConfigurationValidator
                     || !("http".equalsIgnoreCase(uri.getScheme())
                     || "https".equalsIgnoreCase(uri.getScheme()))
                     || uri.getHost() == null
-                    || "localhost".equalsIgnoreCase(uri.getHost())
-                    || "127.0.0.1".equals(uri.getHost())) {
+                    || uri.getUserInfo() != null
+                    || uri.getQuery() != null
+                    || uri.getFragment() != null
+                    || isForbiddenHost(uri.getHost())) {
                 throw new IllegalArgumentException();
             }
         } catch (RuntimeException exception) {
@@ -139,12 +141,30 @@ public class PersonaGenerationConfigurationValidator
         }
     }
 
+    private static boolean isForbiddenHost(String host) {
+        String normalized = host.toLowerCase(java.util.Locale.ROOT);
+        if (normalized.startsWith("[") && normalized.endsWith("]")) {
+            normalized = normalized.substring(1, normalized.length() - 1);
+        }
+        return "localhost".equals(normalized)
+                || "127.0.0.1".equals(normalized)
+                || "0.0.0.0".equals(normalized)
+                || "::".equals(normalized)
+                || "::1".equals(normalized)
+                || "0:0:0:0:0:0:0:0".equals(normalized)
+                || "0:0:0:0:0:0:0:1".equals(normalized);
+    }
+
     private void warnLegacyAliases() {
         if (environment.containsProperty("VOTE_SURVEY_PERSONA_ENABLED")
                 || environment.containsProperty(
                 "VOTE_SURVEY_PERSONA_PROVIDER")
                 || environment.containsProperty(
-                "VOTE_SURVEY_PERSONA_BASE_URL")) {
+                "VOTE_SURVEY_PERSONA_BASE_URL")
+                || environment.containsProperty(
+                "VOTE_SURVEY_PERSONA_AUTH_TOKEN")
+                || environment.containsProperty(
+                "VOTE_SURVEY_PERSONA_DISPATCHER_DELAY")) {
             log.warn(
                     "Deprecated VOTE_SURVEY_PERSONA_* configuration detected; use authoritative VOTE_PERSONA_* keys");
         }

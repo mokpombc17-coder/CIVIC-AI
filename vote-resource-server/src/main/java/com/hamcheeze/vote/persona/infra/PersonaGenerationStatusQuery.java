@@ -71,6 +71,13 @@ public class PersonaGenerationStatusQuery {
                         WHERE status = 'FAILED'
                           AND next_attempt_at IS NULL
                     ) terminal_failed_count,
+                    count(*) FILTER (
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM persona_generation_inputs input
+                            WHERE input.generation_id = persona_generations.generation_id
+                        )
+                    ) missing_input_count,
                     min(created_at) FILTER (
                         WHERE status = 'PENDING'
                     ) oldest_pending_at,
@@ -85,6 +92,7 @@ public class PersonaGenerationStatusQuery {
                         resultSet.getLong("stale_processing_count"),
                         resultSet.getLong("retry_wait_count"),
                         resultSet.getLong("terminal_failed_count"),
+                        resultSet.getLong("missing_input_count"),
                         age(now, resultSet.getTimestamp(
                                 "oldest_pending_at")),
                         age(now, resultSet.getTimestamp(
@@ -106,6 +114,7 @@ public class PersonaGenerationStatusQuery {
             long staleProcessingCount,
             long retryWaitCount,
             long terminalFailedCount,
+            long missingInputCount,
             long oldestPendingAgeSeconds,
             long oldestProcessingAgeSeconds
     ) {

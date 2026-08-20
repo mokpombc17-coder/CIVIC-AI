@@ -20,6 +20,8 @@ final class PersonaApiModels {
             String lastErrorCode,
             int attemptCount,
             Instant nextAttemptAt,
+            boolean retryScheduled,
+            String retryTrigger,
             boolean automaticRetryScheduled,
             boolean terminalFailure,
             List<String> capabilities
@@ -36,6 +38,8 @@ final class PersonaApiModels {
                     value.lastErrorCode().orElse(null),
                     value.attemptCount(),
                     value.nextAttemptAt().orElse(null),
+                    value.retryScheduled(),
+                    value.retryTrigger().map(Enum::name).orElse(null),
                     value.automaticRetryScheduled(),
                     value.terminalFailure(),
                     value.capabilities().stream().map(Enum::name).sorted()

@@ -1,6 +1,9 @@
 package com.hamcheeze.vote.persona.application.integration;
 
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
+import com.hamcheeze.vote.persona.application.PersonaGenerationInputSnapshot;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputSnapshotFactory;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
@@ -33,6 +36,8 @@ public class PersonaSurveyResponseSubmittedConsumer
 
     private final PersonaInboxRepository inbox;
     private final PersonaGenerationRepository generations;
+    private final PersonaGenerationInputRepository inputs;
+    private final PersonaGenerationInputSnapshotFactory inputSnapshots;
     private final PersonaSurveySourceQueryPort sources;
     private final UserTransactionLock userTransactions;
     private final ObjectMapper objectMapper;
@@ -42,17 +47,21 @@ public class PersonaSurveyResponseSubmittedConsumer
     public PersonaSurveyResponseSubmittedConsumer(
             PersonaInboxRepository inbox,
             PersonaGenerationRepository generations,
+            PersonaGenerationInputRepository inputs,
+            PersonaGenerationInputSnapshotFactory inputSnapshots,
             PersonaSurveySourceQueryPort sources,
             UserTransactionLock userTransactions,
             ObjectMapper objectMapper
     ) {
-        this(inbox, generations, sources, userTransactions, objectMapper,
-                Clock.systemUTC());
+        this(inbox, generations, inputs, inputSnapshots, sources,
+                userTransactions, objectMapper, Clock.systemUTC());
     }
 
     PersonaSurveyResponseSubmittedConsumer(
             PersonaInboxRepository inbox,
             PersonaGenerationRepository generations,
+            PersonaGenerationInputRepository inputs,
+            PersonaGenerationInputSnapshotFactory inputSnapshots,
             PersonaSurveySourceQueryPort sources,
             UserTransactionLock userTransactions,
             ObjectMapper objectMapper,
@@ -61,6 +70,9 @@ public class PersonaSurveyResponseSubmittedConsumer
         this.inbox = Objects.requireNonNull(inbox, "inbox");
         this.generations = Objects.requireNonNull(
                 generations, "generations");
+        this.inputs = Objects.requireNonNull(inputs, "inputs");
+        this.inputSnapshots = Objects.requireNonNull(
+                inputSnapshots, "inputSnapshots");
         this.sources = Objects.requireNonNull(sources, "sources");
         this.userTransactions = Objects.requireNonNull(
                 userTransactions, "userTransactions");
@@ -105,15 +117,32 @@ public class PersonaSurveyResponseSubmittedConsumer
         PersonaSourceId sourceId = new PersonaSourceId(payload.responseId());
         PersonaSurveySource source = loadSource(sourceId);
         validateSource(payload, source);
-        if (generations.findBySource(
-                PersonaSourceType.SURVEY_RESPONSE, sourceId).isPresent()) {
+        var existing = generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, sourceId);
+        if (existing.isPresent()) {
+            ensureInput(existing.orElseThrow(), source);
             return;
         }
-        generations.insert(PersonaGeneration.pending(
+        PersonaGeneration generation = PersonaGeneration.pending(
                 new PersonaGenerationId(UUID.randomUUID()),
                 PersonaSourceType.SURVEY_RESPONSE,
                 sourceId,
-                source.submittedAt()));
+                source.submittedAt());
+        PersonaGenerationInputSnapshot input = inputSnapshots.create(
+                generation.id(), source, clock.instant());
+        generations.insert(generation);
+        inputs.insert(input);
+    }
+
+    private void ensureInput(
+            PersonaGeneration generation,
+            PersonaSurveySource source
+    ) {
+        if (inputs.findByGenerationId(generation.id()).isPresent()) {
+            return;
+        }
+        inputs.insert(inputSnapshots.create(
+                generation.id(), source, clock.instant()));
     }
 
     private static void validateEnvelope(IntegrationEventEnvelope event) {

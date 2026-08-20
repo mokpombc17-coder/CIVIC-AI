@@ -1,6 +1,11 @@
 package com.hamcheeze.vote.persona.infra;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
@@ -17,6 +22,18 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PersonaGenerationConfigurationValidatorTest {
+
+    @Test
+    void disabledProductionSkipsProviderAndWorkerValidationWhenOutboxIsOff() {
+        PersonaGenerationProperties properties = valid();
+        properties.setEnabled(false);
+        properties.setBaseUrl("");
+        properties.setWorkerPoolSize(0);
+
+        assertThatCode(() -> validator(
+                "prod", properties, false).afterSingletonsInstantiated())
+                .doesNotThrowAnyException();
+    }
 
     @Test
     void productionRejectsOutboxEnabledWithoutPersonaWorker() {
@@ -52,6 +69,26 @@ class PersonaGenerationConfigurationValidatorTest {
                 "prod", missing, true).afterSingletonsInstantiated())
                 .hasMessageContaining("vote.persona.base-url")
                 .hasMessageContaining("VOTE_PERSONA_BASE_URL");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://127.0.0.1:8090",
+            "http://[::1]:8090",
+            "http://0.0.0.0:8090",
+            "http://[::]:8090",
+            "https://user:secret@persona.example",
+            "https://persona.example?tenant=a",
+            "https://persona.example#fragment"
+    })
+    void productionRejectsUnsafeOrAmbiguousBaseUrls(String baseUrl) {
+        PersonaGenerationProperties properties = valid();
+        properties.setBaseUrl(baseUrl);
+
+        assertThatThrownBy(() -> validator(
+                "prod", properties, true).afterSingletonsInstantiated())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("vote.persona.base-url");
     }
 
     @Test
@@ -118,6 +155,24 @@ class PersonaGenerationConfigurationValidatorTest {
         assertThat(resolveBaseEnabled(Map.of(
                 "VOTE_SURVEY_PERSONA_ENABLED", "true")))
                 .isEqualTo("true");
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void legacyEnvironmentAliasEmitsDeprecationWarning(
+            CapturedOutput output
+    ) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("prod");
+        environment.setProperty("VOTE_SURVEY_PERSONA_BASE_URL",
+                "https://legacy.example");
+
+        new PersonaGenerationConfigurationValidator(
+                environment, valid(), true).afterSingletonsInstantiated();
+
+        assertThat(output).contains("VOTE_SURVEY_PERSONA_*")
+                .contains("VOTE_PERSONA_*")
+                .contains("Deprecated");
     }
 
     private static String resolveBaseEnabled(Map<String, Object> overrides)

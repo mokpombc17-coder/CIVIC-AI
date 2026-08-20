@@ -7,7 +7,8 @@ import java.util.Objects;
 public record PersonaCreationCommand(
         PersonaGenerationId generationId,
         int schemaVersion,
-        PersonaSurveySource source
+        String requestPayload,
+        String requestFingerprint
 ) {
 
     public static final int CURRENT_SCHEMA_VERSION = 2;
@@ -18,6 +19,21 @@ public record PersonaCreationCommand(
             throw new IllegalArgumentException(
                     "schemaVersion must be positive");
         }
-        Objects.requireNonNull(source, "source");
+        if (requestPayload == null || requestPayload.isBlank()) {
+            throw new IllegalArgumentException(
+                    "requestPayload must not be blank");
+        }
+        if (requestFingerprint == null
+                || !requestFingerprint.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException(
+                    "requestFingerprint must be a lowercase SHA-256 hash");
+        }
+        if (!PersonaGenerationInputSnapshot.fingerprint(requestPayload)
+                .equals(requestFingerprint)) {
+            throw new PersonaGenerationInputException(
+                    PersonaGenerationInputException.ErrorCode
+                            .FINGERPRINT_MISMATCH,
+                    "Persona creation command fingerprint does not match payload");
+        }
     }
 }

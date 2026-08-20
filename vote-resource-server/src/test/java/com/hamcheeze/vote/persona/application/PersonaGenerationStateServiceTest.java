@@ -88,7 +88,8 @@ class PersonaGenerationStateServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var completion = states.succeed(
-                generation.id(), TOKEN, source(responseId), result);
+                generation.id(), TOKEN,
+                input(generation.id(), responseId), result);
 
         assertThat(completion).isEqualTo(
                 PersonaGenerationStateService.CompletionResult.APPLIED);
@@ -121,7 +122,8 @@ class PersonaGenerationStateServiceTest {
 
         var completion = states.succeed(
                 generation.id(), stale,
-                source(new SurveyResponseId(generation.sourceId().value())),
+                input(generation.id(), new SurveyResponseId(
+                        generation.sourceId().value())),
                 result(generation.id()));
 
         assertThat(completion).isEqualTo(
@@ -171,6 +173,20 @@ class PersonaGenerationStateServiceTest {
                 new PersonaSourceId(responseId.value()),
                 new PersonaUserId("user-1"), uuid(3), 1, uuid(4), 1,
                 NOW.minusSeconds(20), List.of());
+    }
+
+    private static PersonaGenerationInputSnapshot input(
+            PersonaGenerationId generationId,
+            SurveyResponseId responseId
+    ) {
+        PersonaSurveySource source = source(responseId);
+        return PersonaGenerationInputSnapshot.create(
+                generationId,
+                source.responseId(),
+                source.userId(),
+                PersonaCreationCommand.CURRENT_SCHEMA_VERSION,
+                "{\"generationId\":\"" + generationId.value() + "\"}",
+                NOW.minusSeconds(20));
     }
 
     private static PersonaGenerationProperties properties() {

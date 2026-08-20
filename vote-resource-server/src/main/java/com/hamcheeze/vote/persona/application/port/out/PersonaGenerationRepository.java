@@ -29,4 +29,6 @@ public interface PersonaGenerationRepository {
     Optional<PersonaGeneration> findNextDispatchableForUpdate(Instant readyAt);
 
     Optional<PersonaGeneration> findNextExpiredLeaseForUpdate(Instant now);
+
+    Optional<PersonaGeneration> findNextMissingInputForUpdate();
 }

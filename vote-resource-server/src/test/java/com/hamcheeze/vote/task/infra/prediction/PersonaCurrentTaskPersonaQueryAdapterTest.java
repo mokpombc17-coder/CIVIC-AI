@@ -36,6 +36,8 @@ class PersonaCurrentTaskPersonaQueryAdapterTest {
                 1,
                 Optional.empty(),
                 false,
+                Optional.empty(),
+                false,
                 false,
                 true,
                 Set.of()));

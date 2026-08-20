@@ -1,14 +1,18 @@
 package com.hamcheeze.vote.persona.application.integration;
 
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
+import com.hamcheeze.vote.persona.application.PersonaGenerationInputSnapshot;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
+import com.hamcheeze.vote.persona.infra.PersonaGenerationInputSnapshotFactoryAdapter;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
@@ -44,6 +48,11 @@ class PersonaSurveyResponseSubmittedConsumerTest {
             mock(PersonaInboxRepository.class);
     private final PersonaGenerationRepository generations =
             mock(PersonaGenerationRepository.class);
+    private final PersonaGenerationInputRepository inputs =
+            mock(PersonaGenerationInputRepository.class);
+    private final PersonaGenerationInputSnapshotFactoryAdapter inputSnapshots =
+            new PersonaGenerationInputSnapshotFactoryAdapter(
+                    new ObjectMapper());
     private final PersonaSurveySourceQueryPort sources =
             mock(PersonaSurveySourceQueryPort.class);
     private final UserTransactionLock userTransactions =
@@ -52,6 +61,8 @@ class PersonaSurveyResponseSubmittedConsumerTest {
             new PersonaSurveyResponseSubmittedConsumer(
                     inbox,
                     generations,
+                    inputs,
+                    inputSnapshots,
                     sources,
                     userTransactions,
                     new ObjectMapper(),
@@ -91,6 +102,16 @@ class PersonaSurveyResponseSubmittedConsumerTest {
                 .isEqualTo(payload.responseId());
         assertThat(generation.getValue().createdAt())
                 .isEqualTo(source.submittedAt());
+        ArgumentCaptor<PersonaGenerationInputSnapshot> input =
+                ArgumentCaptor.forClass(
+                        PersonaGenerationInputSnapshot.class);
+        verify(inputs).insert(input.capture());
+        assertThat(input.getValue().generationId())
+                .isEqualTo(generation.getValue().id());
+        assertThat(input.getValue().sourceId())
+                .isEqualTo(generation.getValue().sourceId());
+        assertThat(input.getValue().userId()).isEqualTo(source.userId());
+        assertThat(input.getValue().createdAt()).isEqualTo(PROCESSED_AT);
     }
 
     @Test
@@ -103,7 +124,7 @@ class PersonaSurveyResponseSubmittedConsumerTest {
 
         verify(userTransactions).lock(payload.userId());
         verify(inbox).recordIfAbsent(any());
-        verifyNoInteractions(sources, generations);
+        verifyNoInteractions(sources, generations, inputs);
     }
 
     @Test
@@ -113,15 +134,50 @@ class PersonaSurveyResponseSubmittedConsumerTest {
         when(inbox.recordIfAbsent(any())).thenReturn(true);
         when(sources.getByResponseId(any(PersonaSourceId.class)))
                 .thenReturn(source);
+        PersonaGeneration existing = PersonaGeneration.pending(
+                new PersonaGenerationId(uuid(8)),
+                PersonaSourceType.SURVEY_RESPONSE,
+                source.responseId(),
+                source.submittedAt());
         when(generations.findBySource(
                 org.mockito.ArgumentMatchers.eq(
                         PersonaSourceType.SURVEY_RESPONSE),
                 any(PersonaSourceId.class)))
-                .thenReturn(Optional.of(mock(PersonaGeneration.class)));
+                .thenReturn(Optional.of(existing));
+        when(inputs.findByGenerationId(existing.id())).thenReturn(
+                Optional.of(inputSnapshots.create(
+                        existing.id(), source, existing.createdAt())));
 
         consumer.consume(event(uuid(6), payload));
 
         verify(inbox).recordIfAbsent(any());
+        verify(generations, never()).insert(any());
+    }
+
+    @Test
+    void differentEventBackfillsMissingInputForLegacyGeneration() {
+        SurveyResponseSubmittedV1 payload = payload();
+        PersonaSurveySource source = source(payload);
+        PersonaGeneration existing = PersonaGeneration.pending(
+                new PersonaGenerationId(uuid(8)),
+                PersonaSourceType.SURVEY_RESPONSE,
+                source.responseId(),
+                source.submittedAt());
+        when(inbox.recordIfAbsent(any())).thenReturn(true);
+        when(sources.getByResponseId(source.responseId())).thenReturn(source);
+        when(generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE, source.responseId()))
+                .thenReturn(Optional.of(existing));
+        when(inputs.findByGenerationId(existing.id()))
+                .thenReturn(Optional.empty());
+
+        consumer.consume(event(uuid(7), payload));
+
+        ArgumentCaptor<PersonaGenerationInputSnapshot> input =
+                ArgumentCaptor.forClass(
+                        PersonaGenerationInputSnapshot.class);
+        verify(inputs).insert(input.capture());
+        assertThat(input.getValue().generationId()).isEqualTo(existing.id());
         verify(generations, never()).insert(any());
     }
 

@@ -76,6 +76,7 @@ class PersonaHttpCreationAdapterTest {
         assertThat(result.predictedAdoptionRate().value())
                 .isEqualByComparingTo("0.72");
         assertThat(result.modelVersion().value()).isEqualTo("model-v3");
+        assertThat(requestBody.get()).isEqualTo(command.requestPayload());
         assertThat(requestBody.get())
                 .contains("OTHER", "직접 입력", "세부 성향", "창작")
                 .doesNotContain("user-a", "userId");
@@ -205,6 +206,14 @@ class PersonaHttpCreationAdapterTest {
     @Test
     void classifiesRateLimitAsRetryableAndUsesStructuredConflictCode() {
         server.createContext("/v1/personas", exchange -> respond(
+                exchange, 408, "{}"));
+        assertFailure(
+                () -> adapter().create(command()),
+                PersonaCreationErrorCode.TIMEOUT,
+                true);
+
+        server.removeContext("/v1/personas");
+        server.createContext("/v1/personas", exchange -> respond(
                 exchange, 429, "{}"));
         assertFailure(
                 () -> adapter().create(command()),
@@ -256,8 +265,16 @@ class PersonaHttpCreationAdapterTest {
                         question,
                         new PersonaSurveySource.MultipleChoiceValue(
                                 List.of(other)))));
+        PersonaGenerationId generationId =
+                new PersonaGenerationId(UUID.randomUUID());
+        var input = new PersonaGenerationInputSnapshotFactoryAdapter(
+                new ObjectMapper()).create(
+                        generationId, source, Instant.EPOCH);
         return new PersonaCreationCommand(
-                new PersonaGenerationId(UUID.randomUUID()), 1, source);
+                generationId,
+                input.requestSchemaVersion(),
+                input.requestPayload(),
+                input.requestFingerprint());
     }
 
     private String readBody(HttpExchange exchange) throws IOException {

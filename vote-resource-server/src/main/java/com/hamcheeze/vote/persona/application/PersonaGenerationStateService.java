@@ -92,10 +92,10 @@ public class PersonaGenerationStateService {
     public CompletionResult succeed(
             PersonaGenerationId generationId,
             PersonaGenerationClaimToken claimToken,
-            PersonaSurveySource source,
+            PersonaGenerationInputSnapshot input,
             PersonaCreationResult result
     ) {
-        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(input, "input");
         Objects.requireNonNull(result, "result");
         PersonaGeneration generation = requireGenerationForUpdate(
                 generationId);
@@ -103,7 +103,11 @@ public class PersonaGenerationStateService {
             observeLateCompletion(claimToken);
             return CompletionResult.IGNORED_STALE_CLAIM;
         }
-        PersonaSourceId sourceId = source.responseId();
+        PersonaSourceId sourceId = input.sourceId();
+        if (!generationId.equals(input.generationId())) {
+            throw new IllegalArgumentException(
+                    "input generation ID must match claim generation");
+        }
         if (!generationId.equals(result.generationId())) {
             throw new IllegalArgumentException(
                     "result generation ID must match claim generation");
@@ -119,7 +123,7 @@ public class PersonaGenerationStateService {
         versions.insert(new PersonaVersion(
                 new PersonaVersionId(UUID.randomUUID()),
                 generation.id(),
-                source.userId(),
+                input.userId(),
                 result.personaId(),
                 result.predictedAdoptionRate(),
                 result.modelVersion(),

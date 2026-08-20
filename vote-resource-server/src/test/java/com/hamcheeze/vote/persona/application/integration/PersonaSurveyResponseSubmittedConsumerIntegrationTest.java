@@ -2,6 +2,8 @@ package com.hamcheeze.vote.persona.application.integration;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
+import com.hamcheeze.vote.persona.application.PersonaGenerationInputBackfillService;
 import com.hamcheeze.vote.persona.application.port.out.PersonaInboxRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
@@ -42,6 +44,12 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
     private PersonaGenerationRepository generations;
 
     @Autowired
+    private PersonaGenerationInputRepository inputs;
+
+    @Autowired
+    private PersonaGenerationInputBackfillService backfill;
+
+    @Autowired
     private PersonaInboxRepository inbox;
 
     @Autowired
@@ -71,6 +79,15 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
         assertThat(firstGeneration.status())
                 .isEqualTo(PersonaGenerationStatus.PENDING);
         assertThat(firstGeneration.createdAt()).isEqualTo(SUBMITTED_AT);
+        assertThat(inputs.findByGenerationId(firstGeneration.id()))
+                .get()
+                .satisfies(input -> {
+                    assertThat(input.sourceId()).isEqualTo(sourceId);
+                    assertThat(input.userId().value()).isEqualTo("user-a");
+                    assertThat(input.requestPayload())
+                            .contains(firstGeneration.id().value().toString())
+                            .contains("\"textValue\":\"응답\"");
+                });
         assertThat(inbox.exists(
                 PersonaSurveyResponseSubmittedConsumer.CONSUMER_NAME,
                 firstEventId)).isTrue();
@@ -87,6 +104,9 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
         assertThat(inbox.exists(
                 PersonaSurveyResponseSubmittedConsumer.CONSUMER_NAME,
                 secondEventId)).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM persona_generation_inputs",
+                Long.class)).isEqualTo(1);
     }
 
     @Test
@@ -116,6 +136,41 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
         assertThat(inbox.exists(
                 PersonaSurveyResponseSubmittedConsumer.CONSUMER_NAME,
                 integrationEvent.eventId())).isTrue();
+    }
+
+    @Test
+    void legacyGenerationIsNotClaimableUntilExactInputIsBackfilled()
+            throws Exception {
+        SurveyResponseSubmittedV1 payload = insertSurveyResponse("legacy-a");
+        consumer.consume(event(UUID.randomUUID(), payload));
+        var generation = generations.findBySource(
+                PersonaSourceType.SURVEY_RESPONSE,
+                new PersonaSourceId(payload.responseId())).orElseThrow();
+        var original = inputs.findByGenerationId(generation.id())
+                .orElseThrow();
+        jdbcTemplate.update(
+                "DELETE FROM persona_generation_inputs WHERE generation_id = ?",
+                generation.id().value());
+
+        assertThat(generations.findNextDispatchableForUpdate(SUBMITTED_AT))
+                .isEmpty();
+        assertThat(backfill.backfillNext())
+                .get()
+                .satisfies(result -> {
+                    assertThat(result.created()).isTrue();
+                    assertThat(result.generation().id())
+                            .isEqualTo(generation.id());
+                });
+        assertThat(inputs.findByGenerationId(generation.id()))
+                .get()
+                .satisfies(restored -> {
+                    assertThat(restored.requestPayload())
+                            .isEqualTo(original.requestPayload());
+                    assertThat(restored.requestFingerprint())
+                            .isEqualTo(original.requestFingerprint());
+                });
+        assertThat(generations.findNextDispatchableForUpdate(SUBMITTED_AT))
+                .isPresent();
     }
 
     private IntegrationEventEnvelope event(

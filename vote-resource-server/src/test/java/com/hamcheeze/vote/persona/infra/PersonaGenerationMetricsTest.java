@@ -18,7 +18,7 @@ class PersonaGenerationMetricsTest {
                 mock(PersonaGenerationStatusQuery.class);
         when(query.snapshot()).thenReturn(
                 new PersonaGenerationStatusQuery.Snapshot(
-                        2, 3, 1, 4, 5, 120, 60));
+                        2, 3, 1, 4, 5, 6, 120, 60));
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
@@ -41,6 +41,8 @@ class PersonaGenerationMetricsTest {
             assertGauge(registry,
                     "vote.persona.generation.failed.terminal", 5);
             assertGauge(registry,
+                    "vote.persona.generation.input.missing", 6);
+            assertGauge(registry,
                     "vote.persona.generation.oldest.pending.age.seconds", 120);
             assertGauge(registry,
                     "vote.persona.generation.oldest.processing.age.seconds", 60);
@@ -58,6 +60,10 @@ class PersonaGenerationMetricsTest {
             metrics.staleCompletionIgnored();
             metrics.manualRetryScheduled();
             metrics.manualRetryIdempotent();
+            metrics.inputBackfillSucceeded();
+            metrics.inputBackfillFailed();
+            metrics.inputFingerprintMismatch();
+            metrics.persistenceIntegrityFailure();
 
             assertCounter(registry,
                     "vote.persona.generation.claim.success", 1);
@@ -77,6 +83,14 @@ class PersonaGenerationMetricsTest {
                     "vote.persona.generation.manual.retry.scheduled", 1);
             assertCounter(registry,
                     "vote.persona.generation.manual.retry.idempotent", 1);
+            assertCounter(registry,
+                    "vote.persona.generation.input.backfill.success", 1);
+            assertCounter(registry,
+                    "vote.persona.generation.input.backfill.failure", 1);
+            assertCounter(registry,
+                    "vote.persona.generation.input.fingerprint.mismatch", 1);
+            assertCounter(registry,
+                    "vote.persona.generation.persistence.integrity.failure", 1);
         } finally {
             executor.shutdown();
             registry.close();

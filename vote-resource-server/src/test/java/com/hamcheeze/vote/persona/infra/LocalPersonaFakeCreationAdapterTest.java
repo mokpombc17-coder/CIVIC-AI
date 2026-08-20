@@ -6,6 +6,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
@@ -46,9 +47,13 @@ class LocalPersonaFakeCreationAdapterTest {
                 1,
                 Instant.parse("2026-08-18T00:00:00Z"),
                 List.of());
+        PersonaGenerationId id = new PersonaGenerationId(generationId);
+        var input = new PersonaGenerationInputSnapshotFactoryAdapter(
+                new ObjectMapper()).create(id, source, Instant.EPOCH);
         return new PersonaCreationCommand(
-                new PersonaGenerationId(generationId),
-                PersonaCreationCommand.CURRENT_SCHEMA_VERSION,
-                source);
+                id,
+                input.requestSchemaVersion(),
+                input.requestPayload(),
+                input.requestFingerprint());
     }
 }

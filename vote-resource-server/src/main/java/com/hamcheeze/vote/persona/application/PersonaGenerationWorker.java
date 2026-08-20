@@ -4,7 +4,7 @@ import com.hamcheeze.vote.persona.application.PersonaGenerationStateService.Clai
 import com.hamcheeze.vote.persona.application.PersonaGenerationStateService.CompletionResult;
 import com.hamcheeze.vote.persona.application.PersonaGenerationStateService.FailureResult;
 import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
-import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.infra.PersonaGenerationMetrics;
 import org.slf4j.Logger;
@@ -25,20 +25,20 @@ public class PersonaGenerationWorker {
             PersonaGenerationWorker.class);
 
     private final PersonaGenerationStateService states;
-    private final PersonaSurveySourceQueryPort sources;
+    private final PersonaGenerationInputRepository inputs;
     private final ObjectProvider<PersonaCreationPort> personaCreation;
     private final PersonaGenerationMetrics metrics;
     private final String instanceId;
 
     public PersonaGenerationWorker(
             PersonaGenerationStateService states,
-            PersonaSurveySourceQueryPort sources,
+            PersonaGenerationInputRepository inputs,
             ObjectProvider<PersonaCreationPort> personaCreation,
             PersonaGenerationMetrics metrics,
             @Value("${HOSTNAME:unknown-instance}") String instanceId
     ) {
         this.states = Objects.requireNonNull(states, "states");
-        this.sources = Objects.requireNonNull(sources, "sources");
+        this.inputs = Objects.requireNonNull(inputs, "inputs");
         this.personaCreation = Objects.requireNonNull(
                 personaCreation, "personaCreation");
         this.metrics = Objects.requireNonNull(metrics, "metrics");
@@ -70,30 +70,89 @@ public class PersonaGenerationWorker {
         String tokenHint = claim.claimToken().value().toString()
                 .substring(0, 8);
         try {
-            PersonaSurveySource source = sources.getByResponseId(
-                    generation.sourceId());
+            PersonaGenerationInputSnapshot input = inputs
+                    .findByGenerationId(generation.id())
+                    .orElseThrow(() -> new PersonaGenerationInputException(
+                            PersonaGenerationInputException.ErrorCode
+                                    .INPUT_UNAVAILABLE,
+                            "Persona generation input snapshot is missing"));
+            validateInput(generation, input);
             PersonaCreationResult result = creation.create(
                     new PersonaCreationCommand(
                             generation.id(),
-                            PersonaCreationCommand.CURRENT_SCHEMA_VERSION,
-                            source));
+                            input.requestSchemaVersion(),
+                            input.requestPayload(),
+                            input.requestFingerprint()));
+            if (!generation.id().equals(result.generationId())) {
+                throw new PersonaCreationException(
+                        PersonaCreationErrorCode.GENERATION_ID_MISMATCH,
+                        false,
+                        "Persona result generation ID does not match input");
+            }
             CompletionResult completion = states.succeed(
-                    generation.id(), claim.claimToken(), source, result);
+                    generation.id(), claim.claimToken(), input, result);
             logCompletion(generation, claim, tokenHint, completion, null);
-        } catch (PersonaSurveySourceException exception) {
-            recordFailure(claim, PersonaCreationErrorCode.SOURCE_UNAVAILABLE,
-                    false, tokenHint);
+        } catch (PersonaGenerationInputException exception) {
+            PersonaCreationErrorCode failureCode = switch (exception.code()) {
+                case INPUT_UNAVAILABLE -> PersonaCreationErrorCode
+                        .PERSONA_GENERATION_INPUT_UNAVAILABLE;
+                case FINGERPRINT_MISMATCH -> PersonaCreationErrorCode
+                        .PERSONA_GENERATION_INPUT_FINGERPRINT_MISMATCH;
+                case INTEGRITY_ERROR -> PersonaCreationErrorCode
+                        .PERSONA_GENERATION_INPUT_INTEGRITY_ERROR;
+            };
+            if (exception.code()
+                    == PersonaGenerationInputException.ErrorCode
+                    .FINGERPRINT_MISMATCH) {
+                metrics.inputFingerprintMismatch();
+            }
+            recordFailure(claim, failureCode, false, tokenHint);
         } catch (PersonaCreationException exception) {
             recordFailure(claim, exception.errorCode(),
                     exception.retryable(), tokenHint);
         } catch (PersonaGenerationPersistenceException exception) {
-            recordFailure(claim,
-                    PersonaCreationErrorCode.PERSONA_ID_ALREADY_LINKED,
-                    false, tokenHint);
+            recordPersistenceFailure(claim, exception, tokenHint);
         } catch (RuntimeException exception) {
             recordFailure(claim, PersonaCreationErrorCode.INTERNAL_ERROR,
                     true, tokenHint);
         }
+    }
+
+    private static void validateInput(
+            PersonaGeneration generation,
+            PersonaGenerationInputSnapshot input
+    ) {
+        if (!generation.id().equals(input.generationId())
+                || !generation.sourceId().equals(input.sourceId())) {
+            throw new PersonaGenerationInputException(
+                    PersonaGenerationInputException.ErrorCode.INTEGRITY_ERROR,
+                    "Persona generation input metadata does not match generation");
+        }
+    }
+
+    private void recordPersistenceFailure(
+            ClaimedPersonaGeneration claim,
+            PersonaGenerationPersistenceException exception,
+            String tokenHint
+    ) {
+        PersonaCreationErrorCode failureCode = switch (exception.errorCode()) {
+            case SOURCE_ALREADY_LINKED -> PersonaCreationErrorCode
+                    .PERSONA_SOURCE_ALREADY_LINKED;
+            case PERSONA_ID_ALREADY_LINKED -> PersonaCreationErrorCode
+                    .PERSONA_ID_ALREADY_LINKED;
+            case INTEGRITY_CONSTRAINT_VIOLATION -> PersonaCreationErrorCode
+                    .PERSONA_PERSISTENCE_INTEGRITY_ERROR;
+        };
+        if (exception.errorCode()
+                == PersonaGenerationPersistenceException.ErrorCode
+                .INTEGRITY_CONSTRAINT_VIOLATION) {
+            metrics.persistenceIntegrityFailure();
+        }
+        log.error(
+                "Persona generation persistence failure: generationId={}, attemptNumber={}, claimTokenHint={}, persistenceErrorCode={}, generationFailureCode={}, terminal=true",
+                claim.generation().id().value(), claim.attemptNumber(),
+                tokenHint, exception.errorCode(), failureCode);
+        recordFailure(claim, failureCode, false, tokenHint);
     }
 
     private void recordFailure(

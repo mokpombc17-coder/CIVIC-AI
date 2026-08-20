@@ -6,21 +6,12 @@ import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.UUID;
 
-@Component
-@Profile("local")
-@ConditionalOnProperty(
-        prefix = "vote.persona",
-        name = "provider",
-        havingValue = "fake")
 public class LocalPersonaFakeCreationAdapter
         implements PersonaCreationPort {
 

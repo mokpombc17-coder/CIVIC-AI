@@ -84,4 +84,43 @@ class PersonaUserControllerTest {
 
         verify(currentPersona).findCurrent(new PersonaUserId("user-a"));
     }
+
+    @Test
+    void distinguishesManualRetryFromAutomaticRetryWithoutLeakingClaim()
+            throws Exception {
+        PersonaGeneration generation = PersonaGeneration.pending(
+                new PersonaGenerationId(UUID.randomUUID()),
+                PersonaSourceType.SURVEY_RESPONSE,
+                new PersonaSourceId(UUID.randomUUID()),
+                Instant.parse("2026-08-20T00:00:00Z"));
+        PersonaGenerationClaimToken token =
+                new PersonaGenerationClaimToken(UUID.randomUUID());
+        generation.claim(
+                token,
+                Instant.parse("2026-08-20T00:00:01Z"),
+                Instant.parse("2026-08-20T00:01:01Z"));
+        generation.fail(
+                token,
+                "PERSONA_INVALID_RESPONSE",
+                Instant.parse("2026-08-20T00:00:02Z"),
+                null);
+        generation.scheduleManualRetry(
+                Instant.parse("2026-08-20T00:02:00Z"));
+        when(currentPersona.findCurrent(new PersonaUserId("user-a")))
+                .thenReturn(CurrentPersonaStatus.from(
+                        generation, Optional.empty()));
+
+        mockMvc.perform(get("/api/v1/me/persona-status")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.retryScheduled").value(true))
+                .andExpect(jsonPath("$.retryTrigger").value("MANUAL"))
+                .andExpect(jsonPath("$.automaticRetryScheduled")
+                        .value(false))
+                .andExpect(jsonPath("$.terminalFailure").value(false))
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(
+                                org.hamcrest.Matchers.containsString(
+                                        "claimToken"))));
+    }
 }

@@ -11,6 +11,7 @@ import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.security.VoteScopes;
+import com.hamcheeze.vote.persona.infra.PersonaGenerationMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = "vote.security.local-admin-api-enabled=true")
@@ -65,6 +68,9 @@ class PersonaGenerationRetryApiIntegrationTest {
 
     @Autowired
     private PersonaGenerationRetryService retryService;
+
+    @MockitoSpyBean
+    private PersonaGenerationMetrics metrics;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -136,6 +142,12 @@ class PersonaGenerationRetryApiIntegrationTest {
                 .attemptCount()).isEqualTo(1);
         assertThat(generations.findById(generation.id()).orElseThrow()
                 .nextAttemptAt()).isPresent();
+        assertThat(generations.findById(generation.id()).orElseThrow()
+                .retryTrigger()).contains(
+                        com.hamcheeze.vote.persona.domain
+                                .PersonaGenerationRetryTrigger.MANUAL);
+        verify(metrics).manualRetryScheduled();
+        verify(metrics).manualRetryIdempotent();
     }
 
     @Test
@@ -258,6 +270,7 @@ class PersonaGenerationRetryApiIntegrationTest {
         assertThat(generations.findById(auditFailure.id()).orElseThrow()
                 .nextAttemptAt()).isEmpty();
         assertThat(count("persona_generation_retry_requests")).isZero();
+        verify(metrics, never()).manualRetryScheduled();
     }
 
     @Test
@@ -273,6 +286,7 @@ class PersonaGenerationRetryApiIntegrationTest {
                 .hasRootCauseMessage("forced generation failure");
 
         assertThat(count("persona_generation_retry_requests")).isZero();
+        verify(metrics, never()).manualRetryScheduled();
     }
 
     private MvcResult requestRetry(

@@ -22,6 +22,7 @@ public final class PersonaGeneration {
     private Instant processingStartedAt;
     private Instant completedAt;
     private Instant nextAttemptAt;
+    private PersonaGenerationRetryTrigger retryTrigger;
     private PersonaGenerationClaimToken claimToken;
     private Instant leaseExpiresAt;
     private Instant updatedAt;
@@ -38,6 +39,7 @@ public final class PersonaGeneration {
             Instant processingStartedAt,
             Instant completedAt,
             Instant nextAttemptAt,
+            PersonaGenerationRetryTrigger retryTrigger,
             PersonaGenerationClaimToken claimToken,
             Instant leaseExpiresAt,
             Instant updatedAt
@@ -53,6 +55,7 @@ public final class PersonaGeneration {
         this.processingStartedAt = processingStartedAt;
         this.completedAt = completedAt;
         this.nextAttemptAt = nextAttemptAt;
+        this.retryTrigger = retryTrigger;
         this.claimToken = claimToken;
         this.leaseExpiresAt = leaseExpiresAt;
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
@@ -68,7 +71,31 @@ public final class PersonaGeneration {
         return new PersonaGeneration(
                 id, sourceType, sourceId, PersonaGenerationStatus.PENDING,
                 0, null, null, createdAt, null, null, createdAt,
-                null, null, createdAt);
+                null, null, null, createdAt);
+    }
+
+    public static PersonaGeneration restore(
+            PersonaGenerationId id,
+            PersonaSourceType sourceType,
+            PersonaSourceId sourceId,
+            PersonaGenerationStatus status,
+            int attemptCount,
+            PersonaId personaId,
+            String lastErrorCode,
+            Instant createdAt,
+            Instant processingStartedAt,
+            Instant completedAt,
+            Instant nextAttemptAt,
+            PersonaGenerationRetryTrigger retryTrigger,
+            PersonaGenerationClaimToken claimToken,
+            Instant leaseExpiresAt,
+            Instant updatedAt
+    ) {
+        return new PersonaGeneration(
+                id, sourceType, sourceId, status, attemptCount, personaId,
+                lastErrorCode, createdAt, processingStartedAt, completedAt,
+                nextAttemptAt, retryTrigger, claimToken, leaseExpiresAt,
+                updatedAt);
     }
 
     public static PersonaGeneration restore(
@@ -87,10 +114,15 @@ public final class PersonaGeneration {
             Instant leaseExpiresAt,
             Instant updatedAt
     ) {
-        return new PersonaGeneration(
+        PersonaGenerationRetryTrigger trigger =
+                status == PersonaGenerationStatus.FAILED
+                        && nextAttemptAt != null
+                        ? PersonaGenerationRetryTrigger.AUTOMATIC
+                        : null;
+        return restore(
                 id, sourceType, sourceId, status, attemptCount, personaId,
                 lastErrorCode, createdAt, processingStartedAt, completedAt,
-                nextAttemptAt, claimToken, leaseExpiresAt, updatedAt);
+                nextAttemptAt, trigger, claimToken, leaseExpiresAt, updatedAt);
     }
 
     public void claim(
@@ -117,6 +149,7 @@ public final class PersonaGeneration {
         processingStartedAt = startedAt;
         completedAt = null;
         nextAttemptAt = null;
+        retryTrigger = null;
         claimToken = token;
         leaseExpiresAt = expiresAt;
         updatedAt = startedAt;
@@ -138,6 +171,7 @@ public final class PersonaGeneration {
         lastErrorCode = null;
         completedAt = succeededAt;
         nextAttemptAt = null;
+        retryTrigger = null;
         claimToken = null;
         leaseExpiresAt = null;
         updatedAt = succeededAt;
@@ -149,7 +183,8 @@ public final class PersonaGeneration {
             PersonaGenerationClaimToken token,
             String errorCode,
             Instant failedAt,
-            Instant retryAt
+            Instant retryAt,
+            PersonaGenerationRetryTrigger trigger
     ) {
         if (!ownsActiveClaim(token)) {
             return false;
@@ -162,16 +197,35 @@ public final class PersonaGeneration {
                     "retryAt",
                     "retryAt must not be before failedAt");
         }
+        if ((retryAt == null) != (trigger == null)) {
+            throw PersonaDomainException.invariant(
+                    "PERSONA_GENERATION_RETRY_TRIGGER_INVALID",
+                    "retryTrigger",
+                    "retryAt and retryTrigger must either both exist or both be null");
+        }
         status = PersonaGenerationStatus.FAILED;
         personaId = null;
         lastErrorCode = normalizedError;
         completedAt = null;
         nextAttemptAt = retryAt;
+        retryTrigger = trigger;
         claimToken = null;
         leaseExpiresAt = null;
         updatedAt = failedAt;
         validateConsistency();
         return true;
+    }
+
+    public boolean fail(
+            PersonaGenerationClaimToken token,
+            String errorCode,
+            Instant failedAt,
+            Instant retryAt
+    ) {
+        return fail(
+                token, errorCode, failedAt, retryAt,
+                retryAt == null ? null
+                        : PersonaGenerationRetryTrigger.AUTOMATIC);
     }
 
     public boolean expireLease(
@@ -189,7 +243,9 @@ public final class PersonaGeneration {
                 token,
                 "PERSONA_PROCESSING_LEASE_EXPIRED",
                 observedAt,
-                retryAt);
+                retryAt,
+                retryAt == null ? null
+                        : PersonaGenerationRetryTrigger.AUTOMATIC);
     }
 
     public void scheduleManualRetry(Instant requestedAt) {
@@ -208,6 +264,7 @@ public final class PersonaGeneration {
                     "requestedAt must not be before updatedAt");
         }
         nextAttemptAt = requestedAt;
+        retryTrigger = PersonaGenerationRetryTrigger.MANUAL;
         updatedAt = requestedAt;
         validateConsistency();
     }
@@ -250,6 +307,7 @@ public final class PersonaGeneration {
         if (attemptCount != 0 || personaId != null || lastErrorCode != null
                 || processingStartedAt != null || completedAt != null
                 || nextAttemptAt == null || claimToken != null
+                || retryTrigger != null
                 || leaseExpiresAt != null) {
             throw inconsistent("pending fields are inconsistent");
         }
@@ -258,7 +316,8 @@ public final class PersonaGeneration {
     private void validateProcessing() {
         if (attemptCount < 1 || personaId != null || lastErrorCode != null
                 || processingStartedAt == null || completedAt != null
-                || nextAttemptAt != null || claimToken == null
+                || nextAttemptAt != null || retryTrigger != null
+                || claimToken == null
                 || leaseExpiresAt == null
                 || !leaseExpiresAt.isAfter(processingStartedAt)) {
             throw inconsistent("processing fields are inconsistent");
@@ -269,7 +328,8 @@ public final class PersonaGeneration {
         if (attemptCount < 1 || personaId == null || lastErrorCode != null
                 || processingStartedAt == null || completedAt == null
                 || completedAt.isBefore(processingStartedAt)
-                || nextAttemptAt != null || claimToken != null
+                || nextAttemptAt != null || retryTrigger != null
+                || claimToken != null
                 || leaseExpiresAt != null) {
             throw inconsistent("succeeded fields are inconsistent");
         }
@@ -279,6 +339,7 @@ public final class PersonaGeneration {
         if (attemptCount < 1 || personaId != null || lastErrorCode == null
                 || processingStartedAt == null || completedAt != null
                 || claimToken != null || leaseExpiresAt != null
+                || ((nextAttemptAt == null) != (retryTrigger == null))
                 || (nextAttemptAt != null
                 && nextAttemptAt.isBefore(updatedAt))) {
             throw inconsistent("failed fields are inconsistent");
@@ -338,6 +399,7 @@ public final class PersonaGeneration {
     public Optional<Instant> processingStartedAt() { return Optional.ofNullable(processingStartedAt); }
     public Optional<Instant> completedAt() { return Optional.ofNullable(completedAt); }
     public Optional<Instant> nextAttemptAt() { return Optional.ofNullable(nextAttemptAt); }
+    public Optional<PersonaGenerationRetryTrigger> retryTrigger() { return Optional.ofNullable(retryTrigger); }
     public Optional<PersonaGenerationClaimToken> claimToken() { return Optional.ofNullable(claimToken); }
     public Optional<Instant> leaseExpiresAt() { return Optional.ofNullable(leaseExpiresAt); }
     public Instant updatedAt() { return updatedAt; }

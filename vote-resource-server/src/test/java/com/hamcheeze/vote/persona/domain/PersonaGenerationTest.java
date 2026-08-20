@@ -178,6 +178,7 @@ class PersonaGenerationTest {
         assertThat(generation.lastErrorCode())
                 .contains("PERSONA_PROCESSING_LEASE_EXPIRED");
         assertThat(generation.nextAttemptAt()).isEmpty();
+        assertThat(generation.retryTrigger()).isEmpty();
         assertThat(generation.claimToken()).isEmpty();
     }
 
@@ -194,10 +195,13 @@ class PersonaGenerationTest {
         assertThat(generation.attemptCount()).isEqualTo(1);
         assertThat(generation.nextAttemptAt())
                 .contains(CREATED_AT.plusSeconds(3));
+        assertThat(generation.retryTrigger())
+                .contains(PersonaGenerationRetryTrigger.MANUAL);
         PersonaGenerationClaimToken retryToken = claim(
                 generation, CREATED_AT.plusSeconds(3));
         assertThat(generation.attemptCount()).isEqualTo(2);
         assertThat(generation.claimToken()).contains(retryToken);
+        assertThat(generation.retryTrigger()).isEmpty();
     }
 
     @Test
