@@ -85,14 +85,24 @@ public class SurveyResponseSubmittedOutboxStatusQuery {
                     ) AS oldest_pending_at,
                     count(*) FILTER (
                         WHERE dead_lettered_at IS NOT NULL
-                    ) AS dead_letter_count
-                FROM integration_outbox
+                    ) AS dead_letter_count,
+                    count(*) FILTER (
+                        WHERE dead_lettered_at IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM survey_response_submitted_replays replay
+                              WHERE replay.original_event_id = event.event_id
+                          )
+                    ) AS unresolved_dead_letter_count
+                FROM integration_outbox event
                 WHERE event_type = ?
                 """,
                 (resultSet, rowNumber) -> new Counts(
                         resultSet.getLong("pending_count"),
                         timestamp(resultSet, "oldest_pending_at"),
-                        resultSet.getLong("dead_letter_count")),
+                        resultSet.getLong("dead_letter_count"),
+                        resultSet.getLong(
+                                "unresolved_dead_letter_count")),
                 SurveyResponseSubmittedV1.EVENT_TYPE);
         long missingEventCount = jdbcTemplate.queryForObject(
                 """
@@ -112,6 +122,7 @@ public class SurveyResponseSubmittedOutboxStatusQuery {
                 pendingAgeSeconds(
                         counts.oldestPendingAt(), observedAt),
                 counts.deadLetterCount(),
+                counts.unresolvedDeadLetterCount(),
                 missingEventCount);
     }
 
@@ -138,7 +149,8 @@ public class SurveyResponseSubmittedOutboxStatusQuery {
     private record Counts(
             long pendingCount,
             Instant oldestPendingAt,
-            long deadLetterCount
+            long deadLetterCount,
+            long unresolvedDeadLetterCount
     ) {
     }
 
@@ -152,6 +164,7 @@ public class SurveyResponseSubmittedOutboxStatusQuery {
             long pendingCount,
             long oldestPendingAgeSeconds,
             long deadLetterCount,
+            long unresolvedDeadLetterCount,
             long missingEventCount
     ) {
     }

@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.survey.api;
 
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyException;
+import com.hamcheeze.vote.survey.application.integration.SurveyResponseSubmittedReplayException;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyValidationException;
 import com.hamcheeze.vote.survey.domain.common.SurveyViolation;
@@ -41,6 +42,27 @@ final class SurveyApiExceptionHandler {
                 HttpStatus.valueOf(exception.httpStatus()),
                 exception.code().name(), exception.getMessage(),
                 request, List.of());
+    }
+
+    @ExceptionHandler(SurveyResponseSubmittedReplayException.class)
+    ResponseEntity<ProblemDetail> replay(
+            SurveyResponseSubmittedReplayException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = switch (exception.code()) {
+            case SurveyResponseSubmittedReplayException.EVENT_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+            case SurveyResponseSubmittedReplayException.EVENT_TYPE_REQUIRED,
+                 SurveyResponseSubmittedReplayException.DEAD_LETTER_REQUIRED ->
+                    HttpStatus.CONFLICT;
+            default -> HttpStatus.CONFLICT;
+        };
+        return response(
+                status,
+                exception.code(),
+                exception.getMessage(),
+                request,
+                List.of());
     }
 
     @ExceptionHandler(SurveyValidationException.class)

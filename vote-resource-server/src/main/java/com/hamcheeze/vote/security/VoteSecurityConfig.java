@@ -38,6 +38,11 @@ public class VoteSecurityConfig {
                                 "/actuator/health/**")
                         .permitAll()
                         .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/operations/survey/outbox-events/*/replays")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.SURVEY_OUTBOX_REPLAYS_WRITE))
+                        .requestMatchers(
                                 "/api/v1/admin",
                                 "/api/v1/admin/**")
                         .access((authentication, context) ->

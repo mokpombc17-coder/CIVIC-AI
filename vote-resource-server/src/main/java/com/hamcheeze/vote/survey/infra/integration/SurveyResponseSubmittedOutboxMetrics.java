@@ -41,6 +41,13 @@ class SurveyResponseSubmittedOutboxMetrics implements MeterBinder {
                 .description("Dead-lettered SurveyResponseSubmitted events")
                 .register(registry);
         Gauge.builder(
+                        "vote.survey.response.outbox.dead.letter.unresolved",
+                        statusQuery,
+                        query -> query.snapshot()
+                                .unresolvedDeadLetterCount())
+                .description("Unresolved dead-lettered SurveyResponseSubmitted events")
+                .register(registry);
+        Gauge.builder(
                         "vote.survey.response.outbox.missing",
                         statusQuery,
                         query -> query.snapshot().missingEventCount())

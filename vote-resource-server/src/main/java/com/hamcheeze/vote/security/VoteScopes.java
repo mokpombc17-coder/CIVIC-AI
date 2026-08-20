@@ -6,6 +6,8 @@ public final class VoteScopes {
             "vote:surveys:read";
     public static final String SURVEY_RESPONSES_WRITE =
             "vote:survey-responses:write";
+    public static final String SURVEY_OUTBOX_REPLAYS_WRITE =
+            "vote:survey-outbox-replays:write";
     public static final String PERSONAS_READ =
             "vote:personas:read";
     public static final String TASKS_READ =

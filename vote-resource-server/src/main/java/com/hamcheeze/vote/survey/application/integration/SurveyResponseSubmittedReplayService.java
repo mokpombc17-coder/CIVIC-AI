@@ -50,7 +50,8 @@ public class SurveyResponseSubmittedReplayService {
         IntegrationOutboxMessage original = outbox
                 .findByEventIdForUpdate(command.eventId())
                 .orElseThrow(() -> failure(
-                        "SURVEY_RESPONSE_SUBMITTED_EVENT_NOT_FOUND",
+                        SurveyResponseSubmittedReplayException
+                                .EVENT_NOT_FOUND,
                         "SurveyResponseSubmitted outbox event does not exist"));
         requireSurveyResponseSubmitted(original);
         requireDeadLetter(original);
@@ -92,7 +93,8 @@ public class SurveyResponseSubmittedReplayService {
         if (!SurveyResponseSubmittedV1.EVENT_TYPE.equals(
                 message.event().eventType())) {
             throw failure(
-                    "SURVEY_RESPONSE_SUBMITTED_EVENT_TYPE_REQUIRED",
+                    SurveyResponseSubmittedReplayException
+                            .EVENT_TYPE_REQUIRED,
                     "only SurveyResponseSubmitted outbox events can be "
                             + "replayed through this command");
         }
@@ -104,7 +106,8 @@ public class SurveyResponseSubmittedReplayService {
         if (!message.deadLettered()) {
             String state = message.published() ? "DELIVERED" : "PENDING";
             throw failure(
-                    "SURVEY_RESPONSE_SUBMITTED_DEAD_LETTER_REQUIRED",
+                    SurveyResponseSubmittedReplayException
+                            .DEAD_LETTER_REQUIRED,
                     "only DEAD_LETTER events can be replayed; current state="
                             + state);
         }

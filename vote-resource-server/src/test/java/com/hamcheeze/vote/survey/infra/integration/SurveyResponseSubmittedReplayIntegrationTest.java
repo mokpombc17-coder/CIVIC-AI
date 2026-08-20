@@ -63,7 +63,7 @@ class SurveyResponseSubmittedReplayIntegrationTest {
     @Autowired
     private SurveyResponseSubmittedReplayService replays;
 
-    @Autowired
+    @MockitoSpyBean
     private IntegrationOutboxRepository outbox;
 
     @Autowired
@@ -210,6 +210,20 @@ class SurveyResponseSubmittedReplayIntegrationTest {
     }
 
     @Test
+    void replayOutboxInsertFailureDoesNotStoreAudit() {
+        SubmittedFixture fixture = submitSurvey();
+        deadLetter(fixture.eventId());
+        doThrow(new IllegalStateException("forced replay outbox failure"))
+                .when(outbox).insert(any());
+
+        assertThatThrownBy(() -> replays.replay(command(fixture.eventId())))
+                .hasRootCauseMessage("forced replay outbox failure");
+
+        assertThat(count("integration_outbox")).isEqualTo(1);
+        assertThat(count("survey_response_submitted_replays")).isZero();
+    }
+
+    @Test
     void reportsPendingAgeDeadLetterAndMissingEventCounts() {
         SubmittedFixture fixture = submitSurvey();
         IntegrationOutboxMessage pending = outbox
@@ -226,19 +240,62 @@ class SurveyResponseSubmittedReplayIntegrationTest {
         assertThat(pendingSnapshot.pendingCount()).isEqualTo(1);
         assertThat(pendingSnapshot.oldestPendingAgeSeconds()).isEqualTo(41);
         assertThat(pendingSnapshot.deadLetterCount()).isZero();
+        assertThat(pendingSnapshot.unresolvedDeadLetterCount()).isZero();
         assertThat(pendingSnapshot.missingEventCount()).isZero();
 
         deadLetter(fixture.eventId());
         var deadLetterSnapshot = status.snapshot();
         assertThat(deadLetterSnapshot.pendingCount()).isZero();
         assertThat(deadLetterSnapshot.deadLetterCount()).isEqualTo(1);
+        assertThat(deadLetterSnapshot.unresolvedDeadLetterCount())
+                .isEqualTo(1);
 
         jdbcTemplate.update(
                 "DELETE FROM integration_outbox WHERE event_id = ?",
                 fixture.eventId());
         var missingSnapshot = status.snapshot();
         assertThat(missingSnapshot.deadLetterCount()).isZero();
+        assertThat(missingSnapshot.unresolvedDeadLetterCount()).isZero();
         assertThat(missingSnapshot.missingEventCount()).isEqualTo(1);
+    }
+
+    @Test
+    void unresolvedDeadLetterCountTracksReplayChains() {
+        SubmittedFixture fixture = submitSurvey();
+        IntegrationOutboxMessage original = outbox
+                .findByEventId(fixture.eventId()).orElseThrow();
+        SurveyResponseSubmittedOutboxStatusQuery status =
+                new SurveyResponseSubmittedOutboxStatusQuery(
+                        jdbcTemplate,
+                        Clock.fixed(
+                                original.createdAt().plusSeconds(60),
+                                ZoneOffset.UTC));
+
+        assertThat(status.snapshot().unresolvedDeadLetterCount()).isZero();
+
+        deadLetter(fixture.eventId());
+        assertThat(status.snapshot()).satisfies(snapshot -> {
+            assertThat(snapshot.deadLetterCount()).isEqualTo(1);
+            assertThat(snapshot.unresolvedDeadLetterCount()).isEqualTo(1);
+        });
+
+        var firstReplay = replays.replay(command(fixture.eventId()));
+        assertThat(status.snapshot()).satisfies(snapshot -> {
+            assertThat(snapshot.deadLetterCount()).isEqualTo(1);
+            assertThat(snapshot.unresolvedDeadLetterCount()).isZero();
+        });
+
+        deadLetter(firstReplay.audit().replayEventId());
+        assertThat(status.snapshot()).satisfies(snapshot -> {
+            assertThat(snapshot.deadLetterCount()).isEqualTo(2);
+            assertThat(snapshot.unresolvedDeadLetterCount()).isEqualTo(1);
+        });
+
+        replays.replay(command(firstReplay.audit().replayEventId()));
+        assertThat(status.snapshot()).satisfies(snapshot -> {
+            assertThat(snapshot.deadLetterCount()).isEqualTo(2);
+            assertThat(snapshot.unresolvedDeadLetterCount()).isZero();
+        });
     }
 
     private SubmittedFixture submitSurvey() {
