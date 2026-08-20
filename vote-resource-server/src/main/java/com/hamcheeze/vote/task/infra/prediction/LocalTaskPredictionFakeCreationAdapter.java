@@ -12,7 +12,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -24,10 +24,9 @@ import java.util.UUID;
 
 @Component
 @Profile("local")
-@ConditionalOnProperty(
-        prefix = "vote.task.prediction",
-        name = "provider",
-        havingValue = "fake")
+@ConditionalOnExpression(
+        "'${vote.task.prediction.enabled:false}' == 'true' and "
+                + "'${vote.task.prediction.provider:http}' == 'fake'")
 public class LocalTaskPredictionFakeCreationAdapter
         implements PredictionCreationPort {
 

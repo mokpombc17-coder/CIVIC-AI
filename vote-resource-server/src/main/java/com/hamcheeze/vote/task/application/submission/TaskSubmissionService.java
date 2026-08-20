@@ -14,6 +14,8 @@ import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionCompletedEventPublisher;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -22,6 +24,9 @@ import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
+import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionAvailability;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,9 +49,16 @@ public class TaskSubmissionService {
     private final TaskSubmissionRepository submissions;
     private final TaskSubmissionCompletedEventPublisher completedEvents;
     private final UserTransactionLock userTransactions;
+    private final TaskPredictionAvailability predictionAvailability;
     private final TaskSubmissionRequestHashFactory requestHashFactory =
             new TaskSubmissionRequestHashFactory();
     private final Clock clock;
+    private TaskSubmissionMetrics metrics;
+
+    @Autowired(required = false)
+    void setMetrics(TaskSubmissionMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     @Autowired
     public TaskSubmissionService(
@@ -57,10 +69,12 @@ public class TaskSubmissionService {
             TaskPredictionRepository predictions,
             TaskSubmissionRepository submissions,
             TaskSubmissionCompletedEventPublisher completedEvents,
-            UserTransactionLock userTransactions
+            UserTransactionLock userTransactions,
+            TaskPredictionAvailability predictionAvailability
     ) {
         this(idempotency, outcomeCodec, tasks, currentPersonas,
                 predictions, submissions, completedEvents, userTransactions,
+                predictionAvailability,
                 Clock.systemUTC());
     }
 
@@ -73,6 +87,7 @@ public class TaskSubmissionService {
             TaskSubmissionRepository submissions,
             TaskSubmissionCompletedEventPublisher completedEvents,
             UserTransactionLock userTransactions,
+            TaskPredictionAvailability predictionAvailability,
             Clock clock
     ) {
         this.idempotency = Objects.requireNonNull(
@@ -90,6 +105,8 @@ public class TaskSubmissionService {
                 completedEvents, "completedEvents");
         this.userTransactions = Objects.requireNonNull(
                 userTransactions, "userTransactions");
+        this.predictionAvailability = Objects.requireNonNull(
+                predictionAvailability, "predictionAvailability");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -106,6 +123,8 @@ public class TaskSubmissionService {
                         TaskIdempotencyKey.parse(idempotencyKey),
                         requestHashFactory.hash(
                                 command.taskId(),
+                                command.personaGenerationId(),
+                                command.personaVersionId(),
                                 command.predictionId(),
                                 command.answer()),
                         TaskSubmissionOutcomeCodec.SCHEMA_VERSION);
@@ -115,14 +134,39 @@ public class TaskSubmissionService {
                         outcomeCodec,
                         () -> submitInReceiptTransaction(
                                 authenticatedUserId, command));
-        return new SubmissionExecution(
+        SubmissionExecution result = new SubmissionExecution(
                 execution.result(), execution.replayed());
+        recordSuccessfulSubmission(result, command);
+        return result;
+    }
+
+    private void recordSuccessfulSubmission(
+            SubmissionExecution execution,
+            SubmitTaskCommand command
+    ) {
+        if (metrics == null || execution.replayed()
+                || !execution.outcome().succeeded()) {
+            return;
+        }
+        if (!(command.answer() instanceof WriteTaskReason)) {
+            metrics.aiAccepted();
+            return;
+        }
+        if (command.predictionId() == null) {
+            metrics.directWithoutPrediction();
+            return;
+        }
+        predictions.findById(command.predictionId())
+                .filter(prediction -> !prediction.status().terminal())
+                .ifPresent(ignored ->
+                        metrics.directWhilePredictionNonTerminal());
     }
 
     private TaskSubmissionOutcome submitInReceiptTransaction(
             TaskUserId userId,
             SubmitTaskCommand command
     ) {
+        userTransactions.lock(userId.value());
         Task task = tasks.findByIdForUpdate(command.taskId())
                 .orElse(null);
         if (task == null) {
@@ -152,7 +196,6 @@ public class TaskSubmissionService {
                             "submission is allowed only while task is open"));
         }
 
-        userTransactions.lock(userId.value());
         CurrentTaskPersona currentPersona = currentPersonas
                 .findCurrentUsable(userId)
                 .orElse(null);
@@ -167,18 +210,19 @@ public class TaskSubmissionService {
                             "a current usable persona is required"));
         }
 
-        TaskPrediction prediction = predictions
-                .findById(command.predictionId())
-                .orElse(null);
-        if (prediction == null) {
+        if (command.personaGenerationId() != null
+                && (!command.personaGenerationId().equals(
+                        currentPersona.generationId())
+                || !command.personaVersionId().equals(
+                        currentPersona.versionId()))) {
             return rejection(
                     409,
-                    "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
+                    "TASK_SUBMISSION_PERSONA_MISMATCH",
                     task.id(),
                     TaskViolation.of(
-                            "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
-                            "predictionId",
-                            "prediction is unavailable for submission"));
+                            "TASK_SUBMISSION_PERSONA_MISMATCH",
+                            "personaVersionId",
+                            "requested persona is not the current usable persona"));
         }
 
         if (submissions.findByUserAndTask(userId, task.id()).isPresent()) {
@@ -190,6 +234,32 @@ public class TaskSubmissionService {
                             "TASK_ALREADY_SUBMITTED",
                             "taskId",
                             "user already submitted this task"));
+        }
+
+        if (command.answer() instanceof AcceptTaskPredictedReason
+                && !predictionAvailability.enabled()) {
+            return rejection(
+                    409,
+                    "TASK_PREDICTION_DISABLED",
+                    task.id(),
+                    TaskViolation.of(
+                            "TASK_PREDICTION_DISABLED",
+                            "reasonSource",
+                            "AI_ACCEPTED is unavailable while prediction is disabled"));
+        }
+
+        TaskPrediction prediction = command.predictionId() == null
+                ? null
+                : predictions.findById(command.predictionId()).orElse(null);
+        if (command.predictionId() != null && prediction == null) {
+            return rejection(
+                    409,
+                    "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
+                    task.id(),
+                    TaskViolation.of(
+                            "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
+                            "predictionId",
+                            "prediction is unavailable for submission"));
         }
 
         try {
@@ -239,13 +309,26 @@ public class TaskSubmissionService {
 
     public record SubmitTaskCommand(
             TaskId taskId,
+            TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
             TaskPredictionId predictionId,
             TaskSubmissionAnswerCommand answer
     ) {
         public SubmitTaskCommand {
             Objects.requireNonNull(taskId, "taskId");
-            Objects.requireNonNull(predictionId, "predictionId");
+            if ((personaGenerationId == null) != (personaVersionId == null)) {
+                throw new IllegalArgumentException(
+                        "persona generation and version must be provided together");
+            }
             Objects.requireNonNull(answer, "answer");
+        }
+
+        public SubmitTaskCommand(
+                TaskId taskId,
+                TaskPredictionId predictionId,
+                TaskSubmissionAnswerCommand answer
+        ) {
+            this(taskId, null, null, predictionId, answer);
         }
     }
 

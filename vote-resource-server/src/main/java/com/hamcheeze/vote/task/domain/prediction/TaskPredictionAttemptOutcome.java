@@ -7,6 +7,7 @@ public enum TaskPredictionAttemptOutcome {
     NETWORK_ERROR,
     HTTP_ERROR,
     INVALID_RESPONSE,
+    LEASE_EXPIRED,
     IGNORED_LATE_RESPONSE;
 
     public boolean completed() {

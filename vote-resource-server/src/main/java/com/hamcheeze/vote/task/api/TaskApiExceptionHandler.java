@@ -95,6 +95,9 @@ final class TaskApiExceptionHandler {
     }
 
     private static HttpStatus domainStatus(String code) {
+        if (code.equals("TASK_PREDICTION_DISABLED")) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
         if (code.endsWith("_NOT_FOUND")) {
             return HttpStatus.NOT_FOUND;
         }

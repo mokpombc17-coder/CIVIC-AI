@@ -5,6 +5,8 @@ import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
 import com.hamcheeze.vote.task.application.port.out.PredictionCreationPort;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputSnapshotFactory;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
@@ -41,9 +43,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +58,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -59,7 +66,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
         "vote.survey.bootstrap.enabled=false",
         "vote.task.lifecycle.enabled=false",
-        "vote.task.prediction.enabled=false"
+        "vote.task.prediction.enabled=true",
+        "vote.task.prediction.provider=fake",
+        "vote.task.prediction.dispatcher-delay=1h",
+        "vote.task.prediction.lease-reaper-delay=1h"
 })
 @ActiveProfiles({"local", "test"})
 class TaskPredictionApplicationIntegrationTest {
@@ -73,6 +83,12 @@ class TaskPredictionApplicationIntegrationTest {
 
     @Autowired
     private TaskPredictionRepository predictions;
+
+    @Autowired
+    private TaskPredictionInputRepository predictionInputs;
+
+    @Autowired
+    private TaskPredictionInputSnapshotFactory predictionInputSnapshots;
 
     @Autowired
     private TaskPredictionStateService states;
@@ -95,6 +111,9 @@ class TaskPredictionApplicationIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     @Test
     void concurrentEnsureUsesOneRequestAndExternalWaitKeepsNoRowLock()
             throws Exception {
@@ -104,7 +123,9 @@ class TaskPredictionApplicationIntegrationTest {
         CurrentTaskPersonaQueryPort currentPersona = ignored ->
                 Optional.of(persona);
         TaskPredictionService service = new TaskPredictionService(
-                tasks, predictions, currentPersona, policy);
+                tasks, predictions, predictionInputs,
+                predictionInputSnapshots, currentPersona, policy,
+                new TaskPredictionAvailability(true));
         CountDownLatch start = new CountDownLatch(1);
 
         TaskPrediction first;
@@ -241,6 +262,139 @@ class TaskPredictionApplicationIntegrationTest {
                 });
     }
 
+    @Test
+    void completionHoldingPredictionRowLockWinsExpiredLeaseRace()
+            throws Exception {
+        Task task = persistOpenTask();
+        TaskUserId userId = new TaskUserId(
+                "task-completion-first-" + UUID.randomUUID());
+        CurrentTaskPersona persona = insertSucceededPersona(userId.value());
+        TaskPrediction prediction = ensurePrediction(task, userId, persona);
+        MutableClock clock = new MutableClock(Instant.now());
+        TaskPredictionStateService stateService = stateService(clock);
+        TaskPredictionMaintenanceService maintenance = maintenance(clock);
+        TaskPredictionDispatchClaim claim = stateService.claimNext(
+                "completion-first").orElseThrow();
+        clock.set(predictions.findById(prediction.id()).orElseThrow()
+                .leaseExpiresAt().plusMillis(1));
+
+        CountDownLatch completionLocked = new CountDownLatch(1);
+        CountDownLatch reaperFinished = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var completion = executor.submit(() -> new TransactionTemplate(
+                    transactionManager).execute(status -> {
+                predictions.findByIdForUpdate(prediction.id()).orElseThrow();
+                completionLocked.countDown();
+                try {
+                    assertThat(reaperFinished.await(
+                            10, TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+                return stateService.completeSuccess(
+                        claim, success(claim.command()));
+            }));
+            var reaper = executor.submit(() -> {
+                assertThat(completionLocked.await(
+                        10, TimeUnit.SECONDS)).isTrue();
+                boolean recovered = maintenance.recoverNextExpiredLease();
+                reaperFinished.countDown();
+                return recovered;
+            });
+
+            assertThat(reaper.get(10, TimeUnit.SECONDS)).isFalse();
+            assertThat(completion.get(10, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(predictions.findById(prediction.id()).orElseThrow()
+                .status()).isEqualTo(TaskPredictionStatus.SUCCEEDED);
+        assertThat(predictions.findAttempts(prediction.id()))
+                .singleElement()
+                .extracting(TaskPredictionAttempt::outcome)
+                .isEqualTo(TaskPredictionAttemptOutcome.SUCCEEDED);
+    }
+
+    @Test
+    void reaperHoldingPredictionRowLockFencesLateCompletion()
+            throws Exception {
+        Task task = persistOpenTask();
+        TaskUserId userId = new TaskUserId(
+                "task-reaper-first-" + UUID.randomUUID());
+        CurrentTaskPersona persona = insertSucceededPersona(userId.value());
+        TaskPrediction prediction = ensurePrediction(task, userId, persona);
+        MutableClock clock = new MutableClock(Instant.now());
+        TaskPredictionStateService stateService = stateService(clock);
+        TaskPredictionMaintenanceService maintenance = maintenance(clock);
+        TaskPredictionDispatchClaim claim = stateService.claimNext(
+                "reaper-first").orElseThrow();
+        clock.set(predictions.findById(prediction.id()).orElseThrow()
+                .leaseExpiresAt().plusMillis(1));
+
+        CountDownLatch reaperLocked = new CountDownLatch(1);
+        CountDownLatch completionStarted = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var reaper = executor.submit(() -> new TransactionTemplate(
+                    transactionManager).execute(status -> {
+                predictions.findByIdForUpdate(prediction.id()).orElseThrow();
+                reaperLocked.countDown();
+                try {
+                    assertThat(completionStarted.await(
+                            10, TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+                return maintenance.recoverNextExpiredLease();
+            }));
+            var completion = executor.submit(() -> {
+                assertThat(reaperLocked.await(
+                        10, TimeUnit.SECONDS)).isTrue();
+                completionStarted.countDown();
+                return stateService.completeSuccess(
+                        claim, success(claim.command()));
+            });
+
+            assertThat(reaper.get(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(completion.get(10, TimeUnit.SECONDS)).isFalse();
+        }
+
+        assertThat(predictions.findById(prediction.id()).orElseThrow()
+                .status()).isEqualTo(TaskPredictionStatus.RETRY_WAIT);
+        assertThat(predictions.findAttempts(prediction.id()))
+                .singleElement()
+                .satisfies(attempt -> {
+                    assertThat(attempt.outcome())
+                            .isEqualTo(TaskPredictionAttemptOutcome.LEASE_EXPIRED);
+                    assertThat(attempt.lateCompletionObservedAt()).isNotNull();
+                });
+    }
+
+    private TaskPrediction ensurePrediction(
+            Task task,
+            TaskUserId userId,
+            CurrentTaskPersona persona
+    ) {
+        CurrentTaskPersonaQueryPort currentPersona = ignored ->
+                Optional.of(persona);
+        return new TaskPredictionService(
+                tasks, predictions, predictionInputs,
+                predictionInputSnapshots, currentPersona, policy,
+                new TaskPredictionAvailability(true))
+                .ensureTaskPrediction(userId, task.id())
+                .prediction();
+    }
+
+    private TaskPredictionStateService stateService(Clock clock) {
+        return new TaskPredictionStateService(
+                predictions, predictionInputs, tasks, policy, clock);
+    }
+
+    private TaskPredictionMaintenanceService maintenance(Clock clock) {
+        return new TaskPredictionMaintenanceService(
+                predictions, tasks, policy, clock);
+    }
+
     private Task persistOpenTask() {
         Instant now = Instant.now();
         TaskQuestion question = shortTextQuestion();
@@ -257,6 +411,34 @@ class TaskPredictionApplicationIntegrationTest {
                 null,
                 now.minus(1, ChronoUnit.SECONDS));
         return tasks.save(task);
+    }
+
+    private static final class MutableClock extends Clock {
+
+        private final AtomicReference<Instant> now;
+
+        private MutableClock(Instant now) {
+            this.now = new AtomicReference<>(now);
+        }
+
+        void set(Instant instant) {
+            now.set(instant);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneId.of("UTC");
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now.get();
+        }
     }
 
     private TaskQuestion shortTextQuestion() {

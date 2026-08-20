@@ -27,15 +27,20 @@ final class TaskSubmissionJpaMapper {
     ) {
         TaskJpaEntity taskEntity = entityManager.find(
                 TaskJpaEntity.class, entity.taskId());
-        TaskPredictionJpaEntity predictionEntity = entityManager.find(
-                TaskPredictionJpaEntity.class, entity.predictionId());
-        if (taskEntity == null || predictionEntity == null) {
+        TaskPredictionJpaEntity predictionEntity = entity.predictionId() == null
+                ? null
+                : entityManager.find(
+                        TaskPredictionJpaEntity.class, entity.predictionId());
+        if (taskEntity == null
+                || (entity.predictionId() != null && predictionEntity == null)) {
             throw new IllegalStateException(
                     "submission references missing task or prediction");
         }
         Task task = TaskJpaMapper.toDomain(entityManager, taskEntity);
-        TaskPrediction prediction = TaskPredictionJpaMapper.toDomain(
-                entityManager, predictionEntity);
+        TaskPrediction prediction = predictionEntity == null
+                ? null
+                : TaskPredictionJpaMapper.toDomain(
+                        entityManager, predictionEntity);
         return TaskSubmission.restore(
                 new TaskSubmissionId(entity.id()),
                 new TaskUserId(entity.userId()),

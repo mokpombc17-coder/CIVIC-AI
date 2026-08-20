@@ -3,6 +3,8 @@ package com.hamcheeze.vote.task.application.prediction;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputSnapshotFactory;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class TaskPredictionServiceTest {
@@ -41,12 +44,16 @@ class TaskPredictionServiceTest {
     private TaskRepository tasks;
     private TaskPredictionRepository predictions;
     private CurrentTaskPersonaQueryPort currentPersonas;
+    private TaskPredictionInputRepository inputs;
+    private TaskPredictionInputSnapshotFactory inputSnapshots;
     private TaskPredictionService service;
 
     @BeforeEach
     void setUp() {
         tasks = mock(TaskRepository.class);
         predictions = mock(TaskPredictionRepository.class);
+        inputs = mock(TaskPredictionInputRepository.class);
+        inputSnapshots = mock(TaskPredictionInputSnapshotFactory.class);
         currentPersonas = mock(CurrentTaskPersonaQueryPort.class);
         TaskPredictionApplicationPolicy policy =
                 new TaskPredictionApplicationPolicy(
@@ -60,13 +67,61 @@ class TaskPredictionServiceTest {
         service = new TaskPredictionService(
                 tasks,
                 predictions,
+                inputs,
+                inputSnapshots,
                 currentPersonas,
                 policy,
+                new TaskPredictionAvailability(true),
                 Clock.fixed(NOW.plusSeconds(20), ZoneOffset.UTC));
         when(tasks.findById(taskId())).thenReturn(Optional.of(openTask()));
         when(currentPersonas.findCurrentUsable(userId())).thenReturn(
                 Optional.of(new CurrentTaskPersona(
                         personaGenerationId(), personaVersionId(), personaId())));
+        when(inputSnapshots.create(any(), any(), any()))
+                .thenAnswer(invocation -> input(
+                        invocation.<TaskPrediction>getArgument(0)));
+        when(inputs.insert(any())).thenAnswer(
+                invocation -> invocation.getArgument(0));
+        when(inputs.findByPredictionId(any()))
+                .thenAnswer(invocation -> Optional.of(
+                        input(invocation.<TaskPredictionId>getArgument(0))));
+    }
+
+    private TaskPredictionInputSnapshot input(TaskPrediction prediction) {
+        return input(prediction.id());
+    }
+
+    private TaskPredictionInputSnapshot input(TaskPredictionId predictionId) {
+        return TaskPredictionInputSnapshot.create(
+                predictionId, taskId(), userId(), personaGenerationId(),
+                personaVersionId(), personaId(),
+                openTask().schedule().scheduledCloseAt(), 1,
+                "candidate-policy-v1", "{}", NOW.plusSeconds(20));
+    }
+
+    @Test
+    void disabledFeatureRejectsBeforeAnyPredictionStateIsCreated() {
+        TaskPredictionService disabled = new TaskPredictionService(
+                tasks, predictions, inputs, inputSnapshots,
+                currentPersonas,
+                new TaskPredictionApplicationPolicy(
+                        "candidate-policy-v1",
+                        new com.hamcheeze.vote.task.domain.prediction
+                                .TaskPredictionRetryPolicy(
+                                Duration.ofSeconds(60), 2,
+                                Duration.ofSeconds(30)),
+                        10),
+                new TaskPredictionAvailability(false),
+                Clock.fixed(NOW.plusSeconds(20), ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> disabled.ensureTaskPrediction(
+                userId(), taskId()))
+                .isInstanceOfSatisfying(TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo("TASK_PREDICTION_DISABLED"));
+        verify(predictions, never()).insert(any());
+        verify(inputs, never()).insert(any());
+        verifyNoInteractions(inputSnapshots);
     }
 
     @Test
@@ -82,7 +137,7 @@ class TaskPredictionServiceTest {
 
         assertThat(result.created()).isTrue();
         assertThat(result.predictedAnswerAllowed()).isFalse();
-        assertThat(result.directAnswerAllowed()).isFalse();
+        assertThat(result.directAnswerAllowed()).isTrue();
         assertThat(result.prediction().requestId())
                 .isEqualTo(result.prediction().id());
         assertThat(result.prediction().personaGenerationId())

@@ -8,6 +8,7 @@ import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskText;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -16,6 +17,7 @@ import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +43,9 @@ public final class TaskPrediction {
     private final Instant createdAt;
     private Instant startedAt;
     private Instant completedAt;
+    private TaskPredictionAttemptId activeAttemptId;
+    private Instant processingStartedAt;
+    private Instant leaseExpiresAt;
 
     private TaskPrediction(
             TaskPredictionId id,
@@ -57,7 +62,10 @@ public final class TaskPrediction {
             TaskPredictionError lastError,
             Instant createdAt,
             Instant startedAt,
-            Instant completedAt
+            Instant completedAt,
+            TaskPredictionAttemptId activeAttemptId,
+            Instant processingStartedAt,
+            Instant leaseExpiresAt
     ) {
         this.id = Objects.requireNonNull(id, "id");
         this.userId = Objects.requireNonNull(userId, "userId");
@@ -86,6 +94,9 @@ public final class TaskPrediction {
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
         this.startedAt = startedAt;
         this.completedAt = completedAt;
+        this.activeAttemptId = activeAttemptId;
+        this.processingStartedAt = processingStartedAt;
+        this.leaseExpiresAt = leaseExpiresAt;
         validateConsistency();
     }
 
@@ -104,7 +115,7 @@ public final class TaskPrediction {
                 personaId,
                 candidatePolicyVersion,
                 TaskPredictionStatus.PENDING, 0, List.of(), null, null,
-                createdAt, null, null);
+                createdAt, null, null, null, null, null);
     }
 
     public static TaskPrediction restore(
@@ -122,7 +133,10 @@ public final class TaskPrediction {
             TaskPredictionError lastError,
             Instant createdAt,
             Instant startedAt,
-            Instant completedAt
+            Instant completedAt,
+            TaskPredictionAttemptId activeAttemptId,
+            Instant processingStartedAt,
+            Instant leaseExpiresAt
     ) {
         Objects.requireNonNull(task, "task");
         TaskPrediction restored = new TaskPrediction(
@@ -130,7 +144,8 @@ public final class TaskPrediction {
                 personaId,
                 candidatePolicyVersion, status,
                 attemptCount, predictedReasons, nextRetryAt, lastError,
-                createdAt, startedAt, completedAt);
+                createdAt, startedAt, completedAt,
+                activeAttemptId, processingStartedAt, leaseExpiresAt);
         if (status == TaskPredictionStatus.SUCCEEDED) {
             restored.predictedReasons = restored.validatePredictedReasons(
                     task, predictedReasons);
@@ -139,10 +154,20 @@ public final class TaskPrediction {
     }
 
     public int startProcessing(
+            TaskPredictionAttemptId attemptId,
             TaskPredictionRetryPolicy retryPolicy,
+            Duration processingLeaseDuration,
             Instant occurredAt
     ) {
+        Objects.requireNonNull(attemptId, "attemptId");
         Objects.requireNonNull(retryPolicy, "retryPolicy");
+        Objects.requireNonNull(
+                processingLeaseDuration, "processingLeaseDuration");
+        if (processingLeaseDuration.isZero()
+                || processingLeaseDuration.isNegative()) {
+            throw new IllegalArgumentException(
+                    "processingLeaseDuration must be positive");
+        }
         requireTime(occurredAt);
         if (status != TaskPredictionStatus.PENDING
                 && status != TaskPredictionStatus.RETRY_WAIT) {
@@ -168,7 +193,54 @@ public final class TaskPrediction {
         }
         nextRetryAt = null;
         lastError = null;
+        activeAttemptId = attemptId;
+        processingStartedAt = occurredAt;
+        leaseExpiresAt = occurredAt.plus(processingLeaseDuration);
         return attemptCount;
+    }
+
+    /** Compatibility entry point for domain fixtures created before leases. */
+    public int startProcessing(
+            TaskPredictionRetryPolicy retryPolicy,
+            Instant occurredAt
+    ) {
+        return startProcessing(
+                new TaskPredictionAttemptId(java.util.UUID.randomUUID()),
+                retryPolicy, Duration.ofSeconds(90), occurredAt);
+    }
+
+    /** Compatibility restore entry point for non-processing legacy fixtures. */
+    public static TaskPrediction restore(
+            TaskPredictionId id,
+            TaskUserId userId,
+            Task task,
+            TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaVersionId personaVersionId,
+            TaskPersonaId personaId,
+            String candidatePolicyVersion,
+            TaskPredictionStatus status,
+            int attemptCount,
+            List<TaskPredictedReason> predictedReasons,
+            Instant nextRetryAt,
+            TaskPredictionError lastError,
+            Instant createdAt,
+            Instant startedAt,
+            Instant completedAt
+    ) {
+        TaskPredictionAttemptId activeId = status == TaskPredictionStatus.PROCESSING
+                ? new TaskPredictionAttemptId(java.util.UUID.nameUUIDFromBytes(
+                        (id.value() + ":" + attemptCount)
+                                .getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                : null;
+        Instant processingAt = status == TaskPredictionStatus.PROCESSING
+                ? Objects.requireNonNull(startedAt, "startedAt") : null;
+        Instant leaseUntil = processingAt == null
+                ? null : processingAt.plusSeconds(90);
+        return restore(id, userId, task, personaGenerationId,
+                personaVersionId, personaId, candidatePolicyVersion,
+                status, attemptCount, predictedReasons, nextRetryAt,
+                lastError, createdAt, startedAt, completedAt,
+                activeId, processingAt, leaseUntil);
     }
 
     public void failAttempt(
@@ -184,11 +256,13 @@ public final class TaskPrediction {
         if (attemptCount < retryPolicy.maximumAttempts()) {
             status = TaskPredictionStatus.RETRY_WAIT;
             nextRetryAt = occurredAt.plus(retryPolicy.retryDelay());
+            clearActiveAttempt();
             return;
         }
         status = TaskPredictionStatus.FAILED;
         nextRetryAt = null;
         completedAt = occurredAt;
+        clearActiveAttempt();
     }
 
     public void failPermanently(
@@ -202,6 +276,7 @@ public final class TaskPrediction {
         lastError = error;
         nextRetryAt = null;
         completedAt = occurredAt;
+        clearActiveAttempt();
     }
 
     public void succeed(
@@ -225,6 +300,59 @@ public final class TaskPrediction {
         nextRetryAt = null;
         lastError = null;
         completedAt = occurredAt;
+        clearActiveAttempt();
+    }
+
+    public void failDeadline(
+            TaskPredictionError error,
+            Instant occurredAt
+    ) {
+        if (status.terminal()) {
+            return;
+        }
+        Objects.requireNonNull(error, "error");
+        requireTime(occurredAt);
+        status = TaskPredictionStatus.FAILED;
+        lastError = error;
+        nextRetryAt = null;
+        completedAt = occurredAt;
+        clearActiveAttempt();
+    }
+
+    public void expireLease(
+            TaskPredictionAttemptId attemptId,
+            TaskPredictionRetryPolicy retryPolicy,
+            Instant occurredAt
+    ) {
+        Objects.requireNonNull(attemptId, "attemptId");
+        requireStatus(TaskPredictionStatus.PROCESSING, "expire lease");
+        requireTime(occurredAt);
+        if (!attemptId.equals(activeAttemptId)) {
+            throw TaskDomainException.invariant(
+                    "TASK_PREDICTION_ATTEMPT_MISMATCH",
+                    "attemptId",
+                    "attempt does not own the processing lease");
+        }
+        if (leaseExpiresAt == null || occurredAt.isBefore(leaseExpiresAt)) {
+            throw TaskDomainException.invariant(
+                    "TASK_PREDICTION_LEASE_NOT_EXPIRED",
+                    "occurredAt",
+                    "processing lease has not expired");
+        }
+        failAttempt(new TaskPredictionError(
+                "TASK_PREDICTION_PROCESSING_LEASE_EXPIRED",
+                "task prediction processing lease expired"),
+                retryPolicy, occurredAt);
+    }
+
+    public boolean hasActiveAttempt(
+            TaskPredictionAttemptId attemptId,
+            int attemptNumber
+    ) {
+        return status == TaskPredictionStatus.PROCESSING
+                && activeAttemptId != null
+                && activeAttemptId.equals(attemptId)
+                && attemptCount == attemptNumber;
     }
 
     public TaskPredictedReason predictedReason(
@@ -268,6 +396,9 @@ public final class TaskPrediction {
     public Instant createdAt() { return createdAt; }
     public Instant startedAt() { return startedAt; }
     public Instant completedAt() { return completedAt; }
+    public TaskPredictionAttemptId activeAttemptId() { return activeAttemptId; }
+    public Instant processingStartedAt() { return processingStartedAt; }
+    public Instant leaseExpiresAt() { return leaseExpiresAt; }
 
     private List<TaskPredictedReason> validatePredictedReasons(
             Task task,
@@ -358,7 +489,7 @@ public final class TaskPrediction {
             throw inconsistent("startedAt must not be before createdAt");
         }
         if (completedAt != null && (completedAt.isBefore(createdAt)
-                || startedAt == null || completedAt.isBefore(startedAt))) {
+                || (startedAt != null && completedAt.isBefore(startedAt)))) {
             throw inconsistent("completedAt is invalid");
         }
         switch (status) {
@@ -372,7 +503,11 @@ public final class TaskPrediction {
             case PROCESSING -> {
                 requireStarted();
                 if (completedAt != null || nextRetryAt != null
-                        || !predictedReasons.isEmpty()) {
+                        || !predictedReasons.isEmpty()
+                        || activeAttemptId == null
+                        || processingStartedAt == null
+                        || leaseExpiresAt == null
+                        || !leaseExpiresAt.isAfter(processingStartedAt)) {
                     throw inconsistent("processing fields are inconsistent");
                 }
             }
@@ -391,12 +526,17 @@ public final class TaskPrediction {
                 }
             }
             case FAILED -> {
-                requireStarted();
                 if (completedAt == null || nextRetryAt != null
                         || lastError == null || !predictedReasons.isEmpty()) {
                     throw inconsistent("failed fields are inconsistent");
                 }
             }
+        }
+        if (status != TaskPredictionStatus.PROCESSING
+                && (activeAttemptId != null || processingStartedAt != null
+                || leaseExpiresAt != null)) {
+            throw inconsistent(
+                    "only processing prediction may own an active attempt");
         }
     }
 
@@ -404,6 +544,12 @@ public final class TaskPrediction {
         if (attemptCount < 1 || startedAt == null) {
             throw inconsistent("started prediction requires attempt data");
         }
+    }
+
+    private void clearActiveAttempt() {
+        activeAttemptId = null;
+        processingStartedAt = null;
+        leaseExpiresAt = null;
     }
 
     private void requireStatus(

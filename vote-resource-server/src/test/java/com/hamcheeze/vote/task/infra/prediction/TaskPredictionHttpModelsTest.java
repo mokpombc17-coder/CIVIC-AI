@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.task.infra.prediction;
 
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationCommand;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionInputSnapshot;
 import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
@@ -79,6 +80,9 @@ class TaskPredictionHttpModelsTest {
                 new TaskPersonaId("persona-a"),
                 task(),
                 "policy-v1",
+                1,
+                "{}",
+                TaskPredictionInputSnapshot.fingerprint("{}"),
                 Duration.ofSeconds(60));
     }
 

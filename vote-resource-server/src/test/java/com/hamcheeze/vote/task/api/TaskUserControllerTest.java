@@ -264,6 +264,8 @@ class TaskUserControllerTest {
     private static String submitBody() {
         return """
                 {
+                  "personaGenerationId": "%s",
+                  "personaVersionId": "%s",
                   "predictionId": "%s",
                   "questionId": "%s",
                   "selectedOptionId": "%s",
@@ -271,6 +273,8 @@ class TaskUserControllerTest {
                   "reason": "직접 작성한 이유"
                 }
                 """.formatted(
+                        personaGenerationId().value(),
+                        personaVersionId().value(),
                         predictionId().value(), questionId(3).value(),
                         UUID.randomUUID());
     }

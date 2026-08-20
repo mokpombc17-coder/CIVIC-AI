@@ -35,7 +35,7 @@ class TaskSubmissionJpaEntity {
     @Column(name = "persona_version_id", nullable = false)
     private UUID personaVersionId;
 
-    @Column(name = "prediction_id", nullable = false)
+    @Column(name = "prediction_id")
     private UUID predictionId;
 
     @Column(name = "question_id", nullable = false)
@@ -66,7 +66,8 @@ class TaskSubmissionJpaEntity {
         taskId = submission.taskId().value();
         personaGenerationId = submission.personaGenerationId().value();
         personaVersionId = submission.personaVersionId().value();
-        predictionId = submission.predictionId().value();
+        predictionId = submission.predictionId() == null
+                ? null : submission.predictionId().value();
         questionId = submission.questionId().value();
         selectedOptionId = submission.selectedOptionId().value();
         reasonSource = submission.reasonSource();

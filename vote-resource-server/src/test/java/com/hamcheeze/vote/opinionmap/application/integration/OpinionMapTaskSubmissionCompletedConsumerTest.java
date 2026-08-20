@@ -9,6 +9,7 @@ import com.hamcheeze.vote.opinionmap.domain.OpinionMapSubmissionProjection;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV3;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
@@ -50,6 +51,26 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
                     finalizations,
                     new ObjectMapper(),
                     Clock.fixed(PROCESSED_AT, ZoneOffset.UTC));
+
+    @Test
+    void recordsV3UserWrittenProjectionWithoutPredictionProvenance() {
+        IntegrationEventEnvelope event = userWrittenV3Event(uuid(10));
+        when(inbox.find(any(), any())).thenReturn(Optional.empty());
+        when(submissions.insertIfAbsent(any())).thenReturn(true);
+        when(inbox.recordIfAbsent(any())).thenReturn(true);
+
+        consumer.consume(event);
+
+        ArgumentCaptor<OpinionMapSubmissionProjection> captured =
+                ArgumentCaptor.forClass(OpinionMapSubmissionProjection.class);
+        verify(submissions).insertIfAbsent(captured.capture());
+        assertThat(captured.getValue().predictionId()).isNull();
+        assertThat(captured.getValue().reasonSource())
+                .isEqualTo(OpinionMapReasonSource.USER_WRITTEN);
+        assertThat(captured.getValue().acceptedPredictedReasonId()).isNull();
+        assertThat(captured.getValue().finalReason())
+                .isEqualTo("직접 작성한 이유");
+    }
 
     @Test
     void recordsValidatedV2ReasonSnapshotInProjectionAndInbox() {
@@ -234,6 +255,28 @@ class OpinionMapTaskSubmissionCompletedConsumerTest {
                         """.formatted(
                         userId, uuid(2), uuid(3), uuid(4), uuid(5), uuid(6),
                         uuid(7), uuid(8), uuid(9), SUBMITTED_AT));
+    }
+
+    private static IntegrationEventEnvelope userWrittenV3Event(UUID eventId) {
+        return new IntegrationEventEnvelope(
+                eventId,
+                TaskSubmissionCompletedV3.EVENT_TYPE,
+                TaskSubmissionCompletedV3.SCHEMA_VERSION,
+                SUBMITTED_AT,
+                TaskSubmissionCompletedV3.AGGREGATE_TYPE,
+                uuid(12),
+                """
+                        {"userId":"user-direct","submissionId":"%s",
+                         "taskId":"%s","predictionId":null,
+                         "personaGenerationId":"%s",
+                         "personaVersionId":"%s","questionId":"%s",
+                         "selectedOptionId":"%s",
+                         "reasonSource":"USER_WRITTEN",
+                         "acceptedPredictedReasonId":null,
+                         "finalReason":"직접 작성한 이유","submittedAt":"%s"}
+                        """.formatted(
+                        uuid(12), uuid(13), uuid(14), uuid(15),
+                        uuid(16), uuid(17), SUBMITTED_AT));
     }
 
     private static UUID uuid(long suffix) {

@@ -3,6 +3,8 @@ package com.hamcheeze.vote.task.application.prediction;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputSnapshotFactory;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -13,6 +15,8 @@ import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.hamcheeze.vote.task.infra.prediction.TaskPredictionMetrics;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -25,43 +29,74 @@ public class TaskPredictionService {
 
     private final TaskRepository tasks;
     private final TaskPredictionRepository predictions;
+    private final TaskPredictionInputRepository inputs;
+    private final TaskPredictionInputSnapshotFactory inputSnapshots;
     private final CurrentTaskPersonaQueryPort currentPersonas;
     private final TaskPredictionApplicationPolicy policy;
+    private final TaskPredictionAvailability availability;
     private final Clock clock;
+    private TaskPredictionMetrics metrics;
+
+    @Autowired(required = false)
+    void setMetrics(TaskPredictionMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     @Autowired
     public TaskPredictionService(
             TaskRepository tasks,
             TaskPredictionRepository predictions,
+            TaskPredictionInputRepository inputs,
+            TaskPredictionInputSnapshotFactory inputSnapshots,
             CurrentTaskPersonaQueryPort currentPersonas,
-            TaskPredictionApplicationPolicy policy
+            TaskPredictionApplicationPolicy policy,
+            TaskPredictionAvailability availability
     ) {
-        this(tasks, predictions, currentPersonas, policy,
+        this(tasks, predictions, inputs, inputSnapshots,
+                currentPersonas, policy, availability,
                 Clock.systemUTC());
     }
 
     TaskPredictionService(
             TaskRepository tasks,
             TaskPredictionRepository predictions,
+            TaskPredictionInputRepository inputs,
+            TaskPredictionInputSnapshotFactory inputSnapshots,
             CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionApplicationPolicy policy,
+            TaskPredictionAvailability availability,
             Clock clock
     ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
         this.predictions = Objects.requireNonNull(
                 predictions, "predictions");
+        this.inputs = Objects.requireNonNull(inputs, "inputs");
+        this.inputSnapshots = Objects.requireNonNull(
+                inputSnapshots, "inputSnapshots");
         this.currentPersonas = Objects.requireNonNull(
                 currentPersonas, "currentPersonas");
         this.policy = Objects.requireNonNull(policy, "policy");
+        this.availability = Objects.requireNonNull(
+                availability, "availability");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    @Transactional
     public EnsureTaskPredictionResult ensureTaskPrediction(
             TaskUserId userId,
             TaskId taskId
     ) {
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(taskId, "taskId");
+        if (!availability.enabled()) {
+            if (metrics != null) {
+                metrics.disabledRejected();
+            }
+            throw TaskDomainException.invariant(
+                    "TASK_PREDICTION_DISABLED",
+                    "vote.task.prediction.enabled",
+                    "task prediction feature is disabled");
+        }
         Instant now = clock.instant();
         Task task = requireOpenTask(taskId, now);
         CurrentTaskPersona persona = requireCurrentPersona(userId);
@@ -69,7 +104,9 @@ public class TaskPredictionService {
         Optional<TaskPrediction> existing = predictions.findByIdentity(
                 userId, task.id(), persona.generationId());
         if (existing.isPresent()) {
-            return EnsureTaskPredictionResult.of(existing.get(), false);
+            TaskPrediction value = existing.orElseThrow();
+            requireInput(value);
+            return EnsureTaskPredictionResult.of(value, false);
         }
 
         TaskPrediction pending = TaskPrediction.pending(
@@ -82,8 +119,11 @@ public class TaskPredictionService {
                 policy.candidatePolicyVersion(),
                 now);
         try {
-            return EnsureTaskPredictionResult.of(
-                    predictions.insert(pending), true);
+            TaskPredictionInputSnapshot input = inputSnapshots.create(
+                    pending, task, now);
+            TaskPrediction stored = predictions.insert(pending);
+            inputs.insert(input);
+            return EnsureTaskPredictionResult.of(stored, true);
         } catch (TaskPredictionPersistenceException exception) {
             if (exception.code()
                     != TaskPredictionPersistenceException.ErrorCode
@@ -93,8 +133,30 @@ public class TaskPredictionService {
             TaskPrediction concurrentWinner = predictions.findByIdentity(
                             userId, task.id(), persona.generationId())
                     .orElseThrow(() -> exception);
-            return EnsureTaskPredictionResult.of(
-                    concurrentWinner, false);
+            requireInput(concurrentWinner);
+            return EnsureTaskPredictionResult.of(concurrentWinner, false);
+        }
+    }
+
+    private void requireInput(TaskPrediction prediction) {
+        TaskPredictionInputSnapshot input = inputs
+                .findByPredictionId(prediction.id())
+                .orElseThrow(() -> TaskDomainException.invariant(
+                        "TASK_PREDICTION_INPUT_INVARIANT_VIOLATION",
+                        "predictionId",
+                        "prediction exists without its immutable input snapshot"));
+        if (!input.predictionId().equals(prediction.id())
+                || !input.taskId().equals(prediction.taskId())
+                || !input.userId().equals(prediction.userId())
+                || !input.personaGenerationId().equals(
+                        prediction.personaGenerationId())
+                || !input.personaVersionId().equals(
+                        prediction.personaVersionId())
+                || !input.providerPersonaId().equals(prediction.personaId())) {
+            throw TaskDomainException.invariant(
+                    "TASK_PREDICTION_INPUT_INVARIANT_VIOLATION",
+                    "predictionId",
+                    "prediction input metadata does not match prediction");
         }
     }
 

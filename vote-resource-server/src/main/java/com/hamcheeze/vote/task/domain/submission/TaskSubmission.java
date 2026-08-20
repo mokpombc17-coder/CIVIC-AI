@@ -58,7 +58,7 @@ public final class TaskSubmission {
                 personaGenerationId, "personaGenerationId");
         this.personaVersionId = Objects.requireNonNull(
                 personaVersionId, "personaVersionId");
-        this.predictionId = Objects.requireNonNull(predictionId, "predictionId");
+        this.predictionId = predictionId;
         this.questionId = Objects.requireNonNull(questionId, "questionId");
         this.selectedOptionId = Objects.requireNonNull(
                 selectedOptionId, "selectedOptionId");
@@ -80,7 +80,6 @@ public final class TaskSubmission {
             Instant submittedAt
     ) {
         Objects.requireNonNull(task, "task");
-        Objects.requireNonNull(prediction, "prediction");
         Objects.requireNonNull(answerCommand, "answerCommand");
         Objects.requireNonNull(submittedAt, "submittedAt");
         if (!task.isOpenAt(submittedAt)) {
@@ -89,9 +88,11 @@ public final class TaskSubmission {
                     "task.status",
                     "submission is allowed only while task is open");
         }
-        validatePredictionIdentity(
-                userId, task, prediction, currentPersonaGenerationId,
-                currentPersonaVersionId);
+        if (prediction != null) {
+            validatePredictionIdentity(
+                    userId, task, prediction, currentPersonaGenerationId,
+                    currentPersonaVersionId);
+        }
         TaskQuestion question = validateChoice(task, answerCommand);
         return switch (answerCommand) {
             case AcceptTaskPredictedReason accepted -> createAiAccepted(
@@ -99,7 +100,8 @@ public final class TaskSubmission {
                     currentPersonaVersionId, question, accepted, submittedAt);
             case WriteTaskReason written -> new TaskSubmission(
                     id, userId, task.id(), currentPersonaGenerationId,
-                    currentPersonaVersionId, prediction.id(), question.id(),
+                    currentPersonaVersionId,
+                    prediction == null ? null : prediction.id(), question.id(),
                     written.selectedOptionId(), TaskReasonSource.USER_WRITTEN,
                     null, written.reason(), submittedAt);
         };
@@ -120,19 +122,22 @@ public final class TaskSubmission {
             Instant submittedAt
     ) {
         Objects.requireNonNull(task, "task");
-        Objects.requireNonNull(prediction, "prediction");
-        validatePredictionIdentity(
-                userId, task, prediction, personaGenerationId,
-                personaVersionId);
+        if (prediction != null) {
+            validatePredictionIdentity(
+                    userId, task, prediction, personaGenerationId,
+                    personaVersionId);
+        }
         TaskQuestion question = requireTaskQuestion(task, questionId);
         requireTaskOption(question, selectedOptionId);
         if (reasonSource == TaskReasonSource.AI_ACCEPTED) {
+            requirePrediction(prediction);
             validateAcceptedReason(
                     prediction, selectedOptionId, acceptedPredictedReasonId);
         }
         return new TaskSubmission(
                 id, userId, task.id(), personaGenerationId, personaVersionId,
-                prediction.id(), questionId, selectedOptionId, reasonSource,
+                prediction == null ? null : prediction.id(),
+                questionId, selectedOptionId, reasonSource,
                 acceptedPredictedReasonId, finalReason, submittedAt);
     }
 
@@ -162,6 +167,7 @@ public final class TaskSubmission {
             AcceptTaskPredictedReason accepted,
             Instant submittedAt
     ) {
+        requirePrediction(prediction);
         TaskPredictedReason reason = validateAcceptedReason(
                 prediction,
                 accepted.selectedOptionId(),
@@ -178,6 +184,7 @@ public final class TaskSubmission {
             TaskOptionId selectedOptionId,
             TaskPredictedReasonId predictedReasonId
     ) {
+        requirePrediction(prediction);
         if (prediction.status() != TaskPredictionStatus.SUCCEEDED) {
             throw TaskDomainException.invariant(
                     "TASK_SUBMISSION_AI_ACCEPTANCE_NOT_AVAILABLE",
@@ -254,21 +261,28 @@ public final class TaskSubmission {
                     "predictionId",
                     "prediction user, task or persona version is stale");
         }
-        if (!prediction.status().terminal()) {
+    }
+
+    private static TaskPrediction requirePrediction(
+            TaskPrediction prediction
+    ) {
+        if (prediction == null) {
             throw TaskDomainException.invariant(
-                    "TASK_SUBMISSION_PREDICTION_NOT_READY",
-                    "prediction.status",
-                    "prediction must be SUCCEEDED or FAILED");
+                    "TASK_SUBMISSION_PREDICTION_REQUIRED",
+                    "predictionId",
+                    "AI_ACCEPTED submission requires predictionId");
         }
+        return prediction;
     }
 
     private void validateReasonSource() {
         if (reasonSource == TaskReasonSource.AI_ACCEPTED
-                && acceptedPredictedReasonId == null) {
+                && (predictionId == null
+                || acceptedPredictedReasonId == null)) {
             throw TaskDomainException.invariant(
-                    "TASK_SUBMISSION_ACCEPTED_REASON_REQUIRED",
-                    "acceptedPredictedReasonId",
-                    "AI_ACCEPTED submission requires predicted reason ID");
+                    "TASK_SUBMISSION_AI_PROVENANCE_REQUIRED",
+                    "predictionId",
+                    "AI_ACCEPTED submission requires prediction and reason IDs");
         }
         if (reasonSource == TaskReasonSource.USER_WRITTEN
                 && acceptedPredictedReasonId != null) {

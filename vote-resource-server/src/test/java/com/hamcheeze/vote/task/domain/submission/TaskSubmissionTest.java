@@ -94,18 +94,15 @@ class TaskSubmissionTest {
     }
 
     @Test
-    void rejectsPendingAndStalePersonaSubmission() {
+    void allowsWrittenSubmissionWhilePredictionPendingButRejectsStalePersona() {
         Task task = openTask();
 
-        assertThatThrownBy(() -> TaskSubmission.create(
+        TaskSubmission written = TaskSubmission.create(
                 submissionId(), userId(), task, pendingPrediction(),
                 personaGenerationId(), personaVersionId(), written("이유"),
-                NOW.plusSeconds(30)))
-                .isInstanceOfSatisfying(
-                        TaskDomainException.class,
-                        exception -> assertThat(exception.violation().code())
-                                .isEqualTo(
-                                        "TASK_SUBMISSION_PREDICTION_NOT_READY"));
+                NOW.plusSeconds(30));
+        assertThat(written.reasonSource())
+                .isEqualTo(TaskReasonSource.USER_WRITTEN);
 
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, succeededPrediction(task),

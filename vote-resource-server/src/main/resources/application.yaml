@@ -58,7 +58,12 @@ vote:
       maximum-attempts: 2
       retry-delay: 30s
       dispatcher-delay: 5s
+      processing-lease-duration: 90s
+      lease-reaper-delay: 10s
       batch-size: 10
+      worker-pool-size: 4
+      worker-queue-capacity: 16
+      worker-shutdown-await: 10s
       fake:
         scenario: success
   opinionmap:

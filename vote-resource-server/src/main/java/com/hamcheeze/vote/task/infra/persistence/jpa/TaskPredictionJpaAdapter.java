@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.prediction.TaskPredictionPersistenceE
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
@@ -110,22 +111,60 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
     public Optional<TaskPrediction> findNextDispatchableForUpdate(
             Instant dueAt
     ) {
-        List<TaskPredictionJpaEntity> matches = entityManager.createQuery(
-                        """
-                        SELECT prediction
-                        FROM TaskPredictionJpaEntity prediction
-                        WHERE prediction.status = :pending
-                           OR (prediction.status = :retryWait
-                               AND prediction.nextRetryAt <= :dueAt)
-                        ORDER BY prediction.createdAt, prediction.id
-                        """, TaskPredictionJpaEntity.class)
-                .setParameter("pending", TaskPredictionStatus.PENDING)
-                .setParameter("retryWait", TaskPredictionStatus.RETRY_WAIT)
-                .setParameter("dueAt", dueAt)
-                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-                .setMaxResults(1)
-                .getResultList();
-        return matches.stream().findFirst().flatMap(this::map);
+        return lockNext("""
+                SELECT prediction.prediction_id
+                FROM task_predictions prediction
+                WHERE (prediction.status = 'PENDING'
+                    OR (prediction.status = 'RETRY_WAIT'
+                        AND prediction.next_retry_at <= :now))
+                  AND EXISTS (
+                    SELECT 1
+                    FROM task_prediction_inputs input
+                    WHERE input.prediction_id = prediction.prediction_id)
+                ORDER BY COALESCE(prediction.next_retry_at,
+                                  prediction.created_at),
+                         prediction.created_at,
+                         prediction.prediction_id
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+                """, dueAt);
+    }
+
+    @Override
+    @Transactional
+    public Optional<TaskPrediction> findNextExpiredLeaseForUpdate(
+            Instant now
+    ) {
+        return lockNext("""
+                SELECT prediction.prediction_id
+                FROM task_predictions prediction
+                WHERE prediction.status = 'PROCESSING'
+                  AND prediction.lease_expires_at <= :now
+                ORDER BY prediction.lease_expires_at,
+                         prediction.prediction_id
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+                """, now);
+    }
+
+    @Override
+    @Transactional
+    public Optional<TaskPrediction> findNextDeadlineExpiredForUpdate(
+            Instant now
+    ) {
+        return lockNext("""
+                SELECT prediction.prediction_id
+                FROM task_predictions prediction
+                JOIN tasks task ON task.task_id = prediction.task_id
+                WHERE prediction.status IN (
+                    'PENDING', 'PROCESSING', 'RETRY_WAIT')
+                  AND task.scheduled_close_at <= :now
+                ORDER BY task.scheduled_close_at,
+                         prediction.created_at,
+                         prediction.prediction_id
+                FOR UPDATE OF prediction SKIP LOCKED
+                LIMIT 1
+                """, now);
     }
 
     @Override
@@ -147,6 +186,23 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
         }
         entityManager.flush();
         return TaskPredictionJpaMapper.toDomain(entity);
+    }
+
+    @Override
+    @Transactional
+    public void markLateCompletionObserved(
+            TaskPredictionAttemptId attemptId,
+            Instant observedAt
+    ) {
+        TaskPredictionAttemptJpaEntity entity = entityManager.find(
+                TaskPredictionAttemptJpaEntity.class,
+                attemptId.value(), LockModeType.PESSIMISTIC_WRITE);
+        if (entity == null) {
+            throw new IllegalStateException(
+                    "task prediction attempt not found");
+        }
+        entity.markLateCompletionObserved(observedAt);
+        entityManager.flush();
     }
 
     @Override
@@ -189,6 +245,18 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
         return Optional.ofNullable(entity)
                 .map(stored -> TaskPredictionJpaMapper.toDomain(
                         entityManager, stored));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<TaskPrediction> lockNext(String sql, Instant now) {
+        List<UUID> ids = entityManager.createNativeQuery(sql, UUID.class)
+                .setParameter("now", now)
+                .getResultList();
+        if (ids.isEmpty()) {
+            return Optional.empty();
+        }
+        return map(entityManager.find(
+                TaskPredictionJpaEntity.class, ids.getFirst()));
     }
 
     private jakarta.persistence.TypedQuery<TaskPredictionJpaEntity>

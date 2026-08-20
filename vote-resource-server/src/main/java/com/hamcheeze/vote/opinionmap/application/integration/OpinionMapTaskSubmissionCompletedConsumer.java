@@ -10,6 +10,7 @@ import com.hamcheeze.vote.shared.integration.IntegrationEventConsumer;
 import com.hamcheeze.vote.shared.integration.IntegrationEventConsumptionException;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV3;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,7 +76,7 @@ public class OpinionMapTaskSubmissionCompletedConsumer
     public void consume(IntegrationEventEnvelope event) {
         Objects.requireNonNull(event, "event");
         validateEnvelope(event);
-        TaskSubmissionCompletedV2 payload = decodePayload(event);
+        SubmissionPayload payload = decodePayload(event);
         validateCorrelation(event, payload);
 
         boolean receiptAlreadyRecorded = hasRecordedReceipt(event);
@@ -143,7 +144,7 @@ public class OpinionMapTaskSubmissionCompletedConsumer
     }
 
     private static OpinionMapSubmissionProjection mapSubmission(
-            TaskSubmissionCompletedV2 payload
+            SubmissionPayload payload
     ) {
         try {
             return new OpinionMapSubmissionProjection(
@@ -155,7 +156,7 @@ public class OpinionMapTaskSubmissionCompletedConsumer
                     payload.personaVersionId(),
                     payload.questionId(),
                     payload.selectedOptionId(),
-                    OpinionMapReasonSource.valueOf(payload.reasonSource().name()),
+                    OpinionMapReasonSource.valueOf(payload.reasonSource()),
                     payload.acceptedPredictedReasonId(),
                     payload.finalReason(),
                     payload.submittedAt());
@@ -169,19 +170,20 @@ public class OpinionMapTaskSubmissionCompletedConsumer
     }
 
     private static void validateEnvelope(IntegrationEventEnvelope event) {
-        if (!TaskSubmissionCompletedV2.EVENT_TYPE.equals(event.eventType())) {
+        if (!TaskSubmissionCompletedV3.EVENT_TYPE.equals(event.eventType())) {
             throw nonRetryable(
                     "OPINION_MAP_EVENT_TYPE_UNSUPPORTED",
                     "unsupported event type: " + event.eventType());
         }
-        if (event.schemaVersion()
-                != TaskSubmissionCompletedV2.SCHEMA_VERSION) {
+        if (event.schemaVersion() != TaskSubmissionCompletedV2.SCHEMA_VERSION
+                && event.schemaVersion()
+                != TaskSubmissionCompletedV3.SCHEMA_VERSION) {
             throw nonRetryable(
                     "OPINION_MAP_EVENT_SCHEMA_UNSUPPORTED",
                     "unsupported event schema version: "
                             + event.schemaVersion());
         }
-        if (!TaskSubmissionCompletedV2.AGGREGATE_TYPE.equals(
+        if (!TaskSubmissionCompletedV3.AGGREGATE_TYPE.equals(
                 event.aggregateType())) {
             throw nonRetryable(
                     "OPINION_MAP_EVENT_AGGREGATE_TYPE_UNSUPPORTED",
@@ -189,12 +191,17 @@ public class OpinionMapTaskSubmissionCompletedConsumer
         }
     }
 
-    private TaskSubmissionCompletedV2 decodePayload(
+    private SubmissionPayload decodePayload(
             IntegrationEventEnvelope event
     ) {
         try {
-            return objectMapper.readValue(
-                    event.payload(), TaskSubmissionCompletedV2.class);
+            if (event.schemaVersion()
+                    == TaskSubmissionCompletedV2.SCHEMA_VERSION) {
+                return SubmissionPayload.from(objectMapper.readValue(
+                        event.payload(), TaskSubmissionCompletedV2.class));
+            }
+            return SubmissionPayload.from(objectMapper.readValue(
+                    event.payload(), TaskSubmissionCompletedV3.class));
         } catch (Exception exception) {
             throw new IntegrationEventConsumptionException(
                     "OPINION_MAP_EVENT_PAYLOAD_INVALID",
@@ -206,7 +213,7 @@ public class OpinionMapTaskSubmissionCompletedConsumer
 
     private static void validateCorrelation(
             IntegrationEventEnvelope event,
-            TaskSubmissionCompletedV2 payload
+            SubmissionPayload payload
     ) {
         if (!event.aggregateId().equals(payload.submissionId())) {
             throw nonRetryable(
@@ -235,5 +242,40 @@ public class OpinionMapTaskSubmissionCompletedConsumer
     ) {
         return new IntegrationEventConsumptionException(
                 errorCode, true, message);
+    }
+
+    private record SubmissionPayload(
+            String userId,
+            java.util.UUID submissionId,
+            java.util.UUID taskId,
+            java.util.UUID predictionId,
+            java.util.UUID personaGenerationId,
+            java.util.UUID personaVersionId,
+            java.util.UUID questionId,
+            java.util.UUID selectedOptionId,
+            String reasonSource,
+            java.util.UUID acceptedPredictedReasonId,
+            String finalReason,
+            java.time.Instant submittedAt
+    ) {
+        private static SubmissionPayload from(TaskSubmissionCompletedV2 value) {
+            return new SubmissionPayload(
+                    value.userId(), value.submissionId(), value.taskId(),
+                    value.predictionId(), value.personaGenerationId(),
+                    value.personaVersionId(), value.questionId(),
+                    value.selectedOptionId(), value.reasonSource().name(),
+                    value.acceptedPredictedReasonId(), value.finalReason(),
+                    value.submittedAt());
+        }
+
+        private static SubmissionPayload from(TaskSubmissionCompletedV3 value) {
+            return new SubmissionPayload(
+                    value.userId(), value.submissionId(), value.taskId(),
+                    value.predictionId(), value.personaGenerationId(),
+                    value.personaVersionId(), value.questionId(),
+                    value.selectedOptionId(), value.reasonSource().name(),
+                    value.acceptedPredictedReasonId(), value.finalReason(),
+                    value.submittedAt());
+        }
     }
 }

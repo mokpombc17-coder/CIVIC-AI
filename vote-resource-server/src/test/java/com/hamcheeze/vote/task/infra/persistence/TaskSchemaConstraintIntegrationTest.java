@@ -43,6 +43,7 @@ class TaskSchemaConstraintIntegrationTest {
                 "task_predictions",
                 "task_predicted_reasons",
                 "task_prediction_attempts",
+                "task_prediction_inputs",
                 "task_submissions",
                 "task_submission_receipts");
 
@@ -620,20 +621,25 @@ class TaskSchemaConstraintIntegrationTest {
             PersonaFixture persona
     ) {
         UUID predictionId = UUID.randomUUID();
+        UUID activeAttemptId = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO task_predictions (
                     prediction_id, user_id, task_id,
                     persona_generation_id, persona_version_id,
                     persona_id, status,
                     candidate_policy_version,
-                    attempt_count, created_at, started_at)
+                    attempt_count, created_at, started_at,
+                    active_attempt_id, processing_started_at,
+                    lease_expires_at)
                 VALUES (?, ?, ?, ?, ?, ?, 'PROCESSING', 'policy-v1', 1,
-                    ?, ?)
+                    ?, ?, ?, ?, ?)
                 """,
                 predictionId, userId, taskId,
                 persona.generationId(), persona.versionId(),
                 persona.personaId(),
-                timestamp(NOW), timestamp(NOW.plusSeconds(1)));
+                timestamp(NOW), timestamp(NOW.plusSeconds(1)),
+                activeAttemptId, timestamp(NOW.plusSeconds(1)),
+                timestamp(NOW.plusSeconds(91)));
         return predictionId;
     }
 
@@ -686,11 +692,14 @@ class TaskSchemaConstraintIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO task_prediction_attempts (
                     attempt_id, prediction_id, attempt_number, request_id,
-                    request_payload, requested_at, outcome)
-                VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?, 'IN_PROGRESS')
+                    request_payload, requested_at, outcome,
+                    lease_expires_at, worker_id)
+                VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?, 'IN_PROGRESS',
+                    ?, 'fixture-worker')
                 """,
                 UUID.randomUUID(), predictionId, attemptNumber,
-                predictionId, "{\"request\":true}", timestamp(NOW));
+                predictionId, "{\"request\":true}", timestamp(NOW),
+                timestamp(NOW.plusSeconds(90)));
     }
 
     private void insertSuccessfulAttempt(
@@ -701,13 +710,15 @@ class TaskSchemaConstraintIntegrationTest {
                 INSERT INTO task_prediction_attempts (
                     attempt_id, prediction_id, attempt_number, request_id,
                     request_payload, requested_at, responded_at, outcome,
-                    http_status, response_payload)
+                    http_status, response_payload, lease_expires_at,
+                    worker_id)
                 VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?, ?, 'SUCCEEDED',
-                    200, CAST(? AS jsonb))
+                    200, CAST(? AS jsonb), ?, 'fixture-worker')
                 """,
                 UUID.randomUUID(), predictionId, attemptNumber,
                 predictionId, "{\"request\":true}", timestamp(NOW),
-                timestamp(NOW.plusSeconds(1)), "{\"ok\":true}");
+                timestamp(NOW.plusSeconds(1)), "{\"ok\":true}",
+                timestamp(NOW.plusSeconds(90)));
     }
 
     private void insertSubmission(

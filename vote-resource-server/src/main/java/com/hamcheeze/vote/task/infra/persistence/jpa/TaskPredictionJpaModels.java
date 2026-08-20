@@ -72,6 +72,15 @@ class TaskPredictionJpaEntity {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    @Column(name = "active_attempt_id")
+    private UUID activeAttemptId;
+
+    @Column(name = "processing_started_at")
+    private Instant processingStartedAt;
+
+    @Column(name = "lease_expires_at")
+    private Instant leaseExpiresAt;
+
     protected TaskPredictionJpaEntity() {
     }
 
@@ -98,6 +107,10 @@ class TaskPredictionJpaEntity {
                 ? null : prediction.lastError().message();
         startedAt = prediction.startedAt();
         completedAt = prediction.completedAt();
+        activeAttemptId = prediction.activeAttemptId() == null
+                ? null : prediction.activeAttemptId().value();
+        processingStartedAt = prediction.processingStartedAt();
+        leaseExpiresAt = prediction.leaseExpiresAt();
     }
 
     UUID id() { return id; }
@@ -116,6 +129,9 @@ class TaskPredictionJpaEntity {
     Instant createdAt() { return createdAt; }
     Instant startedAt() { return startedAt; }
     Instant completedAt() { return completedAt; }
+    UUID activeAttemptId() { return activeAttemptId; }
+    Instant processingStartedAt() { return processingStartedAt; }
+    Instant leaseExpiresAt() { return leaseExpiresAt; }
 }
 
 @Entity
@@ -200,6 +216,15 @@ class TaskPredictionAttemptJpaEntity {
     @Column(name = "error_message", length = 2000)
     private String errorMessage;
 
+    @Column(name = "lease_expires_at")
+    private Instant leaseExpiresAt;
+
+    @Column(name = "worker_id", nullable = false, length = 255)
+    private String workerId;
+
+    @Column(name = "late_completion_observed_at")
+    private Instant lateCompletionObservedAt;
+
     protected TaskPredictionAttemptJpaEntity() {
     }
 
@@ -210,6 +235,8 @@ class TaskPredictionAttemptJpaEntity {
         requestId = attempt.requestId().value();
         requestPayload = attempt.requestPayload().value();
         requestedAt = attempt.requestedAt();
+        leaseExpiresAt = attempt.leaseExpiresAt();
+        workerId = attempt.workerId();
         apply(attempt);
     }
 
@@ -221,6 +248,17 @@ class TaskPredictionAttemptJpaEntity {
                 ? null : attempt.responsePayload().value();
         errorCode = attempt.errorCode();
         errorMessage = attempt.errorMessage();
+        lateCompletionObservedAt = attempt.lateCompletionObservedAt();
+    }
+
+    void markLateCompletionObserved(Instant observedAt) {
+        if (!outcome.completed()) {
+            throw new IllegalStateException(
+                    "only a completed attempt can observe late completion");
+        }
+        if (lateCompletionObservedAt == null) {
+            lateCompletionObservedAt = observedAt;
+        }
     }
 
     UUID id() { return id; }
@@ -234,4 +272,7 @@ class TaskPredictionAttemptJpaEntity {
     String responsePayload() { return responsePayload; }
     String errorCode() { return errorCode; }
     String errorMessage() { return errorMessage; }
+    Instant leaseExpiresAt() { return leaseExpiresAt; }
+    String workerId() { return workerId; }
+    Instant lateCompletionObservedAt() { return lateCompletionObservedAt; }
 }

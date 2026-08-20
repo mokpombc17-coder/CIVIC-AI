@@ -18,10 +18,6 @@ public record EnsureTaskPredictionResult(
             throw new IllegalArgumentException(
                     "predictedAnswerAllowed must follow prediction status");
         }
-        if (directAnswerAllowed != prediction.status().terminal()) {
-            throw new IllegalArgumentException(
-                    "directAnswerAllowed must follow prediction status");
-        }
     }
 
     public static EnsureTaskPredictionResult of(
@@ -32,6 +28,6 @@ public record EnsureTaskPredictionResult(
                 prediction,
                 created,
                 prediction.status() == TaskPredictionStatus.SUCCEEDED,
-                prediction.status().terminal());
+                true);
     }
 }

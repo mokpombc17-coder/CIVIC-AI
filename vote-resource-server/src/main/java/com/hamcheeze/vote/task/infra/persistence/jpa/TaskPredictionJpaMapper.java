@@ -68,7 +68,12 @@ final class TaskPredictionJpaMapper {
                 lastError,
                 entity.createdAt(),
                 entity.startedAt(),
-                entity.completedAt());
+                entity.completedAt(),
+                entity.activeAttemptId() == null ? null
+                        : new TaskPredictionAttemptId(
+                                entity.activeAttemptId()),
+                entity.processingStartedAt(),
+                entity.leaseExpiresAt());
     }
 
     static TaskPredictionAttempt toDomain(
@@ -80,11 +85,13 @@ final class TaskPredictionJpaMapper {
                 entity.attemptNumber(),
                 SanitizedTaskPredictionPayload.fromSanitized(
                         entity.requestPayload()),
-                entity.requestedAt());
+                entity.requestedAt(),
+                entity.leaseExpiresAt(),
+                entity.workerId());
         if (!entity.outcome().completed()) {
             return attempt;
         }
-        return attempt.complete(
+        TaskPredictionAttempt completed = attempt.complete(
                 entity.outcome(),
                 entity.httpStatus(),
                 entity.responsePayload() == null
@@ -94,6 +101,11 @@ final class TaskPredictionJpaMapper {
                 entity.errorCode(),
                 entity.errorMessage(),
                 entity.respondedAt());
+        if (entity.lateCompletionObservedAt() != null) {
+            completed = completed.observeLateCompletion(
+                    entity.lateCompletionObservedAt());
+        }
+        return completed;
     }
 
     private static TaskPredictedReason toDomain(

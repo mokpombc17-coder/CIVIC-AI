@@ -3,8 +3,8 @@ package com.hamcheeze.vote.task.infra.integration;
 import com.hamcheeze.vote.shared.integration.IntegrationEventEnvelope;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxMessage;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2;
-import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV2.ReasonSource;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV3;
+import com.hamcheeze.vote.shared.integration.task.TaskSubmissionCompletedV3.ReasonSource;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionCompletedEventPublisher;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -36,17 +36,18 @@ public class TaskSubmissionCompletedOutboxPublisher
     @Override
     public void publish(TaskSubmission submission) {
         Objects.requireNonNull(submission, "submission");
-        TaskSubmissionCompletedV2 payload = payload(submission);
+        TaskSubmissionCompletedV3 payload = payload(submission);
         outbox.insert(IntegrationOutboxMessage.pending(
                 envelope(payload), submission.submittedAt()));
     }
 
-    private TaskSubmissionCompletedV2 payload(TaskSubmission submission) {
-        return new TaskSubmissionCompletedV2(
+    private TaskSubmissionCompletedV3 payload(TaskSubmission submission) {
+        return new TaskSubmissionCompletedV3(
                 submission.userId().value(),
                 submission.id().value(),
                 submission.taskId().value(),
-                submission.predictionId().value(),
+                submission.predictionId() == null
+                        ? null : submission.predictionId().value(),
                 submission.personaGenerationId().value(),
                 submission.personaVersionId().value(),
                 submission.questionId().value(),
@@ -60,20 +61,20 @@ public class TaskSubmissionCompletedOutboxPublisher
     }
 
     private IntegrationEventEnvelope envelope(
-            TaskSubmissionCompletedV2 payload
+            TaskSubmissionCompletedV3 payload
     ) {
         try {
             return new IntegrationEventEnvelope(
                     UUID.randomUUID(),
-                    TaskSubmissionCompletedV2.EVENT_TYPE,
-                    TaskSubmissionCompletedV2.SCHEMA_VERSION,
+                    TaskSubmissionCompletedV3.EVENT_TYPE,
+                    TaskSubmissionCompletedV3.SCHEMA_VERSION,
                     payload.submittedAt(),
-                    TaskSubmissionCompletedV2.AGGREGATE_TYPE,
+                    TaskSubmissionCompletedV3.AGGREGATE_TYPE,
                     payload.submissionId(),
                     objectMapper.writeValueAsString(payload));
         } catch (Exception exception) {
             throw new IllegalStateException(
-                    "failed to serialize TaskSubmissionCompletedV2",
+                    "failed to serialize TaskSubmissionCompletedV3",
                     exception);
         }
     }

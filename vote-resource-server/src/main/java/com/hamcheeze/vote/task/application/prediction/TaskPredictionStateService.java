@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.task.application.prediction;
 
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
@@ -16,10 +17,10 @@ import com.hamcheeze.vote.task.domain.task.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.hamcheeze.vote.task.infra.prediction.TaskPredictionMetrics;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,27 +33,37 @@ public class TaskPredictionStateService {
             "AI_RESPONSE_INVALID";
 
     private final TaskPredictionRepository predictions;
+    private final TaskPredictionInputRepository inputs;
     private final TaskRepository tasks;
     private final TaskPredictionApplicationPolicy policy;
     private final Clock clock;
+    private TaskPredictionMetrics metrics;
+
+    @Autowired(required = false)
+    void setMetrics(TaskPredictionMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     @Autowired
     public TaskPredictionStateService(
             TaskPredictionRepository predictions,
+            TaskPredictionInputRepository inputs,
             TaskRepository tasks,
             TaskPredictionApplicationPolicy policy
     ) {
-        this(predictions, tasks, policy, Clock.systemUTC());
+        this(predictions, inputs, tasks, policy, Clock.systemUTC());
     }
 
     TaskPredictionStateService(
             TaskPredictionRepository predictions,
+            TaskPredictionInputRepository inputs,
             TaskRepository tasks,
             TaskPredictionApplicationPolicy policy,
             Clock clock
     ) {
         this.predictions = Objects.requireNonNull(
                 predictions, "predictions");
+        this.inputs = Objects.requireNonNull(inputs, "inputs");
         this.tasks = Objects.requireNonNull(tasks, "tasks");
         this.policy = Objects.requireNonNull(policy, "policy");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -60,6 +71,11 @@ public class TaskPredictionStateService {
 
     @Transactional
     public Optional<TaskPredictionDispatchClaim> claimNext() {
+        return claimNext("unknown-worker");
+    }
+
+    @Transactional
+    public Optional<TaskPredictionDispatchClaim> claimNext(String workerId) {
         Instant now = clock.instant();
         Optional<TaskPrediction> found =
                 predictions.findNextDispatchableForUpdate(now);
@@ -68,28 +84,71 @@ public class TaskPredictionStateService {
         }
 
         TaskPrediction prediction = found.get();
-        int attemptNumber = prediction.startProcessing(
-                policy.retryPolicy(), now);
         Task task = tasks.findById(prediction.taskId())
                 .orElseThrow(() -> new IllegalStateException(
                         "prediction references a missing task"));
+        if (!task.isOpenAt(now)) {
+            prediction.failDeadline(new TaskPredictionError(
+                    "TASK_PREDICTION_DEADLINE_EXPIRED",
+                    "task deadline elapsed before prediction claim"), now);
+            predictions.save(prediction);
+            return Optional.empty();
+        }
+        final TaskPredictionInputSnapshot input;
+        try {
+            input = inputs.findByPredictionId(prediction.id())
+                    .orElseThrow(() -> new TaskPredictionInputException(
+                            TaskPredictionInputException.ErrorCode.INPUT_UNAVAILABLE,
+                            "Task prediction input snapshot is missing"));
+            validateInput(prediction, input);
+        } catch (TaskPredictionInputException exception) {
+            String code = exception.code()
+                    == TaskPredictionInputException.ErrorCode
+                    .FINGERPRINT_MISMATCH
+                    ? "TASK_PREDICTION_INPUT_FINGERPRINT_MISMATCH"
+                    : "TASK_PREDICTION_INPUT_INTEGRITY_ERROR";
+            prediction.failDeadline(new TaskPredictionError(
+                    code, exception.getMessage()), now);
+            predictions.save(prediction);
+            if (metrics != null) {
+                if (exception.code() == TaskPredictionInputException.ErrorCode
+                        .FINGERPRINT_MISMATCH) {
+                    metrics.fingerprintMismatch();
+                }
+                metrics.terminalFailure();
+            }
+            return Optional.empty();
+        }
+        TaskPredictionAttemptId attemptId =
+                new TaskPredictionAttemptId(UUID.randomUUID());
+        int attemptNumber = prediction.startProcessing(
+                attemptId, policy.retryPolicy(),
+                policy.processingLeaseDuration(), now);
         PredictionCreationCommand command = new PredictionCreationCommand(
                 prediction.requestId(),
                 prediction.personaId(),
                 task,
                 prediction.candidatePolicyVersion(),
+                input.requestSchemaVersion(),
+                input.requestPayload(),
+                input.requestFingerprint(),
                 policy.retryPolicy().requestTimeout());
         SanitizedTaskPredictionPayload requestPayload =
                 TaskPredictionPayloads.request(command);
         TaskPredictionAttempt attempt = TaskPredictionAttempt.started(
-                new TaskPredictionAttemptId(UUID.randomUUID()),
+                attemptId,
                 prediction.id(),
                 attemptNumber,
                 requestPayload,
-                now);
+                now,
+                prediction.leaseExpiresAt(),
+                workerId);
 
         predictions.save(prediction);
         predictions.saveAttempt(attempt);
+        if (metrics != null) {
+            metrics.claimSucceeded();
+        }
         return Optional.of(new TaskPredictionDispatchClaim(
                 prediction.id(),
                 attempt.id(),
@@ -131,6 +190,24 @@ public class TaskPredictionStateService {
         Task task = tasks.findById(prediction.taskId())
                 .orElseThrow(() -> new IllegalStateException(
                         "prediction references a missing task"));
+        if (!task.isOpenAt(now)) {
+            prediction.failPermanently(
+                    new TaskPredictionError(
+                            "TASK_PREDICTION_LATE_RESPONSE",
+                            "prediction response arrived after task deadline"),
+                    now);
+            predictions.save(prediction);
+            predictions.saveAttempt(attempt.complete(
+                    TaskPredictionAttemptOutcome.IGNORED_LATE_RESPONSE,
+                    result.httpStatus(), result.responsePayload(),
+                    "TASK_PREDICTION_LATE_RESPONSE",
+                    "prediction response arrived after task deadline", now));
+            if (metrics != null) {
+                metrics.lateResponseIgnored();
+                metrics.terminalFailure();
+            }
+            return true;
+        }
         try {
             prediction.succeed(task, result.predictedReasons(), now);
         } catch (TaskDomainException
@@ -151,6 +228,9 @@ public class TaskPredictionStateService {
                 now);
         predictions.save(prediction);
         predictions.saveAttempt(completed);
+        if (metrics != null) {
+            metrics.predictionSucceeded();
+        }
         return true;
     }
 
@@ -184,6 +264,16 @@ public class TaskPredictionStateService {
                 errorCode, errorMessage);
         if (failure.retryable()) {
             prediction.failAttempt(error, policy.retryPolicy(), now);
+            Task task = tasks.findById(prediction.taskId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "prediction references a missing task"));
+            if (prediction.nextRetryAt() != null
+                    && !prediction.nextRetryAt().isBefore(
+                            task.schedule().scheduledCloseAt())) {
+                prediction.failDeadline(new TaskPredictionError(
+                        "TASK_PREDICTION_DEADLINE_EXPIRED",
+                        "next retry would start after task deadline"), now);
+            }
         } else {
             prediction.failPermanently(error, now);
         }
@@ -196,6 +286,13 @@ public class TaskPredictionStateService {
                 now);
         predictions.save(prediction);
         predictions.saveAttempt(completed);
+        if (metrics != null) {
+            if (prediction.status() == TaskPredictionStatus.RETRY_WAIT) {
+                metrics.retryableFailure();
+            } else {
+                metrics.terminalFailure();
+            }
+        }
         return true;
     }
 
@@ -208,13 +305,16 @@ public class TaskPredictionStateService {
             String reasonMessage
     ) {
         TaskPrediction prediction = requirePredictionForUpdate(predictionId);
-        appendIgnored(
-                prediction,
-                httpStatus,
-                responsePayload,
-                reasonCode,
-                reasonMessage,
-                clock.instant());
+        TaskPredictionAttempt latest = predictions.findAttempts(prediction.id())
+                .stream()
+                .max(java.util.Comparator.comparingInt(
+                        TaskPredictionAttempt::attemptNumber))
+                .orElseThrow(() -> new IllegalStateException(
+                        "task prediction attempt not found"));
+        predictions.markLateCompletionObserved(latest.id(), clock.instant());
+        if (metrics != null) {
+            metrics.staleCompletionIgnored();
+        }
     }
 
     private void failInvalidResponse(
@@ -262,44 +362,15 @@ public class TaskPredictionStateService {
                     safeCode,
                     safeMessage,
                     now));
+            if (metrics != null) {
+                metrics.staleCompletionIgnored();
+            }
             return;
         }
-        appendIgnored(
-                prediction, httpStatus, responsePayload,
-                safeCode, safeMessage, now);
-    }
-
-    private void appendIgnored(
-            TaskPrediction prediction,
-            Integer httpStatus,
-            SanitizedTaskPredictionPayload responsePayload,
-            String reasonCode,
-            String reasonMessage,
-            Instant now
-    ) {
-        String safeCode = bounded(
-                reasonCode, 200, "IGNORED_LATE_RESPONSE");
-        String safeMessage = bounded(reasonMessage, 2_000, null);
-        List<TaskPredictionAttempt> attempts =
-                predictions.findAttempts(prediction.id());
-        int nextNumber = attempts.stream()
-                .map(TaskPredictionAttempt::attemptNumber)
-                .max(Comparator.naturalOrder())
-                .orElse(0) + 1;
-        TaskPredictionAttempt ignored = TaskPredictionAttempt.started(
-                        new TaskPredictionAttemptId(UUID.randomUUID()),
-                        prediction.id(),
-                        nextNumber,
-                        TaskPredictionPayloads.ignored(safeCode),
-                        now)
-                .complete(
-                        TaskPredictionAttemptOutcome.IGNORED_LATE_RESPONSE,
-                        httpStatus,
-                        responsePayload,
-                        safeCode,
-                        safeMessage,
-                        now);
-        predictions.saveAttempt(ignored);
+        predictions.markLateCompletionObserved(attempt.id(), now);
+        if (metrics != null) {
+            metrics.staleCompletionIgnored();
+        }
     }
 
     private TaskPrediction requirePredictionForUpdate(
@@ -327,8 +398,27 @@ public class TaskPredictionStateService {
     ) {
         return prediction.status() == TaskPredictionStatus.PROCESSING
                 && !attempt.outcome().completed()
-                && attempt.attemptNumber() == claim.attemptNumber()
-                && prediction.attemptCount() == claim.attemptNumber();
+                && prediction.hasActiveAttempt(
+                        claim.attemptId(), claim.attemptNumber())
+                && attempt.attemptNumber() == claim.attemptNumber();
+    }
+
+    private static void validateInput(
+            TaskPrediction prediction,
+            TaskPredictionInputSnapshot input
+    ) {
+        if (!input.predictionId().equals(prediction.id())
+                || !input.taskId().equals(prediction.taskId())
+                || !input.userId().equals(prediction.userId())
+                || !input.personaGenerationId().equals(
+                        prediction.personaGenerationId())
+                || !input.personaVersionId().equals(
+                        prediction.personaVersionId())
+                || !input.providerPersonaId().equals(prediction.personaId())) {
+            throw new TaskPredictionInputException(
+                    TaskPredictionInputException.ErrorCode.INTEGRITY_ERROR,
+                    "Task prediction input metadata does not match prediction");
+        }
     }
 
     private static String responseMismatch(

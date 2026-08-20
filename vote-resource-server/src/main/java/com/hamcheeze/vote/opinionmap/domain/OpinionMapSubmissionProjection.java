@@ -24,7 +24,6 @@ public record OpinionMapSubmissionProjection(
         Objects.requireNonNull(submissionId, "submissionId");
         userId = requireText(userId, 255, "userId");
         Objects.requireNonNull(taskId, "taskId");
-        Objects.requireNonNull(predictionId, "predictionId");
         Objects.requireNonNull(personaGenerationId, "personaGenerationId");
         Objects.requireNonNull(personaVersionId, "personaVersionId");
         Objects.requireNonNull(questionId, "questionId");
@@ -34,7 +33,8 @@ public record OpinionMapSubmissionProjection(
         Objects.requireNonNull(submittedAt, "submittedAt");
         submittedAt = submittedAt.truncatedTo(ChronoUnit.MICROS);
         if (reasonSource == OpinionMapReasonSource.AI_ACCEPTED
-                && acceptedPredictedReasonId == null) {
+                && (predictionId == null
+                || acceptedPredictedReasonId == null)) {
             throw new IllegalArgumentException(
                     "AI_ACCEPTED submission requires predicted reason ID");
         }

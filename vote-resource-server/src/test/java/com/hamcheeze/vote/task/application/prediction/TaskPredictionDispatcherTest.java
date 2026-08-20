@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.application.prediction;
 
 import com.hamcheeze.vote.task.application.port.out.PredictionCreationPort;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskPredictionInputRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
@@ -67,6 +68,8 @@ class TaskPredictionDispatcherTest {
 
         TaskPredictionRepository predictions =
                 mock(TaskPredictionRepository.class);
+        TaskPredictionInputRepository inputs =
+                mock(TaskPredictionInputRepository.class);
         TaskRepository tasks = mock(TaskRepository.class);
         when(tasks.findById(any())).thenAnswer(
                 ignored -> Optional.of(task.get()));
@@ -98,8 +101,20 @@ class TaskPredictionDispatcherTest {
                         .sorted(Comparator.comparingInt(
                                 TaskPredictionAttempt::attemptNumber))
                         .toList());
+        when(inputs.findByPredictionId(any(TaskPredictionId.class)))
+                .thenAnswer(invocation -> Optional.of(
+                        TaskPredictionInputSnapshot.create(
+                                invocation.getArgument(0),
+                                prediction.taskId(), prediction.userId(),
+                                prediction.personaGenerationId(),
+                                prediction.personaVersionId(),
+                                prediction.personaId(),
+                                task.get().schedule().scheduledCloseAt(),
+                                1, prediction.candidatePolicyVersion(),
+                                "{}", prediction.createdAt())));
         states = new TaskPredictionStateService(
                 predictions,
+                inputs,
                 tasks,
                 policy,
                 Clock.fixed(DISPATCH_TIME, ZoneOffset.UTC));
@@ -188,13 +203,11 @@ class TaskPredictionDispatcherTest {
                 .isEqualTo(TaskPredictionStatus.SUCCEEDED);
         assertThat(attempts.values())
                 .extracting(TaskPredictionAttempt::outcome)
-                .containsExactly(
-                        TaskPredictionAttemptOutcome.SUCCEEDED,
-                        TaskPredictionAttemptOutcome.IGNORED_LATE_RESPONSE);
+                .containsExactly(TaskPredictionAttemptOutcome.SUCCEEDED);
     }
 
     @Test
-    void responseAfterTaskClosureIsPreserved() {
+    void responseAfterTaskClosureIsIgnored() {
         TaskPredictionDispatchClaim claim = states.claimNext().orElseThrow();
         Task closed = openTask();
         closed.closeEarly(
@@ -207,8 +220,10 @@ class TaskPredictionDispatcherTest {
 
         assertThat(task.get().status().name()).isEqualTo("CLOSED");
         assertThat(prediction.status())
-                .isEqualTo(TaskPredictionStatus.SUCCEEDED);
-        assertThat(prediction.predictedReasons()).isNotEmpty();
+                .isEqualTo(TaskPredictionStatus.FAILED);
+        assertThat(prediction.predictedReasons()).isEmpty();
+        assertThat(prediction.lastError().code())
+                .isEqualTo("TASK_PREDICTION_LATE_RESPONSE");
     }
 
     @Test
@@ -264,6 +279,9 @@ class TaskPredictionDispatcherTest {
                 new TaskPersonaId("persona-" + UUID.randomUUID()),
                 openTask(),
                 policy.candidatePolicyVersion(),
+                1,
+                "{}",
+                TaskPredictionInputSnapshot.fingerprint("{}"),
                 policy.retryPolicy().requestTimeout());
         return new TaskPredictionDispatchClaim(
                 predictionId,

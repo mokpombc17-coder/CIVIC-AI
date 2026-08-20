@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.application.port.out;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
@@ -33,7 +34,21 @@ public interface TaskPredictionRepository {
 
     Optional<TaskPrediction> findNextDispatchableForUpdate(Instant dueAt);
 
+    default Optional<TaskPrediction> findNextExpiredLeaseForUpdate(Instant now) {
+        return Optional.empty();
+    }
+
+    default Optional<TaskPrediction> findNextDeadlineExpiredForUpdate(Instant now) {
+        return Optional.empty();
+    }
+
     TaskPredictionAttempt saveAttempt(TaskPredictionAttempt attempt);
+
+    default void markLateCompletionObserved(
+            TaskPredictionAttemptId attemptId,
+            Instant observedAt
+    ) {
+    }
 
     List<TaskPredictionAttempt> findAttempts(TaskPredictionId predictionId);
 }

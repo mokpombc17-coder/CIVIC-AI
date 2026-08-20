@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.infra.prediction;
 
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationCommand;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationException;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionInputSnapshot;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
@@ -242,12 +243,20 @@ class TaskPredictionHttpCreationAdapterTest {
                 "AI 예상 답변용 과업",
                 List.of(question),
                 Instant.parse("2026-08-18T00:00:00Z"));
-        return new PredictionCreationCommand(
-                new TaskPredictionId(REQUEST_ID),
-                new TaskPersonaId("persona-a"),
-                task,
-                "policy-v1",
-                timeout);
+        TaskPredictionId predictionId = new TaskPredictionId(REQUEST_ID);
+        TaskPersonaId personaId = new TaskPersonaId("persona-a");
+        try {
+            String payload = new ObjectMapper().writeValueAsString(
+                    TaskPredictionHttpModels.PredictionRequest.from(
+                            predictionId, personaId, "policy-v1", task));
+            return new PredictionCreationCommand(
+                    predictionId, personaId, task, "policy-v1", 1,
+                    payload,
+                    TaskPredictionInputSnapshot.fingerprint(payload),
+                    timeout);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     private void capture(HttpExchange exchange) throws IOException {

@@ -37,11 +37,22 @@ vote:
       enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
     prediction:
       enabled: ${VOTE_TASK_PREDICTION_ENABLED:false}
-      base-url: ${VOTE_TASK_PREDICTION_BASE_URL:http://localhost:8090}
+      provider: ${VOTE_TASK_PREDICTION_PROVIDER:http}
+      base-url: ${VOTE_TASK_PREDICTION_BASE_URL:}
       path: ${VOTE_TASK_PREDICTION_PATH:/v1/task-predictions}
       auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:}
       connect-timeout: ${VOTE_TASK_PREDICTION_CONNECT_TIMEOUT:5s}
       request-timeout: ${VOTE_TASK_PREDICTION_REQUEST_TIMEOUT:60s}
+      candidate-policy-version: ${VOTE_TASK_PREDICTION_CANDIDATE_POLICY_VERSION:candidate-policy-v1}
+      maximum-attempts: ${VOTE_TASK_PREDICTION_MAXIMUM_ATTEMPTS:2}
+      retry-delay: ${VOTE_TASK_PREDICTION_RETRY_DELAY:30s}
+      dispatcher-delay: ${VOTE_TASK_PREDICTION_DISPATCHER_DELAY:5s}
+      processing-lease-duration: ${VOTE_TASK_PREDICTION_PROCESSING_LEASE_DURATION:90s}
+      lease-reaper-delay: ${VOTE_TASK_PREDICTION_LEASE_REAPER_DELAY:10s}
+      batch-size: ${VOTE_TASK_PREDICTION_BATCH_SIZE:10}
+      worker-pool-size: ${VOTE_TASK_PREDICTION_WORKER_POOL_SIZE:4}
+      worker-queue-capacity: ${VOTE_TASK_PREDICTION_WORKER_QUEUE_CAPACITY:16}
+      worker-shutdown-await: ${VOTE_TASK_PREDICTION_WORKER_SHUTDOWN_AWAIT:10s}
   survey:
     round-activation:
       enabled: ${VOTE_SURVEY_ROUND_ACTIVATION_ENABLED:true}

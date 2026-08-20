@@ -6,7 +6,7 @@ import com.hamcheeze.vote.task.application.prediction.PredictionCreationExceptio
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationResult;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -21,11 +21,9 @@ import java.time.Duration;
 import java.util.Objects;
 
 @Component
-@ConditionalOnProperty(
-        prefix = "vote.task.prediction",
-        name = "provider",
-        havingValue = "http",
-        matchIfMissing = true)
+@ConditionalOnExpression(
+        "'${vote.task.prediction.enabled:false}' == 'true' and "
+                + "'${vote.task.prediction.provider:http}' == 'http'")
 public class TaskPredictionHttpCreationAdapter
         implements PredictionCreationPort {
 
@@ -114,9 +112,7 @@ public class TaskPredictionHttpCreationAdapter
                             "application/json; charset=UTF-8")
                     .header("Accept", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(
-                            objectMapper.writeValueAsString(
-                                    TaskPredictionHttpModels
-                                            .PredictionRequest.from(command)),
+                            command.requestPayload(),
                             StandardCharsets.UTF_8));
             String authToken = properties.getAuthToken();
             if (authToken != null && !authToken.isBlank()) {
@@ -141,18 +137,33 @@ public class TaskPredictionHttpCreationAdapter
             HttpResponse<String> response
     ) {
         int status = response.statusCode();
-        if (status == 200) {
+        if (status == 200 || status == 201) {
             return decodeSuccess(command, status, response.body());
         }
         SanitizedTaskPredictionPayload payload = auditPayload(
                 status, response.body());
-        if (status >= 500 && status <= 599) {
+        if (status == 408 || status == 429
+                || (status >= 500 && status <= 599)) {
             throw failure(
                     TaskPredictionAttemptOutcome.HTTP_ERROR,
                     true,
                     status,
-                    "AI_PREDICTION_SERVER_ERROR",
-                    "task prediction server error",
+                    status == 408 ? "AI_PREDICTION_REMOTE_TIMEOUT"
+                            : status == 429 ? "AI_PREDICTION_RATE_LIMITED"
+                            : "AI_PREDICTION_SERVER_ERROR",
+                    "task prediction request is retryable",
+                    payload,
+                    null);
+        }
+        String structuredCode = structuredErrorCode(response.body());
+        if (status == 409
+                && "IDEMPOTENCY_CONFLICT".equals(structuredCode)) {
+            throw failure(
+                    TaskPredictionAttemptOutcome.HTTP_ERROR,
+                    false,
+                    status,
+                    "AI_PREDICTION_IDEMPOTENCY_CONFLICT",
+                    "predictionId was reused with different immutable input",
                     payload,
                     null);
         }
@@ -166,6 +177,16 @@ public class TaskPredictionHttpCreationAdapter
                 "task prediction request was rejected",
                 payload,
                 null);
+    }
+
+    private String structuredErrorCode(String body) {
+        try {
+            return objectMapper.readValue(
+                    body,
+                    TaskPredictionHttpModels.ProviderError.class).code();
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private PredictionCreationResult decodeSuccess(

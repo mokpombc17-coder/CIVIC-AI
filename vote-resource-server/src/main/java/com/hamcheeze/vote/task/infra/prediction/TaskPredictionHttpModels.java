@@ -12,6 +12,8 @@ import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
 import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.task.LongTextConstraint;
@@ -46,13 +48,23 @@ final class TaskPredictionHttpModels {
             TaskPayload task
     ) {
         static PredictionRequest from(PredictionCreationCommand command) {
+            return from(command.requestId(), command.personaId(),
+                    command.candidatePolicyVersion(), command.task());
+        }
+
+        static PredictionRequest from(
+                TaskPredictionId predictionId,
+                TaskPersonaId personaId,
+                String candidatePolicyVersion,
+                Task task
+        ) {
             return new PredictionRequest(
                     SCHEMA_VERSION,
-                    command.requestId().value(),
-                    command.personaId().value(),
-                    command.candidatePolicyVersion(),
+                    predictionId.value(),
+                    personaId.value(),
+                    candidatePolicyVersion,
                     TaskLimits.PREDICTED_REASONS_PER_OPTION,
-                    TaskPayload.from(command.task()));
+                    TaskPayload.from(task));
         }
     }
 
@@ -254,6 +266,9 @@ final class TaskPredictionHttpModels {
     }
 
     record ErrorPayload(int httpStatus, String responseBody) {
+    }
+
+    record ProviderError(String code, String detail) {
     }
 
     private static void require(boolean condition, String message) {

@@ -101,8 +101,10 @@ class TaskPredictionQueryServiceTest {
 
         assertThat(view.state()).isEqualTo(PENDING);
         assertThat(view.waiting()).isTrue();
-        assertThat(view.submissionAllowed()).isFalse();
-        assertThat(view.allowedReasonSources()).isEmpty();
+        assertThat(view.submissionAllowed()).isTrue();
+        assertThat(view.directAnswerAllowed()).isTrue();
+        assertThat(view.allowedReasonSources())
+                .containsExactly(TaskReasonSource.USER_WRITTEN);
     }
 
     @Test

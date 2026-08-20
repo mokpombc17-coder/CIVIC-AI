@@ -29,7 +29,8 @@ public class TaskLifecycleScheduler {
     }
 
     @Scheduled(fixedDelayString =
-            "${vote.task.lifecycle.scheduler-delay:1s}")
+            "${vote.task.lifecycle.scheduler-delay:1s}",
+            scheduler = "taskLifecycleTaskScheduler")
     public void runScheduled() {
         transitionAvailable();
     }

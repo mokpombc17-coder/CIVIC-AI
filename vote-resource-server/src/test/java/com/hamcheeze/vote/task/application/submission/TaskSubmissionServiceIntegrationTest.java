@@ -358,7 +358,7 @@ class TaskSubmissionServiceIntegrationTest {
     }
 
     @Test
-    void submissionHoldingTaskLockCommitsBeforeClose() throws Exception {
+    void userLockWaitDoesNotPreventTaskClose() throws Exception {
         Fixture fixture = fixture("submit-first-user");
         CountDownLatch userLockHeld = new CountDownLatch(1);
         CountDownLatch releaseUserLock = new CountDownLatch(1);
@@ -383,18 +383,18 @@ class TaskSubmissionServiceIntegrationTest {
 
             Future<?> close = executor.submit(() -> administration.closeEarly(
                     fixture.task().id(), "close after submit", ADMIN));
-            Thread.sleep(200);
-            assertThat(close.isDone()).isFalse();
+            close.get(10, TimeUnit.SECONDS);
 
             releaseUserLock.countDown();
             TaskSubmissionService.SubmissionExecution submitted =
                     submit.get(10, TimeUnit.SECONDS);
-            close.get(10, TimeUnit.SECONDS);
             guard.get(10, TimeUnit.SECONDS);
 
-            assertThat(submitted.outcome().succeeded()).isTrue();
+            assertThat(submitted.outcome().succeeded()).isFalse();
+            assertThat(submitted.outcome().code())
+                    .isEqualTo("TASK_SUBMISSION_TASK_CLOSED");
         }
-        assertThat(submissionCount(fixture)).isEqualTo(1);
+        assertThat(submissionCount(fixture)).isZero();
         assertThat(tasks.findById(fixture.task().id()))
                 .get()
                 .extracting(Task::status)
@@ -407,7 +407,7 @@ class TaskSubmissionServiceIntegrationTest {
                 """, Integer.class,
                 fixture.task().id().value(),
                 TaskOpinionMapFinalizationRequestedV1.EVENT_TYPE);
-        assertThat(expectedSubmissionCount).isEqualTo(1);
+        assertThat(expectedSubmissionCount).isZero();
     }
 
     @Test
@@ -662,6 +662,53 @@ class TaskSubmissionServiceIntegrationTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
         }
+    }
+
+    @Test
+    void userWrittenSubmissionWithoutPredictionPersistsNullableProvenanceAndV3Event() {
+        Fixture fixture = fixture("direct-without-prediction-user");
+        TaskSubmissionService.SubmitTaskCommand command =
+                new TaskSubmissionService.SubmitTaskCommand(
+                        fixture.task().id(),
+                        fixture.prediction().personaGenerationId(),
+                        fixture.prediction().personaVersionId(),
+                        null,
+                        new WriteTaskReason(
+                                fixture.question().id(),
+                                fixture.question().options().getFirst().id(),
+                                "예측 없이 직접 작성한 이유"));
+
+        TaskSubmissionService.SubmissionExecution result = service.submit(
+                fixture.userId(), UUID.randomUUID().toString(), command);
+
+        assertThat(result.outcome().succeeded()).isTrue();
+        UUID storedPredictionId = jdbcTemplate.queryForObject("""
+                SELECT prediction_id
+                FROM task_submissions
+                WHERE submission_id = ?
+                """, UUID.class, result.outcome().submissionId().value());
+        assertThat(storedPredictionId).isNull();
+        Boolean nullablePrediction = jdbcTemplate.queryForObject("""
+                SELECT jsonb_typeof(payload -> 'predictionId') = 'null'
+                FROM integration_outbox
+                WHERE aggregate_id = ?
+                  AND event_type = 'task.submission-completed'
+                """, Boolean.class, result.outcome().submissionId().value());
+        String reasonSource = jdbcTemplate.queryForObject("""
+                SELECT payload ->> 'reasonSource'
+                FROM integration_outbox
+                WHERE aggregate_id = ?
+                  AND event_type = 'task.submission-completed'
+                """, String.class, result.outcome().submissionId().value());
+        assertThat(nullablePrediction).isTrue();
+        assertThat(reasonSource).isEqualTo("USER_WRITTEN");
+        Integer schemaVersion = jdbcTemplate.queryForObject("""
+                SELECT schema_version
+                FROM integration_outbox
+                WHERE aggregate_id = ?
+                  AND event_type = 'task.submission-completed'
+                """, Integer.class, result.outcome().submissionId().value());
+        assertThat(schemaVersion).isEqualTo(3);
     }
 
     private record Fixture(

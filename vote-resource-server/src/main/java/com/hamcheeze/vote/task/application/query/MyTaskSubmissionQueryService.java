@@ -99,7 +99,6 @@ public class MyTaskSubmissionQueryService {
             Objects.requireNonNull(taskTitle, "taskTitle");
             Objects.requireNonNull(personaGenerationId, "personaGenerationId");
             Objects.requireNonNull(personaVersionId, "personaVersionId");
-            Objects.requireNonNull(predictionId, "predictionId");
             Objects.requireNonNull(submittedAt, "submittedAt");
             Objects.requireNonNull(questionId, "questionId");
             Objects.requireNonNull(question, "question");

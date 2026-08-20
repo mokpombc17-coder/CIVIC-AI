@@ -15,12 +15,15 @@ public final class TaskPredictionAttempt {
     private final int attemptNumber;
     private final SanitizedTaskPredictionPayload requestPayload;
     private final Instant requestedAt;
+    private final Instant leaseExpiresAt;
+    private final String workerId;
     private final Instant respondedAt;
     private final TaskPredictionAttemptOutcome outcome;
     private final Integer httpStatus;
     private final SanitizedTaskPredictionPayload responsePayload;
     private final String errorCode;
     private final String errorMessage;
+    private final Instant lateCompletionObservedAt;
 
     private TaskPredictionAttempt(
             TaskPredictionAttemptId id,
@@ -28,12 +31,15 @@ public final class TaskPredictionAttempt {
             int attemptNumber,
             SanitizedTaskPredictionPayload requestPayload,
             Instant requestedAt,
+            Instant leaseExpiresAt,
+            String workerId,
             Instant respondedAt,
             TaskPredictionAttemptOutcome outcome,
             Integer httpStatus,
             SanitizedTaskPredictionPayload responsePayload,
             String errorCode,
-            String errorMessage
+            String errorMessage,
+            Instant lateCompletionObservedAt
     ) {
         this.id = Objects.requireNonNull(id, "id");
         this.predictionId = Objects.requireNonNull(predictionId, "predictionId");
@@ -47,6 +53,13 @@ public final class TaskPredictionAttempt {
         this.requestPayload = Objects.requireNonNull(
                 requestPayload, "requestPayload");
         this.requestedAt = Objects.requireNonNull(requestedAt, "requestedAt");
+        this.leaseExpiresAt = Objects.requireNonNull(
+                leaseExpiresAt, "leaseExpiresAt");
+        if (!leaseExpiresAt.isAfter(requestedAt)) {
+            throw inconsistent("leaseExpiresAt must be after requestedAt");
+        }
+        this.workerId = TaskText.required(
+                workerId, 255, "TASK_PREDICTION_WORKER_ID", "workerId");
         this.respondedAt = respondedAt;
         this.outcome = Objects.requireNonNull(outcome, "outcome");
         this.httpStatus = validateHttpStatus(httpStatus);
@@ -56,7 +69,24 @@ public final class TaskPredictionAttempt {
         this.errorMessage = TaskText.optional(
                 errorMessage, 2_000,
                 "TASK_PREDICTION_ERROR_MESSAGE", "errorMessage");
+        this.lateCompletionObservedAt = lateCompletionObservedAt;
         validateConsistency();
+    }
+
+    public static TaskPredictionAttempt started(
+            TaskPredictionAttemptId id,
+            TaskPredictionId predictionId,
+            int attemptNumber,
+            SanitizedTaskPredictionPayload requestPayload,
+            Instant requestedAt,
+            Instant leaseExpiresAt,
+            String workerId
+    ) {
+        return new TaskPredictionAttempt(
+                id, predictionId, attemptNumber, requestPayload, requestedAt,
+                leaseExpiresAt, workerId,
+                null, TaskPredictionAttemptOutcome.IN_PROGRESS,
+                null, null, null, null, null);
     }
 
     public static TaskPredictionAttempt started(
@@ -66,10 +96,8 @@ public final class TaskPredictionAttempt {
             SanitizedTaskPredictionPayload requestPayload,
             Instant requestedAt
     ) {
-        return new TaskPredictionAttempt(
-                id, predictionId, attemptNumber, requestPayload, requestedAt,
-                null, TaskPredictionAttemptOutcome.IN_PROGRESS,
-                null, null, null, null);
+        return started(id, predictionId, attemptNumber, requestPayload,
+                requestedAt, requestedAt.plusSeconds(60), "unknown-worker");
     }
 
     public TaskPredictionAttempt complete(
@@ -94,8 +122,21 @@ public final class TaskPredictionAttempt {
         }
         return new TaskPredictionAttempt(
                 id, predictionId, attemptNumber, requestPayload, requestedAt,
+                leaseExpiresAt, workerId,
                 responseTime, completedOutcome, httpStatus, responsePayload,
-                errorCode, errorMessage);
+                errorCode, errorMessage, lateCompletionObservedAt);
+    }
+
+    public TaskPredictionAttempt observeLateCompletion(Instant observedAt) {
+        Objects.requireNonNull(observedAt, "observedAt");
+        if (!outcome.completed()) {
+            throw inconsistent(
+                    "late completion can be observed only after completion");
+        }
+        return new TaskPredictionAttempt(
+                id, predictionId, attemptNumber, requestPayload, requestedAt,
+                leaseExpiresAt, workerId, respondedAt, outcome, httpStatus,
+                responsePayload, errorCode, errorMessage, observedAt);
     }
 
     public TaskPredictionAttemptId id() { return id; }
@@ -104,12 +145,15 @@ public final class TaskPredictionAttempt {
     public int attemptNumber() { return attemptNumber; }
     public SanitizedTaskPredictionPayload requestPayload() { return requestPayload; }
     public Instant requestedAt() { return requestedAt; }
+    public Instant leaseExpiresAt() { return leaseExpiresAt; }
+    public String workerId() { return workerId; }
     public Instant respondedAt() { return respondedAt; }
     public TaskPredictionAttemptOutcome outcome() { return outcome; }
     public Integer httpStatus() { return httpStatus; }
     public SanitizedTaskPredictionPayload responsePayload() { return responsePayload; }
     public String errorCode() { return errorCode; }
     public String errorMessage() { return errorMessage; }
+    public Instant lateCompletionObservedAt() { return lateCompletionObservedAt; }
 
     private void validateConsistency() {
         if (!outcome.completed()) {

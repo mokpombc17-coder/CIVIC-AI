@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.infra.prediction;
 
 import com.hamcheeze.vote.task.application.bootstrap.LocalTaskFixture;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationCommand;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionInputSnapshot;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationException;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationResult;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
@@ -114,6 +115,9 @@ class LocalTaskPredictionFakeCreationAdapterTest {
                 new TaskPersonaId("local-persona"),
                 LocalTaskFixtureAccess.openTask(),
                 "candidate-policy-v1",
+                1,
+                "{}",
+                TaskPredictionInputSnapshot.fingerprint("{}"),
                 Duration.ofSeconds(60));
     }
 

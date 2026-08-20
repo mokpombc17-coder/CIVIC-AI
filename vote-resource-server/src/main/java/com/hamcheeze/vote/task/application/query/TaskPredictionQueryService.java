@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionAvailability;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
@@ -33,6 +34,7 @@ public class TaskPredictionQueryService {
     private final CurrentTaskPersonaQueryPort currentPersonas;
     private final TaskPredictionRepository predictions;
     private final TaskSubmissionRepository submissions;
+    private final TaskPredictionAvailability predictionAvailability;
     private final Clock clock;
 
     @Autowired
@@ -40,9 +42,11 @@ public class TaskPredictionQueryService {
             TaskRepository tasks,
             CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionRepository predictions,
-            TaskSubmissionRepository submissions
+            TaskSubmissionRepository submissions,
+            TaskPredictionAvailability predictionAvailability
     ) {
         this(tasks, currentPersonas, predictions, submissions,
+                predictionAvailability,
                 Clock.systemUTC());
     }
 
@@ -51,6 +55,7 @@ public class TaskPredictionQueryService {
             CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionRepository predictions,
             TaskSubmissionRepository submissions,
+            TaskPredictionAvailability predictionAvailability,
             Clock clock
     ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
@@ -60,7 +65,20 @@ public class TaskPredictionQueryService {
                 predictions, "predictions");
         this.submissions = Objects.requireNonNull(
                 submissions, "submissions");
+        this.predictionAvailability = Objects.requireNonNull(
+                predictionAvailability, "predictionAvailability");
         this.clock = Objects.requireNonNull(clock, "clock");
+    }
+
+    TaskPredictionQueryService(
+            TaskRepository tasks,
+            CurrentTaskPersonaQueryPort currentPersonas,
+            TaskPredictionRepository predictions,
+            TaskSubmissionRepository submissions,
+            Clock clock
+    ) {
+        this(tasks, currentPersonas, predictions, submissions,
+                new TaskPredictionAvailability(true), clock);
     }
 
     @Transactional(readOnly = true)
@@ -103,9 +121,11 @@ public class TaskPredictionQueryService {
                         userId, taskId, persona.generationId())
                 .orElse(null);
         if (prediction == null) {
-            return TaskPredictionView.notRequested(taskId, persona);
+            return TaskPredictionView.notRequested(
+                    taskId, persona, predictionAvailability.enabled());
         }
-        return TaskPredictionView.from(taskId, persona, prediction);
+        return TaskPredictionView.from(
+                taskId, persona, prediction, predictionAvailability.enabled());
     }
 
     public enum TaskPredictionViewState {
@@ -131,11 +151,15 @@ public class TaskPredictionQueryService {
             TaskPredictionId predictionId,
             TaskPredictionStatus predictionStatus,
             List<TaskPredictedReason> predictedReasons,
+            boolean predictionFeatureEnabled,
             boolean waiting,
             boolean predictionRequestAllowed,
+            String predictionUnavailableReason,
             boolean submissionAllowed,
             boolean predictedAnswerAllowed,
+            boolean aiAcceptanceAllowed,
             boolean directAnswerAllowed,
+            boolean retryable,
             List<TaskReasonSource> allowedReasonSources,
             TaskSubmissionId submissionId,
             Instant nextRetryAt,
@@ -151,76 +175,7 @@ public class TaskPredictionQueryService {
                     allowedReasonSources, "allowedReasonSources"));
         }
 
-        static TaskPredictionView unavailable(
-                TaskId taskId,
-                TaskPredictionViewState state
-        ) {
-            return base(taskId, state, null, null, null,
-                    null, null, List.of(), false, false,
-                    false, false, false, List.of(), null,
-                    null, null, null);
-        }
-
-        static TaskPredictionView submitted(
-                TaskId taskId,
-                TaskSubmissionId submissionId
-        ) {
-            return base(taskId, TaskPredictionViewState.ALREADY_SUBMITTED,
-                    null, null, null, null, null, List.of(), false,
-                    false, false, false, false, List.of(),
-                    submissionId, null, null, null);
-        }
-
-        static TaskPredictionView notRequested(
-                TaskId taskId,
-                CurrentTaskPersona persona
-        ) {
-            return base(taskId, TaskPredictionViewState.NOT_REQUESTED,
-                    persona.generationId(), persona.versionId(),
-                    persona.personaId(),
-                    null, null, List.of(), false, true,
-                    false, false, false, List.of(), null,
-                    null, null, null);
-        }
-
-        static TaskPredictionView from(
-                TaskId taskId,
-                CurrentTaskPersona persona,
-                TaskPrediction prediction
-        ) {
-            TaskPredictionStatus status = prediction.status();
-            boolean succeeded = status == TaskPredictionStatus.SUCCEEDED;
-            boolean failed = status == TaskPredictionStatus.FAILED;
-            boolean waiting = !status.terminal();
-            List<TaskReasonSource> sources = succeeded
-                    ? List.of(TaskReasonSource.AI_ACCEPTED,
-                    TaskReasonSource.USER_WRITTEN)
-                    : failed
-                    ? List.of(TaskReasonSource.USER_WRITTEN)
-                    : List.of();
-            return base(
-                    taskId,
-                    TaskPredictionViewState.valueOf(status.name()),
-                    persona.generationId(),
-                    persona.versionId(),
-                    persona.personaId(),
-                    prediction.id(),
-                    status,
-                    prediction.predictedReasons(),
-                    waiting,
-                    false,
-                    status.terminal(),
-                    succeeded,
-                    status.terminal(),
-                    sources,
-                    null,
-                    prediction.nextRetryAt(),
-                    prediction.completedAt(),
-                    prediction.lastError() == null
-                            ? null : prediction.lastError().code());
-        }
-
-        private static TaskPredictionView base(
+        public TaskPredictionView(
                 TaskId taskId,
                 TaskPredictionViewState state,
                 TaskPersonaGenerationId personaGenerationId,
@@ -240,13 +195,124 @@ public class TaskPredictionQueryService {
                 Instant completedAt,
                 String failureCode
         ) {
+            this(taskId, state, personaGenerationId, personaVersionId,
+                    personaId, predictionId, predictionStatus,
+                    predictedReasons, true, waiting,
+                    predictionRequestAllowed, null, submissionAllowed,
+                    predictedAnswerAllowed, predictedAnswerAllowed,
+                    directAnswerAllowed,
+                    predictionStatus == TaskPredictionStatus.RETRY_WAIT,
+                    allowedReasonSources, submissionId, nextRetryAt,
+                    completedAt, failureCode);
+        }
+
+        static TaskPredictionView unavailable(
+                TaskId taskId,
+                TaskPredictionViewState state
+        ) {
+            return base(taskId, state, null, null, null,
+                    null, null, List.of(), false, false, false,
+                    null, false, false, false, false, false, List.of(), null,
+                    null, null, null);
+        }
+
+        static TaskPredictionView submitted(
+                TaskId taskId,
+                TaskSubmissionId submissionId
+        ) {
+            return base(taskId, TaskPredictionViewState.ALREADY_SUBMITTED,
+                    null, null, null, null, null, List.of(), false,
+                    false, false, null, false, false, false, false, false,
+                    List.of(),
+                    submissionId, null, null, null);
+        }
+
+        static TaskPredictionView notRequested(
+                TaskId taskId,
+                CurrentTaskPersona persona,
+                boolean predictionFeatureEnabled
+        ) {
+            return base(taskId, TaskPredictionViewState.NOT_REQUESTED,
+                    persona.generationId(), persona.versionId(),
+                    persona.personaId(),
+                    null, null, List.of(), predictionFeatureEnabled, false,
+                    predictionFeatureEnabled,
+                    predictionFeatureEnabled ? null : "TASK_PREDICTION_DISABLED",
+                    true, false, false, true, false,
+                    List.of(TaskReasonSource.USER_WRITTEN), null,
+                    null, null, null);
+        }
+
+        static TaskPredictionView from(
+                TaskId taskId,
+                CurrentTaskPersona persona,
+                TaskPrediction prediction,
+                boolean predictionFeatureEnabled
+        ) {
+            TaskPredictionStatus status = prediction.status();
+            boolean succeeded = status == TaskPredictionStatus.SUCCEEDED;
+            boolean waiting = !status.terminal();
+            List<TaskReasonSource> sources = succeeded
+                    ? List.of(TaskReasonSource.AI_ACCEPTED,
+                    TaskReasonSource.USER_WRITTEN)
+                    : List.of(TaskReasonSource.USER_WRITTEN);
+            return base(
+                    taskId,
+                    TaskPredictionViewState.valueOf(status.name()),
+                    persona.generationId(),
+                    persona.versionId(),
+                    persona.personaId(),
+                    prediction.id(),
+                    status,
+                    prediction.predictedReasons(),
+                    predictionFeatureEnabled,
+                    waiting,
+                    false,
+                    predictionFeatureEnabled ? null : "TASK_PREDICTION_DISABLED",
+                    true,
+                    succeeded,
+                    succeeded,
+                    true,
+                    status == TaskPredictionStatus.RETRY_WAIT,
+                    sources,
+                    null,
+                    prediction.nextRetryAt(),
+                    prediction.completedAt(),
+                    prediction.lastError() == null
+                            ? null : prediction.lastError().code());
+        }
+
+        private static TaskPredictionView base(
+                TaskId taskId,
+                TaskPredictionViewState state,
+                TaskPersonaGenerationId personaGenerationId,
+                TaskPersonaVersionId personaVersionId,
+                TaskPersonaId personaId,
+                TaskPredictionId predictionId,
+                TaskPredictionStatus predictionStatus,
+                List<TaskPredictedReason> predictedReasons,
+                boolean predictionFeatureEnabled,
+                boolean waiting,
+                boolean predictionRequestAllowed,
+                String predictionUnavailableReason,
+                boolean submissionAllowed,
+                boolean predictedAnswerAllowed,
+                boolean aiAcceptanceAllowed,
+                boolean directAnswerAllowed,
+                boolean retryable,
+                List<TaskReasonSource> allowedReasonSources,
+                TaskSubmissionId submissionId,
+                Instant nextRetryAt,
+                Instant completedAt,
+                String failureCode
+        ) {
             return new TaskPredictionView(
                     taskId, state, personaGenerationId, personaVersionId,
                     personaId, predictionId, predictionStatus,
-                    predictedReasons,
-                    waiting,
-                    predictionRequestAllowed, submissionAllowed,
-                    predictedAnswerAllowed, directAnswerAllowed,
+                    predictedReasons, predictionFeatureEnabled, waiting,
+                    predictionRequestAllowed, predictionUnavailableReason,
+                    submissionAllowed, predictedAnswerAllowed,
+                    aiAcceptanceAllowed, directAnswerAllowed, retryable,
                     allowedReasonSources, submissionId, nextRetryAt,
                     completedAt, failureCode);
         }

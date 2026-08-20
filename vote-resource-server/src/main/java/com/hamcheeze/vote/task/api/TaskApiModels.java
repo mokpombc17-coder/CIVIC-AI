@@ -111,7 +111,9 @@ final class TaskApiModels {
     }
 
     record SubmitRequest(
-            @NotNull UUID predictionId,
+            @NotNull UUID personaGenerationId,
+            @NotNull UUID personaVersionId,
+            UUID predictionId,
             @NotNull UUID questionId,
             @NotNull UUID selectedOptionId,
             @NotNull TaskReasonSource reasonSource,
@@ -369,11 +371,15 @@ final class TaskApiModels {
             UUID predictionId,
             TaskPredictionStatus predictionStatus,
             List<PredictedReasonResponse> predictedReasons,
+            boolean predictionFeatureEnabled,
             boolean waiting,
             boolean predictionRequestAllowed,
+            String predictionUnavailableReason,
             boolean submissionAllowed,
             boolean predictedAnswerAllowed,
+            boolean aiAcceptanceAllowed,
             boolean directAnswerAllowed,
+            boolean retryable,
             List<TaskReasonSource> allowedReasonSources,
             UUID submissionId,
             Instant nextRetryAt,
@@ -396,9 +402,12 @@ final class TaskApiModels {
                     view.predictionStatus(),
                     view.predictedReasons().stream()
                             .map(PredictedReasonResponse::from).toList(),
-                    view.waiting(), view.predictionRequestAllowed(),
+                    view.predictionFeatureEnabled(), view.waiting(),
+                    view.predictionRequestAllowed(),
+                    view.predictionUnavailableReason(),
                     view.submissionAllowed(), view.predictedAnswerAllowed(),
-                    view.directAnswerAllowed(), view.allowedReasonSources(),
+                    view.aiAcceptanceAllowed(), view.directAnswerAllowed(),
+                    view.retryable(), view.allowedReasonSources(),
                     view.submissionId() == null ? null
                             : view.submissionId().value(),
                     view.nextRetryAt(),
