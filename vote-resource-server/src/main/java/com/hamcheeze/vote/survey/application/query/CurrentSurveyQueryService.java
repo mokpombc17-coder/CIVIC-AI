@@ -38,8 +38,10 @@ public class CurrentSurveyQueryService {
     @Transactional(readOnly = true)
     public CurrentSurveyResult findCurrent(SurveyUserId userId) {
         Objects.requireNonNull(userId, "userId");
-        ServiceEligibilityDecision decision = eligibility.evaluate(userId);
-        Optional<CurrentSurvey> current = rounds.findActive().map(round -> {
+        Optional<SurveyRound> activeRound = rounds.findActive();
+        ServiceEligibilityDecision decision = eligibility.evaluate(
+                userId, activeRound);
+        Optional<CurrentSurvey> current = activeRound.map(round -> {
             SurveyContentVersion content = contents
                     .findById(round.contentVersionId())
                     .orElseThrow(() -> SurveyDomainException.invariant(

@@ -12,6 +12,9 @@ spring:
             - ${VOTE_JWT_AUDIENCE}
 
 vote:
+  integration:
+    outbox:
+      enabled: ${VOTE_INTEGRATION_OUTBOX_ENABLED:true}
   task:
     lifecycle:
       enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
@@ -22,5 +25,10 @@ vote:
       auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:}
       connect-timeout: ${VOTE_TASK_PREDICTION_CONNECT_TIMEOUT:5s}
       request-timeout: ${VOTE_TASK_PREDICTION_REQUEST_TIMEOUT:60s}
+  survey:
+    round-activation:
+      enabled: ${VOTE_SURVEY_ROUND_ACTIVATION_ENABLED:true}
+      fixed-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_FIXED_DELAY:5s}
+      initial-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_INITIAL_DELAY:0s}
   security:
     cookie-authentication-enabled: false

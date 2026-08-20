@@ -18,5 +18,7 @@ vote:
     prediction:
       enabled: false
   survey:
+    round-activation:
+      enabled: false
     bootstrap:
       enabled: false

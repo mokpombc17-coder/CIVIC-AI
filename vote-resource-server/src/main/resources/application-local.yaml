@@ -35,6 +35,10 @@ vote:
       fake:
         scenario: ${VOTE_TASK_PREDICTION_FAKE_SCENARIO:success}
   survey:
+    round-activation:
+      enabled: ${VOTE_SURVEY_ROUND_ACTIVATION_ENABLED:true}
+      fixed-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_FIXED_DELAY:5s}
+      initial-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_INITIAL_DELAY:0s}
     bootstrap:
       enabled: ${VOTE_SURVEY_BOOTSTRAP_ENABLED:true}
   security:

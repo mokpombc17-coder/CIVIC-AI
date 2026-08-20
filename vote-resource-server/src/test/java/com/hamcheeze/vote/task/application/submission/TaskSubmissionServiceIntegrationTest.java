@@ -104,7 +104,7 @@ class TaskSubmissionServiceIntegrationTest {
 
     @BeforeEach
     void resetData() {
-        jdbcTemplate.execute("TRUNCATE TABLE integration_outbox");
+        jdbcTemplate.execute("TRUNCATE TABLE integration_outbox CASCADE");
         jdbcTemplate.execute("TRUNCATE TABLE tasks CASCADE");
         jdbcTemplate.execute(
                 "TRUNCATE TABLE survey_content_versions CASCADE");

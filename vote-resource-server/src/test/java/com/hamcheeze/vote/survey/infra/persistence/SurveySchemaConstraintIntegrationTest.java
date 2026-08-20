@@ -44,6 +44,7 @@ class SurveySchemaConstraintIntegrationTest {
                 "survey_answers",
                 "survey_answer_selections",
                 "survey_idempotency_receipts",
+                "survey_response_submitted_replays",
                 "persona_generations");
 
         List<String> actualTables = jdbcTemplate.queryForList("""

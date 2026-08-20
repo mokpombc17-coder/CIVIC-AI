@@ -3,6 +3,7 @@ package com.hamcheeze.vote.survey.application;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
+import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.round.SurveyRoundService;
 import com.hamcheeze.vote.survey.domain.common.SurveyActorId;
@@ -52,6 +53,9 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
     @MockitoSpyBean
     private IntegrationOutboxRepository outbox;
 
+    @MockitoSpyBean
+    private SurveyResponseRepository responses;
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -78,6 +82,34 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
 
     @Test
     void outboxFailureRollsBackResponseAndReceiptTogether() {
+        var command = activeSubmission();
+        doThrow(new IllegalStateException("forced outbox failure"))
+                .when(outbox).insert(any());
+
+        assertThatThrownBy(() -> submissions.submit(
+                USER, UUID.randomUUID().toString(), command))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseMessage("forced outbox failure");
+
+        assertAtomicSubmissionTablesAreEmpty();
+    }
+
+    @Test
+    void responseFailureDoesNotPersistReceiptOrOutbox() {
+        var command = activeSubmission();
+        doThrow(new IllegalStateException("forced response failure"))
+                .when(responses).insert(any());
+
+        assertThatThrownBy(() -> submissions.submit(
+                USER, UUID.randomUUID().toString(), command))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseMessage("forced response failure");
+
+        assertAtomicSubmissionTablesAreEmpty();
+    }
+
+    private SurveyResponseSubmissionService.SubmitSurveyResponseCommand
+    activeSubmission() {
         SurveyQuestion question = new SurveyQuestion(
                 new SurveyQuestionId(UUID.randomUUID()),
                 new SurveyQuestionLineageKey(UUID.randomUUID()),
@@ -96,20 +128,12 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
         var active = rounds.startPublishedContentNow(
                         published.id(), null, ADMIN)
                 .targetRound();
-        doThrow(new IllegalStateException("forced outbox failure"))
-                .when(outbox).insert(any());
+        return new SurveyResponseSubmissionService.SubmitSurveyResponseCommand(
+                active.id(),
+                List.of(new ShortTextAnswer(question.id(), "answer")));
+    }
 
-        assertThatThrownBy(() -> submissions.submit(
-                USER,
-                UUID.randomUUID().toString(),
-                new SurveyResponseSubmissionService
-                        .SubmitSurveyResponseCommand(
-                        active.id(),
-                        List.of(new ShortTextAnswer(
-                                question.id(), "answer")))))
-                .isInstanceOf(DataAccessException.class)
-                .hasRootCauseMessage("forced outbox failure");
-
+    private void assertAtomicSubmissionTablesAreEmpty() {
         assertThat(count("survey_responses")).isZero();
         assertThat(count("integration_outbox")).isZero();
         assertThat(count("persona_generations")).isZero();

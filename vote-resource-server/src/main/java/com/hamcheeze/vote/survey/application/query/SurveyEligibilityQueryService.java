@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 public class SurveyEligibilityQueryService {
@@ -49,6 +50,22 @@ public class SurveyEligibilityQueryService {
         List<SurveyRound> activeCandidates = rounds.findAll().stream()
                 .filter(round -> round.status() == SurveyRoundStatus.ACTIVE)
                 .toList();
+        return evaluate(userId, activeCandidates);
+    }
+
+    ServiceEligibilityDecision evaluate(
+            SurveyUserId userId,
+            Optional<SurveyRound> activeRound
+    ) {
+        Objects.requireNonNull(activeRound, "activeRound");
+        return evaluate(userId, activeRound.stream().toList());
+    }
+
+    private ServiceEligibilityDecision evaluate(
+            SurveyUserId userId,
+            List<SurveyRound> activeCandidates
+    ) {
+        Objects.requireNonNull(userId, "userId");
         boolean currentResponse = activeCandidates.size() == 1
                 && responses.existsByUserIdAndRoundId(
                         userId, activeCandidates.getFirst().id());

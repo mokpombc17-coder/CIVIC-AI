@@ -28,6 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -96,11 +97,19 @@ class SurveyConcurrencyIntegrationTest {
         PublishedContent content = publish("scheduler-race", "질문 1");
         SurveyRound scheduled = roundService.schedule(
                         content.value().id(),
-                        Instant.now().plusMillis(100),
+                        Instant.now().plusSeconds(3600),
                         "due",
                         ADMIN)
                 .round();
-        Thread.sleep(150);
+        Instant scheduledAt = Instant.now().minusSeconds(30);
+        jdbcTemplate.update("""
+                UPDATE survey_rounds
+                SET scheduled_at = ?, created_at = ?
+                WHERE round_id = ?
+                """,
+                Timestamp.from(scheduledAt),
+                Timestamp.from(scheduledAt.minusSeconds(30)),
+                scheduled.id().value());
         CountDownLatch start = new CountDownLatch(1);
 
         try (var executor = Executors.newFixedThreadPool(2)) {

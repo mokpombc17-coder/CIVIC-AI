@@ -60,5 +60,9 @@ vote:
     snapshot-finalized-outbox:
       enabled: ${VOTE_OPINION_MAP_SNAPSHOT_FINALIZED_OUTBOX_ENABLED:false}
   survey:
+    round-activation:
+      enabled: false
+      fixed-delay: 5s
+      initial-delay: 0s
     bootstrap:
       enabled: false
