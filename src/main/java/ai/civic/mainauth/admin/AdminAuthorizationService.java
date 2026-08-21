@@ -19,6 +19,18 @@ public class AdminAuthorizationService {
         return requireAdmin(sessions.requireForTokenIssuance(sessionId), highestOnly);
     }
 
+    public SessionService.SessionView requireOperator(String sessionId) {
+        var session = sessions.require(sessionId);
+        if (session.mustChangePassword()) {
+            throw new AdminPolicyException("Administrator password rotation is required");
+        }
+        var operator = session.role() == SessionService.SessionRole.RAG_ADMIN
+                || session.role() == SessionService.SessionRole.ADMIN
+                || session.role() == SessionService.SessionRole.HIGHEST_ADMIN;
+        if (!operator) throw new AdminPolicyException("Administrator role is required");
+        return session;
+    }
+
     private SessionService.SessionView requireAdmin(
             SessionService.SessionView session, boolean highestOnly) {
         if (session.mustChangePassword()) {
