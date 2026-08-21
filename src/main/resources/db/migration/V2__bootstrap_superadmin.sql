@@ -7,8 +7,8 @@ insert into roles(code, highest_admin) values
 with created_user as (
     insert into users(email, normalized_email, origin, state, email_verified_at)
     values (
-        convert_from(decode('${bootstrap_admin_email_base64}', 'base64'), 'UTF8'),
-        lower(btrim(convert_from(decode('${bootstrap_admin_email_base64}', 'base64'), 'UTF8'))),
+        '${bootstrap_admin_email}',
+        lower(btrim('${bootstrap_admin_email}')),
         'BOOTSTRAP_ADMIN',
         'ACTIVE',
         now()
@@ -16,8 +16,7 @@ with created_user as (
     returning id
 ), created_credential as (
     insert into credentials(user_id, password_hash, must_change_password)
-    select id, convert_from(decode('${bootstrap_admin_password_hash_base64}', 'base64'), 'UTF8'), true
-    from created_user
+    select id, '${bootstrap_admin_password_hash}', true from created_user
     returning user_id
 )
 insert into user_roles(user_id, role_id, granted_by)

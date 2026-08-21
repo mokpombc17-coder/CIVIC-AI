@@ -8,8 +8,6 @@ import java.net.ServerSocket;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Base64;
-import java.nio.charset.StandardCharsets;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -45,9 +43,8 @@ class MigrationTest {
         Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
                 .placeholders(Map.of(
-                        "bootstrap_admin_email_base64", encoded("o'connor@example.test"),
-                        "bootstrap_admin_password_hash_base64",
-                                encoded("$argon2id$v=19$m=65536,t=3,p=1$test$test")))
+                        "bootstrap_admin_email", "o''connor@example.test",
+                        "bootstrap_admin_password_hash", "$argon2id$v=19$m=65536,t=3,p=1$test$test"))
                 .load()
                 .migrate();
 
@@ -119,9 +116,5 @@ class MigrationTest {
                 }
             }
         }
-    }
-
-    private static String encoded(String value) {
-        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 }
