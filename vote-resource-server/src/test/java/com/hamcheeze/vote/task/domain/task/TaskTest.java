@@ -84,6 +84,58 @@ class TaskTest {
     }
 
     @Test
+    void deadlineCannotChangeAtOrAfterCurrentDeadline() {
+        Task atDeadline = draftTask();
+        atDeadline.openImmediately(
+                historyId(10), NOW.plusSeconds(100), actorId(),
+                null, NOW.plusSeconds(10));
+        assertThatThrownBy(() -> atDeadline.changeDeadline(
+                historyId(11), NOW.plusSeconds(200), actorId(),
+                null, NOW.plusSeconds(100)))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo(
+                                        "TASK_DEADLINE_CHANGE_AFTER_CURRENT_DEADLINE_NOT_ALLOWED"));
+
+        Task afterDeadline = draftTask();
+        afterDeadline.openImmediately(
+                historyId(12), NOW.plusSeconds(100), actorId(),
+                null, NOW.plusSeconds(10));
+        assertThatThrownBy(() -> afterDeadline.changeDeadline(
+                historyId(13), NOW.plusSeconds(200), actorId(),
+                null, NOW.plusSeconds(101)))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo(
+                                        "TASK_DEADLINE_CHANGE_AFTER_CURRENT_DEADLINE_NOT_ALLOWED"));
+    }
+
+    @Test
+    void changedDeadlineMustRemainAfterChangeTime() {
+        Task task = draftTask();
+        task.openImmediately(
+                historyId(20), NOW.plusSeconds(300), actorId(),
+                null, NOW.plusSeconds(10));
+
+        assertThatThrownBy(() -> task.changeDeadline(
+                historyId(21), NOW.plusSeconds(100), actorId(),
+                null, NOW.plusSeconds(100)))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo("TASK_DEADLINE_MUST_BE_FUTURE"));
+        assertThatThrownBy(() -> task.changeDeadline(
+                historyId(22), NOW.plusSeconds(99), actorId(),
+                null, NOW.plusSeconds(100)))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo("TASK_DEADLINE_MUST_BE_FUTURE"));
+    }
+
+    @Test
     void supportsEarlyCloseCancellationAndMissedSchedule() {
         Task early = draftTask();
         early.openImmediately(

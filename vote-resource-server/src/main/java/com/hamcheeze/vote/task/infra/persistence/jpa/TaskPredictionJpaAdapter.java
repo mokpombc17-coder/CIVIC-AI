@@ -211,7 +211,7 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
                          task.scheduled_close_at,
                          prediction.created_at,
                          prediction.prediction_id
-                FOR UPDATE OF prediction SKIP LOCKED
+                FOR UPDATE OF task, prediction SKIP LOCKED
                 LIMIT 1
                 """, now);
     }

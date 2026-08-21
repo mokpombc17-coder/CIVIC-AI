@@ -12,6 +12,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
@@ -43,5 +44,26 @@ class TaskPredictionTransactionCallbacksIntegrationTest {
                 TaskPredictionTransactionCallbacks.afterCommit(
                         counter::increment));
         assertThat(counter.count()).isEqualTo(1D);
+    }
+
+    @Test
+    void callbackFailureIsBestEffortInsideAndOutsideTransaction() {
+        TransactionTemplate transaction = new TransactionTemplate(
+                transactionManager);
+
+        assertThatCode(() -> transaction.executeWithoutResult(status ->
+                TaskPredictionTransactionCallbacks.afterCommit(
+                        "test-transaction-callback-failure",
+                        () -> {
+                            throw new IllegalStateException(
+                                    "metric unavailable");
+                        })))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> TaskPredictionTransactionCallbacks.afterCommit(
+                "test-immediate-callback-failure",
+                () -> {
+                    throw new IllegalStateException("metric unavailable");
+                }))
+                .doesNotThrowAnyException();
     }
 }

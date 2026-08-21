@@ -224,6 +224,12 @@ public final class Task {
         requireStatus(TaskStatus.OPEN, "change deadline");
         requireMonotonic(occurredAt);
         Objects.requireNonNull(newCloseAt, "newCloseAt");
+        if (!occurredAt.isBefore(schedule.scheduledCloseAt())) {
+            throw TaskDomainException.invariant(
+                    "TASK_DEADLINE_CHANGE_AFTER_CURRENT_DEADLINE_NOT_ALLOWED",
+                    "occurredAt",
+                    "deadline cannot be changed after the current deadline");
+        }
         if (!occurredAt.isBefore(newCloseAt)) {
             throw TaskDomainException.invariant(
                     "TASK_DEADLINE_MUST_BE_FUTURE",

@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyCommand;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyExecution;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
 import com.hamcheeze.vote.task.application.idempotency.TaskSubmissionRequestHashFactory;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionTransactionCallbacks;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.CurrentTaskPersona;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
@@ -134,32 +135,8 @@ public class TaskSubmissionService {
                         outcomeCodec,
                         () -> submitInReceiptTransaction(
                                 authenticatedUserId, command));
-        SubmissionExecution result = new SubmissionExecution(
+        return new SubmissionExecution(
                 execution.result(), execution.replayed());
-        recordSuccessfulSubmission(result, command);
-        return result;
-    }
-
-    private void recordSuccessfulSubmission(
-            SubmissionExecution execution,
-            SubmitTaskCommand command
-    ) {
-        if (metrics == null || execution.replayed()
-                || !execution.outcome().succeeded()) {
-            return;
-        }
-        if (!(command.answer() instanceof WriteTaskReason)) {
-            metrics.aiAccepted();
-            return;
-        }
-        if (command.predictionId() == null) {
-            metrics.directWithoutPrediction();
-            return;
-        }
-        predictions.findById(command.predictionId())
-                .filter(prediction -> !prediction.status().terminal())
-                .ifPresent(ignored ->
-                        metrics.directWhilePredictionNonTerminal());
     }
 
     private TaskSubmissionOutcome submitInReceiptTransaction(
@@ -274,7 +251,11 @@ public class TaskSubmissionService {
                     submittedAt);
             TaskSubmission stored = submissions.insert(submission);
             completedEvents.publish(stored);
-            return TaskSubmissionOutcome.submitted(stored);
+            TaskSubmissionOutcome outcome =
+                    TaskSubmissionOutcome.submitted(stored);
+            recordSubmissionMetricAfterCommit(metricObservation(
+                    command.answer(), prediction));
+            return outcome;
         } catch (TaskValidationException exception) {
             return TaskSubmissionOutcome.rejected(
                     422,
@@ -289,6 +270,55 @@ public class TaskSubmissionService {
                     task.id(),
                     violation);
         }
+    }
+
+    private TaskSubmissionMetricObservation metricObservation(
+            TaskSubmissionAnswerCommand answer,
+            TaskPrediction prediction
+    ) {
+        if (answer instanceof AcceptTaskPredictedReason) {
+            return TaskSubmissionMetricObservation.AI_ACCEPTED;
+        }
+        if (!(answer instanceof WriteTaskReason)) {
+            return TaskSubmissionMetricObservation.NONE;
+        }
+        if (prediction == null) {
+            return TaskSubmissionMetricObservation
+                    .DIRECT_WITHOUT_PREDICTION;
+        }
+        return prediction.status().terminal()
+                ? TaskSubmissionMetricObservation.NONE
+                : TaskSubmissionMetricObservation
+                        .DIRECT_WITH_NON_TERMINAL_PREDICTION;
+    }
+
+    private void recordSubmissionMetricAfterCommit(
+            TaskSubmissionMetricObservation observation
+    ) {
+        TaskSubmissionMetrics currentMetrics = metrics;
+        if (currentMetrics == null
+                || observation == TaskSubmissionMetricObservation.NONE) {
+            return;
+        }
+        Runnable action = switch (observation) {
+            case AI_ACCEPTED -> currentMetrics::aiAccepted;
+            case DIRECT_WITHOUT_PREDICTION ->
+                    currentMetrics::directWithoutPrediction;
+            case DIRECT_WITH_NON_TERMINAL_PREDICTION ->
+                    currentMetrics::directWhilePredictionNonTerminal;
+            case NONE -> throw new IllegalStateException(
+                    "NONE metric observation must not be registered");
+        };
+        TaskPredictionTransactionCallbacks.afterCommit(
+                "task-submission-" + observation.name(),
+                action);
+    }
+
+    private enum TaskSubmissionMetricObservation {
+        NONE,
+        AI_ACCEPTED,
+        DIRECT_WITHOUT_PREDICTION,
+        DIRECT_WITH_NON_TERMINAL_PREDICTION
     }
 
     private static TaskSubmissionOutcome rejection(

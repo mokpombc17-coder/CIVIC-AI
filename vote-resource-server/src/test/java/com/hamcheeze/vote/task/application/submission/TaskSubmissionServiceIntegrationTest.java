@@ -17,12 +17,16 @@ import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
+import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
 import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
@@ -57,13 +61,20 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
         "vote.survey.bootstrap.enabled=false",
         "vote.task.lifecycle.enabled=false",
-        "vote.task.prediction.enabled=false",
+        "vote.task.prediction.enabled=true",
+        "vote.task.prediction.provider=fake",
+        "vote.task.prediction.dispatcher-delay=1h",
+        "vote.task.prediction.lease-reaper-delay=1h",
         "vote.task.submission-outbox.enabled=true",
         "vote.task.opinion-map-finalization-outbox.enabled=true"
 })
@@ -81,10 +92,10 @@ class TaskSubmissionServiceIntegrationTest {
     @Autowired
     private TaskRepository tasks;
 
-    @Autowired
+    @MockitoSpyBean
     private TaskPredictionRepository predictions;
 
-    @Autowired
+    @MockitoSpyBean
     private TaskSubmissionRepository submissions;
 
     @Autowired
@@ -95,6 +106,9 @@ class TaskSubmissionServiceIntegrationTest {
 
     @MockitoSpyBean
     private IntegrationOutboxRepository outbox;
+
+    @MockitoSpyBean
+    private TaskSubmissionMetrics metrics;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -137,6 +151,151 @@ class TaskSubmissionServiceIntegrationTest {
     }
 
     @Test
+    void directMetricRunsOnceAfterCommitAndNotOnIdempotentReplay() {
+        Fixture fixture = fixture("metric-replay-user");
+        String key = UUID.randomUUID().toString();
+        TaskSubmissionService.SubmitTaskCommand command =
+                commandWithoutPrediction(fixture, "metric replay");
+
+        TaskSubmissionService.SubmissionExecution first = service.submit(
+                fixture.userId(), key, command);
+        TaskSubmissionService.SubmissionExecution replay = service.submit(
+                fixture.userId(), key, command);
+
+        assertThat(first.outcome().httpStatus()).isEqualTo(201);
+        assertThat(replay.replayed()).isTrue();
+        verify(metrics, times(1)).directWithoutPrediction();
+        assertThat(submissionCount(fixture)).isEqualTo(1);
+        assertThat(outboxCount(first.outcome().submissionId().value()))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void directMetricUsesTransactionPredictionWithoutPostCommitLookup() {
+        Fixture fixture = fixture(
+                "metric-pending-user", TaskPredictionStatus.PENDING);
+        clearInvocations(predictions);
+
+        TaskSubmissionService.SubmissionExecution result = service.submit(
+                fixture.userId(),
+                UUID.randomUUID().toString(),
+                command(fixture, "pending prediction direct"));
+
+        assertThat(result.outcome().httpStatus()).isEqualTo(201);
+        verify(predictions, times(1)).findById(
+                fixture.prediction().id());
+        verify(metrics, times(1))
+                .directWhilePredictionNonTerminal();
+    }
+
+    @Test
+    void directMetricsDistinguishNonTerminalAndTerminalPredictions() {
+        for (TaskPredictionStatus status : List.of(
+                TaskPredictionStatus.PROCESSING,
+                TaskPredictionStatus.RETRY_WAIT)) {
+            Fixture fixture = fixture(
+                    "metric-" + status.name().toLowerCase() + "-user",
+                    status);
+            assertThat(service.submit(
+                    fixture.userId(),
+                    UUID.randomUUID().toString(),
+                    command(fixture, status.name() + " direct"))
+                    .outcome().httpStatus()).isEqualTo(201);
+        }
+        verify(metrics, times(2))
+                .directWhilePredictionNonTerminal();
+
+        Fixture failed = fixture(
+                "metric-failed-user", TaskPredictionStatus.FAILED);
+        assertThat(service.submit(
+                failed.userId(),
+                UUID.randomUUID().toString(),
+                command(failed, "failed direct"))
+                .outcome().httpStatus()).isEqualTo(201);
+        verify(metrics, times(2))
+                .directWhilePredictionNonTerminal();
+        verify(metrics, never()).directWithoutPrediction();
+    }
+
+    @Test
+    void succeededPredictionRecordsAiAcceptedMetric() {
+        Fixture fixture = fixture(
+                "metric-ai-user", TaskPredictionStatus.SUCCEEDED);
+        TaskPredictedReason accepted = fixture.prediction()
+                .predictedReasons().getFirst();
+        TaskSubmissionService.SubmitTaskCommand command =
+                new TaskSubmissionService.SubmitTaskCommand(
+                        fixture.task().id(),
+                        fixture.prediction().id(),
+                        new AcceptTaskPredictedReason(
+                                fixture.question().id(),
+                                accepted.optionId(),
+                                accepted.id()));
+
+        TaskSubmissionService.SubmissionExecution result = service.submit(
+                fixture.userId(), UUID.randomUUID().toString(), command);
+
+        assertThat(result.outcome().httpStatus()).isEqualTo(201);
+        verify(metrics, times(1)).aiAccepted();
+    }
+
+    @Test
+    void metricCallbackFailuresDoNotChangeCommittedSubmissionResults() {
+        doThrow(new IllegalStateException("direct metric unavailable"))
+                .when(metrics).directWithoutPrediction();
+        doThrow(new IllegalStateException("nonterminal metric unavailable"))
+                .when(metrics).directWhilePredictionNonTerminal();
+        doThrow(new IllegalStateException("ai metric unavailable"))
+                .when(metrics).aiAccepted();
+
+        Fixture withoutPrediction = fixture("metric-failure-direct-user");
+        Fixture pending = fixture(
+                "metric-failure-pending-user",
+                TaskPredictionStatus.PENDING);
+        Fixture succeeded = fixture(
+                "metric-failure-ai-user",
+                TaskPredictionStatus.SUCCEEDED);
+        TaskPredictedReason accepted = succeeded.prediction()
+                .predictedReasons().getFirst();
+        List<TaskSubmissionService.SubmissionExecution> results = List.of(
+                service.submit(
+                        withoutPrediction.userId(),
+                        UUID.randomUUID().toString(),
+                        commandWithoutPrediction(
+                                withoutPrediction, "direct failure")),
+                service.submit(
+                        pending.userId(),
+                        UUID.randomUUID().toString(),
+                        command(pending, "pending failure")),
+                service.submit(
+                        succeeded.userId(),
+                        UUID.randomUUID().toString(),
+                        new TaskSubmissionService.SubmitTaskCommand(
+                                succeeded.task().id(),
+                                succeeded.prediction().id(),
+                                new AcceptTaskPredictedReason(
+                                        succeeded.question().id(),
+                                        accepted.optionId(),
+                                        accepted.id()))));
+
+        assertThat(results)
+                .extracting(result -> result.outcome().httpStatus())
+                .containsOnly(201);
+        for (int index = 0; index < results.size(); index++) {
+            TaskSubmissionService.SubmissionExecution result =
+                    results.get(index);
+            assertThat(outboxCount(result.outcome().submissionId().value()))
+                    .isEqualTo(1);
+        }
+        assertThat(receiptStatuses(withoutPrediction.userId()))
+                .containsExactly("SUCCEEDED");
+        assertThat(receiptStatuses(pending.userId()))
+                .containsExactly("SUCCEEDED");
+        assertThat(receiptStatuses(succeeded.userId()))
+                .containsExactly("SUCCEEDED");
+    }
+
+    @Test
     void successfulSubmissionStoresCompleteResultHandoffEvent() {
         Fixture fixture = fixture("outbox-payload-user");
 
@@ -175,13 +334,35 @@ class TaskSubmissionServiceIntegrationTest {
         assertThatThrownBy(() -> service.submit(
                 fixture.userId(),
                 UUID.randomUUID().toString(),
-                command(fixture, "rollback")))
+                commandWithoutPrediction(fixture, "rollback")))
                 .isInstanceOf(DataAccessException.class)
                 .hasRootCauseMessage("forced task outbox failure");
 
         assertThat(submissionCount(fixture)).isZero();
         assertThat(outboxCountForTask(fixture.task().id().value())).isZero();
         assertThat(receiptStatuses(fixture.userId())).isEmpty();
+        verify(metrics, never()).directWithoutPrediction();
+    }
+
+    @Test
+    void submissionInsertFailureRollsBackWithoutMetricCallback() {
+        Fixture fixture = fixture("submission-rollback-user");
+        doThrow(new IllegalStateException(
+                "forced task submission insert failure"))
+                .when(submissions).insert(any());
+
+        assertThatThrownBy(() -> service.submit(
+                fixture.userId(),
+                UUID.randomUUID().toString(),
+                commandWithoutPrediction(fixture, "insert rollback")))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseMessage(
+                        "forced task submission insert failure");
+
+        assertThat(submissionCount(fixture)).isZero();
+        assertThat(outboxCountForTask(fixture.task().id().value())).isZero();
+        assertThat(receiptStatuses(fixture.userId())).isEmpty();
+        verify(metrics, never()).directWithoutPrediction();
     }
 
     @Test
@@ -471,6 +652,13 @@ class TaskSubmissionServiceIntegrationTest {
     }
 
     private Fixture fixture(String userValue) {
+        return fixture(userValue, TaskPredictionStatus.FAILED);
+    }
+
+    private Fixture fixture(
+            String userValue,
+            TaskPredictionStatus predictionStatus
+    ) {
         Instant now = Instant.now();
         TaskUserId userId = new TaskUserId(userValue);
         TaskQuestion question = new TaskQuestion(
@@ -516,14 +704,55 @@ class TaskSubmissionServiceIntegrationTest {
                         Duration.ofSeconds(60),
                         2,
                         Duration.ofSeconds(30));
-        prediction.startProcessing(
-                retryPolicy, now.minus(7, ChronoUnit.SECONDS));
-        prediction.failPermanently(
-                new TaskPredictionError(
-                        "AI_UNAVAILABLE", "use direct answers"),
-                now.minus(6, ChronoUnit.SECONDS));
+        switch (predictionStatus) {
+            case PENDING -> {
+            }
+            case PROCESSING -> prediction.startProcessing(
+                    retryPolicy, now.minus(7, ChronoUnit.SECONDS));
+            case RETRY_WAIT -> {
+                prediction.startProcessing(
+                        retryPolicy, now.minus(7, ChronoUnit.SECONDS));
+                prediction.failAttempt(
+                        new TaskPredictionError(
+                                "AI_TIMEOUT", "retry direct answers"),
+                        retryPolicy,
+                        now.minus(6, ChronoUnit.SECONDS));
+            }
+            case FAILED -> {
+                prediction.startProcessing(
+                        retryPolicy, now.minus(7, ChronoUnit.SECONDS));
+                prediction.failPermanently(
+                        new TaskPredictionError(
+                                "AI_UNAVAILABLE", "use direct answers"),
+                        now.minus(6, ChronoUnit.SECONDS));
+            }
+            case SUCCEEDED -> {
+                prediction.startProcessing(
+                        retryPolicy, now.minus(7, ChronoUnit.SECONDS));
+                prediction.succeed(
+                        task,
+                        predictedReasons(prediction, question),
+                        now.minus(6, ChronoUnit.SECONDS));
+            }
+        }
         prediction = predictions.insert(prediction);
         return new Fixture(userId, task, question, prediction);
+    }
+
+    private List<TaskPredictedReason> predictedReasons(
+            TaskPrediction prediction,
+            TaskQuestion question
+    ) {
+        return question.options().stream()
+                .flatMap(option -> java.util.stream.IntStream
+                        .rangeClosed(1, 2)
+                        .mapToObj(order -> new TaskPredictedReason(
+                                new TaskPredictedReasonId(UUID.randomUUID()),
+                                prediction.id(),
+                                option.id(),
+                                order,
+                                "예상 이유 " + order)))
+                .toList();
     }
 
     private TaskSubmissionService.SubmitTaskCommand command(
@@ -536,6 +765,21 @@ class TaskSubmissionServiceIntegrationTest {
                 new WriteTaskReason(
                         fixture.question().id(),
                         fixture.question().options().get(optionIndex).id(),
+                        answer + " 이유"));
+    }
+
+    private TaskSubmissionService.SubmitTaskCommand commandWithoutPrediction(
+            Fixture fixture,
+            String answer
+    ) {
+        return new TaskSubmissionService.SubmitTaskCommand(
+                fixture.task().id(),
+                fixture.prediction().personaGenerationId(),
+                fixture.prediction().personaVersionId(),
+                null,
+                new WriteTaskReason(
+                        fixture.question().id(),
+                        fixture.question().options().getFirst().id(),
                         answer + " 이유"));
     }
 

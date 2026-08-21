@@ -13,6 +13,7 @@ import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.domain.answer.SingleChoiceValue;
 import com.hamcheeze.vote.task.domain.answer.TaskOptionSelection;
+import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
@@ -393,6 +394,114 @@ class TaskPredictionApplicationIntegrationTest {
     }
 
     @Test
+    void deadlineExtensionHoldingTaskLockPreventsCleanupOfOldDeadline()
+            throws Exception {
+        Instant now = Instant.now();
+        Task task = persistExpiredOpenTask(now);
+        TaskPrediction prediction = insertPendingPrediction(task, now);
+        Instant previousDeadline = task.schedule().scheduledCloseAt();
+        Instant extendedDeadline = now.plus(1, ChronoUnit.HOURS);
+        CountDownLatch deadlineChangedAndLocked = new CountDownLatch(1);
+        CountDownLatch releaseDeadlineChange = new CountDownLatch(1);
+        TransactionTemplate transactions = new TransactionTemplate(
+                transactionManager);
+        var deadlineCounter = meterRegistry.counter(
+                "vote.task.prediction.deadline.expiration");
+        double metricBefore = deadlineCounter.count();
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var admin = executor.submit(() -> transactions.execute(status -> {
+                Task locked = tasks.findByIdForUpdate(task.id())
+                        .orElseThrow();
+                locked.changeDeadline(
+                        new TaskLifecycleHistoryId(UUID.randomUUID()),
+                        extendedDeadline,
+                        new TaskActorId("deadline-race-admin"),
+                        "extend before the previous deadline",
+                        previousDeadline.minusMillis(1));
+                tasks.save(locked);
+                deadlineChangedAndLocked.countDown();
+                await(releaseDeadlineChange);
+                return null;
+            }));
+            assertThat(deadlineChangedAndLocked.await(
+                    10, TimeUnit.SECONDS)).isTrue();
+
+            assertThat(maintenance.expireNextDeadline()).isFalse();
+            assertThat(predictions.findById(prediction.id()).orElseThrow()
+                    .status()).isEqualTo(TaskPredictionStatus.PENDING);
+            assertThat(deadlineCounter.count()).isEqualTo(metricBefore);
+
+            releaseDeadlineChange.countDown();
+            admin.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(tasks.findById(task.id()).orElseThrow()
+                .schedule().scheduledCloseAt()).isEqualTo(extendedDeadline);
+        assertThat(maintenance.expireNextDeadline()).isFalse();
+        assertThat(predictions.findById(prediction.id()).orElseThrow()
+                .status()).isEqualTo(TaskPredictionStatus.PENDING);
+
+        MutableClock afterExtendedDeadline = new MutableClock(
+                extendedDeadline.plusMillis(1));
+        Boolean expired = transactions.execute(status ->
+                maintenance(afterExtendedDeadline).expireNextDeadline());
+        assertThat(expired).isTrue();
+        assertThat(predictions.findById(prediction.id()).orElseThrow()
+                .lastError().code())
+                .isEqualTo("TASK_PREDICTION_DEADLINE_EXPIRED");
+    }
+
+    @Test
+    void cleanupHoldingTaskAndPredictionLocksRejectsLaterExtension()
+            throws Exception {
+        Instant now = Instant.now();
+        Task task = persistExpiredOpenTask(now);
+        TaskPrediction prediction = insertPendingPrediction(task, now);
+        CountDownLatch cleanupAppliedAndLocked = new CountDownLatch(1);
+        CountDownLatch adminStarted = new CountDownLatch(1);
+        CountDownLatch releaseCleanup = new CountDownLatch(1);
+        TransactionTemplate transactions = new TransactionTemplate(
+                transactionManager);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var cleanup = executor.submit(() -> transactions.execute(status -> {
+                boolean applied = maintenance.expireNextDeadline();
+                cleanupAppliedAndLocked.countDown();
+                await(adminStarted);
+                await(releaseCleanup);
+                return applied;
+            }));
+            assertThat(cleanupAppliedAndLocked.await(
+                    10, TimeUnit.SECONDS)).isTrue();
+            var admin = executor.submit(() -> {
+                adminStarted.countDown();
+                try {
+                    administration.changeDeadline(
+                            task.id(),
+                            now.plus(1, ChronoUnit.HOURS),
+                            "too late extension",
+                            new TaskActorId("late-deadline-admin"));
+                    return null;
+                } catch (TaskDomainException exception) {
+                    return exception.violation().code();
+                }
+            });
+
+            releaseCleanup.countDown();
+            assertThat(cleanup.get(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(admin.get(10, TimeUnit.SECONDS)).isEqualTo(
+                    "TASK_DEADLINE_CHANGE_AFTER_CURRENT_DEADLINE_NOT_ALLOWED");
+        }
+
+        assertThat(predictions.findById(prediction.id()).orElseThrow()
+                .status()).isEqualTo(TaskPredictionStatus.FAILED);
+        assertThat(tasks.findById(task.id()).orElseThrow()
+                .schedule().scheduledCloseAt())
+                .isEqualTo(task.schedule().scheduledCloseAt());
+    }
+
+    @Test
     void claimMetricFollowsOuterTransactionCommit() {
         Task task = persistOpenTask();
         TaskUserId userId = new TaskUserId(
@@ -567,6 +676,46 @@ class TaskPredictionApplicationIntegrationTest {
                 null,
                 now.minus(1, ChronoUnit.SECONDS));
         return tasks.save(task);
+    }
+
+    private Task persistExpiredOpenTask(Instant now) {
+        Task task = Task.draft(
+                new TaskId(UUID.randomUUID()),
+                "마감 경합 통합 과업",
+                null,
+                List.of(shortTextQuestion()),
+                now.minus(2, ChronoUnit.HOURS));
+        task.openImmediately(
+                new TaskLifecycleHistoryId(UUID.randomUUID()),
+                now.minus(30, ChronoUnit.SECONDS),
+                new TaskActorId("deadline-race-admin"),
+                null,
+                now.minus(1, ChronoUnit.MINUTES));
+        return tasks.save(task);
+    }
+
+    private TaskPrediction insertPendingPrediction(Task task, Instant now) {
+        return predictions.insert(TaskPrediction.pending(
+                new com.hamcheeze.vote.task.domain.common.TaskPredictionId(
+                        UUID.randomUUID()),
+                new TaskUserId("deadline-race-" + UUID.randomUUID()),
+                task.id(),
+                new TaskPersonaGenerationId(UUID.randomUUID()),
+                new TaskPersonaVersionId(UUID.randomUUID()),
+                new TaskPersonaId("deadline-race-persona-" + UUID.randomUUID()),
+                "candidate-policy-v1",
+                now.minus(45, ChronoUnit.SECONDS)));
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("timed out waiting for latch");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     private static final class MutableClock extends Clock {

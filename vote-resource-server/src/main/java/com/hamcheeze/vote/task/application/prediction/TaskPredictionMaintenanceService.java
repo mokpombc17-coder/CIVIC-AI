@@ -7,6 +7,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskClosureType;
 import com.hamcheeze.vote.task.domain.task.TaskStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,17 +99,20 @@ public class TaskPredictionMaintenanceService {
         }
         TaskPrediction prediction = found.orElseThrow();
         Task task = requireTask(prediction);
-        boolean closedEarly = task.status() == TaskStatus.CLOSED
-                && now.isBefore(task.schedule().scheduledCloseAt());
-        TaskPredictionError terminalError = closedEarly
-                ? taskClosedError() : deadlineError();
+        if (task.status() == TaskStatus.OPEN
+                && now.isBefore(task.schedule().scheduledCloseAt())) {
+            return false;
+        }
+        TaskPredictionError terminalError = terminalError(task);
+        boolean taskClosed = terminalError.code().equals(
+                "TASK_PREDICTION_TASK_CLOSED");
         if (prediction.activeAttemptId() != null) {
             TaskPredictionAttempt attempt = activeAttempt(prediction);
             predictions.saveAttempt(attempt.complete(
                     TaskPredictionAttemptOutcome.IGNORED_LATE_RESPONSE,
                     null, null,
                     terminalError.code(),
-                    closedEarly
+                    taskClosed
                             ? "task closed while prediction was processing"
                             : "task deadline elapsed while prediction was processing",
                     now));
@@ -120,6 +124,23 @@ public class TaskPredictionMaintenanceService {
                     metrics::deadlineExpired);
         }
         return true;
+    }
+
+    private static TaskPredictionError terminalError(Task task) {
+        return switch (task.status()) {
+            case OPEN -> deadlineError();
+            case CLOSED -> switch (requireClosureType(task)) {
+                case EARLY_CLOSED, CANCELLED -> taskClosedError();
+                case DEADLINE_REACHED, MISSED_SCHEDULE -> deadlineError();
+            };
+            case DRAFT, SCHEDULED -> throw new IllegalStateException(
+                    "prediction deadline cleanup requires an open or closed task");
+        };
+    }
+
+    private static TaskClosureType requireClosureType(Task task) {
+        return Objects.requireNonNull(
+                task.closureType(), "closed task closureType");
     }
 
     private TaskPredictionAttempt activeAttempt(TaskPrediction prediction) {
