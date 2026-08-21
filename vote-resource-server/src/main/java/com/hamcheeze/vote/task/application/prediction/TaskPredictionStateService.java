@@ -15,6 +15,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.hamcheeze.vote.task.infra.prediction.TaskPredictionMetrics;
@@ -27,6 +28,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@ConditionalOnProperty(
+        prefix = "vote.task.prediction",
+        name = "enabled",
+        havingValue = "true")
 public class TaskPredictionStateService {
 
     private static final String INVALID_RESPONSE_CODE =
@@ -92,6 +97,10 @@ public class TaskPredictionStateService {
                     "TASK_PREDICTION_DEADLINE_EXPIRED",
                     "task deadline elapsed before prediction claim"), now);
             predictions.save(prediction);
+            if (metrics != null) {
+                TaskPredictionTransactionCallbacks.afterCommit(
+                        metrics::deadlineExpired);
+            }
             return Optional.empty();
         }
         final TaskPredictionInputSnapshot input;
@@ -111,11 +120,14 @@ public class TaskPredictionStateService {
                     code, exception.getMessage()), now);
             predictions.save(prediction);
             if (metrics != null) {
-                if (exception.code() == TaskPredictionInputException.ErrorCode
-                        .FINGERPRINT_MISMATCH) {
-                    metrics.fingerprintMismatch();
-                }
-                metrics.terminalFailure();
+                TaskPredictionTransactionCallbacks.afterCommit(() -> {
+                    if (exception.code()
+                            == TaskPredictionInputException.ErrorCode
+                            .FINGERPRINT_MISMATCH) {
+                        metrics.fingerprintMismatch();
+                    }
+                    metrics.terminalFailure();
+                });
             }
             return Optional.empty();
         }
@@ -147,7 +159,8 @@ public class TaskPredictionStateService {
         predictions.save(prediction);
         predictions.saveAttempt(attempt);
         if (metrics != null) {
-            metrics.claimSucceeded();
+            TaskPredictionTransactionCallbacks.afterCommit(
+                    metrics::claimSucceeded);
         }
         return Optional.of(new TaskPredictionDispatchClaim(
                 prediction.id(),
@@ -203,8 +216,10 @@ public class TaskPredictionStateService {
                     "TASK_PREDICTION_LATE_RESPONSE",
                     "prediction response arrived after task deadline", now));
             if (metrics != null) {
-                metrics.lateResponseIgnored();
-                metrics.terminalFailure();
+                TaskPredictionTransactionCallbacks.afterCommit(() -> {
+                    metrics.lateResponseIgnored();
+                    metrics.terminalFailure();
+                });
             }
             return true;
         }
@@ -229,7 +244,8 @@ public class TaskPredictionStateService {
         predictions.save(prediction);
         predictions.saveAttempt(completed);
         if (metrics != null) {
-            metrics.predictionSucceeded();
+            TaskPredictionTransactionCallbacks.afterCommit(
+                    metrics::predictionSucceeded);
         }
         return true;
     }
@@ -287,11 +303,15 @@ public class TaskPredictionStateService {
         predictions.save(prediction);
         predictions.saveAttempt(completed);
         if (metrics != null) {
-            if (prediction.status() == TaskPredictionStatus.RETRY_WAIT) {
-                metrics.retryableFailure();
-            } else {
-                metrics.terminalFailure();
-            }
+            boolean retryScheduled = prediction.status()
+                    == TaskPredictionStatus.RETRY_WAIT;
+            TaskPredictionTransactionCallbacks.afterCommit(() -> {
+                if (retryScheduled) {
+                    metrics.retryableFailure();
+                } else {
+                    metrics.terminalFailure();
+                }
+            });
         }
         return true;
     }
@@ -311,9 +331,11 @@ public class TaskPredictionStateService {
                         TaskPredictionAttempt::attemptNumber))
                 .orElseThrow(() -> new IllegalStateException(
                         "task prediction attempt not found"));
-        predictions.markLateCompletionObserved(latest.id(), clock.instant());
-        if (metrics != null) {
-            metrics.staleCompletionIgnored();
+        boolean firstObservation = predictions.markLateCompletionObserved(
+                latest.id(), clock.instant());
+        if (metrics != null && firstObservation) {
+            TaskPredictionTransactionCallbacks.afterCommit(
+                    metrics::staleCompletionIgnored);
         }
     }
 
@@ -340,6 +362,10 @@ public class TaskPredictionStateService {
                 INVALID_RESPONSE_CODE,
                 safeMessage,
                 now));
+        if (metrics != null) {
+            TaskPredictionTransactionCallbacks.afterCommit(
+                    metrics::terminalFailure);
+        }
     }
 
     private void recordIgnored(
@@ -363,13 +389,16 @@ public class TaskPredictionStateService {
                     safeMessage,
                     now));
             if (metrics != null) {
-                metrics.staleCompletionIgnored();
+                TaskPredictionTransactionCallbacks.afterCommit(
+                        metrics::staleCompletionIgnored);
             }
             return;
         }
-        predictions.markLateCompletionObserved(attempt.id(), now);
-        if (metrics != null) {
-            metrics.staleCompletionIgnored();
+        boolean firstObservation = predictions.markLateCompletionObserved(
+                attempt.id(), now);
+        if (metrics != null && firstObservation) {
+            TaskPredictionTransactionCallbacks.afterCommit(
+                    metrics::staleCompletionIgnored);
         }
     }
 

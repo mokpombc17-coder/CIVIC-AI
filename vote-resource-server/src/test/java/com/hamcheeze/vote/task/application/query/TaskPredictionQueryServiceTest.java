@@ -5,7 +5,11 @@ import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionAvailability;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.task.Task;
@@ -16,8 +20,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.UUID;
 
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.ALREADY_SUBMITTED;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.FAILED;
@@ -181,6 +187,71 @@ class TaskPredictionQueryServiceTest {
         var view = service.findCurrent(USER, task.id());
 
         assertThat(view.state()).isEqualTo(TASK_CLOSED);
+    }
+
+    @Test
+    void disabledFeatureHidesSucceededPredictionAcceptance() {
+        availableTaskAndPersona();
+        TaskPrediction prediction = TaskQueryFixtures
+                .succeededPrediction(task);
+        when(predictions.findByIdentity(USER, task.id(), GENERATION))
+                .thenReturn(Optional.of(prediction));
+
+        var view = service(false).findCurrent(USER, task.id());
+
+        assertThat(view.predictionFeatureEnabled()).isFalse();
+        assertThat(view.predictionUnavailableReason())
+                .isEqualTo("TASK_PREDICTION_DISABLED");
+        assertThat(view.waiting()).isFalse();
+        assertThat(view.aiAcceptanceAllowed()).isFalse();
+        assertThat(view.predictedAnswerAllowed()).isFalse();
+        assertThat(view.directAnswerAllowed()).isTrue();
+        assertThat(view.allowedReasonSources())
+                .containsExactly(TaskReasonSource.USER_WRITTEN);
+    }
+
+    @Test
+    void disabledFeatureDoesNotReportExistingNonTerminalAsWaitingOrRetrying() {
+        availableTaskAndPersona();
+        TaskPrediction retryWait = TaskQueryFixtures.pendingPrediction(task);
+        TaskPredictionRetryPolicy retryPolicy = new TaskPredictionRetryPolicy(
+                Duration.ofSeconds(5), 3, Duration.ofSeconds(10));
+        retryWait.startProcessing(
+                new TaskPredictionAttemptId(UUID.randomUUID()),
+                retryPolicy, Duration.ofSeconds(30), NOW.minusSeconds(30));
+        retryWait.failAttempt(
+                new TaskPredictionError("AI_TIMEOUT", "timed out"),
+                retryPolicy, NOW.minusSeconds(20));
+        when(predictions.findByIdentity(USER, task.id(), GENERATION))
+                .thenReturn(Optional.of(retryWait));
+
+        var view = service(false).findCurrent(USER, task.id());
+
+        assertThat(view.waiting()).isFalse();
+        assertThat(view.nextRetryAt()).isNull();
+        assertThat(view.retryable()).isFalse();
+        assertThat(view.submissionAllowed()).isTrue();
+        assertThat(view.directAnswerAllowed()).isTrue();
+    }
+
+    @Test
+    void globalFeatureFlagRemainsEnabledWhenTaskIsClosed() {
+        task = TaskQueryFixtures.closedTask("마감 과업");
+        when(tasks.findById(task.id())).thenReturn(Optional.of(task));
+
+        var view = service(true).findCurrent(USER, task.id());
+
+        assertThat(view.state()).isEqualTo(TASK_CLOSED);
+        assertThat(view.predictionFeatureEnabled()).isTrue();
+        assertThat(view.predictionRequestAllowed()).isFalse();
+        assertThat(view.submissionAllowed()).isFalse();
+    }
+
+    private TaskPredictionQueryService service(boolean enabled) {
+        return new TaskPredictionQueryService(
+                tasks, currentPersonas, predictions, submissions,
+                new TaskPredictionAvailability(enabled),
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private void availableTask() {

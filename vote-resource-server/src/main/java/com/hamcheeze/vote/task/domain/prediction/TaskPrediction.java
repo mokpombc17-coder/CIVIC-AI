@@ -315,6 +315,9 @@ public final class TaskPrediction {
         status = TaskPredictionStatus.FAILED;
         lastError = error;
         nextRetryAt = null;
+        if (startedAt == null) {
+            startedAt = occurredAt;
+        }
         completedAt = occurredAt;
         clearActiveAttempt();
     }

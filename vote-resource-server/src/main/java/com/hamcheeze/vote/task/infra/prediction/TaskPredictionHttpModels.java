@@ -48,8 +48,13 @@ final class TaskPredictionHttpModels {
             TaskPayload task
     ) {
         static PredictionRequest from(PredictionCreationCommand command) {
-            return from(command.requestId(), command.personaId(),
-                    command.candidatePolicyVersion(), command.task());
+            return new PredictionRequest(
+                    command.requestSchemaVersion(),
+                    command.requestId().value(),
+                    command.personaId().value(),
+                    command.candidatePolicyVersion(),
+                    TaskLimits.PREDICTED_REASONS_PER_OPTION,
+                    TaskPayload.from(command.task()));
         }
 
         static PredictionRequest from(
@@ -180,8 +185,10 @@ final class TaskPredictionHttpModels {
                 PredictionCreationCommand command
         ) {
             require(schemaVersion != null
-                            && schemaVersion == SCHEMA_VERSION,
-                    "schemaVersion must be " + SCHEMA_VERSION);
+                            && schemaVersion
+                            == command.requestSchemaVersion(),
+                    "schemaVersion must match stored request version "
+                            + command.requestSchemaVersion());
             require(requestId != null
                             && requestId.equals(command.requestId().value()),
                     "response requestId does not match request");

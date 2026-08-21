@@ -65,6 +65,7 @@ public class TaskPredictionHttpCreationAdapter
             PredictionCreationCommand command
     ) {
         Objects.requireNonNull(command, "command");
+        requireSupportedSchemaVersion(command);
         HttpRequest request = request(command);
         try {
             HttpResponse<String> response = httpClient.send(
@@ -200,7 +201,10 @@ public class TaskPredictionHttpCreationAdapter
                             responseBody,
                             TaskPredictionHttpModels
                                     .PredictionResponse.class);
-            var candidates = response.toDomain(command);
+            var candidates = switch (command.requestSchemaVersion()) {
+                case 1 -> response.toDomain(command);
+                default -> throw unsupportedSchemaVersion(command);
+            };
             return new PredictionCreationResult(
                     command.requestId(),
                     command.task().id(),
@@ -219,6 +223,31 @@ public class TaskPredictionHttpCreationAdapter
                     auditPayload(status, responseBody),
                     exception);
         }
+    }
+
+    private static void requireSupportedSchemaVersion(
+            PredictionCreationCommand command
+    ) {
+        switch (command.requestSchemaVersion()) {
+            case 1 -> {
+                return;
+            }
+            default -> throw unsupportedSchemaVersion(command);
+        }
+    }
+
+    private static PredictionCreationException unsupportedSchemaVersion(
+            PredictionCreationCommand command
+    ) {
+        return failure(
+                TaskPredictionAttemptOutcome.INVALID_RESPONSE,
+                false,
+                null,
+                "TASK_PREDICTION_REQUEST_SCHEMA_UNSUPPORTED",
+                "stored task prediction request schema version is unsupported: "
+                        + command.requestSchemaVersion(),
+                null,
+                null);
     }
 
     private SanitizedTaskPredictionPayload canonicalPayload(Object value) {

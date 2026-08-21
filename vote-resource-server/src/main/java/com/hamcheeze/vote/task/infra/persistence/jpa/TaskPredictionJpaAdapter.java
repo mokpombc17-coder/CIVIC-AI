@@ -46,6 +46,53 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
 
     @Override
     @Transactional
+    public boolean insertPendingIfAbsent(TaskPrediction prediction) {
+        if (prediction.status() != TaskPredictionStatus.PENDING
+                || prediction.attemptCount() != 0) {
+            throw new IllegalArgumentException(
+                    "insertPendingIfAbsent requires a new PENDING prediction");
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            List<UUID> inserted = entityManager.createNativeQuery("""
+                    INSERT INTO task_predictions (
+                        prediction_id, row_version, user_id, task_id,
+                        persona_generation_id, persona_version_id, persona_id,
+                        status, candidate_policy_version, attempt_count,
+                        next_retry_at, last_error_code, last_error_message,
+                        created_at, started_at, completed_at,
+                        active_attempt_id, processing_started_at,
+                        lease_expires_at)
+                    VALUES (
+                        :predictionId, 0, :userId, :taskId,
+                        :generationId, :versionId, :personaId,
+                        'PENDING', :policyVersion, 0,
+                        NULL, NULL, NULL, :createdAt, NULL, NULL,
+                        NULL, NULL, NULL)
+                    ON CONFLICT ON CONSTRAINT uq_task_prediction_identity
+                    DO NOTHING
+                    RETURNING prediction_id
+                    """, UUID.class)
+                    .setParameter("predictionId", prediction.id().value())
+                    .setParameter("userId", prediction.userId().value())
+                    .setParameter("taskId", prediction.taskId().value())
+                    .setParameter("generationId",
+                            prediction.personaGenerationId().value())
+                    .setParameter("versionId",
+                            prediction.personaVersionId().value())
+                    .setParameter("personaId", prediction.personaId().value())
+                    .setParameter("policyVersion",
+                            prediction.candidatePolicyVersion())
+                    .setParameter("createdAt", prediction.createdAt())
+                    .getResultList();
+            return !inserted.isEmpty();
+        } catch (RuntimeException exception) {
+            throw translateConstraint(exception);
+        }
+    }
+
+    @Override
+    @Transactional
     public TaskPrediction save(TaskPrediction prediction) {
         TaskPredictionJpaEntity entity = entityManager.find(
                 TaskPredictionJpaEntity.class,
@@ -158,8 +205,10 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
                 JOIN tasks task ON task.task_id = prediction.task_id
                 WHERE prediction.status IN (
                     'PENDING', 'PROCESSING', 'RETRY_WAIT')
-                  AND task.scheduled_close_at <= :now
-                ORDER BY task.scheduled_close_at,
+                  AND (task.status = 'CLOSED'
+                       OR task.scheduled_close_at <= :now)
+                ORDER BY CASE WHEN task.status = 'CLOSED' THEN 0 ELSE 1 END,
+                         task.scheduled_close_at,
                          prediction.created_at,
                          prediction.prediction_id
                 FOR UPDATE OF prediction SKIP LOCKED
@@ -190,7 +239,7 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
 
     @Override
     @Transactional
-    public void markLateCompletionObserved(
+    public boolean markLateCompletionObserved(
             TaskPredictionAttemptId attemptId,
             Instant observedAt
     ) {
@@ -201,8 +250,10 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
             throw new IllegalStateException(
                     "task prediction attempt not found");
         }
+        boolean firstObservation = entity.lateCompletionObservedAt() == null;
         entity.markLateCompletionObserved(observedAt);
         entityManager.flush();
+        return firstObservation;
     }
 
     @Override

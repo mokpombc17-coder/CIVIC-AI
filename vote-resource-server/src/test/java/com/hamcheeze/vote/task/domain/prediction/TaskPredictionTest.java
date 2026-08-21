@@ -175,6 +175,22 @@ class TaskPredictionTest {
         assertThat(prediction.predictedReasons()).isEmpty();
     }
 
+    @Test
+    void pendingPredictionClosedBeforeProcessingGetsConsistentTerminalTimestamps() {
+        TaskPrediction prediction = pendingPrediction();
+        var closedAt = NOW.plusSeconds(15);
+
+        prediction.failDeadline(
+                new TaskPredictionError(
+                        "TASK_PREDICTION_TASK_CLOSED",
+                        "task closed before prediction processing"),
+                closedAt);
+
+        assertThat(prediction.status()).isEqualTo(TaskPredictionStatus.FAILED);
+        assertThat(prediction.startedAt()).isEqualTo(closedAt);
+        assertThat(prediction.completedAt()).isEqualTo(closedAt);
+    }
+
     private static TaskPrediction processingPrediction() {
         TaskPrediction prediction = pendingPrediction();
         prediction.startProcessing(RETRY_POLICY, NOW.plusSeconds(12));

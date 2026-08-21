@@ -46,6 +46,37 @@ class TaskPredictionConfigurationValidatorTest {
                         "vote.task.prediction.processing-lease-duration");
     }
 
+    @Test
+    void providerValuesMustUseExactLowercaseContract() {
+        TaskPredictionProperties uppercase = valid();
+        uppercase.setProvider("HTTP");
+        TaskPredictionProperties mixedCase = valid();
+        mixedCase.setProvider("Fake");
+
+        assertThatThrownBy(() -> validator(uppercase, "local")
+                .afterPropertiesSet())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("vote.task.prediction.provider")
+                .hasMessageContaining("allowed values: http, fake")
+                .hasMessageContaining("lowercase");
+        assertThatThrownBy(() -> validator(mixedCase, "local")
+                .afterPropertiesSet())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("lowercase");
+    }
+
+    @Test
+    void productionStillRejectsExactLowercaseFakeProvider() {
+        TaskPredictionProperties properties = valid();
+        properties.setProvider("fake");
+
+        assertThatThrownBy(() -> validator(properties, "prod")
+                .afterPropertiesSet())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("allowed values: http")
+                .hasMessageContaining("lowercase");
+    }
+
     private static TaskPredictionProperties valid() {
         TaskPredictionProperties properties = new TaskPredictionProperties();
         properties.setEnabled(true);

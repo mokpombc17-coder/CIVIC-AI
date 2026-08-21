@@ -85,6 +85,7 @@ class TaskPredictionServiceTest {
         when(inputs.findByPredictionId(any()))
                 .thenAnswer(invocation -> Optional.of(
                         input(invocation.<TaskPredictionId>getArgument(0))));
+        when(predictions.insertPendingIfAbsent(any())).thenReturn(true);
     }
 
     private TaskPredictionInputSnapshot input(TaskPrediction prediction) {
@@ -119,7 +120,7 @@ class TaskPredictionServiceTest {
                 .isInstanceOfSatisfying(TaskDomainException.class,
                         exception -> assertThat(exception.violation().code())
                                 .isEqualTo("TASK_PREDICTION_DISABLED"));
-        verify(predictions, never()).insert(any());
+        verify(predictions, never()).insertPendingIfAbsent(any());
         verify(inputs, never()).insert(any());
         verifyNoInteractions(inputSnapshots);
     }
@@ -129,9 +130,6 @@ class TaskPredictionServiceTest {
         when(predictions.findByIdentity(
                 userId(), taskId(), personaGenerationId()))
                 .thenReturn(Optional.empty());
-        when(predictions.insert(any(TaskPrediction.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
         EnsureTaskPredictionResult result =
                 service.ensureTaskPrediction(userId(), taskId());
 
@@ -147,7 +145,7 @@ class TaskPredictionServiceTest {
     }
 
     @Test
-    void resolvesUniqueConstraintRaceToTheConcurrentWinner() {
+    void resolvesConflictFreeInsertRaceToTheConcurrentWinner() {
         TaskPrediction winner = TaskPrediction.pending(
                 new TaskPredictionId(UUID.randomUUID()),
                 userId(), taskId(), personaGenerationId(), personaVersionId(),
@@ -156,11 +154,8 @@ class TaskPredictionServiceTest {
         when(predictions.findByIdentity(
                 userId(), taskId(), personaGenerationId()))
                 .thenReturn(Optional.empty(), Optional.of(winner));
-        when(predictions.insert(any(TaskPrediction.class)))
-                .thenThrow(new TaskPredictionPersistenceException(
-                        TaskPredictionPersistenceException.ErrorCode
-                                .IDENTITY_ALREADY_EXISTS,
-                        "duplicate", null));
+        when(predictions.insertPendingIfAbsent(any(TaskPrediction.class)))
+                .thenReturn(false);
 
         EnsureTaskPredictionResult result =
                 service.ensureTaskPrediction(userId(), taskId());
@@ -182,7 +177,7 @@ class TaskPredictionServiceTest {
         assertThat(result.created()).isFalse();
         assertThat(result.directAnswerAllowed()).isTrue();
         assertThat(result.predictedAnswerAllowed()).isFalse();
-        verify(predictions, never()).insert(any());
+        verify(predictions, never()).insertPendingIfAbsent(any());
     }
 
     @Test
@@ -198,7 +193,7 @@ class TaskPredictionServiceTest {
         assertThat(result.created()).isFalse();
         assertThat(result.predictedAnswerAllowed()).isTrue();
         assertThat(result.directAnswerAllowed()).isTrue();
-        verify(predictions, never()).insert(any());
+        verify(predictions, never()).insertPendingIfAbsent(any());
     }
 
     @Test
@@ -238,6 +233,6 @@ class TaskPredictionServiceTest {
                         ((TaskDomainException) exception)
                                 .violation().code())
                         .isEqualTo("TASK_CURRENT_PERSONA_NOT_READY"));
-        verify(predictions, never()).insert(any());
+        verify(predictions, never()).insertPendingIfAbsent(any());
     }
 }

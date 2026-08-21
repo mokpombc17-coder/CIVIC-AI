@@ -215,12 +215,47 @@ class TaskPredictionHttpCreationAdapterTest {
                         THIRD_CANDIDATE_ID, FOURTH_CANDIDATE_ID);
     }
 
+    @Test
+    void decodesResponseAgainstStoredRequestSchemaVersion() {
+        server.createContext("/custom/task-predictions", exchange ->
+                respond(exchange, 200, successBody(
+                        REQUEST_ID, TASK_ID,
+                        new UUID(4, 1), new UUID(4, 2))
+                        .replace("\"schemaVersion\": 1",
+                                "\"schemaVersion\": 2")));
+
+        assertFailure(
+                () -> adapter().create(command(Duration.ofSeconds(1), 1)),
+                TaskPredictionAttemptOutcome.INVALID_RESPONSE,
+                "AI_PREDICTION_INVALID_RESPONSE",
+                false,
+                200);
+    }
+
+    @Test
+    void rejectsUnsupportedStoredSchemaBeforeProviderCall() {
+        assertFailure(
+                () -> adapter().create(command(Duration.ofSeconds(1), 2)),
+                TaskPredictionAttemptOutcome.INVALID_RESPONSE,
+                "TASK_PREDICTION_REQUEST_SCHEMA_UNSUPPORTED",
+                false,
+                null);
+        assertThat(requestBody.get()).isNull();
+    }
+
     private TaskPredictionHttpCreationAdapter adapter() {
         return new TaskPredictionHttpCreationAdapter(
                 properties, new ObjectMapper());
     }
 
     private static PredictionCreationCommand command(Duration timeout) {
+        return command(timeout, 1);
+    }
+
+    private static PredictionCreationCommand command(
+            Duration timeout,
+            int requestSchemaVersion
+    ) {
         TaskQuestion question = new TaskQuestion(
                 new TaskQuestionId(QUESTION_ID),
                 1,
@@ -249,8 +284,14 @@ class TaskPredictionHttpCreationAdapterTest {
             String payload = new ObjectMapper().writeValueAsString(
                     TaskPredictionHttpModels.PredictionRequest.from(
                             predictionId, personaId, "policy-v1", task));
+            if (requestSchemaVersion != 1) {
+                payload = payload.replace(
+                        "\"schemaVersion\":1",
+                        "\"schemaVersion\":" + requestSchemaVersion);
+            }
             return new PredictionCreationCommand(
-                    predictionId, personaId, task, "policy-v1", 1,
+                    predictionId, personaId, task, "policy-v1",
+                    requestSchemaVersion,
                     payload,
                     TaskPredictionInputSnapshot.fingerprint(payload),
                     timeout);

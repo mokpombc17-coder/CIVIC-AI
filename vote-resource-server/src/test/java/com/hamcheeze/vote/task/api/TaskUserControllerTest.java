@@ -228,12 +228,13 @@ class TaskUserControllerTest {
     }
 
     @Test
-    void submissionDetailIsAlwaysScopedToJwtSubject() throws Exception {
+    void directSubmissionWithoutPredictionIsNullSafeByTaskAndId()
+            throws Exception {
         MyTaskSubmissionQueryService.MyTaskSubmission view =
                 new MyTaskSubmissionQueryService.MyTaskSubmission(
                         submissionId(), taskId(), "테스트 과업", "설명",
                         personaGenerationId(), personaVersionId(),
-                        predictionId(),
+                        null,
                         NOW.plusSeconds(30),
                         questionId(3), shortTextQuestion(),
                         new com.hamcheeze.vote.task.domain.common.TaskOptionId(
@@ -243,6 +244,18 @@ class TaskUserControllerTest {
                         "직접 작성한 이유");
         when(submissionQueries.findById(any(), any()))
                 .thenReturn(Optional.of(view));
+        when(submissionQueries.findByTask(any(), any()))
+                .thenReturn(Optional.of(view));
+
+        mockMvc.perform(get("/api/v1/me/submissions")
+                        .param("taskId", taskId().value().toString())
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.predictionId").doesNotExist())
+                .andExpect(jsonPath("$.reasonSource")
+                        .value("USER_WRITTEN"))
+                .andExpect(jsonPath("$.finalReason")
+                        .value("직접 작성한 이유"));
 
         mockMvc.perform(get("/api/v1/me/submissions/{submissionId}",
                         submissionId().value()).principal(authentication))
@@ -251,6 +264,7 @@ class TaskUserControllerTest {
                         .value(submissionId().value().toString()))
                 .andExpect(jsonPath("$.personaVersionId")
                         .value(personaVersionId().value().toString()))
+                .andExpect(jsonPath("$.predictionId").doesNotExist())
                 .andExpect(jsonPath("$.reasonSource")
                         .value("USER_WRITTEN"))
                 .andExpect(jsonPath("$.finalReason")

@@ -14,6 +14,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.hamcheeze.vote.task.infra.prediction.TaskPredictionMetrics;
@@ -23,6 +24,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 public class TaskPredictionService {
@@ -32,7 +34,7 @@ public class TaskPredictionService {
     private final TaskPredictionInputRepository inputs;
     private final TaskPredictionInputSnapshotFactory inputSnapshots;
     private final CurrentTaskPersonaQueryPort currentPersonas;
-    private final TaskPredictionApplicationPolicy policy;
+    private final Supplier<TaskPredictionApplicationPolicy> policyProvider;
     private final TaskPredictionAvailability availability;
     private final Clock clock;
     private TaskPredictionMetrics metrics;
@@ -49,12 +51,25 @@ public class TaskPredictionService {
             TaskPredictionInputRepository inputs,
             TaskPredictionInputSnapshotFactory inputSnapshots,
             CurrentTaskPersonaQueryPort currentPersonas,
+            ObjectProvider<TaskPredictionApplicationPolicy> policyProvider,
+            TaskPredictionAvailability availability
+    ) {
+        this(tasks, predictions, inputs, inputSnapshots,
+                currentPersonas, policyProvider::getIfAvailable, availability,
+                Clock.systemUTC());
+    }
+
+    TaskPredictionService(
+            TaskRepository tasks,
+            TaskPredictionRepository predictions,
+            TaskPredictionInputRepository inputs,
+            TaskPredictionInputSnapshotFactory inputSnapshots,
+            CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionApplicationPolicy policy,
             TaskPredictionAvailability availability
     ) {
         this(tasks, predictions, inputs, inputSnapshots,
-                currentPersonas, policy, availability,
-                Clock.systemUTC());
+                currentPersonas, policy, availability, Clock.systemUTC());
     }
 
     TaskPredictionService(
@@ -67,6 +82,20 @@ public class TaskPredictionService {
             TaskPredictionAvailability availability,
             Clock clock
     ) {
+        this(tasks, predictions, inputs, inputSnapshots, currentPersonas,
+                () -> policy, availability, clock);
+    }
+
+    private TaskPredictionService(
+            TaskRepository tasks,
+            TaskPredictionRepository predictions,
+            TaskPredictionInputRepository inputs,
+            TaskPredictionInputSnapshotFactory inputSnapshots,
+            CurrentTaskPersonaQueryPort currentPersonas,
+            Supplier<TaskPredictionApplicationPolicy> policyProvider,
+            TaskPredictionAvailability availability,
+            Clock clock
+    ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
         this.predictions = Objects.requireNonNull(
                 predictions, "predictions");
@@ -75,7 +104,8 @@ public class TaskPredictionService {
                 inputSnapshots, "inputSnapshots");
         this.currentPersonas = Objects.requireNonNull(
                 currentPersonas, "currentPersonas");
-        this.policy = Objects.requireNonNull(policy, "policy");
+        this.policyProvider = Objects.requireNonNull(
+                policyProvider, "policyProvider");
         this.availability = Objects.requireNonNull(
                 availability, "availability");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -98,6 +128,7 @@ public class TaskPredictionService {
                     "task prediction feature is disabled");
         }
         Instant now = clock.instant();
+        TaskPredictionApplicationPolicy policy = requirePolicy();
         Task task = requireOpenTask(taskId, now);
         CurrentTaskPersona persona = requireCurrentPersona(userId);
 
@@ -118,24 +149,29 @@ public class TaskPredictionService {
                 persona.personaId(),
                 policy.candidatePolicyVersion(),
                 now);
-        try {
-            TaskPredictionInputSnapshot input = inputSnapshots.create(
-                    pending, task, now);
-            TaskPrediction stored = predictions.insert(pending);
+        TaskPredictionInputSnapshot input = inputSnapshots.create(
+                pending, task, now);
+        if (predictions.insertPendingIfAbsent(pending)) {
             inputs.insert(input);
-            return EnsureTaskPredictionResult.of(stored, true);
-        } catch (TaskPredictionPersistenceException exception) {
-            if (exception.code()
-                    != TaskPredictionPersistenceException.ErrorCode
-                    .IDENTITY_ALREADY_EXISTS) {
-                throw exception;
-            }
-            TaskPrediction concurrentWinner = predictions.findByIdentity(
-                            userId, task.id(), persona.generationId())
-                    .orElseThrow(() -> exception);
-            requireInput(concurrentWinner);
-            return EnsureTaskPredictionResult.of(concurrentWinner, false);
+            return EnsureTaskPredictionResult.of(pending, true);
         }
+        TaskPrediction concurrentWinner = predictions.findByIdentity(
+                        userId, task.id(), persona.generationId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "conflicting TaskPrediction was not visible after "
+                                + "ON CONFLICT DO NOTHING"));
+        requireInput(concurrentWinner);
+        return EnsureTaskPredictionResult.of(concurrentWinner, false);
+    }
+
+    private TaskPredictionApplicationPolicy requirePolicy() {
+        TaskPredictionApplicationPolicy policy = policyProvider.get();
+        if (policy == null) {
+            throw new IllegalStateException(
+                    "vote.task.prediction.enabled=true requires "
+                            + "TaskPredictionApplicationPolicy");
+        }
+        return policy;
     }
 
     private void requireInput(TaskPrediction prediction) {

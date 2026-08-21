@@ -7,6 +7,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.hamcheeze.vote.task.infra.prediction.TaskPredictionMetrics;
@@ -81,7 +82,8 @@ public class TaskPredictionMaintenanceService {
                 "TASK_PREDICTION_PROCESSING_LEASE_EXPIRED",
                 "task prediction processing lease expired", now));
         if (metrics != null) {
-            metrics.leaseExpired();
+            TaskPredictionTransactionCallbacks.afterCommit(
+                    metrics::leaseExpired);
         }
         return true;
     }
@@ -95,19 +97,27 @@ public class TaskPredictionMaintenanceService {
             return false;
         }
         TaskPrediction prediction = found.orElseThrow();
+        Task task = requireTask(prediction);
+        boolean closedEarly = task.status() == TaskStatus.CLOSED
+                && now.isBefore(task.schedule().scheduledCloseAt());
+        TaskPredictionError terminalError = closedEarly
+                ? taskClosedError() : deadlineError();
         if (prediction.activeAttemptId() != null) {
             TaskPredictionAttempt attempt = activeAttempt(prediction);
             predictions.saveAttempt(attempt.complete(
                     TaskPredictionAttemptOutcome.IGNORED_LATE_RESPONSE,
                     null, null,
-                    "TASK_PREDICTION_DEADLINE_EXPIRED",
-                    "task deadline elapsed while prediction was processing",
+                    terminalError.code(),
+                    closedEarly
+                            ? "task closed while prediction was processing"
+                            : "task deadline elapsed while prediction was processing",
                     now));
         }
-        prediction.failDeadline(deadlineError(), now);
+        prediction.failDeadline(terminalError, now);
         predictions.save(prediction);
         if (metrics != null) {
-            metrics.deadlineExpired();
+            TaskPredictionTransactionCallbacks.afterCommit(
+                    metrics::deadlineExpired);
         }
         return true;
     }
@@ -131,5 +141,11 @@ public class TaskPredictionMaintenanceService {
         return new TaskPredictionError(
                 "TASK_PREDICTION_DEADLINE_EXPIRED",
                 "task deadline elapsed before prediction completion");
+    }
+
+    private static TaskPredictionError taskClosedError() {
+        return new TaskPredictionError(
+                "TASK_PREDICTION_TASK_CLOSED",
+                "task closed before prediction completion");
     }
 }

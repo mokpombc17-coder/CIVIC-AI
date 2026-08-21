@@ -16,6 +16,11 @@ public interface TaskPredictionRepository {
 
     TaskPrediction insert(TaskPrediction prediction);
 
+    default boolean insertPendingIfAbsent(TaskPrediction prediction) {
+        insert(prediction);
+        return true;
+    }
+
     TaskPrediction save(TaskPrediction prediction);
 
     Optional<TaskPrediction> findById(TaskPredictionId predictionId);
@@ -44,10 +49,11 @@ public interface TaskPredictionRepository {
 
     TaskPredictionAttempt saveAttempt(TaskPredictionAttempt attempt);
 
-    default void markLateCompletionObserved(
+    default boolean markLateCompletionObserved(
             TaskPredictionAttemptId attemptId,
             Instant observedAt
     ) {
+        return false;
     }
 
     List<TaskPredictionAttempt> findAttempts(TaskPredictionId predictionId);

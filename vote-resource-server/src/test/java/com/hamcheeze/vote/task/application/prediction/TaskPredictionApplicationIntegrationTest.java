@@ -37,12 +37,15 @@ import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.hamcheeze.vote.task.domain.task.TaskSchedule;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -58,9 +61,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.reset;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
@@ -84,7 +91,7 @@ class TaskPredictionApplicationIntegrationTest {
     @Autowired
     private TaskPredictionRepository predictions;
 
-    @Autowired
+    @MockitoSpyBean
     private TaskPredictionInputRepository predictionInputs;
 
     @Autowired
@@ -103,6 +110,9 @@ class TaskPredictionApplicationIntegrationTest {
     private TaskPredictionService predictionService;
 
     @Autowired
+    private TaskPredictionMaintenanceService maintenance;
+
+    @Autowired
     private TaskSubmissionService submissionService;
 
     @Autowired
@@ -114,45 +124,65 @@ class TaskPredictionApplicationIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    @AfterEach
+    void resetSpies() {
+        reset(predictionInputs);
+    }
+
     @Test
     void concurrentEnsureUsesOneRequestAndExternalWaitKeepsNoRowLock()
             throws Exception {
         Task task = persistOpenTask();
         TaskUserId userId = new TaskUserId("task-user-" + UUID.randomUUID());
         CurrentTaskPersona persona = insertSucceededPersona(userId.value());
-        CurrentTaskPersonaQueryPort currentPersona = ignored ->
-                Optional.of(persona);
-        TaskPredictionService service = new TaskPredictionService(
-                tasks, predictions, predictionInputs,
-                predictionInputSnapshots, currentPersona, policy,
-                new TaskPredictionAvailability(true));
         CountDownLatch start = new CountDownLatch(1);
 
-        TaskPrediction first;
-        TaskPrediction second;
+        EnsureTaskPredictionResult firstResult;
+        EnsureTaskPredictionResult secondResult;
         try (var executor = Executors.newFixedThreadPool(2)) {
             var firstFuture = executor.submit(() -> {
                 start.await();
-                return service.ensureTaskPrediction(userId, task.id())
-                        .prediction();
+                return predictionService.ensureTaskPrediction(
+                        userId, task.id());
             });
             var secondFuture = executor.submit(() -> {
                 start.await();
-                return service.ensureTaskPrediction(userId, task.id())
-                        .prediction();
+                return predictionService.ensureTaskPrediction(
+                        userId, task.id());
             });
             start.countDown();
-            first = firstFuture.get(10, TimeUnit.SECONDS);
-            second = secondFuture.get(10, TimeUnit.SECONDS);
+            firstResult = firstFuture.get(10, TimeUnit.SECONDS);
+            secondResult = secondFuture.get(10, TimeUnit.SECONDS);
         }
 
+        TaskPrediction first = firstResult.prediction();
+        TaskPrediction second = secondResult.prediction();
+
         assertThat(first.id()).isEqualTo(second.id());
+        assertThat(List.of(firstResult.created(), secondResult.created()))
+                .containsExactlyInAnyOrder(true, false);
         assertThat(predictions.findByIdentity(
                 userId, task.id(), persona.generationId()))
                 .get()
                 .extracting(TaskPrediction::requestId)
                 .isEqualTo(first.id());
-
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM task_predictions
+                WHERE user_id = ? AND task_id = ?
+                  AND persona_generation_id = ?
+                """, Long.class, userId.value(), task.id().value(),
+                persona.generationId().value())).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM task_prediction_inputs input
+                JOIN task_predictions prediction
+                  ON prediction.prediction_id = input.prediction_id
+                WHERE prediction.user_id = ? AND prediction.task_id = ?
+                  AND prediction.persona_generation_id = ?
+                """, Long.class, userId.value(), task.id().value(),
+                persona.generationId().value())).isEqualTo(1L);
         CountDownLatch portEntered = new CountDownLatch(1);
         CountDownLatch releasePort = new CountDownLatch(1);
         PredictionCreationPort fakePort = command -> {
@@ -193,6 +223,81 @@ class TaskPredictionApplicationIntegrationTest {
                 .singleElement()
                 .extracting(TaskPredictionAttempt::outcome)
                 .isEqualTo(TaskPredictionAttemptOutcome.SUCCEEDED);
+    }
+
+    @Test
+    void concurrentLoserCreatesPredictionWhenFirstInputInsertRollsBack()
+            throws Exception {
+        Task task = persistOpenTask();
+        TaskUserId userId = new TaskUserId(
+                "task-input-rollback-race-" + UUID.randomUUID());
+        CurrentTaskPersona persona = insertSucceededPersona(userId.value());
+        AtomicBoolean failFirstInput = new AtomicBoolean(true);
+        doAnswer(invocation -> {
+            if (failFirstInput.compareAndSet(true, false)) {
+                throw new IllegalStateException(
+                        "forced first input insert failure");
+            }
+            return invocation.callRealMethod();
+        }).when(predictionInputs).insert(any());
+        CountDownLatch start = new CountDownLatch(1);
+
+        List<EnsureTaskPredictionResult> successes =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+        List<Throwable> failures =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> ensureConcurrently(
+                    start, userId, task, successes, failures));
+            var second = executor.submit(() -> ensureConcurrently(
+                    start, userId, task, successes, failures));
+            start.countDown();
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(successes).singleElement().satisfies(result ->
+                assertThat(result.created()).isTrue());
+        assertThat(failures).singleElement().satisfies(failure ->
+                assertThat(failure).hasMessageContaining(
+                        "forced first input insert failure"));
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM task_predictions
+                WHERE user_id = ? AND task_id = ?
+                  AND persona_generation_id = ?
+                """, Long.class, userId.value(), task.id().value(),
+                persona.generationId().value())).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM task_prediction_inputs input
+                JOIN task_predictions prediction
+                  ON prediction.prediction_id = input.prediction_id
+                WHERE prediction.user_id = ? AND prediction.task_id = ?
+                  AND prediction.persona_generation_id = ?
+                """, Long.class, userId.value(), task.id().value(),
+                persona.generationId().value())).isEqualTo(1L);
+        UUID predictionId = successes.getFirst().prediction().id().value();
+        jdbcTemplate.update(
+                "DELETE FROM task_prediction_inputs WHERE prediction_id = ?",
+                predictionId);
+        jdbcTemplate.update(
+                "DELETE FROM task_predictions WHERE prediction_id = ?",
+                predictionId);
+    }
+
+    private void ensureConcurrently(
+            CountDownLatch start,
+            TaskUserId userId,
+            Task task,
+            List<EnsureTaskPredictionResult> successes,
+            List<Throwable> failures
+    ) {
+        try {
+            start.await();
+            successes.add(predictionService.ensureTaskPrediction(
+                    userId, task.id()));
+        } catch (Throwable failure) {
+            failures.add(failure);
+        }
     }
 
     @Test
@@ -263,13 +368,70 @@ class TaskPredictionApplicationIntegrationTest {
     }
 
     @Test
+    void earlyClosedTaskPredictionIsSelectedAndTerminalizedImmediately() {
+        Task task = persistOpenTask();
+        TaskUserId userId = new TaskUserId(
+                "task-early-close-" + UUID.randomUUID());
+        insertSucceededPersona(userId.value());
+        TaskPrediction prediction = predictionService.ensureTaskPrediction(
+                        userId, task.id())
+                .prediction();
+
+        administration.closeEarly(
+                task.id(), "prediction cleanup integration", new TaskActorId(
+                        "prediction-cleanup-admin"));
+
+        assertThat(maintenance.expireNextDeadline()).isTrue();
+        assertThat(predictions.findById(prediction.id()).orElseThrow())
+                .satisfies(failed -> {
+                    assertThat(failed.status())
+                            .isEqualTo(TaskPredictionStatus.FAILED);
+                    assertThat(failed.lastError().code())
+                            .isEqualTo("TASK_PREDICTION_TASK_CLOSED");
+                });
+        assertThat(maintenance.expireNextDeadline()).isFalse();
+    }
+
+    @Test
+    void claimMetricFollowsOuterTransactionCommit() {
+        Task task = persistOpenTask();
+        TaskUserId userId = new TaskUserId(
+                "task-claim-metric-" + UUID.randomUUID());
+        insertSucceededPersona(userId.value());
+        predictionService.ensureTaskPrediction(userId, task.id());
+        var counter = meterRegistry.counter(
+                "vote.task.prediction.claim.success");
+        double before = counter.count();
+        TransactionTemplate transaction = new TransactionTemplate(
+                transactionManager);
+
+        transaction.executeWithoutResult(status -> {
+            assertThat(states.claimNext("rollback-worker")).isPresent();
+            status.setRollbackOnly();
+        });
+        assertThat(counter.count()).isEqualTo(before);
+
+        TaskPredictionDispatchClaim committedClaim = states.claimNext(
+                "commit-worker").orElseThrow();
+        assertThat(counter.count()).isEqualTo(before + 1D);
+        states.completeFailure(committedClaim, new PredictionCreationException(
+                TaskPredictionAttemptOutcome.INVALID_RESPONSE,
+                false,
+                null,
+                "TEST_CLEANUP",
+                "terminalize committed metric fixture",
+                null,
+                null));
+    }
+
+    @Test
     void completionHoldingPredictionRowLockWinsExpiredLeaseRace()
             throws Exception {
         Task task = persistOpenTask();
         TaskUserId userId = new TaskUserId(
                 "task-completion-first-" + UUID.randomUUID());
         CurrentTaskPersona persona = insertSucceededPersona(userId.value());
-        TaskPrediction prediction = ensurePrediction(task, userId, persona);
+        TaskPrediction prediction = ensurePrediction(task, userId);
         MutableClock clock = new MutableClock(Instant.now());
         TaskPredictionStateService stateService = stateService(clock);
         TaskPredictionMaintenanceService maintenance = maintenance(clock);
@@ -322,7 +484,7 @@ class TaskPredictionApplicationIntegrationTest {
         TaskUserId userId = new TaskUserId(
                 "task-reaper-first-" + UUID.randomUUID());
         CurrentTaskPersona persona = insertSucceededPersona(userId.value());
-        TaskPrediction prediction = ensurePrediction(task, userId, persona);
+        TaskPrediction prediction = ensurePrediction(task, userId);
         MutableClock clock = new MutableClock(Instant.now());
         TaskPredictionStateService stateService = stateService(clock);
         TaskPredictionMaintenanceService maintenance = maintenance(clock);
@@ -372,15 +534,9 @@ class TaskPredictionApplicationIntegrationTest {
 
     private TaskPrediction ensurePrediction(
             Task task,
-            TaskUserId userId,
-            CurrentTaskPersona persona
+            TaskUserId userId
     ) {
-        CurrentTaskPersonaQueryPort currentPersona = ignored ->
-                Optional.of(persona);
-        return new TaskPredictionService(
-                tasks, predictions, predictionInputs,
-                predictionInputSnapshots, currentPersona, policy,
-                new TaskPredictionAvailability(true))
+        return predictionService
                 .ensureTaskPrediction(userId, task.id())
                 .prediction();
     }

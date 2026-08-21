@@ -91,7 +91,8 @@ public class TaskPredictionQueryService {
         var task = tasks.findById(taskId).orElse(null);
         if (task == null) {
             return TaskPredictionView.unavailable(
-                    taskId, TaskPredictionViewState.TASK_NOT_FOUND);
+                    taskId, TaskPredictionViewState.TASK_NOT_FOUND,
+                    predictionAvailability.enabled());
         }
         TaskAvailability availability = task.availabilityAt(clock.instant());
         if (availability != TaskAvailability.OPEN) {
@@ -99,14 +100,16 @@ public class TaskPredictionQueryService {
                     taskId,
                     availability == TaskAvailability.CLOSED
                             ? TaskPredictionViewState.TASK_CLOSED
-                            : TaskPredictionViewState.TASK_UNPUBLISHED);
+                            : TaskPredictionViewState.TASK_UNPUBLISHED,
+                    predictionAvailability.enabled());
         }
 
         var submission = submissions.findByUserAndTask(userId, taskId)
                 .orElse(null);
         if (submission != null) {
             return TaskPredictionView.submitted(
-                    taskId, submission.id());
+                    taskId, submission.id(),
+                    predictionAvailability.enabled());
         }
 
         CurrentTaskPersona persona = currentPersonas
@@ -114,7 +117,8 @@ public class TaskPredictionQueryService {
                 .orElse(null);
         if (persona == null) {
             return TaskPredictionView.unavailable(
-                    taskId, TaskPredictionViewState.PERSONA_NOT_READY);
+                    taskId, TaskPredictionViewState.PERSONA_NOT_READY,
+                    predictionAvailability.enabled());
         }
 
         TaskPrediction prediction = predictions.findByIdentity(
@@ -208,20 +212,24 @@ public class TaskPredictionQueryService {
 
         static TaskPredictionView unavailable(
                 TaskId taskId,
-                TaskPredictionViewState state
+                TaskPredictionViewState state,
+                boolean predictionFeatureEnabled
         ) {
             return base(taskId, state, null, null, null,
-                    null, null, List.of(), false, false, false,
+                    null, null, List.of(), predictionFeatureEnabled,
+                    false, false,
                     null, false, false, false, false, false, List.of(), null,
                     null, null, null);
         }
 
         static TaskPredictionView submitted(
                 TaskId taskId,
-                TaskSubmissionId submissionId
+                TaskSubmissionId submissionId,
+                boolean predictionFeatureEnabled
         ) {
             return base(taskId, TaskPredictionViewState.ALREADY_SUBMITTED,
-                    null, null, null, null, null, List.of(), false,
+                    null, null, null, null, null, List.of(),
+                    predictionFeatureEnabled,
                     false, false, null, false, false, false, false, false,
                     List.of(),
                     submissionId, null, null, null);
@@ -250,6 +258,32 @@ public class TaskPredictionQueryService {
                 boolean predictionFeatureEnabled
         ) {
             TaskPredictionStatus status = prediction.status();
+            if (!predictionFeatureEnabled) {
+                return base(
+                        taskId,
+                        TaskPredictionViewState.valueOf(status.name()),
+                        persona.generationId(),
+                        persona.versionId(),
+                        persona.personaId(),
+                        prediction.id(),
+                        status,
+                        prediction.predictedReasons(),
+                        false,
+                        false,
+                        false,
+                        "TASK_PREDICTION_DISABLED",
+                        true,
+                        false,
+                        false,
+                        true,
+                        false,
+                        List.of(TaskReasonSource.USER_WRITTEN),
+                        null,
+                        null,
+                        prediction.completedAt(),
+                        prediction.lastError() == null
+                                ? null : prediction.lastError().code());
+            }
             boolean succeeded = status == TaskPredictionStatus.SUCCEEDED;
             boolean waiting = !status.terminal();
             List<TaskReasonSource> sources = succeeded

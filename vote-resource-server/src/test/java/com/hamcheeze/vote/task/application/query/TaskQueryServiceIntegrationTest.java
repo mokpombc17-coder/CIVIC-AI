@@ -54,7 +54,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
         "vote.survey.bootstrap.enabled=false",
         "vote.task.lifecycle.enabled=false",
-        "vote.task.prediction.enabled=false"
+        "vote.task.prediction.enabled=true",
+        "vote.task.prediction.provider=fake",
+        "vote.task.prediction.dispatcher-delay=1h",
+        "vote.task.prediction.lease-reaper-delay=1h"
 })
 @ActiveProfiles({"local", "test"})
 class TaskQueryServiceIntegrationTest {

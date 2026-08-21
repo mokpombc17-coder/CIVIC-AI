@@ -474,7 +474,9 @@ final class TaskApiModels {
                     submission.taskDescription(),
                     submission.personaGenerationId().value(),
                     submission.personaVersionId().value(),
-                    submission.predictionId().value(), submission.submittedAt(),
+                    submission.predictionId() == null ? null
+                            : submission.predictionId().value(),
+                    submission.submittedAt(),
                     submission.questionId().value(),
                     QuestionResponse.from(submission.question()),
                     submission.selectedOptionId().value(),

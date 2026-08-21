@@ -64,15 +64,15 @@ public class TaskPredictionConfigurationValidator
                 "vote.task.prediction.candidate-policy-version");
 
         String provider = required(properties.getProvider(),
-                "vote.task.prediction.provider").toLowerCase(Locale.ROOT);
+                "vote.task.prediction.provider");
         boolean production = environment.acceptsProfiles(
                 Profiles.of("prod"));
         if (!provider.equals("http")
                 && !(provider.equals("fake") && !production)) {
             invalid("vote.task.prediction.provider",
                     production
-                            ? "prod supports only the http provider"
-                            : "must be http or fake");
+                            ? "allowed values: http; values are lowercase"
+                            : "allowed values: http, fake; values are lowercase");
         }
         if (provider.equals("http")) {
             validateBaseUrl(properties.getBaseUrl(), production);

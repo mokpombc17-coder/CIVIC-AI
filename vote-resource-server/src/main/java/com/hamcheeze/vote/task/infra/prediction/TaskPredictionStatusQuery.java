@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.sql.Timestamp;
 import java.util.Objects;
@@ -14,20 +15,53 @@ public class TaskPredictionStatusQuery {
 
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
+    private final Duration cacheDuration;
+    private volatile CachedSnapshot cachedSnapshot;
 
     @Autowired
     public TaskPredictionStatusQuery(JdbcTemplate jdbcTemplate) {
-        this(jdbcTemplate, Clock.systemUTC());
+        this(jdbcTemplate, Clock.systemUTC(), Duration.ofSeconds(1));
     }
 
     TaskPredictionStatusQuery(JdbcTemplate jdbcTemplate, Clock clock) {
+        this(jdbcTemplate, clock, Duration.ofSeconds(1));
+    }
+
+    TaskPredictionStatusQuery(
+            JdbcTemplate jdbcTemplate,
+            Clock clock,
+            Duration cacheDuration
+    ) {
         this.jdbcTemplate = Objects.requireNonNull(
                 jdbcTemplate, "jdbcTemplate");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.cacheDuration = Objects.requireNonNull(
+                cacheDuration, "cacheDuration");
+        if (cacheDuration.isNegative() || cacheDuration.isZero()) {
+            throw new IllegalArgumentException(
+                    "cacheDuration must be positive");
+        }
     }
 
     public Snapshot snapshot() {
         Instant now = clock.instant();
+        CachedSnapshot current = cachedSnapshot;
+        if (current != null && now.isBefore(current.expiresAt())) {
+            return current.snapshot();
+        }
+        synchronized (this) {
+            current = cachedSnapshot;
+            if (current != null && now.isBefore(current.expiresAt())) {
+                return current.snapshot();
+            }
+            Snapshot loaded = load(now);
+            cachedSnapshot = new CachedSnapshot(
+                    loaded, now.plus(cacheDuration));
+            return loaded;
+        }
+    }
+
+    private Snapshot load(Instant now) {
         return Objects.requireNonNull(jdbcTemplate.queryForObject("""
                 SELECT
                     count(*) FILTER (WHERE prediction.status = 'PENDING'),
@@ -66,5 +100,8 @@ public class TaskPredictionStatusQuery {
             double oldestPendingAgeSeconds,
             double oldestProcessingAgeSeconds
     ) {
+    }
+
+    private record CachedSnapshot(Snapshot snapshot, Instant expiresAt) {
     }
 }

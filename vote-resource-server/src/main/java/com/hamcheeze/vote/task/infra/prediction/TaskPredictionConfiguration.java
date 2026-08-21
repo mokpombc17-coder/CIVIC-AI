@@ -25,6 +25,9 @@ class TaskPredictionConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(
+            prefix = "vote.task.prediction", name = "enabled",
+            havingValue = "true")
     TaskPredictionApplicationPolicy taskPredictionApplicationPolicy(
             TaskPredictionProperties properties
     ) {
