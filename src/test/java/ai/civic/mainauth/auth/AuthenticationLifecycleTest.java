@@ -315,7 +315,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Test
     void expiredSessionRevocationRemainsCommittedAfterAuthenticationFailure() {
         var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        jdbc.update("update sessions set idle_expires_at = now() - interval '1 second'");
+        jdbc.update("update sessions set idle_expires_at = now() - interval '1 hour'");
 
         assertThatThrownBy(() -> sessions.require(session.sessionId()))
                 .isInstanceOf(AuthenticationException.class);

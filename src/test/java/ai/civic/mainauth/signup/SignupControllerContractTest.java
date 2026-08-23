@@ -108,7 +108,7 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                 .andExpect(cookie().maxAge("__Host-civic-auth-flow", 600));
 
         jdbc.update("""
-                update auth_challenges set expires_at = now() - interval '1 second',
+                update auth_challenges set expires_at = now() - interval '1 hour',
                     last_sent_at = now() - interval '2 minutes'
                 where flow_hash = digest(?, 'sha256')
                 """, flowId);

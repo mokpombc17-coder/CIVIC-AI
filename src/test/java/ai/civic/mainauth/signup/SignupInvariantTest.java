@@ -128,10 +128,10 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         service.completeSignup(
                 flow.flowId(), validRequest("abandoned@example.com", "Valid123!"));
         jdbc.update("""
-                update auth_challenges set expires_at = now() - interval '1 second'
+                update auth_challenges set expires_at = now() - interval '1 hour'
                 where purpose = 'SIGNUP_EMAIL_VERIFICATION'
                 """);
-        jdbc.update("update signup_flows set expires_at = now() - interval '1 second'");
+        jdbc.update("update signup_flows set expires_at = now() - interval '1 hour'");
 
         assertThat(service.purgeExpiredSignupFlows()).isTrue();
 
