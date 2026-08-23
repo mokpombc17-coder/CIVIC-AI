@@ -23,6 +23,12 @@ class ConfigurationPolicyTest {
                 "CIVIC_REDIS_URL",
                 "CIVIC_ES256_KEY_DIRECTORY",
                 "CIVIC_SMTP_HOST",
+                "CIVIC_NOTIFICATION_SENDER_EMAIL",
+                "[mail.smtp.auth]",
+                "[mail.smtp.auth.login.disable]",
+                "[mail.smtp.starttls.enable]",
+                "[mail.smtp.starttls.required]",
+                "TLSv1.2",
                 "CIVIC_ISSUER",
                 "origin: ${CIVIC_BROWSER_ORIGIN}",
                 "production-secrets-required: true");

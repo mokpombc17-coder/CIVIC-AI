@@ -13,12 +13,13 @@ class SmtpNotificationServiceTest {
     @Test
     void challengeMessagesUsePurposeSpecificSubjectsWithoutAutomaticRetry() {
         var sender = mock(JavaMailSender.class);
-        var service = new SmtpNotificationService(sender);
+        var service = new SmtpNotificationService(sender, "approved-sender@example.com");
 
         service.sendChallenge("person@example.com", "123456", "PASSWORD_RESET");
 
         var message = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(sender).send(message.capture());
+        assertThat(message.getValue().getFrom()).isEqualTo("approved-sender@example.com");
         assertThat(message.getValue().getSubject()).isEqualTo("CIVIC 비밀번호 재설정");
         assertThat(message.getValue().getText()).contains("123456", "10분");
     }

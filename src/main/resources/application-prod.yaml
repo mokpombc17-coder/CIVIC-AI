@@ -10,9 +10,17 @@ spring:
   mail:
     host: ${CIVIC_SMTP_HOST}
     port: ${CIVIC_SMTP_PORT:587}
+    properties:
+      "[mail.smtp.auth]": true
+      "[mail.smtp.auth.login.disable]": true
+      "[mail.smtp.starttls.enable]": true
+      "[mail.smtp.starttls.required]": true
+      "[mail.smtp.ssl.protocols]": TLSv1.2
 
 civic:
   production-secrets-required: true
+  notification:
+    sender-email: ${CIVIC_NOTIFICATION_SENDER_EMAIL}
   issuer: ${CIVIC_ISSUER}
   browser:
     origin: ${CIVIC_BROWSER_ORIGIN}

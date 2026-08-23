@@ -18,6 +18,8 @@ spring:
     host: ${CIVIC_SMTP_HOST:localhost}
     port: ${CIVIC_SMTP_PORT:1025}
 civic:
+  notification:
+    sender-email: ${CIVIC_NOTIFICATION_SENDER_EMAIL:no-reply@civic.local}
   runtime:
     # CIVIC_RUNTIME_MODE must be exactly server or worker.
     mode: ${CIVIC_RUNTIME_MODE:server}
