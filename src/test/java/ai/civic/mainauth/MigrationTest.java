@@ -97,6 +97,20 @@ class MigrationTest {
                 }
             }
 
+            try (var pendingNotificationIndex = connection.prepareStatement("""
+                    select indexdef
+                    from pg_indexes
+                    where schemaname = 'public'
+                      and indexname = 'notification_outbox_pending_poll_idx'
+                    """)) {
+                try (var row = pendingNotificationIndex.executeQuery()) {
+                    assertThat(row.next()).isTrue();
+                    assertThat(row.getString("indexdef"))
+                            .contains("created_at", "available_at", "delivered_at IS NULL");
+                    assertThat(row.next()).isFalse();
+                }
+            }
+
             try (var legalDocuments = connection.prepareStatement("""
                     select document_id, body_sha256, path
                     from legal_documents where active_for_new_signup order by document_id
