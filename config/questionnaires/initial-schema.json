@@ -1,0 +1,4 @@
+{
+  "preferred_language": ["ko", "en"],
+  "rag_answer_detail": ["concise", "balanced", "detailed"]
+}

@@ -1,0 +1,28 @@
+spring:
+  config:
+    import: ${SPRING_CONFIG_IMPORT:configtree:/run/secrets/civic/main/}
+  datasource:
+    url: ${CIVIC_DB_URL}
+    username: ${CIVIC_DB_USER}
+  data:
+    redis:
+      url: ${CIVIC_REDIS_URL}
+  mail:
+    host: ${CIVIC_SMTP_HOST}
+    port: ${CIVIC_SMTP_PORT:587}
+    properties:
+      "[mail.smtp.auth]": true
+      "[mail.smtp.auth.login.disable]": true
+      "[mail.smtp.starttls.enable]": true
+      "[mail.smtp.starttls.required]": true
+      "[mail.smtp.ssl.protocols]": TLSv1.2
+
+civic:
+  production-secrets-required: true
+  notification:
+    sender-email: ${CIVIC_NOTIFICATION_SENDER_EMAIL}
+  issuer: ${CIVIC_ISSUER}
+  browser:
+    origin: ${CIVIC_BROWSER_ORIGIN}
+  es256:
+    key-directory: ${CIVIC_ES256_KEY_DIRECTORY:/run/secrets/civic/main/es256-keys}
