@@ -19,6 +19,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 class DomainBoundarySchemaIntegrationTest {
 
+    private static final List<String> LEGACY_OPINION_MAP_TABLES = List.of(
+            "opinion_map_inbox",
+            "opinion_map_submission_projections",
+            "opinion_map_finalizations",
+            "opinion_map_snapshots",
+            "opinion_map_snapshot_manifests",
+            "opinion_map_snapshot_option_counts"
+    );
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -68,6 +77,26 @@ class DomainBoundarySchemaIntegrationTest {
         assertThat(crossDomainForeignKeys)
                 .as("cross-domain foreign keys")
                 .isEmpty();
+    }
+
+    @Test
+    void legacyOpinionMapPipelineTablesAreRemoved() {
+        List<String> remainingTables = jdbcTemplate.queryForList("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name IN (?, ?, ?, ?, ?, ?)
+                ORDER BY table_name
+                """, String.class, LEGACY_OPINION_MAP_TABLES.toArray());
+
+        Integer migrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '27' AND success = true
+                """, Integer.class);
+
+        assertThat(remainingTables).isEmpty();
+        assertThat(migrationCount).isEqualTo(1);
     }
 
     @Test
