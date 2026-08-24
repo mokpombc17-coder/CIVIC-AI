@@ -40,19 +40,16 @@ class TaskResultViewV1AssemblerTest {
     @Test
     void mapsFinalizedTaskAndOrdersResponsesDeterministically() {
         Task task = closedTask(new TaskId(uuid(1)));
-        TaskResultResponse laterWithHigherId = response(
-                task, 30, OPTION_TWO_ID,
-                "세 번째 응답", Instant.parse("2026-08-24T00:10:00Z"));
-        TaskResultResponse earlier = response(
-                task, 20, OPTION_TWO_ID,
-                "첫 번째 응답", Instant.parse("2026-08-24T00:05:00Z"));
-        TaskResultResponse laterWithLowerId = response(
-                task, 10, OPTION_ONE_ID,
-                "두 번째 응답", Instant.parse("2026-08-24T00:10:00Z"));
+        TaskResultResponse higherId = response(
+                task, 30, OPTION_TWO_ID, "세 번째 응답");
+        TaskResultResponse middleId = response(
+                task, 20, OPTION_TWO_ID, "두 번째 응답");
+        TaskResultResponse lowerId = response(
+                task, 10, OPTION_ONE_ID, "첫 번째 응답");
 
         TaskResultViewV1 result = assembler.assemble(
                 task,
-                List.of(laterWithHigherId, earlier, laterWithLowerId),
+                List.of(higherId, middleId, lowerId),
                 1);
 
         assertThat(result.resultVersion()).isEqualTo(1);
@@ -68,14 +65,14 @@ class TaskResultViewV1AssemblerTest {
                         org.assertj.core.groups.Tuple.tuple(2, "두 번째"));
         assertThat(result.responses())
                 .extracting(
-                        TaskResultViewV1.ResponseData::sequence,
+                        TaskResultViewV1.ResponseData::participantSequence,
                         TaskResultViewV1.ResponseData::selectedOptionDisplayOrder,
                         TaskResultViewV1.ResponseData::reason)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(
-                                1, 2, "첫 번째 응답"),
+                                1, 1, "첫 번째 응답"),
                         org.assertj.core.groups.Tuple.tuple(
-                                2, 1, "두 번째 응답"),
+                                2, 2, "두 번째 응답"),
                         org.assertj.core.groups.Tuple.tuple(
                                 3, 2, "세 번째 응답"));
     }
@@ -92,7 +89,7 @@ class TaskResultViewV1AssemblerTest {
         Task foreignTask = closedTask(new TaskId(uuid(2)));
         TaskResultResponse foreign = response(
                 foreignTask, 10, OPTION_ONE_ID,
-                "다른 과업 응답", CREATED_AT.plusSeconds(30));
+                "다른 과업 응답");
         assertThatThrownBy(() -> assembler.assemble(
                 task, List.of(foreign), 1))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -100,7 +97,7 @@ class TaskResultViewV1AssemblerTest {
 
         TaskResultResponse response = response(
                 task, 11, OPTION_ONE_ID,
-                "중복 응답", CREATED_AT.plusSeconds(30));
+                "중복 응답");
         assertThatThrownBy(() -> assembler.assemble(
                 task, List.of(response, response), 1))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -152,8 +149,7 @@ class TaskResultViewV1AssemblerTest {
             Task task,
             long submissionId,
             TaskOptionId optionId,
-            String reason,
-            Instant submittedAt
+            String reason
     ) {
         return new TaskResultResponse(
                 new TaskSubmissionId(uuid(submissionId)),
@@ -161,8 +157,7 @@ class TaskResultViewV1AssemblerTest {
                 QUESTION_ID,
                 optionId,
                 reason,
-                TaskReasonSource.USER_WRITTEN,
-                submittedAt);
+                TaskReasonSource.USER_WRITTEN);
     }
 
     private static UUID uuid(long value) {

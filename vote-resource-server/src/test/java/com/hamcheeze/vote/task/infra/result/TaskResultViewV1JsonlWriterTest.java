@@ -30,13 +30,14 @@ class TaskResultViewV1JsonlWriterTest {
 
         assertThat(rendered.content()).isEqualTo(goldenContract());
         assertThat(rendered.bodySha256()).isEqualTo(
-                "758bbfbae77b859d4f66147c797544877b24a62dc2b37a4915738d88916293f7");
+                "fdace506cc9043d4be4a19cee7c5a3afec95be73e01539afd45c83f7b6875b5b");
         assertThat(rendered.content()).doesNotContain(
                 "taskId",
                 "questionId",
                 "optionId",
                 "submissionId",
                 "participantId",
+                "submittedAt",
                 "personaGenerationId",
                 "personaVersionId",
                 "predictionId");
@@ -63,14 +64,12 @@ class TaskResultViewV1JsonlWriterTest {
                                 1,
                                 2,
                                 "협업과 집중 근무를 병행할 수 있어서",
-                                TaskReasonSource.USER_WRITTEN,
-                                Instant.parse("2026-08-23T10:00:00Z")),
+                                TaskReasonSource.USER_WRITTEN),
                         new ResponseData(
                                 2,
                                 3,
                                 "출퇴근 시간이 너무 길어서",
-                                TaskReasonSource.AI_ACCEPTED,
-                                Instant.parse("2026-08-23T10:01:00Z"))));
+                                TaskReasonSource.AI_ACCEPTED)));
     }
 
     private String goldenContract() throws IOException {

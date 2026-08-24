@@ -12,7 +12,6 @@ import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -35,11 +34,10 @@ public class TaskResultResponseJpaAdapter
                                submission.questionId,
                                submission.selectedOptionId,
                                submission.finalReason,
-                               submission.reasonSource,
-                               submission.submittedAt
+                               submission.reasonSource
                         FROM TaskSubmissionJpaEntity submission
                         WHERE submission.taskId = :taskId
-                        ORDER BY submission.submittedAt, submission.id
+                        ORDER BY submission.id
                         """, Object[].class)
                 .setParameter("taskId", taskId.value())
                 .getResultList().stream()
@@ -56,7 +54,6 @@ public class TaskResultResponseJpaAdapter
                 new TaskQuestionId((UUID) row[2]),
                 new TaskOptionId((UUID) row[3]),
                 (String) row[4],
-                (TaskReasonSource) row[5],
-                (Instant) row[6]);
+                (TaskReasonSource) row[5]);
     }
 }

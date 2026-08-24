@@ -89,13 +89,12 @@ public class TaskResultViewV1JsonlWriter implements TaskResultViewRenderer {
 
     private String responseLine(ResponseData response) {
         Map<String, Object> values = line("response");
-        values.put("key", responseKey(response.sequence()));
+        values.put("key", participantKey(response.participantSequence()));
         values.put(
                 "selectedOptionKey",
                 optionKey(response.selectedOptionDisplayOrder()));
         values.put("reason", response.reason());
         values.put("reasonSource", response.reasonSource().name());
-        values.put("submittedAt", response.submittedAt().toString());
         return json(values);
     }
 
@@ -118,8 +117,8 @@ public class TaskResultViewV1JsonlWriter implements TaskResultViewRenderer {
         return "O" + displayOrder;
     }
 
-    private static String responseKey(int sequence) {
-        return "R%06d".formatted(sequence);
+    private static String participantKey(int sequence) {
+        return "P" + sequence;
     }
 
     private static String sha256(String value) {

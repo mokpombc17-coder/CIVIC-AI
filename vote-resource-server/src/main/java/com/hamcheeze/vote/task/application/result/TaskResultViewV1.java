@@ -45,7 +45,7 @@ public record TaskResultViewV1(
                 responses, "responses"));
 
         validateOptions(options);
-        validateResponses(options, responses, closedAt);
+        validateResponses(options, responses);
     }
 
     private static void validateOptions(List<OptionData> options) {
@@ -65,8 +65,7 @@ public record TaskResultViewV1(
 
     private static void validateResponses(
             List<OptionData> options,
-            List<ResponseData> responses,
-            Instant closedAt
+            List<ResponseData> responses
     ) {
         Set<Integer> optionOrders = new HashSet<>();
         for (OptionData option : options) {
@@ -76,17 +75,14 @@ public record TaskResultViewV1(
             ResponseData response = Objects.requireNonNull(
                     responses.get(index), "response");
             int expectedSequence = index + 1;
-            if (response.sequence() != expectedSequence) {
+            if (response.participantSequence() != expectedSequence) {
                 throw new IllegalArgumentException(
-                        "responses must use continuous sequence from 1");
+                        "responses must use continuous participant sequence "
+                                + "from 1");
             }
             if (!optionOrders.contains(response.selectedOptionDisplayOrder())) {
                 throw new IllegalArgumentException(
                         "response selected option must exist");
-            }
-            if (response.submittedAt().isAfter(closedAt)) {
-                throw new IllegalArgumentException(
-                        "response submittedAt must not be after closedAt");
             }
         }
     }
@@ -126,17 +122,16 @@ public record TaskResultViewV1(
     }
 
     public record ResponseData(
-            int sequence,
+            int participantSequence,
             int selectedOptionDisplayOrder,
             String reason,
-            TaskReasonSource reasonSource,
-            Instant submittedAt
+            TaskReasonSource reasonSource
     ) {
 
         public ResponseData {
-            if (sequence < 1) {
+            if (participantSequence < 1) {
                 throw new IllegalArgumentException(
-                        "sequence must be positive");
+                        "participantSequence must be positive");
             }
             if (selectedOptionDisplayOrder < 1) {
                 throw new IllegalArgumentException(
@@ -144,7 +139,6 @@ public record TaskResultViewV1(
             }
             reason = requireText(reason, "reason");
             Objects.requireNonNull(reasonSource, "reasonSource");
-            Objects.requireNonNull(submittedAt, "submittedAt");
         }
     }
 

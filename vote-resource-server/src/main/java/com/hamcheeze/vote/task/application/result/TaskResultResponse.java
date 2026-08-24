@@ -6,7 +6,6 @@ import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 
-import java.time.Instant;
 import java.util.Objects;
 
 /** Minimal internal row needed to assemble a task result read model. */
@@ -16,8 +15,7 @@ public record TaskResultResponse(
         TaskQuestionId questionId,
         TaskOptionId selectedOptionId,
         String finalReason,
-        TaskReasonSource reasonSource,
-        Instant submittedAt
+        TaskReasonSource reasonSource
 ) {
 
     public TaskResultResponse {
@@ -27,6 +25,5 @@ public record TaskResultResponse(
         Objects.requireNonNull(selectedOptionId, "selectedOptionId");
         Objects.requireNonNull(finalReason, "finalReason");
         Objects.requireNonNull(reasonSource, "reasonSource");
-        Objects.requireNonNull(submittedAt, "submittedAt");
     }
 }

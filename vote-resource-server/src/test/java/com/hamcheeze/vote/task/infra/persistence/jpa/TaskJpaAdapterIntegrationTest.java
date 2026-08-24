@@ -302,7 +302,7 @@ class TaskJpaAdapterIntegrationTest {
     }
 
     @Test
-    void readsMinimalTaskResultResponsesInCanonicalOrder() {
+    void readsMinimalTaskResultResponsesInSubmissionIdOrder() {
         TaskFixture fixture = openTask();
         tasks.save(fixture.task());
         TaskSubmission later = insertUserWrittenResponse(
@@ -320,13 +320,21 @@ class TaskJpaAdapterIntegrationTest {
 
         List<TaskResultResponse> restored =
                 resultResponses.findByTaskId(fixture.task().id());
+        List<TaskSubmission> expected = List.of(later, earlier).stream()
+                .sorted(java.util.Comparator.comparing(
+                        submission -> submission.id().value().toString()))
+                .toList();
 
         assertThat(restored)
                 .extracting(TaskResultResponse::submissionId)
-                .containsExactly(earlier.id(), later.id());
+                .containsExactlyElementsOf(expected.stream()
+                        .map(TaskSubmission::id)
+                        .toList());
         assertThat(restored)
                 .extracting(TaskResultResponse::finalReason)
-                .containsExactly("먼저 응답", "나중 응답");
+                .containsExactlyElementsOf(expected.stream()
+                        .map(TaskSubmission::finalReason)
+                        .toList());
         assertThat(restored).allSatisfy(response -> {
             assertThat(response.taskId()).isEqualTo(fixture.task().id());
             assertThat(response.questionId())

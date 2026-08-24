@@ -66,8 +66,7 @@ class TaskResultViewQueryServiceTest {
                 QUESTION_ID,
                 OPTION_ID,
                 "선택 이유",
-                TaskReasonSource.USER_WRITTEN,
-                CLOSED_AT.minusSeconds(1));
+                TaskReasonSource.USER_WRITTEN);
         when(tasks.findById(task.id())).thenReturn(Optional.of(task));
         when(responses.findByTaskId(task.id()))
                 .thenReturn(List.of(response));
@@ -78,7 +77,7 @@ class TaskResultViewQueryServiceTest {
         assertThat(result.resultVersion()).isEqualTo(1);
         assertThat(result.responses()).singleElement()
                 .satisfies(mapped -> {
-                    assertThat(mapped.sequence()).isEqualTo(1);
+                    assertThat(mapped.participantSequence()).isEqualTo(1);
                     assertThat(mapped.selectedOptionDisplayOrder())
                             .isEqualTo(1);
                     assertThat(mapped.reason()).isEqualTo("선택 이유");

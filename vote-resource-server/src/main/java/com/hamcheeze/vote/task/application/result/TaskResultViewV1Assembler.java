@@ -28,8 +28,8 @@ public class TaskResultViewV1Assembler {
             Comparator.comparingInt(TaskOption::displayOrder)
                     .thenComparing(option -> option.id().value());
     private static final Comparator<TaskResultResponse> RESPONSE_ORDER =
-            Comparator.comparing(TaskResultResponse::submittedAt)
-                    .thenComparing(response -> response.submissionId().value());
+            Comparator.comparing(response ->
+                    response.submissionId().value().toString());
 
     public TaskResultViewV1 assemble(
             Task task,
@@ -133,8 +133,7 @@ public class TaskResultViewV1Assembler {
                     index + 1,
                     selectedOptionOrder,
                     response.finalReason(),
-                    response.reasonSource(),
-                    response.submittedAt()));
+                    response.reasonSource()));
         }
         return List.copyOf(responses);
     }

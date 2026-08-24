@@ -50,7 +50,7 @@ class TaskResultViewV1Test {
                 TaskClosureType.DEADLINE_REACHED,
                 question(TaskQuestionType.SINGLE_CHOICE),
                 options(),
-                List.of(response(1, 3, CLOSED_AT.minusSeconds(1)))))
+                List.of(response(1, 3))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("response selected option must exist");
 
@@ -58,19 +58,11 @@ class TaskResultViewV1Test {
                 TaskClosureType.DEADLINE_REACHED,
                 question(TaskQuestionType.SINGLE_CHOICE),
                 options(),
-                List.of(response(2, 1, CLOSED_AT.minusSeconds(1)))))
+                List.of(response(2, 1))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
-                        "responses must use continuous sequence from 1");
-
-        assertThatThrownBy(() -> view(
-                TaskClosureType.DEADLINE_REACHED,
-                question(TaskQuestionType.SINGLE_CHOICE),
-                options(),
-                List.of(response(1, 1, CLOSED_AT.plusSeconds(1)))))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage(
-                        "response submittedAt must not be after closedAt");
+                        "responses must use continuous participant sequence "
+                                + "from 1");
     }
 
     private TaskResultViewV1 view(
@@ -100,19 +92,17 @@ class TaskResultViewV1Test {
     }
 
     private List<ResponseData> responses() {
-        return List.of(response(1, 1, CLOSED_AT.minusSeconds(1)));
+        return List.of(response(1, 1));
     }
 
     private ResponseData response(
-            int sequence,
-            int selectedOptionDisplayOrder,
-            Instant submittedAt
+            int participantSequence,
+            int selectedOptionDisplayOrder
     ) {
         return new ResponseData(
-                sequence,
+                participantSequence,
                 selectedOptionDisplayOrder,
                 "선택 이유",
-                TaskReasonSource.USER_WRITTEN,
-                submittedAt);
+                TaskReasonSource.USER_WRITTEN);
     }
 }
