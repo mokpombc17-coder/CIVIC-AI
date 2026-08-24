@@ -247,15 +247,6 @@ class VoteApiSecurityIntegrationTest {
                                         VoteScopes.SUBMISSIONS_READ)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get(
-                        "/api/v1/opinion-map/snapshots/security-probe")
-                        .header(
-                                HttpHeaders.AUTHORIZATION,
-                                "Bearer " + scopedToken(
-                                        "user-a",
-                                        VoteScopes.OPINION_MAPS_READ)))
-                .andExpect(status().isOk());
-
         mockMvc.perform(post(
                         "/api/v1/me/tasks/security-probe/submission")
                         .header(
@@ -281,16 +272,6 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(content().contentType(
                         MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.code")
-                        .value("ACCESS_DENIED"));
-
-        mockMvc.perform(get(
-                        "/api/v1/opinion-map/snapshots/security-probe")
-                        .header(
-                                HttpHeaders.AUTHORIZATION,
-                                "Bearer " + scopedToken(
-                                        "user-a", VoteScopes.TASKS_READ)))
-                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code")
                         .value("ACCESS_DENIED"));
 
@@ -336,8 +317,7 @@ class VoteApiSecurityIntegrationTest {
                 VoteScopes.TASKS_READ,
                 VoteScopes.PREDICTIONS_WRITE,
                 VoteScopes.SUBMISSIONS_READ,
-                VoteScopes.SUBMISSIONS_WRITE,
-                VoteScopes.OPINION_MAPS_READ);
+                VoteScopes.SUBMISSIONS_WRITE);
 
         mockMvc.perform(get("/api/v1/admin/tasks/security-probe")
                         .header(
@@ -501,7 +481,6 @@ class VoteApiSecurityIntegrationTest {
                 "/api/v1/me/surveys/security-probe",
                 "/api/v1/me/tasks/security-probe",
                 "/api/v1/me/submissions/security-probe",
-                "/api/v1/opinion-map/snapshots/security-probe",
                 "/api/v1/admin/tasks/security-probe"
         })
         Map<String, String> scopedGet() {
