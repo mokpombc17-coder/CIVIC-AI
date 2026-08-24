@@ -4,6 +4,7 @@ import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.shared.integration.task.TaskOpinionMapFinalizationRequestedV1;
 import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.result.TaskResultViewDocumentQueryService;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -57,6 +58,9 @@ class TaskAdministrationIntegrationTest {
 
     @Autowired
     private TaskResultManifestRepository resultManifests;
+
+    @Autowired
+    private TaskResultViewDocumentQueryService resultDocuments;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -169,6 +173,19 @@ class TaskAdministrationIntegrationTest {
                             .isEqualTo(closed.task().closedAt());
                     assertThat(manifest.bodySha256())
                             .matches("[0-9a-f]{64}");
+                });
+        assertThat(resultDocuments.findByTaskId(draft.id()))
+                .get()
+                .satisfies(document -> {
+                    assertThat(document.responseCount()).isZero();
+                    assertThat(document.content())
+                            .contains("\"type\":\"manifest\"")
+                            .contains("\"type\":\"task\"")
+                            .contains("\"type\":\"question\"")
+                            .contains("\"type\":\"option\"")
+                            .doesNotContain(draft.id().value().toString())
+                            .doesNotContain(draft.questions().getFirst()
+                                    .id().value().toString());
                 });
 
         Task immediateDraft = createPublishableDraft("즉시 공개 과업");
