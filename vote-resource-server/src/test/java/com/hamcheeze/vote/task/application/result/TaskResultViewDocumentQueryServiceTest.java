@@ -49,7 +49,8 @@ class TaskResultViewDocumentQueryServiceTest {
     @BeforeEach
     void setUp() {
         service = new TaskResultViewDocumentQueryService(
-                manifests, views, renderer);
+                new TaskResultViewVerificationService(
+                        manifests, views, renderer));
     }
 
     @Test

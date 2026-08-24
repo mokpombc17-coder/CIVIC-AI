@@ -86,6 +86,17 @@ Submission·User 식별자는 계약에 노출하지 않는다.
 - LLM 호출 실패·재시도·비용 제한은 OpinionMap 실행 상태이며 Task Result View의 완결성을
   변경하지 않는다.
 
+정량 집계는 다음 관리자 API로 항상 제공한다.
+
+```text
+GET /api/v1/admin/tasks/{taskId}/result-summary
+Content-Type: application/json
+```
+
+`task-result-summary/v1` 응답은 `resultVersion`, 실제 `responseCount`, 표시 순서대로 정렬된
+선택지의 `key`, `content`, `count`만 포함한다. 선택되지 않은 선택지도 `count: 0`으로
+포함하며, 사용자 식별자·선택 이유·제출 시각은 포함하지 않는다.
+
 ### 5. 조회와 버전 정책
 
 - manifest가 확정되지 않은 Task는 Result View를 제공하지 않는다.

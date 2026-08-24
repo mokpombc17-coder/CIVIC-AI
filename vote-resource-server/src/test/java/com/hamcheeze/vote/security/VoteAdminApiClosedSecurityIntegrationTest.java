@@ -55,6 +55,17 @@ class VoteAdminApiClosedSecurityIntegrationTest {
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
 
+    @Test
+    void deniesTaskResultSummaryWhenLocalAdminApiIsDisabled()
+            throws Exception {
+        mockMvc.perform(get(
+                        "/api/v1/admin/tasks/{taskId}/result-summary",
+                        UUID.randomUUID())
+                        .with(jwt().jwt(jwt -> jwt.subject("user-a"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
     @RestController
     static class AdminProbeController {
 
