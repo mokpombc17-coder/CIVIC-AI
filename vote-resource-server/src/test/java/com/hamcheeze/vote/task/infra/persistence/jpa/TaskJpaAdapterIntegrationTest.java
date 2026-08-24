@@ -8,9 +8,11 @@ import com.hamcheeze.vote.task.application.idempotency.TaskSubmissionReceipt;
 import com.hamcheeze.vote.task.application.idempotency.TaskSubmissionReceiptStatus;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskResultResponseReader;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionReceiptRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionPersistenceException;
+import com.hamcheeze.vote.task.application.result.TaskResultResponse;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
@@ -85,6 +87,9 @@ class TaskJpaAdapterIntegrationTest {
 
     @Autowired
     private TaskSubmissionRepository submissions;
+
+    @Autowired
+    private TaskResultResponseReader resultResponses;
 
     @Autowired
     private TaskSubmissionReceiptRepository receipts;
@@ -297,6 +302,41 @@ class TaskJpaAdapterIntegrationTest {
     }
 
     @Test
+    void readsMinimalTaskResultResponsesInCanonicalOrder() {
+        TaskFixture fixture = openTask();
+        tasks.save(fixture.task());
+        TaskSubmission later = insertUserWrittenResponse(
+                fixture,
+                "result-later-" + UUID.randomUUID(),
+                fixture.secondOptionId(),
+                "나중 응답",
+                NOW.plusSeconds(2));
+        TaskSubmission earlier = insertUserWrittenResponse(
+                fixture,
+                "result-earlier-" + UUID.randomUUID(),
+                fixture.firstOptionId(),
+                "먼저 응답",
+                NOW.plusSeconds(1));
+
+        List<TaskResultResponse> restored =
+                resultResponses.findByTaskId(fixture.task().id());
+
+        assertThat(restored)
+                .extracting(TaskResultResponse::submissionId)
+                .containsExactly(earlier.id(), later.id());
+        assertThat(restored)
+                .extracting(TaskResultResponse::finalReason)
+                .containsExactly("먼저 응답", "나중 응답");
+        assertThat(restored).allSatisfy(response -> {
+            assertThat(response.taskId()).isEqualTo(fixture.task().id());
+            assertThat(response.questionId())
+                    .isEqualTo(fixture.choiceQuestionId());
+            assertThat(response.reasonSource())
+                    .isEqualTo(TaskReasonSource.USER_WRITTEN);
+        });
+    }
+
+    @Test
     void exposesOptimisticVersionAndSerializesPessimisticAdminLock() throws Exception {
         TransactionTemplate transactions =
                 new TransactionTemplate(transactionManager);
@@ -457,6 +497,31 @@ class TaskJpaAdapterIntegrationTest {
                 NOW.minusSeconds(5),
                 NOW.minusSeconds(4),
                 NOW.minusSeconds(3));
+    }
+
+    private TaskSubmission insertUserWrittenResponse(
+            TaskFixture fixture,
+            String rawUserId,
+            TaskOptionId optionId,
+            String reason,
+            Instant submittedAt
+    ) {
+        TaskUserId userId = new TaskUserId(rawUserId);
+        PersonaFixture persona = insertSucceededPersona(rawUserId);
+        TaskSubmission submission = TaskSubmission.restore(
+                new TaskSubmissionId(UUID.randomUUID()),
+                userId,
+                fixture.task(),
+                null,
+                persona.generationId(),
+                persona.versionId(),
+                fixture.choiceQuestionId(),
+                optionId,
+                TaskReasonSource.USER_WRITTEN,
+                null,
+                reason,
+                submittedAt);
+        return submissions.insert(submission);
     }
 
     private PersonaFixture insertSucceededPersona(String userId) {

@@ -4,13 +4,9 @@ import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
-import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
@@ -44,14 +40,14 @@ class TaskResultViewV1AssemblerTest {
     @Test
     void mapsFinalizedTaskAndOrdersResponsesDeterministically() {
         Task task = closedTask(new TaskId(uuid(1)));
-        TaskSubmission laterWithHigherId = submission(
-                task, 30, 2, OPTION_TWO_ID,
+        TaskResultResponse laterWithHigherId = response(
+                task, 30, OPTION_TWO_ID,
                 "세 번째 응답", Instant.parse("2026-08-24T00:10:00Z"));
-        TaskSubmission earlier = submission(
-                task, 20, 3, OPTION_TWO_ID,
+        TaskResultResponse earlier = response(
+                task, 20, OPTION_TWO_ID,
                 "첫 번째 응답", Instant.parse("2026-08-24T00:05:00Z"));
-        TaskSubmission laterWithLowerId = submission(
-                task, 10, 1, OPTION_ONE_ID,
+        TaskResultResponse laterWithLowerId = response(
+                task, 10, OPTION_ONE_ID,
                 "두 번째 응답", Instant.parse("2026-08-24T00:10:00Z"));
 
         TaskResultViewV1 result = assembler.assemble(
@@ -94,19 +90,19 @@ class TaskResultViewV1AssemblerTest {
 
         Task task = closedTask(new TaskId(uuid(1)));
         Task foreignTask = closedTask(new TaskId(uuid(2)));
-        TaskSubmission foreign = submission(
-                foreignTask, 10, 1, OPTION_ONE_ID,
+        TaskResultResponse foreign = response(
+                foreignTask, 10, OPTION_ONE_ID,
                 "다른 과업 응답", CREATED_AT.plusSeconds(30));
         assertThatThrownBy(() -> assembler.assemble(
                 task, List.of(foreign), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("all submissions must belong to task");
 
-        TaskSubmission submission = submission(
-                task, 11, 1, OPTION_ONE_ID,
+        TaskResultResponse response = response(
+                task, 11, OPTION_ONE_ID,
                 "중복 응답", CREATED_AT.plusSeconds(30));
         assertThatThrownBy(() -> assembler.assemble(
-                task, List.of(submission, submission), 1))
+                task, List.of(response, response), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("task result contains duplicate submissionId");
     }
@@ -152,26 +148,20 @@ class TaskResultViewV1AssemblerTest {
                                 OPTION_TWO_ID, 2, "두 번째")));
     }
 
-    private TaskSubmission submission(
+    private TaskResultResponse response(
             Task task,
             long submissionId,
-            long userId,
             TaskOptionId optionId,
             String reason,
             Instant submittedAt
     ) {
-        return TaskSubmission.restore(
+        return new TaskResultResponse(
                 new TaskSubmissionId(uuid(submissionId)),
-                new TaskUserId("user-" + userId),
-                task,
-                null,
-                new TaskPersonaGenerationId(uuid(400 + userId)),
-                new TaskPersonaVersionId(uuid(500 + userId)),
+                task.id(),
                 QUESTION_ID,
                 optionId,
-                TaskReasonSource.USER_WRITTEN,
-                null,
                 reason,
+                TaskReasonSource.USER_WRITTEN,
                 submittedAt);
     }
 

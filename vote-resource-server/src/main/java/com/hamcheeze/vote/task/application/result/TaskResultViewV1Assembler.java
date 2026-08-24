@@ -6,7 +6,6 @@ import com.hamcheeze.vote.task.application.result.TaskResultViewV1.ResponseData;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.TaskData;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskOption;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
@@ -28,17 +27,17 @@ public class TaskResultViewV1Assembler {
     private static final Comparator<TaskOption> OPTION_ORDER =
             Comparator.comparingInt(TaskOption::displayOrder)
                     .thenComparing(option -> option.id().value());
-    private static final Comparator<TaskSubmission> SUBMISSION_ORDER =
-            Comparator.comparing(TaskSubmission::submittedAt)
-                    .thenComparing(submission -> submission.id().value());
+    private static final Comparator<TaskResultResponse> RESPONSE_ORDER =
+            Comparator.comparing(TaskResultResponse::submittedAt)
+                    .thenComparing(response -> response.submissionId().value());
 
     public TaskResultViewV1 assemble(
             Task task,
-            List<TaskSubmission> submissions,
+            List<TaskResultResponse> responses,
             int resultVersion
     ) {
         Objects.requireNonNull(task, "task");
-        Objects.requireNonNull(submissions, "submissions");
+        Objects.requireNonNull(responses, "responses");
         if (!task.resultEligible()) {
             throw new IllegalArgumentException(
                     "task must have a finalized result");
@@ -54,9 +53,9 @@ public class TaskResultViewV1Assembler {
         orderedOptions.sort(OPTION_ORDER);
         Map<TaskOptionId, Integer> optionOrders = optionOrders(orderedOptions);
 
-        List<TaskSubmission> orderedSubmissions = new ArrayList<>(submissions);
-        orderedSubmissions.sort(SUBMISSION_ORDER);
-        validateSubmissions(task, question, orderedSubmissions);
+        List<TaskResultResponse> orderedResponses = new ArrayList<>(responses);
+        orderedResponses.sort(RESPONSE_ORDER);
+        validateResponses(task, question, orderedResponses);
 
         return new TaskResultViewV1(
                 resultVersion,
@@ -68,7 +67,7 @@ public class TaskResultViewV1Assembler {
                         question.content(),
                         question.description()),
                 optionData(orderedOptions),
-                responseData(orderedSubmissions, optionOrders));
+                responseData(orderedResponses, optionOrders));
     }
 
     private static Map<TaskOptionId, Integer> optionOrders(
@@ -86,23 +85,23 @@ public class TaskResultViewV1Assembler {
         return orders;
     }
 
-    private static void validateSubmissions(
+    private static void validateResponses(
             Task task,
             TaskQuestion question,
-            List<TaskSubmission> submissions
+            List<TaskResultResponse> responses
     ) {
         Set<TaskSubmissionId> submissionIds = new HashSet<>();
-        for (TaskSubmission submission : submissions) {
-            Objects.requireNonNull(submission, "submission");
-            if (!task.id().equals(submission.taskId())) {
+        for (TaskResultResponse response : responses) {
+            Objects.requireNonNull(response, "response");
+            if (!task.id().equals(response.taskId())) {
                 throw new IllegalArgumentException(
                         "all submissions must belong to task");
             }
-            if (!question.id().equals(submission.questionId())) {
+            if (!question.id().equals(response.questionId())) {
                 throw new IllegalArgumentException(
                         "all submissions must answer the task question");
             }
-            if (!submissionIds.add(submission.id())) {
+            if (!submissionIds.add(response.submissionId())) {
                 throw new IllegalArgumentException(
                         "task result contains duplicate submissionId");
             }
@@ -117,14 +116,15 @@ public class TaskResultViewV1Assembler {
     }
 
     private static List<ResponseData> responseData(
-            List<TaskSubmission> submissions,
+            List<TaskResultResponse> resultResponses,
             Map<TaskOptionId, Integer> optionOrders
     ) {
-        List<ResponseData> responses = new ArrayList<>(submissions.size());
-        for (int index = 0; index < submissions.size(); index++) {
-            TaskSubmission submission = submissions.get(index);
+        List<ResponseData> responses = new ArrayList<>(
+                resultResponses.size());
+        for (int index = 0; index < resultResponses.size(); index++) {
+            TaskResultResponse response = resultResponses.get(index);
             Integer selectedOptionOrder = optionOrders.get(
-                    submission.selectedOptionId());
+                    response.selectedOptionId());
             if (selectedOptionOrder == null) {
                 throw new IllegalArgumentException(
                         "submission selected option must belong to task");
@@ -132,9 +132,9 @@ public class TaskResultViewV1Assembler {
             responses.add(new ResponseData(
                     index + 1,
                     selectedOptionOrder,
-                    submission.finalReason(),
-                    submission.reasonSource(),
-                    submission.submittedAt()));
+                    response.finalReason(),
+                    response.reasonSource(),
+                    response.submittedAt()));
         }
         return List.copyOf(responses);
     }
