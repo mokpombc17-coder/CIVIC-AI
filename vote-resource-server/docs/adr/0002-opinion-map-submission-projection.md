@@ -1,9 +1,13 @@
 # ADR 0002: OpinionMap 제출 Projection과 Task 조회 경계
 
-- 상태: Accepted
+- 상태: Superseded
 - 결정일: 2026-08-19
 - 적용 대상: `vote-resource-server`
 - 선행 결정: `0001-separate-survey-persona-ownership.md`
+- 대체 결정: `0004-task-result-view-opinion-map-boundary.md`
+
+> 이 문서는 당시 결정과 구현 이력을 보존한다. 현재 시스템은 제출별 Outbox·Inbox와
+> OpinionMap 소유 Projection 대신 Task 소유 Result View를 사용한다.
 
 ## 배경
 

@@ -7,6 +7,10 @@
 - 후속 구현: Persona 패키지 독립, Transactional Outbox, Persona Inbox,
   Persona 버전, Task 결합 제거, OpinionMap 제출 Projection
 - 관련 결정: `0002-opinion-map-submission-projection.md`
+- 후속 결정: `0004-task-result-view-opinion-map-boundary.md`
+
+> 이 ADR의 Survey·Persona 소유 경계 결정은 유효하다. OpinionMap 제출 Projection과
+> Task 조회 방식에 관한 구현 세부는 ADR 0004가 대체한다.
 
 ## 배경
 
