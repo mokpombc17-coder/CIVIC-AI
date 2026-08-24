@@ -3,6 +3,9 @@ package com.hamcheeze.chat.export;
 import com.hamcheeze.chat.export.mongo.MongoChatExportJobSchemaInitializer;
 import com.hamcheeze.chat.export.mongo.MongoChatExportJobStore;
 import com.hamcheeze.chat.export.mongo.MongoChatExportSnapshotReader;
+import com.hamcheeze.chat.export.mongo.MongoResearchChatExportJobSchemaInitializer;
+import com.hamcheeze.chat.export.mongo.MongoResearchChatExportJobStore;
+import com.hamcheeze.chat.export.mongo.MongoResearchChatExportSnapshotReader;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditReader;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -118,6 +121,88 @@ public class ChatExportConfiguration {
             Clock chatExportClock
     ) {
         return new ChatExportStartupRecovery(jobStore, chatExportClock);
+    }
+
+    @Bean(initMethod = "initialize")
+    MongoResearchChatExportJobSchemaInitializer
+            researchChatExportJobSchemaInitializer(
+                    MongoOperations mongoOperations
+            ) {
+        return new MongoResearchChatExportJobSchemaInitializer(
+                mongoOperations);
+    }
+
+    @Bean
+    @DependsOn("researchChatExportJobSchemaInitializer")
+    ResearchChatExportJobStore researchChatExportJobStore(
+            MongoOperations mongoOperations
+    ) {
+        return new MongoResearchChatExportJobStore(mongoOperations);
+    }
+
+    @Bean
+    ResearchChatExportSnapshotReader researchChatExportSnapshotReader(
+            MongoOperations mongoOperations,
+            ChatMessageAuditReader auditReader
+    ) {
+        return new MongoResearchChatExportSnapshotReader(
+                mongoOperations,
+                auditReader);
+    }
+
+    @Bean
+    ResearchChatExportMetrics researchChatExportMetrics(
+            MeterRegistry meterRegistry
+    ) {
+        return new ResearchChatExportMetrics(meterRegistry);
+    }
+
+    @Bean
+    ResearchChatExportArtifactGenerator researchChatExportArtifactGenerator(
+            ChatMessageAuditReader auditReader,
+            ObjectMapper objectMapper,
+            ChatExportProperties properties,
+            ChatExportTempManager tempManager,
+            Clock chatExportClock
+    ) {
+        return new ResearchChatExportArtifactGenerator(
+                auditReader,
+                objectMapper,
+                properties,
+                tempManager,
+                chatExportClock);
+    }
+
+    @Bean
+    ResearchChatExportService researchChatExportService(
+            ResearchChatExportJobStore jobStore,
+            ResearchChatExportSnapshotReader snapshotReader,
+            ResearchChatExportArtifactGenerator artifactGenerator,
+            ChatExportTempManager tempManager,
+            ChatExportConcurrencyGuard concurrencyGuard,
+            ChatExportProperties properties,
+            Clock chatExportClock,
+            ResearchChatExportMetrics metrics
+    ) {
+        return new ResearchChatExportService(
+                jobStore,
+                snapshotReader,
+                artifactGenerator,
+                tempManager,
+                concurrencyGuard,
+                properties,
+                chatExportClock,
+                metrics);
+    }
+
+    @Bean(initMethod = "recover")
+    ResearchChatExportStartupRecovery researchChatExportStartupRecovery(
+            ResearchChatExportJobStore jobStore,
+            Clock chatExportClock
+    ) {
+        return new ResearchChatExportStartupRecovery(
+                jobStore,
+                chatExportClock);
     }
 
 }

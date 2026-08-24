@@ -12,6 +12,8 @@ public final class ChatScopes {
             "chat:read-state:write";
     public static final String CHAT_AUDIT_EXPORTS =
             "chat:audit:exports";
+    public static final String CHAT_RESEARCH_EXPORTS =
+            "chat:research:exports";
 
     private static final String AUTHORITY_PREFIX = "SCOPE_";
 

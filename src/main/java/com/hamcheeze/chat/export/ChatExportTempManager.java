@@ -124,6 +124,26 @@ public final class ChatExportTempManager {
                 directory.resolve("artifact.zip"));
     }
 
+    public ResearchChatExportTempWorkspace createResearch(
+            String exportId
+    ) throws IOException {
+        requireExportId(exportId);
+        ensureFreeDisk();
+        Path directory = safeWorkspace(exportId);
+        Files.createDirectory(directory);
+        applyDirectoryPermissions(directory);
+        activeExportIds.add(exportId);
+        return new ResearchChatExportTempWorkspace(
+                exportId,
+                directory,
+                directory.resolve("messages.jsonl"),
+                directory.resolve("message_changes.jsonl"),
+                directory.resolve("transcript.html"),
+                directory.resolve("manifest.json"),
+                directory.resolve("artifact.part"),
+                directory.resolve("artifact.zip"));
+    }
+
     public void secureFile(Path file) throws IOException {
         ensureUnderRoot(file);
         try {
@@ -136,9 +156,22 @@ public final class ChatExportTempManager {
         if (workspace == null) {
             return;
         }
-        activeExportIds.remove(workspace.exportId());
+        cleanupBestEffort(workspace.exportId(), workspace.directory());
+    }
+
+    public void cleanupResearchBestEffort(
+            ResearchChatExportTempWorkspace workspace
+    ) {
+        if (workspace == null) {
+            return;
+        }
+        cleanupBestEffort(workspace.exportId(), workspace.directory());
+    }
+
+    private void cleanupBestEffort(String exportId, Path directory) {
+        activeExportIds.remove(exportId);
         try {
-            deleteWorkspace(workspace.directory());
+            deleteWorkspace(directory);
         } catch (RuntimeException | IOException exception) {
             incrementBestEffort(cleanupFailures);
             log.warn(

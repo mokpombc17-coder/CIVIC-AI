@@ -67,6 +67,11 @@ public class WebSocketSecurityConfig {
                         .hasAuthority(ChatScopes.authority(
                                 ChatScopes.CHAT_AUDIT_EXPORTS))
                         .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/research/rooms/*/exports")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CHAT_RESEARCH_EXPORTS))
+                        .requestMatchers(
                                 HttpMethod.PUT,
                                 "/api/v1/rooms/*/read-state")
                         .hasAuthority(ChatScopes.authority(

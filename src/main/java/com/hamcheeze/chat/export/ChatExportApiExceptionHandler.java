@@ -17,7 +17,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.net.URI;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = ChatExportController.class)
+@RestControllerAdvice(assignableTypes = {
+        ChatExportController.class,
+        ResearchChatExportController.class
+})
 public final class ChatExportApiExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(

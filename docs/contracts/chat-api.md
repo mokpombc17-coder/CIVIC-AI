@@ -2714,3 +2714,47 @@ checkpoint를 만들지 않는다.
 일반 Message History, Context, Search 및 WebSocket의 삭제 메시지는 계속
 `content=null`이며 Audit 원문과 userId는 이 관리자 Export 외부 계약으로
 노출되지 않는다.
+
+## 연구용 Room 대화 Export
+
+`POST /api/v1/research/rooms/{roomId}/exports`는
+`chat:research:exports` scope가 있는 JWT만 허용한다. 요청 body와 mode/range/cursor는
+없다. 연구자의 Room Membership은 검사하지 않으며 ACTIVE와 CLOSED Room을 모두
+지원한다. `chat:rooms:read`, `chat:rooms:write`, `chat:audit:exports` 또는 Room
+owner/participant 권한만으로는 호출할 수 없다.
+
+성공 응답은 다음과 같다.
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/zip
+Content-Disposition: attachment; filename="research-room-export-{exportId}.zip"
+Content-Length: {artifactSize}
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+X-Content-Type-Options: nosniff
+X-Export-Id: {exportId}
+X-Export-SHA256: {sha256LowercaseHex}
+```
+
+ZIP entry는 `manifest.json`, `messages.jsonl`, `message_changes.jsonl`,
+`transcript.html` 네 개뿐이다. `messages.jsonl`은 capture 시점의 최종 대화를
+`messageSequence` 순서로, `message_changes.jsonl`은 모든 CREATE/UPDATE/DELETE를
+`changeSequence` 순서로 제공한다. 삭제 메시지는 삭제 직전 content와
+`deleted=true`를 제공한다.
+
+두 JSONL의 외부 필드는 다음으로 제한된다.
+
+```text
+messages.jsonl:
+messageSequence, userId, content, createdAt, deleted
+
+message_changes.jsonl:
+changeSequence, messageSequence, userId, changeType, content, changedAt
+```
+
+`userId`는 가명화되지 않은 내부 senderUserId이므로 제한 데이터다. messageId,
+roomId, membershipId, displayName, actor, profile, 참여자·접속·읽음 정보는 포함하지
+않는다. Artifact는 전송 후 temp workspace에서 삭제되며 영구 보관과 재다운로드
+API는 없다. 상세 replay와 watermark 계약은
+`docs/architecture/chat-research-room-export.md`를 따른다.

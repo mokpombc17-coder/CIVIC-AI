@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.api;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
+import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -23,11 +24,17 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayInputStream;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.zip.ZipInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasKey;
@@ -81,6 +88,120 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                         .content(body))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ROOM_NOT_FOUND"));
+    }
+
+    @Test
+    void researchExportRequiresItsOwnScopeAndNoMembership()
+            throws Exception {
+        String missing =
+                "/api/v1/research/rooms/missing-room/exports";
+
+        mockMvc.perform(post(missing))
+                .andExpect(status().isUnauthorized());
+
+        for (String disallowed : List.of(
+                ChatScopes.ROOMS_READ,
+                ChatScopes.ROOMS_WRITE,
+                ChatScopes.CHAT_AUDIT_EXPORTS)) {
+            mockMvc.perform(post(missing)
+                            .with(jwt().jwt(token ->
+                                            token.subject("researcher-1"))
+                                    .authorities(
+                                            new SimpleGrantedAuthority(
+                                                    ChatScopes.authority(
+                                                            disallowed)))))
+                    .andExpect(status().isForbidden());
+        }
+
+        mockMvc.perform(post(missing)
+                        .with(jwt().jwt(token ->
+                                        token.subject("researcher-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_RESEARCH_EXPORTS)))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ROOM_NOT_FOUND"));
+
+        String roomId = "research-export-room";
+        seedActiveRoom(roomId, "unrelated-owner");
+        var result = mockMvc.perform(post("/api/v1/research/rooms/" + roomId
+                        + "/exports")
+                        .accept("application/zip")
+                        .with(jwt().jwt(token ->
+                                        token.subject("researcher-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_RESEARCH_EXPORTS)))))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        "application/zip"))
+                .andExpect(header().exists("X-Export-Id"))
+                .andExpect(header().exists("X-Export-SHA256"))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL,
+                        "no-store, no-cache, must-revalidate"))
+                .andExpect(header().string("Pragma", "no-cache"))
+                .andExpect(header().string(
+                        "X-Content-Type-Options", "nosniff"))
+                .andReturn();
+
+        byte[] zipBytes = result.getResponse().getContentAsByteArray();
+        String exportId = result.getResponse().getHeader("X-Export-Id");
+        assertThat(result.getResponse().getHeader(
+                HttpHeaders.CONTENT_DISPOSITION)).isEqualTo(
+                "attachment; filename=\"research-room-export-"
+                        + exportId + ".zip\"");
+        assertThat(result.getResponse().getContentLengthLong())
+                .isEqualTo(zipBytes.length);
+        assertThat(result.getResponse().getHeader("X-Export-SHA256"))
+                .isEqualTo(HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256")
+                                .digest(zipBytes)));
+        Set<String> entries = new LinkedHashSet<>();
+        try (ZipInputStream zip = new ZipInputStream(
+                new ByteArrayInputStream(zipBytes),
+                StandardCharsets.UTF_8)) {
+            for (var entry = zip.getNextEntry(); entry != null;
+                    entry = zip.getNextEntry()) {
+                entries.add(entry.getName());
+            }
+        }
+        assertThat(entries).containsExactly(
+                "manifest.json", "messages.jsonl",
+                "message_changes.jsonl", "transcript.html");
+
+        String closedRoomId = "research-export-closed-room";
+        seedActiveRoom(closedRoomId, "another-owner");
+        mongoOperations.getCollection(MongoRoomDocument.COLLECTION_NAME)
+                .updateOne(
+                        new Document("_id", closedRoomId),
+                        new Document("$set", new Document(
+                                "status", "CLOSED")
+                                .append("closedAt", Date.from(Instant.now()))
+                                .append("activeMemberCount", 0))
+                                .append("$inc", new Document("version", 1L)));
+        mockMvc.perform(post("/api/v1/research/rooms/" + closedRoomId
+                        + "/exports")
+                        .with(jwt().jwt(token ->
+                                        token.subject("researcher-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_RESEARCH_EXPORTS)))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/rooms/missing-room/exports")
+                        .with(jwt().jwt(token ->
+                                        token.subject("researcher-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_RESEARCH_EXPORTS))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\":\"FULL\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
