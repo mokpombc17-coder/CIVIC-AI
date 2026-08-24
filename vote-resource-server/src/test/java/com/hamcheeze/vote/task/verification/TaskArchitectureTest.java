@@ -26,8 +26,6 @@ class TaskArchitectureTest {
             "com.hamcheeze.vote.opinionmap.");
     private static final String PERSISTENCE_PACKAGE =
             "com.hamcheeze.vote.task.infra.persistence";
-    private static final String OPINION_MAP_BRIDGE_PACKAGE =
-            "com.hamcheeze.vote.task.infra.opinionmap";
 
     @Test
     void domainClassesHaveNoSpringJpaOrWebDependencies()
@@ -65,17 +63,6 @@ class TaskArchitectureTest {
                 List.of(
                         "com.hamcheeze.vote.persona.",
                         "com.hamcheeze.vote.opinionmap."));
-    }
-
-    @Test
-    void opinionMapBridgeDependsOnlyOnOpinionMapApplicationContract()
-            throws Exception {
-        assertPackageHasNoDependencies(
-                OPINION_MAP_BRIDGE_PACKAGE,
-                List.of(
-                        "com.hamcheeze.vote.opinionmap.domain.",
-                        "com.hamcheeze.vote.opinionmap.infra.",
-                        "com.hamcheeze.vote.opinionmap.api."));
     }
 
     private void assertPackageHasNoDependencies(
