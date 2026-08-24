@@ -2,7 +2,9 @@ package com.hamcheeze.vote.task.application.task;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.shared.integration.task.TaskOpinionMapFinalizationRequestedV1;
+import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.result.TaskResultViewV1;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
@@ -52,6 +54,9 @@ class TaskAdministrationIntegrationTest {
 
     @Autowired
     private TaskRepository tasks;
+
+    @Autowired
+    private TaskResultManifestRepository resultManifests;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -153,6 +158,18 @@ class TaskAdministrationIntegrationTest {
         assertThat(opinionMapFinalizationRequestCount(draft.id()))
                 .isEqualTo(1);
         assertThat(expectedSubmissionCount(draft.id())).isZero();
+        assertThat(resultManifests.findByTaskId(draft.id()))
+                .get()
+                .satisfies(manifest -> {
+                    assertThat(manifest.resultVersion()).isEqualTo(1);
+                    assertThat(manifest.schemaVersion())
+                            .isEqualTo(TaskResultViewV1.SCHEMA_VERSION);
+                    assertThat(manifest.responseCount()).isZero();
+                    assertThat(manifest.closedAt())
+                            .isEqualTo(closed.task().closedAt());
+                    assertThat(manifest.bodySha256())
+                            .matches("[0-9a-f]{64}");
+                });
 
         Task immediateDraft = createPublishableDraft("즉시 공개 과업");
         Task openedImmediately = administration.openImmediately(
@@ -175,6 +192,8 @@ class TaskAdministrationIntegrationTest {
                 .isEqualTo(false);
         assertThat(opinionMapFinalizationRequestCount(immediateDraft.id()))
                 .isZero();
+        assertThat(resultManifests.findByTaskId(immediateDraft.id()))
+                .isEmpty();
     }
 
     @Test
@@ -218,6 +237,11 @@ class TaskAdministrationIntegrationTest {
         assertThat(opinionMapFinalizationRequestCount(deadlineReached.id()))
                 .isEqualTo(1);
         assertThat(opinionMapFinalizationRequestCount(missed.id())).isZero();
+        assertThat(resultManifests.findByTaskId(deadlineReached.id()))
+                .get()
+                .satisfies(manifest -> assertThat(manifest.responseCount())
+                        .isZero());
+        assertThat(resultManifests.findByTaskId(missed.id())).isEmpty();
         assertThat(scheduler.transitionAvailable()).isZero();
     }
 

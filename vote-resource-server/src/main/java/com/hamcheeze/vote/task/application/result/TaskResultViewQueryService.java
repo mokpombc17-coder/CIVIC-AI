@@ -12,8 +12,6 @@ import java.util.Optional;
 @Service
 public class TaskResultViewQueryService {
 
-    public static final int CURRENT_RESULT_VERSION = 1;
-
     private final TaskRepository tasks;
     private final TaskResultResponseReader responses;
     private final TaskResultViewV1Assembler assembler;
@@ -35,6 +33,6 @@ public class TaskResultViewQueryService {
                 .map(task -> assembler.assemble(
                         task,
                         responses.findByTaskId(taskId),
-                        CURRENT_RESULT_VERSION));
+                        TaskResultViewV1.RESULT_VERSION));
     }
 }

@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.application.result.TaskResultViewV1.OptionData;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.QuestionData;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.ResponseData;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.TaskData;
+import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer.RenderedTaskResultView;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
 import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
@@ -25,8 +26,7 @@ class TaskResultViewV1JsonlWriterTest {
 
     @Test
     void rendersTheFrozenTaskResultViewV1Contract() throws IOException {
-        TaskResultViewV1JsonlWriter.RenderedTaskResultView rendered =
-                writer.render(view());
+        RenderedTaskResultView rendered = writer.render(view());
 
         assertThat(rendered.content()).isEqualTo(goldenContract());
         assertThat(rendered.bodySha256()).isEqualTo(

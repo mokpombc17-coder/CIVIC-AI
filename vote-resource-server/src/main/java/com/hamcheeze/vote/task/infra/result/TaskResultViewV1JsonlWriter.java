@@ -1,5 +1,7 @@
 package com.hamcheeze.vote.task.infra.result;
 
+import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer;
+import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer.RenderedTaskResultView;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.OptionData;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.ResponseData;
@@ -18,13 +20,14 @@ import java.util.Objects;
 
 /** Renders the byte-stable task-result-view/v1 NDJSON contract. */
 @Component
-public class TaskResultViewV1JsonlWriter {
+public class TaskResultViewV1JsonlWriter implements TaskResultViewRenderer {
 
     public static final String CONTENT_TYPE =
             "application/x-ndjson; charset=utf-8";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Override
     public RenderedTaskResultView render(TaskResultViewV1 view) {
         Objects.requireNonNull(view, "view");
         List<String> bodyLines = new ArrayList<>();
@@ -129,14 +132,4 @@ public class TaskResultViewV1JsonlWriter {
         }
     }
 
-    public record RenderedTaskResultView(
-            String content,
-            String bodySha256
-    ) {
-
-        public RenderedTaskResultView {
-            Objects.requireNonNull(content, "content");
-            Objects.requireNonNull(bodySha256, "bodySha256");
-        }
-    }
 }

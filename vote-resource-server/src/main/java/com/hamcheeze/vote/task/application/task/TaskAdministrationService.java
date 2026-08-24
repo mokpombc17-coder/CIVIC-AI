@@ -2,7 +2,7 @@ package com.hamcheeze.vote.task.application.task;
 
 import com.hamcheeze.vote.task.application.port.out.TaskOpinionMapFinalizationRequestedEventPublisher;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
-import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.result.TaskResultManifestFinalizer;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -14,6 +14,7 @@ import com.hamcheeze.vote.task.domain.task.TaskLifecycleTrigger;
 import com.hamcheeze.vote.task.domain.task.TaskQuestion;
 import com.hamcheeze.vote.task.domain.task.TaskSchedule;
 import com.hamcheeze.vote.task.domain.task.TaskStatus;
+import com.hamcheeze.vote.task.domain.result.TaskResultManifest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,34 +31,35 @@ import java.util.UUID;
 public class TaskAdministrationService {
 
     private final TaskRepository tasks;
-    private final TaskSubmissionRepository submissions;
     private final TaskOpinionMapFinalizationRequestedEventPublisher
             opinionMapFinalizationRequests;
+    private final TaskResultManifestFinalizer resultManifestFinalizer;
     private final Clock clock;
 
     @Autowired
     public TaskAdministrationService(
             TaskRepository tasks,
-            TaskSubmissionRepository submissions,
             TaskOpinionMapFinalizationRequestedEventPublisher
-                    opinionMapFinalizationRequests
+                    opinionMapFinalizationRequests,
+            TaskResultManifestFinalizer resultManifestFinalizer
     ) {
-        this(tasks, submissions, opinionMapFinalizationRequests,
+        this(tasks, opinionMapFinalizationRequests, resultManifestFinalizer,
                 Clock.systemUTC());
     }
 
     TaskAdministrationService(
             TaskRepository tasks,
-            TaskSubmissionRepository submissions,
             TaskOpinionMapFinalizationRequestedEventPublisher
                     opinionMapFinalizationRequests,
+            TaskResultManifestFinalizer resultManifestFinalizer,
             Clock clock
     ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
-        this.submissions = Objects.requireNonNull(submissions, "submissions");
         this.opinionMapFinalizationRequests = Objects.requireNonNull(
                 opinionMapFinalizationRequests,
                 "opinionMapFinalizationRequests");
+        this.resultManifestFinalizer = Objects.requireNonNull(
+                resultManifestFinalizer, "resultManifestFinalizer");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -286,15 +288,15 @@ public class TaskAdministrationService {
                 || !task.resultEligible()) {
             return;
         }
-        int expectedSubmissionCount = Math.toIntExact(
-                submissions.countByTaskId(task.id()));
+        TaskResultManifest manifest = resultManifestFinalizer.finalizeResult(
+                task);
         opinionMapFinalizationRequests.publish(
                 new TaskClosureFact(
                         task.id(),
                         task.closureType(),
                         task.closedAt(),
                         true),
-                expectedSubmissionCount);
+                manifest.responseCount());
     }
 
     private static TaskLifecycleHistoryId nextHistoryId() {

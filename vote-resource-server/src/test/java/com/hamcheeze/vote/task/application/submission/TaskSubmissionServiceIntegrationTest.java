@@ -8,6 +8,7 @@ import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyErrorCode;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
@@ -91,6 +92,9 @@ class TaskSubmissionServiceIntegrationTest {
 
     @Autowired
     private TaskRepository tasks;
+
+    @Autowired
+    private TaskResultManifestRepository resultManifests;
 
     @MockitoSpyBean
     private TaskPredictionRepository predictions;
@@ -607,6 +611,8 @@ class TaskSubmissionServiceIntegrationTest {
                 .extracting(Task::status)
                 .isEqualTo(TaskStatus.OPEN);
         assertThat(outboxCountForTask(fixture.task().id().value())).isZero();
+        assertThat(resultManifests.findByTaskId(fixture.task().id()))
+                .isEmpty();
     }
 
     @Test

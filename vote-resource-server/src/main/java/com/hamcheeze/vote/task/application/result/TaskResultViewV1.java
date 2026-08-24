@@ -25,6 +25,7 @@ public record TaskResultViewV1(
 ) {
 
     public static final String SCHEMA_VERSION = "task-result-view/v1";
+    public static final int RESULT_VERSION = 1;
 
     public TaskResultViewV1 {
         if (resultVersion < 1) {

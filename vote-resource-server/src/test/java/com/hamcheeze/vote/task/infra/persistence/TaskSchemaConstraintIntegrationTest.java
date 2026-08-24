@@ -45,7 +45,8 @@ class TaskSchemaConstraintIntegrationTest {
                 "task_prediction_attempts",
                 "task_prediction_inputs",
                 "task_submissions",
-                "task_submission_receipts");
+                "task_submission_receipts",
+                "task_result_manifests");
 
         List<String> actualTables = jdbcTemplate.queryForList("""
                 SELECT table_name
