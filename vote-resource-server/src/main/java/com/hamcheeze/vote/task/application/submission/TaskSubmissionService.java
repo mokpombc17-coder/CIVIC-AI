@@ -12,7 +12,6 @@ import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort.
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
-import com.hamcheeze.vote.task.application.port.out.TaskSubmissionCompletedEventPublisher;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
@@ -48,7 +47,6 @@ public class TaskSubmissionService {
     private final CurrentTaskPersonaQueryPort currentPersonas;
     private final TaskPredictionRepository predictions;
     private final TaskSubmissionRepository submissions;
-    private final TaskSubmissionCompletedEventPublisher completedEvents;
     private final UserTransactionLock userTransactions;
     private final TaskPredictionAvailability predictionAvailability;
     private final TaskSubmissionRequestHashFactory requestHashFactory =
@@ -69,12 +67,11 @@ public class TaskSubmissionService {
             CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionRepository predictions,
             TaskSubmissionRepository submissions,
-            TaskSubmissionCompletedEventPublisher completedEvents,
             UserTransactionLock userTransactions,
             TaskPredictionAvailability predictionAvailability
     ) {
         this(idempotency, outcomeCodec, tasks, currentPersonas,
-                predictions, submissions, completedEvents, userTransactions,
+                predictions, submissions, userTransactions,
                 predictionAvailability,
                 Clock.systemUTC());
     }
@@ -86,7 +83,6 @@ public class TaskSubmissionService {
             CurrentTaskPersonaQueryPort currentPersonas,
             TaskPredictionRepository predictions,
             TaskSubmissionRepository submissions,
-            TaskSubmissionCompletedEventPublisher completedEvents,
             UserTransactionLock userTransactions,
             TaskPredictionAvailability predictionAvailability,
             Clock clock
@@ -102,8 +98,6 @@ public class TaskSubmissionService {
                 predictions, "predictions");
         this.submissions = Objects.requireNonNull(
                 submissions, "submissions");
-        this.completedEvents = Objects.requireNonNull(
-                completedEvents, "completedEvents");
         this.userTransactions = Objects.requireNonNull(
                 userTransactions, "userTransactions");
         this.predictionAvailability = Objects.requireNonNull(
@@ -250,7 +244,6 @@ public class TaskSubmissionService {
                     command.answer(),
                     submittedAt);
             TaskSubmission stored = submissions.insert(submission);
-            completedEvents.publish(stored);
             TaskSubmissionOutcome outcome =
                     TaskSubmissionOutcome.submitted(stored);
             recordSubmissionMetricAfterCommit(metricObservation(
