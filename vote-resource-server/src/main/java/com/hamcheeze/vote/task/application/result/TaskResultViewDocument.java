@@ -12,6 +12,9 @@ public record TaskResultViewDocument(
         String content
 ) {
 
+    public static final String CONTENT_TYPE =
+            "application/x-ndjson;charset=UTF-8";
+
     public TaskResultViewDocument {
         if (resultVersion < 1) {
             throw new IllegalArgumentException(

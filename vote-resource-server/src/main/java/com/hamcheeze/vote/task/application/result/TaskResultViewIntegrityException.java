@@ -8,7 +8,7 @@ public class TaskResultViewIntegrityException extends IllegalStateException {
 
     private final TaskId taskId;
 
-    TaskResultViewIntegrityException(TaskId taskId, String reason) {
+    public TaskResultViewIntegrityException(TaskId taskId, String reason) {
         super("task result view integrity check failed for "
                 + Objects.requireNonNull(taskId, "taskId")
                 + ": " + Objects.requireNonNull(reason, "reason"));

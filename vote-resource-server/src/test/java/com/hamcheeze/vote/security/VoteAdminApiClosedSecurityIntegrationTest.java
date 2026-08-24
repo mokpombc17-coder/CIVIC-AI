@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -38,6 +39,17 @@ class VoteAdminApiClosedSecurityIntegrationTest {
     void deniesAdminApiWhenLocalTemporaryAccessIsDisabled()
             throws Exception {
         mockMvc.perform(get("/api/v1/admin/security-probe")
+                        .with(jwt().jwt(jwt -> jwt.subject("user-a"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void deniesTaskResultViewWhenLocalAdminApiIsDisabled()
+            throws Exception {
+        mockMvc.perform(get(
+                        "/api/v1/admin/tasks/{taskId}/result-view",
+                        UUID.randomUUID())
                         .with(jwt().jwt(jwt -> jwt.subject("user-a"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));

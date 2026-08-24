@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.security.VoteRequestTraceId;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
+import com.hamcheeze.vote.task.application.result.TaskResultViewIntegrityException;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskValidationException;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
@@ -61,6 +62,20 @@ final class TaskApiExceptionHandler {
         TaskViolation violation = exception.violation();
         return response(domainStatus(violation.code()), violation.code(),
                 violation.message(), request, false, List.of(violation));
+    }
+
+    @ExceptionHandler(TaskResultViewIntegrityException.class)
+    ResponseEntity<ProblemDetail> resultViewIntegrity(
+            TaskResultViewIntegrityException exception,
+            HttpServletRequest request
+    ) {
+        return response(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "TASK_RESULT_VIEW_INTEGRITY_FAILURE",
+                "The finalized task result view failed verification.",
+                request,
+                false,
+                List.of());
     }
 
     @ExceptionHandler({

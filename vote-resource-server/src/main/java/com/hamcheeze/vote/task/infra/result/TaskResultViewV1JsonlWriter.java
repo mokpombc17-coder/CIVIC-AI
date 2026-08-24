@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.infra.result;
 
 import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer;
 import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer.RenderedTaskResultView;
+import com.hamcheeze.vote.task.application.result.TaskResultViewDocument;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.OptionData;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.ResponseData;
@@ -23,7 +24,7 @@ import java.util.Objects;
 public class TaskResultViewV1JsonlWriter implements TaskResultViewRenderer {
 
     public static final String CONTENT_TYPE =
-            "application/x-ndjson; charset=utf-8";
+            TaskResultViewDocument.CONTENT_TYPE;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
