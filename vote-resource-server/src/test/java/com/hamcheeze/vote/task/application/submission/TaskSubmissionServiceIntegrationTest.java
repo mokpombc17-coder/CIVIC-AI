@@ -2,7 +2,6 @@ package com.hamcheeze.vote.task.application.submission;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
-import com.hamcheeze.vote.shared.integration.task.TaskOpinionMapFinalizationRequestedV1;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyErrorCode;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
 import com.hamcheeze.vote.task.application.port.out.TaskPredictionRepository;
@@ -74,8 +73,7 @@ import static org.mockito.Mockito.verify;
         "vote.task.prediction.enabled=true",
         "vote.task.prediction.provider=fake",
         "vote.task.prediction.dispatcher-delay=1h",
-        "vote.task.prediction.lease-reaper-delay=1h",
-        "vote.task.opinion-map-finalization-outbox.enabled=true"
+        "vote.task.prediction.lease-reaper-delay=1h"
 })
 @ActiveProfiles({"local", "test"})
 class TaskSubmissionServiceIntegrationTest {
@@ -117,7 +115,6 @@ class TaskSubmissionServiceIntegrationTest {
 
     @BeforeEach
     void resetData() {
-        jdbcTemplate.execute("TRUNCATE TABLE integration_outbox CASCADE");
         jdbcTemplate.execute("TRUNCATE TABLE tasks CASCADE");
         jdbcTemplate.execute(
                 "TRUNCATE TABLE survey_content_versions CASCADE");
@@ -514,8 +511,6 @@ class TaskSubmissionServiceIntegrationTest {
                 .get()
                 .extracting(Task::status)
                 .isEqualTo(TaskStatus.CLOSED);
-        assertThat(opinionMapFinalizationRequestCount(
-                fixture.task().id().value())).isZero();
         assertThat(resultManifests.findByTaskId(fixture.task().id()))
                 .get()
                 .satisfies(manifest -> assertThat(manifest.responseCount())
@@ -763,17 +758,6 @@ class TaskSubmissionServiceIntegrationTest {
                 WHERE user_id = ? AND task_id = ?
                 """, Integer.class,
                 fixture.userId().value(), fixture.task().id().value());
-    }
-
-    private int opinionMapFinalizationRequestCount(UUID taskId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT count(*)
-                FROM integration_outbox
-                WHERE aggregate_id = ?
-                  AND event_type = ?
-                """, Integer.class,
-                taskId,
-                TaskOpinionMapFinalizationRequestedV1.EVENT_TYPE);
     }
 
     private List<String> receiptStatuses(TaskUserId userId) {

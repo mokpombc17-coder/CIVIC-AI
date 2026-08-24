@@ -1,7 +1,6 @@
 package com.hamcheeze.vote.task.application.task;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
-import com.hamcheeze.vote.shared.integration.task.TaskOpinionMapFinalizationRequestedV1;
 import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.result.TaskResultViewDocumentQueryService;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
@@ -41,8 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
         "vote.survey.bootstrap.enabled=false",
-        "vote.task.lifecycle.enabled=false",
-        "vote.task.opinion-map-finalization-outbox.enabled=true"
+        "vote.task.lifecycle.enabled=false"
 })
 @ActiveProfiles({"local", "test"})
 class TaskAdministrationIntegrationTest {
@@ -61,9 +58,6 @@ class TaskAdministrationIntegrationTest {
 
     @Autowired
     private TaskResultViewDocumentQueryService resultDocuments;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     @Test
     void createsReplacesAndListsDraftsWithoutPersistingInvalidQuestions() {
@@ -159,8 +153,6 @@ class TaskAdministrationIntegrationTest {
                             .isEqualTo(TaskClosureType.EARLY_CLOSED);
                     assertThat(fact.resultEligible()).isTrue();
                 });
-        assertThat(opinionMapFinalizationRequestCount(draft.id()))
-                .isZero();
         assertThat(resultManifests.findByTaskId(draft.id()))
                 .get()
                 .satisfies(manifest -> {
@@ -206,8 +198,6 @@ class TaskAdministrationIntegrationTest {
                 .get()
                 .extracting(TaskClosureFact::resultEligible)
                 .isEqualTo(false);
-        assertThat(opinionMapFinalizationRequestCount(immediateDraft.id()))
-                .isZero();
         assertThat(resultManifests.findByTaskId(immediateDraft.id()))
                 .isEmpty();
     }
@@ -250,9 +240,6 @@ class TaskAdministrationIntegrationTest {
                             .isEqualTo(TaskClosureType.DEADLINE_REACHED);
                     assertThat(task.resultEligible()).isTrue();
                 });
-        assertThat(opinionMapFinalizationRequestCount(deadlineReached.id()))
-                .isZero();
-        assertThat(opinionMapFinalizationRequestCount(missed.id())).isZero();
         assertThat(resultManifests.findByTaskId(deadlineReached.id()))
                 .get()
                 .satisfies(manifest -> assertThat(manifest.responseCount())
@@ -330,17 +317,6 @@ class TaskAdministrationIntegrationTest {
     private static TaskSchedule futureSchedule() {
         Instant openAt = Instant.now().plus(1, ChronoUnit.HOURS);
         return new TaskSchedule(openAt, openAt.plus(1, ChronoUnit.HOURS));
-    }
-
-    private int opinionMapFinalizationRequestCount(TaskId taskId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT count(*)
-                FROM integration_outbox
-                WHERE aggregate_id = ?
-                  AND event_type = ?
-                """, Integer.class,
-                taskId.value(),
-                TaskOpinionMapFinalizationRequestedV1.EVENT_TYPE);
     }
 
     private static TaskQuestion choiceQuestion() {
