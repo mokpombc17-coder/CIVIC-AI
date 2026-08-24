@@ -160,8 +160,7 @@ class TaskAdministrationIntegrationTest {
                     assertThat(fact.resultEligible()).isTrue();
                 });
         assertThat(opinionMapFinalizationRequestCount(draft.id()))
-                .isEqualTo(1);
-        assertThat(expectedSubmissionCount(draft.id())).isZero();
+                .isZero();
         assertThat(resultManifests.findByTaskId(draft.id()))
                 .get()
                 .satisfies(manifest -> {
@@ -252,7 +251,7 @@ class TaskAdministrationIntegrationTest {
                     assertThat(task.resultEligible()).isTrue();
                 });
         assertThat(opinionMapFinalizationRequestCount(deadlineReached.id()))
-                .isEqualTo(1);
+                .isZero();
         assertThat(opinionMapFinalizationRequestCount(missed.id())).isZero();
         assertThat(resultManifests.findByTaskId(deadlineReached.id()))
                 .get()
@@ -336,17 +335,6 @@ class TaskAdministrationIntegrationTest {
     private int opinionMapFinalizationRequestCount(TaskId taskId) {
         return jdbcTemplate.queryForObject("""
                 SELECT count(*)
-                FROM integration_outbox
-                WHERE aggregate_id = ?
-                  AND event_type = ?
-                """, Integer.class,
-                taskId.value(),
-                TaskOpinionMapFinalizationRequestedV1.EVENT_TYPE);
-    }
-
-    private int expectedSubmissionCount(TaskId taskId) {
-        return jdbcTemplate.queryForObject("""
-                SELECT (payload::jsonb ->> 'expectedSubmissionCount')::integer
                 FROM integration_outbox
                 WHERE aggregate_id = ?
                   AND event_type = ?

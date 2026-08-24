@@ -584,35 +584,12 @@ class TaskSubmissionServiceIntegrationTest {
                 .get()
                 .extracting(Task::status)
                 .isEqualTo(TaskStatus.CLOSED);
-        Integer expectedSubmissionCount = jdbcTemplate.queryForObject("""
-                SELECT (payload::jsonb ->> 'expectedSubmissionCount')::integer
-                FROM integration_outbox
-                WHERE aggregate_id = ?
-                  AND event_type = ?
-                """, Integer.class,
-                fixture.task().id().value(),
-                TaskOpinionMapFinalizationRequestedV1.EVENT_TYPE);
-        assertThat(expectedSubmissionCount).isZero();
-    }
-
-    @Test
-    void finalizationOutboxFailureRollsBackTaskClosure() {
-        Fixture fixture = fixture("close-outbox-rollback-user");
-        doThrow(new IllegalStateException("forced close outbox failure"))
-                .when(outbox).insert(any());
-
-        assertThatThrownBy(() -> administration.closeEarly(
-                fixture.task().id(), "rollback close", ADMIN))
-                .isInstanceOf(DataAccessException.class)
-                .hasRootCauseMessage("forced close outbox failure");
-
-        assertThat(tasks.findById(fixture.task().id()))
-                .get()
-                .extracting(Task::status)
-                .isEqualTo(TaskStatus.OPEN);
-        assertThat(outboxCountForTask(fixture.task().id().value())).isZero();
+        assertThat(opinionMapFinalizationRequestCount(
+                fixture.task().id().value())).isZero();
         assertThat(resultManifests.findByTaskId(fixture.task().id()))
-                .isEmpty();
+                .get()
+                .satisfies(manifest -> assertThat(manifest.responseCount())
+                        .isZero());
     }
 
     @Test
@@ -874,6 +851,17 @@ class TaskSubmissionServiceIntegrationTest {
                 WHERE payload ->> 'taskId' = ?
                   AND event_type = 'task.submission-completed'
                 """, Integer.class, taskId.toString());
+    }
+
+    private int opinionMapFinalizationRequestCount(UUID taskId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM integration_outbox
+                WHERE aggregate_id = ?
+                  AND event_type = ?
+                """, Integer.class,
+                taskId,
+                TaskOpinionMapFinalizationRequestedV1.EVENT_TYPE);
     }
 
     private List<String> receiptStatuses(TaskUserId userId) {
