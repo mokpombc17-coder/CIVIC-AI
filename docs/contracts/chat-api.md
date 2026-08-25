@@ -185,7 +185,14 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 
 | Method | Path | 설명 | 성공 상태 |
 | --- | --- | --- | --- |
-| `POST` | `/api/v1/rooms` | 방 생성 | `201` |
+| `POST` | `/api/v1/rooms` | 방 생성 또는 생성 승인 신청 | `201` 또는 `202` |
+| `GET` | `/api/v1/me/room-creation-requests` | 내 방 생성 신청 목록 | `200` |
+| `GET` | `/api/v1/me/room-creation-requests/{creationRequestId}` | 내 방 생성 신청 상태 | `200` |
+| `POST` | `/api/v1/me/room-creation-requests/{creationRequestId}/cancel` | 대기 중인 신청 취소 | `200` |
+| `GET` | `/api/v1/admin/room-creation-requests` | 방 생성 신청 관리 목록 | `200` |
+| `GET` | `/api/v1/admin/room-creation-requests/{creationRequestId}` | 방 생성 신청 관리 상세 | `200` |
+| `POST` | `/api/v1/admin/room-creation-requests/{creationRequestId}/approve` | 방 생성 승인 | `201` 또는 `200` |
+| `POST` | `/api/v1/admin/room-creation-requests/{creationRequestId}/reject` | 방 생성 반려 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/update-settings` | 방 설정 부분 변경 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/join` | 방 참여 | `201` 또는 `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/leave` | 방 나가기 | `200` |
@@ -241,17 +248,33 @@ C0 제어문자는 허용하지 않는다. Markdown 또는 HTML 렌더링 의미
 현재 2개 이상을 보내면 `400 INVALID_REQUEST`다. 표시 문구는 프론트에서
 `POLICY=정책`, `ENVIRONMENT=환경`, `LOCAL_ISSUE=지역 현안`으로 현지화한다.
 
-응답 `201 Created`:
+방 생성 정책은 `chat.room.creation.mode` 설정으로 선택한다.
+
+- `DIRECT`: 신청을 저장한 뒤 공통 승인 로직으로 자동 승인한다.
+- `APPROVAL_REQUIRED`: 신청만 `PENDING` 상태로 저장하고 관리자의 결정을
+  기다린다.
+
+프로필 이름 자체로 처리 로직을 분기하지 않는다. local 환경은 `DIRECT`, prod
+환경은 `APPROVAL_REQUIRED`를 사용한다. 사용자는 동시에 최대 3개의 `PENDING`
+신청을 보유할 수 있으며, 한도를 초과하면
+`409 ROOM_CREATION_PENDING_LIMIT_EXCEEDED`다.
+
+`DIRECT` 또는 관리자 승인 완료 응답 `201 Created`:
 
 ```json
 {
   "clientRequestId": "07af9111-3e20-43e5-ae80-78d1bf547647",
   "code": "ROOM_CREATED",
   "replayed": false,
+  "creationRequestId": "room-request-01",
+  "status": "APPROVED",
+  "requestedAt": "2026-08-25T01:00:00Z",
+  "resolvedAt": "2026-08-25T01:00:00Z",
   "roomId": "room-01",
   "ownerMembershipId": "membership-01",
   "roomVersion": 1,
-  "ownerMembershipVersion": 1
+  "ownerMembershipVersion": 1,
+  "rejectionReason": null
 }
 ```
 
@@ -260,6 +283,102 @@ C0 제어문자는 허용하지 않는다. Markdown 또는 HTML 렌더링 의미
 ```http
 Location: /api/v1/rooms/{roomId}
 ```
+
+승인 대기 응답 `202 Accepted`:
+
+```json
+{
+  "clientRequestId": "07af9111-3e20-43e5-ae80-78d1bf547647",
+  "code": "ROOM_CREATION_REQUESTED",
+  "replayed": false,
+  "creationRequestId": "room-request-01",
+  "status": "PENDING",
+  "requestedAt": "2026-08-25T01:00:00Z",
+  "resolvedAt": null,
+  "roomId": null,
+  "ownerMembershipId": null,
+  "roomVersion": null,
+  "ownerMembershipVersion": null,
+  "rejectionReason": null
+}
+```
+
+```http
+Location: /api/v1/me/room-creation-requests/{creationRequestId}
+```
+
+동일 사용자가 같은 `Idempotency-Key`와 같은 요청 본문으로 다시 요청하면 새
+신청을 만들지 않고 현재 신청 상태를 같은 DTO로 반환하며 `replayed=true`다.
+같은 키로 다른 본문을 보내면 `409 IDEMPOTENCY_CONFLICT`다. 승인된 신청을
+재조회하거나 재실행해도 새 Room을 만들지 않는다.
+
+Room과 OWNER Membership의 식별자는 승인 시점에만 할당한다. 활성 Room quota는
+신청 시점에 사전 검사하고 승인 시점에 다시 검사한다. 승인 시 quota를 초과한
+경우 `409 USER_ACTIVE_ROOM_LIMIT_EXCEEDED`이며 신청은 `PENDING`으로 유지된다.
+
+### 방 생성 신청 상태
+
+상태는 다음 네 가지이며 종료 상태에서는 다른 상태로 전이할 수 없다.
+
+```text
+PENDING -> APPROVED
+PENDING -> REJECTED
+PENDING -> CANCELED
+```
+
+신청자는 자신의 신청만 조회할 수 있다. 다른 사용자의 신청은 존재 여부를
+노출하지 않고 `404 ROOM_CREATION_REQUEST_NOT_FOUND`로 응답한다. 목록은 오래된
+신청 순으로 cursor pagination한다.
+
+```http
+GET /api/v1/me/room-creation-requests/{creationRequestId}
+```
+
+상태 조회는 `POST /api/v1/rooms`와 동일한
+`RoomCreationRequestResponse` DTO를 사용하고 `replayed=false`로 응답한다.
+
+신청자는 `PENDING` 신청만 취소할 수 있다.
+
+```http
+POST /api/v1/me/room-creation-requests/{creationRequestId}/cancel
+```
+
+취소 성공 응답은 `200 OK`, `code=ROOM_CREATION_CANCELED`,
+`status=CANCELED`다. `Location`은 신청 상태 리소스를 가리킨다. 같은 사용자의
+취소 재시도는 현재 결과와 `replayed=true`를 반환한다. 승인 또는 반려와
+경합하면 먼저 완료된 상태 전이만 성공하고 나머지는
+`409 ROOM_CREATION_DECISION_CONFLICT`다.
+
+### 방 생성 신청 승인과 반려
+
+관리 API는 `chat:rooms:approve` scope를 요구한다. 관리자는 신청 내용을
+수정할 수 없으며 `PENDING` 신청을 승인하거나 반려할 수만 있다.
+
+```http
+POST /api/v1/admin/room-creation-requests/{creationRequestId}/approve
+```
+
+승인 시 Room과 OWNER Membership을 생성한다. 최초 성공은 `201 Created`와
+`Location: /api/v1/rooms/{roomId}`를 반환한다. 동일 승인 재시도는 Room을
+중복 생성하지 않고 `200 OK`, `replayed=true`로 현재 결과를 반환한다.
+
+```http
+POST /api/v1/admin/room-creation-requests/{creationRequestId}/reject
+Content-Type: application/json
+
+{
+  "reason": "생성 목적을 확인할 수 없습니다."
+}
+```
+
+반려 사유는 trim 후 1~100 Unicode code point인 한 줄 plain text다. 제어문자와
+Unicode line/paragraph separator를 허용하지 않는다. 반려 성공은 `200 OK`,
+`code=ROOM_CREATION_REJECTED`, `status=REJECTED`이며 `Location`은 신청 상태
+리소스를 가리킨다. 같은 사유의 반려 재시도만 replay로 인정하고, 다른 사유나
+반대 결정은 `409 ROOM_CREATION_DECISION_CONFLICT`다.
+
+현재 계약에는 이메일, WebSocket 또는 별도 알림 전송이 포함되지 않는다.
+신청자는 목록·상세 상태 조회로 승인 또는 반려 여부와 반려 사유를 확인한다.
 
 ### 방 설정 변경
 
