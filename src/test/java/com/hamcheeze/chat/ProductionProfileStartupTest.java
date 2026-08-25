@@ -7,13 +7,19 @@ import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
 import com.hamcheeze.chat.room.authorization.MembershipRoomAuthorizationService;
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import com.hamcheeze.chat.room.delivery.SimpleBrokerRoomEventDeliveryAdapter;
+import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.room.mongo.MongoRoomAccessReader;
 import com.hamcheeze.chat.support.MongoRuntimeTestContainer;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -36,10 +42,8 @@ class ProductionProfileStartupTest {
                         + MongoRuntimeTestContainer.replicaSetUrl(),
                 "--spring.security.oauth2.resourceserver.jwt.issuer-uri="
                         + "https://issuer.example",
-                "--spring.security.oauth2.resourceserver.jwt.audiences[0]="
-                        + "chat-server",
                 "--chat.websocket.allowed-origins[0]="
-                        + "https://chat.example")) {
+                        + "https://app.example")) {
             assertThat(context.getBeansOfType(
                     RoomAuthorizationService.class))
                     .hasSize(1)
@@ -63,6 +67,26 @@ class ProductionProfileStartupTest {
                     .allSatisfy((name, delivery) ->
                             assertThat(delivery).isInstanceOf(
                                     SimpleBrokerRoomEventDeliveryAdapter.class));
+
+            MockHttpServletRequest request =
+                    new MockHttpServletRequest("GET", "/api/v1/rooms");
+            request.setCookies(new Cookie(
+                    CookieOrHeaderBearerTokenResolver.COOKIE_NAME,
+                    "prod-cookie-token"));
+            assertThat(context.getBean(BearerTokenResolver.class)
+                    .resolve(request))
+                    .isEqualTo("prod-cookie-token");
+            assertThat(context.getEnvironment().getProperty(
+                    "spring.security.oauth2.resourceserver.jwt.audiences[0]"))
+                    .isEqualTo("civic-ai-api");
+
+            CorsConfiguration cors = context.getBean(
+                            "corsConfigurationSource",
+                            CorsConfigurationSource.class)
+                    .getCorsConfiguration(request);
+            assertThat(cors).isNotNull();
+            assertThat(cors.getAllowedOrigins()).isEmpty();
+            assertThat(cors.getAllowCredentials()).isTrue();
         }
     }
 

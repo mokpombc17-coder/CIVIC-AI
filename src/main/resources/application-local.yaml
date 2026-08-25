@@ -12,6 +12,9 @@ chat:
 
   security:
     cookie-authentication-enabled: true
+    cors:
+      allowed-origins:
+        - http://localhost:3000
     local-jwt:
       secret: ${CHAT_LOCAL_JWT_SECRET:civic-ai-local-auth-fixture-signing-key-v1-public-do-not-use-in-production}
       issuer: ${CHAT_LOCAL_JWT_ISSUER:http://localhost:3000/api/dev/auth}

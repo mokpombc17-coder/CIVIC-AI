@@ -8,8 +8,10 @@ spring:
         jwt:
           issuer-uri: ${CHAT_JWT_ISSUER_URI}
           audiences:
-            - ${CHAT_JWT_AUDIENCE}
+            - ${CHAT_JWT_AUDIENCE:civic-ai-api}
 
 chat:
   websocket:
     allowed-origins: ${CHAT_WEBSOCKET_ALLOWED_ORIGINS}
+  security:
+    cookie-authentication-enabled: ${CHAT_SECURITY_COOKIE_AUTHENTICATION_ENABLED:true}
