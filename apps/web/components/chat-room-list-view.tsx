@@ -5,6 +5,8 @@ import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomInboxFilterControl } from "@/components/chat-room-inbox-filter-control";
 import type { ChatRoomInboxFilterController } from "@/components/chat-room-inbox-filter";
+import { getRoomInboxPreviewPresentation } from "@/components/chat-room-inbox-preview";
+import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
 import type { ChatRoomListDetailController } from "@/components/chat-room-list-detail";
 import {
   CHAT_ROOM_LIST_DETAIL_DIALOG_ID,
@@ -213,11 +215,16 @@ export function MyRoomCard({
   room: RoomInboxListItem;
 }>) {
   const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
+  const preview = getRoomInboxPreviewPresentation(room.lastMessage);
   const unread = getChatRoomUnreadBadgePresentation(room.unreadCount, room.unreadCountCapped);
+  const previewToneClassName =
+    preview.tone === "normal"
+      ? "text-[var(--chat-publishing-color-text)]"
+      : "text-[var(--chat-publishing-color-muted)]";
 
   return (
     <article
-      className="grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)]"
+      className="grid min-h-[140px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)]"
       data-room-id={room.roomId}
     >
       <span className="min-w-0 flex-1">
@@ -225,11 +232,23 @@ export function MyRoomCard({
         <strong className="mt-1.5 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
           {room.name}
         </strong>
+        <span className="mt-1 flex min-w-0 items-center gap-2">
+          <span className={`min-w-0 flex-1 truncate text-sm leading-5 ${previewToneClassName}`}>
+            {preview.text}
+          </span>
+          <time
+            className="shrink-0 text-xs leading-5 text-[var(--chat-publishing-color-muted)]"
+            dateTime={room.lastActivityAt}
+            suppressHydrationWarning
+          >
+            {formatRoomInboxActivityTime(room.lastActivityAt, new Date())}
+          </time>
+        </span>
         <span
           aria-label={
             unread ? `${memberCount.ariaLabel}, ${unread.ariaLabel}` : memberCount.ariaLabel
           }
-          className="mt-0.5 block truncate text-sm leading-5 text-[var(--chat-publishing-color-muted)]"
+          className="mt-1 block truncate text-sm leading-5 text-[var(--chat-publishing-color-muted)]"
         >
           {memberCount.text}
           {unread ? ` · 읽지 않음 ${unread.text}` : null}

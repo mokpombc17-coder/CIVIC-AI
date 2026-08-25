@@ -38,15 +38,37 @@ describe("chat room list publishing layout", () => {
 });
 
 describe("chat room list cards", () => {
-  it("참여 Room card에 category, 제목, 정원·unread와 상세 action을 표시한다", () => {
+  it("참여 Room card에 category, 제목, 최신 메시지·활동 시각, 정원·unread와 상세 action을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem());
 
     expect(html).toContain("프로젝트 회의방");
     expect(html).toContain("지역 현안");
+    expect(html).toContain("다음 회의는 월요일입니다.");
+    expect(html).toContain('<time class="shrink-0 text-xs leading-5');
+    expect(html).toContain('dateTime="2026-08-04T08:30:00Z"');
     expect(html).toContain("5 / 50명 · 읽지 않음 4");
     expect(html).toContain('aria-label="현재 참여 인원 5명, 최대 50명, 읽지 않은 메시지 4개"');
     expect(html).toContain("자세히 보기");
-    expect(html).not.toContain("다음 회의는 월요일입니다.");
+  });
+
+  it("마지막 메시지가 없거나 삭제됐으면 기존 preview fallback을 표시한다", () => {
+    const emptyHtml = renderMyRoomCard(createRoomInboxItem({ lastMessage: null }));
+    const deletedHtml = renderMyRoomCard(
+      createRoomInboxItem({
+        lastMessage: {
+          messageId: "message-102",
+          roomSequence: 102,
+          messageVersion: 3,
+          state: "DELETED_BY_AUTHOR",
+          preview: null,
+          previewTruncated: false,
+          createdAt: "2026-08-04T08:30:00Z",
+        },
+      }),
+    );
+
+    expect(emptyHtml).toContain("표시할 메시지가 없습니다.");
+    expect(deletedHtml).toContain("삭제된 메시지입니다.");
   });
 
   it("capped unread count는 inline metadata에서도 상한 표시를 유지한다", () => {
