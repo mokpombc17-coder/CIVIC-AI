@@ -36,7 +36,6 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         jdbc.update("delete from consent_evidence");
         jdbc.update("delete from questionnaire_responses");
         jdbc.update("delete from signup_flows");
-        jdbc.update("delete from user_permissions where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from user_roles where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from credentials where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from users where origin = 'SIGNUP'");

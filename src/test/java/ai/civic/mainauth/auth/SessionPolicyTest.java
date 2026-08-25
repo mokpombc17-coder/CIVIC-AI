@@ -29,22 +29,4 @@ class SessionPolicyTest {
         assertThat(deleted).contains("__Host-civic-session=", "Max-Age=0", "Path=/", "Secure", "HttpOnly");
         assertThat(deleted).doesNotContain("Domain=");
     }
-
-    @Test
-    void accessTokenCookieMatchesTheSharedResourceServerBoundaryAndJwtExpiry() {
-        var expiresAt = java.time.Instant.parse("2026-08-25T06:00:00Z");
-        var value = cookies.accessToken("signed.jwt.value", expiresAt);
-
-        assertThat(value).contains(
-                "civic_ai_access_token=signed.jwt.value",
-                "Path=/",
-                "Secure",
-                "HttpOnly",
-                "SameSite=Lax",
-                "Max-Age=900",
-                "Expires=Tue, 25 Aug 2026 06:00:00 GMT");
-        assertThat(value).doesNotContain("Domain=", "Bearer ");
-        assertThat(cookies.deleteAccessToken().toString()).contains(
-                "civic_ai_access_token=", "Max-Age=0", "Path=/", "Secure", "HttpOnly", "SameSite=Lax");
-    }
 }

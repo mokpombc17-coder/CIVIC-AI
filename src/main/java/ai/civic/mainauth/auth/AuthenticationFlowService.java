@@ -78,6 +78,7 @@ public class AuthenticationFlowService {
                        case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
                          when bool_or(r.code = 'ADMIN') then 'ADMIN'
+                         when bool_or(r.code = 'RAG_OPERATOR') then 'RAG_ADMIN'
                          else 'PARTICIPANT'
                        end as primary_role
                 from users u join credentials c on c.user_id = u.id
@@ -550,6 +551,7 @@ public class AuthenticationFlowService {
                        case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
                          when bool_or(r.code = 'ADMIN') then 'ADMIN'
+                         when bool_or(r.code = 'RAG_OPERATOR') then 'RAG_ADMIN'
                          else 'PARTICIPANT'
                        end as primary_role
                 from users u join credentials c on c.user_id = u.id
