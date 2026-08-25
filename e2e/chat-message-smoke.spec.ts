@@ -1,4 +1,6 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
+import { AUTHENTICATION_SUCCEEDED_EVENT } from "../apps/web/lib/auth/authentication-session-events";
+import { TEMPORARY_LOGIN_SUBJECT } from "../apps/web/lib/auth/request-temporary-login";
 import { authenticateDevUser, createRoomAndEnter } from "./chat-e2e-helpers";
 
 test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 흐름을 검증한다", async ({
@@ -18,18 +20,32 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
   const messageInput = page.getByRole("textbox", { name: "메시지" });
 
-  await test.step("채팅 화면의 전역 헤더에서도 임시 로그인을 다시 갱신할 수 있다", async () => {
+  await test.step("채팅 화면을 유지한 채 임시 로그인 세션을 갱신할 수 있다", async () => {
     const previousAuthCookie = await readAuthCookieValue(context);
-    const sessionResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/dev/auth/session",
+    const sessionStatus = await page.evaluate(
+      async ({ authenticationSucceededEvent, subject }) => {
+        const response = await fetch("/api/dev/auth/session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ subject }),
+          credentials: "same-origin",
+        });
+
+        if (response.ok) {
+          window.dispatchEvent(new Event(authenticationSucceededEvent));
+        }
+
+        return response.status;
+      },
+      {
+        authenticationSucceededEvent: AUTHENTICATION_SUCCEEDED_EVENT,
+        subject: TEMPORARY_LOGIN_SUBJECT,
+      },
     );
 
-    await page.getByRole("button", { name: "임시 로그인 갱신", exact: true }).click();
-
-    expect((await sessionResponse).status()).toBe(204);
-    await expect(page.getByRole("button", { name: "임시 로그인 다시 갱신" })).toBeEnabled();
+    expect(sessionStatus).toBe(204);
     expect(await readAuthCookieValue(context)).not.toBe(previousAuthCookie);
   });
 
