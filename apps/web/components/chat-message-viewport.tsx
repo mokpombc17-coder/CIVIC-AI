@@ -38,6 +38,7 @@ const ESTIMATED_MESSAGE_HEIGHT = 76;
 const MESSAGE_GAP = 20;
 const MESSAGE_OVERSCAN = 10;
 const LATEST_SCROLL_SETTLE_FRAMES = 4;
+const OLDER_SCROLL_SETTLE_FRAMES = 4;
 const TOP_LOAD_THRESHOLD = 120;
 
 export type ChatMessageViewportViewModel = Readonly<{
@@ -519,24 +520,32 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
         align: "start",
       });
 
-      settleAnimationFrame = requestAnimationFrame(() => {
-        const scrollElement = scrollElementRef.current;
+      const settleAtAnchor = (remainingFrames: number) => {
+        settleAnimationFrame = requestAnimationFrame(() => {
+          const scrollElement = scrollElementRef.current;
 
-        if (!scrollElement) {
-          return;
-        }
+          if (!scrollElement) {
+            return;
+          }
 
-        const anchorElement = findRenderedAnchorElement(scrollElement, anchor.renderKey);
+          const anchorElement = findRenderedAnchorElement(scrollElement, anchor.renderKey);
 
-        if (!anchorElement) {
-          return;
-        }
+          if (!anchorElement) {
+            if (remainingFrames > 1) {
+              settleAtAnchor(remainingFrames - 1);
+            }
 
-        const currentOffset =
-          anchorElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
-        scrollElement.scrollTop += currentOffset - anchor.offsetFromViewportTop;
-        pendingAnchorRef.current = null;
-      });
+            return;
+          }
+
+          const currentOffset =
+            anchorElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
+          scrollElement.scrollTop += currentOffset - anchor.offsetFromViewportTop;
+          pendingAnchorRef.current = null;
+        });
+      };
+
+      settleAtAnchor(OLDER_SCROLL_SETTLE_FRAMES);
     });
 
     return () => {
