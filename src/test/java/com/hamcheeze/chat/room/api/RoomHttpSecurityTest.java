@@ -1,5 +1,7 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.export.mongo.MongoChatExportJobDocument;
+import com.hamcheeze.chat.export.mongo.MongoResearchChatExportJobDocument;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
@@ -88,6 +90,50 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                         .content(body))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ROOM_NOT_FOUND"));
+    }
+
+    @Test
+    void exportRejectsBlankJwtSubjectWithoutCreatingJobs()
+            throws Exception {
+        long adminJobsBefore = mongoOperations.getCollection(
+                        MongoChatExportJobDocument.COLLECTION_NAME)
+                .countDocuments();
+        long researchJobsBefore = mongoOperations.getCollection(
+                        MongoResearchChatExportJobDocument.COLLECTION_NAME)
+                .countDocuments();
+
+        mockMvc.perform(post(
+                        "/api/v1/research/rooms/missing-room/exports")
+                        .with(jwt().jwt(token -> token.subject(" "))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_RESEARCH_EXPORTS)))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.retryable").value(false));
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/rooms/missing-room/exports")
+                        .with(jwt().jwt(token -> token.subject(" "))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_AUDIT_EXPORTS))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"mode\":\"FULL\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.retryable").value(false));
+
+        assertThat(mongoOperations.getCollection(
+                        MongoChatExportJobDocument.COLLECTION_NAME)
+                .countDocuments()).isEqualTo(adminJobsBefore);
+        assertThat(mongoOperations.getCollection(
+                        MongoResearchChatExportJobDocument.COLLECTION_NAME)
+                .countDocuments()).isEqualTo(researchJobsBefore);
     }
 
     @Test

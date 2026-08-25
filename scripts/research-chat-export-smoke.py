@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import pathlib
+import socket
 import subprocess
 import sys
 import urllib.error
@@ -42,7 +43,11 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("room_id")
     parser.add_argument("--base-url", default="http://localhost:8080")
     parser.add_argument("--researcher-id", default="research-smoke-user")
-    return parser.parse_args()
+    parser.add_argument("--timeout-seconds", type=int, default=300)
+    args = parser.parse_args()
+    if args.timeout_seconds <= 0:
+        parser.error("--timeout-seconds must be greater than 0")
+    return args
 
 
 def token(researcher_id: str) -> str:
@@ -88,13 +93,40 @@ def main() -> int:
         },
     )
     try:
-        with urllib.request.urlopen(request) as response:
+        with urllib.request.urlopen(
+            request,
+            timeout=args.timeout_seconds,
+        ) as response:
             status = response.status
             headers = response.headers
             artifact = response.read()
     except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        print(f"HTTP {error.code}: {detail}", file=sys.stderr)
+        error.close()
+        print(
+            f"Research export request failed with HTTP {error.code}",
+            file=sys.stderr,
+        )
+        return 1
+    except (TimeoutError, socket.timeout):
+        print(
+            "Research export request timed out after "
+            f"{args.timeout_seconds} seconds",
+            file=sys.stderr,
+        )
+        return 1
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, (TimeoutError, socket.timeout)):
+            print(
+                "Research export request timed out after "
+                f"{args.timeout_seconds} seconds",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            "Research export request could not reach the server "
+            f"({type(error.reason).__name__})",
+            file=sys.stderr,
+        )
         return 1
 
     if status != 200:
@@ -112,6 +144,15 @@ def main() -> int:
     )
     if headers["Content-Disposition"] != expected_disposition:
         raise AssertionError("Content-Disposition does not match contract")
+    if "no-store" not in {
+        directive.strip().lower()
+        for directive in headers.get("Cache-Control", "").split(",")
+    }:
+        raise AssertionError("Cache-Control must include no-store")
+    if headers.get("Pragma") != "no-cache":
+        raise AssertionError("Pragma must be no-cache")
+    if headers.get("X-Content-Type-Options") != "nosniff":
+        raise AssertionError("X-Content-Type-Options must be nosniff")
 
     with zipfile.ZipFile(io.BytesIO(artifact)) as archive:
         names = set(archive.namelist())

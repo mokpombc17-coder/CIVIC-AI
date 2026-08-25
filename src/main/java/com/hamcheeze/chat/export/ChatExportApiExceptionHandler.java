@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.export;
 
+import com.hamcheeze.chat.room.api.RoomApiInputException;
 import com.hamcheeze.chat.room.api.RoomProblemDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -33,9 +34,22 @@ public final class ChatExportApiExceptionHandler {
     ) {
         return response(
                 exception.status(),
-                exception.code(),
+                exception.code().name(),
                 exception.getMessage(),
                 exception.retryable(),
+                request);
+    }
+
+    @ExceptionHandler(RoomApiInputException.class)
+    ResponseEntity<ProblemDetail> roomApiInput(
+            RoomApiInputException exception,
+            HttpServletRequest request
+    ) {
+        return response(
+                exception.status(),
+                exception.code().name(),
+                exception.getMessage(),
+                false,
                 request);
     }
 
@@ -50,7 +64,7 @@ public final class ChatExportApiExceptionHandler {
     ) {
         return response(
                 HttpStatus.BAD_REQUEST,
-                ChatExportErrorCode.INVALID_REQUEST,
+                ChatExportErrorCode.INVALID_REQUEST.name(),
                 "The export request is invalid",
                 false,
                 request);
@@ -64,7 +78,7 @@ public final class ChatExportApiExceptionHandler {
         LOGGER.error("Unexpected chat export failure", exception);
         return response(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                ChatExportErrorCode.INTERNAL_ERROR,
+                ChatExportErrorCode.INTERNAL_ERROR.name(),
                 "An internal export consistency failure occurred",
                 false,
                 request);
@@ -72,14 +86,14 @@ public final class ChatExportApiExceptionHandler {
 
     private ResponseEntity<ProblemDetail> response(
             HttpStatus status,
-            ChatExportErrorCode code,
+            String code,
             String detail,
             boolean retryable,
             HttpServletRequest request
     ) {
         ProblemDetail problem = RoomProblemDetails.create(
                 status,
-                code.name(),
+                code,
                 status.getReasonPhrase(),
                 detail,
                 null,

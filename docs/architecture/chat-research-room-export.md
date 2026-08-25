@@ -17,10 +17,20 @@ Membership 상태, 프로필, 연락처와 참여자 목록은 결합하거나 �
 
 ## Canonical source와 캡처 기준
 
-`chat_message_audit_events`가 생성·수정·삭제 이력의 canonical source다. Export
-시작 시 Room을 읽고 audit watermark를 읽은 뒤 Room을 다시 읽는다. 두 Room read의
-version과 status가 같아야 snapshot이 확정되며, 설정된 `snapshotMaxAttempts` 안에
-안정화되지 않으면 retryable `503 CHAT_EXPORT_UNAVAILABLE`이다.
+`chat_message_audit_events`만 생성·수정·삭제 이력의 canonical source로 사용한다.
+`chat_messages`를 읽어 감사 원장에 누락된 과거 메시지를 보충하지 않는다. 따라서
+메시지 감사 원장 도입 전에 생성된 메시지, 기존 schema에서 생성되어 audit event가
+없는 메시지, 삭제 원문 backfill이 수행되지 않은 기존 tombstone은 자동으로
+포함되지 않는다.
+
+연구용 Export의 데이터 완전성은 대상 Room의 메시지가 감사 원장 도입 이후
+생성되었거나 별도 backfill이 완료되었다는 운영 전제를 따른다. 감사 원장에 존재하지
+않는 기존 `chat_messages` 데이터는 연구용 Artifact에 포함되지 않는다.
+
+Export 시작 시 Room을 읽고 audit watermark를 읽은 뒤 Room을 다시 읽는다. 두 Room
+read의 version과 status가 같아야 snapshot이 확정되며, 설정된
+`snapshotMaxAttempts` 안에 안정화되지 않으면 retryable
+`503 CHAT_EXPORT_UNAVAILABLE`이다.
 
 확정된 `capturedChangeSequence`에 대해 다음 범위만 스캔한다.
 

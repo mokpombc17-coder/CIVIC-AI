@@ -2743,6 +2743,15 @@ ZIP entry는 `manifest.json`, `messages.jsonl`, `message_changes.jsonl`,
 `changeSequence` 순서로 제공한다. 삭제 메시지는 삭제 직전 content와
 `deleted=true`를 제공한다.
 
+연구용 Export는 `chat_message_audit_events`만 canonical source로 사용하며
+`chat_messages` fallback을 수행하지 않는다. 메시지 감사 원장 도입 전에 생성된
+메시지, 기존 schema에서 생성되어 audit event가 없는 메시지, 삭제 원문 backfill이
+수행되지 않은 기존 tombstone은 자동으로 포함되지 않는다.
+
+연구용 Export의 데이터 완전성은 대상 Room의 메시지가 감사 원장 도입 이후
+생성되었거나 별도 backfill이 완료되었다는 운영 전제를 따른다. 감사 원장에 존재하지
+않는 기존 `chat_messages` 데이터는 연구용 Artifact에 포함되지 않는다.
+
 두 JSONL의 외부 필드는 다음으로 제한된다.
 
 ```text
