@@ -8,6 +8,7 @@ import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestInsertOutcome;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestInsertResult;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestStore;
+import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestSlice;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
@@ -193,6 +194,50 @@ class MongoRoomCreationRequestStoreTest
                     assertThat(stored.rejectionReason())
                             .isEqualTo("요건 미충족");
                 });
+    }
+
+    @Test
+    void statusCursorReadsOldestRequestsWithoutCrossingStatus() {
+        RoomCreationRequest first = pending(1, "user-1");
+        RoomCreationRequest second = pending(2, "user-2");
+        RoomCreationRequest rejected = pending(3, "user-3").reject(
+                "admin-1",
+                "요건 미충족",
+                REQUESTED_AT.plusSeconds(1));
+        store.insertPending(first, 3);
+        store.insertPending(second, 3);
+        store.insertPending(pending(3, "user-3"), 3);
+        assertThat(store.replacePendingIfVersionMatches(
+                rejected,
+                0)).isTrue();
+
+        RoomCreationRequestSlice firstPage = store.findByStatus(
+                RoomCreationRequestStatus.PENDING,
+                null,
+                null,
+                1);
+        assertThat(firstPage.items())
+                .extracting(RoomCreationRequest::creationRequestId)
+                .containsExactly("request-1");
+        assertThat(firstPage.hasNext()).isTrue();
+
+        RoomCreationRequestSlice secondPage = store.findByStatus(
+                RoomCreationRequestStatus.PENDING,
+                first.requestedAt(),
+                first.creationRequestId(),
+                1);
+        assertThat(secondPage.items())
+                .extracting(RoomCreationRequest::creationRequestId)
+                .containsExactly("request-2");
+        assertThat(secondPage.hasNext()).isFalse();
+
+        assertThat(store.findByStatus(
+                        RoomCreationRequestStatus.REJECTED,
+                        null,
+                        null,
+                        10).items())
+                .extracting(RoomCreationRequest::creationRequestId)
+                .containsExactly("request-3");
     }
 
     @Test

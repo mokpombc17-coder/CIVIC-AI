@@ -11,6 +11,7 @@ import com.hamcheeze.chat.room.application.event.UuidRoomEventIdGenerator;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
 import com.hamcheeze.chat.room.creation.RoomCreationProperties;
+import com.hamcheeze.chat.room.creation.AdminRoomCreationRequestCursorCodec;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestCursorCodec;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestIdGenerator;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestService;
@@ -69,6 +70,12 @@ public class RoomCommandApplicationConfiguration {
             ObjectMapper objectMapper
     ) {
         return new RoomCreationRequestCursorCodec(objectMapper);
+    }
+
+    @Bean
+    AdminRoomCreationRequestCursorCodec
+    adminRoomCreationRequestCursorCodec(ObjectMapper objectMapper) {
+        return new AdminRoomCreationRequestCursorCodec(objectMapper);
     }
 
     @Bean
@@ -154,6 +161,7 @@ public class RoomCommandApplicationConfiguration {
             RoomMembershipProperties membershipProperties,
             RoomCreationProperties creationProperties,
             RoomCreationRequestCursorCodec cursorCodec,
+            AdminRoomCreationRequestCursorCodec adminCursorCodec,
             @Qualifier("mongoTransactionTemplate")
             TransactionOperations transactionOperations
     ) {
@@ -169,6 +177,7 @@ public class RoomCommandApplicationConfiguration {
                 membershipProperties,
                 creationProperties,
                 cursorCodec,
+                adminCursorCodec,
                 transactionOperations,
                 Clock.systemUTC());
     }

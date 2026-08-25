@@ -46,6 +46,12 @@ public class RoomApiConfiguration {
     }
 
     @Bean
+    AdminRoomCreationRequestHttpMapper
+    adminRoomCreationRequestHttpMapper() {
+        return new AdminRoomCreationRequestHttpMapper();
+    }
+
+    @Bean
     RoomQueryCursorCodec roomQueryCursorCodec(
             ObjectMapper objectMapper
     ) {

@@ -72,6 +72,10 @@ public class WebSocketSecurityConfig {
                         .hasAuthority(ChatScopes.authority(
                                 ChatScopes.ROOMS_WRITE))
                         .requestMatchers(
+                                "/api/v1/admin/room-creation-requests/**")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_APPROVE))
+                        .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/admin/rooms/*/exports")
                         .hasAuthority(ChatScopes.authority(

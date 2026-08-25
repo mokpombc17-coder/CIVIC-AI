@@ -32,6 +32,7 @@ import java.net.URI;
 import java.util.List;
 
 @RestControllerAdvice(basePackageClasses = {
+        AdminRoomCreationRequestController.class,
         RoomCommandController.class,
         RoomCreationRequestController.class,
         RoomQueryController.class,

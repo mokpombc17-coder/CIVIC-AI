@@ -219,6 +219,57 @@ public final class MongoRoomCreationRequestStore
                 hasNext);
     }
 
+    @Override
+    public RoomCreationRequestSlice findByStatus(
+            RoomCreationRequestStatus status,
+            Instant afterRequestedAt,
+            String afterCreationRequestId,
+            int limit
+    ) {
+        Objects.requireNonNull(status, "status");
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException(
+                    "limit must be between 1 and 100");
+        }
+        if ((afterRequestedAt == null)
+                != (afterCreationRequestId == null)) {
+            throw new IllegalArgumentException(
+                    "cursor fields must be provided together");
+        }
+        Criteria statusCriteria = Criteria.where("status").is(status);
+        Criteria criteria = statusCriteria;
+        if (afterRequestedAt != null) {
+            criteria = new Criteria().andOperator(
+                    statusCriteria,
+                    new Criteria().orOperator(
+                            Criteria.where("requestedAt")
+                                    .gt(afterRequestedAt),
+                            new Criteria().andOperator(
+                                    Criteria.where("requestedAt")
+                                            .is(afterRequestedAt),
+                                    Criteria.where("_id").gt(
+                                            requireNonBlank(
+                                                    afterCreationRequestId,
+                                                    "afterCreationRequestId")))));
+        }
+        Query query = Query.query(criteria)
+                .with(Sort.by(
+                        Sort.Order.asc("requestedAt"),
+                        Sort.Order.asc("_id")))
+                .limit(limit + 1);
+        List<RoomCreationRequest> requests = mongoOperations.find(
+                        query,
+                        MongoRoomCreationRequestDocument.class,
+                        MongoRoomCreationRequestDocument.COLLECTION_NAME)
+                .stream()
+                .map(MongoRoomCreationRequestDocument::toDomain)
+                .toList();
+        boolean hasNext = requests.size() > limit;
+        return new RoomCreationRequestSlice(
+                hasNext ? requests.subList(0, limit) : requests,
+                hasNext);
+    }
+
     private static String requireNonBlank(
             String value,
             String fieldName

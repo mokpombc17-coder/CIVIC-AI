@@ -131,6 +131,7 @@ chat:read-state:write
 | 방 및 멤버십 조회 | `chat:rooms:read` |
 | 방 topic 구독 및 구독 준비 sync | `chat:rooms:read` |
 | 방 생성 및 상태 변경 | `chat:rooms:write` |
+| 방 생성 신청 조회·승인·반려 | `chat:rooms:approve` |
 | 채팅 메시지 전송 | `chat:messages:write` |
 | 개인 Room 읽음 위치 갱신 | `chat:read-state:write` |
 
@@ -148,7 +149,9 @@ join policy, BANNED 상태와 owner 전용 권한을 우회하지 않는다. 플
 
 ### Idempotency-Key
 
-모든 방 생성·변경 `POST` API에는 다음 헤더가 필요하다.
+`POST /api/v1/rooms`와 기존 Room command `POST` API에는 다음 헤더가
+필요하다. 생성 신청 취소·승인·반려는 신청 리소스의 terminal 상태를 기준으로
+중복 결정을 판별하므로 별도 `Idempotency-Key`를 받지 않는다.
 
 ```http
 Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
@@ -355,12 +358,48 @@ POST /api/v1/me/room-creation-requests/{creationRequestId}/cancel
 수정할 수 없으며 `PENDING` 신청을 승인하거나 반려할 수만 있다.
 
 ```http
+GET /api/v1/admin/room-creation-requests?status=PENDING&limit=20&cursor=...
+GET /api/v1/admin/room-creation-requests/{creationRequestId}
+```
+
+목록은 `requestedAt`, `creationRequestId` 오름차순 cursor pagination이다.
+`status`를 생략하면 `PENDING`이며 `PENDING`, `APPROVED`, `REJECTED`,
+`CANCELED`를 조회할 수 있다. `limit` 기본값은 20, 최댓값은 100이다. cursor는
+조회한 status에 귀속되므로 다른 status 조회에 재사용할 수 없다.
+
+관리자 목록·상세·결정 응답에는 신청 판단에 필요한 다음 필드가 포함된다.
+
+```text
+creationRequestId
+requesterUserId
+name
+description
+categories
+visibility
+joinPolicy
+status
+requestedAt
+resolvedAt
+roomId
+ownerMembershipId
+roomVersion
+ownerMembershipVersion
+rejectionReason
+replayed
+```
+
+신청자의 `clientRequestId`와 결정한 관리자 ID는 관리자 응답에 노출하지 않는다.
+관리자는 위 신청 내용을 수정할 수 없으며 승인 또는 반려만 수행한다.
+
+```http
 POST /api/v1/admin/room-creation-requests/{creationRequestId}/approve
 ```
 
 승인 시 Room과 OWNER Membership을 생성한다. 최초 성공은 `201 Created`와
 `Location: /api/v1/rooms/{roomId}`를 반환한다. 동일 승인 재시도는 Room을
 중복 생성하지 않고 `200 OK`, `replayed=true`로 현재 결과를 반환한다.
+승인 시 신청자의 ACTIVE Room quota를 다시 검사한다. quota를 초과하면
+`409 USER_ACTIVE_ROOM_LIMIT_EXCEEDED`이며 신청은 `PENDING`으로 유지된다.
 
 ```http
 POST /api/v1/admin/room-creation-requests/{creationRequestId}/reject

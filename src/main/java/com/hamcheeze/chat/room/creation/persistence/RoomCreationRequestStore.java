@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room.creation.persistence;
 
 import com.hamcheeze.chat.room.creation.RoomCreationRequest;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -30,6 +31,13 @@ public interface RoomCreationRequestStore {
 
     RoomCreationRequestSlice findByRequester(
             String requesterUserId,
+            Instant afterRequestedAt,
+            String afterCreationRequestId,
+            int limit
+    );
+
+    RoomCreationRequestSlice findByStatus(
+            RoomCreationRequestStatus status,
             Instant afterRequestedAt,
             String afterCreationRequestId,
             int limit

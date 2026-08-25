@@ -43,6 +43,7 @@ public final class RoomCreationRequestService {
     private final RoomMembershipProperties membershipProperties;
     private final RoomCreationProperties creationProperties;
     private final RoomCreationRequestCursorCodec cursorCodec;
+    private final AdminRoomCreationRequestCursorCodec adminCursorCodec;
     private final TransactionOperations transactions;
     private final Clock clock;
 
@@ -58,6 +59,7 @@ public final class RoomCreationRequestService {
             RoomMembershipProperties membershipProperties,
             RoomCreationProperties creationProperties,
             RoomCreationRequestCursorCodec cursorCodec,
+            AdminRoomCreationRequestCursorCodec adminCursorCodec,
             TransactionOperations transactions,
             Clock clock
     ) {
@@ -92,6 +94,9 @@ public final class RoomCreationRequestService {
         this.cursorCodec = Objects.requireNonNull(
                 cursorCodec,
                 "cursorCodec");
+        this.adminCursorCodec = Objects.requireNonNull(
+                adminCursorCodec,
+                "adminCursorCodec");
         this.transactions = Objects.requireNonNull(
                 transactions,
                 "transactions");
@@ -240,6 +245,149 @@ public final class RoomCreationRequestService {
         throw decisionConflict();
     }
 
+    public RoomCreationRequestExecution findForAdmin(
+            String creationRequestId
+    ) {
+        return new RoomCreationRequestExecution(
+                requireAny(creationRequestId),
+                false);
+    }
+
+    public CursorPage<RoomCreationRequest> findForAdmin(
+            RoomCreationRequestStatus status,
+            String cursor,
+            int limit
+    ) {
+        RoomCreationRequestStatus requestedStatus =
+                Objects.requireNonNull(status, "status");
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException(
+                    "limit must be between 1 and 100");
+        }
+        AdminRoomCreationRequestCursor decoded =
+                adminCursorCodec.decode(cursor, requestedStatus);
+        RoomCreationRequestSlice slice = store.findByStatus(
+                requestedStatus,
+                decoded == null ? null : decoded.lastRequestedAt(),
+                decoded == null
+                        ? null
+                        : decoded.lastCreationRequestId(),
+                limit);
+        String nextCursor = null;
+        if (slice.hasNext()) {
+            RoomCreationRequest last = slice.items().getLast();
+            nextCursor = adminCursorCodec.encode(
+                    new AdminRoomCreationRequestCursor(
+                            AdminRoomCreationRequestCursor
+                                    .CURRENT_VERSION,
+                            requestedStatus,
+                            last.requestedAt(),
+                            last.creationRequestId()));
+        }
+        return new CursorPage<>(
+                slice.items(),
+                nextCursor,
+                slice.hasNext());
+    }
+
+    public RoomCreationRequestExecution approveByAdmin(
+            String adminUserId,
+            String creationRequestId
+    ) {
+        String admin = requireUserId(adminUserId);
+        for (int attempt = 0;
+                attempt < MAX_TRANSITION_ATTEMPTS;
+                attempt++) {
+            String roomId = roomIdGenerator.newRoomId();
+            String membershipId = roomIdGenerator.newMembershipId();
+            Instant approvedAt = clock.instant();
+            try {
+                DirectApprovalResult result = transactions.execute(
+                        status -> approveByAdminInTransaction(
+                                admin,
+                                creationRequestId,
+                                roomId,
+                                membershipId,
+                                approvedAt));
+                DirectApprovalResult approval = Objects.requireNonNull(
+                        result,
+                        "admin approval result");
+                if (approval.quotaExceeded()) {
+                    throw error(
+                            RoomCreationRequestErrorCode
+                                    .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
+                            "The active Room membership limit "
+                                    + "was exceeded");
+                }
+                if (approval.commandExecution() != null) {
+                    postCommitCoordinator.afterCommand(
+                            approval.commandExecution());
+                }
+                return new RoomCreationRequestExecution(
+                        approval.request(),
+                        !approval.transitioned());
+            } catch (TransitionRaceException ignored) {
+                // Reload and retry only while the request remains pending.
+            }
+            RoomCreationRequest current = requireAny(creationRequestId);
+            if (current.status()
+                    == RoomCreationRequestStatus.APPROVED) {
+                return new RoomCreationRequestExecution(current, true);
+            }
+            if (current.status() != RoomCreationRequestStatus.PENDING) {
+                throw decisionConflict();
+            }
+        }
+        throw decisionConflict();
+    }
+
+    public RoomCreationRequestExecution rejectByAdmin(
+            String adminUserId,
+            String creationRequestId,
+            String reason
+    ) {
+        String admin = requireUserId(adminUserId);
+        String rejectionReason =
+                RoomCreationRejectionReason.requireValid(reason);
+        for (int attempt = 0;
+                attempt < MAX_TRANSITION_ATTEMPTS;
+                attempt++) {
+            RoomCreationRequest current = requireAny(
+                    creationRequestId);
+            if (current.status()
+                    == RoomCreationRequestStatus.REJECTED) {
+                if (rejectionReason.equals(
+                        current.rejectionReason())) {
+                    return new RoomCreationRequestExecution(
+                            current,
+                            true);
+                }
+                throw decisionConflict();
+            }
+            if (current.status() != RoomCreationRequestStatus.PENDING) {
+                throw decisionConflict();
+            }
+            RoomCreationRequest rejected = current.reject(
+                    admin,
+                    rejectionReason,
+                    clock.instant());
+            if (store.replacePendingIfVersionMatches(
+                    rejected,
+                    current.version())) {
+                return new RoomCreationRequestExecution(
+                        rejected,
+                        false);
+            }
+        }
+        RoomCreationRequest current = requireAny(creationRequestId);
+        if (current.status() == RoomCreationRequestStatus.REJECTED
+                && rejectionReason.equals(
+                        current.rejectionReason())) {
+            return new RoomCreationRequestExecution(current, true);
+        }
+        throw decisionConflict();
+    }
+
     private RoomCreationRequestExecution completeSubmission(
             RoomCreationRequest request,
             ActiveRoomMembershipLimitMode limitMode,
@@ -361,6 +509,63 @@ public final class RoomCreationRequestService {
                 commandExecution);
     }
 
+    private DirectApprovalResult approveByAdminInTransaction(
+            String adminUserId,
+            String creationRequestId,
+            String roomId,
+            String membershipId,
+            Instant approvedAt
+    ) {
+        RoomCreationRequest current = requireAny(creationRequestId);
+        if (current.status()
+                == RoomCreationRequestStatus.APPROVED) {
+            return DirectApprovalResult.existing(current);
+        }
+        if (current.status() != RoomCreationRequestStatus.PENDING) {
+            throw decisionConflict();
+        }
+        ApprovedRoomCreationResult creation = approvedRoomCreator.create(
+                new ApprovedRoomCreation(
+                        roomId,
+                        membershipId,
+                        current.requesterUserId(),
+                        current.name(),
+                        current.description(),
+                        current.categories(),
+                        current.visibility(),
+                        current.joinPolicy(),
+                        approvedAt,
+                        ActiveRoomMembershipLimitMode.ENFORCED));
+        if (creation.outcome()
+                == ApprovedRoomCreationOutcome
+                .USER_ACTIVE_ROOM_LIMIT_EXCEEDED) {
+            return DirectApprovalResult.quotaExceeded(current);
+        }
+        RoomCreationResult roomCreation = creation.creation();
+        RoomCreationRequest approved = current.approveByAdmin(
+                adminUserId,
+                roomCreation.room().roomId(),
+                roomCreation.ownerMembership().membershipId(),
+                roomCreation.room().version(),
+                roomCreation.ownerMembership().version(),
+                approvedAt);
+        if (!store.replacePendingIfVersionMatches(
+                approved,
+                current.version())) {
+            throw new TransitionRaceException();
+        }
+        RoomCommandExecution commandExecution =
+                new RoomCommandExecution(
+                        current.clientRequestId(),
+                        RoomCommandResult.created(
+                                roomCreation.room(),
+                                roomCreation.ownerMembership()),
+                        false);
+        return DirectApprovalResult.transitioned(
+                approved,
+                commandExecution);
+    }
+
     private void requireActiveRoomQuota(
             String requesterUserId,
             ActiveRoomMembershipLimitMode limitMode,
@@ -403,6 +608,15 @@ public final class RoomCreationRequestService {
             throw notFound();
         }
         return request;
+    }
+
+    private RoomCreationRequest requireAny(String creationRequestId) {
+        if (creationRequestId == null
+                || creationRequestId.isBlank()) {
+            throw notFound();
+        }
+        return store.findById(creationRequestId)
+                .orElseThrow(RoomCreationRequestService::notFound);
     }
 
     private static void requireSameFingerprint(
