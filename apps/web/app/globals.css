@@ -68,6 +68,15 @@ pre {
     max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 }
 
+.app-shell-chat {
+  background: var(--chat-publishing-color-neutral-soft, #edf2f7);
+  padding: 0;
+}
+
+.app-shell-chat .chat-product-main {
+  width: 100%;
+}
+
 .site-header {
   position: sticky;
   z-index: 10;
@@ -311,6 +320,11 @@ th {
   .app-shell {
     padding-right: max(0.7rem, env(safe-area-inset-right));
     padding-left: max(0.7rem, env(safe-area-inset-left));
+  }
+
+  .app-shell-chat {
+    padding-right: 0;
+    padding-left: 0;
   }
 
   .site-header {

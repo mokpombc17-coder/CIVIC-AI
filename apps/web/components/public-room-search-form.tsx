@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useId } from "react";
 import {
   CHAT_ROOM_CATEGORY_OPTIONS,
@@ -22,44 +23,51 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
   return (
     <form
       aria-label="공개 채팅방 검색"
-      className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+      className="grid gap-3"
       onSubmit={(event) => {
         event.preventDefault();
         controller.applySearch();
       }}
       role="search"
     >
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700">
-          방 제목 검색
+      <label className="grid min-w-0 gap-1.5 text-sm font-bold text-[var(--chat-publishing-color-text)]">
+        채팅방 이름 검색
+        <span className="flex h-12 min-w-0 items-center overflow-hidden rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-muted)] bg-white transition focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]">
+          <Image
+            alt=""
+            aria-hidden="true"
+            className="ml-3 size-6 shrink-0"
+            height={24}
+            src="/assets/chat/search.png"
+            width={24}
+          />
           <input
             aria-describedby={describedBy}
             aria-invalid={controller.validationMessage ? true : undefined}
             autoComplete="off"
-            className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-[15px] text-[var(--chat-publishing-color-text)] outline-none placeholder:text-[#757575]"
             inputMode="search"
             onChange={(event) => controller.setDraftQuery(event.currentTarget.value)}
             onCompositionEnd={controller.endComposition}
             onCompositionStart={controller.startComposition}
-            placeholder="방 제목을 입력해 주세요"
+            placeholder="채팅방 이름을 입력해 주세요"
             type="search"
             value={controller.draftQuery}
           />
-        </label>
+          <button
+            className="h-[46px] shrink-0 bg-[var(--chat-publishing-color-primary)] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={controller.isComposing}
+            type="submit"
+          >
+            검색
+          </button>
+        </span>
+      </label>
 
-        <button
-          className="primary-button sm:min-w-24"
-          disabled={controller.isComposing}
-          type="submit"
-        >
-          검색
-        </button>
-      </div>
-
-      <label className="grid gap-1.5 text-sm font-medium text-slate-700 sm:max-w-xs">
+      <label className="grid gap-1.5 text-xs font-medium text-[var(--chat-publishing-color-muted)] sm:max-w-xs">
         카테고리
         <select
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          className="h-11 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 text-sm text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
           onChange={(event) => controller.setCategory(readCategory(event.currentTarget.value))}
           value={controller.category ?? ""}
         >
@@ -72,7 +80,7 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
         </select>
       </label>
 
-      <p className="text-xs text-slate-500" id={helpId}>
+      <p className="sr-only" id={helpId}>
         제목 검색은 검색 버튼을 누르면 적용되며, 카테고리 필터는 선택 즉시 적용됩니다.
       </p>
       {controller.validationMessage ? (

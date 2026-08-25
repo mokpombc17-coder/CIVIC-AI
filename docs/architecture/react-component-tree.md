@@ -76,7 +76,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
     ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
     └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
         ├── AppInstallBanner [Client] [Feature] [conditional] (apps/web/components/app-install-banner.tsx)
-        ├── TemporaryLoginControl [Client] [Feature] [conditional] (apps/web/components/temporary-login-control.tsx)
+        ├── TemporaryLoginControl [Client] [Feature] [conditional: non-chat route, development] (apps/web/components/temporary-login-control.tsx)
         └── children [slot: App Router가 route child를 제공]
             └── ChatLayout [Server] [Route] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] [Provider] (apps/web/components/chat-query-provider.tsx)
@@ -115,6 +115,11 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
 ```
+
+`AppShell`은 `/chat`와 `/chat/[roomId]`에서 starter용 `site-header`를 렌더링하지 않고 chat
+route가 자체 제품 header와 mobile-first surface를 소유하게 한다. 전역 하단 내비게이션은 아직
+조립하지 않는다. 다른 route에서는 기존 site header와 development용 `TemporaryLoginControl`을
+유지한다.
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
 제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
@@ -285,7 +290,7 @@ flowchart TD
     AppShell --> NativeBridgeRuntime
     AppShell -->|"update policy branch"| AppUpdateGate
     AppUpdateGate -->|"component output conditional"| AppInstallBanner
-    AppUpdateGate -->|"non-production only"| TemporaryLoginControl
+    AppUpdateGate -->|"non-chat route, development only"| TemporaryLoginControl
     AppUpdateGate --> ChildrenSlot
 
     ChildrenSlot -. "route /" .-> HomePage

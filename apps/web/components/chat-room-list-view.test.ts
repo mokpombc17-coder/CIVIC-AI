@@ -2,12 +2,52 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
-import { MyRoomCard, PublicRoomCard } from "./chat-room-list-view";
+import { ChatRoomListView, MyRoomCard, PublicRoomCard } from "./chat-room-list-view";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
+
+vi.mock("@/components/chat-connection-status", () => ({
+  ChatConnectionStatus: () => null,
+}));
+
+describe("chat room list publishing layout", () => {
+  it("모바일 토론방 header, 검색·생성 도구와 두 Room section을 조립한다", () => {
+    const emptyListState = {
+      error: null,
+      hasNextPage: false,
+      isError: false,
+      isFetchingNextPage: false,
+      isPending: false,
+      loadMore: vi.fn(),
+      retry: vi.fn(),
+      rooms: [],
+    };
+    const html = renderToStaticMarkup(
+      createElement(ChatRoomListView, {
+        closeCreateRoomForm: vi.fn(),
+        createRoomTriggerRef: { current: null },
+        isCreateRoomOpen: false,
+        now: new Date("2026-08-25T00:00:00Z"),
+        participatingRooms: emptyListState,
+        publicRoomSearch: createPublicRoomSearchController(),
+        publicRooms: emptyListState,
+        toggleCreateRoomForm: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain(">토론방</h1>");
+    expect(html).toContain('aria-label="채팅방 검색과 생성"');
+    expect(html).toContain(">채팅방 생성</button>");
+    expect(html).toContain(">참여한 방</h2>");
+    expect(html).toContain(">참여 가능한 방</h2>");
+    expect(html).toContain("참여 가능한 방이 없습니다.");
+    expect(html).not.toContain("Chat Resource Server");
+  });
+});
 
 describe("chat room list cards", () => {
   it("참여 Room card에 ACTIVE preview, last activity와 unread badge를 표시한다", () => {
@@ -93,6 +133,21 @@ const PUBLIC_ROOM: PublicRoomListItem = {
   createdAt: "2026-07-29T04:30:00Z",
   version: 1,
 };
+
+function createPublicRoomSearchController(): PublicRoomSearchController {
+  return {
+    appliedQuery: undefined,
+    applySearch: vi.fn(),
+    category: undefined,
+    draftQuery: "",
+    endComposition: vi.fn(),
+    isComposing: false,
+    setCategory: vi.fn(),
+    setDraftQuery: vi.fn(),
+    startComposition: vi.fn(),
+    validationMessage: undefined,
+  };
+}
 
 function renderMyRoomCard(room: RoomInboxListItem): string {
   return renderToStaticMarkup(

@@ -57,9 +57,9 @@ export async function createRoomAndEnter(
   { category = "POLICY", description }: { category?: E2ERoomCategory; description?: string } = {},
 ): Promise<string> {
   await page.goto("/chat");
-  await expect(page.getByRole("heading", { name: "채팅방", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "새 채팅방" }).click();
+  await page.getByRole("button", { name: "채팅방 생성" }).click();
   await page.getByRole("textbox", { name: "방 이름" }).fill(roomName);
 
   if (description !== undefined) {

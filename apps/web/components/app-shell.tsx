@@ -10,36 +10,32 @@ import { TemporaryLoginControl } from "@/components/temporary-login-control";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const isChatProductRoute = pathname === "/chat" || pathname.startsWith("/chat/");
 
   return (
-    <div className="app-shell">
+    <div className={isChatProductRoute ? "app-shell app-shell-chat" : "app-shell"}>
       <NativeBridgeRuntime />
       <AppUpdateGate>
         <AppInstallBanner />
-        <header className="site-header">
-          <div>
-            <p className="eyebrow">Next.js + Expo WebView</p>
-            <strong>Runtime boundary starter</strong>
-          </div>
+        {isChatProductRoute ? null : (
+          <header className="site-header">
+            <div>
+              <p className="eyebrow">Next.js + Expo WebView</p>
+              <strong>Runtime boundary starter</strong>
+            </div>
 
-          <nav aria-label="주 내비게이션">
-            <Link aria-current={pathname === "/" ? "page" : undefined} href="/">
-              홈
-            </Link>
-            <Link
-              aria-current={
-                pathname === "/chat" || pathname.startsWith("/chat/") ? "page" : undefined
-              }
-              href="/chat"
-            >
-              채팅
-            </Link>
-          </nav>
+            <nav aria-label="주 내비게이션">
+              <Link aria-current={pathname === "/" ? "page" : undefined} href="/">
+                홈
+              </Link>
+              <Link href="/chat">채팅</Link>
+            </nav>
 
-          {process.env.NODE_ENV !== "production" ? <TemporaryLoginControl /> : null}
-        </header>
+            {process.env.NODE_ENV !== "production" ? <TemporaryLoginControl /> : null}
+          </header>
+        )}
 
-        <main>{children}</main>
+        <main className={isChatProductRoute ? "chat-product-main" : undefined}>{children}</main>
       </AppUpdateGate>
     </div>
   );

@@ -141,7 +141,7 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
 
 async function openCreateRoomForm(page: Page, roomName: string): Promise<void> {
   await page.goto("/chat");
-  await page.getByRole("button", { name: "새 채팅방", exact: true }).click();
+  await page.getByRole("button", { name: "채팅방 생성", exact: true }).click();
   const form = page.locator("#create-room-form");
   await form.getByRole("textbox", { name: "방 이름", exact: true }).fill(roomName);
   await form.getByText("정책", { exact: true }).click();

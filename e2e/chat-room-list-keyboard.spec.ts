@@ -1,14 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 
-test("새 채팅방 폼은 키보드로 열고 닫아도 논리적인 포커스를 유지한다", async ({
+test("채팅방 생성 폼은 키보드로 열고 닫아도 논리적인 포커스를 유지한다", async ({
   context,
   page,
 }) => {
   await authenticateDevUserAs(page, context, `e2e-room-list-keyboard-${crypto.randomUUID()}`);
   await page.goto("/chat");
 
-  const createRoomButton = page.getByRole("button", { name: "새 채팅방", exact: true });
+  const createRoomButton = page.getByRole("button", { name: "채팅방 생성", exact: true });
 
   await createRoomButton.focus();
   await page.keyboard.press("Enter");

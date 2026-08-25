@@ -76,7 +76,9 @@ test("공개 방 검색과 카테고리 필터가 같은 조건의 cursor pagina
       await observerPage.goto("/chat");
       expect((await initialRequest).ok()).toBe(true);
 
-      await observerPage.getByRole("searchbox", { name: "방 제목 검색" }).fill(`  ${searchTerm}  `);
+      await observerPage
+        .getByRole("searchbox", { name: "채팅방 이름 검색" })
+        .fill(`  ${searchTerm}  `);
 
       const firstPageResponsePromise = observerPage.waitForResponse((response) => {
         if (!isPublicRoomListResponse(response)) {
@@ -179,7 +181,7 @@ test("공개 방 검색과 카테고리 필터가 같은 조건의 cursor pagina
     });
 
     await test.step("공백 검색어는 query를 생략하고 선택 category만 유지한다", async () => {
-      await observerPage.getByRole("searchbox", { name: "방 제목 검색" }).fill("   ");
+      await observerPage.getByRole("searchbox", { name: "채팅방 이름 검색" }).fill("   ");
 
       const responsePromise = observerPage.waitForResponse((response) => {
         if (!isPublicRoomListResponse(response)) {

@@ -6,6 +6,7 @@ import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { getRoomInboxPreviewPresentation } from "@/components/chat-room-inbox-preview";
 import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
+import { CHAT_ROOM_PUBLISHING_COPY } from "@/components/chat-room-publishing";
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
 import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
 import { JoinChatRoomControl } from "@/components/join-chat-room-control";
@@ -19,7 +20,7 @@ const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   timeZone: "Asia/Seoul",
 });
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
-  "grid max-h-[60dvh] scroll-p-1 gap-3 overflow-y-auto overscroll-contain p-1 pr-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:max-h-[32rem] [scrollbar-gutter:stable]";
+  "grid max-h-[60dvh] scroll-p-1 gap-3 overflow-y-auto overscroll-contain pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] sm:max-h-[32rem] [scrollbar-gutter:stable]";
 
 type RoomListState<TItem> = Readonly<{
   error: unknown;
@@ -56,135 +57,123 @@ export function ChatRoomListView({
   const currentTime = useHydratedNow(now);
 
   return (
-    <div className="chat-room-list page-stack">
-      <section className="hero hero-compact">
-        <p className="eyebrow">Chat rooms</p>
-        <h1>채팅방</h1>
-        <p>
-          Chat Resource Server의 실제 참여 방과 공개 방을 조회하고, 새 방을 만들거나 공개 방에
-          참여할 수 있습니다.
-        </p>
-        <ChatConnectionStatus />
-      </section>
+    <div className="chat-room-list chat-publishing-surface mx-auto min-h-dvh w-full max-w-[393px] overflow-hidden bg-white text-[var(--chat-publishing-color-text)] shadow-[var(--chat-publishing-shadow-card)]">
+      <header className="flex h-16 items-center border-b border-[var(--chat-publishing-color-border)] px-4">
+        <h1 className="text-xl font-bold tracking-[-0.025em]">토론방</h1>
+      </header>
 
-      <RoomListSection
-        action={
+      <div className="grid gap-6 px-4 py-4">
+        <section aria-label="채팅방 검색과 생성" className="grid gap-3">
+          <PublicRoomSearchForm controller={publicRoomSearch} />
           <button
             aria-controls={CREATE_CHAT_ROOM_FORM_ID}
             aria-expanded={isCreateRoomOpen}
-            className={isCreateRoomOpen ? "secondary-button" : "primary-button"}
+            className="ml-auto inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
             onClick={toggleCreateRoomForm}
             ref={createRoomTriggerRef}
             type="button"
           >
-            {isCreateRoomOpen ? "작성 닫기" : "새 채팅방"}
+            {isCreateRoomOpen ? "작성 닫기" : CHAT_ROOM_PUBLISHING_COPY.createRoom}
           </button>
-        }
-        eyebrow="My rooms"
-        title="참여 중인 방"
-      >
-        {isCreateRoomOpen ? <CreateChatRoomForm onCancel={closeCreateRoomForm} /> : null}
+        </section>
 
-        <QueryFailure
-          error={participatingRooms.error}
-          onRetry={participatingRooms.retry}
-          title="참여 중인 방을 불러오지 못했습니다."
-          visible={participatingRooms.isError}
-        />
-
-        {participatingRooms.isPending && participatingRooms.rooms.length === 0 ? (
-          <RoomListNotice message="참여 중인 방을 불러오고 있습니다." />
-        ) : participatingRooms.rooms.length === 0 &&
-          !participatingRooms.isError &&
-          participatingRooms.hasNextPage ? (
-          <RoomListNotice message="현재 페이지에 표시할 방이 없습니다. 다음 페이지를 확인해 주세요." />
-        ) : participatingRooms.rooms.length === 0 && !participatingRooms.isError ? (
-          <RoomListNotice message="현재 참여 중인 방이 없습니다." />
-        ) : participatingRooms.rooms.length > 0 ? (
-          <ul
-            aria-label="참여 중인 채팅방"
-            className={SCROLLABLE_ROOM_LIST_CLASS_NAME}
-            tabIndex={0}
-          >
-            {participatingRooms.rooms.map((room) => (
-              <li key={room.roomId}>
-                <MyRoomCard now={currentTime} room={room} />
-              </li>
-            ))}
-          </ul>
+        {isCreateRoomOpen ? (
+          <div className="rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] p-4">
+            <CreateChatRoomForm onCancel={closeCreateRoomForm} />
+          </div>
         ) : null}
 
-        <LoadMoreButton
-          hasNextPage={participatingRooms.hasNextPage}
-          isFetching={participatingRooms.isFetchingNextPage}
-          label="참여 중인 방 더 보기"
-          onClick={participatingRooms.loadMore}
-        />
-      </RoomListSection>
+        <ChatConnectionStatus />
 
-      <RoomListSection eyebrow="Discover" title="공개 방 탐색">
-        <p className="-mt-3 mb-5 text-sm text-slate-500">
-          이미 불러온 참여 방은 이 목록에서 제외하며, 직접 참여할 수 있는 OPEN 방만 표시합니다.
-        </p>
-
-        <PublicRoomSearchForm controller={publicRoomSearch} />
-
-        <QueryFailure
-          error={publicRooms.error}
-          errorMessage={getPublicRoomListErrorMessage(publicRooms.error)}
-          onRetry={publicRooms.retry}
-          title="공개 방을 불러오지 못했습니다."
-          visible={publicRooms.isError}
-        />
-
-        {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
-          <RoomListNotice message="공개 방을 불러오고 있습니다." />
-        ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
-          <RoomListNotice
-            message={
-              publicRoomSearch.appliedQuery || publicRoomSearch.category
-                ? "검색 조건에 맞는 공개 방이 없습니다."
-                : "현재 새로 참여할 수 있는 공개 방이 없습니다."
-            }
+        <RoomListSection title="참여한 방">
+          <QueryFailure
+            error={participatingRooms.error}
+            onRetry={participatingRooms.retry}
+            title="참여 중인 방을 불러오지 못했습니다."
+            visible={participatingRooms.isError}
           />
-        ) : publicRooms.rooms.length > 0 ? (
-          <ul aria-label="공개 채팅방" className={SCROLLABLE_ROOM_LIST_CLASS_NAME} tabIndex={0}>
-            {publicRooms.rooms.map((room) => (
-              <li key={room.roomId}>
-                <PublicRoomCard room={room} />
-              </li>
-            ))}
-          </ul>
-        ) : null}
 
-        <LoadMoreButton
-          hasNextPage={publicRooms.hasNextPage}
-          isFetching={publicRooms.isFetchingNextPage}
-          label="공개 방 더 보기"
-          onClick={publicRooms.loadMore}
-        />
-      </RoomListSection>
+          {participatingRooms.isPending && participatingRooms.rooms.length === 0 ? (
+            <RoomListNotice message="참여 중인 방을 불러오고 있습니다." />
+          ) : participatingRooms.rooms.length === 0 &&
+            !participatingRooms.isError &&
+            participatingRooms.hasNextPage ? (
+            <RoomListNotice message="현재 페이지에 표시할 방이 없습니다. 다음 페이지를 확인해 주세요." />
+          ) : participatingRooms.rooms.length === 0 && !participatingRooms.isError ? (
+            <RoomListNotice message="현재 참여 중인 방이 없습니다." />
+          ) : participatingRooms.rooms.length > 0 ? (
+            <ul
+              aria-label="참여 중인 채팅방"
+              className={SCROLLABLE_ROOM_LIST_CLASS_NAME}
+              tabIndex={0}
+            >
+              {participatingRooms.rooms.map((room) => (
+                <li key={room.roomId}>
+                  <MyRoomCard now={currentTime} room={room} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <LoadMoreButton
+            hasNextPage={participatingRooms.hasNextPage}
+            isFetching={participatingRooms.isFetchingNextPage}
+            label="참여 중인 방 더 보기"
+            onClick={participatingRooms.loadMore}
+          />
+        </RoomListSection>
+
+        <RoomListSection separated title="참여 가능한 방">
+          <QueryFailure
+            error={publicRooms.error}
+            errorMessage={getPublicRoomListErrorMessage(publicRooms.error)}
+            onRetry={publicRooms.retry}
+            title="공개 방을 불러오지 못했습니다."
+            visible={publicRooms.isError}
+          />
+
+          {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
+            <RoomListNotice message="공개 방을 불러오고 있습니다." />
+          ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
+            <RoomListNotice message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms} />
+          ) : publicRooms.rooms.length > 0 ? (
+            <ul aria-label="공개 채팅방" className={SCROLLABLE_ROOM_LIST_CLASS_NAME} tabIndex={0}>
+              {publicRooms.rooms.map((room) => (
+                <li key={room.roomId}>
+                  <PublicRoomCard room={room} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <LoadMoreButton
+            hasNextPage={publicRooms.hasNextPage}
+            isFetching={publicRooms.isFetchingNextPage}
+            label="공개 방 더 보기"
+            onClick={publicRooms.loadMore}
+          />
+        </RoomListSection>
+      </div>
     </div>
   );
 }
 
 type RoomListSectionProps = Readonly<{
-  action?: ReactNode;
   children: ReactNode;
-  eyebrow: string;
+  separated?: boolean;
   title: string;
 }>;
 
-function RoomListSection({ action, children, eyebrow, title }: RoomListSectionProps) {
+function RoomListSection({ children, separated = false, title }: RoomListSectionProps) {
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title}</h2>
-        </div>
-        {action}
-      </div>
+    <section
+      className={
+        separated
+          ? "grid gap-3 border-t border-[var(--chat-publishing-color-muted)] pt-5"
+          : "grid gap-3"
+      }
+    >
+      <h2 className="text-lg font-bold leading-7 tracking-[-0.02em]">{title}</h2>
       {children}
     </section>
   );

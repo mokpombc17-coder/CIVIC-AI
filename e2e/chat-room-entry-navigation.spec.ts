@@ -54,7 +54,7 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
     });
 
     await memberPage.goto("/chat");
-    await expect(memberPage.getByRole("heading", { name: "채팅방", exact: true })).toBeVisible();
+    await expect(memberPage.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
 
     await test.step("참여자가 자리를 비운 동안 최신 이력 한 페이지를 넘겨 생성한다", async () => {
       await ownerPage.bringToFront();
