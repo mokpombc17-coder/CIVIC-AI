@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ChatMessageComposer } from "./chat-message-composer";
 import { ChatMessageItem } from "./chat-message-item";
+import { ChatRoomEntryError } from "./chat-room-entry-error";
 import type { ChatMessageItemViewModel } from "./chat-room-view-model";
 
 describe("chat room publishing view", () => {
@@ -42,6 +43,43 @@ describe("chat room publishing view", () => {
     expect(html).toContain('placeholder="메시지를 입력하세요…"');
     expect(html).toContain("h-12 w-16");
     expect(html).toContain(">전송</button>");
+  });
+
+  it("접근 종료 상태를 Figma warning card와 목록 action으로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(ChatRoomEntryError, {
+        error: {
+          action: "return-to-list",
+          detail: "방장에 의해 채팅방에서 퇴장되었습니다.",
+          onRetry: vi.fn(),
+          title: "채팅방에 참여할 수 없습니다.",
+        },
+      }),
+    );
+
+    expect(html).toContain("border-[#ffc95c]");
+    expect(html).toContain("bg-[#fff7e8]");
+    expect(html).toContain("채팅방에 참여할 수 없습니다.");
+    expect(html).toContain("방장에 의해 채팅방에서 퇴장되었습니다.");
+    expect(html).toContain('href="/chat"');
+    expect(html).toContain(">채팅방 목록</a>");
+  });
+
+  it("일시 조회 실패는 같은 공통 error card에서 재시도를 제공한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(ChatRoomEntryError, {
+        error: {
+          action: "retry",
+          detail: "네트워크 연결을 확인해 주세요.",
+          onRetry: vi.fn(),
+          title: "채팅방 정보를 불러오지 못했습니다.",
+        },
+      }),
+    );
+
+    expect(html).toContain("채팅방 정보를 불러오지 못했습니다.");
+    expect(html).toContain(">다시 시도</button>");
+    expect(html).not.toContain('href="/chat"');
   });
 });
 

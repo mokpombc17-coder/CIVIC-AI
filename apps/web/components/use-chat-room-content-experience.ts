@@ -10,6 +10,7 @@ import { useChatRoomReadExperience } from "@/components/use-chat-room-read-exper
 import type { ChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";
 import { useChatRoomParticipantProfiles } from "@/components/use-chat-room-screen-data";
 import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
+import { createChatRoomEntryErrorPresentation } from "@/lib/chat/chat-room-entry-error-presentation";
 
 export function useChatRoomContentExperience(roomId: string, realtime: ChatRoomRealtimeExperience) {
   const { coordinator, messageHistory, receiptStateQuery, session } = realtime;
@@ -104,7 +105,7 @@ export function useChatRoomContentExperience(roomId: string, realtime: ChatRoomR
     room,
     roomError: roomQuery.isError
       ? {
-          message: toChatRoomErrorMessage(roomQuery.error),
+          ...createChatRoomEntryErrorPresentation(roomQuery.error),
           onRetry: () => void roomQuery.refetch(),
         }
       : null,
