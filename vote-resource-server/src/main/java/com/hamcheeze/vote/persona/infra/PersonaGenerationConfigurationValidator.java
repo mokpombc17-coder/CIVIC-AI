@@ -21,18 +21,18 @@ public class PersonaGenerationConfigurationValidator
 
     private final Environment environment;
     private final PersonaGenerationProperties properties;
-    private final boolean outboxEnabled;
+    private final boolean outboxDispatcherEnabled;
 
     public PersonaGenerationConfigurationValidator(
             Environment environment,
             PersonaGenerationProperties properties,
-            @Value("${vote.integration.outbox.enabled:false}")
-            boolean outboxEnabled
+            @Value("${vote.integration.outbox.dispatcher-enabled:false}")
+            boolean outboxDispatcherEnabled
     ) {
         this.environment = Objects.requireNonNull(
                 environment, "environment");
         this.properties = Objects.requireNonNull(properties, "properties");
-        this.outboxEnabled = outboxEnabled;
+        this.outboxDispatcherEnabled = outboxDispatcherEnabled;
     }
 
     @Override
@@ -43,9 +43,12 @@ public class PersonaGenerationConfigurationValidator
         warnLegacyAliases();
         boolean production = environment.acceptsProfiles(
                 Profiles.of("prod"));
-        if (production && outboxEnabled && !properties.isEnabled()) {
+        if (production
+                && outboxDispatcherEnabled
+                && !properties.isEnabled()) {
             throw invalid(
-                    "vote.integration.outbox.enabled=true conflicts with "
+                    "vote.integration.outbox.dispatcher-enabled=true "
+                            + "conflicts with "
                             + "vote.persona.enabled=false; "
                             + "SurveyResponseSubmitted creates Persona generations "
                             + "that remain permanently PENDING. Set "

@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDispatcher;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,7 +36,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
+@SpringBootTest(properties =
+        "vote.integration.outbox.dispatcher-enabled=false")
 @ActiveProfiles({"local", "test"})
 class SurveySubmissionOutboxAtomicityIntegrationTest {
 
@@ -58,6 +61,9 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @BeforeEach
     void resetSurveyData() {
@@ -106,6 +112,27 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
                 .hasRootCauseMessage("forced response failure");
 
         assertAtomicSubmissionTablesAreEmpty();
+    }
+
+    @Test
+    void pausedDispatcherStillStoresPendingOutboxEvent() {
+        submissions.submit(
+                USER,
+                UUID.randomUUID().toString(),
+                activeSubmission());
+
+        assertThat(applicationContext.getBeansOfType(
+                IntegrationOutboxDispatcher.class)).isEmpty();
+        assertThat(count("survey_responses")).isOne();
+        assertThat(jdbcTemplate.queryForObject(
+                """
+                        SELECT count(*)
+                        FROM integration_outbox
+                        WHERE published_at IS NULL
+                          AND dead_lettered_at IS NULL
+                        """,
+                Integer.class)).isOne();
+        assertThat(count("persona_generations")).isZero();
     }
 
     private SurveyResponseSubmissionService.SubmitSurveyResponseCommand

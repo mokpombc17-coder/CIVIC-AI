@@ -13,7 +13,7 @@ import java.util.Objects;
 @Component
 @ConditionalOnProperty(
         prefix = "vote.integration.outbox",
-        name = "enabled",
+        name = "dispatcher-enabled",
         havingValue = "true")
 public class IntegrationOutboxDispatcher {
 

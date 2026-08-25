@@ -1,31 +1,36 @@
 package com.hamcheeze.vote.survey.infra.config;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mock.env.MockEnvironment;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SurveyOutboxConfigurationValidatorTest {
 
     @Test
-    void rejectsDisabledOutboxInProduction() {
+    @ExtendWith(OutputCaptureExtension.class)
+    void warnsWhenDispatcherIsPausedInProduction(CapturedOutput output) {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("prod");
         SurveyOutboxConfigurationValidator validator =
                 new SurveyOutboxConfigurationValidator(environment, false);
 
-        assertThatThrownBy(validator::afterSingletonsInstantiated)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("vote.integration.outbox.enabled=false")
-                .hasMessageContaining("SurveyResponseSubmitted")
-                .hasMessageContaining(
-                        "vote.integration.outbox.enabled=true");
+        assertThatCode(validator::afterSingletonsInstantiated)
+                .doesNotThrowAnyException();
+        assertThat(output)
+                .contains("Survey Persona delivery is paused")
+                .contains("dispatcher-enabled=false")
+                .contains("SurveyResponseSubmitted")
+                .contains("remain PENDING");
     }
 
     @Test
@@ -49,29 +54,22 @@ class SurveyOutboxConfigurationValidatorTest {
     }
 
     @Test
-    void productionProfileEnablesOutboxByDefault() {
+    void productionProfilePausesDispatcherByDefault() {
         productionContext().run(context -> {
-            assertThatCode(() -> context.getBean(
-                    OutboxEnabledProbe.class))
-                    .doesNotThrowAnyException();
-            org.assertj.core.api.Assertions.assertThat(context)
+            assertThat(context)
                     .hasNotFailed()
-                    .hasSingleBean(OutboxEnabledProbe.class);
+                    .doesNotHaveBean(OutboxEnabledProbe.class);
         });
     }
 
     @Test
-    void productionContextFailsWhenOutboxIsExplicitlyDisabled() {
+    void productionContextCanExplicitlyEnableDispatcher() {
         productionContext()
                 .withPropertyValues(
-                        "vote.integration.outbox.enabled=false")
-                .run(context -> org.assertj.core.api.Assertions
-                        .assertThat(context)
-                        .hasFailed()
-                        .getFailure()
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining(
-                                "vote.integration.outbox.enabled=true"));
+                        "vote.integration.outbox.dispatcher-enabled=true")
+                .run(context -> assertThat(context)
+                        .hasNotFailed()
+                        .hasSingleBean(OutboxEnabledProbe.class));
     }
 
     private static ApplicationContextRunner productionContext() {
@@ -90,7 +88,7 @@ class SurveyOutboxConfigurationValidatorTest {
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnProperty(
             prefix = "vote.integration.outbox",
-            name = "enabled",
+            name = "dispatcher-enabled",
             havingValue = "true")
     static class OutboxEnabledProbeConfiguration {
 

@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: ${VOTE_DB_URL}
+    url: ${VOTE_DB_URL:jdbc:postgresql://vote-db:5432/vote}
     username: ${VOTE_DB_USERNAME}
     password: ${VOTE_DB_PASSWORD}
   security:
@@ -9,14 +9,14 @@ spring:
         jwt:
           issuer-uri: ${VOTE_JWT_ISSUER_URI}
           audiences:
-            - ${VOTE_JWT_AUDIENCE}
+            - ${VOTE_JWT_AUDIENCE:civic-ai-api}
 
 vote:
   integration:
     outbox:
-      enabled: ${VOTE_INTEGRATION_OUTBOX_ENABLED:true}
+      dispatcher-enabled: ${VOTE_INTEGRATION_OUTBOX_DISPATCHER_ENABLED:${VOTE_INTEGRATION_OUTBOX_ENABLED:false}}
   persona:
-    enabled: ${VOTE_PERSONA_ENABLED:${VOTE_SURVEY_PERSONA_ENABLED:true}}
+    enabled: ${VOTE_PERSONA_ENABLED:${VOTE_SURVEY_PERSONA_ENABLED:false}}
     provider: ${VOTE_PERSONA_PROVIDER:${VOTE_SURVEY_PERSONA_PROVIDER:http}}
     base-url: ${VOTE_PERSONA_BASE_URL:${VOTE_SURVEY_PERSONA_BASE_URL:}}
     auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}}
@@ -59,4 +59,4 @@ vote:
       fixed-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_FIXED_DELAY:5s}
       initial-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_INITIAL_DELAY:0s}
   security:
-    cookie-authentication-enabled: false
+    cookie-authentication-enabled: ${VOTE_SECURITY_COOKIE_AUTHENTICATION_ENABLED:true}

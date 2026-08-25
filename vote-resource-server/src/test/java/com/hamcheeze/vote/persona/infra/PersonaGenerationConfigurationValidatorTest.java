@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PersonaGenerationConfigurationValidatorTest {
 
     @Test
-    void disabledProductionSkipsProviderAndWorkerValidationWhenOutboxIsOff() {
+    void disabledProductionSkipsValidationWhenDispatcherIsPaused() {
         PersonaGenerationProperties properties = valid();
         properties.setEnabled(false);
         properties.setBaseUrl("");
@@ -36,14 +36,15 @@ class PersonaGenerationConfigurationValidatorTest {
     }
 
     @Test
-    void productionRejectsOutboxEnabledWithoutPersonaWorker() {
+    void productionRejectsDispatcherEnabledWithoutPersonaWorker() {
         PersonaGenerationProperties properties = valid();
         properties.setEnabled(false);
 
         assertThatThrownBy(() -> validator(
                 "prod", properties, true).afterSingletonsInstantiated())
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("vote.integration.outbox.enabled=true")
+                .hasMessageContaining(
+                        "vote.integration.outbox.dispatcher-enabled=true")
                 .hasMessageContaining("vote.persona.enabled=false")
                 .hasMessageContaining("permanently PENDING");
     }
@@ -190,12 +191,12 @@ class PersonaGenerationConfigurationValidatorTest {
     private static PersonaGenerationConfigurationValidator validator(
             String profile,
             PersonaGenerationProperties properties,
-            boolean outboxEnabled
+            boolean outboxDispatcherEnabled
     ) {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles(profile);
         return new PersonaGenerationConfigurationValidator(
-                environment, properties, outboxEnabled);
+                environment, properties, outboxDispatcherEnabled);
     }
 
     private static PersonaGenerationProperties valid() {

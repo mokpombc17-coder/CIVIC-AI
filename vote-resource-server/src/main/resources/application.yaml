@@ -8,10 +8,13 @@ spring:
       ddl-auto: validate
     open-in-view: false
 
+server:
+  port: ${SERVER_PORT:8083}
+
 vote:
   integration:
     outbox:
-      enabled: false
+      dispatcher-enabled: false
       poller-delay: 1s
       retry-initial-delay: 5s
       retry-max-delay: 5m
