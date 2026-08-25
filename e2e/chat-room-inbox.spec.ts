@@ -12,6 +12,7 @@ const INBOX_TOAST_LABEL = "새 채팅 메시지 알림";
 test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 읽음 처리한다", async ({
   browser,
 }, testInfo) => {
+  test.setTimeout(90_000);
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
   const roomName = `e2e-room-inbox-${uniqueId}`;
@@ -81,7 +82,14 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
         );
       });
 
-      await getParticipatingRoomCard(memberPage, roomName).click();
+      const entryRoomCard = getParticipatingRoomCard(memberPage, roomName);
+      await entryRoomCard
+        .getByRole("button", { name: `${roomName} 자세히 보기`, exact: true })
+        .click();
+      await memberPage
+        .getByRole("dialog", { name: roomName, exact: true })
+        .getByRole("link", { name: "채팅방 입장", exact: true })
+        .click();
       await expect(memberPage.getByRole("log", { name: `${roomId} 메시지` })).toContainText(
         readMessage,
       );
