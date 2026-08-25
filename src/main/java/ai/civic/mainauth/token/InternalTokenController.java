@@ -3,13 +3,12 @@ package ai.civic.mainauth.token;
 import ai.civic.mainauth.auth.CsrfService;
 import ai.civic.mainauth.auth.SessionCookieFactory;
 import ai.civic.mainauth.auth.SessionService;
-import ai.civic.mainauth.feature.RuntimeFeatureGateService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,22 +23,22 @@ import ai.civic.mainauth.auth.AuthenticationException;
 @RequestMapping("/internal/v1/tokens")
 public class InternalTokenController {
     public static final String INTERNAL_SECRET_HEADER = "X-CIVIC-Internal-Client-Secret";
-    private final InternalTokenService tokens;
+    private final AccessTokenService tokens;
     private final SessionService sessions;
     private final CsrfService csrf;
-    private final RuntimeFeatureGateService featureGates;
+    private final SessionCookieFactory cookies;
     private final byte[] internalSecret;
 
     public InternalTokenController(
-            InternalTokenService tokens,
+            AccessTokenService tokens,
             SessionService sessions,
             CsrfService csrf,
-            RuntimeFeatureGateService featureGates,
+            SessionCookieFactory cookies,
             @Value("${civic.internal.client-secret:local-development-internal-client-secret}") String internalSecret) {
         this.tokens = tokens;
         this.sessions = sessions;
         this.csrf = csrf;
-        this.featureGates = featureGates;
+        this.cookies = cookies;
         this.internalSecret = internalSecret.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -54,38 +53,20 @@ public class InternalTokenController {
                 internalSecret, suppliedInternalSecret.getBytes(StandardCharsets.UTF_8))) {
             throw new SecurityException("Internal client authentication failed");
         }
-        if (!"civic-rag".equals(request.audience()) || !csrf.matches(sessionId, csrfToken)) {
+        if (!AccessTokenService.AUDIENCE.equals(request.audience()) || !csrf.matches(sessionId, csrfToken)) {
             throw new SecurityException("Internal token request is invalid");
         }
         var session = sessions.requireForTokenIssuance(sessionId);
         if (session.mustChangePassword()) {
             throw new SecurityException("Password rotation is required before issuing internal tokens");
         }
-        var permittedScopes = permittedRagScopes(session.role());
-        if (request.scopes() == null || !permittedScopes.containsAll(request.scopes())) {
-            throw new SecurityException("Requested RAG scopes are not permitted for this session");
-        }
-        var token = tokens.issueRagToken(
-                session.userId(), session.accountStateVersion(), session.role().name(), request.scopes());
+        var token = tokens.issue(session.userId(), session.accountStateVersion(), session.permissions());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(new TokenView(token, Instant.now().plusSeconds(60)));
+                .header(HttpHeaders.SET_COOKIE,
+                        cookies.accessToken(token.token(), token.expiresAt()))
+                .body(new TokenView(token.token(), token.expiresAt()));
     }
 
-    private Set<String> permittedRagScopes(SessionService.SessionRole role) {
-        if (role == SessionService.SessionRole.PARTICIPANT) {
-            featureGates.requireEnabled("RAG_PARTICIPANT_QUERY_ENABLED");
-        }
-        return allowedRagScopes(role);
-    }
-
-    static Set<String> allowedRagScopes(SessionService.SessionRole role) {
-        return switch (role) {
-            case PARTICIPANT -> Set.of("rag:documents:read", "rag:queries:write", "rag:jobs:read");
-            case RAG_ADMIN, ADMIN, HIGHEST_ADMIN -> Set.of(
-                    "rag:documents:read", "rag:documents:write", "rag:queries:write", "rag:jobs:read");
-        };
-    }
-
-    record TokenRequest(String audience, Set<String> scopes) {}
+    record TokenRequest(String audience) {}
     record TokenView(String token, Instant expiresAt) {}
 }

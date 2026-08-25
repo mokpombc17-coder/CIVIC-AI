@@ -49,7 +49,8 @@ class MigrationTest {
                 .migrate();
 
         var requiredTables = List.of(
-                "users", "credentials", "roles", "user_roles", "questionnaire_schemas",
+                "users", "credentials", "roles", "user_roles", "permissions", "user_permissions",
+                "questionnaire_schemas",
                 "questionnaire_responses", "consent_evidence", "sessions", "auth_challenges",
                 "notification_outbox", "audit_outbox", "audit_events", "feature_gates",
                 "account_state_outbox", "pre_session_rate_limits");
@@ -62,6 +63,20 @@ class MigrationTest {
                 var actual = new java.util.HashSet<String>();
                 while (rows.next()) actual.add(rows.getString(1));
                 assertThat(actual).containsAll(requiredTables);
+            }
+
+            try (var permissions = connection.prepareStatement("""
+                    select p.code
+                    from users u
+                    join user_permissions up on up.user_id = u.id and up.revoked_at is null
+                    join permissions p on p.id = up.permission_id
+                    where u.normalized_email = 'o''connor@example.test'
+                    """)) {
+                try (var rows = permissions.executeQuery()) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("code")).isEqualTo("RAG_ADMIN");
+                    assertThat(rows.next()).isFalse();
+                }
             }
 
             try (var admin = connection.prepareStatement("""

@@ -1,6 +1,6 @@
 package ai.civic.mainauth.config;
 
-import ai.civic.mainauth.token.Es256KeyRing;
+import ai.civic.mainauth.token.Rs256KeyRing;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -16,7 +16,7 @@ public final class ProductionSecretGuard {
             @Value("${civic.internal.client-secret:local-development-internal-client-secret}") String internalSecret,
             @Value("${civic.notification.code-protection-key:local-development-code-protection-key}") String codeProtectionKey,
             @Value("${spring.flyway.placeholders.bootstrap_admin_password_hash:}") String bootstrapPasswordHash,
-            Es256KeyRing keys) {
+            Rs256KeyRing keys) {
         validate(required, Map.of(
                 "database password", databasePassword,
                 "session HMAC secret", sessionSecret,
@@ -34,7 +34,7 @@ public final class ProductionSecretGuard {
             }
         });
         if (activeKeyId == null || activeKeyId.isBlank() || "local-ephemeral".equals(activeKeyId)) {
-            throw new IllegalStateException("Production requires a persistent externally supplied ES256 key");
+            throw new IllegalStateException("Production requires a persistent externally supplied RS256 key");
         }
     }
 }

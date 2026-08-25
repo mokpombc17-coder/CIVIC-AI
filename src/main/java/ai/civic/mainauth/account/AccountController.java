@@ -81,6 +81,7 @@ public class AccountController {
                 sessionId, session.userId(), body.currentPassword(), body.newPassword());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
                 .build();
     }
 
@@ -116,6 +117,7 @@ public class AccountController {
         authentication.disableTwoFactor(sessionId, session.userId(), body.password());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
                 .build();
     }
 
@@ -130,7 +132,9 @@ public class AccountController {
                 sessionId, session.userId(), session.userId(), body.password());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
-                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
+                .build();
     }
 
     private SessionService.SessionView requireMutation(
