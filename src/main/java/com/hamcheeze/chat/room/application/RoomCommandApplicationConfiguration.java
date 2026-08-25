@@ -76,6 +76,22 @@ public class RoomCommandApplicationConfiguration {
     }
 
     @Bean
+    ApprovedRoomCreator approvedRoomCreator(
+            RoomStore roomStore,
+            MembershipStore membershipStore,
+            RoomMembershipProperties membershipProperties,
+            ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics
+    ) {
+        return new ApprovedRoomCreator(
+                roomStore,
+                membershipStore,
+                membershipProperties,
+                membershipQuotaGuard,
+                membershipQuotaMetrics);
+    }
+
+    @Bean
     RoomCommandService roomCommandService(
             RoomStore roomStore,
             MembershipStore membershipStore,
@@ -83,6 +99,7 @@ public class RoomCommandApplicationConfiguration {
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
+            ApprovedRoomCreator approvedRoomCreator,
             RoomCommandProperties properties,
             RoomMembershipProperties membershipProperties,
             ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
@@ -96,6 +113,7 @@ public class RoomCommandApplicationConfiguration {
                 executor,
                 fingerprintFactory,
                 idGenerator,
+                approvedRoomCreator,
                 Clock.systemUTC(),
                 properties,
                 membershipProperties,

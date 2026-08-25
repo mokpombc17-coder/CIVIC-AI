@@ -9,7 +9,6 @@ import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.OwnershipTransferTransition;
 import com.hamcheeze.chat.room.Room;
-import com.hamcheeze.chat.room.RoomCreationResult;
 import com.hamcheeze.chat.room.RoomDomainErrorCode;
 import com.hamcheeze.chat.room.RoomDomainException;
 import com.hamcheeze.chat.room.RoomMembershipTransitions;
@@ -52,6 +51,7 @@ public final class RoomCommandService {
     private final IdempotentRoomCommandExecutor executor;
     private final RoomCommandFingerprintFactory fingerprintFactory;
     private final RoomCommandIdGenerator idGenerator;
+    private final ApprovedRoomCreator approvedRoomCreator;
     private final Clock clock;
     private final RoomCommandProperties properties;
     private final RoomMembershipProperties membershipProperties;
@@ -67,6 +67,7 @@ public final class RoomCommandService {
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
             RoomCommandIdGenerator idGenerator,
+            ApprovedRoomCreator approvedRoomCreator,
             Clock clock,
             RoomCommandProperties properties,
             RoomMembershipProperties membershipProperties,
@@ -87,6 +88,9 @@ public final class RoomCommandService {
                 "fingerprintFactory");
         this.idGenerator =
                 Objects.requireNonNull(idGenerator, "idGenerator");
+        this.approvedRoomCreator = Objects.requireNonNull(
+                approvedRoomCreator,
+                "approvedRoomCreator");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.properties =
                 Objects.requireNonNull(properties, "properties");
@@ -127,35 +131,31 @@ public final class RoomCommandService {
                 transitionTime,
                 candidateRoomId);
         return complete(executor.execute(prepared, () -> {
-            if (checkQuotaBeforeIncrease(
-                    command.requesterUserId(),
-                    command.commandType(),
-                    limitMode,
-                    transitionTime)
-                    == ActiveRoomMembershipQuotaDecision
-                    .LIMIT_REACHED) {
+            ApprovedRoomCreationResult creation =
+                    approvedRoomCreator.create(
+                            new ApprovedRoomCreation(
+                                    candidateRoomId,
+                                    candidateOwnerMembershipId,
+                                    command.requesterUserId(),
+                                    command.name(),
+                                    command.description(),
+                                    command.categories(),
+                                    command.visibility(),
+                                    command.joinPolicy(),
+                                    transitionTime,
+                                    limitMode));
+            if (creation.outcome()
+                    == ApprovedRoomCreationOutcome
+                    .USER_ACTIVE_ROOM_LIMIT_EXCEEDED) {
                 return rejection(
                         command.commandType(),
                         RoomCommandResultCode
                                 .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
                         candidateRoomId);
             }
-            RoomCreationResult creation =
-                    RoomMembershipTransitions.createRoom(
-                            candidateRoomId,
-                            command.name(),
-                            command.description(),
-                            command.categories(),
-                            candidateOwnerMembershipId,
-                            command.requesterUserId(),
-                            command.visibility(),
-                            command.joinPolicy(),
-                            transitionTime);
-            roomStore.insert(creation.room());
-            membershipStore.insert(creation.ownerMembership());
             return RoomCommandResult.created(
-                    creation.room(),
-                    creation.ownerMembership());
+                    creation.creation().room(),
+                    creation.creation().ownerMembership());
         }));
     }
 
