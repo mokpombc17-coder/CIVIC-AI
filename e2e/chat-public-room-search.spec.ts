@@ -269,10 +269,10 @@ async function readRenderedRoomIds(page: Page): Promise<string[]> {
     .getByRole("article")
     .evaluateAll((cards) =>
       cards.map((card) => {
-        const roomId = card.textContent?.match(/방 ID:\s*([A-Za-z0-9_-]+)/)?.[1];
+        const roomId = card.dataset.roomId;
 
         if (!roomId) {
-          throw new Error(`공개 방 card에서 roomId를 찾지 못했습니다: ${card.textContent}`);
+          throw new Error(`공개 방 card에 data-room-id가 없습니다: ${card.textContent}`);
         }
 
         return roomId;
