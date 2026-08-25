@@ -7,7 +7,10 @@ import { ChatRoomInboxFilterControl } from "@/components/chat-room-inbox-filter-
 import type { ChatRoomInboxFilterController } from "@/components/chat-room-inbox-filter";
 import { getRoomInboxPreviewPresentation } from "@/components/chat-room-inbox-preview";
 import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
-import type { ChatRoomListDetailController } from "@/components/chat-room-list-detail";
+import {
+  getChatRoomListDetailTriggerId,
+  type ChatRoomListDetailController,
+} from "@/components/chat-room-list-detail";
 import {
   CHAT_ROOM_LIST_DETAIL_DIALOG_ID,
   ChatRoomListDetailDialog,
@@ -260,6 +263,7 @@ export function MyRoomCard({
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
         className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
       >
@@ -290,6 +294,7 @@ export function PublicRoomCard({
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
         className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
       >

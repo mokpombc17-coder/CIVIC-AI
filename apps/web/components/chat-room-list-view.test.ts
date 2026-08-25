@@ -49,6 +49,7 @@ describe("chat room list cards", () => {
     expect(html).toContain("5 / 50명 · 읽지 않음 4");
     expect(html).toContain('aria-label="현재 참여 인원 5명, 최대 50명, 읽지 않은 메시지 4개"');
     expect(html).toContain("자세히 보기");
+    expect(html).toContain('id="chat-room-list-detail-trigger-room-01"');
   });
 
   it("마지막 메시지가 없거나 삭제됐으면 기존 preview fallback을 표시한다", () => {
@@ -101,6 +102,7 @@ describe("chat room list cards", () => {
     expect(html).toContain('aria-label="현재 참여 인원 3명, 최대 50명"');
     expect(html).toContain("자세히 보기");
     expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain('id="chat-room-list-detail-trigger-room-public"');
     expect(html).not.toContain("참여하기");
     expect(html).not.toContain("공개 채팅방 설명");
     expect(html).not.toContain("방 ID: room-public");

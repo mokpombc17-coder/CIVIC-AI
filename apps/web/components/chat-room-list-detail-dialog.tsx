@@ -18,9 +18,22 @@ export function ChatRoomListDetailDialog({
   selection: ChatRoomListDetailSelection;
 }>) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRequestedRef = useRef(false);
   const titleId = useId();
   const { room } = selection;
   const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
+
+  function closeDialog() {
+    const dialog = dialogRef.current;
+
+    if (dialog?.open) {
+      closeRequestedRef.current = true;
+      dialog.close();
+      return;
+    }
+
+    onClose();
+  }
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -44,13 +57,20 @@ export function ChatRoomListDetailDialog({
       className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-transparent p-0 text-[var(--chat-publishing-color-text)] backdrop:bg-[#121417]/[0.56]"
       data-chat-room-list-detail-dialog="true"
       id={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
-      onCancel={(event) => {
-        event.preventDefault();
+      onCancel={() => {
+        closeRequestedRef.current = true;
+      }}
+      onClose={() => {
+        if (!closeRequestedRef.current) {
+          return;
+        }
+
+        closeRequestedRef.current = false;
         onClose();
       }}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          onClose();
+          closeDialog();
         }
       }}
       ref={dialogRef}
@@ -64,7 +84,7 @@ export function ChatRoomListDetailDialog({
             aria-label="채팅방 상세 닫기"
             autoFocus
             className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-            onClick={onClose}
+            onClick={closeDialog}
             type="button"
           >
             <Image alt="" aria-hidden="true" height={36} src="/assets/chat/close.png" width={36} />

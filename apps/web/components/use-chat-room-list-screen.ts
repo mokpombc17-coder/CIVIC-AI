@@ -5,9 +5,10 @@ import {
   filterLoadedRoomInboxItems,
   type ChatRoomInboxFilter,
 } from "@/components/chat-room-inbox-filter";
-import type {
-  ChatRoomListDetailController,
-  ChatRoomListDetailSelection,
+import {
+  getChatRoomListDetailTriggerId,
+  type ChatRoomListDetailController,
+  type ChatRoomListDetailSelection,
 } from "@/components/chat-room-list-detail";
 import { usePublicRoomSearch } from "@/components/use-public-room-search";
 import { usePublicRoomsQuery, useRoomInboxQuery } from "@/lib/chat/chat-room-queries";
@@ -21,6 +22,7 @@ export function useChatRoomListScreen() {
   );
   const createRoomTriggerRef = useRef<HTMLButtonElement>(null);
   const roomDetailTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const roomDetailTriggerRoomIdRef = useRef<string | null>(null);
   const publicRoomSearch = usePublicRoomSearch();
   const roomInbox = useRoomInboxQuery();
   const publicRooms = usePublicRoomsQuery({
@@ -44,10 +46,17 @@ export function useChatRoomListScreen() {
 
   const closeRoomDetail = useCallback(() => {
     setSelectedRoomDetail(null);
-    const trigger = roomDetailTriggerRef.current;
+    const previousTrigger = roomDetailTriggerRef.current;
+    const triggerRoomId = roomDetailTriggerRoomIdRef.current;
 
     requestAnimationFrame(() => {
-      if (trigger?.isConnected) {
+      const trigger = previousTrigger?.isConnected
+        ? previousTrigger
+        : triggerRoomId === null
+          ? null
+          : document.getElementById(getChatRoomListDetailTriggerId(triggerRoomId));
+
+      if (trigger instanceof HTMLButtonElement) {
         trigger.focus();
       }
     });
@@ -56,6 +65,7 @@ export function useChatRoomListScreen() {
   const openRoomDetail = useCallback(
     (selection: ChatRoomListDetailSelection, trigger: HTMLButtonElement) => {
       roomDetailTriggerRef.current = trigger;
+      roomDetailTriggerRoomIdRef.current = selection.room.roomId;
       setSelectedRoomDetail(selection);
     },
     [],
