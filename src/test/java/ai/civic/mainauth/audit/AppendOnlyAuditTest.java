@@ -24,7 +24,7 @@ class AppendOnlyAuditTest extends PostgresIntegrationTest {
 
     @Test
     void businessWriterCreatesOnlyOutboxAndWorkerCopiesIdempotently() {
-        writer.append("ROLE_CHANGED", null, null, Map.of("role", "RAG_OPERATOR"));
+        writer.append("PERMISSION_CHANGED", null, null, Map.of("permission", "RAG_ADMIN"));
         assertThat(jdbc.queryForObject("select count(*) from audit_outbox", Integer.class)).isOne();
         assertThat(jdbc.queryForObject("select count(*) from audit_events", Integer.class)).isZero();
         assertThat(consumer.consumeOne()).isTrue();

@@ -235,6 +235,7 @@ public class SignupFlowService {
         jdbc.update("delete from auth_challenges where user_id = ?", userId);
         jdbc.update("delete from consent_evidence where user_id = ?", userId);
         jdbc.update("delete from questionnaire_responses where user_id = ?", userId);
+        jdbc.update("delete from user_permissions where user_id = ?", userId);
         jdbc.update("delete from user_roles where user_id = ?", userId);
         jdbc.update("delete from credentials where user_id = ?", userId);
         jdbc.update("delete from notification_outbox where lower(btrim(recipient)) = ?", normalizedEmail);

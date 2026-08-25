@@ -11,8 +11,10 @@ import ai.civic.mainauth.auth.SessionService;
 
 @Service
 public class AdminRoleService {
-    private static final Set<String> ALLOWED = Set.of("PARTICIPANT", "RAG_ADMIN", "ADMIN", "HIGHEST_ADMIN");
-    private static final Set<String> ADMIN_ROLES = Set.of("RAG_ADMIN", "ADMIN", "HIGHEST_ADMIN");
+    private static final Set<String> ALLOWED_ROLES = Set.of("PARTICIPANT", "ADMIN", "HIGHEST_ADMIN");
+    private static final Set<String> ALLOWED_PERMISSIONS = Set.of(
+            "RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN");
+    private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "HIGHEST_ADMIN");
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final SessionService sessions;
@@ -35,12 +37,14 @@ public class AdminRoleService {
             UUID subjectId,
             long expectedVersion,
             Set<String> desiredRoles,
+            Set<String> desiredPermissions,
             String reason,
             boolean impactConfirmed) {
         lockHighestAdminRoleChanges();
         var actor = authorization.requireCurrentAdmin(sessionId, true);
         replaceRolesAfterAuthorization(
-                actor.userId(), subjectId, expectedVersion, desiredRoles, reason, impactConfirmed);
+                actor.userId(), subjectId, expectedVersion, desiredRoles, desiredPermissions,
+                reason, impactConfirmed);
     }
 
     @Transactional
@@ -51,10 +55,30 @@ public class AdminRoleService {
             Set<String> desiredRoles,
             String reason,
             boolean impactConfirmed) {
+        replaceRoles(
+                actorId,
+                subjectId,
+                expectedVersion,
+                desiredRoles,
+                Set.copyOf(permissionsOf(subjectId)),
+                reason,
+                impactConfirmed);
+    }
+
+    @Transactional
+    public void replaceRoles(
+            UUID actorId,
+            UUID subjectId,
+            long expectedVersion,
+            Set<String> desiredRoles,
+            Set<String> desiredPermissions,
+            String reason,
+            boolean impactConfirmed) {
         lockHighestAdminRoleChanges();
         requireActiveHighestAdminWithRotatedPassword(actorId);
         replaceRolesAfterAuthorization(
-                actorId, subjectId, expectedVersion, desiredRoles, reason, impactConfirmed);
+                actorId, subjectId, expectedVersion, desiredRoles, desiredPermissions,
+                reason, impactConfirmed);
     }
 
     private void replaceRolesAfterAuthorization(
@@ -62,14 +86,22 @@ public class AdminRoleService {
             UUID subjectId,
             long expectedVersion,
             Set<String> desiredRoles,
+            Set<String> desiredPermissions,
             String reason,
             boolean impactConfirmed) {
         var normalizedReason = reason == null ? "" : reason.strip();
         if (normalizedReason.isEmpty() || normalizedReason.length() > 1000) {
             throw new AdminPolicyException("A role change reason between 1 and 1000 characters is required");
         }
-        if (desiredRoles == null || desiredRoles.isEmpty() || !ALLOWED.containsAll(desiredRoles)) {
+        if (desiredRoles == null || desiredRoles.isEmpty() || !ALLOWED_ROLES.containsAll(desiredRoles)) {
             throw new AdminPolicyException("At least one known role is required");
+        }
+        if (desiredPermissions == null || !ALLOWED_PERMISSIONS.containsAll(desiredPermissions)) {
+            throw new AdminPolicyException("Only known administrator permissions are allowed");
+        }
+        if (!desiredPermissions.isEmpty()
+                && desiredRoles.stream().noneMatch(ADMIN_ROLES::contains)) {
+            throw new AdminPolicyException("Administrator permissions require an administrator role");
         }
         var subjects = jdbc.queryForList(
                 "select row_version, state from users where id = ? for update", subjectId);
@@ -84,17 +116,23 @@ public class AdminRoleService {
         var currentVersion = ((Number) subject.get("row_version")).longValue();
         if (currentVersion != expectedVersion) throw new AdminVersionConflictException("User version is stale");
         var current = Set.copyOf(rolesOf(subjectId));
+        var currentPermissions = Set.copyOf(permissionsOf(subjectId));
         var removedAdminRoles = new java.util.HashSet<>(current);
         removedAdminRoles.removeAll(desiredRoles);
         removedAdminRoles.retainAll(ADMIN_ROLES);
-        if (!removedAdminRoles.isEmpty() && !impactConfirmed) {
-            throw new AdminPolicyException("Administrator role revocation requires impact confirmation");
+        var removedPermissions = new java.util.HashSet<>(currentPermissions);
+        removedPermissions.removeAll(desiredPermissions);
+        if ((!removedAdminRoles.isEmpty() || !removedPermissions.isEmpty()) && !impactConfirmed) {
+            throw new AdminPolicyException("Administrator access revocation requires impact confirmation");
         }
         var newAdminRoles = new java.util.HashSet<>(desiredRoles);
         newAdminRoles.removeAll(current);
         newAdminRoles.retainAll(ADMIN_ROLES);
-        if (!"ACTIVE".equals(subject.get("state")) && !newAdminRoles.isEmpty()) {
-            throw new AdminPolicyException("New administrator roles require an active account");
+        var newPermissions = new java.util.HashSet<>(desiredPermissions);
+        newPermissions.removeAll(currentPermissions);
+        if (!"ACTIVE".equals(subject.get("state"))
+                && (!newAdminRoles.isEmpty() || !newPermissions.isEmpty())) {
+            throw new AdminPolicyException("New administrator access requires an active account");
         }
         if (actorId.equals(subjectId) && current.contains("HIGHEST_ADMIN") && !desiredRoles.contains("HIGHEST_ADMIN")) {
             throw new AdminPolicyException("Highest administrators cannot demote themselves");
@@ -111,9 +149,17 @@ public class AdminRoleService {
                     select ?, id, ? from roles where code = ?
                     """, subjectId, actorId, databaseRole(role));
         }
+        jdbc.update("update user_permissions set revoked_at = now() where user_id = ? and revoked_at is null", subjectId);
+        for (var permission : desiredPermissions) {
+            jdbc.update("""
+                    insert into user_permissions(user_id, permission_id, granted_by)
+                    select ?, id, ? from permissions where code = ?
+                    """, subjectId, actorId, permission);
+        }
         jdbc.update("update users set row_version = row_version + 1, updated_at = now() where id = ?", subjectId);
         sessions.revokeAll(subjectId, "ROLES_CHANGED");
-        appendAudit(actorId, subjectId, current, desiredRoles, normalizedReason);
+        appendAudit(actorId, subjectId, current, desiredRoles,
+                currentPermissions, desiredPermissions, normalizedReason);
     }
 
     @Transactional(readOnly = true)
@@ -121,11 +167,19 @@ public class AdminRoleService {
         return jdbc.queryForList("""
                 select case r.code
                          when 'SUPER_ADMIN' then 'HIGHEST_ADMIN'
-                         when 'RAG_OPERATOR' then 'RAG_ADMIN'
                          else r.code
                        end as api_role
                 from user_roles ur join roles r on r.id = ur.role_id
                 where ur.user_id = ? and ur.revoked_at is null order by r.code
+                """, String.class, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> permissionsOf(UUID userId) {
+        return jdbc.queryForList("""
+                select p.code
+                from user_permissions up join permissions p on p.id = up.permission_id
+                where up.user_id = ? and up.revoked_at is null order by p.code
                 """, String.class, userId);
     }
 
@@ -160,6 +214,8 @@ public class AdminRoleService {
             UUID subject,
             Set<String> beforeRoles,
             Set<String> afterRoles,
+            Set<String> beforePermissions,
+            Set<String> afterPermissions,
             String reason) {
         try {
             jdbc.update("""
@@ -168,6 +224,8 @@ public class AdminRoleService {
                     """, actor, subject, json.writeValueAsString(java.util.Map.of(
                             "before_roles", beforeRoles,
                             "after_roles", afterRoles,
+                            "before_permissions", beforePermissions,
+                            "after_permissions", afterPermissions,
                             "reason", reason)));
         } catch (Exception exception) {
             throw new IllegalStateException("Could not append role audit event", exception);
@@ -177,8 +235,8 @@ public class AdminRoleService {
     private String databaseRole(String apiRole) {
         return switch (apiRole) {
             case "HIGHEST_ADMIN" -> "SUPER_ADMIN";
-            case "RAG_ADMIN" -> "RAG_OPERATOR";
             default -> apiRole;
         };
     }
+
 }
