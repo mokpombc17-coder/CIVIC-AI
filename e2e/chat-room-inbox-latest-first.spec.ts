@@ -280,6 +280,9 @@ test.describe("채팅방 목록 latest-first", () => {
     const fixtures: RoomFixture[] = [];
 
     try {
+      // Fixture JOIN invalidations must not race with the page-chain behavior under test.
+      await memberPage.goto("about:blank");
+
       for (let index = 0; index < ROOM_INBOX_PAGE_SIZE + 1; index += 1) {
         const room = await createRoom(
           ownerPage,
