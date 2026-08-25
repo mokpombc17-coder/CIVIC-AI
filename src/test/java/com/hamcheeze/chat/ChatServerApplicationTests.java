@@ -1,6 +1,8 @@
 package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
+import com.hamcheeze.chat.room.creation.RoomCreationMode;
+import com.hamcheeze.chat.room.creation.RoomCreationProperties;
 import com.hamcheeze.chat.websocket.config.WebSocketTransportProperties;
 import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -34,11 +36,18 @@ class ChatServerApplicationTests
 	private MeterRegistry meterRegistry;
 
 	@Autowired
+	private RoomCreationProperties roomCreationProperties;
+
+	@Autowired
 	@Qualifier("chatClientOutboundExecutor")
 	private ThreadPoolTaskExecutor outboundExecutor;
 
 	@Test
 	void contextLoads() {
+		assertThat(roomCreationProperties.mode())
+				.isEqualTo(RoomCreationMode.DIRECT);
+		assertThat(roomCreationProperties.maxPendingRequestsPerUser())
+				.isEqualTo(3);
 		assertThat(transportProperties.getTimeToFirstMessageMs())
 				.isEqualTo(10_000);
 

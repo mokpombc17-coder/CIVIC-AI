@@ -6,6 +6,10 @@ server:
   port: 8082
 
 chat:
+  room:
+    creation:
+      mode: DIRECT
+
   websocket:
     allowed-origins:
       - http://localhost:3000

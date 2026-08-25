@@ -10,6 +10,7 @@ import com.hamcheeze.chat.room.application.event.RoomEventIdGenerator;
 import com.hamcheeze.chat.room.application.event.UuidRoomEventIdGenerator;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
+import com.hamcheeze.chat.room.creation.RoomCreationProperties;
 import com.hamcheeze.chat.room.delivery.SimpleBrokerRoomEventDeliveryAdapter;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
@@ -31,7 +32,8 @@ import java.time.Clock;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
         RoomCommandProperties.class,
-        RoomMembershipProperties.class
+        RoomMembershipProperties.class,
+        RoomCreationProperties.class
 })
 public class RoomCommandApplicationConfiguration {
 

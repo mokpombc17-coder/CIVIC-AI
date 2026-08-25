@@ -2,6 +2,8 @@ package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.room.application.RoomCommandPostCommitCoordinator;
+import com.hamcheeze.chat.room.creation.RoomCreationMode;
+import com.hamcheeze.chat.room.creation.RoomCreationProperties;
 import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
 import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
 import com.hamcheeze.chat.room.authorization.MembershipRoomAuthorizationService;
@@ -58,6 +60,12 @@ class ProductionProfileStartupTest {
             assertThat(context.getBeansOfType(
                     RoomCommandPostCommitCoordinator.class))
                     .hasSize(1);
+            RoomCreationProperties creationProperties =
+                    context.getBean(RoomCreationProperties.class);
+            assertThat(creationProperties.mode()).isEqualTo(
+                    RoomCreationMode.APPROVAL_REQUIRED);
+            assertThat(creationProperties
+                    .maxPendingRequestsPerUser()).isEqualTo(3);
             assertThat(context.getBeansOfType(
                     RoomCommandEventPropagationCoordinator.class))
                     .hasSize(1);

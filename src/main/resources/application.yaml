@@ -21,6 +21,9 @@ chat:
     snapshot-max-attempts: ${CHAT_EXPORT_SNAPSHOT_MAX_ATTEMPTS:3}
 
   room:
+    creation:
+      mode: ${CHAT_ROOM_CREATION_MODE:APPROVAL_REQUIRED}
+      max-pending-requests-per-user: ${CHAT_ROOM_CREATION_MAX_PENDING_REQUESTS_PER_USER:3}
     command:
       receipt-ttl: 1h
       max-attempts: 3

@@ -11,6 +11,10 @@ spring:
             - ${CHAT_JWT_AUDIENCE:civic-ai-api}
 
 chat:
+  room:
+    creation:
+      mode: APPROVAL_REQUIRED
+
   websocket:
     allowed-origins: ${CHAT_WEBSOCKET_ALLOWED_ORIGINS}
   security:
