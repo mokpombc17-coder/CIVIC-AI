@@ -583,7 +583,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const isLoadingOlder = isHistoryLoadingOlder || viewportState.olderHistory === "loading";
 
   return (
-    <div className="relative flex h-[clamp(22rem,62dvh,42rem)] min-h-0 shrink flex-col bg-slate-50">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-white">
       <ChatMessageViewportOlderHistoryStatus
         error={olderLoadError}
         isLoading={isLoadingOlder}
@@ -612,7 +612,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       <div
         aria-label={history.roomLabel}
         aria-live="off"
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
         data-viewport-key={viewportKey}
         onScroll={handleScroll}
         ref={scrollElementRef}

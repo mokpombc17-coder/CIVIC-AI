@@ -31,7 +31,7 @@ export function ChatRoomScreenHeaderActions({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex items-center justify-end gap-1.5">
       <ChatRoomMessageSearchDialogTrigger
         disabled={searchDisabled}
         isOpen={isMessageSearchDialogOpen}

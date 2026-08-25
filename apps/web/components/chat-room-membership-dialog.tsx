@@ -15,12 +15,13 @@ export const ChatRoomMembershipDialogTrigger = forwardRef<
     <button
       aria-expanded={isOpen}
       aria-haspopup="dialog"
-      className="secondary-button shrink-0"
+      aria-label="방 정보"
+      className="inline-flex h-9 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-2.5 text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)]"
       onClick={onOpen}
       ref={ref}
       type="button"
     >
-      방 정보
+      정보
     </button>
   );
 });

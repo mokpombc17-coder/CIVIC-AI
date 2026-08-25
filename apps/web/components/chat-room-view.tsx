@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
@@ -44,9 +45,9 @@ export function ChatRoomView({
   const hasOverlay = overlay !== null && overlay !== undefined && overlay !== false;
 
   return (
-    <div className="page-stack">
+    <div className="chat-publishing-surface mx-auto min-h-dvh w-full max-w-[393px] overflow-hidden bg-white text-[var(--chat-publishing-color-text)] shadow-[var(--chat-publishing-shadow-card)]">
       <section
-        className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="relative flex h-dvh max-h-[852px] min-h-0 flex-col overflow-hidden rounded-[var(--chat-publishing-radius-panel)] border border-[var(--chat-publishing-color-border)] bg-white"
         data-chat-room-view="true"
         ref={chatRoomCardRef}
       >
@@ -72,7 +73,7 @@ export function ChatRoomView({
             }}
           />
 
-          <div className="shrink-0">{sessionControls}</div>
+          <div className="shrink-0 bg-white">{sessionControls}</div>
         </div>
 
         <ChatRoomOverlayHost>{overlay}</ChatRoomOverlayHost>
@@ -95,27 +96,29 @@ function ChatRoomHeader({
   syncStatus: ReactNode;
 }) {
   return (
-    <header className="flex shrink-0 items-center gap-4 border-b border-slate-200 px-5 py-4">
-      <Link
-        aria-label="채팅방 목록으로 돌아가기"
-        className="flex size-10 items-center justify-center rounded-full border border-slate-200 text-xl text-slate-700 transition hover:bg-slate-100"
-        href="/chat"
-      >
-        ←
-      </Link>
+    <header className="shrink-0 border-b border-[var(--chat-publishing-color-border)] bg-white">
+      <div className="flex h-[68px] items-center gap-3 px-4">
+        <Link
+          aria-label="채팅방 목록으로 돌아가기"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+          href="/chat"
+        >
+          <Image alt="" aria-hidden="true" height={24} src="/assets/chat/back.png" width={24} />
+        </Link>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="truncate text-xl font-bold text-slate-950">{header.title}</h1>
-          <span className="status">{header.statusLabel}</span>
+        <h1 className="min-w-0 flex-1 truncate text-xl font-bold leading-7 tracking-[-0.025em]">
+          {header.title}
+        </h1>
+
+        <div className="shrink-0">{action}</div>
+        <div className="sr-only">
+          <span>{header.statusLabel}</span>
+          <span>{header.description}</span>
           {sessionIndicator}
         </div>
-        <p className="mt-1 text-sm text-slate-500">{header.description}</p>
-        {sessionNotice}
-        {syncStatus}
       </div>
-
-      {action}
+      {sessionNotice}
+      {syncStatus}
     </header>
   );
 }

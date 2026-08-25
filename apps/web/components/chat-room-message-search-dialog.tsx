@@ -66,13 +66,14 @@ export const ChatRoomMessageSearchDialogTrigger = forwardRef<
     <button
       aria-expanded={isOpen}
       aria-haspopup="dialog"
-      className="secondary-button shrink-0"
+      aria-label="메시지 검색"
+      className="inline-flex h-9 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-2.5 text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
       disabled={disabled}
       onClick={onOpen}
       ref={ref}
       type="button"
     >
-      메시지 검색
+      검색
     </button>
   );
 });

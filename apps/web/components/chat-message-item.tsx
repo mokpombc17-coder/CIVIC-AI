@@ -11,17 +11,18 @@ type ChatMessageItemProps = Readonly<{
 export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
   function ChatMessageItem({ item, onOpenActions, style, virtualIndex }, ref) {
     const failed = item.deliveryTone === "error";
-    const bubbleClassName = `whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6 ${
+    const bubbleClassName = `w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
       item.isDeleted
-        ? "border border-slate-200 bg-slate-100 italic text-slate-500"
+        ? "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] italic text-[var(--chat-publishing-color-muted)]"
         : item.deliveryTone !== null
           ? failed
-            ? "rounded-br-md border border-red-300 bg-red-50 text-red-950"
-            : "rounded-br-md border border-blue-500 bg-blue-600 text-white opacity-80"
+            ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-red-300 bg-red-50 text-red-950"
+            : "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-primary)] text-white opacity-80"
           : item.isMine
-            ? "rounded-br-md bg-blue-700 text-white"
-            : "rounded-bl-md border border-slate-200 bg-white text-slate-800"
+            ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-primary)] text-white"
+            : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
     }`;
+    const senderLabel = item.isMine ? "나" : item.senderLabel;
 
     return (
       <li
@@ -34,20 +35,30 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         ref={ref}
         style={style}
       >
-        <div className={`max-w-[78%] ${item.isMine ? "items-end" : "items-start"} flex flex-col`}>
-          {item.senderLabel ? (
-            <span className="mb-1 px-1 text-xs font-semibold text-slate-600">
-              {item.senderLabel}
-            </span>
-          ) : null}
-          <div className="flex items-end gap-2">
-            {item.isMine ? (
-              <span className="text-[0.7rem] text-slate-400">{item.timeLabel}</span>
-            ) : null}
+        <div className="flex w-full max-w-[82%] flex-col">
+          <div className="mb-1 flex min-h-7 items-center justify-between gap-3">
+            {senderLabel ? (
+              <span
+                className={
+                  item.isMine
+                    ? "px-0 text-[13px] font-bold text-[var(--chat-publishing-color-muted)]"
+                    : "inline-flex min-h-7 items-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-2 text-[13px] font-bold text-[var(--chat-publishing-color-primary-emphasis)]"
+                }
+              >
+                {senderLabel}
+              </span>
+            ) : (
+              <span />
+            )}
+            <time className="shrink-0 text-xs text-[var(--chat-publishing-color-muted)]">
+              {item.timeLabel}
+            </time>
+          </div>
+          <div className="w-full">
             {item.canOpenActions && item.messageId ? (
               <button
                 aria-haspopup="dialog"
-                className={`${bubbleClassName} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300`}
+                className={`${bubbleClassName} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]`}
                 onClick={(event) => onOpenActions(item, event.currentTarget)}
                 type="button"
               >
@@ -56,16 +67,15 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
             ) : (
               <p className={bubbleClassName}>{item.content}</p>
             )}
-            {!item.isMine ? (
-              <span className="text-[0.7rem] text-slate-400">{item.timeLabel}</span>
-            ) : null}
           </div>
           {item.isEdited ? (
-            <p className="mt-1 px-1 text-[0.7rem] text-slate-400">(수정됨)</p>
+            <p className="mt-1 px-1 text-[0.7rem] text-[var(--chat-publishing-color-muted)]">
+              (수정됨)
+            </p>
           ) : null}
           {item.readReceiptLabel ? (
             <p
-              className="mt-1 px-1 text-[0.7rem] text-slate-400"
+              className="mt-1 px-1 text-[0.7rem] text-[var(--chat-publishing-color-muted)]"
               data-read-count={item.readCount ?? undefined}
             >
               {item.readReceiptLabel}
@@ -73,7 +83,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
           ) : null}
           {item.deliveryLabel ? (
             <p
-              className={`mt-1 px-1 text-[0.7rem] ${failed ? "text-red-700" : "text-slate-500"}`}
+              className={`mt-1 px-1 text-[0.7rem] ${failed ? "text-red-700" : "text-[var(--chat-publishing-color-muted)]"}`}
               role={failed ? "alert" : "status"}
             >
               {item.deliveryLabel}

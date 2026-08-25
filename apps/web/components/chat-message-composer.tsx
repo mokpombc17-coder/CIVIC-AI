@@ -32,13 +32,16 @@ export function ChatMessageComposer({
   return (
     <>
       {validationError ? (
-        <div className="border-t border-red-200 bg-red-50 px-5 py-3 text-red-950" role="alert">
+        <div
+          className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-950"
+          role="alert"
+        >
           <p className="text-sm">{validationError}</p>
         </div>
       ) : null}
 
       <form
-        className="flex items-end gap-3 border-t border-slate-200 bg-white p-4"
+        className="m-4 mt-2 flex items-end gap-2 rounded-xl border border-[var(--chat-publishing-color-border)] bg-white p-3"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmit();
@@ -49,8 +52,10 @@ export function ChatMessageComposer({
         </label>
         <textarea
           {...textareaBehaviorProps}
-          className={`max-h-32 min-w-0 flex-1 resize-none overflow-y-auto rounded-xl border border-slate-300 px-4 py-3 leading-6 ${
-            disabled ? "cursor-not-allowed bg-slate-100 text-slate-500" : "bg-white text-slate-950"
+          className={`max-h-32 min-h-[72px] min-w-0 flex-1 resize-none overflow-y-auto rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-muted)] px-3 py-2.5 text-[15px] leading-[1.5] ${
+            disabled
+              ? "cursor-not-allowed bg-[var(--chat-publishing-color-neutral-soft)] text-[var(--chat-publishing-color-muted)]"
+              : "bg-white text-[var(--chat-publishing-color-text)]"
           }`}
           disabled={disabled}
           enterKeyHint="send"
@@ -61,7 +66,7 @@ export function ChatMessageComposer({
           value={draft}
         />
         <button
-          className={`primary-button ${canSend ? "" : "cursor-not-allowed opacity-50"}`}
+          className={`inline-flex h-12 w-16 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] text-[15px] font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] ${canSend ? "" : "cursor-not-allowed opacity-50"}`}
           disabled={!canSend}
           type="submit"
         >
