@@ -135,8 +135,9 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 렌더링한다. 패널이 열린 동안 SharedWorker 또는 direct transport의 구조화 진단 snapshot을
 주기적으로 조회하며, 초기화와 전체 JSON 다운로드 기능을 제공한다.
 
-`ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외와 생성 폼 disclosure를
-담당하는 hook을 `ChatRoomListView`에 연결한다. `PublicRoomSearchForm`은 검색어 draft와 카테고리
+`ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외, 누적된 Room inbox의
+전체·안읽음 로컬 필터와 생성 폼 disclosure를 담당하는 hook을 `ChatRoomListView`에 연결한다.
+`PublicRoomSearchForm`은 검색어 draft와 카테고리
 선택을 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query 조건은 container hook에 둔다.
 View 이하의 생성 폼과 참여 control은 각각 동작 hook을 호출하되, validation, mutation, 멱등성 key
 재시도와 라우팅 구현은 JSX 밖에 둔다. 방 card, unread badge, avatar, notice와 pagination button은

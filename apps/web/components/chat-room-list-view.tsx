@@ -4,6 +4,8 @@ import Link from "next/link";
 import { type ReactNode, type Ref } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
+import { ChatRoomInboxFilterControl } from "@/components/chat-room-inbox-filter-control";
+import type { ChatRoomInboxFilterController } from "@/components/chat-room-inbox-filter";
 import {
   CHAT_ROOM_PUBLISHING_COPY,
   getChatRoomMemberCountPresentation,
@@ -34,6 +36,7 @@ type ChatRoomListViewProps = Readonly<{
   closeCreateRoomForm: () => void;
   createRoomTriggerRef: Ref<HTMLButtonElement>;
   isCreateRoomOpen: boolean;
+  participatingRoomFilter: ChatRoomInboxFilterController;
   participatingRooms: RoomListState<RoomInboxListItem>;
   publicRoomSearch: PublicRoomSearchController;
   publicRooms: RoomListState<PublicRoomListItem>;
@@ -44,6 +47,7 @@ export function ChatRoomListView({
   closeCreateRoomForm,
   createRoomTriggerRef,
   isCreateRoomOpen,
+  participatingRoomFilter,
   participatingRooms,
   publicRoomSearch,
   publicRooms,
@@ -58,16 +62,19 @@ export function ChatRoomListView({
       <div className="grid gap-6 px-4 py-4">
         <section aria-label="채팅방 검색과 생성" className="grid gap-3">
           <PublicRoomSearchForm controller={publicRoomSearch} />
-          <button
-            aria-controls={CREATE_CHAT_ROOM_FORM_ID}
-            aria-expanded={isCreateRoomOpen}
-            className="ml-auto inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={toggleCreateRoomForm}
-            ref={createRoomTriggerRef}
-            type="button"
-          >
-            {isCreateRoomOpen ? "작성 닫기" : CHAT_ROOM_PUBLISHING_COPY.createRoom}
-          </button>
+          <div className="flex items-end justify-between gap-3">
+            <ChatRoomInboxFilterControl controller={participatingRoomFilter} />
+            <button
+              aria-controls={CREATE_CHAT_ROOM_FORM_ID}
+              aria-expanded={isCreateRoomOpen}
+              className="inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={toggleCreateRoomForm}
+              ref={createRoomTriggerRef}
+              type="button"
+            >
+              {isCreateRoomOpen ? "작성 닫기" : CHAT_ROOM_PUBLISHING_COPY.createRoom}
+            </button>
+          </div>
         </section>
 
         {isCreateRoomOpen ? (
@@ -88,6 +95,10 @@ export function ChatRoomListView({
 
           {participatingRooms.isPending && participatingRooms.rooms.length === 0 ? (
             <RoomListNotice message="참여 중인 방을 불러오고 있습니다." />
+          ) : participatingRoomFilter.value === "UNREAD" &&
+            participatingRooms.rooms.length === 0 &&
+            !participatingRooms.isError ? (
+            <RoomListNotice message="불러온 방 중 읽지 않은 메시지가 있는 방이 없습니다." />
           ) : participatingRooms.rooms.length === 0 &&
             !participatingRooms.isError &&
             participatingRooms.hasNextPage ? (

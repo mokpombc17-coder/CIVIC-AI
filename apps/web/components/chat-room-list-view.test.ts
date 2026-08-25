@@ -16,35 +16,23 @@ vi.mock("@/components/chat-connection-status", () => ({
 
 describe("chat room list publishing layout", () => {
   it("모바일 토론방 header, 검색·생성 도구와 두 Room section을 조립한다", () => {
-    const emptyListState = {
-      error: null,
-      hasNextPage: false,
-      isError: false,
-      isFetchingNextPage: false,
-      isPending: false,
-      loadMore: vi.fn(),
-      retry: vi.fn(),
-      rooms: [],
-    };
-    const html = renderToStaticMarkup(
-      createElement(ChatRoomListView, {
-        closeCreateRoomForm: vi.fn(),
-        createRoomTriggerRef: { current: null },
-        isCreateRoomOpen: false,
-        participatingRooms: emptyListState,
-        publicRoomSearch: createPublicRoomSearchController(),
-        publicRooms: emptyListState,
-        toggleCreateRoomForm: vi.fn(),
-      }),
-    );
+    const html = renderChatRoomListView("ALL");
 
     expect(html).toContain(">토론방</h1>");
     expect(html).toContain('aria-label="채팅방 검색과 생성"');
+    expect(html).toContain('aria-label="참여한 방 필터"');
     expect(html).toContain(">채팅방 생성</button>");
     expect(html).toContain(">참여한 방</h2>");
     expect(html).toContain(">참여 가능한 방</h2>");
     expect(html).toContain("참여 가능한 방이 없습니다.");
     expect(html).not.toContain("Chat Resource Server");
+  });
+
+  it("안읽음 filter 결과가 비면 현재 누적 목록 기준임을 안내한다", () => {
+    const html = renderChatRoomListView("UNREAD");
+
+    expect(html).toContain("불러온 방 중 읽지 않은 메시지가 있는 방이 없습니다.");
+    expect(html).toContain('aria-pressed="true"');
   });
 });
 
@@ -110,6 +98,32 @@ const PUBLIC_ROOM: PublicRoomListItem = {
   createdAt: "2026-07-29T04:30:00Z",
   version: 1,
 };
+
+function renderChatRoomListView(filter: "ALL" | "UNREAD"): string {
+  const emptyListState = {
+    error: null,
+    hasNextPage: false,
+    isError: false,
+    isFetchingNextPage: false,
+    isPending: false,
+    loadMore: vi.fn(),
+    retry: vi.fn(),
+    rooms: [],
+  };
+
+  return renderToStaticMarkup(
+    createElement(ChatRoomListView, {
+      closeCreateRoomForm: vi.fn(),
+      createRoomTriggerRef: { current: null },
+      isCreateRoomOpen: false,
+      participatingRoomFilter: { select: vi.fn(), value: filter },
+      participatingRooms: emptyListState,
+      publicRoomSearch: createPublicRoomSearchController(),
+      publicRooms: emptyListState,
+      toggleCreateRoomForm: vi.fn(),
+    }),
+  );
+}
 
 function createPublicRoomSearchController(): PublicRoomSearchController {
   return {
