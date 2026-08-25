@@ -607,7 +607,7 @@ function getParticipatingRoomList(page: Page): Locator {
 }
 
 function getRoomCard(page: Page, roomId: string): Locator {
-  return getParticipatingRoomList(page).locator(`a[href="/chat/${roomId}"]`);
+  return getParticipatingRoomList(page).locator(`article[data-room-id="${roomId}"]`);
 }
 
 async function expectRoomOrder(
