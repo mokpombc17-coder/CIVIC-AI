@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const WEB_BASE_URL = process.env.CHAT_E2E_WEB_BASE_URL ?? "http://localhost:3000";
+const USE_NATIVE_BROWSER_VIEWPORT = process.env.CHAT_E2E_NATIVE_VIEWPORT === "true";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -41,6 +42,12 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
+        ...(USE_NATIVE_BROWSER_VIEWPORT
+          ? {
+              deviceScaleFactor: undefined,
+              viewport: null,
+            }
+          : {}),
       },
     },
   ],
