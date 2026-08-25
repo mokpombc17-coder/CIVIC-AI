@@ -16,12 +16,15 @@ import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
+import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
+import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestInsertOutcome;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestInsertResult;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestSlice;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.query.CursorPage;
+import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
 import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Clock;
@@ -45,6 +48,8 @@ public final class RoomCreationRequestService {
     private final RoomCreationRequestCursorCodec cursorCodec;
     private final AdminRoomCreationRequestCursorCodec adminCursorCodec;
     private final TransactionOperations transactions;
+    private final MongoRoomCommandExceptionClassifier
+            transactionExceptionClassifier;
     private final Clock clock;
 
     public RoomCreationRequestService(
@@ -61,6 +66,8 @@ public final class RoomCreationRequestService {
             RoomCreationRequestCursorCodec cursorCodec,
             AdminRoomCreationRequestCursorCodec adminCursorCodec,
             TransactionOperations transactions,
+            MongoRoomCommandExceptionClassifier
+                    transactionExceptionClassifier,
             Clock clock
     ) {
         this.store = Objects.requireNonNull(store, "store");
@@ -100,6 +107,9 @@ public final class RoomCreationRequestService {
         this.transactions = Objects.requireNonNull(
                 transactions,
                 "transactions");
+        this.transactionExceptionClassifier = Objects.requireNonNull(
+                transactionExceptionClassifier,
+                "transactionExceptionClassifier");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -295,6 +305,7 @@ public final class RoomCreationRequestService {
             String creationRequestId
     ) {
         String admin = requireUserId(adminUserId);
+        RuntimeException lastTransientFailure = null;
         for (int attempt = 0;
                 attempt < MAX_TRANSITION_ATTEMPTS;
                 attempt++) {
@@ -328,6 +339,11 @@ public final class RoomCreationRequestService {
                         !approval.transitioned());
             } catch (TransitionRaceException ignored) {
                 // Reload and retry only while the request remains pending.
+            } catch (RuntimeException exception) {
+                if (!retryableTransactionFailure(exception)) {
+                    throw exception;
+                }
+                lastTransientFailure = exception;
             }
             RoomCreationRequest current = requireAny(creationRequestId);
             if (current.status()
@@ -337,6 +353,9 @@ public final class RoomCreationRequestService {
             if (current.status() != RoomCreationRequestStatus.PENDING) {
                 throw decisionConflict();
             }
+        }
+        if (lastTransientFailure != null) {
+            throw retryExhausted(lastTransientFailure);
         }
         throw decisionConflict();
     }
@@ -422,6 +441,7 @@ public final class RoomCreationRequestService {
             RoomCreationRequest submitted,
             ActiveRoomMembershipLimitMode limitMode
     ) {
+        RuntimeException lastTransientFailure = null;
         for (int attempt = 0;
                 attempt < MAX_TRANSITION_ATTEMPTS;
                 attempt++) {
@@ -441,6 +461,11 @@ public final class RoomCreationRequestService {
                         "automatic approval result");
             } catch (TransitionRaceException ignored) {
                 // Reload and retry only while the request remains pending.
+            } catch (RuntimeException exception) {
+                if (!retryableTransactionFailure(exception)) {
+                    throw exception;
+                }
+                lastTransientFailure = exception;
             }
             RoomCreationRequest current = requireOwn(
                     submitted.requesterUserId(),
@@ -449,6 +474,9 @@ public final class RoomCreationRequestService {
                     != RoomCreationRequestStatus.PENDING) {
                 return DirectApprovalResult.existing(current);
             }
+        }
+        if (lastTransientFailure != null) {
+            throw retryExhausted(lastTransientFailure);
         }
         throw decisionConflict();
     }
@@ -575,14 +603,32 @@ public final class RoomCreationRequestService {
             quotaMetrics.recordExempted(RoomCommandType.CREATE_ROOM);
             return;
         }
-        ActiveRoomMembershipQuotaDecision decision =
-                transactions.execute(status -> quotaMetrics.recordCheck(
-                        RoomCommandType.CREATE_ROOM,
-                        () -> quotaGuard.checkBeforeIncrease(
-                                requesterUserId,
-                                membershipProperties
-                                        .maxActiveRoomsPerUser(),
-                                requestedAt)));
+        ActiveRoomMembershipQuotaDecision decision = null;
+        RuntimeException lastTransientFailure = null;
+        for (int attempt = 0;
+                attempt < MAX_TRANSITION_ATTEMPTS;
+                attempt++) {
+            try {
+                decision = transactions.execute(
+                        status -> quotaMetrics.recordCheck(
+                                RoomCommandType.CREATE_ROOM,
+                                () -> quotaGuard.checkBeforeIncrease(
+                                        requesterUserId,
+                                        membershipProperties
+                                                .maxActiveRoomsPerUser(),
+                                        requestedAt)));
+                break;
+            } catch (RuntimeException exception) {
+                if (!retryableTransactionFailure(exception)) {
+                    throw exception;
+                }
+                lastTransientFailure = exception;
+            }
+        }
+        if (decision == null && lastTransientFailure != null) {
+            throw retryExhausted(lastTransientFailure);
+        }
+        Objects.requireNonNull(decision, "quota decision");
         if (decision
                 == ActiveRoomMembershipQuotaDecision.LIMIT_REACHED) {
             throw error(
@@ -630,6 +676,23 @@ public final class RoomCreationRequestService {
                     "The Idempotency-Key was already used for a "
                             + "different Room creation request");
         }
+    }
+
+    private boolean retryableTransactionFailure(
+            RuntimeException exception
+    ) {
+        return transactionExceptionClassifier.isTransient(exception)
+                || transactionExceptionClassifier
+                        .isUnknownCommitResult(exception);
+    }
+
+    private static RoomCommandExecutionException retryExhausted(
+            RuntimeException cause
+    ) {
+        return new RoomCommandExecutionException(
+                RoomCommandFailureKind.CONCURRENCY_RETRY_EXHAUSTED,
+                "Room creation request transaction retries exhausted",
+                cause);
     }
 
     private static String requireUserId(String requesterUserId) {

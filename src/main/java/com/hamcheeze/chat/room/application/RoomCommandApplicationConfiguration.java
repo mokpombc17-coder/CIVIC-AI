@@ -163,7 +163,8 @@ public class RoomCommandApplicationConfiguration {
             RoomCreationRequestCursorCodec cursorCodec,
             AdminRoomCreationRequestCursorCodec adminCursorCodec,
             @Qualifier("mongoTransactionTemplate")
-            TransactionOperations transactionOperations
+            TransactionOperations transactionOperations,
+            MongoRoomCommandExceptionClassifier exceptionClassifier
     ) {
         return new RoomCreationRequestService(
                 store,
@@ -179,6 +180,7 @@ public class RoomCommandApplicationConfiguration {
                 cursorCodec,
                 adminCursorCodec,
                 transactionOperations,
+                exceptionClassifier,
                 Clock.systemUTC());
     }
 
