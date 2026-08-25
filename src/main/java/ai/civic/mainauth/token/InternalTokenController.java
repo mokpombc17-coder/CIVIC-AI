@@ -48,7 +48,6 @@ public class InternalTokenController {
     public ResponseEntity<TokenView> issue(
             @RequestHeader(INTERNAL_SECRET_HEADER) String suppliedInternalSecret,
             @RequestHeader("X-CSRF-Token") String csrfToken,
-            @RequestHeader(value = "X-Request-ID", defaultValue = "missing-request-id") String requestId,
             @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
             @RequestBody TokenRequest request) {
         if (!MessageDigest.isEqual(
@@ -67,7 +66,7 @@ public class InternalTokenController {
             throw new SecurityException("Requested RAG scopes are not permitted for this session");
         }
         var token = tokens.issueRagToken(
-                session.userId(), session.accountStateVersion(), session.role().name(), request.scopes(), requestId);
+                session.userId(), session.accountStateVersion(), session.role().name(), request.scopes());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .body(new TokenView(token, Instant.now().plusSeconds(60)));
     }

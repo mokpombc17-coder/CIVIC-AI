@@ -39,11 +39,9 @@ public final class InternalTokenService {
             UUID subject,
             long accountStateVersion,
             String role,
-            Set<String> scopes,
-            String requestId) {
+            Set<String> scopes) {
         if (subject == null || accountStateVersion < 0 || scopes == null || scopes.isEmpty()
-                || !RAG_SCOPES.containsAll(scopes) || role == null || role.isBlank()
-                || requestId == null || requestId.isBlank()) {
+                || !RAG_SCOPES.containsAll(scopes) || role == null || role.isBlank()) {
             throw new IllegalArgumentException("RAG token scope or subject is invalid");
         }
         try {
@@ -55,7 +53,6 @@ public final class InternalTokenService {
                     .claim("account_state_version", accountStateVersion)
                     .claim("role", role)
                     .claim("scopes", scopes.stream().sorted().toList())
-                    .claim("request_id", requestId)
                     .jwtID(UUID.randomUUID().toString())
                     .issueTime(Date.from(now))
                     .notBeforeTime(Date.from(now.minusSeconds(2)))

@@ -38,7 +38,7 @@ class InternalJwtContractTest {
         var userId = UUID.randomUUID();
 
         var serialized = tokens.issueRagToken(
-                userId, 7, "PARTICIPANT", Set.of("rag:documents:read"), "request-01");
+                userId, 7, "PARTICIPANT", Set.of("rag:documents:read"));
         var jwt = SignedJWT.parse(serialized);
         var claims = jwt.getJWTClaimsSet();
 
@@ -52,7 +52,7 @@ class InternalJwtContractTest {
         assertThat(claims.getLongClaim("account_state_version")).isEqualTo(7);
         assertThat(claims.getStringClaim("role")).isEqualTo("PARTICIPANT");
         assertThat(claims.getStringListClaim("scopes")).containsExactly("rag:documents:read");
-        assertThat(claims.getStringClaim("request_id")).isEqualTo("request-01");
+        assertThat(claims.getClaim("request_id")).isNull();
         assertThat(claims.getJWTID()).isNotBlank();
         assertThat(claims.getExpirationTime().toInstant().getEpochSecond()
                 - claims.getIssueTime().toInstant().getEpochSecond()).isLessThanOrEqualTo(60);
@@ -64,7 +64,7 @@ class InternalJwtContractTest {
         var ring = new Es256KeyRing(key, java.util.List.of());
         var tokens = new InternalTokenService(ring, "https://auth.civic.example", Clock.systemUTC());
         assertThatThrownBy(() -> tokens.issueRagToken(
-                        UUID.randomUUID(), 0, "PARTICIPANT", Set.of("admin:*"), "request-01"))
+                        UUID.randomUUID(), 0, "PARTICIPANT", Set.of("admin:*")))
                 .isInstanceOf(IllegalArgumentException.class);
         var publicJwks = ring.publicJwks().toString();
         assertThat(publicJwks)
