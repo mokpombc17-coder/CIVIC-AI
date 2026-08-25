@@ -31,7 +31,6 @@ describe("chat room list publishing layout", () => {
         closeCreateRoomForm: vi.fn(),
         createRoomTriggerRef: { current: null },
         isCreateRoomOpen: false,
-        now: new Date("2026-08-25T00:00:00Z"),
         participatingRooms: emptyListState,
         publicRoomSearch: createPublicRoomSearchController(),
         publicRooms: emptyListState,
@@ -50,48 +49,24 @@ describe("chat room list publishing layout", () => {
 });
 
 describe("chat room list cards", () => {
-  it("참여 Room card에 ACTIVE preview, last activity와 unread badge를 표시한다", () => {
-    const html = renderToStaticMarkup(
-      createElement(MyRoomCard, {
-        now: new Date("2026-08-04T12:00:00Z"),
-        room: createRoomInboxItem(),
-      }),
-    );
+  it("참여 Room card에 category, 제목, 정원·unread와 상세 action을 표시한다", () => {
+    const html = renderMyRoomCard(createRoomInboxItem());
 
     expect(html).toContain("프로젝트 회의방");
     expect(html).toContain("지역 현안");
-    expect(html).toContain("다음 회의는 월요일입니다.");
-    expect(html).toContain("오후 5:30");
-    expect(html).toContain('dateTime="2026-08-04T08:30:00Z"');
-    expect(html).toContain('aria-label="읽지 않은 메시지 4개"');
-    expect(html).toContain("MEMBER · 참여자 5명");
+    expect(html).toContain("5 / 50명 · 읽지 않음 4");
+    expect(html).toContain('aria-label="현재 참여 인원 5명, 최대 50명, 읽지 않은 메시지 4개"');
+    expect(html).toContain("자세히 보기");
+    expect(html).not.toContain("다음 회의는 월요일입니다.");
   });
 
-  it("truncated preview에 말줄임표를 표시한다", () => {
-    const room = createRoomInboxItem({
-      lastMessage: {
-        ...createActiveLastMessage(),
-        preview: "다음 회의는 월요일",
-        previewTruncated: true,
-      },
-    });
+  it("capped unread count는 inline metadata에서도 상한 표시를 유지한다", () => {
+    const html = renderMyRoomCard(
+      createRoomInboxItem({ unreadCount: 99, unreadCountCapped: true }),
+    );
 
-    expect(renderMyRoomCard(room)).toContain("다음 회의는 월요일…");
-  });
-
-  it("삭제된 latest message와 lastMessage null을 구분해 표시한다", () => {
-    const deleted = createRoomInboxItem({
-      lastMessage: {
-        ...createActiveLastMessage(),
-        state: "DELETED_BY_AUTHOR",
-        preview: null,
-        previewTruncated: false,
-      },
-    });
-    const withoutVisibleMessage = createRoomInboxItem({ lastMessage: null });
-
-    expect(renderMyRoomCard(deleted)).toContain("삭제된 메시지입니다.");
-    expect(renderMyRoomCard(withoutVisibleMessage)).toContain("표시할 메시지가 없습니다.");
+    expect(html).toContain("5 / 50명 · 읽지 않음 99+");
+    expect(html).toContain("읽지 않은 메시지 99개 이상");
   });
 
   it("unreadCount가 0이면 badge를 숨긴다", () => {
@@ -100,7 +75,7 @@ describe("chat room list cards", () => {
     expect(html).not.toContain("읽지 않은 메시지");
   });
 
-  it("public Room card는 description과 생성 정보를 유지한다", () => {
+  it("참여 가능 Room card는 category, 제목, 정원과 실제 참여 action만 표시한다", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -112,11 +87,13 @@ describe("chat room list cards", () => {
       ),
     );
 
-    expect(html).toContain("공개 채팅방 설명");
     expect(html).toContain("정책");
-    expect(html).toContain("방 ID: room-public");
-    expect(html).toContain("참여자 3명");
-    expect(html).toContain("생성");
+    expect(html).toContain("공개 채팅방");
+    expect(html).toContain("3 / 50명");
+    expect(html).toContain('aria-label="현재 참여 인원 3명, 최대 50명"');
+    expect(html).toContain("참여하기");
+    expect(html).not.toContain("공개 채팅방 설명");
+    expect(html).not.toContain("방 ID: room-public");
   });
 });
 
@@ -128,7 +105,7 @@ const PUBLIC_ROOM: PublicRoomListItem = {
   ownerMembershipId: "membership-owner",
   status: "ACTIVE",
   visibility: "LISTED",
-  joinPolicy: "INVITE_ONLY",
+  joinPolicy: "OPEN",
   activeMemberCount: 3,
   createdAt: "2026-07-29T04:30:00Z",
   version: 1,
@@ -150,12 +127,7 @@ function createPublicRoomSearchController(): PublicRoomSearchController {
 }
 
 function renderMyRoomCard(room: RoomInboxListItem): string {
-  return renderToStaticMarkup(
-    createElement(MyRoomCard, {
-      now: new Date("2026-08-04T12:00:00Z"),
-      room,
-    }),
-  );
+  return renderToStaticMarkup(createElement(MyRoomCard, { room }));
 }
 
 function createRoomInboxItem(patch: Partial<RoomInboxListItem> = {}): RoomInboxListItem {

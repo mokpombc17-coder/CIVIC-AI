@@ -8,16 +8,16 @@ export function JoinChatRoomControl({ room }: { room: PublicRoomListItem }) {
 
   if (!join.isOpen) {
     return (
-      <span className="inline-flex min-h-[2.6rem] shrink-0 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500">
+      <span className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 text-sm font-bold text-[var(--chat-publishing-color-muted)]">
         초대 전용
       </span>
     );
   }
 
   return (
-    <div className="flex max-w-64 shrink-0 flex-col items-end gap-2">
+    <div className="flex max-w-[140px] shrink-0 flex-col items-end gap-2">
       <button
-        className="secondary-button"
+        className="inline-flex h-12 min-w-[108px] items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={join.isPending}
         onClick={join.join}
         type="button"

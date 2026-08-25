@@ -16,7 +16,7 @@ export function ChatRoomCategoryBadges({ categories, className }: ChatRoomCatego
     >
       {categories.map((category) => (
         <span
-          className="max-w-full truncate rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600"
+          className="max-w-full truncate rounded-[4px] bg-[#edf2ff] px-1.5 py-0.5 text-xs font-bold leading-[18px] text-[#0a4fd1]"
           key={category}
         >
           {getChatRoomCategoryLabel(category)}

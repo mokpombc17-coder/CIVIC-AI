@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore, type ReactNode, type Ref } from "react";
+import { type ReactNode, type Ref } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
-import { getRoomInboxPreviewPresentation } from "@/components/chat-room-inbox-preview";
-import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
-import { CHAT_ROOM_PUBLISHING_COPY } from "@/components/chat-room-publishing";
+import {
+  CHAT_ROOM_PUBLISHING_COPY,
+  getChatRoomMemberCountPresentation,
+} from "@/components/chat-room-publishing";
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
 import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
 import { JoinChatRoomControl } from "@/components/join-chat-room-control";
@@ -15,10 +16,6 @@ import type { PublicRoomSearchController } from "@/components/use-public-room-se
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
-const ROOM_DATE_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-  dateStyle: "medium",
-  timeZone: "Asia/Seoul",
-});
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
   "grid max-h-[60dvh] scroll-p-1 gap-3 overflow-y-auto overscroll-contain pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] sm:max-h-[32rem] [scrollbar-gutter:stable]";
 
@@ -37,7 +34,6 @@ type ChatRoomListViewProps = Readonly<{
   closeCreateRoomForm: () => void;
   createRoomTriggerRef: Ref<HTMLButtonElement>;
   isCreateRoomOpen: boolean;
-  now?: Date;
   participatingRooms: RoomListState<RoomInboxListItem>;
   publicRoomSearch: PublicRoomSearchController;
   publicRooms: RoomListState<PublicRoomListItem>;
@@ -48,14 +44,11 @@ export function ChatRoomListView({
   closeCreateRoomForm,
   createRoomTriggerRef,
   isCreateRoomOpen,
-  now,
   participatingRooms,
   publicRoomSearch,
   publicRooms,
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
-  const currentTime = useHydratedNow(now);
-
   return (
     <div className="chat-room-list chat-publishing-surface mx-auto min-h-dvh w-full max-w-[393px] overflow-hidden bg-white text-[var(--chat-publishing-color-text)] shadow-[var(--chat-publishing-shadow-card)]">
       <header className="flex h-16 items-center border-b border-[var(--chat-publishing-color-border)] px-4">
@@ -109,7 +102,7 @@ export function ChatRoomListView({
             >
               {participatingRooms.rooms.map((room) => (
                 <li key={room.roomId}>
-                  <MyRoomCard now={currentTime} room={room} />
+                  <MyRoomCard room={room} />
                 </li>
               ))}
             </ul>
@@ -179,98 +172,60 @@ function RoomListSection({ children, separated = false, title }: RoomListSection
   );
 }
 
-export function MyRoomCard({ now, room }: { now: Date | null; room: RoomInboxListItem }) {
-  const preview = getRoomInboxPreviewPresentation(room.lastMessage);
-  const previewToneClassName =
-    preview.tone === "normal"
-      ? "text-slate-600"
-      : preview.tone === "deleted"
-        ? "text-slate-500 italic"
-        : "text-slate-500";
+export function MyRoomCard({ room }: { room: RoomInboxListItem }) {
+  const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
+  const unread = getChatRoomUnreadBadgePresentation(room.unreadCount, room.unreadCountCapped);
 
   return (
     <Link
-      className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+      className="group grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
       href={`/chat/${room.roomId}`}
     >
-      <RoomAvatar name={room.name} />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center justify-between gap-3">
-          <strong className="truncate text-slate-950">{room.name}</strong>
-          <time className="shrink-0 text-xs text-slate-500" dateTime={room.lastActivityAt}>
-            {now ? formatRoomInboxActivityTime(room.lastActivityAt, now) : null}
-          </time>
+        <ChatRoomCategoryBadges categories={room.categories} />
+        <strong className="mt-1.5 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+          {room.name}
+        </strong>
+        <span
+          aria-label={
+            unread ? `${memberCount.ariaLabel}, ${unread.ariaLabel}` : memberCount.ariaLabel
+          }
+          className="mt-0.5 block truncate text-sm leading-5 text-[var(--chat-publishing-color-muted)]"
+        >
+          {memberCount.text}
+          {unread ? ` · 읽지 않음 ${unread.text}` : null}
         </span>
-        <ChatRoomCategoryBadges categories={room.categories} className="mt-1" />
-        <span className="mt-1 flex items-center gap-3">
-          <span className={`min-w-0 flex-1 truncate text-sm ${previewToneClassName}`}>
-            {preview.text}
-          </span>
-          <RoomUnreadBadge room={room} />
-        </span>
-        <span className="mt-2 block text-xs text-slate-500">
-          {room.membershipRole} · 참여자 {room.activeMemberCount}명
-        </span>
+      </span>
+      <span className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition group-hover:bg-[var(--chat-publishing-color-accent-soft)]">
+        자세히 보기
       </span>
     </Link>
   );
 }
 
-function RoomUnreadBadge({ room }: { room: RoomInboxListItem }) {
-  const badge = getChatRoomUnreadBadgePresentation(room.unreadCount, room.unreadCountCapped);
-
-  if (!badge) {
-    return null;
-  }
-
-  return (
-    <span
-      aria-label={badge.ariaLabel}
-      className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white"
-    >
-      {badge.text}
-    </span>
-  );
-}
-
 export function PublicRoomCard({ room }: { room: PublicRoomListItem }) {
-  const isOpen = room.joinPolicy === "OPEN";
-
   return (
-    <article className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4">
-      <RoomAvatar name={room.name} />
-      <RoomSummary room={room}>
-        <span className="status">{isOpen ? "누구나 참여" : "초대 전용"}</span>
-      </RoomSummary>
+    <article className="grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4">
+      <RoomSummary room={room} />
       <JoinChatRoomControl room={room} />
     </article>
   );
 }
 
-function RoomAvatar({ name }: { name: string }) {
-  return (
-    <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-lg font-bold text-blue-700">
-      {name.slice(0, 1)}
-    </span>
-  );
-}
+function RoomSummary({ room }: { room: PublicRoomListItem }) {
+  const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
 
-function RoomSummary({ children, room }: { children: ReactNode; room: PublicRoomListItem }) {
   return (
     <span className="min-w-0 flex-1">
-      <span className="flex flex-wrap items-center gap-2">
-        <strong className="truncate text-slate-950">{room.name}</strong>
-        {children}
-      </span>
-      <ChatRoomCategoryBadges categories={room.categories} className="mt-1" />
-      {room.description ? (
-        <span className="mt-1 line-clamp-2 block whitespace-pre-line break-words text-sm text-slate-600">
-          {room.description}
-        </span>
-      ) : null}
-      <span className="mt-1 block truncate text-xs text-slate-500">방 ID: {room.roomId}</span>
-      <span className="mt-2 block text-xs text-slate-500">
-        참여자 {room.activeMemberCount}명 · {formatRoomDate(room.createdAt)} 생성
+      <ChatRoomCategoryBadges categories={room.categories} />
+      <strong className="mt-1.5 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+        {room.name}
+      </strong>
+      <span
+        aria-label={memberCount.ariaLabel}
+        className="mt-0.5 block truncate text-sm leading-5 text-[var(--chat-publishing-color-muted)]"
+      >
+        {memberCount.text}
       </span>
     </span>
   );
@@ -335,20 +290,6 @@ function LoadMoreButton({
     </div>
   );
 }
-
-function formatRoomDate(createdAt: string): string {
-  const timestamp = Date.parse(createdAt);
-  return Number.isNaN(timestamp) ? createdAt : ROOM_DATE_FORMATTER.format(timestamp);
-}
-
-function useHydratedNow(providedNow: Date | undefined): Date | null {
-  const isHydrated = useSyncExternalStore(subscribeToHydration, getHydrated, getServerHydrated);
-  return providedNow ?? (isHydrated ? new Date() : null);
-}
-
-const subscribeToHydration = () => () => {};
-const getHydrated = () => true;
-const getServerHydrated = () => false;
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
