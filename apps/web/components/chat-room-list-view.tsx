@@ -1,18 +1,21 @@
 "use client";
 
-import Link from "next/link";
 import { type ReactNode, type Ref } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomInboxFilterControl } from "@/components/chat-room-inbox-filter-control";
 import type { ChatRoomInboxFilterController } from "@/components/chat-room-inbox-filter";
+import type { ChatRoomListDetailController } from "@/components/chat-room-list-detail";
+import {
+  CHAT_ROOM_LIST_DETAIL_DIALOG_ID,
+  ChatRoomListDetailDialog,
+} from "@/components/chat-room-list-detail-dialog";
 import {
   CHAT_ROOM_PUBLISHING_COPY,
   getChatRoomMemberCountPresentation,
 } from "@/components/chat-room-publishing";
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
 import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
-import { JoinChatRoomControl } from "@/components/join-chat-room-control";
 import { PublicRoomSearchForm } from "@/components/public-room-search-form";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
@@ -40,6 +43,7 @@ type ChatRoomListViewProps = Readonly<{
   participatingRooms: RoomListState<RoomInboxListItem>;
   publicRoomSearch: PublicRoomSearchController;
   publicRooms: RoomListState<PublicRoomListItem>;
+  roomDetail: ChatRoomListDetailController;
   toggleCreateRoomForm: () => void;
 }>;
 
@@ -51,6 +55,7 @@ export function ChatRoomListView({
   participatingRooms,
   publicRoomSearch,
   publicRooms,
+  roomDetail,
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
   return (
@@ -113,7 +118,13 @@ export function ChatRoomListView({
             >
               {participatingRooms.rooms.map((room) => (
                 <li key={room.roomId}>
-                  <MyRoomCard room={room} />
+                  <MyRoomCard
+                    isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
+                    onOpenDetails={(trigger) =>
+                      roomDetail.open({ kind: "participating", room }, trigger)
+                    }
+                    room={room}
+                  />
                 </li>
               ))}
             </ul>
@@ -144,7 +155,13 @@ export function ChatRoomListView({
             <ul aria-label="공개 채팅방" className={SCROLLABLE_ROOM_LIST_CLASS_NAME} tabIndex={0}>
               {publicRooms.rooms.map((room) => (
                 <li key={room.roomId}>
-                  <PublicRoomCard room={room} />
+                  <PublicRoomCard
+                    isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
+                    onOpenDetails={(trigger) =>
+                      roomDetail.open({ kind: "available", room }, trigger)
+                    }
+                    room={room}
+                  />
                 </li>
               ))}
             </ul>
@@ -158,6 +175,9 @@ export function ChatRoomListView({
           />
         </RoomListSection>
       </div>
+      {roomDetail.selection ? (
+        <ChatRoomListDetailDialog onClose={roomDetail.close} selection={roomDetail.selection} />
+      ) : null}
     </div>
   );
 }
@@ -183,14 +203,22 @@ function RoomListSection({ children, separated = false, title }: RoomListSection
   );
 }
 
-export function MyRoomCard({ room }: { room: RoomInboxListItem }) {
+export function MyRoomCard({
+  isDetailOpen,
+  onOpenDetails,
+  room,
+}: Readonly<{
+  isDetailOpen: boolean;
+  onOpenDetails: (trigger: HTMLButtonElement) => void;
+  room: RoomInboxListItem;
+}>) {
   const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
   const unread = getChatRoomUnreadBadgePresentation(room.unreadCount, room.unreadCountCapped);
 
   return (
-    <Link
-      className="group grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-      href={`/chat/${room.roomId}`}
+    <article
+      className="grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)]"
+      data-room-id={room.roomId}
     >
       <span className="min-w-0 flex-1">
         <ChatRoomCategoryBadges categories={room.categories} />
@@ -207,18 +235,47 @@ export function MyRoomCard({ room }: { room: RoomInboxListItem }) {
           {unread ? ` · 읽지 않음 ${unread.text}` : null}
         </span>
       </span>
-      <span className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition group-hover:bg-[var(--chat-publishing-color-accent-soft)]">
+      <button
+        aria-controls={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
+        aria-expanded={isDetailOpen}
+        aria-haspopup="dialog"
+        aria-label={`${room.name} 자세히 보기`}
+        className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        onClick={(event) => onOpenDetails(event.currentTarget)}
+        type="button"
+      >
         자세히 보기
-      </span>
-    </Link>
+      </button>
+    </article>
   );
 }
 
-export function PublicRoomCard({ room }: { room: PublicRoomListItem }) {
+export function PublicRoomCard({
+  isDetailOpen,
+  onOpenDetails,
+  room,
+}: Readonly<{
+  isDetailOpen: boolean;
+  onOpenDetails: (trigger: HTMLButtonElement) => void;
+  room: PublicRoomListItem;
+}>) {
   return (
-    <article className="grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4">
+    <article
+      className="grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4"
+      data-room-id={room.roomId}
+    >
       <RoomSummary room={room} />
-      <JoinChatRoomControl room={room} />
+      <button
+        aria-controls={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
+        aria-expanded={isDetailOpen}
+        aria-haspopup="dialog"
+        aria-label={`${room.name} 자세히 보기`}
+        className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        onClick={(event) => onOpenDetails(event.currentTarget)}
+        type="button"
+      >
+        자세히 보기
+      </button>
     </article>
   );
 }

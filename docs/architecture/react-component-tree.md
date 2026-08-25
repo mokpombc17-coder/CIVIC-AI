@@ -91,7 +91,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │           ├── CreateChatRoomForm [Client] [Feature] [conditional] (apps/web/components/create-chat-room-form.tsx)
                             │           │   └── ChatRoomCategorySelector [Client] [Feature] (apps/web/components/chat-room-category-selector.tsx)
                             │           ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
-                            │           └── JoinChatRoomControl [Client] [Feature] [repeated] (apps/web/components/join-chat-room-control.tsx)
+                            │           └── ChatRoomListDetailDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-list-detail-dialog.tsx)
+                            │               └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
                                     ├── ChatRoomView [Client] [View] (apps/web/components/chat-room-view.tsx)
@@ -136,12 +137,15 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 주기적으로 조회하며, 초기화와 전체 JSON 다운로드 기능을 제공한다.
 
 `ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외, 누적된 Room inbox의
-전체·안읽음 로컬 필터와 생성 폼 disclosure를 담당하는 hook을 `ChatRoomListView`에 연결한다.
+전체·안읽음 로컬 필터, 생성 폼 disclosure와 Room 상세 selection·trigger focus 복원을 담당하는
+hook을 `ChatRoomListView`에 연결한다.
 `PublicRoomSearchForm`은 검색어 draft와 카테고리
 선택을 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query 조건은 container hook에 둔다.
-View 이하의 생성 폼과 참여 control은 각각 동작 hook을 호출하되, validation, mutation, 멱등성 key
-재시도와 라우팅 구현은 JSX 밖에 둔다. 방 card, unread badge, avatar, notice와 pagination button은
-이 책임 경계를 바꾸지 않는 순수 표현 요소라 생략한다.
+`ChatRoomListDetailDialog`는 목록 snapshot을 Figma 기반 bottom sheet로 표현하고 참여 중인 Room의
+입장 링크 또는 참여 가능한 Room의 `JoinChatRoomControl`을 조립한다. View 이하의 생성 폼과 참여
+control은 각각 동작 hook을 호출하되, validation, mutation, 멱등성 key 재시도와 라우팅 구현은 JSX
+밖에 둔다. 방 card, unread badge, avatar, notice와 pagination button은 이 책임 경계를 바꾸지 않는
+순수 표현 요소라 생략한다.
 `ChatRoomCategorySelector`는 생성·설정 UI가 공유하는 controlled 단일 선택 표현을 담당하고,
 Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
@@ -258,6 +262,7 @@ flowchart TD
     ChatPage["ChatPage [Server] [Route]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomListScreen["ChatRoomListScreen [Client] [Container]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat-room-list-view.tsx"]
+    ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
     PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/public-room-search-form.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional]<br/>apps/web/components/create-chat-room-form.tsx"]
     ChatRoomCategorySelector["ChatRoomCategorySelector [Client] [Feature]<br/>apps/web/components/chat-room-category-selector.tsx"]
@@ -313,7 +318,8 @@ flowchart TD
     ChatRoomListView -->|"conditional create form"| CreateChatRoomForm
     CreateChatRoomForm --> ChatRoomCategorySelector
     ChatRoomListView -->|"room cards"| ChatRoomCategoryBadges
-    ChatRoomListView -->|"public room action"| JoinChatRoomControl
+    ChatRoomListView -->|"selected room detail"| ChatRoomListDetailDialog
+    ChatRoomListDetailDialog -->|"available room action"| JoinChatRoomControl
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView
     ChatRoomView --> ChatMessageViewport

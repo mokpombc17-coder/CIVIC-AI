@@ -226,7 +226,10 @@ async function setDocumentFocusState(page: Page, focused: boolean): Promise<void
 }
 
 function getParticipatingRoomCard(page: Page, roomName: string): Locator {
-  return page.getByRole("link").filter({ hasText: roomName });
+  return page
+    .getByRole("list", { name: "참여 중인 채팅방" })
+    .getByRole("article")
+    .filter({ hasText: roomName });
 }
 
 async function sendMessage(page: Page, content: string): Promise<void> {

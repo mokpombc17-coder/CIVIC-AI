@@ -97,7 +97,14 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
     await test.step("JOIN quota 거절, replay와 새 operation 성공을 확인한다", async () => {
       await candidatePage.goto("/chat");
       const roomCard = await findPublicRoomCard(candidatePage, targetRoom.name);
-      const joinButton = roomCard.getByRole("button", { name: "참여하기", exact: true });
+      await roomCard
+        .getByRole("button", { name: `${targetRoom.name} 자세히 보기`, exact: true })
+        .click();
+      const roomDetail = candidatePage.getByRole("dialog", {
+        name: targetRoom.name,
+        exact: true,
+      });
+      const joinButton = roomDetail.getByRole("button", { name: "참여하기", exact: true });
 
       const firstResponse = await clickJoinAndWaitForResponse(
         candidatePage,
@@ -106,10 +113,10 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
       );
       await expectUserActiveRoomLimitResponse(firstResponse, false);
 
-      await expect(roomCard.getByRole("alert")).toHaveText(USER_ACTIVE_ROOM_LIMIT_MESSAGE);
+      await expect(roomDetail.getByRole("alert")).toHaveText(USER_ACTIVE_ROOM_LIMIT_MESSAGE);
       await expect(joinButton).toBeEnabled();
       await expect(
-        roomCard.getByRole("button", { name: "같은 요청으로 다시 시도", exact: true }),
+        roomDetail.getByRole("button", { name: "같은 요청으로 다시 시도", exact: true }),
       ).toHaveCount(0);
 
       const firstKey = readIdempotencyKey(firstResponse);

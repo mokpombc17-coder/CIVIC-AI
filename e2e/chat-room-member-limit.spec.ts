@@ -57,16 +57,18 @@ test("정원이 가득 찬 방은 참여를 거절하고 새 클릭에는 새 Id
     await candidatePage.goto("/chat");
 
     const roomCard = await findPublicRoomCard(candidatePage, roomName);
-    const joinButton = roomCard.getByRole("button", { name: "참여하기", exact: true });
+    await roomCard.getByRole("button", { name: `${roomName} 자세히 보기`, exact: true }).click();
+    const roomDetail = candidatePage.getByRole("dialog", { name: roomName, exact: true });
+    const joinButton = roomDetail.getByRole("button", { name: "참여하기", exact: true });
 
     const firstResponse = await test.step("첫 참여 요청은 정원 초과 안내로 종료된다", async () => {
       const response = await clickJoinAndWaitForResponse(candidatePage, roomId, joinButton);
       await expectMemberLimitResponse(response, false);
 
-      await expect(roomCard.getByRole("alert")).toHaveText(ROOM_MEMBER_LIMIT_MESSAGE);
+      await expect(roomDetail.getByRole("alert")).toHaveText(ROOM_MEMBER_LIMIT_MESSAGE);
       await expect(joinButton).toBeEnabled();
       await expect(
-        roomCard.getByRole("button", { name: "같은 요청으로 다시 시도", exact: true }),
+        roomDetail.getByRole("button", { name: "같은 요청으로 다시 시도", exact: true }),
       ).toHaveCount(0);
 
       return response;
@@ -89,7 +91,7 @@ test("정원이 가득 찬 방은 참여를 거절하고 새 클릭에는 새 Id
       await expectMemberLimitResponse(secondResponse, false);
 
       expect(readIdempotencyKey(secondResponse)).not.toBe(firstIdempotencyKey);
-      await expect(roomCard.getByRole("alert")).toHaveText(ROOM_MEMBER_LIMIT_MESSAGE);
+      await expect(roomDetail.getByRole("alert")).toHaveText(ROOM_MEMBER_LIMIT_MESSAGE);
       await expect(joinButton).toBeEnabled();
     });
   } finally {

@@ -628,13 +628,8 @@ async function expectRenderedRoomIds(
 
 async function getRenderedRoomIds(page: Page): Promise<string[]> {
   return getParticipatingRoomList(page)
-    .getByRole("link")
-    .evaluateAll((links) =>
-      links.map((link) => {
-        const href = link.getAttribute("href");
-        return href?.split("/").filter(Boolean).at(-1) ?? "";
-      }),
-    );
+    .getByRole("article")
+    .evaluateAll((cards) => cards.map((card) => card.dataset.roomId ?? ""));
 }
 
 async function expectRoomPreview(page: Page, roomId: string, preview: string): Promise<void> {

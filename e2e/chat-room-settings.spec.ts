@@ -134,11 +134,17 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
     await test.step("UNLISTED 방은 공개 목록에서 사라지고 내 방 목록에는 최신 이름이 남는다", async () => {
       await ownerPage.goto("/chat");
 
-      const myRoomLink = ownerPage.getByRole("link").filter({ hasText: updatedName });
-      const publicRoomCard = ownerPage.getByRole("article").filter({ hasText: updatedName });
+      const myRoomCard = ownerPage
+        .getByRole("list", { name: "참여 중인 채팅방" })
+        .getByRole("article")
+        .filter({ hasText: updatedName });
+      const publicRoomCard = ownerPage
+        .getByRole("list", { name: "공개 채팅방" })
+        .getByRole("article")
+        .filter({ hasText: updatedName });
 
-      await expect(myRoomLink).toBeVisible();
-      await expect(myRoomLink.getByLabel("방 카테고리")).toContainText("환경");
+      await expect(myRoomCard).toBeVisible();
+      await expect(myRoomCard.getByLabel("방 카테고리")).toContainText("환경");
       await expect(publicRoomCard).toHaveCount(0);
     });
   } finally {

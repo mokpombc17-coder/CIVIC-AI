@@ -166,7 +166,10 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
 });
 
 function getParticipatingRoomCard(page: Page, roomName: string): Locator {
-  return page.getByRole("link").filter({ hasText: roomName });
+  return page
+    .getByRole("list", { name: "참여 중인 채팅방" })
+    .getByRole("article")
+    .filter({ hasText: roomName });
 }
 
 async function sendMessage(page: Page, content: string): Promise<void> {

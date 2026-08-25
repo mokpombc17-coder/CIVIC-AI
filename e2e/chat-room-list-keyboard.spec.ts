@@ -83,5 +83,15 @@ test("참여 중인 방 목록은 제한된 높이 안에서 키보드로 탐색
   await roomList.focus();
   await expect(roomList).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(roomList.getByRole("link").filter({ hasText: roomName })).toBeFocused();
+  const detailButton = roomList.getByRole("button", {
+    name: `${roomName} 자세히 보기`,
+    exact: true,
+  });
+  await expect(detailButton).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: roomName, exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: roomName, exact: true })).toHaveCount(0);
+  await expect(detailButton).toBeFocused();
 });

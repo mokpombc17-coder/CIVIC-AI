@@ -90,7 +90,11 @@ export async function joinPublicRoomAndEnter(
 
   const roomCard = await findPublicRoomCard(page, roomName);
 
-  await roomCard.getByRole("button", { name: "참여하기", exact: true }).click();
+  await roomCard.getByRole("button", { name: `${roomName} 자세히 보기`, exact: true }).click();
+  await page
+    .getByRole("dialog", { name: roomName, exact: true })
+    .getByRole("button", { name: "참여하기", exact: true })
+    .click();
 
   await expect(page).toHaveURL(new RegExp(`/chat/${roomId}$`));
   await expect(page.getByRole("heading", { name: roomName, exact: true })).toBeVisible();

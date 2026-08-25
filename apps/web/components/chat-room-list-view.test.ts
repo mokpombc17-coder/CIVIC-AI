@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
+import { ChatRoomListDetailDialog } from "./chat-room-list-detail-dialog";
 import { ChatRoomListView, MyRoomCard, PublicRoomCard } from "./chat-room-list-view";
 
 vi.mock("next/navigation", () => ({
@@ -63,7 +64,27 @@ describe("chat room list cards", () => {
     expect(html).not.toContain("읽지 않은 메시지");
   });
 
-  it("참여 가능 Room card는 category, 제목, 정원과 실제 참여 action만 표시한다", () => {
+  it("참여 가능 Room card는 category, 제목, 정원과 상세 action만 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(PublicRoomCard, {
+        isDetailOpen: false,
+        onOpenDetails: vi.fn(),
+        room: PUBLIC_ROOM,
+      }),
+    );
+
+    expect(html).toContain("정책");
+    expect(html).toContain("공개 채팅방");
+    expect(html).toContain("3 / 50명");
+    expect(html).toContain('aria-label="현재 참여 인원 3명, 최대 50명"');
+    expect(html).toContain("자세히 보기");
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).not.toContain("참여하기");
+    expect(html).not.toContain("공개 채팅방 설명");
+    expect(html).not.toContain("방 ID: room-public");
+  });
+
+  it("참여 가능 Room 상세 sheet에 전체 정보와 실제 참여 action을 표시한다", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -71,17 +92,31 @@ describe("chat room list cards", () => {
       createElement(
         QueryClientProvider,
         { client: queryClient },
-        createElement(PublicRoomCard, { room: PUBLIC_ROOM }),
+        createElement(ChatRoomListDetailDialog, {
+          onClose: vi.fn(),
+          selection: { kind: "available", room: PUBLIC_ROOM },
+        }),
       ),
     );
 
-    expect(html).toContain("정책");
-    expect(html).toContain("공개 채팅방");
+    expect(html).toContain('data-chat-room-list-detail-dialog="true"');
+    expect(html).toContain("공개 채팅방 설명");
     expect(html).toContain("3 / 50명");
-    expect(html).toContain('aria-label="현재 참여 인원 3명, 최대 50명"');
     expect(html).toContain("참여하기");
-    expect(html).not.toContain("공개 채팅방 설명");
-    expect(html).not.toContain("방 ID: room-public");
+    expect(html).toContain('aria-label="채팅방 상세 닫기"');
+  });
+
+  it("참여 중인 Room 상세 sheet에는 join 대신 입장 action을 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(ChatRoomListDetailDialog, {
+        onClose: vi.fn(),
+        selection: { kind: "participating", room: createRoomInboxItem() },
+      }),
+    );
+
+    expect(html).toContain('href="/chat/room-01"');
+    expect(html).toContain("채팅방 입장");
+    expect(html).not.toContain("참여하기");
   });
 });
 
@@ -120,6 +155,7 @@ function renderChatRoomListView(filter: "ALL" | "UNREAD"): string {
       participatingRooms: emptyListState,
       publicRoomSearch: createPublicRoomSearchController(),
       publicRooms: emptyListState,
+      roomDetail: { close: vi.fn(), open: vi.fn(), selection: null },
       toggleCreateRoomForm: vi.fn(),
     }),
   );
@@ -141,7 +177,13 @@ function createPublicRoomSearchController(): PublicRoomSearchController {
 }
 
 function renderMyRoomCard(room: RoomInboxListItem): string {
-  return renderToStaticMarkup(createElement(MyRoomCard, { room }));
+  return renderToStaticMarkup(
+    createElement(MyRoomCard, {
+      isDetailOpen: false,
+      onOpenDetails: vi.fn(),
+      room,
+    }),
+  );
 }
 
 function createRoomInboxItem(patch: Partial<RoomInboxListItem> = {}): RoomInboxListItem {
