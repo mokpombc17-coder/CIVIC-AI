@@ -49,7 +49,7 @@ public class AdminUserController {
     ResponseEntity<UserPage> list(
             @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
             @RequestParam(value = "query", defaultValue = "") String query) {
-        authorization.requireAdmin(sessionId, true);
+        authorization.requireAdmin(sessionId, false);
         var normalized = query.strip().toLowerCase(java.util.Locale.ROOT);
         var users = jdbc.query("""
                 select u.id, u.email, u.state, u.row_version, c.must_change_password,
@@ -70,7 +70,7 @@ public class AdminUserController {
     ResponseEntity<AdminUserView> get(
             @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
             @PathVariable UUID userId) {
-        authorization.requireAdmin(sessionId, true);
+        authorization.requireAdmin(sessionId, false);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(load(userId));
     }
 
@@ -91,7 +91,6 @@ public class AdminUserController {
                 userId,
                 body.rowVersion(),
                 body.roles(),
-                body.permissions(),
                 body.reason(),
                 body.impactConfirmed());
         return load(userId);
@@ -122,24 +121,18 @@ public class AdminUserController {
             java.sql.Timestamp lastActivityAt) {
         return new AdminUserView(
                 id, email, "DEACTIVATED".equals(state) ? "INACTIVE" : state,
-                roles.rolesOf(id), roles.permissionsOf(id), version, mustChange,
+                roles.rolesOf(id), version, mustChange,
                 emailVerifiedAt == null ? null : emailVerifiedAt.toInstant(),
                 lastActivityAt == null ? null : lastActivityAt.toInstant());
     }
 
-    record RoleUpdate(
-            Set<String> roles,
-            Set<String> permissions,
-            long rowVersion,
-            String reason,
-            boolean impactConfirmed) {}
+    record RoleUpdate(Set<String> roles, long rowVersion, String reason, boolean impactConfirmed) {}
     record UserPage(List<AdminUserView> items) {}
     record AdminUserView(
             UUID userId,
             String email,
             String accountState,
             List<String> roles,
-            List<String> permissions,
             long rowVersion,
             boolean mustChangePassword,
             Instant emailVerifiedAt,

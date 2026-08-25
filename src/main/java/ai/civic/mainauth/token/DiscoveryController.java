@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class DiscoveryController {
-    private final Rs256KeyRing keys;
+    private final Es256KeyRing keys;
     private final String issuer;
 
     public DiscoveryController(
-            Rs256KeyRing keys,
+            Es256KeyRing keys,
             @Value("${civic.issuer:https://localhost}") String issuer) {
         this.keys = keys;
         this.issuer = issuer;

@@ -1,8 +1,6 @@
 package ai.civic.mainauth.token;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ai.civic.mainauth.auth.SessionCookieFactory;
@@ -29,33 +27,6 @@ class InternalTokenControllerTest extends PostgresIntegrationTest {
     @Autowired SessionService sessions;
 
     @Test
-    void validSessionMintsTheCommonTokenAndMatchingBrowserCookie() throws Exception {
-        var administratorId = jdbc.queryForObject(
-                "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
-        jdbc.update("update credentials set must_change_password = false where user_id = ?", administratorId);
-        var session = sessions.issue(administratorId, SessionService.SessionRole.HIGHEST_ADMIN);
-
-        mvc.perform(post("/internal/v1/tokens")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                        .header("X-CSRF-Token", session.csrfToken())
-                        .header(InternalTokenController.INTERNAL_SECRET_HEADER,
-                                "local-development-internal-client-secret")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"audience":"civic-ai-api"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").isString())
-                .andExpect(jsonPath("$.expires_at").isString())
-                .andExpect(cookie().exists(SessionCookieFactory.ACCESS_TOKEN_COOKIE))
-                .andExpect(cookie().path(SessionCookieFactory.ACCESS_TOKEN_COOKIE, "/"))
-                .andExpect(cookie().httpOnly(SessionCookieFactory.ACCESS_TOKEN_COOKIE, true))
-                .andExpect(cookie().secure(SessionCookieFactory.ACCESS_TOKEN_COOKIE, true))
-                .andExpect(cookie().sameSite(SessionCookieFactory.ACCESS_TOKEN_COOKIE, "Lax"))
-                .andExpect(cookie().maxAge(SessionCookieFactory.ACCESS_TOKEN_COOKIE, 900));
-    }
-
-    @Test
     void passwordRotationRequiredSessionCannotMintRagToken() throws Exception {
         var administratorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
@@ -68,7 +39,7 @@ class InternalTokenControllerTest extends PostgresIntegrationTest {
                                 "local-development-internal-client-secret")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"audience":"civic-ai-api"}
+                                {"audience":"civic-rag","scopes":["rag:documents:write"]}
                                 """))
                 .andExpect(status().isForbidden());
     }
@@ -95,7 +66,7 @@ class InternalTokenControllerTest extends PostgresIntegrationTest {
                                     "local-development-internal-client-secret")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {"audience":"civic-ai-api"}
+                                    {"audience":"civic-rag","scopes":["rag:documents:write"]}
                                     """))
                     .andReturn().getResponse().getStatus());
 
@@ -138,7 +109,7 @@ class InternalTokenControllerTest extends PostgresIntegrationTest {
                                     "local-development-internal-client-secret")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {"audience":"civic-ai-api"}
+                                    {"audience":"civic-rag","scopes":["rag:documents:write"]}
                                     """))
                     .andReturn().getResponse().getStatus());
 

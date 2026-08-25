@@ -7,7 +7,6 @@ import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.SessionService;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.time.Instant;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -30,7 +29,7 @@ class AccountProfileServiceTest extends PostgresIntegrationTest {
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
         var now = Instant.now();
         var session = new SessionService.SessionView(
-                userId, SessionService.SessionRole.HIGHEST_ADMIN, Set.of("RAG_ADMIN"), "ACTIVE", 0,
+                userId, SessionService.SessionRole.HIGHEST_ADMIN, "ACTIVE", 0,
                 now.plusSeconds(60), now.plusSeconds(120), now, false);
         var issued = sessions.issue(userId, SessionService.SessionRole.HIGHEST_ADMIN);
 
@@ -55,7 +54,7 @@ class AccountProfileServiceTest extends PostgresIntegrationTest {
         jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", userId);
         var now = Instant.now();
         var session = new SessionService.SessionView(
-                userId, SessionService.SessionRole.PARTICIPANT, Set.of(), "ACTIVE", 0,
+                userId, SessionService.SessionRole.PARTICIPANT, "ACTIVE", 0,
                 now.plusSeconds(60), now.plusSeconds(120), now, false);
         var issued = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         var ready = new CountDownLatch(2);

@@ -24,5 +24,5 @@ civic:
   issuer: ${CIVIC_ISSUER}
   browser:
     origin: ${CIVIC_BROWSER_ORIGIN}
-  rs256:
-    key-directory: ${CIVIC_RS256_KEY_DIRECTORY:/run/secrets/civic/main/rs256-keys}
+  es256:
+    key-directory: ${CIVIC_ES256_KEY_DIRECTORY:/run/secrets/civic/main/es256-keys}
