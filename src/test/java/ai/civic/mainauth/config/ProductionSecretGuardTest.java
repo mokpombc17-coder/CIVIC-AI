@@ -24,7 +24,7 @@ class ProductionSecretGuardTest {
                 .hasMessageContaining("externally supplied session HMAC secret");
         assertThatThrownBy(() -> ProductionSecretGuard.validate(true, EXTERNAL_VALUES, "local-ephemeral"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("persistent externally supplied ES256 key");
+                .hasMessageContaining("persistent externally supplied RS256 key");
         var shippedBootstrapFallback = new java.util.HashMap<>(EXTERNAL_VALUES);
         shippedBootstrapFallback.put(
                 "bootstrap administrator password hash",

@@ -25,11 +25,11 @@ class AdminUserLabelControllerTest extends PostgresIntegrationTest {
     @Autowired SessionService sessions;
 
     @Test
-    void ragAdministratorCanResolveOnlyRequestedUserEmailLabels() throws Exception {
+    void administratorWithRagPermissionCanResolveOnlyRequestedUserEmailLabels() throws Exception {
         var operatorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
         jdbc.update("update credentials set must_change_password = false where user_id = ?", operatorId);
-        var session = sessions.issue(operatorId, SessionService.SessionRole.RAG_ADMIN);
+        var session = sessions.issue(operatorId, SessionService.SessionRole.HIGHEST_ADMIN);
         var email = jdbc.queryForObject("select email from users where id = ?", String.class, operatorId);
 
         mvc.perform(get("/api/v1/admin/user-labels")
