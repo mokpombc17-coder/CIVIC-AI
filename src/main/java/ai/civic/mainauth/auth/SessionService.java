@@ -9,6 +9,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SessionService {
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final ObjectMapper JSON = new ObjectMapper();
     private final JdbcTemplate jdbc;
     private final byte[] hmacSecret;
     private final Clock clock;
@@ -44,14 +47,18 @@ public class SessionService {
         var now = clock.instant();
         var rawSessionId = opaqueToken();
         var rawCsrf = opaqueToken();
+        var permissions = currentPermissions(userId);
         var idle = now.plus(role == SessionRole.PARTICIPANT ? Duration.ofHours(24) : Duration.ofMinutes(30));
         var absolute = now.plus(role == SessionRole.PARTICIPANT ? Duration.ofDays(7) : Duration.ofHours(12));
         jdbc.update("""
                 insert into sessions(
                     session_hash, user_id, role_snapshot, csrf_hash,
                     idle_expires_at, absolute_expires_at, last_seen_at
-                ) values (?, ?, jsonb_build_object('primary', ?::text), ?, ?, ?, ?)
-                """, hmac(rawSessionId), userId, role.name(), hmac(rawCsrf),
+                ) values (?, ?, jsonb_build_object(
+                    'primary', ?::text,
+                    'permissions', ?::jsonb
+                ), ?, ?, ?, ?)
+                """, hmac(rawSessionId), userId, role.name(), permissionsJson(permissions), hmac(rawCsrf),
                 Timestamp.from(idle), Timestamp.from(absolute), Timestamp.from(now));
         return new IssuedSession(rawSessionId, rawCsrf, role, idle, absolute);
     }
@@ -61,6 +68,7 @@ public class SessionService {
         if (rawSessionId == null || rawSessionId.isBlank()) throw invalid();
         var rows = jdbc.query("""
                 select s.user_id, s.role_snapshot->>'primary' as role,
+                       coalesce(s.role_snapshot->'permissions', '[]'::jsonb)::text as permissions,
                        s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
                        u.state, u.account_state_version, c.must_change_password
                 from sessions s
@@ -69,6 +77,7 @@ public class SessionService {
                 where s.session_hash = ? and s.revoked_at is null
                 """, (rs, rowNum) -> new SessionView(
                 rs.getObject("user_id", UUID.class), SessionRole.valueOf(rs.getString("role")),
+                permissionsFromJson(rs.getString("permissions")),
                 rs.getString("state"), rs.getLong("account_state_version"),
                 rs.getTimestamp("idle_expires_at").toInstant(),
                 rs.getTimestamp("absolute_expires_at").toInstant(),
@@ -92,7 +101,7 @@ public class SessionService {
                     where session_hash = ? and revoked_at is null
                     """, Timestamp.from(now), Timestamp.from(newIdle), hmac(rawSessionId));
             return new SessionView(
-                    view.userId(), view.role(), view.accountState(), view.accountStateVersion(),
+                    view.userId(), view.role(), view.permissions(), view.accountState(), view.accountStateVersion(),
                     newIdle, view.absoluteExpiresAt(), now, view.mustChangePassword());
         }
         return view;
@@ -125,7 +134,6 @@ public class SessionService {
                 select case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
                          when bool_or(r.code = 'ADMIN') then 'ADMIN'
-                         when bool_or(r.code = 'RAG_OPERATOR') then 'RAG_ADMIN'
                          else 'PARTICIPANT'
                        end
                 from users u
@@ -134,7 +142,7 @@ public class SessionService {
                 where u.id = ? group by u.id
                 """, String.class, session.userId());
         return new SessionView(
-                session.userId(), SessionRole.valueOf(currentRole), session.accountState(),
+                session.userId(), SessionRole.valueOf(currentRole), currentPermissions(session.userId()), session.accountState(),
                 session.accountStateVersion(), session.idleExpiresAt(), session.absoluteExpiresAt(),
                 session.lastSeenAt(), session.mustChangePassword());
     }
@@ -202,7 +210,31 @@ public class SessionService {
         return new AuthenticationException("Session is invalid or expired");
     }
 
-    public enum SessionRole { PARTICIPANT, RAG_ADMIN, ADMIN, HIGHEST_ADMIN }
+    private Set<String> currentPermissions(UUID userId) {
+        return Set.copyOf(jdbc.queryForList("""
+                select p.code
+                from user_permissions up join permissions p on p.id = up.permission_id
+                where up.user_id = ? and up.revoked_at is null order by p.code
+                """, String.class, userId));
+    }
+
+    private static String permissionsJson(Set<String> permissions) {
+        try {
+            return JSON.writeValueAsString(permissions);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not snapshot administrator permissions", exception);
+        }
+    }
+
+    private static Set<String> permissionsFromJson(String value) {
+        try {
+            return Set.copyOf(Arrays.asList(JSON.readValue(value, String[].class)));
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not read administrator permission snapshot", exception);
+        }
+    }
+
+    public enum SessionRole { PARTICIPANT, ADMIN, HIGHEST_ADMIN }
 
     public record IssuedSession(
             String sessionId, String csrfToken, SessionRole role, Instant idleExpiresAt, Instant absoluteExpiresAt) {}
@@ -210,6 +242,7 @@ public class SessionService {
     public record SessionView(
             UUID userId,
             SessionRole role,
+            Set<String> permissions,
             String accountState,
             long accountStateVersion,
             Instant idleExpiresAt,

@@ -21,7 +21,7 @@ class ConfigurationPolicyTest {
                 "CIVIC_DB_URL",
                 "CIVIC_DB_USER",
                 "CIVIC_REDIS_URL",
-                "CIVIC_ES256_KEY_DIRECTORY",
+                "CIVIC_RS256_KEY_DIRECTORY",
                 "CIVIC_SMTP_HOST",
                 "CIVIC_NOTIFICATION_SENDER_EMAIL",
                 "[mail.smtp.auth]",

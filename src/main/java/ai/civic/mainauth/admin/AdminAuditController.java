@@ -33,7 +33,7 @@ public class AdminAuditController {
     @GetMapping
     ResponseEntity<AuditPage> list(
             @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId) {
-        authorization.requireAdmin(sessionId, false);
+        authorization.requireAdmin(sessionId, true);
         var events = jdbc.query("""
                 select id, event_type, actor_user_id, subject_user_id, payload::text, occurred_at
                 from audit_events order by occurred_at desc limit 100
@@ -63,6 +63,8 @@ public class AdminAuditController {
                     subjectId,
                     stringList(node.get("before_roles")),
                     stringList(node.get("after_roles")),
+                    stringList(node.get("before_permissions")),
+                    stringList(node.get("after_permissions")),
                     text(node.get("reason")),
                     occurredAt,
                     eventId.toString());
@@ -90,6 +92,8 @@ public class AdminAuditController {
             UUID subjectId,
             List<String> beforeRoles,
             List<String> afterRoles,
+            List<String> beforePermissions,
+            List<String> afterPermissions,
             String reason,
             java.time.Instant occurredAt,
             String requestId) {}

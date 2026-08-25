@@ -24,8 +24,7 @@ public class AdminAuthorizationService {
         if (session.mustChangePassword()) {
             throw new AdminPolicyException("Administrator password rotation is required");
         }
-        var operator = session.role() == SessionService.SessionRole.RAG_ADMIN
-                || session.role() == SessionService.SessionRole.ADMIN
+        var operator = session.role() == SessionService.SessionRole.ADMIN
                 || session.role() == SessionService.SessionRole.HIGHEST_ADMIN;
         if (!operator) throw new AdminPolicyException("Administrator role is required");
         return session;

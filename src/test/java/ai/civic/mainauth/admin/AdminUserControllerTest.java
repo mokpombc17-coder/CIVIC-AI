@@ -30,6 +30,21 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
     @Autowired SessionService sessions;
 
     @Test
+    void regularAdministratorCannotReadHighestAdministratorUserDirectory() throws Exception {
+        var email = "regular-admin-" + UUID.randomUUID() + "@example.test";
+        var administratorId = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state, email_verified_at)
+                values (?, ?, 'ADMIN_CREATED', 'ACTIVE', now()) returning id
+                """, UUID.class, email, email);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", administratorId);
+        var session = sessions.issue(administratorId, SessionService.SessionRole.ADMIN);
+
+        mvc.perform(get("/api/v1/admin/users")
+                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void unknownUserReturnsNotFoundInsteadOfServerError() throws Exception {
         var administratorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
@@ -55,7 +70,7 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
                         .header("Sec-Fetch-Site", "same-origin")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"roles":["PARTICIPANT"],"rowVersion":0,
+                                {"roles":["PARTICIPANT"],"permissions":[],"rowVersion":0,
                                  "reason":"존재하지 않는 대상 확인","impactConfirmed":false}
                                 """))
                 .andExpect(status().isNotFound());
@@ -95,7 +110,7 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
                                     .header("Sec-Fetch-Site", "same-origin")
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("""
-                                            {"roles":["ADMIN"],"rowVersion":0,
+                                            {"roles":["ADMIN"],"permissions":[],"rowVersion":0,
                                              "reason":"세션 폐기 경쟁 조건 확인",
                                              "impactConfirmed":false}
                                             """))

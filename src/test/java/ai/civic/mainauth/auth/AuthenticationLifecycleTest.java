@@ -61,6 +61,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("delete from auth_challenges");
         jdbc.update("delete from account_state_outbox where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from credentials where user_id in (select id from users where origin = 'SIGNUP')");
+        jdbc.update("delete from user_permissions where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from user_roles where user_id in (select id from users where origin = 'SIGNUP')");
         jdbc.update("delete from users where origin = 'SIGNUP'");
         userId = jdbc.queryForObject("""
@@ -85,6 +86,25 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(stored).doesNotContain(login.sessionId());
         assertThat(sessions.require(login.sessionId()).userId()).isEqualTo(userId);
         assertThat(login.toString()).doesNotContain("Bearer", "access_token", "refresh_token", "internal_token");
+    }
+
+    @Test
+    void browserLoginIssuesBothTheOpaqueSessionAndCommonAccessTokenCookies() throws Exception {
+        mvc.perform(post("/api/v1/auth/login")
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"person@example.com","password":"Valid123!"}
+                                """))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().exists(SessionCookieFactory.SESSION_COOKIE))
+                .andExpect(cookie().exists(SessionCookieFactory.ACCESS_TOKEN_COOKIE))
+                .andExpect(cookie().path(SessionCookieFactory.ACCESS_TOKEN_COOKIE, "/"))
+                .andExpect(cookie().httpOnly(SessionCookieFactory.ACCESS_TOKEN_COOKIE, true))
+                .andExpect(cookie().secure(SessionCookieFactory.ACCESS_TOKEN_COOKIE, true))
+                .andExpect(cookie().sameSite(SessionCookieFactory.ACCESS_TOKEN_COOKIE, "Lax"))
+                .andExpect(cookie().maxAge(SessionCookieFactory.ACCESS_TOKEN_COOKIE, 900));
     }
 
     @Test
@@ -976,17 +996,22 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void ragAdministratorRoleSurvivesLoginInsteadOfCollapsingToParticipant() {
+    void ragAdministratorPermissionSurvivesLoginWithoutBecomingAnIndependentRole() {
         jdbc.update("""
                 insert into user_roles(user_id, role_id)
-                select ?, id from roles where code = 'RAG_OPERATOR'
+                select ?, id from roles where code = 'ADMIN'
+                """, userId);
+        jdbc.update("""
+                insert into user_permissions(user_id, permission_id)
+                select ?, id from permissions where code = 'RAG_ADMIN'
                 """, userId);
 
         var login = auth.login("person@example.com", "Valid123!", "127.0.0.1");
 
-        assertThat(login.role()).isEqualTo(SessionService.SessionRole.RAG_ADMIN);
+        assertThat(login.role()).isEqualTo(SessionService.SessionRole.ADMIN);
         assertThat(sessions.require(login.sessionId()).role())
-                .isEqualTo(SessionService.SessionRole.RAG_ADMIN);
+                .isEqualTo(SessionService.SessionRole.ADMIN);
+        assertThat(sessions.require(login.sessionId()).permissions()).containsExactly("RAG_ADMIN");
     }
 
     @Test

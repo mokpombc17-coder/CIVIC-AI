@@ -76,6 +76,7 @@ public class MainPrivacyDeletionHandler {
         jdbc.update("delete from auth_challenges where user_id = ?", subjectId);
         jdbc.update("delete from questionnaire_responses where user_id = ?", subjectId);
         jdbc.update("delete from consent_evidence where user_id = ?", subjectId);
+        jdbc.update("delete from user_permissions where user_id = ?", subjectId);
         jdbc.update("delete from user_roles where user_id = ?", subjectId);
         jdbc.update("delete from credentials where user_id = ?", subjectId);
         jdbc.update("update signup_flows set email = ?, normalized_email = ? where normalized_email = ?",
