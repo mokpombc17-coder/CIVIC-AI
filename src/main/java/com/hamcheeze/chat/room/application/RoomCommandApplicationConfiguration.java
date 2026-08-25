@@ -11,6 +11,11 @@ import com.hamcheeze.chat.room.application.event.UuidRoomEventIdGenerator;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCodec;
 import com.hamcheeze.chat.room.creation.RoomCreationProperties;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestCursorCodec;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestIdGenerator;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestService;
+import com.hamcheeze.chat.room.creation.UuidRoomCreationRequestIdGenerator;
+import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestStore;
 import com.hamcheeze.chat.room.delivery.SimpleBrokerRoomEventDeliveryAdapter;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
@@ -52,6 +57,18 @@ public class RoomCommandApplicationConfiguration {
     @Bean
     RoomCommandIdGenerator roomCommandIdGenerator() {
         return new UuidRoomCommandIdGenerator();
+    }
+
+    @Bean
+    RoomCreationRequestIdGenerator roomCreationRequestIdGenerator() {
+        return new UuidRoomCreationRequestIdGenerator();
+    }
+
+    @Bean
+    RoomCreationRequestCursorCodec roomCreationRequestCursorCodec(
+            ObjectMapper objectMapper
+    ) {
+        return new RoomCreationRequestCursorCodec(objectMapper);
     }
 
     @Bean
@@ -122,6 +139,38 @@ public class RoomCommandApplicationConfiguration {
                 membershipQuotaGuard,
                 membershipQuotaMetrics,
                 postCommitCoordinator);
+    }
+
+    @Bean
+    RoomCreationRequestService roomCreationRequestService(
+            RoomCreationRequestStore store,
+            RoomCreationRequestIdGenerator requestIdGenerator,
+            RoomCommandIdGenerator roomIdGenerator,
+            RoomCommandFingerprintFactory fingerprintFactory,
+            ApprovedRoomCreator approvedRoomCreator,
+            RoomCommandPostCommitCoordinator postCommitCoordinator,
+            ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
+            RoomMembershipProperties membershipProperties,
+            RoomCreationProperties creationProperties,
+            RoomCreationRequestCursorCodec cursorCodec,
+            @Qualifier("mongoTransactionTemplate")
+            TransactionOperations transactionOperations
+    ) {
+        return new RoomCreationRequestService(
+                store,
+                requestIdGenerator,
+                roomIdGenerator,
+                fingerprintFactory,
+                approvedRoomCreator,
+                postCommitCoordinator,
+                membershipQuotaGuard,
+                membershipQuotaMetrics,
+                membershipProperties,
+                creationProperties,
+                cursorCodec,
+                transactionOperations,
+                Clock.systemUTC());
     }
 
     @Bean

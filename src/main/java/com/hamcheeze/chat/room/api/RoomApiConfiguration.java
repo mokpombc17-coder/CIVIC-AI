@@ -41,6 +41,11 @@ public class RoomApiConfiguration {
     }
 
     @Bean
+    RoomCreationRequestHttpMapper roomCreationRequestHttpMapper() {
+        return new RoomCreationRequestHttpMapper();
+    }
+
+    @Bean
     RoomQueryCursorCodec roomQueryCursorCodec(
             ObjectMapper objectMapper
     ) {

@@ -308,7 +308,43 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     }
 
     @Test
-    void activeRoomLimitReturnsConflictAndReplaysWithoutLimitValue()
+    void creationRequestQueriesAndCancellationUseRoomScopes()
+            throws Exception {
+        String detail = "/api/v1/me/room-creation-requests/missing";
+
+        mockMvc.perform(get(detail)
+                        .with(jwt().jwt(token -> token.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_WRITE)))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(detail)
+                        .with(jwt().jwt(token -> token.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_READ)))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(
+                        "ROOM_CREATION_REQUEST_NOT_FOUND"));
+
+        mockMvc.perform(post(detail + "/cancel")
+                        .with(jwt().jwt(token -> token.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_READ)))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(detail + "/cancel")
+                        .with(jwt().jwt(token -> token.subject("user-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes.ROOMS_WRITE)))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(
+                        "ROOM_CREATION_REQUEST_NOT_FOUND"));
+    }
+
+    @Test
+    void activeRoomLimitPrecheckReturnsConflictWithoutPersistingRequest()
             throws Exception {
         seedActiveRooms("limited-user", 20);
         String createRequestId = UUID.randomUUID().toString();
@@ -348,7 +384,7 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(
                         "USER_ACTIVE_ROOM_LIMIT_EXCEEDED"))
-                .andExpect(jsonPath("$.replayed").value(true));
+                .andExpect(jsonPath("$.replayed").value(false));
 
         String targetRoom = "quota-join-target";
         seedActiveRoom(targetRoom, "target-owner");

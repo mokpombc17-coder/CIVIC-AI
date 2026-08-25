@@ -9,6 +9,8 @@ import com.hamcheeze.chat.room.api.dto.FieldErrorResponse;
 import com.hamcheeze.chat.room.application.idempotency.RoomClientRequestId;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestErrorCode;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestException;
 import com.hamcheeze.chat.room.query.RoomQueryErrorCode;
 import com.hamcheeze.chat.room.query.RoomQueryException;
 import com.hamcheeze.chat.room.inbox.RoomInboxErrorCode;
@@ -31,6 +33,7 @@ import java.util.List;
 
 @RestControllerAdvice(basePackageClasses = {
         RoomCommandController.class,
+        RoomCreationRequestController.class,
         RoomQueryController.class,
         ChatMessageQueryController.class
 })
@@ -49,6 +52,31 @@ public class RoomApiExceptionHandler {
                 exception.code().name(),
                 "Invalid room API request",
                 exception.getMessage(),
+                request,
+                false,
+                null);
+    }
+
+    @ExceptionHandler(RoomCreationRequestException.class)
+    ResponseEntity<ProblemDetail> creationRequest(
+            RoomCreationRequestException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = switch (exception.code()) {
+            case ROOM_CREATION_REQUEST_NOT_FOUND ->
+                    HttpStatus.NOT_FOUND;
+            case INVALID_CURSOR -> HttpStatus.BAD_REQUEST;
+            case ROOM_CREATION_DECISION_CONFLICT,
+                    ROOM_CREATION_PENDING_LIMIT_EXCEEDED,
+                    USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
+                    IDEMPOTENCY_CONFLICT -> HttpStatus.CONFLICT;
+        };
+        String detail = creationRequestDetail(exception.code());
+        return problem(
+                status,
+                exception.code().name(),
+                "Room creation request failed",
+                detail,
                 request,
                 false,
                 null);
@@ -321,6 +349,27 @@ public class RoomApiExceptionHandler {
             case NOT_ROOM_OWNER ->
                     "Only the room owner may perform this query.";
             case INVALID_CURSOR -> "The cursor is invalid.";
+        };
+    }
+
+    private String creationRequestDetail(
+            RoomCreationRequestErrorCode code
+    ) {
+        return switch (code) {
+            case ROOM_CREATION_REQUEST_NOT_FOUND ->
+                    "The Room creation request was not found.";
+            case ROOM_CREATION_DECISION_CONFLICT ->
+                    "The Room creation request was already resolved.";
+            case ROOM_CREATION_PENDING_LIMIT_EXCEEDED ->
+                    "The pending Room creation request limit "
+                            + "was exceeded.";
+            case USER_ACTIVE_ROOM_LIMIT_EXCEEDED ->
+                    "The user has reached the active room limit.";
+            case IDEMPOTENCY_CONFLICT ->
+                    "The Idempotency-Key was already used for a "
+                            + "different Room creation request.";
+            case INVALID_CURSOR ->
+                    "The Room creation request cursor is invalid.";
         };
     }
 

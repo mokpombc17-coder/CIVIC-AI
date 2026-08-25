@@ -12,6 +12,7 @@ import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
 import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
+import com.hamcheeze.chat.room.creation.mongo.MongoRoomCreationRequestDocument;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
@@ -134,6 +135,10 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 "/api/v1/rooms/")))
                 .andExpect(jsonPath("$.code")
                         .value("ROOM_CREATED"))
+                .andExpect(jsonPath("$.creationRequestId").isString())
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.requestedAt").isString())
+                .andExpect(jsonPath("$.resolvedAt").isString())
                 .andExpect(jsonPath("$.ownerMembershipId").isString())
                 .andExpect(jsonPath("$.ownerUserId").doesNotExist())
                 .andExpect(jsonPath("$.clientRequestId")
@@ -158,6 +163,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .isEqualTo(1);
         assertThat(count(
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME))
+                .isZero();
+        assertThat(count(
+                MongoRoomCreationRequestDocument.COLLECTION_NAME))
                 .isEqualTo(1);
     }
 

@@ -7,6 +7,7 @@ import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestService;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,6 +50,9 @@ class RoomApiFailureIntegrationTest
 
     @MockitoSpyBean
     private RoomCommandService commandService;
+
+    @MockitoSpyBean
+    private RoomCreationRequestService creationRequestService;
 
     @Test
     void mapsInfrastructureFailuresWithoutLeakingInternals()
@@ -118,13 +122,13 @@ class RoomApiFailureIntegrationTest
             int status,
             boolean retryable
     ) throws Exception {
-        reset(commandService);
+        reset(creationRequestService);
         doThrow(new RoomCommandExecutionException(
                 kind,
                 "chat_rooms MongoException secret internal detail",
                 new IllegalStateException("internal stack")))
-                .when(commandService)
-                .createRoom(
+                .when(creationRequestService)
+                .submit(
                         any(CreateRoomCommand.class),
                         any(ActiveRoomMembershipLimitMode.class));
 

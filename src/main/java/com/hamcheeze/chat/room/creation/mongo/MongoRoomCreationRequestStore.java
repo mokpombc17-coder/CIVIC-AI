@@ -4,14 +4,18 @@ import com.hamcheeze.chat.room.application.idempotency.RoomClientRequestId;
 import com.hamcheeze.chat.room.creation.RoomCreationRequest;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestInsertResult;
+import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestSlice;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestStore;
 import com.mongodb.client.result.UpdateResult;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.ReplaceOptions;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -162,6 +166,57 @@ public final class MongoRoomCreationRequestStore
                 query,
                 MongoRoomCreationRequestDocument.class,
                 MongoRoomCreationRequestDocument.COLLECTION_NAME);
+    }
+
+    @Override
+    public RoomCreationRequestSlice findByRequester(
+            String requesterUserId,
+            Instant afterRequestedAt,
+            String afterCreationRequestId,
+            int limit
+    ) {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException(
+                    "limit must be between 1 and 100");
+        }
+        if ((afterRequestedAt == null)
+                != (afterCreationRequestId == null)) {
+            throw new IllegalArgumentException(
+                    "cursor fields must be provided together");
+        }
+        Criteria requester = Criteria.where("requesterUserId").is(
+                requireNonBlank(requesterUserId, "requesterUserId"));
+        Criteria criteria = requester;
+        if (afterRequestedAt != null) {
+            criteria = new Criteria().andOperator(
+                    requester,
+                    new Criteria().orOperator(
+                            Criteria.where("requestedAt")
+                                    .gt(afterRequestedAt),
+                            new Criteria().andOperator(
+                                    Criteria.where("requestedAt")
+                                            .is(afterRequestedAt),
+                                    Criteria.where("_id").gt(
+                                            requireNonBlank(
+                                                    afterCreationRequestId,
+                                                    "afterCreationRequestId")))));
+        }
+        Query query = Query.query(criteria)
+                .with(Sort.by(
+                        Sort.Order.asc("requestedAt"),
+                        Sort.Order.asc("_id")))
+                .limit(limit + 1);
+        List<RoomCreationRequest> requests = mongoOperations.find(
+                        query,
+                        MongoRoomCreationRequestDocument.class,
+                        MongoRoomCreationRequestDocument.COLLECTION_NAME)
+                .stream()
+                .map(MongoRoomCreationRequestDocument::toDomain)
+                .toList();
+        boolean hasNext = requests.size() > limit;
+        return new RoomCreationRequestSlice(
+                hasNext ? requests.subList(0, limit) : requests,
+                hasNext);
     }
 
     private static String requireNonBlank(

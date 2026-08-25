@@ -15,6 +15,8 @@ import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
 import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
+import com.hamcheeze.chat.room.api.dto.RoomCreationRequestResponse;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,30 +37,37 @@ import tools.jackson.databind.JsonNode;
 public class RoomCommandController {
 
     private final RoomCommandService commandService;
+    private final RoomCreationRequestService creationRequestService;
     private final AuthenticatedUserIdResolver userIdResolver;
     private final RoomMembershipLimitModeResolver
             membershipLimitModeResolver;
     private final RoomIdempotencyKeyResolver idempotencyKeyResolver;
     private final RoomCommandHttpMapper httpMapper;
+    private final RoomCreationRequestHttpMapper
+            creationRequestHttpMapper;
 
     public RoomCommandController(
             RoomCommandService commandService,
+            RoomCreationRequestService creationRequestService,
             AuthenticatedUserIdResolver userIdResolver,
             RoomMembershipLimitModeResolver
                     membershipLimitModeResolver,
             RoomIdempotencyKeyResolver idempotencyKeyResolver,
-            RoomCommandHttpMapper httpMapper
+            RoomCommandHttpMapper httpMapper,
+            RoomCreationRequestHttpMapper creationRequestHttpMapper
     ) {
         this.commandService = commandService;
+        this.creationRequestService = creationRequestService;
         this.userIdResolver = userIdResolver;
         this.membershipLimitModeResolver =
                 membershipLimitModeResolver;
         this.idempotencyKeyResolver = idempotencyKeyResolver;
         this.httpMapper = httpMapper;
+        this.creationRequestHttpMapper = creationRequestHttpMapper;
     }
 
     @PostMapping
-    public ResponseEntity<Object> createRoom(
+    public ResponseEntity<RoomCreationRequestResponse> createRoom(
             Authentication authentication,
             @RequestHeader(
                     value = RoomIdempotencyKeyResolver.HEADER_NAME,
@@ -69,17 +78,18 @@ public class RoomCommandController {
         String requester = userIdResolver.resolve(authentication);
         String requestId =
                 idempotencyKeyResolver.resolve(idempotencyKey);
-        return map(commandService.createRoom(
-                new CreateRoomCommand(
-                        requester,
-                        requestId,
-                        request.name(),
-                        request.description(),
-                        request.categories(),
-                        request.visibility(),
-                        request.joinPolicy()),
-                membershipLimitModeResolver.resolve(
-                        authentication)));
+        return creationRequestHttpMapper.submission(
+                creationRequestService.submit(
+                        new CreateRoomCommand(
+                                requester,
+                                requestId,
+                                request.name(),
+                                request.description(),
+                                request.categories(),
+                                request.visibility(),
+                                request.joinPolicy()),
+                        membershipLimitModeResolver.resolve(
+                                authentication)));
     }
 
     @PostMapping("/{roomId}/commands/join")
