@@ -241,6 +241,31 @@ main {
   outline-offset: 3px;
 }
 
+/*
+ * Figma CIVIC.AI Wire Flow의 채팅 화면에서만 사용하는 publishing tokens.
+ * 화면별 퍼블리싱에서는 이 class를 가장 가까운 채팅 surface에 적용한다.
+ */
+.chat-publishing-surface {
+  --chat-publishing-color-text: #121417;
+  --chat-publishing-color-muted: #59616b;
+  --chat-publishing-color-primary: #266ef5;
+  --chat-publishing-color-primary-emphasis: #0a4fd1;
+  --chat-publishing-color-border: #ccd1d6;
+  --chat-publishing-color-accent-soft: #edf2ff;
+  --chat-publishing-color-neutral-soft: #edf2f7;
+  --chat-publishing-color-overlay: rgba(18, 20, 23, 0.56);
+  --chat-publishing-color-warning-background: #fff7e8;
+  --chat-publishing-color-warning-border: #ffc95c;
+  --chat-publishing-color-warning-text: #8a4a08;
+  --chat-publishing-radius-control: 6px;
+  --chat-publishing-radius-card: 8px;
+  --chat-publishing-radius-panel: 12px;
+  --chat-publishing-radius-pill: 999px;
+  --chat-publishing-shadow-card: 0 8px 24px rgba(18, 20, 23, 0.12);
+  --chat-publishing-shadow-sheet: 0 16px 40px rgba(18, 20, 23, 0.2);
+  --chat-publishing-control-height: 48px;
+}
+
 .link-button {
   text-decoration: none;
 }
