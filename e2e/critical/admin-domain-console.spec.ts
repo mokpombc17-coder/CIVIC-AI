@@ -1,0 +1,261 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { expect, test, type BrowserContext } from "@playwright/test";
+
+const WEB_BASE_URL = "https://localhost:3109";
+const MOCK_API_HOST = "127.0.0.1";
+const MOCK_API_PORT = 4791;
+const ACCESS_COOKIE = "civic_ai_access_token";
+const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
+
+let server: Server;
+let chatStatus: "PENDING" | "APPROVED" = "PENDING";
+let task = taskFixture("DRAFT");
+let createdTaskBody: Record<string, unknown> | null = null;
+
+test.beforeAll(async () => {
+  server = createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", `http://${MOCK_API_HOST}:${MOCK_API_PORT}`);
+    if (url.pathname === "/api/v1/auth/me") return json(response, currentAdmin());
+    if (url.pathname === "/api/v1/admin/user-labels") {
+      return json(response, { items: [{ user_id: "requester-1", email: "citizen@example.com" }] });
+    }
+    if (url.pathname === "/api/v1/admin/room-creation-requests" && request.method === "GET") {
+      return json(response, {
+        items: url.searchParams.get("status") === chatStatus ? [chatRequest(chatStatus)] : [],
+        nextCursor: null,
+        hasNext: false,
+      });
+    }
+    if (url.pathname === "/api/v1/admin/room-creation-requests/request-1") {
+      return json(response, chatRequest(chatStatus));
+    }
+    if (
+      url.pathname === "/api/v1/admin/room-creation-requests/request-1/approve" &&
+      request.method === "POST"
+    ) {
+      chatStatus = "APPROVED";
+      return json(response, chatRequest(chatStatus), 201);
+    }
+    if (url.pathname === "/api/v1/admin/tasks" && request.method === "GET") {
+      return json(response, [taskSummary(task)]);
+    }
+    if (url.pathname === "/api/v1/admin/tasks" && request.method === "POST") {
+      createdTaskBody = await readBody(request);
+      task = taskFixture("DRAFT", createdTaskBody.title as string);
+      return json(response, task, 201, { location: `/api/v1/admin/tasks/${taskId}` });
+    }
+    if (url.pathname === `/api/v1/admin/tasks/${taskId}` && request.method === "GET") {
+      return json(response, { task, lifecycleHistory: lifecycleHistory(task.status) });
+    }
+    if (url.pathname === `/api/v1/admin/tasks/${taskId}/open-now` && request.method === "POST") {
+      task = {
+        ...task,
+        status: "OPEN",
+        publishedAt: "2026-08-26T03:00:00Z",
+        openedAt: "2026-08-26T03:00:00Z",
+        schedule: { opensAt: "2026-08-26T03:00:00Z", closesAt: "2026-09-01T00:00:00Z" },
+        updatedAt: "2026-08-26T03:00:00Z",
+      };
+      return json(response, task);
+    }
+    response.writeHead(404).end();
+  });
+  await listen(server);
+});
+
+test.beforeEach(() => {
+  chatStatus = "PENDING";
+  task = taskFixture("DRAFT");
+  createdTaskBody = null;
+});
+
+test.afterAll(async () => close(server));
+
+test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/chat/requests");
+
+  const row = page.getByRole("row", { name: /시민 정책 토론방/ });
+  await expect(row).toContainText("citizen@example.com");
+  await row.getByRole("link", { name: "상세 검토" }).click();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=request-1$/u);
+  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toBeVisible();
+  await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "승인", exact: true }).click();
+
+  await expect(page.getByRole("status")).toContainText("승인했습니다");
+  await expect(page.getByText("승인", { exact: true })).toBeVisible();
+  await expect(page.getByText("request-1", { exact: true })).toHaveCount(0);
+});
+
+test("Vote 관리자는 Draft를 만들고 즉시 발행한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/tasks/create");
+
+  await page.getByLabel("제목").fill("지역 정책 선호도 조사");
+  await page.getByLabel("관리자 설명").fill("운영 확인용 과업");
+  await page.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
+  await page.getByLabel("선택지 1").fill("A안");
+  await page.getByLabel("선택지 2").fill("B안");
+  await page.getByRole("button", { name: "Draft 생성" }).click();
+
+  await expect(page.getByRole("heading", { name: "과업 상세" })).toBeVisible();
+  expect(createdTaskBody).toMatchObject({ title: "지역 정책 선호도 조사" });
+  await page.getByLabel("동작").selectOption("open-now");
+  await page.getByLabel("마감 시각").fill("2026-09-01T09:00");
+  await page.getByRole("button", { name: "즉시 발행" }).click();
+
+  await expect(page.getByRole("status")).toContainText("최신 상태를 반영했습니다");
+  await expect(
+    page.locator(".civic-user-summary-grid").getByText("진행 중", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(taskId, { exact: true })).toHaveCount(0);
+});
+
+test("관리자 Chat·Vote 화면은 200% 확대 대응 폭에서도 본문이 잘리지 않는다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 640, height: 900 });
+
+  for (const route of ["/admin/chat/requests", "/admin/tasks/create"]) {
+    await page.goto(route);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      `${route} must not create page-level horizontal scrolling`,
+    ).toBe(true);
+  }
+});
+
+async function authenticate(context: BrowserContext): Promise<void> {
+  await context.addCookies([
+    {
+      name: ACCESS_COOKIE,
+      value: "admin.payload.signature",
+      url: WEB_BASE_URL,
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+    },
+  ]);
+}
+
+function currentAdmin() {
+  return {
+    user_id: "00000000-0000-4000-8000-000000000002",
+    role: "HIGHEST_ADMIN",
+    permissions: ["RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN"],
+    account_state: "ACTIVE",
+    must_change_password: false,
+  };
+}
+
+function chatRequest(status: "PENDING" | "APPROVED") {
+  return {
+    creationRequestId: "request-1",
+    requesterUserId: "requester-1",
+    name: "시민 정책 토론방",
+    description: "지역 정책을 논의합니다.",
+    categories: ["POLICY"],
+    visibility: "LISTED",
+    joinPolicy: "OPEN",
+    status,
+    requestedAt: "2026-08-26T03:00:00Z",
+    resolvedAt: status === "APPROVED" ? "2026-08-26T03:05:00Z" : null,
+    roomId: status === "APPROVED" ? "room-1" : null,
+    rejectionReason: null,
+    replayed: false,
+  };
+}
+
+function taskFixture(status: "DRAFT" | "OPEN", title = "기존 정책 과업") {
+  return {
+    id: taskId,
+    title,
+    description: "관리자 설명",
+    question: {
+      id: "0fb30319-91b2-419a-9bcb-90951bb4f3e9",
+      content: "어떤 안을 선호하시나요?",
+      description: null,
+      options: [
+        { id: "4928e1be-b4ef-45c6-bf83-17641cf4183d", displayOrder: 1, content: "A안" },
+        { id: "879ba3de-0b84-412b-b51f-e879e9d8f6e2", displayOrder: 2, content: "B안" },
+      ],
+    },
+    status,
+    schedule: null,
+    publishedAt: null,
+    openedAt: null,
+    closedAt: null,
+    closureType: null,
+    createdAt: "2026-08-26T02:00:00Z",
+    updatedAt: "2026-08-26T02:00:00Z",
+  };
+}
+
+function taskSummary(current: ReturnType<typeof taskFixture>) {
+  return {
+    taskId: current.id,
+    title: current.title,
+    status: current.status,
+    schedule: current.schedule,
+    publishedAt: current.publishedAt,
+    openedAt: current.openedAt,
+    closedAt: current.closedAt,
+    closureType: current.closureType,
+    createdAt: current.createdAt,
+    updatedAt: current.updatedAt,
+  };
+}
+
+function lifecycleHistory(status: "DRAFT" | "OPEN") {
+  if (status === "DRAFT") return [];
+  return [
+    {
+      id: "event-1",
+      eventType: "OPENED",
+      previousStatus: null,
+      newStatus: status,
+      previousSchedule: null,
+      newSchedule: null,
+      trigger: "ADMIN",
+      actorId: "00000000-0000-4000-8000-000000000002",
+      reason: null,
+      closureType: null,
+      occurredAt: "2026-08-26T02:00:00Z",
+    },
+  ];
+}
+
+async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+}
+
+function json(
+  response: ServerResponse,
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): void {
+  response.writeHead(status, { "content-type": "application/json", ...headers });
+  response.end(JSON.stringify(body));
+}
+
+function listen(value: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    value.once("error", reject);
+    value.listen(MOCK_API_PORT, MOCK_API_HOST, resolve);
+  });
+}
+
+function close(value: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    value.close((error) => (error ? reject(error) : resolve()));
+  });
+}

@@ -1,4 +1,4 @@
-# Main/Auth·RAG 통합 구현 위치
+# Main/Auth·RAG·관리자 도메인 통합 구현 위치
 
 실제 UI 위에 인증과 RAG를 연결한 코드 위치를 빠르게 찾기 위한 문서다. 인증 규격은
 [`../contracts/platform-auth.md`](../contracts/platform-auth.md)를 따른다.
@@ -6,9 +6,11 @@
 ## Route
 
 - `apps/web/app/(participant)/[feature]/[[...screen]]/page.tsx`: 공개·참여자 Main/Auth와 RAG 화면
-- `apps/web/app/(admin)/admin/[feature]/[[...screen]]/page.tsx`: 관리자 Main/Auth와 RAG 화면
+- `apps/web/app/(admin)/admin/[feature]/[[...screen]]/page.tsx`: 관리자 Main/Auth, RAG, Chat 승인, Vote 과업 화면
 - `apps/web/app/api/v1/[...path]/route.ts`: 허용 목록 기반 Main/Auth BFF
 - `apps/web/app/api/v1/rag/**`: RAG BFF
+- `apps/web/app/api/v1/admin/room-creation-requests/**`: Chat 관리자 allowlist BFF
+- `apps/web/app/api/v1/admin/tasks/**`: Vote 관리자 allowlist BFF
 - `apps/web/app/auth/refresh/page.tsx`: path-scoped Refresh Token을 이용하는 갱신 화면
 - `apps/web/app/stream/rag/queries/[jobId]/route.ts`: RAG SSE 프록시
 
@@ -32,6 +34,10 @@
 - `apps/web/components/rag/admin-rag-screen.tsx`: 폴더·문서·업로드·작업 관리
 - `apps/web/components/rag/admin-rag-analytics.tsx`: RAG 분석
 - `apps/web/components/rag/admin-rag-crawler.tsx`: 수집 소스 관리
+- `apps/web/components/admin/admin-chat-request-screen.tsx`: 채팅방 생성 신청 조회·승인·반려
+- `apps/web/components/admin/admin-task-screen.tsx`: Vote 과업 작성·수명주기·결과 관리
 
-Chat·Vote·Task·Simulation은 현재 placeholder이며 이 문서의 통합 범위에 포함되지 않는다.
+참여자 Chat·Vote와 Simulation은 현재 placeholder다. Chat 관리자 중 현재 서버 계약이 있는 생성 신청
+관리와 Vote 관리자 과업 관리는 실제 API를 사용한다. 세부 경계는
+[`../contracts/admin-domain-integration.md`](../contracts/admin-domain-integration.md)를 따른다.
 참여자·공개 사용자 화면은 기능과 관계없이 정확히 하나의 `PlatformShell` 안에서 렌더링한다.

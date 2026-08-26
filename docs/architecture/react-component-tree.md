@@ -68,7 +68,9 @@ AdminCatchAllPage [Server Route]
     │       ├── DocumentInspector
     │       ├── AdminRagAnalytics
     │       └── AdminRagCrawler
-    └── ComingSoonScreen [placeholder]
+    ├── AdminChatRequestScreen [Chat 생성 신청 관리]
+    ├── AdminTaskScreen [Vote 과업 관리]
+    └── ComingSoonScreen [서버 계약 미확정 화면]
 ```
 
 사용자·권한 관리 화면은 `HIGHEST_ADMIN`을 요구한다. RAG, Chat, Vote, Simulation 관리자 화면은
@@ -115,6 +117,12 @@ Browser /api/v1/rag/**
     ├── same-origin 검사
     ├── Access Token raw equality 검사
     └── RAG upstream에 동일 Cookie + Bearer 전달
+
+Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/tasks/**
+└── Admin Domain BFF
+    ├── 화면별 path·method allowlist
+    ├── same-origin 검사
+    └── Chat 또는 Vote upstream에 동일 Cookie + Bearer 전달
 ```
 
 RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 Next.js SSE 프록시를
@@ -122,9 +130,9 @@ RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스�
 
 ## 현재 비활성 기능
 
-Chat, Vote/Decision, Task, Simulation route는 `ComingSoonScreen`만 렌더링한다. 해당 화면에서는 REST
-mutation, WebSocket, SharedWorker를 시작하지 않는다. 각 기능의 실제 구현은 해당 서비스 팀의 최신
-코드를 별도로 통합한다.
+참여자 Chat·Vote, Chat의 활성 방·카테고리·통계 운영, Simulation route는 `ComingSoonScreen`만
+렌더링한다. Chat 생성 신청과 Vote 과업 관리자 route는 실제 REST API를 사용한다. placeholder 화면은
+REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 
 ## App Router special UI
 

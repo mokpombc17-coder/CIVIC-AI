@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/shell/admin-shell";
+import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
+import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { requireAdminSession } from "@/lib/auth/require-admin";
@@ -40,6 +42,22 @@ export default async function AdminPlaceholderPage({
     return (
       <AdminShell activeRoute={pathname} permissions={session.permissions} role={session.role}>
         <RagFunctionalScreen query={query} screen={definition} />
+      </AdminShell>
+    );
+  }
+
+  if (definition.status === "FUNCTIONAL" && definition.owner === "CHAT") {
+    return (
+      <AdminShell activeRoute={pathname} permissions={session.permissions} role={session.role}>
+        <AdminChatRequestScreen query={query} screen={definition} />
+      </AdminShell>
+    );
+  }
+
+  if (definition.status === "FUNCTIONAL" && definition.owner === "DECISION") {
+    return (
+      <AdminShell activeRoute={pathname} permissions={session.permissions} role={session.role}>
+        <AdminTaskScreen query={query} screen={definition} />
       </AdminShell>
     );
   }

@@ -53,6 +53,11 @@ export type RagJobSummaryState =
       recentFailures: readonly RecentRagFailure[];
     }
   | { status: "unavailable" };
+export type AdminDomainMetricState =
+  | { status: "loading" }
+  | { status: "ready"; count: number; hasMore: boolean }
+  | { status: "unavailable" }
+  | { status: "forbidden" };
 
 export function AdminFunctionalScreen({
   screen,
@@ -66,6 +71,12 @@ export function AdminFunctionalScreen({
   const [audits, setAudits] = useState<AuditEvent[]>([]);
   const [auditUserLabels, setAuditUserLabels] = useState<Map<string, string>>(new Map());
   const [ragJobSummary, setRagJobSummary] = useState<RagJobSummaryState>({ status: "loading" });
+  const [chatRequestSummary, setChatRequestSummary] = useState<AdminDomainMetricState>({
+    status: adminSession.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
+  });
+  const [taskDeadlineSummary, setTaskDeadlineSummary] = useState<AdminDomainMetricState>({
+    status: adminSession.permissions.includes("VOTE_ADMIN") ? "loading" : "forbidden",
+  });
   const [message, setMessage] = useState("");
   const [auditMessage, setAuditMessage] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>("all");
@@ -73,6 +84,8 @@ export function AdminFunctionalScreen({
   const roleMutationLock = useRef(createMutationLock());
   const userLoadGate = useRef(createLatestAdminUserRequestGate());
   const canReadRag = adminSession.permissions.includes("RAG_ADMIN");
+  const canManageChat = adminSession.permissions.includes("CHAT_ADMIN");
+  const canManageVote = adminSession.permissions.includes("VOTE_ADMIN");
 
   useEffect(() => {
     const activeUserLoadGate = userLoadGate.current;
@@ -81,8 +94,10 @@ export function AdminFunctionalScreen({
     if (screen.id === "A-HOME-001" && canReadRag) {
       void refreshRagJobSummary();
     }
+    if (screen.id === "A-HOME-001" && canManageChat) void refreshChatRequestSummary();
+    if (screen.id === "A-HOME-001" && canManageVote) void refreshTaskDeadlineSummary();
     return () => activeUserLoadGate.cancel();
-  }, [canReadRag, screen.id]);
+  }, [canManageChat, canManageVote, canReadRag, screen.id]);
 
   async function loadUsers(query = "") {
     const isCurrent = userLoadGate.current.begin();
@@ -133,6 +148,14 @@ export function AdminFunctionalScreen({
 
   async function refreshRagJobSummary() {
     setRagJobSummary(await loadRagJobSummary());
+  }
+
+  async function refreshChatRequestSummary() {
+    setChatRequestSummary(await loadChatRequestSummary());
+  }
+
+  async function refreshTaskDeadlineSummary() {
+    setTaskDeadlineSummary(await loadTaskDeadlineSummary());
   }
 
   async function search(event: FormEvent<HTMLFormElement>) {
@@ -201,7 +224,12 @@ export function AdminFunctionalScreen({
       screen={screen}
     >
       {screen.id === "A-HOME-001" ? (
-        <AdminHome adminSession={adminSession} ragJobSummary={ragJobSummary} />
+        <AdminHome
+          adminSession={adminSession}
+          chatRequestSummary={chatRequestSummary}
+          ragJobSummary={ragJobSummary}
+          taskDeadlineSummary={taskDeadlineSummary}
+        />
       ) : null}
       {screen.id.startsWith("A-USER") ? (
         <div className="civic-admin-workbench" data-wireflow-layout={adminUserLayout(screen.id)}>
@@ -306,8 +334,12 @@ export function filterAdminUsers(users: AdminUser[], filter: UserStatusFilter) {
 function AdminHome({
   ragJobSummary,
   adminSession,
+  chatRequestSummary,
+  taskDeadlineSummary,
 }: {
   ragJobSummary: RagJobSummaryState;
+  chatRequestSummary: AdminDomainMetricState;
+  taskDeadlineSummary: AdminDomainMetricState;
   adminSession: Pick<ShellSession, "role" | "permissions">;
 }) {
   const can = (permission: ShellSession["permissions"][number]) =>
@@ -317,8 +349,8 @@ function AdminHome({
       <ul aria-label="관리 현황" className="civic-admin-metrics">
         <li className="wf-admin-metric">
           <small>승인 대기</small>
-          <strong>—</strong>
-          <span>채팅 승인 연동 전</span>
+          <strong>{metricCount(chatRequestSummary)}</strong>
+          <span>{metricDescription(chatRequestSummary, "채팅 생성 신청")}</span>
         </li>
         <li className="wf-admin-metric">
           <small>처리 실패</small>
@@ -338,9 +370,9 @@ function AdminHome({
           </span>
         </li>
         <li className="wf-admin-metric">
-          <small>마감 임박</small>
-          <strong>0건</strong>
-          <span>오늘 마감 과업</span>
+          <small>24시간 내 마감</small>
+          <strong>{metricCount(taskDeadlineSummary)}</strong>
+          <span>{metricDescription(taskDeadlineSummary, "진행 중 과업")}</span>
         </li>
       </ul>
       {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
@@ -378,10 +410,10 @@ function AdminHome({
         ) : null}
         {can("CHAT_ADMIN") ? (
           <WireflowActionCard
-            action={<AdminCardLink href="/admin/chat">채팅 운영 열기</AdminCardLink>}
+            action={<AdminCardLink href="/admin/chat/requests">채팅 신청 열기</AdminCardLink>}
             badge="채팅"
-            description="요청 승인과 방 운영"
-            title="채팅 운영"
+            description="생성 신청 검토·승인·반려"
+            title="채팅 신청"
           />
         ) : null}
         {can("VOTE_ADMIN") ? (
@@ -468,6 +500,64 @@ export async function loadRagJobSummary(
   } catch {
     return { status: "unavailable" };
   }
+}
+
+export async function loadChatRequestSummary(
+  request: typeof fetch = authenticatedFetch,
+): Promise<AdminDomainMetricState> {
+  try {
+    const response = await request(
+      "/api/v1/admin/room-creation-requests?status=PENDING&limit=100",
+      { cache: "no-store" },
+    );
+    if (!response.ok) return { status: "unavailable" };
+    const value = (await response.json()) as { items?: unknown; hasNext?: unknown };
+    if (!Array.isArray(value.items) || typeof value.hasNext !== "boolean") {
+      return { status: "unavailable" };
+    }
+    return { status: "ready", count: value.items.length, hasMore: value.hasNext };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export async function loadTaskDeadlineSummary(
+  request: typeof fetch = authenticatedFetch,
+  now = Date.now(),
+): Promise<AdminDomainMetricState> {
+  try {
+    const response = await request("/api/v1/admin/tasks", { cache: "no-store" });
+    if (!response.ok) return { status: "unavailable" };
+    const value = await response.json();
+    if (!Array.isArray(value)) return { status: "unavailable" };
+    const deadline = now + 24 * 60 * 60 * 1_000;
+    const count = value.filter((item) => {
+      if (!item || typeof item !== "object") return false;
+      const record = item as Record<string, unknown>;
+      if (record.status !== "OPEN" || !record.schedule || typeof record.schedule !== "object") {
+        return false;
+      }
+      const closesAt = (record.schedule as Record<string, unknown>).closesAt;
+      if (typeof closesAt !== "string") return false;
+      const timestamp = Date.parse(closesAt);
+      return Number.isFinite(timestamp) && timestamp > now && timestamp <= deadline;
+    }).length;
+    return { status: "ready", count, hasMore: false };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+function metricCount(summary: AdminDomainMetricState): string {
+  if (summary.status === "ready") return `${summary.count}건${summary.hasMore ? " 이상" : ""}`;
+  if (summary.status === "forbidden") return "권한 없음";
+  return summary.status === "loading" ? "확인 중" : "확인 불가";
+}
+
+function metricDescription(summary: AdminDomainMetricState, label: string): string {
+  if (summary.status === "ready") return label;
+  if (summary.status === "forbidden") return "담당 관리자 권한이 필요합니다";
+  return summary.status === "loading" ? `${label} 확인 중` : `${label}을 불러오지 못했습니다`;
 }
 
 export async function loadRequestedAdminUser(
