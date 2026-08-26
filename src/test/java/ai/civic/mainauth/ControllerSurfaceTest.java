@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 
 class ControllerSurfaceTest {
     @Test
-    void accountAdminAndInternalControllersCoverTheContractWithoutForbiddenRoutes() throws Exception {
+    void accountAdminAndRefreshControllersCoverTheContractWithoutForbiddenRoutes() throws Exception {
         var account = source("account/AccountController.java");
         assertThat(account).contains(
                 "@GetMapping(\"/profile\")", "@PatchMapping(\"/profile\")",
@@ -19,8 +19,16 @@ class ControllerSurfaceTest {
         assertThat(admin).contains("@GetMapping", "@PutMapping(\"/{userId}/roles\")", "/api/v1/admin/users");
         assertThat(admin).doesNotContain("deactivateUser", "deleteUser");
 
-        var internal = source("token/InternalTokenController.java");
-        assertThat(internal).contains("/internal/v1/tokens", "CacheControl.noStore", "X-CIVIC-Internal-Client-Secret");
+        var auth = source("auth/AuthController.java");
+        assertThat(auth).contains(
+                "@PostMapping(\"/refresh\")", "RefreshTokenService",
+                "@GetMapping(\"/me\")", "AuthCookieFactory.ACCESS_TOKEN_COOKIE",
+                "AuthCookieFactory.REFRESH_TOKEN_COOKIE");
+        assertThat(auth).doesNotContain(
+                "@GetMapping(\"/session\")", "@PostMapping(\"/access-token\")",
+                "SessionService", "SessionCookieFactory");
+        assertThat(Files.exists(Path.of(
+                "src/main/java/ai/civic/mainauth/token/InternalTokenController.java"))).isFalse();
 
         var gates = source("feature/FeatureGateController.java");
         assertThat(gates).doesNotContain("@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping");

@@ -1,8 +1,10 @@
 package ai.civic.mainauth.config;
 
 import ai.civic.mainauth.auth.AuthenticationException;
+import ai.civic.mainauth.auth.AuthorizationException;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.auth.RateLimitExceededException;
+import ai.civic.mainauth.auth.RefreshTokenConflictException;
 import ai.civic.mainauth.signup.SignupConflictException;
 import ai.civic.mainauth.signup.SignupValidationException;
 import ai.civic.mainauth.admin.AdminPolicyException;
@@ -30,14 +32,24 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", exception.getMessage());
     }
 
+    @ExceptionHandler(AuthorizationException.class)
+    ProblemDetail forbidden(AuthorizationException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Operation forbidden", exception.getMessage());
+    }
+
     @ExceptionHandler(MissingRequestCookieException.class)
-    ProblemDetail missingSessionOrFlowCookie(MissingRequestCookieException exception) {
+    ProblemDetail missingAuthenticationCookie(MissingRequestCookieException exception) {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", "Authentication cookie is missing");
     }
 
     @ExceptionHandler(SignupConflictException.class)
     ProblemDetail conflict(SignupConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Request conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(RefreshTokenConflictException.class)
+    ProblemDetail refreshConflict(RefreshTokenConflictException exception) {
+        return problem(HttpStatus.CONFLICT, "Refresh conflict", exception.getMessage());
     }
 
     @ExceptionHandler({PrivacyOperationNotFoundException.class, AdminUserNotFoundException.class})

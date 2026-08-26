@@ -2,7 +2,7 @@ package ai.civic.mainauth.privacy;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.auth.AuthenticationIdentityLock;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.AuthCredentialHashing;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -14,13 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class MainPrivacyDeletionHandler {
     private final JdbcTemplate jdbc;
     private final AuthenticationIdentityLock identityLocks;
-    private final SessionService sessions;
+    private final AuthCredentialHashing credentialHashing;
 
     public MainPrivacyDeletionHandler(
-            JdbcTemplate jdbc, AuthenticationIdentityLock identityLocks, SessionService sessions) {
+            JdbcTemplate jdbc,
+            AuthenticationIdentityLock identityLocks,
+            AuthCredentialHashing credentialHashing) {
         this.jdbc = jdbc;
         this.identityLocks = identityLocks;
-        this.sessions = sessions;
+        this.credentialHashing = credentialHashing;
     }
 
     @Transactional(noRollbackFor = {AdminPolicyException.class, IllegalArgumentException.class})
@@ -72,7 +74,7 @@ public class MainPrivacyDeletionHandler {
         }
         var anonymizedEmail = deletedEmail(subjectId);
 
-        jdbc.update("delete from sessions where user_id = ?", subjectId);
+        jdbc.update("delete from refresh_tokens where user_id = ?", subjectId);
         jdbc.update("delete from auth_challenges where user_id = ?", subjectId);
         jdbc.update("delete from questionnaire_responses where user_id = ?", subjectId);
         jdbc.update("delete from consent_evidence where user_id = ?", subjectId);
@@ -89,8 +91,8 @@ public class MainPrivacyDeletionHandler {
         jdbc.update("""
                 delete from opaque_auth_flows where identity_hash in (?, ?)
                 """,
-                sessions.opaqueCompletionIdentity(originalEmail, "PASSWORD_RESET"),
-                sessions.opaqueCompletionIdentity(originalEmail, "REACTIVATION"));
+                credentialHashing.opaqueCompletionIdentity(originalEmail, "PASSWORD_RESET"),
+                credentialHashing.opaqueCompletionIdentity(originalEmail, "REACTIVATION"));
         var changed = jdbc.update("""
                 update users set email = ?, normalized_email = ?, state = 'DELETED',
                     account_state_version = account_state_version + 1,

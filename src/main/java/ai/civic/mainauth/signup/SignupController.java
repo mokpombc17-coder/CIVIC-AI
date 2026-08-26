@@ -3,7 +3,7 @@ package ai.civic.mainauth.signup;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import ai.civic.mainauth.auth.BrowserRequestPolicy;
-import ai.civic.mainauth.auth.SessionCookieFactory;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.auth.PreSessionRateLimitService;
 import ai.civic.mainauth.auth.TrustedClientAddressResolver;
 import jakarta.validation.constraints.Email;
@@ -27,14 +27,14 @@ public class SignupController {
     public static final String FLOW_COOKIE = "__Host-civic-auth-flow";
     private final SignupFlowService signup;
     private final BrowserRequestPolicy browserPolicy;
-    private final SessionCookieFactory cookies;
+    private final AuthCookieFactory cookies;
     private final PreSessionRateLimitService preSessionRateLimits;
     private final TrustedClientAddressResolver clientAddresses;
 
     public SignupController(
             SignupFlowService signup,
             BrowserRequestPolicy browserPolicy,
-            SessionCookieFactory cookies,
+            AuthCookieFactory cookies,
             PreSessionRateLimitService preSessionRateLimits,
             TrustedClientAddressResolver clientAddresses) {
         this.signup = signup;

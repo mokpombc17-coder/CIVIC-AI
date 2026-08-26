@@ -1,6 +1,6 @@
 package ai.civic.mainauth.admin;
 
-import ai.civic.mainauth.auth.SessionCookieFactory;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -32,8 +32,8 @@ public class AdminAuditController {
 
     @GetMapping
     ResponseEntity<AuditPage> list(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId) {
-        authorization.requireAdmin(sessionId, true);
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken) {
+        authorization.requireAdmin(accessToken, true);
         var events = jdbc.query("""
                 select id, event_type, actor_user_id, subject_user_id, payload::text, occurred_at
                 from audit_events order by occurred_at desc limit 100

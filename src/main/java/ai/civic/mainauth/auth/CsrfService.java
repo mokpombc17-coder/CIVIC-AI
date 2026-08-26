@@ -2,35 +2,42 @@ package ai.civic.mainauth.auth;
 
 import java.security.MessageDigest;
 import java.util.Base64;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class CsrfService {
-    private final JdbcTemplate jdbc;
-    private final SessionService sessions;
+public final class CsrfService {
+    private final AuthCredentialHashing credentialHashing;
 
-    public CsrfService(JdbcTemplate jdbc, SessionService sessions) {
-        this.jdbc = jdbc;
-        this.sessions = sessions;
+    public CsrfService(AuthCredentialHashing credentialHashing) {
+        this.credentialHashing = credentialHashing;
     }
 
-    @Transactional
-    public String issue(String rawSessionId) {
-        sessions.require(rawSessionId);
-        var raw = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(sessions.hmac("csrf-token:" + rawSessionId));
-        jdbc.update("update sessions set csrf_hash = ? where session_hash = ? and revoked_at is null",
-                sessions.hmac(raw), sessions.hmac(rawSessionId));
-        return raw;
+    public String issue(AuthenticatedUserService.AuthenticatedUser user) {
+        requireCredential(user);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                credentialHashing.hmac(material(user)));
     }
 
-    @Transactional(readOnly = true)
-    public boolean matches(String rawSessionId, String suppliedToken) {
-        if (rawSessionId == null || suppliedToken == null) return false;
-        var hashes = jdbc.query("select csrf_hash from sessions where session_hash = ? and revoked_at is null",
-                (rs, rowNum) -> rs.getBytes(1), sessions.hmac(rawSessionId));
-        return hashes.size() == 1 && MessageDigest.isEqual(hashes.getFirst(), sessions.hmac(suppliedToken));
+    public boolean matches(
+            AuthenticatedUserService.AuthenticatedUser user, String suppliedToken) {
+        if (user == null || suppliedToken == null || suppliedToken.isBlank()) return false;
+        try {
+            var expected = credentialHashing.hmac(material(user));
+            var supplied = Base64.getUrlDecoder().decode(suppliedToken);
+            return MessageDigest.isEqual(expected, supplied);
+        } catch (IllegalArgumentException invalidEncoding) {
+            return false;
+        }
+    }
+
+    private static String material(AuthenticatedUserService.AuthenticatedUser user) {
+        requireCredential(user);
+        return "csrf-token:" + user.userId() + ":" + user.jwtId();
+    }
+
+    private static void requireCredential(AuthenticatedUserService.AuthenticatedUser user) {
+        if (user == null || user.userId() == null || user.jwtId() == null || user.jwtId().isBlank()) {
+            throw new AuthenticationException("Access token is invalid or expired");
+        }
     }
 }

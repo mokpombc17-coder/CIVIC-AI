@@ -27,13 +27,13 @@ public class PrivacyOperationService {
 
     @Transactional
     public UUID startAuthorized(
-            String sessionId,
+            String accessToken,
             String evidenceId,
             UUID subjectId,
             Set<String> scopes,
             boolean requestVerified) {
         lockHighestAdminRoleChanges();
-        var actor = authorization.requireCurrentAdmin(sessionId, true);
+        authorization.requireCurrentAdmin(accessToken, true);
         return startAfterAuthorization(evidenceId, subjectId, scopes, requestVerified);
     }
 

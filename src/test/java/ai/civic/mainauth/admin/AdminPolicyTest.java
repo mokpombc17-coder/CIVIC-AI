@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import ai.civic.mainauth.account.AccountLifecycleService;
-import ai.civic.mainauth.auth.AuthenticationException;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.AccessCredentialTestFactory;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -24,7 +23,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Autowired AdminRoleService roles;
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountLifecycleService lifecycle;
-    @Autowired SessionService sessions;
+    @Autowired AccessCredentialTestFactory credentials;
     private final Argon2PasswordEncoder passwords =
             Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
     UUID bootstrapId;
@@ -79,7 +78,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
         roles.replaceRoles(
                 bootstrapId, second, 0, Set.of("HIGHEST_ADMIN"), allOperatingPermissions,
                 "기능별 운영 담당 지정", false);
-        var staleRoleSession = sessions.issue(second, SessionService.SessionRole.HIGHEST_ADMIN).sessionId();
+        credentials.issue(second);
         assertThat(roles.rolesOf(second)).containsExactly("HIGHEST_ADMIN");
         assertThat(roles.permissionsOf(second)).containsExactlyInAnyOrderElementsOf(allOperatingPermissions);
         var audit = jdbc.queryForObject(
@@ -100,8 +99,9 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                 "기능별 운영 권한 회수", true);
         assertThat(roles.rolesOf(second)).containsExactly("HIGHEST_ADMIN");
         assertThat(roles.permissionsOf(second)).isEmpty();
-        assertThatThrownBy(() -> sessions.require(staleRoleSession))
-                .isInstanceOf(AuthenticationException.class);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from refresh_tokens where user_id = ? and revoked_at is null",
+                Integer.class, second)).isZero();
         assertThatThrownBy(() -> roles.replaceRoles(
                 second, second, 2, Set.of("ADMIN"), Set.of("RAG_ADMIN"), "자기 권한 회수", true))
                 .isInstanceOf(AdminPolicyException.class);
@@ -216,7 +216,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     void accountDeactivationIsSelfServiceOnlyAndWritesOneVersionedEvent() {
         var participant = createParticipant("participant@example.com");
         assertThatThrownBy(() -> lifecycle.deactivateSelf(
-                "unused-session", bootstrapId, participant, "Valid123!"))
+                bootstrapId, participant, "Valid123!"))
                 .isInstanceOf(AdminPolicyException.class);
         jdbc.update("""
                 insert into auth_challenges(
@@ -227,9 +227,8 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                           now() + interval '10 minutes', now(), now())
                 """, participant);
 
-        var session = sessions.issue(participant, SessionService.SessionRole.PARTICIPANT);
-        lifecycle.deactivateSelf(
-                session.sessionId(), participant, participant, "Valid123!");
+        credentials.issue(participant);
+        lifecycle.deactivateSelf(participant, participant, "Valid123!");
 
         assertThat(jdbc.queryForObject("select state from users where id = ?", String.class, participant))
                 .isEqualTo("DEACTIVATED");
@@ -320,9 +319,8 @@ class AdminPolicyTest extends PostgresIntegrationTest {
 
     private boolean deactivateSelf(UUID subject) {
         try {
-            var session = sessions.issue(subject, SessionService.SessionRole.HIGHEST_ADMIN);
-            lifecycle.deactivateSelf(
-                    session.sessionId(), subject, subject, "Valid123!");
+            credentials.issue(subject);
+            lifecycle.deactivateSelf(subject, subject, "Valid123!");
             return true;
         } catch (AdminPolicyException exception) {
             return false;

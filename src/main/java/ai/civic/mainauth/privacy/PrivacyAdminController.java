@@ -3,8 +3,8 @@ package ai.civic.mainauth.privacy;
 import ai.civic.mainauth.admin.AdminAuthorizationService;
 import ai.civic.mainauth.auth.BrowserRequestPolicy;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.auth.CsrfService;
-import ai.civic.mainauth.auth.SessionCookieFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -49,12 +49,12 @@ public class PrivacyAdminController {
 
     @PostMapping
     ResponseEntity<OperationResponse> start(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @Valid @RequestBody StartRequest body,
             HttpServletRequest request) {
-        var actor = authorization.requireAdmin(sessionId, true);
-        if (!csrf.matches(sessionId, csrfToken)) {
+        var actor = authorization.requireAdmin(accessToken, true);
+        if (!csrf.matches(actor, csrfToken)) {
             throw new BrowserRequestRejectedException("CSRF token is invalid");
         }
         browser.requireAuthenticatedMutation(new BrowserRequestPolicy.RequestMetadata(
@@ -63,8 +63,8 @@ public class PrivacyAdminController {
                 request.getHeader(HttpHeaders.AUTHORIZATION)), csrfToken, csrfToken);
         var validated = operatorCommand.validate(new PrivacyOperatorCommand.Request(
                 body.externalRequestEvidenceId(), body.subjectId(), body.scopes(), true,
-                actor.absoluteExpiresAt(), false), clock.instant());
-        var operationId = operations.startAuthorized(sessionId,
+                actor.expiresAt(), false), clock.instant());
+        var operationId = operations.startAuthorized(accessToken,
                 validated.externalRequestEvidenceId(), validated.subjectId(),
                 validated.scopes(), validated.operatorAuthorizationVerified());
         return ResponseEntity.accepted().body(new OperationResponse(operationId, operations.status(operationId)));
@@ -72,9 +72,9 @@ public class PrivacyAdminController {
 
     @GetMapping("/{operationId}")
     ResponseEntity<OperationResponse> status(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @org.springframework.web.bind.annotation.PathVariable UUID operationId) {
-        authorization.requireAdmin(sessionId, true);
+        authorization.requireAdmin(accessToken, true);
         return ResponseEntity.ok(new OperationResponse(operationId, operations.status(operationId)));
     }
 

@@ -1,45 +1,47 @@
 package ai.civic.mainauth.admin;
 
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.AuthenticatedUserService;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AdminAuthorizationService {
-    private final SessionService sessions;
+    private final AuthenticatedUserService authenticatedUsers;
 
-    public AdminAuthorizationService(SessionService sessions) {
-        this.sessions = sessions;
+    public AdminAuthorizationService(AuthenticatedUserService authenticatedUsers) {
+        this.authenticatedUsers = authenticatedUsers;
     }
 
-    public SessionService.SessionView requireAdmin(String sessionId, boolean highestOnly) {
-        return requireAdmin(sessions.require(sessionId), highestOnly);
+    public AuthenticatedUserService.AuthenticatedUser requireAdmin(
+            String accessToken, boolean highestOnly) {
+        return requireAdmin(authenticatedUsers.require(accessToken), highestOnly);
     }
 
-    public SessionService.SessionView requireCurrentAdmin(String sessionId, boolean highestOnly) {
-        return requireAdmin(sessions.requireForTokenIssuance(sessionId), highestOnly);
+    public AuthenticatedUserService.AuthenticatedUser requireCurrentAdmin(
+            String accessToken, boolean highestOnly) {
+        return requireAdmin(authenticatedUsers.requireLocked(accessToken), highestOnly);
     }
 
-    public SessionService.SessionView requireOperator(String sessionId) {
-        var session = sessions.require(sessionId);
-        if (session.mustChangePassword()) {
+    public AuthenticatedUserService.AuthenticatedUser requireOperator(String accessToken) {
+        var user = authenticatedUsers.require(accessToken);
+        if (user.mustChangePassword()) {
             throw new AdminPolicyException("Administrator password rotation is required");
         }
-        var operator = session.role() == SessionService.SessionRole.ADMIN
-                || session.role() == SessionService.SessionRole.HIGHEST_ADMIN;
+        var operator = user.role() == AuthenticatedUserService.UserRole.ADMIN
+                || user.role() == AuthenticatedUserService.UserRole.HIGHEST_ADMIN;
         if (!operator) throw new AdminPolicyException("Administrator role is required");
-        return session;
+        return user;
     }
 
-    private SessionService.SessionView requireAdmin(
-            SessionService.SessionView session, boolean highestOnly) {
-        if (session.mustChangePassword()) {
+    private AuthenticatedUserService.AuthenticatedUser requireAdmin(
+            AuthenticatedUserService.AuthenticatedUser user, boolean highestOnly) {
+        if (user.mustChangePassword()) {
             throw new AdminPolicyException("Administrator password rotation is required");
         }
-        var admin = session.role() == SessionService.SessionRole.ADMIN
-                || session.role() == SessionService.SessionRole.HIGHEST_ADMIN;
-        if (!admin || (highestOnly && session.role() != SessionService.SessionRole.HIGHEST_ADMIN)) {
+        var admin = user.role() == AuthenticatedUserService.UserRole.ADMIN
+                || user.role() == AuthenticatedUserService.UserRole.HIGHEST_ADMIN;
+        if (!admin || (highestOnly && user.role() != AuthenticatedUserService.UserRole.HIGHEST_ADMIN)) {
             throw new AdminPolicyException("Administrator role is required");
         }
-        return session;
+        return user;
     }
 }

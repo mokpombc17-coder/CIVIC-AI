@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ai.civic.mainauth.auth.SessionCookieFactory;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.AccessCredentialTestFactory;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import jakarta.servlet.http.Cookie;
 import java.util.UUID;
@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class AdminUserControllerTest extends PostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @Autowired SessionService sessions;
+    @Autowired AccessCredentialTestFactory credentials;
 
     @Test
     void regularAdministratorCannotReadHighestAdministratorUserDirectory() throws Exception {
@@ -37,10 +37,14 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
                 values (?, ?, 'ADMIN_CREATED', 'ACTIVE', now()) returning id
                 """, UUID.class, email, email);
         jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", administratorId);
-        var session = sessions.issue(administratorId, SessionService.SessionRole.ADMIN);
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'ADMIN'
+                """, administratorId);
+        var credential = credentials.issue(administratorId);
 
         mvc.perform(get("/api/v1/admin/users")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId())))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
                 .andExpect(status().isForbidden());
     }
 
@@ -49,10 +53,10 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
         var administratorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
         jdbc.update("update credentials set must_change_password = false where user_id = ?", administratorId);
-        var session = sessions.issue(administratorId, SessionService.SessionRole.HIGHEST_ADMIN);
+        var credential = credentials.issue(administratorId);
 
         mvc.perform(get("/api/v1/admin/users/{userId}", UUID.randomUUID())
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId())))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
                 .andExpect(status().isNotFound());
     }
 
@@ -61,11 +65,11 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
         var administratorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
         jdbc.update("update credentials set must_change_password = false where user_id = ?", administratorId);
-        var session = sessions.issue(administratorId, SessionService.SessionRole.HIGHEST_ADMIN);
+        var credential = credentials.issue(administratorId);
 
         mvc.perform(put("/api/v1/admin/users/{userId}/roles", UUID.randomUUID())
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                        .header("X-CSRF-Token", session.csrfToken())
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                        .header("X-CSRF-Token", credential.csrfToken())
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -77,11 +81,11 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void revokedAdministratorSessionCannotCompleteAnInflightRoleUpdate() throws Exception {
+    void refreshRevocationDoesNotInvalidateAnAlreadyIssuedAccessToken() throws Exception {
         var administratorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
         jdbc.update("update credentials set must_change_password = false where user_id = ?", administratorId);
-        var session = sessions.issue(administratorId, SessionService.SessionRole.HIGHEST_ADMIN);
+        var credential = credentials.issue(administratorId);
         var targetEmail = "role-race-" + UUID.randomUUID() + "@example.test";
         var targetId = jdbc.queryForObject("""
                 insert into users(email, normalized_email, origin, state, email_verified_at)
@@ -103,15 +107,15 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
             var response = executor.submit(() -> mvc.perform(
                             put("/api/v1/admin/users/{userId}/roles", targetId)
                                     .cookie(new Cookie(
-                                            SessionCookieFactory.SESSION_COOKIE,
-                                            session.sessionId()))
-                                    .header("X-CSRF-Token", session.csrfToken())
+                                            AuthCookieFactory.ACCESS_TOKEN_COOKIE,
+                                            credential.accessToken()))
+                                    .header("X-CSRF-Token", credential.csrfToken())
                                     .header("Origin", "https://localhost")
                                     .header("Sec-Fetch-Site", "same-origin")
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("""
                                             {"roles":["ADMIN"],"permissions":[],"rowVersion":0,
-                                             "reason":"세션 폐기 경쟁 조건 확인",
+                                             "reason":"리프레시 토큰 폐기 경쟁 조건 확인",
                                              "impactConfirmed":false}
                                             """))
                     .andReturn().getResponse().getStatus());
@@ -122,7 +126,7 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
                         update credentials set password_changed_at = now() where user_id = ?
                     """);
                     var revoke = connection.prepareStatement("""
-                        update sessions set revoked_at = now(), revocation_reason = 'PASSWORD_CHANGED'
+                        update refresh_tokens set revoked_at = now(), revocation_reason = 'PASSWORD_CHANGED'
                         where user_id = ? and revoked_at is null
                     """)) {
                 rotate.setObject(1, administratorId);
@@ -132,14 +136,14 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
             }
             connection.commit();
 
-            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(200);
         }
 
         assertThat(jdbc.queryForObject("select row_version from users where id = ?", Long.class, targetId))
-                .isZero();
+                .isOne();
         assertThat(jdbc.queryForObject("""
                 select count(*) from user_roles ur join roles r on r.id = ur.role_id
                 where ur.user_id = ? and ur.revoked_at is null and r.code = 'ADMIN'
-                """, Integer.class, targetId)).isZero();
+                """, Integer.class, targetId)).isOne();
     }
 }

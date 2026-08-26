@@ -1,11 +1,12 @@
 package ai.civic.mainauth.account;
 
 import ai.civic.mainauth.auth.AuthenticationFlowService;
+import ai.civic.mainauth.auth.AuthCookieFactory;
+import ai.civic.mainauth.auth.AuthenticatedUserService;
+import ai.civic.mainauth.auth.AuthorizationException;
 import ai.civic.mainauth.auth.BrowserRequestPolicy;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.auth.CsrfService;
-import ai.civic.mainauth.auth.SessionCookieFactory;
-import ai.civic.mainauth.auth.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import java.util.UUID;
@@ -25,23 +26,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/account")
 public class AccountController {
-    private final SessionService sessions;
+    private final AuthenticatedUserService authenticatedUsers;
     private final CsrfService csrf;
     private final BrowserRequestPolicy browser;
     private final AccountProfileService profiles;
     private final AuthenticationFlowService authentication;
     private final AccountLifecycleService lifecycle;
-    private final SessionCookieFactory cookies;
+    private final AuthCookieFactory cookies;
 
     public AccountController(
-            SessionService sessions,
+            AuthenticatedUserService authenticatedUsers,
             CsrfService csrf,
             BrowserRequestPolicy browser,
             AccountProfileService profiles,
             AuthenticationFlowService authentication,
             AccountLifecycleService lifecycle,
-            SessionCookieFactory cookies) {
-        this.sessions = sessions;
+            AuthCookieFactory cookies) {
+        this.authenticatedUsers = authenticatedUsers;
         this.csrf = csrf;
         this.browser = browser;
         this.profiles = profiles;
@@ -52,100 +53,108 @@ public class AccountController {
 
     @GetMapping("/profile")
     ResponseEntity<AccountProfileService.AccountProfile> profile(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         browser.rejectPublicAuthorization(authorization);
+        var user = authenticatedUsers.require(accessToken);
+        requireCompletedPasswordRotation(user);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate())
-                .body(profiles.get(sessions.require(sessionId)));
+                .body(profiles.get(user));
     }
 
     @PatchMapping("/profile")
     AccountProfileService.AccountProfile updateProfile(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @RequestBody ProfileUpdate body,
             HttpServletRequest request) {
-        var session = requireMutation(sessionId, csrfToken, request);
-        return profiles.update(
-                sessionId, session, body.preferredLanguage(), body.ragAnswerDetail());
+        var user = requireMutation(accessToken, csrfToken, request);
+        requireCompletedPasswordRotation(user);
+        return profiles.update(user, body.preferredLanguage(), body.ragAnswerDetail());
     }
 
     @PutMapping("/password")
     ResponseEntity<Void> changePassword(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @RequestBody PasswordChange body,
             HttpServletRequest request) {
-        var session = requireMutation(sessionId, csrfToken, request);
-        authentication.changePassword(
-                sessionId, session.userId(), body.currentPassword(), body.newPassword());
+        var user = requireMutation(accessToken, csrfToken, request);
+        authentication.changePassword(user.userId(), body.currentPassword(), body.newPassword());
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
                 .build();
     }
 
     @PostMapping("/2fa/enable")
     ResponseEntity<?> enableTwoFactor(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
-            @CookieValue(value = SessionCookieFactory.AUTH_FLOW_COOKIE, required = false) String authFlow,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
+            @CookieValue(value = AuthCookieFactory.AUTH_FLOW_COOKIE, required = false) String authFlow,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @RequestBody CodeBody body,
             HttpServletRequest request) {
-        var session = requireMutation(sessionId, csrfToken, request);
+        var user = requireMutation(accessToken, csrfToken, request);
+        requireCompletedPasswordRotation(user);
         if (authFlow == null) {
-            var profile = profiles.get(session);
-            var flow = authentication.requestTwoFactorEnable(
-                    sessionId, session.userId(), profile.email());
+            var profile = profiles.get(user);
+            var flow = authentication.requestTwoFactorEnable(user.userId(), profile.email());
             return ResponseEntity.accepted()
                     .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString())
                     .body(Map.of("next", "EMAIL_CODE"));
         }
-        authentication.enableTwoFactor(
-                sessionId, session.userId(), UUID.fromString(authFlow), body.code());
+        authentication.enableTwoFactor(user.userId(), UUID.fromString(authFlow), body.code());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
     }
 
     @PostMapping("/2fa/disable")
     ResponseEntity<Void> disableTwoFactor(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @RequestBody PasswordConfirmation body,
             HttpServletRequest request) {
-        var session = requireMutation(sessionId, csrfToken, request);
-        authentication.disableTwoFactor(sessionId, session.userId(), body.password());
+        var user = requireMutation(accessToken, csrfToken, request);
+        requireCompletedPasswordRotation(user);
+        authentication.disableTwoFactor(user.userId(), body.password());
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
                 .build();
     }
 
     @PostMapping("/deactivate")
     ResponseEntity<Void> deactivate(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @RequestBody PasswordConfirmation body,
             HttpServletRequest request) {
-        var session = requireMutation(sessionId, csrfToken, request);
-        lifecycle.deactivateSelf(
-                sessionId, session.userId(), session.userId(), body.password());
+        var user = requireMutation(accessToken, csrfToken, request);
+        requireCompletedPasswordRotation(user);
+        lifecycle.deactivateSelf(user.userId(), user.userId(), body.password());
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthenticated().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
                 .build();
     }
 
-    private SessionService.SessionView requireMutation(
-            String sessionId, String csrfToken, HttpServletRequest request) {
-        var session = sessions.require(sessionId);
-        if (!csrf.matches(sessionId, csrfToken)) throw new BrowserRequestRejectedException("CSRF token is invalid");
+    private AuthenticatedUserService.AuthenticatedUser requireMutation(
+            String accessToken, String csrfToken, HttpServletRequest request) {
+        var user = authenticatedUsers.require(accessToken);
+        if (!csrf.matches(user, csrfToken)) throw new BrowserRequestRejectedException("CSRF token is invalid");
         browser.requireAuthenticatedMutation(new BrowserRequestPolicy.RequestMetadata(
                 request.getMethod(), request.getHeader(HttpHeaders.ORIGIN),
                 request.getHeader("Sec-Fetch-Site"), request.getContentType(),
                 request.getHeader(HttpHeaders.AUTHORIZATION)), csrfToken, csrfToken);
-        return session;
+        return user;
+    }
+
+    private void requireCompletedPasswordRotation(
+            AuthenticatedUserService.AuthenticatedUser user) {
+        if (user.mustChangePassword()) {
+            throw new AuthorizationException("Password rotation is required");
+        }
     }
 
     record ProfileUpdate(String preferredLanguage, String ragAnswerDetail) {}

@@ -47,6 +47,16 @@ public final class Rs256KeyRing {
         return active;
     }
 
+    public RSAKey verificationKey(String keyId) {
+        if (keyId == null || keyId.isBlank()) return null;
+        if (keyId.equals(active.getKeyID())) return active.toPublicJWK();
+        return retiring.stream()
+                .filter(key -> keyId.equals(key.getKeyID()))
+                .findFirst()
+                .map(RSAKey::toPublicJWK)
+                .orElse(null);
+    }
+
     public JWKSet publicJwks() {
         var keys = new ArrayList<com.nimbusds.jose.jwk.JWK>();
         retiring.forEach(key -> keys.add(publicSigningKey(key)));

@@ -1,7 +1,7 @@
 package ai.civic.mainauth.feature;
 
 import ai.civic.mainauth.admin.AdminAuthorizationService;
-import ai.civic.mainauth.auth.SessionCookieFactory;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -24,8 +24,8 @@ public class FeatureGateController {
 
     @GetMapping
     public Map<String, GateView> list(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId) {
-        authorization.requireAdmin(sessionId, false);
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken) {
+        authorization.requireAdmin(accessToken, false);
         var result = new LinkedHashMap<String, GateView>();
         jdbc.query("""
                 select gate_key, enabled from feature_gates order by gate_key

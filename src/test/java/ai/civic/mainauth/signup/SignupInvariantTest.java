@@ -80,7 +80,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
                 .containsEntry("ACCOUNT_RAG_PRIVACY", false);
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
         assertThat(count("credentials", "true")).isOne(); // bootstrap credential only
-        assertThat(count("sessions", "true")).isZero();
+        assertThat(count("refresh_tokens", "true")).isZero();
     }
 
     @Test
@@ -156,7 +156,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
 
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
         assertThat(count("notification_outbox", "true")).isZero();
-        assertThat(count("sessions", "true")).isZero();
+        assertThat(count("refresh_tokens", "true")).isZero();
     }
 
     @Test
@@ -171,7 +171,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("consent_evidence", "accepted")).isEqualTo(2);
         assertThat(count("notification_outbox", "event_type = 'SIGNUP_EMAIL_VERIFICATION'"))
                 .isOne();
-        assertThat(count("sessions", "true")).isZero();
+        assertThat(count("refresh_tokens", "true")).isZero();
     }
 
     @Test

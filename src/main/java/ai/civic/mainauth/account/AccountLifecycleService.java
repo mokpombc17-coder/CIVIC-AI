@@ -2,7 +2,7 @@ package ai.civic.mainauth.account;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.auth.AuthenticationException;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.RefreshTokenService;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -12,27 +12,23 @@ import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 @Service
 public class AccountLifecycleService {
     private final JdbcTemplate jdbc;
-    private final SessionService sessions;
+    private final RefreshTokenService refreshTokens;
     private final Argon2PasswordEncoder passwords =
             Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
 
-    public AccountLifecycleService(JdbcTemplate jdbc, SessionService sessions) {
+    public AccountLifecycleService(JdbcTemplate jdbc, RefreshTokenService refreshTokens) {
         this.jdbc = jdbc;
-        this.sessions = sessions;
+        this.refreshTokens = refreshTokens;
     }
 
     @Transactional
     public void deactivateSelf(
-            String sessionId, UUID actorId, UUID subjectId, String password) {
+            UUID actorId, UUID subjectId, String password) {
         if (actorId == null || !actorId.equals(subjectId)) {
             throw new AdminPolicyException("Account deactivation is self-service only");
         }
         lockHighestAdminLifecycleChanges();
         verifyPasswordUnderUserLock(subjectId, password);
-        var currentSession = sessions.requireLocked(sessionId);
-        if (!subjectId.equals(currentSession.userId())) {
-            throw new AuthenticationException("Email or password is invalid");
-        }
         deactivate(actorId, subjectId, "SELF_DEACTIVATION");
     }
 
@@ -68,7 +64,7 @@ public class AccountLifecycleService {
                 update auth_challenges set consumed_at = now()
                 where user_id = ? and consumed_at is null
                 """, subjectId);
-        sessions.revokeAll(subjectId, "ACCOUNT_DEACTIVATED");
+        refreshTokens.revokeAll(subjectId, "ACCOUNT_DEACTIVATED");
         jdbc.update("""
                 insert into account_state_outbox(user_id, account_state_version, state, event_payload)
                 select id, account_state_version, 'DEACTIVATED',
