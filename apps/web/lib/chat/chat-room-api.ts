@@ -29,6 +29,9 @@ import {
   roomMembershipListResponseSchema,
   roomMembershipSchema,
   roomReadReceiptStateResponseSchema,
+  roomCreationRequestIdSchema,
+  roomCreationRequestListResponseSchema,
+  roomCreationRequestResponseSchema,
   targetMembershipRequestSchema,
   transferRoomOwnershipResponseSchema,
   unbanRoomMemberResponseSchema,
@@ -61,6 +64,8 @@ import {
   type RoomMessageSearchRequest,
   type RoomMessageSearchResponse,
   type RoomReadReceiptStateResponse,
+  type RoomCreationRequestListResponse,
+  type RoomCreationRequestResponse,
   type TargetMembershipRequest,
   type TransferRoomOwnershipResponse,
   type UnbanRoomMemberResponse,
@@ -112,6 +117,15 @@ export type ChatRoomApi = Readonly<{
   getRoom(roomId: string): Promise<RoomDetails>;
   getMyMembership(roomId: string): Promise<RoomMembership>;
   listMyRooms(params?: CursorPaginationParams): Promise<MyRoomListResponse>;
+  listMyRoomCreationRequests(
+    params?: CursorPaginationParams,
+    signal?: AbortSignal,
+  ): Promise<RoomCreationRequestListResponse>;
+  getMyRoomCreationRequest(
+    creationRequestId: string,
+    signal?: AbortSignal,
+  ): Promise<RoomCreationRequestResponse>;
+  cancelMyRoomCreationRequest(creationRequestId: string): Promise<RoomCreationRequestResponse>;
   listRoomInbox(params?: RoomInboxListParams): Promise<RoomInboxListResponse>;
   updateRoomReadState(
     roomId: string,
@@ -286,6 +300,36 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
       );
     },
 
+    async listMyRoomCreationRequests(params = {}, signal) {
+      return requestAndParse(
+        request,
+        "내 방 생성 신청 목록 응답",
+        roomCreationRequestListResponseSchema,
+        createListPath("/me/room-creation-requests", cursorPaginationParamsSchema.parse(params)),
+        signal ? { signal } : undefined,
+      );
+    },
+
+    async getMyRoomCreationRequest(creationRequestId, signal) {
+      return requestAndParse(
+        request,
+        "내 방 생성 신청 상세 응답",
+        roomCreationRequestResponseSchema,
+        createMyRoomCreationRequestPath(creationRequestId),
+        signal ? { signal } : undefined,
+      );
+    },
+
+    async cancelMyRoomCreationRequest(creationRequestId) {
+      return requestAndParse(
+        request,
+        "내 방 생성 신청 취소 응답",
+        roomCreationRequestResponseSchema,
+        `${createMyRoomCreationRequestPath(creationRequestId)}/cancel`,
+        { method: "POST" },
+      );
+    },
+
     async listRoomInbox(params = {}) {
       return requestAndParse(
         request,
@@ -415,6 +459,11 @@ function createCommandHeaders(idempotencyKey: string, hasBody = false): Headers 
 
 function createRoomPath(roomId: string): string {
   return `/rooms/${roomIdSchema.parse(roomId)}`;
+}
+
+function createMyRoomCreationRequestPath(creationRequestId: string): string {
+  const parsedCreationRequestId = roomCreationRequestIdSchema.parse(creationRequestId);
+  return `/me/room-creation-requests/${encodeURIComponent(parsedCreationRequestId)}`;
 }
 
 function createMessageHistoryPath(

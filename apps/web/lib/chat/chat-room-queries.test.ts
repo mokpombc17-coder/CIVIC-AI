@@ -9,6 +9,8 @@ import {
   flattenRoomMessageSearchPages,
   getNextRoomInboxPageParam,
   getRoomInboxRetryDelay,
+  myRoomCreationRequestQueryOptions,
+  myRoomCreationRequestsInfiniteQueryOptions,
   myRoomMembershipQueryOptions,
   myRoomsInfiniteQueryOptions,
   publicRoomsInfiniteQueryOptions,
@@ -234,6 +236,52 @@ describe("chat room query options", () => {
 
     expect(options.queryKey).toEqual(chatRoomQueryKeys.myList(20));
     expect(listMyRooms).toHaveBeenCalledWith({ limit: 20 });
+  });
+
+  it("내 방 생성 신청 이력은 전용 key와 서버 cursor 순서를 사용한다", async () => {
+    const listMyRoomCreationRequests = vi.fn(async () => ({
+      items: [PENDING_ROOM_CREATION_RESPONSE],
+      nextCursor: "creation cursor",
+      hasNext: true,
+    }));
+    const options = myRoomCreationRequestsInfiniteQueryOptions({}, { listMyRoomCreationRequests });
+
+    await createQueryClient().fetchInfiniteQuery(options);
+
+    expect(options.queryKey).toEqual(chatRoomQueryKeys.creationRequestList(20));
+    expect(listMyRoomCreationRequests).toHaveBeenCalledWith({ limit: 20 }, expect.any(AbortSignal));
+    expect(
+      options.getNextPageParam?.(
+        {
+          items: [],
+          nextCursor: "creation cursor",
+          hasNext: true,
+        },
+        [],
+        null,
+        [],
+      ),
+    ).toBe("creation cursor");
+  });
+
+  it("내 방 생성 신청 상세를 신청 ID별 cache로 조회한다", async () => {
+    const getMyRoomCreationRequest = vi.fn(async () => PENDING_ROOM_CREATION_RESPONSE);
+    const options = myRoomCreationRequestQueryOptions("creation-request-01", {
+      getMyRoomCreationRequest,
+    });
+
+    await createQueryClient().fetchQuery(options);
+
+    expect(options.queryKey).toEqual(
+      chatRoomQueryKeys.creationRequestDetail("creation-request-01"),
+    );
+    expect(getMyRoomCreationRequest).toHaveBeenCalledWith(
+      "creation-request-01",
+      expect.any(AbortSignal),
+    );
+    expect(chatRoomQueryKeys.creationRequestDetail("creation-request-01")).not.toEqual(
+      chatRoomQueryKeys.creationRequestDetail("creation-request-02"),
+    );
   });
 
   it("Room inbox는 전용 key와 최대 limit 20을 사용한다", async () => {
@@ -672,6 +720,21 @@ const PUBLIC_ROOM_ITEM = {
   activeMemberCount: 1,
   createdAt: "2026-08-06T00:00:00Z",
   version: 1,
+};
+
+const PENDING_ROOM_CREATION_RESPONSE = {
+  clientRequestId: "07af9111-3e20-43e5-ae80-78d1bf547647",
+  code: "ROOM_CREATION_REQUESTED" as const,
+  replayed: false,
+  creationRequestId: "creation-request-01",
+  status: "PENDING" as const,
+  requestedAt: "2026-08-25T07:00:00Z",
+  resolvedAt: null,
+  roomId: null,
+  ownerMembershipId: null,
+  roomVersion: null,
+  ownerMembershipVersion: null,
+  rejectionReason: null,
 };
 
 const EMPTY_PAGE = {

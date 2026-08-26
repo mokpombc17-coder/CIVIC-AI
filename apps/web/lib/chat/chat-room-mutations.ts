@@ -43,7 +43,43 @@ export function createRoomMutationOptions(
     mutationKey: [...chatRoomQueryKeys.all, "command", "create"] as const,
     mutationFn: (command: IdempotentCommand<CreateRoomRequest>) => api.createRoom(command),
     retry: false,
-    onSuccess: () => invalidateRoomLists(queryClient),
+    onSuccess: async (response) => {
+      queryClient.setQueryData(
+        chatRoomQueryKeys.creationRequestDetail(response.creationRequestId),
+        response,
+      );
+
+      const requestListInvalidation = queryClient.invalidateQueries({
+        queryKey: chatRoomQueryKeys.creationRequestLists(),
+      });
+
+      if (response.status !== "APPROVED") {
+        await requestListInvalidation;
+        return;
+      }
+
+      await Promise.all([requestListInvalidation, invalidateRoomLists(queryClient)]);
+    },
+  });
+}
+
+export function cancelRoomCreationRequestMutationOptions(
+  queryClient: QueryClient,
+  api: Pick<ChatRoomApi, "cancelMyRoomCreationRequest"> = chatRoomApi,
+) {
+  return mutationOptions({
+    mutationKey: [...chatRoomQueryKeys.creationRequests(), "command", "cancel"] as const,
+    mutationFn: (creationRequestId: string) => api.cancelMyRoomCreationRequest(creationRequestId),
+    retry: false,
+    onSuccess: async (response) => {
+      queryClient.setQueryData(
+        chatRoomQueryKeys.creationRequestDetail(response.creationRequestId),
+        response,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: chatRoomQueryKeys.creationRequestLists(),
+      });
+    },
   });
 }
 
@@ -161,6 +197,11 @@ export function updateRoomReadStateMutationOptions(
 export function useCreateRoomMutation() {
   const queryClient = useQueryClient();
   return useMutation(createRoomMutationOptions(queryClient));
+}
+
+export function useCancelRoomCreationRequestMutation() {
+  const queryClient = useQueryClient();
+  return useMutation(cancelRoomCreationRequestMutationOptions(queryClient));
 }
 
 export function useUpdateRoomSettingsMutation() {

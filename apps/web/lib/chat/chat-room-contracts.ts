@@ -289,6 +289,8 @@ export const roomCreationRequestStatusSchema = z.enum([
   "CANCELED",
 ]);
 
+export const roomCreationRequestIdSchema = opaqueIdSchema;
+
 export const roomCreationRejectionReasonSchema = z
   .string()
   .min(1, "방 생성 반려 사유는 비어 있을 수 없습니다.")
@@ -364,6 +366,9 @@ export const roomCreationRequestResponseSchema = z.discriminatedUnion("status", 
 ]);
 
 export const createRoomResponseSchema = roomCreationRequestResponseSchema;
+export const roomCreationRequestListResponseSchema = createCursorPageSchema(
+  roomCreationRequestResponseSchema,
+);
 
 export const updateRoomSettingsResponseSchema = commandResponseBaseSchema.extend({
   code: z.enum(["ROOM_SETTINGS_UPDATED", "ROOM_SETTINGS_UNCHANGED"]),
@@ -776,6 +781,7 @@ export type UpdateRoomSettingsRequest = z.input<typeof updateRoomSettingsRequest
 export type TargetMembershipRequest = z.infer<typeof targetMembershipRequestSchema>;
 export type RoomCreationRequestStatus = z.infer<typeof roomCreationRequestStatusSchema>;
 export type RoomCreationRequestResponse = z.infer<typeof roomCreationRequestResponseSchema>;
+export type RoomCreationRequestListResponse = z.infer<typeof roomCreationRequestListResponseSchema>;
 export type CreateRoomResponse = z.infer<typeof createRoomResponseSchema>;
 export type UpdateRoomSettingsResponse = z.infer<typeof updateRoomSettingsResponseSchema>;
 export type JoinRoomResponse = z.infer<typeof joinRoomResponseSchema>;

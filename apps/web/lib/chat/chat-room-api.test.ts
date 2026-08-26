@@ -5,7 +5,7 @@ import { ChatRestContractError, createChatRoomApi } from "./chat-room-api";
 const IDEMPOTENCY_KEY = "07af9111-3e20-43e5-ae80-78d1bf547647";
 
 describe("chatRoomApi queries", () => {
-  it("공개 방, 내 방, inbox, 상세, 내 멤버십과 멤버 목록 경로를 구성한다", async () => {
+  it("Room과 내 생성 신청 query·취소 경로를 구성한다", async () => {
     const { calls, request } = createQueuedChatFetch(
       {
         items: [PUBLIC_ROOM],
@@ -17,6 +17,13 @@ describe("chatRoomApi queries", () => {
         nextCursor: null,
         hasNext: false,
       },
+      {
+        items: [PENDING_ROOM_CREATION_RESPONSE],
+        nextCursor: "creation cursor",
+        hasNext: true,
+      },
+      PENDING_ROOM_CREATION_RESPONSE,
+      CANCELED_ROOM_CREATION_RESPONSE,
       {
         items: [ROOM_INBOX_ITEM],
         nextCursor: "membership-01",
@@ -32,6 +39,7 @@ describe("chatRoomApi queries", () => {
     );
     const api = createChatRoomApi(request);
     const publicRoomsAbortController = new AbortController();
+    const creationRequestsAbortController = new AbortController();
 
     await api.listPublicRooms(
       {
@@ -44,6 +52,18 @@ describe("chatRoomApi queries", () => {
       publicRoomsAbortController.signal,
     );
     await api.listMyRooms({ limit: 100 });
+    await api.listMyRoomCreationRequests(
+      {
+        cursor: "request cursor",
+        limit: 20,
+      },
+      creationRequestsAbortController.signal,
+    );
+    await api.getMyRoomCreationRequest(
+      "creation/request 01",
+      creationRequestsAbortController.signal,
+    );
+    await api.cancelMyRoomCreationRequest("creation/request 01");
     await api.listRoomInbox({
       cursor: "inbox cursor",
       limit: 20,
@@ -59,13 +79,18 @@ describe("chatRoomApi queries", () => {
     expect(calls.map(({ path }) => path)).toEqual([
       "/rooms?joinPolicy=OPEN&query=%EA%B5%90%ED%86%B5+%26+%ED%99%98%EA%B2%BD&category=LOCAL_ISSUE&cursor=public+cursor&limit=20",
       "/me/rooms?limit=100",
+      "/me/room-creation-requests?cursor=request+cursor&limit=20",
+      "/me/room-creation-requests/creation%2Frequest%2001",
+      "/me/room-creation-requests/creation%2Frequest%2001/cancel",
       "/me/room-inbox?cursor=inbox+cursor&limit=20",
       "/rooms/room-01",
       "/rooms/room-01/memberships/me",
       "/rooms/room-01/memberships?status=BANNED&cursor=member+cursor&limit=10",
     ]);
     expect(calls[0]?.init?.signal).toBe(publicRoomsAbortController.signal);
-    expect(calls.slice(1).every(({ init }) => init === undefined)).toBe(true);
+    expect(calls[2]?.init?.signal).toBe(creationRequestsAbortController.signal);
+    expect(calls[3]?.init?.signal).toBe(creationRequestsAbortController.signal);
+    expect(calls[4]?.init).toEqual({ method: "POST" });
   });
 
   it("응답이 계약과 다르면 endpoint 문맥을 가진 오류를 반환한다", async () => {
@@ -93,6 +118,9 @@ describe("chatRoomApi queries", () => {
     await expect(api.listPublicRooms({ query: "교통\n정책" })).rejects.toThrow();
     await expect(api.listPublicRooms({ category: "UNKNOWN" as never })).rejects.toThrow();
     await expect(api.listRoomInbox({ limit: 21 })).rejects.toThrow();
+    await expect(api.listMyRoomCreationRequests({ limit: 101 })).rejects.toThrow();
+    await expect(api.getMyRoomCreationRequest("")).rejects.toThrow();
+    await expect(api.cancelMyRoomCreationRequest("")).rejects.toThrow();
     await expect(api.getRoom("invalid room")).rejects.toThrow("roomId 형식이 올바르지 않습니다.");
     expect(calls).toHaveLength(0);
   });
@@ -626,6 +654,28 @@ const MEMBERSHIP_LIST_ITEM = {
   leftAt: null,
   bannedAt: null,
   version: 1,
+};
+
+const PENDING_ROOM_CREATION_RESPONSE = {
+  clientRequestId: IDEMPOTENCY_KEY,
+  code: "ROOM_CREATION_REQUESTED",
+  replayed: false,
+  creationRequestId: "creation-request-01",
+  status: "PENDING",
+  requestedAt: "2026-08-25T07:00:00Z",
+  resolvedAt: null,
+  roomId: null,
+  ownerMembershipId: null,
+  roomVersion: null,
+  ownerMembershipVersion: null,
+  rejectionReason: null,
+};
+
+const CANCELED_ROOM_CREATION_RESPONSE = {
+  ...PENDING_ROOM_CREATION_RESPONSE,
+  code: "ROOM_CREATION_CANCELED",
+  status: "CANCELED",
+  resolvedAt: "2026-08-25T07:01:00Z",
 };
 
 const CREATE_ROOM_RESPONSE = {

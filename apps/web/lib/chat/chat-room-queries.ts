@@ -29,6 +29,7 @@ import type {
   RoomInboxListResponse,
   RoomMembershipListItem,
   RoomMessageSearchResponse,
+  RoomCreationRequestResponse,
 } from "./chat-room-contracts";
 
 const DEFAULT_LIST_LIMIT = 20;
@@ -112,6 +113,13 @@ export const chatRoomQueryKeys = {
     [...chatRoomQueryKeys.publicLists(), criteria] as const,
   myLists: () => [...chatRoomQueryKeys.all, "my-list"] as const,
   myList: (limit: number) => [...chatRoomQueryKeys.myLists(), { limit }] as const,
+  creationRequests: () => [...chatRoomQueryKeys.all, "creation-request"] as const,
+  creationRequestLists: () => [...chatRoomQueryKeys.creationRequests(), "list"] as const,
+  creationRequestList: (limit: number) =>
+    [...chatRoomQueryKeys.creationRequestLists(), { limit }] as const,
+  creationRequestDetails: () => [...chatRoomQueryKeys.creationRequests(), "detail"] as const,
+  creationRequestDetail: (creationRequestId: string) =>
+    [...chatRoomQueryKeys.creationRequestDetails(), creationRequestId] as const,
   roomInboxes: () => [...chatRoomQueryKeys.all, "room-inbox"] as const,
   roomInbox: (limit: number) => [...chatRoomQueryKeys.roomInboxes(), { limit }] as const,
   details: () => [...chatRoomQueryKeys.all, "detail"] as const,
@@ -211,6 +219,35 @@ export function myRoomsInfiniteQueryOptions(
         ...(pageParam === null ? {} : { cursor: pageParam }),
       }),
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.nextCursor : null),
+  });
+}
+
+export function myRoomCreationRequestsInfiniteQueryOptions(
+  { limit = DEFAULT_LIST_LIMIT }: ChatRoomListQueryParams = {},
+  api: Pick<ChatRoomApi, "listMyRoomCreationRequests"> = chatRoomApi,
+) {
+  return infiniteQueryOptions({
+    queryKey: chatRoomQueryKeys.creationRequestList(limit),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      api.listMyRoomCreationRequests(
+        {
+          limit,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+        },
+        signal,
+      ),
+    getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.nextCursor : null),
+  });
+}
+
+export function myRoomCreationRequestQueryOptions(
+  creationRequestId: string,
+  api: Pick<ChatRoomApi, "getMyRoomCreationRequest"> = chatRoomApi,
+) {
+  return queryOptions({
+    queryKey: chatRoomQueryKeys.creationRequestDetail(creationRequestId),
+    queryFn: ({ signal }) => api.getMyRoomCreationRequest(creationRequestId, signal),
   });
 }
 
@@ -483,6 +520,23 @@ export function useMyRoomsQuery(params: ChatRoomListQueryParams = {}) {
     ...query,
     rooms,
   };
+}
+
+export function useMyRoomCreationRequestsQuery(params: ChatRoomListQueryParams = {}) {
+  const query = useInfiniteQuery(myRoomCreationRequestsInfiniteQueryOptions(params));
+  const requests = useMemo(
+    () => flattenRoomListPages<RoomCreationRequestResponse>(query.data?.pages),
+    [query.data?.pages],
+  );
+
+  return {
+    ...query,
+    requests,
+  };
+}
+
+export function useMyRoomCreationRequestQuery(creationRequestId: string) {
+  return useQuery(myRoomCreationRequestQueryOptions(creationRequestId));
 }
 
 export function useRoomInboxQuery(params: ChatRoomListQueryParams = {}) {

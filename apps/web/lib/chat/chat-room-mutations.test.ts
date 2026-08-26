@@ -2,6 +2,7 @@ import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { ChatApiError } from "./chat-fetch";
 import {
+  cancelRoomCreationRequestMutationOptions,
   createRoomMutationOptions,
   joinRoomMutationOptions,
   transferRoomOwnershipMutationOptions,
@@ -17,7 +18,7 @@ const PUBLIC_LIST_KEY = chatRoomQueryKeys.publicList({
 });
 
 describe("chat room mutation options", () => {
-  it("방 생성 성공 시 공개 방과 내 방 목록만 무효화한다", async () => {
+  it("승인된 방 생성은 Room 목록과 신청 이력을 무효화하고 신청 상세를 저장한다", async () => {
     const queryClient = createQueryClient();
     seedRoomQueries(queryClient);
     const createRoom = vi.fn(async () => CREATE_ROOM_RESPONSE);
@@ -40,7 +41,64 @@ describe("chat room mutation options", () => {
     expect(createRoom).toHaveBeenCalledWith(command);
     expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(true);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(true);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.creationRequestList(20))).toBe(true);
+    expect(
+      queryClient.getQueryData(
+        chatRoomQueryKeys.creationRequestDetail(CREATE_ROOM_RESPONSE.creationRequestId),
+      ),
+    ).toEqual(CREATE_ROOM_RESPONSE);
     expect(isInvalidated(queryClient, chatRoomQueryKeys.detail("room-01"))).toBe(false);
+  });
+
+  it("승인 대기 생성은 신청 cache만 갱신하고 실제 Room 목록은 유지한다", async () => {
+    const queryClient = createQueryClient();
+    seedRoomQueries(queryClient);
+    const createRoom = vi.fn(async () => PENDING_ROOM_CREATION_RESPONSE);
+    const observer = new MutationObserver(
+      queryClient,
+      createRoomMutationOptions(queryClient, { createRoom }),
+    );
+
+    await observer.mutate({
+      idempotencyKey: IDEMPOTENCY_KEY,
+      body: {
+        name: "승인 대기 방",
+        categories: ["POLICY"],
+        visibility: "LISTED",
+        joinPolicy: "OPEN",
+      },
+    });
+
+    expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(false);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(false);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.creationRequestList(20))).toBe(true);
+    expect(
+      queryClient.getQueryData(
+        chatRoomQueryKeys.creationRequestDetail(PENDING_ROOM_CREATION_RESPONSE.creationRequestId),
+      ),
+    ).toEqual(PENDING_ROOM_CREATION_RESPONSE);
+  });
+
+  it("신청 취소 성공은 상세 cache를 교체하고 신청 이력만 무효화한다", async () => {
+    const queryClient = createQueryClient();
+    seedRoomQueries(queryClient);
+    const cancelMyRoomCreationRequest = vi.fn(async () => CANCELED_ROOM_CREATION_RESPONSE);
+    const observer = new MutationObserver(
+      queryClient,
+      cancelRoomCreationRequestMutationOptions(queryClient, {
+        cancelMyRoomCreationRequest,
+      }),
+    );
+
+    await observer.mutate("creation-request-01");
+
+    expect(cancelMyRoomCreationRequest).toHaveBeenCalledWith("creation-request-01");
+    expect(
+      queryClient.getQueryData(chatRoomQueryKeys.creationRequestDetail("creation-request-01")),
+    ).toEqual(CANCELED_ROOM_CREATION_RESPONSE);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.creationRequestList(20))).toBe(true);
+    expect(isInvalidated(queryClient, PUBLIC_LIST_KEY)).toBe(false);
+    expect(isInvalidated(queryClient, chatRoomQueryKeys.myList(20))).toBe(false);
   });
 
   it.each([
@@ -293,6 +351,7 @@ function createQueryClient(): QueryClient {
 function seedRoomQueries(queryClient: QueryClient): void {
   queryClient.setQueryData(PUBLIC_LIST_KEY, "public");
   queryClient.setQueryData(chatRoomQueryKeys.myList(20), "my");
+  queryClient.setQueryData(chatRoomQueryKeys.creationRequestList(20), "creation-requests");
   queryClient.setQueryData(chatRoomQueryKeys.detail("room-01"), "detail");
   queryClient.setQueryData(chatRoomQueryKeys.myMembership("room-01"), "membership");
   queryClient.setQueryData(chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20), "members");
@@ -350,6 +409,28 @@ const CREATE_ROOM_RESPONSE = {
   roomVersion: 1,
   ownerMembershipVersion: 1,
   rejectionReason: null,
+};
+
+const PENDING_ROOM_CREATION_RESPONSE = {
+  clientRequestId: IDEMPOTENCY_KEY,
+  code: "ROOM_CREATION_REQUESTED" as const,
+  replayed: false,
+  creationRequestId: "creation-request-01",
+  status: "PENDING" as const,
+  requestedAt: "2026-08-25T07:00:00Z",
+  resolvedAt: null,
+  roomId: null,
+  ownerMembershipId: null,
+  roomVersion: null,
+  ownerMembershipVersion: null,
+  rejectionReason: null,
+};
+
+const CANCELED_ROOM_CREATION_RESPONSE = {
+  ...PENDING_ROOM_CREATION_RESPONSE,
+  code: "ROOM_CREATION_CANCELED" as const,
+  status: "CANCELED" as const,
+  resolvedAt: "2026-08-25T07:01:00Z",
 };
 
 const UPDATE_ROOM_SETTINGS_RESPONSE = {

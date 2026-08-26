@@ -18,6 +18,7 @@ import {
   publicRoomListResponseSchema,
   roomCategoriesSchema,
   roomCategorySchema,
+  roomCreationRequestListResponseSchema,
   roomDescriptionSchema,
   roomDetailsSchema,
   roomIdSchema,
@@ -278,6 +279,38 @@ describe("chat room REST contracts", () => {
     ).toBe(false);
     expect(
       createRoomResponseSchema.safeParse(createRejectedResponse("😀".repeat(101))).success,
+    ).toBe(false);
+  });
+
+  it("내 방 생성 신청 목록은 상세 응답과 동일한 item 및 cursor 계약을 사용한다", () => {
+    const pending = createRoomCreationResponse({
+      code: "ROOM_CREATION_REQUESTED",
+      status: "PENDING",
+      resolvedAt: null,
+      roomId: null,
+      ownerMembershipId: null,
+      roomVersion: null,
+      ownerMembershipVersion: null,
+      rejectionReason: null,
+    });
+
+    expect(
+      roomCreationRequestListResponseSchema.parse({
+        items: [pending],
+        nextCursor: "opaque cursor",
+        hasNext: true,
+      }),
+    ).toEqual({
+      items: [pending],
+      nextCursor: "opaque cursor",
+      hasNext: true,
+    });
+    expect(
+      roomCreationRequestListResponseSchema.safeParse({
+        items: [pending],
+        nextCursor: null,
+        hasNext: true,
+      }).success,
     ).toBe(false);
   });
 
