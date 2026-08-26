@@ -20,7 +20,8 @@
 - Access JWT 하나를 Chat, Vote, RAG가 공통으로 사용한다.
 - Refresh Token은 Main/Auth만 처리하며 Resource Server에는 전송되지 않는다.
 - 로그인 수단은 이메일·비밀번호와 계정별 선택적 2FA다.
-- 사용자 고유 ID는 UUID이며 JWT `sub`에 사용된다.
+- 로그인 ID는 이메일이며 JWT `sub`에는 계정에 저장된 이메일이 들어간다.
+- Main/Auth 내부 사용자 ID와 `/me`의 `user_id`는 UUID다.
 
 ## 3. Access JWT 계약
 
@@ -37,7 +38,7 @@
 | Claim | 발급값 |
 | --- | --- |
 | `iss` | 배포 환경의 `CIVIC_ISSUER`와 정확히 같은 URL |
-| `sub` | 이메일이 아닌 사용자 UUID 문자열 |
+| `sub` | 계정에 저장된 로그인 이메일 |
 | `aud` | JSON 배열 `["civic-ai-api"]` |
 | `iat` | epoch seconds 발급 시각 |
 | `exp` | 정확히 `iat + 900`, 즉 15분 |
@@ -179,7 +180,7 @@ Access JWT가 바뀌면 JWT `jti`에 묶인 CSRF 값도 바뀐다. 갱신 뒤 Ma
 1. discovery의 `issuer`와 `jwks_uri`를 읽고 JOSE header를 3절 값에 맞춰 검증하며 허용
    알고리즘을 `RS256`으로 제한한다.
 2. JWT header의 `kid`에 해당하는 RSA public key로 서명을 검증한다.
-3. `iss` exact match, `aud` 배열의 `civic-ai-api`, UUID `sub`, `iat`, `exp`, UUID `jti`,
+3. `iss` exact match, `aud` 배열의 `civic-ai-api`, 이메일 형식의 `sub`, `iat`, `exp`, UUID `jti`,
    문자열 `scope`와 `exp - iat = 900`을 검증한다. `iat`이 검증 시각보다 30초를 초과해
    미래이면 `401`이며 `exp`는 검증 시각보다 이후여야 한다.
 4. `scope`를 공백으로 분리하여 endpoint가 요구하는 scope를 검사한다.
