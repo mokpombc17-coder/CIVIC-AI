@@ -2,6 +2,11 @@ packages:
   - apps/*
   - packages/*
 
+patchedDependencies:
+  # GHSA fixes are assigned to 2.0.3, but that release is not published yet.
+  # Keep malformed ICNS/JXL/HEIF containers bounded until Metro can consume it.
+  image-size@1.2.1: patches/image-size@1.2.1.patch
+
 catalog:
   "@eslint/js": 9.39.5
   "@tailwindcss/postcss": 4.3.3

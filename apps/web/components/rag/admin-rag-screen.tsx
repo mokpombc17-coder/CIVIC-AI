@@ -13,6 +13,8 @@ import { ragScreenPrimaryActions } from "./rag-screen-actions";
 import { AdminRagCrawler } from "./admin-rag-crawler";
 import { AdminRagAnalytics } from "./admin-rag-analytics";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
+import { AuthenticatedResourceFrame } from "@/components/auth/authenticated-resource-frame";
 
 export type Folder = Readonly<{
   folder_id: string;
@@ -771,7 +773,7 @@ export function DocumentInspector({
           </button>
         </header>
         {previewHref ? (
-          <iframe
+          <AuthenticatedResourceFrame
             className="civic-document-preview"
             src={previewHref}
             title={`${filename} 미리보기`}
@@ -827,9 +829,9 @@ export function DocumentInspector({
             처리 상태
           </Link>
           {originalHref ? (
-            <a className="civic-secondary-action" href={originalHref}>
+            <AuthenticatedDownloadLink className="civic-secondary-action" href={originalHref}>
               원본 열기
-            </a>
+            </AuthenticatedDownloadLink>
           ) : null}
           <Link
             className="civic-danger-action"
@@ -1319,11 +1321,11 @@ function DocumentRow({
             보기
           </button>
           {selectedVersionId ? (
-            <a
+            <AuthenticatedDownloadLink
               href={`/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(selectedVersionId)}/original`}
             >
               원본
-            </a>
+            </AuthenticatedDownloadLink>
           ) : null}
           <Link
             href={`/admin/rag/upload?folderId=${encodeURIComponent(folder?.folder_id ?? document.folder_id)}&mode=NEW_VERSION&documentId=${encodeURIComponent(document.document_id)}&versionId=${encodeURIComponent(selectedVersionId)}`}

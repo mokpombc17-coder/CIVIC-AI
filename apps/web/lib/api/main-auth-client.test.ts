@@ -21,6 +21,8 @@ describe("Main/Auth BFF", () => {
       expect(headers.get("origin")).toBe("https://civic.example");
       expect(headers.get("sec-fetch-site")).toBe("same-origin");
       expect(headers.get("authorization")).toBeNull();
+      expect(headers.get("x-real-ip")).toBe("203.0.113.17");
+      expect(headers.get("x-forwarded-for")).toBeNull();
       return new Response(null, { status: 204, headers: upstreamHeaders });
     });
     const proxy = createMainAuthProxy({
@@ -36,6 +38,8 @@ describe("Main/Auth BFF", () => {
           "content-type": "application/json",
           origin: "https://civic.example",
           "sec-fetch-site": "same-origin",
+          "x-forwarded-for": "198.51.100.12, 10.0.0.3",
+          "x-real-ip": "203.0.113.17",
         },
         body: JSON.stringify({ email: "user@example.com", password: "password" }),
       }),
@@ -48,6 +52,37 @@ describe("Main/Auth BFF", () => {
     expect(setCookies).toContain("civic_ai_refresh_token=opaque-refresh");
     expect(setCookies).not.toContain("untrusted=value");
   });
+
+  it.each(["203.0.113.17, 10.0.0.3", "not-an-ip", "203.0.113.999"])(
+    "does not forward an invalid or chained client address: %s",
+    async (clientAddress) => {
+      const requestBackend = vi.fn<typeof fetch>(async (_input, init) => {
+        expect(new Headers(init?.headers).get("x-real-ip")).toBeNull();
+        return new Response(null, { status: 204 });
+      });
+      const proxy = createMainAuthProxy({
+        browserOrigin: "https://civic.example",
+        mainAuthUrl: new URL("http://main-auth.internal:8080"),
+        requestBackend,
+      });
+
+      const response = await proxy(
+        new NextRequest("https://civic.example/api/v1/auth/login", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "https://civic.example",
+            "sec-fetch-site": "same-origin",
+            "x-real-ip": clientAddress,
+          },
+          body: "{}",
+        }),
+        "/api/v1/auth/login",
+      );
+
+      expect(response.status).toBe(204);
+    },
+  );
 
   it("uses the access cookie to obtain CSRF before an authenticated mutation", async () => {
     const calls: Array<{ url: string; headers: Headers }> = [];

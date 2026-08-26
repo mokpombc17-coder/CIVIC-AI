@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAuthenticatedFetch } from "./authenticated-fetch";
+import { createAuthenticatedClient, createAuthenticatedFetch } from "./authenticated-fetch";
 
 describe("createAuthenticatedFetch", () => {
   it("rotates the refresh token and retries a resource request once", async () => {
@@ -76,6 +76,53 @@ describe("createAuthenticatedFetch", () => {
       { status: 200 },
       { status: 200 },
     ]);
+    expect(refreshCalls).toBe(1);
+  });
+
+  it("does not rotate a fresh access token during a resource preflight", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ subject: "user-1" }));
+
+    await expect(createAuthenticatedClient(request).ensureAccessToken()).resolves.toBe(true);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(new URL((request.mock.calls[0]![0] as Request).url).pathname).toBe("/api/v1/auth/me");
+  });
+
+  it("rotates an expired access token during a resource preflight", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(createAuthenticatedClient(request).ensureAccessToken()).resolves.toBe(true);
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(new URL((request.mock.calls[1]![0] as Request).url).pathname).toBe(
+      "/api/v1/auth/refresh",
+    );
+  });
+
+  it("shares one refresh while concurrent resource preflights observe an expired token", async () => {
+    let releaseRefresh: (() => void) | undefined;
+    let refreshCalls = 0;
+    const request = vi.fn<typeof fetch>(async (input) => {
+      const pathname = new URL((input as Request).url).pathname;
+      if (pathname === "/api/v1/auth/me") {
+        return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
+      }
+      refreshCalls += 1;
+      return new Promise<Response>((resolve) => {
+        releaseRefresh = () => resolve(new Response(null, { status: 204 }));
+      });
+    });
+    const client = createAuthenticatedClient(request);
+
+    const first = client.ensureAccessToken();
+    const second = client.ensureAccessToken();
+    await vi.waitFor(() => expect(refreshCalls).toBe(1));
+    releaseRefresh?.();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
     expect(refreshCalls).toBe(1);
   });
 });

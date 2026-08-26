@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
 import { civicProductionServiceConfig } from "@/lib/server/civic-auth/production-service-config";
 import {
@@ -61,6 +62,10 @@ export function createMainAuthProxy(config: MainAuthProxyConfig) {
       "sec-fetch-site": "same-origin",
       "x-request-id": requestId,
     });
+    const clientAddress = request.headers.get("x-real-ip")?.trim();
+    if (clientAddress && isIP(clientAddress)) {
+      headers.set("x-real-ip", clientAddress);
+    }
     if (cookie) headers.set("cookie", cookie);
     const contentType =
       request.headers.get("content-type") ??

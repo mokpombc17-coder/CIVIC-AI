@@ -34,7 +34,9 @@ describe("browser credential boundary", () => {
     expect(source).not.toContain("__Host-civic-session");
     expect(source).not.toContain("/internal/v1/tokens");
     expect(source).not.toContain("localStorage");
-    expect(source).not.toContain('request.headers.get("x-real-ip")');
+    expect(source).toContain('request.headers.get("x-real-ip")');
+    expect(source).toContain("isIP(clientAddress)");
+    expect(source).not.toContain('request.headers.get("x-forwarded-for")');
     expect(source).not.toContain('headers.set("x-civic-client-ip"');
   });
 });

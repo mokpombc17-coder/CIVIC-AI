@@ -7,6 +7,8 @@ import { resolveSiteUrl } from "@/lib/site-url";
 
 const siteUrl = resolveSiteUrl(process.env.SITE_URL);
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   ...(siteUrl ? { metadataBase: siteUrl } : {}),
   title: {

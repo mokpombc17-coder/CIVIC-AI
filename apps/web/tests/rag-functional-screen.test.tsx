@@ -134,8 +134,9 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain('role="dialog"');
-    expect(html).toContain("시민참여 정책.pdf 미리보기");
-    expect(html).toContain("disposition=inline");
+    expect(html).toContain('aria-label="시민참여 정책.pdf 미리보기"');
+    expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
+    expect(html).not.toContain("disposition=inline");
     expect(html).toContain("civic-admin@post-ai.com");
     expect(html).toContain("2026. 8. 21.");
     expect(html).toContain("12쪽");
@@ -174,7 +175,9 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html).toContain(`/versions/${versionId}/preview`);
+    expect(html).toContain('aria-label="정책 안내.docx 미리보기"');
+    expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
+    expect(html).not.toContain(`/versions/${versionId}/preview`);
     expect(html).not.toContain("브라우저 미리보기를 지원하지 않는 형식");
     expect(renderedText(html)).not.toContain(versionId);
   });
@@ -1518,7 +1521,8 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("참조 문서");
     expect(html).toContain("3 / 12");
     expect(html).toContain("읽기 전용");
-    expect(html).toContain("iframe");
+    expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
+    expect(html).not.toContain("iframe");
   });
 
   it.each([

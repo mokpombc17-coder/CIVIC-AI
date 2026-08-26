@@ -20,7 +20,9 @@ describe("read-only immutable citation viewer", () => {
     expect(html).toContain("확대");
     expect(html).toContain("축소");
     expect(html).toContain("참조 문서 닫기");
-    expect(html).toContain("/api/v1/rag/sources/version-1/pages/3");
+    expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
+    expect(html).not.toContain("/api/v1/rag/sources/version-1/pages/3");
+    expect(html).not.toContain("<iframe");
     expect(html).not.toMatch(/\sdownload(?:=|\s|>)/);
     expect(html).not.toContain('target="_blank"');
     expect(html).not.toContain("URL.createObjectURL");

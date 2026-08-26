@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { useState } from "react";
+import { AuthenticatedResourceFrame } from "@/components/auth/authenticated-resource-frame";
 
 type ReadOnlyPdfViewerProps = Readonly<{
   documentTitle: string;
@@ -122,7 +123,10 @@ export function ReadOnlyPdfViewer({
         className="civic-pdf-canvas"
         style={{ "--pdf-zoom": `${zoom / 100}` } as React.CSSProperties}
       >
-        <iframe src={viewerSource} title={`${documentTitle} ${safePage}페이지`} />
+        <AuthenticatedResourceFrame
+          src={viewerSource}
+          title={`${documentTitle} ${safePage}페이지`}
+        />
       </div>
       <p className="civic-reader-note">
         이 화면은 읽기 전용입니다. 원본 저장 기능은 제공하지 않습니다.

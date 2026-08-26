@@ -6,15 +6,24 @@ import {
   requestNativeDownload,
   requestNativeResponse,
 } from "./bridge-client";
+import { ensureAccessToken } from "@/lib/auth/authenticated-fetch";
 
 export const AUTHENTICATED_DOWNLOAD_UNSUPPORTED = "AUTHENTICATED_DOWNLOAD_UNSUPPORTED";
+export const DOWNLOAD_AUTHENTICATION_REQUIRED = "DOWNLOAD_AUTHENTICATION_REQUIRED";
 
-export async function downloadFile(input: {
-  url: string;
-  fileName?: string;
-  mimeType?: string;
-  requiresAuthentication?: boolean;
-}): Promise<void> {
+export async function downloadFile(
+  input: {
+    url: string;
+    fileName?: string;
+    mimeType?: string;
+    requiresAuthentication?: boolean;
+  },
+  authenticate: () => Promise<boolean> = ensureAccessToken,
+): Promise<void> {
+  if (input.requiresAuthentication && !(await authenticate())) {
+    throw new Error(DOWNLOAD_AUTHENTICATION_REQUIRED);
+  }
+
   if (!isNativeShell()) {
     const link = document.createElement("a");
     link.href = input.url;

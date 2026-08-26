@@ -62,6 +62,12 @@ Content-Type: application/json
 - Main/Auth의 Set-Cookie는 위 표의 이름·Path·HttpOnly·Secure·SameSite·host-only 조건을 만족할 때만
   브라우저로 전달한다.
 - 인증 응답에는 `Cache-Control: private, no-store`를 사용한다.
+- Edge가 덮어쓴 단일 IP literal `X-Real-IP`만 Main/Auth로 전달하고, 임의의
+  `X-Forwarded-For` 체인은 전달하지 않는다. Main/Auth의 `CIVIC_TRUSTED_PROXY_CIDRS`에는
+  실제 Next.js BFF 주소만 지정한다.
+
+Next.js 3000 포트는 외부에 공개하지 않고 Nginx만 접근하게 한다. 이 경계가 지켜져야 외부 요청자가
+`X-Real-IP`를 위조해 로그인·가입 rate limit을 우회할 수 없다.
 
 ## RAG 전달 경계
 

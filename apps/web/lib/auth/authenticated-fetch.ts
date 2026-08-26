@@ -2,12 +2,19 @@
 
 type FetchBackend = typeof fetch;
 
+export type AuthenticatedClient = Readonly<{
+  fetch: FetchBackend;
+  ensureAccessToken: () => Promise<boolean>;
+}>;
+
 /**
  * Retries one Resource Server request after rotating the path-scoped refresh
  * token through Main/Auth. The browser is the only component that can send the
  * refresh cookie because it is scoped to /api/v1/auth.
  */
-export function createAuthenticatedFetch(requestBackend: FetchBackend = fetch): FetchBackend {
+export function createAuthenticatedClient(
+  requestBackend: FetchBackend = fetch,
+): AuthenticatedClient {
   let refreshInFlight: Promise<boolean> | null = null;
 
   function rotateAccessToken(requestUrl: string): Promise<boolean> {
@@ -22,7 +29,29 @@ export function createAuthenticatedFetch(requestBackend: FetchBackend = fetch): 
     return refreshInFlight;
   }
 
-  return async (input, init) => {
+  async function ensureAccessToken(): Promise<boolean> {
+    let response: Response;
+    try {
+      response = await requestBackend(
+        createRequest("/api/v1/auth/me", { cache: "no-store", method: "GET" }),
+      );
+    } catch {
+      return false;
+    }
+    if (response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      return true;
+    }
+    if (response.status !== 401) {
+      await response.body?.cancel().catch(() => undefined);
+      return false;
+    }
+    const requestUrl = response.url || createRequest("/api/v1/auth/me").url;
+    await response.body?.cancel().catch(() => undefined);
+    return rotateAccessToken(requestUrl);
+  }
+
+  const authenticatedRequest: FetchBackend = async (input, init) => {
     const firstRequest = createRequest(input, init);
     const retryRequest = firstRequest.clone();
     const firstResponse = await requestBackend(firstRequest);
@@ -33,9 +62,18 @@ export function createAuthenticatedFetch(requestBackend: FetchBackend = fetch): 
     await firstResponse.body?.cancel().catch(() => undefined);
     return requestBackend(retryRequest);
   };
+
+  return { ensureAccessToken, fetch: authenticatedRequest };
 }
 
-export const authenticatedFetch = createAuthenticatedFetch();
+export function createAuthenticatedFetch(requestBackend: FetchBackend = fetch): FetchBackend {
+  return createAuthenticatedClient(requestBackend).fetch;
+}
+
+const authenticatedClient = createAuthenticatedClient();
+
+export const authenticatedFetch = authenticatedClient.fetch;
+export const ensureAccessToken = authenticatedClient.ensureAccessToken;
 
 function createRequest(input: RequestInfo | URL, init?: RequestInit): Request {
   if (input instanceof Request) {
