@@ -60,9 +60,10 @@ class RefreshTokenAuthenticationLifecycleTest extends PostgresIntegrationTest {
         var refresh = responseCookie(login, AuthCookieFactory.REFRESH_TOKEN_COOKIE);
 
         assertThat(access.getValue()).contains(".");
-        assertThat(SignedJWT.parse(access.getValue()).getJWTClaimsSet().getSubject())
-                .isEqualTo(jdbc.queryForObject(
-                        "select email from users where id = ?", String.class, userId));
+        var accessClaims = SignedJWT.parse(access.getValue()).getJWTClaimsSet();
+        assertThat(accessClaims.getSubject()).isEqualTo(jdbc.queryForObject(
+                "select normalized_email from users where id = ?", String.class, userId));
+        assertThat(accessClaims.getStringClaim("user_id")).isEqualTo(userId.toString());
         assertThat(refresh.getValue()).doesNotContain(".");
         assertThat(login.getResponse().getCookie("__Host-civic-session")).isNull();
         assertThat(refresh.getPath()).isEqualTo(AuthCookieFactory.REFRESH_TOKEN_PATH);

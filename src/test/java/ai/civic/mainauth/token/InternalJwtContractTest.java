@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class InternalJwtContractTest {
@@ -89,8 +90,9 @@ class InternalJwtContractTest {
                 new Rs256KeyRing(key, java.util.List.of()), "https://auth.civic.example",
                 Clock.fixed(NOW, ZoneOffset.UTC));
         var loginEmail = "person@example.com";
+        var userId = UUID.randomUUID();
 
-        var issued = tokens.issue(loginEmail, 7, Set.of());
+        var issued = tokens.issue(userId, loginEmail, 7, Set.of());
         var jwt = SignedJWT.parse(issued.token());
         var claims = jwt.getJWTClaimsSet();
 
@@ -103,6 +105,7 @@ class InternalJwtContractTest {
         assertThat(jwt.getPayload().toJSONObject().get("aud"))
                 .isEqualTo(java.util.List.of("civic-ai-api"));
         assertThat(claims.getSubject()).isEqualTo(loginEmail);
+        assertThat(claims.getStringClaim("user_id")).isEqualTo(userId.toString());
         assertThat(claims.getLongClaim("account_state_version")).isEqualTo(7);
         assertThat(claims.getStringClaim("scope")).contains("chat:connect", "vote:surveys:read", "rag:queries:write");
         assertThat(claims.getClaim("roles")).isNull();
@@ -122,7 +125,7 @@ class InternalJwtContractTest {
                 Clock.fixed(NOW, ZoneOffset.UTC));
 
         var jwt = SignedJWT.parse(tokens.issue(
-                "admin@example.com", 0,
+                UUID.randomUUID(), "admin@example.com", 0,
                 Set.of("RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN"), true).token());
 
         assertThat(jwt.getJWTClaimsSet().getStringClaim("scope"))
@@ -135,7 +138,9 @@ class InternalJwtContractTest {
         var key = new RSAKeyGenerator(2048).keyID("active").generate();
         var ring = new Rs256KeyRing(key, java.util.List.of());
         var tokens = new AccessTokenService(ring, "https://auth.civic.example", Clock.systemUTC());
-        assertThatThrownBy(() -> tokens.issue(null, 0, Set.of()))
+        assertThatThrownBy(() -> tokens.issue(null, "person@example.com", 0, Set.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> tokens.issue(UUID.randomUUID(), " ", 0, Set.of()))
                 .isInstanceOf(IllegalArgumentException.class);
         var publicJwks = ring.publicJwks().toString();
         assertThat(publicJwks)

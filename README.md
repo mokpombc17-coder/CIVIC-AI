@@ -50,8 +50,9 @@ Refresh Token은 사용할 때마다 즉시 교체됩니다. 이미 교체된 �
 
 - 알고리즘: `RS256`
 - 헤더: `typ=JWT`, 활성 키의 `kid` 필수
-- 필수 claim: `iss`, `sub`, `aud`, `iat`, `exp`, `jti`, `scope`
-- `sub`: 계정에 저장된 로그인 이메일
+- 필수 claim: `iss`, `sub`, `user_id`, `aud`, `iat`, `exp`, `jti`, `scope`
+- `sub`: 정규화된 로그인 이메일
+- `user_id`: 서비스 내부 데이터 연결용 사용자 UUID
 - `aud`: 배열 `["civic-ai-api"]`
 - `exp - iat`: 정확히 900초
 - `scope`: 배열이나 `roles` claim이 아닌 공백 구분 문자열
