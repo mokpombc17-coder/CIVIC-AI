@@ -35,6 +35,7 @@ export function createRagProxy(config: RagProxyConfig) {
     try {
       credential = await resolveCivicProductionCredential({
         browserRequest: incoming,
+        expectedOrigin: browserOrigin,
         requestId,
       });
     } catch (error) {

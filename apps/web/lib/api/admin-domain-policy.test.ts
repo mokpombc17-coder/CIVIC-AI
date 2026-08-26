@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { matchChatAdminRoute, matchVoteTaskAdminRoute } from "./admin-domain-policy";
+import {
+  matchChatAdminRoute,
+  matchSimulationAdminRoute,
+  matchSimulationOptionsRoute,
+  matchSimulationTaskRoute,
+  matchVoteTaskAdminRoute,
+} from "./admin-domain-policy";
 
 const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
 
@@ -50,6 +56,36 @@ describe("admin domain route allowlist", () => {
     expect(matchVoteTaskAdminRoute("POST", [taskId, "deadline"])).toEqual({
       allowedMethods: ["PUT"],
       status: 405,
+    });
+  });
+
+  it("allows only aggregate Task simulation routes", () => {
+    expect(matchSimulationTaskRoute("POST", [taskId, "simulations"])).toEqual({
+      path: `/api/v1/admin/tasks/${taskId}/simulations`,
+      scope: "simulation:tasks:run",
+    });
+    expect(matchSimulationAdminRoute("GET", [taskId, "results"])).toEqual({
+      path: `/api/v1/admin/simulations/${taskId}/results`,
+      scope: "simulation:tasks:read",
+    });
+    expect(matchSimulationAdminRoute("POST", [taskId, "cancel"])).toEqual({
+      path: `/api/v1/admin/simulations/${taskId}/cancel`,
+      scope: "simulation:tasks:run",
+    });
+    expect(matchSimulationOptionsRoute("GET")).toEqual({
+      path: "/api/v1/admin/simulation-options",
+      scope: "simulation:tasks:read",
+    });
+  });
+
+  it("does not expose individual Persona routes through the simulation proxy", () => {
+    expect(matchSimulationAdminRoute("GET", [taskId, "personas"])).toEqual({
+      allowedMethods: [],
+      status: 404,
+    });
+    expect(matchSimulationTaskRoute("POST", [taskId, "prediction"])).toEqual({
+      allowedMethods: [],
+      status: 404,
     });
   });
 });

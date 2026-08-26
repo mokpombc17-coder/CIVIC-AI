@@ -70,6 +70,11 @@ AdminCatchAllPage [Server Route]
     │       └── AdminRagCrawler
     ├── AdminChatRequestScreen [Chat 생성 신청 관리]
     ├── AdminTaskScreen [Vote 과업 관리]
+    ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
+    │   ├── Vote 과업 선택·설정
+    │   ├── 활성 데이터 번들 기반 패널 필터
+    │   ├── 실행 상태·취소·수동 재설정
+    │   └── 집계 결과·익명 패널 응답 상세
     └── ComingSoonScreen [서버 계약 미확정 화면]
 ```
 
@@ -117,6 +122,13 @@ Browser /api/v1/rag/**
     ├── same-origin 검사
     ├── Access Token raw equality 검사
     └── RAG upstream에 동일 Cookie + Bearer 전달
+
+Browser /api/v1/admin/tasks/{taskId}/simulations|simulations/**|simulation-options
+└── Simulation BFF
+    ├── route/method allowlist
+    ├── same-origin 검사
+    ├── Access Token raw equality 검사
+    └── Simulation upstream에 동일 Cookie + Bearer 전달
 
 Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/tasks/**
 └── Admin Domain BFF

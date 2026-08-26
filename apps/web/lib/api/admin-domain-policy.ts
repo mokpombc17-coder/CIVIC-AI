@@ -1,6 +1,7 @@
 export type AdminDomainRoute = Readonly<{
   path: string;
-  scope: "chat:rooms:approve" | "vote:tasks:admin";
+  scope:
+    "chat:rooms:approve" | "simulation:tasks:read" | "simulation:tasks:run" | "vote:tasks:admin";
 }>;
 
 type RouteFailure = Readonly<{ allowedMethods: readonly string[]; status: 404 | 405 }>;
@@ -57,6 +58,47 @@ export function matchVoteTaskAdminRoute(
     : { allowedMethods: [], status: 404 };
 }
 
+export function matchSimulationTaskRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  if (segments.length !== 2 || !uuid.test(segments[0] ?? "") || segments[1] !== "simulations") {
+    return { allowedMethods: [], status: 404 };
+  }
+  const scope = normalizedMethod === "POST" ? "simulation:tasks:run" : "simulation:tasks:read";
+  return allow(normalizedMethod, ["GET", "POST"], taskPath(segments), scope);
+}
+
+export function matchSimulationAdminRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  if (!uuid.test(segments[0] ?? "")) return { allowedMethods: [], status: 404 };
+  if (segments.length === 1) {
+    return allow(normalizedMethod, ["GET"], simulationPath(segments), "simulation:tasks:read");
+  }
+  if (segments.length !== 2) return { allowedMethods: [], status: 404 };
+  const action = segments[1] ?? "";
+  if (action === "cancel") {
+    return allow(normalizedMethod, ["POST"], simulationPath(segments), "simulation:tasks:run");
+  }
+  if (action === "results") {
+    return allow(normalizedMethod, ["GET"], simulationPath(segments), "simulation:tasks:read");
+  }
+  return { allowedMethods: [], status: 404 };
+}
+
+export function matchSimulationOptionsRoute(method: string): AdminDomainRoute | RouteFailure {
+  return allow(
+    method.toUpperCase(),
+    ["GET"],
+    "/api/v1/admin/simulation-options",
+    "simulation:tasks:read",
+  );
+}
+
 function allow(
   method: string,
   allowedMethods: readonly string[],
@@ -72,6 +114,10 @@ function chatPath(segments: readonly string[]): string {
 
 function taskPath(segments: readonly string[]): string {
   return path("/api/v1/admin/tasks", segments);
+}
+
+function simulationPath(segments: readonly string[]): string {
+  return path("/api/v1/admin/simulations", segments);
 }
 
 function path(prefix: string, segments: readonly string[]): string {

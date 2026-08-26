@@ -11,6 +11,7 @@ describe("production credential adapter", () => {
     await expect(
       resolveCivicProductionCredential({
         browserRequest: browserRequest({ cookie: "civic_ai_access_token=not-a-jwt" }),
+        expectedOrigin: "https://civic.example",
         requestId: "request-1",
       }),
     ).resolves.toEqual({ token: "not-a-jwt", source: "incoming" });
@@ -20,6 +21,7 @@ describe("production credential adapter", () => {
     await expect(
       resolveCivicProductionCredential({
         browserRequest: browserRequest({ authorization: "Bearer api-client-token" }),
+        expectedOrigin: "https://civic.example",
         requestId: "request-1",
       }),
     ).resolves.toEqual({ token: "api-client-token", source: "incoming" });
@@ -32,6 +34,7 @@ describe("production credential adapter", () => {
           authorization: "Bearer header-token",
           cookie: "civic_ai_access_token=cookie-token",
         }),
+        expectedOrigin: "https://civic.example",
         requestId: "request-1",
       }),
     ).rejects.toMatchObject({ status: 401, code: "CREDENTIAL_MISMATCH" });
@@ -42,6 +45,7 @@ describe("production credential adapter", () => {
           authorization: "Bearer same-token",
           cookie: "civic_ai_access_token=same-token",
         }),
+        expectedOrigin: "https://civic.example",
         requestId: "request-1",
       }),
     ).resolves.toEqual({ token: "same-token", source: "incoming" });
@@ -54,15 +58,35 @@ describe("production credential adapter", () => {
       browserRequest(),
     ]) {
       await expect(
-        resolveCivicProductionCredential({ browserRequest: request, requestId: "request-1" }),
+        resolveCivicProductionCredential({
+          browserRequest: request,
+          expectedOrigin: "https://civic.example",
+          requestId: "request-1",
+        }),
       ).rejects.toMatchObject({ status: 401 });
     }
     await expect(
       resolveCivicProductionCredential({
         browserRequest: browserRequest({ origin: "https://attacker.example" }),
+        expectedOrigin: "https://civic.example",
         requestId: "request-1",
       }),
     ).rejects.toMatchObject({ status: 403, code: "ACCESS_DENIED" });
+  });
+
+  it("checks the configured public origin instead of the internal proxy URL", async () => {
+    await expect(
+      resolveCivicProductionCredential({
+        browserRequest: new Request("http://frontend:3000/api/v1/rag/queries", {
+          headers: {
+            cookie: "civic_ai_access_token=opaque-token",
+            origin: "https://civic.example",
+          },
+        }),
+        expectedOrigin: "https://civic.example",
+        requestId: "request-1",
+      }),
+    ).resolves.toEqual({ token: "opaque-token", source: "incoming" });
   });
 
   it("forwards one raw token through both Cookie and Authorization", () => {
