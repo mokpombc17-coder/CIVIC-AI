@@ -25,11 +25,15 @@ describe("RoomCreationRequestView", () => {
   it("조회 오류의 재시도 동작을 표시한다", () => {
     const markup = renderToStaticMarkup(
       <RoomCreationRequestView
+        cancel={vi.fn()}
+        cancellationErrorMessage={null}
+        cancellationFeedback={null}
         error={{
           action: "retry",
           description: "네트워크 연결을 확인해 주세요.",
           title: "신청 상태를 불러오지 못했습니다.",
         }}
+        isCanceling={false}
         isPending={false}
         isRefreshing={false}
         refresh={vi.fn()}
@@ -40,12 +44,41 @@ describe("RoomCreationRequestView", () => {
     expect(markup).toContain('role="alert"');
     expect(markup).toContain("다시 시도");
   });
+
+  it("PENDING 상태에서만 신청 취소 동작을 표시한다", () => {
+    expect(renderRequest(PENDING_REQUEST)).toContain("신청 취소");
+    expect(renderRequest(APPROVED_REQUEST)).not.toContain(">신청 취소<");
+    expect(renderRequest(REJECTED_REQUEST)).not.toContain(">신청 취소<");
+  });
+
+  it("취소 결과와 오류 안내를 상세 상태와 분리해 표시한다", () => {
+    const markup = renderToStaticMarkup(
+      <RoomCreationRequestView
+        cancel={vi.fn()}
+        cancellationErrorMessage="신청 취소에 실패했습니다."
+        cancellationFeedback="최신 상태로 갱신했습니다."
+        error={null}
+        isCanceling={false}
+        isPending={false}
+        isRefreshing={false}
+        refresh={vi.fn()}
+        request={PENDING_REQUEST}
+      />,
+    );
+
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('role="alert"');
+  });
 });
 
 function renderRequest(request: RoomCreationRequestResponse): string {
   return renderToStaticMarkup(
     <RoomCreationRequestView
+      cancel={vi.fn()}
+      cancellationErrorMessage={null}
+      cancellationFeedback={null}
       error={null}
+      isCanceling={false}
       isPending={false}
       isRefreshing={false}
       refresh={vi.fn()}
@@ -70,6 +103,18 @@ const APPROVED_REQUEST = {
   ownerMembershipId: "membership-01",
   roomVersion: 1,
   ownerMembershipVersion: 1,
+  rejectionReason: null,
+} satisfies RoomCreationRequestResponse;
+
+const PENDING_REQUEST = {
+  ...RESPONSE_BASE,
+  code: "ROOM_CREATION_REQUESTED",
+  status: "PENDING",
+  resolvedAt: null,
+  roomId: null,
+  ownerMembershipId: null,
+  roomVersion: null,
+  ownerMembershipVersion: null,
   rejectionReason: null,
 } satisfies RoomCreationRequestResponse;
 

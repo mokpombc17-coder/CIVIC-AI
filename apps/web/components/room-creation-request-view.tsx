@@ -11,7 +11,11 @@ import {
 } from "@/lib/chat/room-creation-request-presentation";
 
 export type RoomCreationRequestViewProps = Readonly<{
+  cancel: () => void;
+  cancellationErrorMessage: string | null;
+  cancellationFeedback: string | null;
   error: RoomCreationRequestErrorPresentation | null;
+  isCanceling: boolean;
   isPending: boolean;
   isRefreshing: boolean;
   refresh: () => void;
@@ -19,7 +23,11 @@ export type RoomCreationRequestViewProps = Readonly<{
 }>;
 
 export function RoomCreationRequestView({
+  cancel,
+  cancellationErrorMessage,
+  cancellationFeedback,
   error,
+  isCanceling,
   isPending,
   isRefreshing,
   refresh,
@@ -45,7 +53,11 @@ export function RoomCreationRequestView({
         {!isPending && error ? <RoomCreationRequestError error={error} onRetry={refresh} /> : null}
         {!isPending && !error && request ? (
           <RoomCreationRequestDetails
+            cancellationErrorMessage={cancellationErrorMessage}
+            cancellationFeedback={cancellationFeedback}
+            isCanceling={isCanceling}
             isRefreshing={isRefreshing}
+            onCancel={cancel}
             onRefresh={refresh}
             request={request}
           />
@@ -90,11 +102,19 @@ function RoomCreationRequestError({
 }
 
 function RoomCreationRequestDetails({
+  cancellationErrorMessage,
+  cancellationFeedback,
+  isCanceling,
   isRefreshing,
+  onCancel,
   onRefresh,
   request,
 }: {
+  cancellationErrorMessage: string | null;
+  cancellationFeedback: string | null;
+  isCanceling: boolean;
   isRefreshing: boolean;
+  onCancel: () => void;
   onRefresh: () => void;
   request: RoomCreationRequestResponse;
 }) {
@@ -108,6 +128,20 @@ function RoomCreationRequestDetails({
       <StatusBadge presentation={presentation} />
       <h2 className="mt-4 text-lg font-bold leading-7 text-slate-950">{presentation.title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-700">{presentation.description}</p>
+
+      {cancellationFeedback ? (
+        <p
+          className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-800"
+          role="status"
+        >
+          {cancellationFeedback}
+        </p>
+      ) : null}
+      {cancellationErrorMessage ? (
+        <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm leading-6 text-red-700" role="alert">
+          {cancellationErrorMessage}
+        </p>
+      ) : null}
 
       <dl className="mt-6 divide-y divide-slate-100 border-y border-slate-100">
         <DetailRow label="신청 ID" value={request.creationRequestId} />
@@ -134,12 +168,22 @@ function RoomCreationRequestDetails({
         ) : null}
         <button
           className="secondary-button"
-          disabled={isRefreshing}
+          disabled={isRefreshing || isCanceling}
           onClick={onRefresh}
           type="button"
         >
           {isRefreshing ? "상태 확인 중…" : "최신 상태 확인"}
         </button>
+        {request.status === "PENDING" ? (
+          <button
+            className="inline-flex min-h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-red-200 bg-white px-4 text-base font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isCanceling || isRefreshing}
+            onClick={onCancel}
+            type="button"
+          >
+            {isCanceling ? "신청 취소 중…" : "신청 취소"}
+          </button>
+        ) : null}
       </div>
     </section>
   );

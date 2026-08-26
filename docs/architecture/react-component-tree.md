@@ -162,8 +162,10 @@ pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationReque
 서버의 `requestedAt ASC`, `creationRequestId ASC` 순서를 변경하지 않고 상태별 신청
 card와 상세 진입, 다음 page 적재를 표현한다.
 
-`RoomCreationRequestScreen`은 `creationRequestId`별 상세 Query, 상태·오류 presentation과
-명시적 새로고침을 조립해 `RoomCreationRequestView`에 전달한다. View는 신청의
+`RoomCreationRequestScreen`은 `creationRequestId`별 상세 Query, 상태·오류 presentation,
+명시적 새로고침과 `PENDING` 신청 취소를 조립해 `RoomCreationRequestView`에
+전달한다. 취소와 관리자 결정이 경합하면 동일 취소를 재시도하지 않고 상세를
+재조회해 서버 최신 상태로 수렴한다. View는 신청의
 `PENDING`·`APPROVED`·`REJECTED`·`CANCELED` 상태, 시각, 반려 사유와 승인된 Room
 이동을 표현한다. 실시간 알림을 가정하지 않고, 사용자가 상세 화면에서 최신 상태를
 직접 재조회할 수 있게 한다.
