@@ -29,9 +29,9 @@ export function RoomCreationRequestView({
     <div className="chat-publishing-surface mx-auto min-h-dvh w-full max-w-[393px] bg-white text-[var(--chat-publishing-color-text)] shadow-[var(--chat-publishing-shadow-card)]">
       <header className="flex h-[68px] items-center gap-3 border-b border-[var(--chat-publishing-color-border)] bg-white px-4">
         <Link
-          aria-label="채팅방 목록으로 돌아가기"
+          aria-label="채팅방 생성 신청 내역으로 돌아가기"
           className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-          href="/chat"
+          href="/chat/creation-requests"
         >
           <Image alt="" aria-hidden="true" height={24} src="/assets/chat/back.png" width={24} />
         </Link>

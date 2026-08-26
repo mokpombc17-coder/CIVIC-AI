@@ -60,9 +60,11 @@ export type PublicRoomListCriteria = Readonly<{
   limit: number;
 }>;
 
-export type PublicRoomInvalidCursorRecoveryState = {
+export type InvalidCursorRecoveryState = {
   attempted: boolean;
 };
+
+export type PublicRoomInvalidCursorRecoveryState = InvalidCursorRecoveryState;
 
 export type ChatRoomMembershipListQueryParams = Readonly<{
   enabled?: boolean;
@@ -525,14 +527,36 @@ export function useMyRoomsQuery(params: ChatRoomListQueryParams = {}) {
 }
 
 export function useMyRoomCreationRequestsQuery(params: ChatRoomListQueryParams = {}) {
-  const query = useInfiniteQuery(myRoomCreationRequestsInfiniteQueryOptions(params));
+  const queryClient = useQueryClient();
+  const options = myRoomCreationRequestsInfiniteQueryOptions(params);
+  const query = useInfiniteQuery(options);
+  const recoveryKey = JSON.stringify(options.queryKey);
+  const recovery = useMemo<InvalidCursorRecoveryState>(
+    () => ({ attempted: false }),
+    // recoveryKey가 바뀌면 새 목록 조건이므로 one-shot cursor 복구 상태도 초기화한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recoveryKey],
+  );
   const requests = useMemo(
     () => flattenRoomListPages<RoomCreationRequestResponse>(query.data?.pages),
     [query.data?.pages],
   );
+  const fetchNextPage: typeof query.fetchNextPage = async (fetchOptions) => {
+    const result = await query.fetchNextPage(fetchOptions);
+
+    await recoverRoomCreationRequestInvalidCursorOnce(
+      queryClient,
+      options.queryKey,
+      result.error,
+      recovery,
+    );
+
+    return result;
+  };
 
   return {
     ...query,
+    fetchNextPage,
     requests,
   };
 }
@@ -643,6 +667,24 @@ export async function recoverPublicRoomInvalidCursorOnce(
   queryKey: readonly unknown[],
   error: unknown,
   state: PublicRoomInvalidCursorRecoveryState,
+): Promise<boolean> {
+  return recoverInvalidCursorOnce(queryClient, queryKey, error, state);
+}
+
+export async function recoverRoomCreationRequestInvalidCursorOnce(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+  error: unknown,
+  state: InvalidCursorRecoveryState,
+): Promise<boolean> {
+  return recoverInvalidCursorOnce(queryClient, queryKey, error, state);
+}
+
+async function recoverInvalidCursorOnce(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+  error: unknown,
+  state: InvalidCursorRecoveryState,
 ): Promise<boolean> {
   if (state.attempted || !(error instanceof ChatApiError) || error.code !== "INVALID_CURSOR") {
     return false;

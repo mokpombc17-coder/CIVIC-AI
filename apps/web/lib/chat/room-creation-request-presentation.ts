@@ -71,6 +71,23 @@ export function createRoomCreationRequestErrorPresentation(
   }
 }
 
+export function createRoomCreationRequestListErrorMessage(error: unknown): string {
+  if (!(error instanceof ChatApiError)) {
+    return getErrorMessage(error);
+  }
+
+  switch (error.code) {
+    case "UNAUTHENTICATED":
+      return "다시 로그인한 뒤 신청 내역을 확인해 주세요.";
+    case "ACCESS_DENIED":
+      return "현재 로그인한 사용자의 신청 내역을 확인할 수 없습니다.";
+    case "INVALID_CURSOR":
+      return "신청 내역의 페이지 정보가 만료되어 처음부터 다시 불러옵니다.";
+    default:
+      return error.message;
+  }
+}
+
 export function formatRoomCreationRequestInstant(instant: string): string {
   return ROOM_CREATION_REQUEST_DATE_TIME_FORMATTER.format(new Date(instant));
 }

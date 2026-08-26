@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type ReactNode, type Ref } from "react";
 import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
@@ -85,6 +86,12 @@ export function ChatRoomListView({
               {isCreateRoomOpen ? "작성 닫기" : CHAT_ROOM_PUBLISHING_COPY.createRoom}
             </button>
           </div>
+          <Link
+            className="secondary-button inline-flex items-center justify-center"
+            href="/chat/creation-requests"
+          >
+            채팅방 생성 신청 내역
+          </Link>
         </section>
 
         {isCreateRoomOpen ? (

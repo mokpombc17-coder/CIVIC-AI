@@ -3,6 +3,7 @@ import { ChatApiError } from "./chat-fetch";
 import type { RoomCreationRequestResponse } from "./chat-room-contracts";
 import {
   createRoomCreationRequestErrorPresentation,
+  createRoomCreationRequestListErrorMessage,
   createRoomCreationRequestStatusPresentation,
 } from "./room-creation-request-presentation";
 
@@ -42,6 +43,12 @@ describe("room creation request presentation", () => {
       description: "network",
       title: "신청 상태를 불러오지 못했습니다.",
     });
+  });
+
+  it("신청 목록의 무효한 cursor는 첫 page 복구 안내로 표시한다", () => {
+    expect(createRoomCreationRequestListErrorMessage(createApiError("INVALID_CURSOR"))).toContain(
+      "처음부터 다시 불러옵니다",
+    );
   });
 });
 

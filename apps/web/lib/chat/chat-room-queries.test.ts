@@ -15,6 +15,7 @@ import {
   myRoomsInfiniteQueryOptions,
   publicRoomsInfiniteQueryOptions,
   recoverPublicRoomInvalidCursorOnce,
+  recoverRoomCreationRequestInvalidCursorOnce,
   roomDetailsQueryOptions,
   roomInboxInfiniteQueryOptions,
   roomMessageContextQueryOptions,
@@ -262,6 +263,57 @@ describe("chat room query options", () => {
         [],
       ),
     ).toBe("creation cursor");
+  });
+
+  it("내 방 생성 신청 cursor가 무효하면 목록을 한 번만 첫 page부터 복구한다", async () => {
+    const queryClient = createQueryClient();
+    let generation = "old";
+    const listMyRoomCreationRequests = vi.fn(async ({ cursor }: { cursor?: string }) => {
+      if (cursor) {
+        return {
+          items: [],
+          nextCursor: null,
+          hasNext: false,
+        };
+      }
+
+      return generation === "new"
+        ? {
+            items: [{ ...PENDING_ROOM_CREATION_RESPONSE, creationRequestId: "request-new" }],
+            nextCursor: null,
+            hasNext: false,
+          }
+        : {
+            items: [PENDING_ROOM_CREATION_RESPONSE],
+            nextCursor: "cursor-old",
+            hasNext: true,
+          };
+    });
+    const options = myRoomCreationRequestsInfiniteQueryOptions({}, { listMyRoomCreationRequests });
+    const queryKey = options.queryKey;
+    const observer = new InfiniteQueryObserver(queryClient, options);
+    const unsubscribe = observer.subscribe(() => {});
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const recovery = { attempted: false };
+    const error = createPublicListError("INVALID_CURSOR", false, 400);
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().hasNextPage).toBe(true));
+    generation = "new";
+
+    await expect(
+      recoverRoomCreationRequestInvalidCursorOnce(queryClient, queryKey, error, recovery),
+    ).resolves.toBe(true);
+    await expect(
+      recoverRoomCreationRequestInvalidCursorOnce(queryClient, queryKey, error, recovery),
+    ).resolves.toBe(false);
+
+    expect(resetQueries).toHaveBeenCalledTimes(1);
+    expect(observer.getCurrentResult().data).toMatchObject({
+      pages: [{ items: [{ creationRequestId: "request-new" }] }],
+      pageParams: [null],
+    });
+
+    unsubscribe();
   });
 
   it("내 방 생성 신청 상세를 신청 ID별 cache로 조회한다", async () => {
