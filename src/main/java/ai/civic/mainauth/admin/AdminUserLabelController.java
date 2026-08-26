@@ -1,6 +1,6 @@
 package ai.civic.mainauth.admin;
 
-import ai.civic.mainauth.auth.SessionCookieFactory;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -29,9 +29,9 @@ public class AdminUserLabelController {
 
     @GetMapping
     ResponseEntity<UserLabelPage> list(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestParam("ids") List<UUID> ids) {
-        authorization.requireOperator(sessionId);
+        authorization.requireOperator(accessToken);
         var uniqueIds = new ArrayList<>(new LinkedHashSet<>(ids));
         if (uniqueIds.size() > MAX_IDS) {
             throw new IllegalArgumentException("At most 100 user labels can be requested");

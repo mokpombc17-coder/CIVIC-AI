@@ -1,12 +1,12 @@
 package ai.civic.mainauth.token;
 
-import ai.civic.mainauth.auth.SessionService;
 import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -41,6 +41,7 @@ public final class AccessTokenService {
             "rag:queries:write",
             "rag:jobs:read");
     private static final List<String> CHAT_ADMIN_SCOPES = List.of(
+            "chat:rooms:approve",
             "chat:rooms:membership-limit:exempt",
             "chat:audit:exports",
             "chat:research:exports");
@@ -69,13 +70,23 @@ public final class AccessTokenService {
             UUID subject,
             long accountStateVersion,
             java.util.Set<String> permissions) {
+        return issue(subject, accountStateVersion, permissions, false);
+    }
+
+    public IssuedAccessToken issue(
+            UUID subject,
+            long accountStateVersion,
+            java.util.Set<String> permissions,
+            boolean mustChangePassword) {
         if (subject == null || accountStateVersion < 0 || permissions == null) {
             throw new IllegalArgumentException("Access token subject and account state are required");
         }
         try {
             var now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
             var expiresAt = now.plus(LIFETIME);
-            var scope = String.join(" ", scopesForPermissions(permissions));
+            var scope = mustChangePassword
+                    ? "account:password:write"
+                    : String.join(" ", scopesForPermissions(permissions));
             var claims = new JWTClaimsSet.Builder()
                     .issuer(issuer)
                     .audience(List.of(AUDIENCE))
@@ -85,12 +96,17 @@ public final class AccessTokenService {
                     .jwtID(UUID.randomUUID().toString())
                     .claim("scope", scope)
                     .claim("account_state_version", accountStateVersion)
+                    .claim("must_change_password", mustChangePassword)
                     .build();
             var header = new JWSHeader.Builder(JWSAlgorithm.RS256)
                     .type(JOSEObjectType.JWT)
                     .keyID(keyRing.active().getKeyID())
                     .build();
-            var signed = new SignedJWT(header, claims);
+            var payload = new java.util.LinkedHashMap<>(claims.toJSONObject());
+            // Nimbus compacts a single audience to a JSON string by default. CIVIC's contract
+            // requires aud to remain an array even when it has exactly one value.
+            payload.put("aud", List.of(AUDIENCE));
+            var signed = new JWSObject(header, new Payload(payload));
             signed.sign(new RSASSASigner(keyRing.active()));
             return new IssuedAccessToken(signed.serialize(), expiresAt);
         } catch (Exception exception) {

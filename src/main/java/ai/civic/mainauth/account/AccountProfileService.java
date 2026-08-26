@@ -1,7 +1,6 @@
 package ai.civic.mainauth.account;
 
-import ai.civic.mainauth.auth.AuthenticationException;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.AuthenticatedUserService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
@@ -13,35 +12,35 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountProfileService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
-    private final SessionService sessions;
+    private final AuthenticatedUserService authenticatedUsers;
 
-    public AccountProfileService(JdbcTemplate jdbc, ObjectMapper json, SessionService sessions) {
+    public AccountProfileService(
+            JdbcTemplate jdbc, ObjectMapper json, AuthenticatedUserService authenticatedUsers) {
         this.jdbc = jdbc;
         this.json = json;
-        this.sessions = sessions;
+        this.authenticatedUsers = authenticatedUsers;
     }
 
     @Transactional(readOnly = true)
-    public AccountProfile get(SessionService.SessionView session) {
+    public AccountProfile get(AuthenticatedUserService.AuthenticatedUser user) {
         var account = jdbc.queryForMap("""
                 select u.email, u.state, c.two_factor_enabled
                 from users u join credentials c on c.user_id = u.id where u.id = ?
-                """, session.userId());
-        var language = activeAnswer(session.userId(), "preferred_language", "ko");
-        var detail = activeAnswer(session.userId(), "rag_answer_detail", "balanced");
+                """, user.userId());
+        var language = activeAnswer(user.userId(), "preferred_language", "ko");
+        var detail = activeAnswer(user.userId(), "rag_answer_detail", "balanced");
         var version = jdbc.queryForObject("""
                 select coalesce(max(response_version), 1) from questionnaire_responses where user_id = ?
-                """, Integer.class, session.userId());
+                """, Integer.class, user.userId());
         return new AccountProfile(
-                session.userId(), account.get("email").toString(), session.role().name(),
+                user.userId(), account.get("email").toString(), user.role().name(),
                 "DEACTIVATED".equals(account.get("state")) ? "INACTIVE" : account.get("state").toString(),
                 language, detail, (Boolean) account.get("two_factor_enabled"), version == null ? 1 : version);
     }
 
     @Transactional
     public AccountProfile update(
-            String sessionId,
-            SessionService.SessionView session,
+            AuthenticatedUserService.AuthenticatedUser user,
             String preferredLanguage,
             String ragAnswerDetail) {
         if (preferredLanguage == null && ragAnswerDetail == null) {
@@ -55,23 +54,20 @@ public class AccountProfileService {
             throw new IllegalArgumentException("RAG answer detail is invalid");
         }
         jdbc.queryForObject(
-                "select id from users where id = ? for update", UUID.class, session.userId());
-        var currentSession = sessions.requireLocked(sessionId);
-        if (!session.userId().equals(currentSession.userId())) {
-            throw new AuthenticationException("Session is invalid or expired");
-        }
+                "select id from users where id = ? for update", UUID.class, user.userId());
+        var currentUser = authenticatedUsers.currentLocked(user.userId());
         var schemaIds = jdbc.query("""
                 select schema_id from questionnaire_responses where user_id = ? and active limit 1
-                """, (rs, rowNum) -> rs.getObject(1, UUID.class), session.userId());
+                """, (rs, rowNum) -> rs.getObject(1, UUID.class), user.userId());
         var schemaId = schemaIds.isEmpty()
                 ? jdbc.queryForObject("""
                         select id from questionnaire_schemas
                         where active_for_new_signup order by version desc limit 1
                         """, UUID.class)
                 : schemaIds.getFirst();
-        if (preferredLanguage != null) replaceAnswer(session.userId(), schemaId, "preferred_language", preferredLanguage);
-        if (ragAnswerDetail != null) replaceAnswer(session.userId(), schemaId, "rag_answer_detail", ragAnswerDetail);
-        return get(currentSession);
+        if (preferredLanguage != null) replaceAnswer(user.userId(), schemaId, "preferred_language", preferredLanguage);
+        if (ragAnswerDetail != null) replaceAnswer(user.userId(), schemaId, "rag_answer_detail", ragAnswerDetail);
+        return get(currentUser);
     }
 
     private String activeAnswer(UUID userId, String key, String fallback) {

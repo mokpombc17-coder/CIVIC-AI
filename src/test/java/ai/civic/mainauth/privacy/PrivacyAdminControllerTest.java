@@ -7,8 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ai.civic.mainauth.auth.SessionCookieFactory;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.AccessCredentialTestFactory;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import jakarta.servlet.http.Cookie;
 import java.util.UUID;
@@ -29,9 +29,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class PrivacyAdminControllerTest extends PostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @Autowired SessionService sessions;
+    @Autowired AccessCredentialTestFactory credentials;
     UUID subjectId;
-    SessionService.IssuedSession administrator;
+    AccessCredentialTestFactory.IssuedCredential administrator;
 
     @BeforeEach
     void prepareUsers() {
@@ -41,7 +41,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
         var administratorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
         jdbc.update("update credentials set must_change_password = false where user_id = ?", administratorId);
-        administrator = sessions.issue(administratorId, SessionService.SessionRole.HIGHEST_ADMIN);
+        administrator = credentials.issue(administratorId);
         var subjectEmail = "privacy-subject-" + UUID.randomUUID() + "@example.test";
         subjectId = jdbc.queryForObject("""
                 insert into users(email, normalized_email, origin, state, email_verified_at)
@@ -53,7 +53,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
     @Test
     void highestAdministratorCanValidateAndStartPrivacyDeletion() throws Exception {
         var started = mvc.perform(post("/api/v1/admin/privacy-operations")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, administrator.accessToken()))
                         .header("X-CSRF-Token", administrator.csrfToken())
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
@@ -74,7 +74,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                 .readTree(started.getResponse().getContentAsString())
                 .path("operation_id").asText();
         mvc.perform(get("/api/v1/admin/privacy-operations/{operationId}", operationId)
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId())))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, administrator.accessToken())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.operation_id").value(operationId))
                 .andExpect(jsonPath("$.status").value("PENDING"));
@@ -93,14 +93,14 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
 
     @Test
     void privacyDeletionRequiresHighestAdministratorCsrfAndSameOrigin() throws Exception {
-        var participant = sessions.issue(subjectId, SessionService.SessionRole.PARTICIPANT);
+        var participant = credentials.issue(subjectId);
         var body = """
                 {"external_request_evidence_id":"operator-evidence-denied",
                  "subject_id":"%s","scopes":["ACCOUNT"]}
                 """.formatted(subjectId);
 
         mvc.perform(post("/api/v1/admin/privacy-operations")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, participant.sessionId()))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, participant.accessToken()))
                         .header("X-CSRF-Token", participant.csrfToken())
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
@@ -108,7 +108,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                         .content(body))
                 .andExpect(status().isForbidden());
         mvc.perform(post("/api/v1/admin/privacy-operations")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, administrator.accessToken()))
                         .header("X-CSRF-Token", "wrong-token")
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
@@ -116,7 +116,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                         .content(body))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/admin/privacy-operations")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, administrator.accessToken()))
                         .header("X-CSRF-Token", administrator.csrfToken())
                         .header("Origin", "https://evil.example")
                         .header("Sec-Fetch-Site", "cross-site")
@@ -132,7 +132,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
     @Test
     void privacyDeletionRejectsEvidenceIdsBeyondTheDurableColumnLimit() throws Exception {
         mvc.perform(post("/api/v1/admin/privacy-operations")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, administrator.accessToken()))
                         .header("X-CSRF-Token", administrator.csrfToken())
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
@@ -161,7 +161,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                 insert into user_roles(user_id, role_id)
                 select ?, id from roles where code = 'SUPER_ADMIN'
                 """, actorId);
-        var actor = sessions.issue(actorId, SessionService.SessionRole.HIGHEST_ADMIN);
+        var actor = credentials.issue(actorId);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
@@ -171,7 +171,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                 lock.executeQuery();
             }
             var response = executor.submit(() -> mvc.perform(post("/api/v1/admin/privacy-operations")
-                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, actor.sessionId()))
+                            .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, actor.accessToken()))
                             .header("X-CSRF-Token", actor.csrfToken())
                             .header("Origin", "https://localhost")
                             .header("Sec-Fetch-Site", "same-origin")
@@ -205,7 +205,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void revokedAdministratorSessionCannotEnqueueAnInflightPrivacyDeletion() throws Exception {
+    void refreshRevocationDoesNotInvalidateAnAlreadyIssuedAdministratorAccessToken() throws Exception {
         var administratorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
 
@@ -217,13 +217,13 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                 lock.executeQuery();
             }
             var response = executor.submit(() -> mvc.perform(post("/api/v1/admin/privacy-operations")
-                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId()))
+                            .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, administrator.accessToken()))
                             .header("X-CSRF-Token", administrator.csrfToken())
                             .header("Origin", "https://localhost")
                             .header("Sec-Fetch-Site", "same-origin")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
-                                    {"external_request_evidence_id":"operator-evidence-revoked-session",
+                                    {"external_request_evidence_id":"operator-evidence-revoked-refresh",
                                      "subject_id":"%s","scopes":["ACCOUNT"]}
                                     """.formatted(subjectId)))
                     .andReturn().getResponse().getStatus());
@@ -235,7 +235,7 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
                         where user_id = ?
                     """);
                     var revoke = connection.prepareStatement("""
-                        update sessions set revoked_at = now(), revocation_reason = 'PASSWORD_CHANGED'
+                        update refresh_tokens set revoked_at = now(), revocation_reason = 'PASSWORD_CHANGED'
                         where user_id = ? and revoked_at is null
                     """)) {
                 rotate.setObject(1, administratorId);
@@ -245,19 +245,19 @@ class PrivacyAdminControllerTest extends PostgresIntegrationTest {
             }
             connection.commit();
 
-            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(202);
         }
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from privacy_operations
-                where external_request_evidence_id = 'operator-evidence-revoked-session'
-                """, Integer.class)).isZero();
+                where external_request_evidence_id = 'operator-evidence-revoked-refresh'
+                """, Integer.class)).isOne();
     }
 
     @Test
     void missingPrivacyOperationReturnsNotFound() throws Exception {
         mvc.perform(get("/api/v1/admin/privacy-operations/{operationId}", UUID.randomUUID())
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, administrator.sessionId())))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, administrator.accessToken())))
                 .andExpect(status().isNotFound());
     }
 }

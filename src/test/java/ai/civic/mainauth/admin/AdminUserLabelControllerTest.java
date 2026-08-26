@@ -5,8 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ai.civic.mainauth.auth.SessionCookieFactory;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.AccessCredentialTestFactory;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import jakarta.servlet.http.Cookie;
 import java.util.UUID;
@@ -22,19 +22,19 @@ import org.springframework.test.web.servlet.MockMvc;
 class AdminUserLabelControllerTest extends PostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @Autowired SessionService sessions;
+    @Autowired AccessCredentialTestFactory credentials;
 
     @Test
     void administratorWithRagPermissionCanResolveOnlyRequestedUserEmailLabels() throws Exception {
         var operatorId = jdbc.queryForObject(
                 "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
         jdbc.update("update credentials set must_change_password = false where user_id = ?", operatorId);
-        var session = sessions.issue(operatorId, SessionService.SessionRole.HIGHEST_ADMIN);
+        var credential = credentials.issue(operatorId);
         var email = jdbc.queryForObject("select email from users where id = ?", String.class, operatorId);
 
         mvc.perform(get("/api/v1/admin/user-labels")
                         .queryParam("ids", operatorId.toString(), UUID.randomUUID().toString())
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId())))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[*].user_id", hasItem(operatorId.toString())))
@@ -43,14 +43,21 @@ class AdminUserLabelControllerTest extends PostgresIntegrationTest {
 
     @Test
     void participantCannotResolveAdministratorUserLabels() throws Exception {
-        var participantId = jdbc.queryForObject(
-                "select id from users where origin = 'BOOTSTRAP_ADMIN'", UUID.class);
-        jdbc.update("update credentials set must_change_password = false where user_id = ?", participantId);
-        var session = sessions.issue(participantId, SessionService.SessionRole.PARTICIPANT);
+        var email = "label-participant-" + UUID.randomUUID() + "@example.test";
+        var participantId = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state, email_verified_at)
+                values (?, ?, 'SIGNUP', 'ACTIVE', now()) returning id
+                """, UUID.class, email, email);
+        jdbc.update("insert into credentials(user_id, password_hash) values (?, 'test-hash')", participantId);
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'PARTICIPANT'
+                """, participantId);
+        var credential = credentials.issue(participantId);
 
         mvc.perform(get("/api/v1/admin/user-labels")
                         .queryParam("ids", participantId.toString())
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId())))
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
                 .andExpect(status().isForbidden());
     }
 }

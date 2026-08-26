@@ -37,6 +37,7 @@ class InternalJwtContractTest {
                         "rag:queries:write",
                         "rag:jobs:read")
                 .doesNotContain(
+                        "chat:rooms:approve",
                         "chat:rooms:membership-limit:exempt",
                         "chat:audit:exports",
                         "chat:research:exports",
@@ -50,9 +51,34 @@ class InternalJwtContractTest {
                         "RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN")))
                 .contains(
                         "rag:documents:write",
+                        "chat:rooms:approve",
                         "chat:rooms:membership-limit:exempt",
                         "chat:audit:exports",
                         "chat:research:exports",
+                        "vote:survey-outbox-replays:write",
+                        "vote:persona-generation-retries:write");
+    }
+
+    @Test
+    void voteScopesMatchThePublishedParticipantAndAdminContract() {
+        assertThat(voteScopes(AccessTokenService.scopesForPermissions(Set.of())))
+                .containsExactly(
+                        "vote:surveys:read",
+                        "vote:survey-responses:write",
+                        "vote:personas:read",
+                        "vote:tasks:read",
+                        "vote:predictions:write",
+                        "vote:submissions:read",
+                        "vote:submissions:write");
+        assertThat(voteScopes(AccessTokenService.scopesForPermissions(Set.of("VOTE_ADMIN"))))
+                .containsExactly(
+                        "vote:surveys:read",
+                        "vote:survey-responses:write",
+                        "vote:personas:read",
+                        "vote:tasks:read",
+                        "vote:predictions:write",
+                        "vote:submissions:read",
+                        "vote:submissions:write",
                         "vote:survey-outbox-replays:write",
                         "vote:persona-generation-retries:write");
     }
@@ -75,6 +101,8 @@ class InternalJwtContractTest {
         assertThat(jwt.verify(new RSASSAVerifier(key.toRSAPublicKey()))).isTrue();
         assertThat(claims.getIssuer()).isEqualTo("https://auth.civic.example");
         assertThat(claims.getAudience()).containsExactly("civic-ai-api");
+        assertThat(jwt.getPayload().toJSONObject().get("aud"))
+                .isEqualTo(java.util.List.of("civic-ai-api"));
         assertThat(claims.getSubject()).isEqualTo(userId.toString());
         assertThat(claims.getLongClaim("account_state_version")).isEqualTo(7);
         assertThat(claims.getStringClaim("scope")).contains("chat:connect", "vote:surveys:read", "rag:queries:write");
@@ -85,6 +113,21 @@ class InternalJwtContractTest {
         assertThat(claims.getExpirationTime().toInstant().getEpochSecond()
                 - claims.getIssueTime().toInstant().getEpochSecond()).isEqualTo(900);
         assertThat(issued.expiresAt()).isEqualTo(claims.getExpirationTime().toInstant());
+    }
+
+    @Test
+    void mandatoryPasswordRotationReceivesOnlyThePasswordChangeScope() throws Exception {
+        var key = new RSAKeyGenerator(2048).keyID("active-2026-08").generate();
+        var tokens = new AccessTokenService(
+                new Rs256KeyRing(key, java.util.List.of()), "https://auth.civic.example",
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        var jwt = SignedJWT.parse(tokens.issue(
+                UUID.randomUUID(), 0, Set.of("RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN"), true).token());
+
+        assertThat(jwt.getJWTClaimsSet().getStringClaim("scope"))
+                .isEqualTo("account:password:write");
+        assertThat(jwt.getJWTClaimsSet().getBooleanClaim("must_change_password")).isTrue();
     }
 
     @Test
@@ -99,5 +142,9 @@ class InternalJwtContractTest {
                 .contains("\"alg\":\"RS256\"")
                 .contains("\"use\":\"sig\"")
                 .doesNotContain("\"d\"");
+    }
+
+    private static java.util.List<String> voteScopes(java.util.List<String> scopes) {
+        return scopes.stream().filter(scope -> scope.startsWith("vote:")).toList();
     }
 }

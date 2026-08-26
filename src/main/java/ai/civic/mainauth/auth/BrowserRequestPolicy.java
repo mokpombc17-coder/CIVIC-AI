@@ -28,7 +28,7 @@ public final class BrowserRequestPolicy {
                 || !MessageDigest.isEqual(
                         expectedCsrfToken.getBytes(StandardCharsets.UTF_8),
                         suppliedCsrfToken.getBytes(StandardCharsets.UTF_8))) {
-            throw rejected("Session-bound CSRF token is missing or invalid");
+            throw rejected("Access-token-bound CSRF token is missing or invalid");
         }
     }
 

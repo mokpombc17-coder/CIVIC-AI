@@ -28,7 +28,8 @@ public class AuthenticationFlowService {
     private static final String CODE_FAILURE = "Authentication code is invalid";
     private final JdbcTemplate jdbc;
     private final AuthenticationIdentityLock identityLocks;
-    private final SessionService sessions;
+    private final RefreshTokenService refreshTokens;
+    private final AuthCredentialHashing credentialHashing;
     private final VerificationCodeProtector codeProtector;
     private final SmtpNotificationService smtp;
     private final ObjectMapper json;
@@ -40,24 +41,27 @@ public class AuthenticationFlowService {
     public AuthenticationFlowService(
             JdbcTemplate jdbc,
             AuthenticationIdentityLock identityLocks,
-            SessionService sessions,
+            RefreshTokenService refreshTokens,
+            AuthCredentialHashing credentialHashing,
             VerificationCodeProtector codeProtector,
             SmtpNotificationService smtp,
             ObjectMapper json) {
-        this(jdbc, identityLocks, sessions, codeProtector, smtp, json, Clock.systemUTC());
+        this(jdbc, identityLocks, refreshTokens, credentialHashing, codeProtector, smtp, json, Clock.systemUTC());
     }
 
     AuthenticationFlowService(
             JdbcTemplate jdbc,
             AuthenticationIdentityLock identityLocks,
-            SessionService sessions,
+            RefreshTokenService refreshTokens,
+            AuthCredentialHashing credentialHashing,
             VerificationCodeProtector codeProtector,
             SmtpNotificationService smtp,
             ObjectMapper json,
             Clock clock) {
         this.jdbc = jdbc;
         this.identityLocks = identityLocks;
-        this.sessions = sessions;
+        this.refreshTokens = refreshTokens;
+        this.credentialHashing = credentialHashing;
         this.codeProtector = codeProtector;
         this.smtp = smtp;
         this.json = json;
@@ -88,7 +92,7 @@ public class AuthenticationFlowService {
                 """, (rs, rowNum) -> new Account(
                 rs.getObject("id", UUID.class), rs.getString("state"), rs.getString("password_hash"),
                 rs.getBoolean("two_factor_enabled"), rs.getBoolean("must_change_password"),
-                SessionService.SessionRole.valueOf(rs.getString("primary_role"))), identities.getFirst()) : null;
+                AuthenticatedUserService.UserRole.valueOf(rs.getString("primary_role"))), identities.getFirst()) : null;
         var eligible = account != null && "ACTIVE".equals(account.state());
         var passwordHash = eligible ? account.passwordHash() : dummyPasswordHash;
         var passwordMatches = password != null && safeMatches(password, passwordHash);
@@ -101,21 +105,15 @@ public class AuthenticationFlowService {
             var flow = createChallenge(account.id(), normalized, "TWO_FACTOR").toString();
             return new LoginResult(Next.TWO_FACTOR, null, flow, account.role(), account.mustChangePassword());
         }
-        var issued = sessions.issue(account.id(), account.role());
-        return new LoginResult(Next.SESSION, issued.sessionId(), null, account.role(), account.mustChangePassword());
+        return new LoginResult(Next.AUTHENTICATED, account.id(), null, account.role(), account.mustChangePassword());
     }
 
     @Transactional
-    public void changePassword(
-            String sessionId, UUID userId, String currentPassword, String newPassword) {
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
         requireValidPassword(newPassword);
         lockUser(userId);
         var states = jdbc.queryForList("select state from users where id = ?", String.class, userId);
         if (states.size() != 1 || !"ACTIVE".equals(states.getFirst())) {
-            throw new AuthenticationException(PUBLIC_FAILURE);
-        }
-        var currentSession = sessions.requireLocked(sessionId);
-        if (!userId.equals(currentSession.userId())) {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }
         var encoded = jdbc.queryForObject(
@@ -128,7 +126,7 @@ public class AuthenticationFlowService {
                 """, passwords.encode(newPassword), userId);
         consumePendingLoginChallenges(userId);
         consumePendingPasswordResetChallenges(userId);
-        sessions.revokeAll(userId, "PASSWORD_CHANGED");
+        refreshTokens.revokeAll(userId, "PASSWORD_CHANGED");
     }
 
     @Transactional(readOnly = true)
@@ -139,12 +137,8 @@ public class AuthenticationFlowService {
     }
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
-    public UUID requestTwoFactorEnable(String sessionId, UUID userId, String email) {
+    public UUID requestTwoFactorEnable(UUID userId, String email) {
         var lockedIdentity = lockActiveUserIdentity(userId);
-        var currentSession = sessions.requireLocked(sessionId);
-        if (!userId.equals(currentSession.userId())) {
-            throw new AuthenticationException(PUBLIC_FAILURE);
-        }
         if (!lockedIdentity.equals(normalize(email))) {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }
@@ -152,13 +146,9 @@ public class AuthenticationFlowService {
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)
-    public void enableTwoFactor(String sessionId, UUID userId, UUID flowId, String code) {
+    public void enableTwoFactor(UUID userId, UUID flowId, String code) {
         var lockedUserId = lockChallengeUser(flowId, "TWO_FACTOR_ENABLE");
         if (!userId.equals(lockedUserId)) {
-            throw new AuthenticationException("Authentication flow subject mismatch");
-        }
-        var currentSession = sessions.requireLocked(sessionId);
-        if (!userId.equals(currentSession.userId())) {
             throw new AuthenticationException("Authentication flow subject mismatch");
         }
         var verified = consumeChallenge(flowId, "TWO_FACTOR_ENABLE", code);
@@ -167,14 +157,10 @@ public class AuthenticationFlowService {
     }
 
     @Transactional
-    public void disableTwoFactor(String sessionId, UUID userId, String password) {
+    public void disableTwoFactor(UUID userId, String password) {
         lockUser(userId);
         var states = jdbc.queryForList("select state from users where id = ?", String.class, userId);
         if (states.size() != 1 || !"ACTIVE".equals(states.getFirst())) {
-            throw new AuthenticationException(PUBLIC_FAILURE);
-        }
-        var currentSession = sessions.requireLocked(sessionId);
-        if (!userId.equals(currentSession.userId())) {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }
         confirmPassword(userId, password);
@@ -184,7 +170,7 @@ public class AuthenticationFlowService {
                 """, userId);
         consumePendingLoginChallenges(userId);
         consumePendingTwoFactorEnableChallenges(userId);
-        sessions.revokeAll(userId, "TWO_FACTOR_DISABLED");
+        refreshTokens.revokeAll(userId, "TWO_FACTOR_DISABLED");
     }
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
@@ -207,7 +193,7 @@ public class AuthenticationFlowService {
                 """, passwords.encode(newPassword), verified.userId());
         consumePendingLoginChallenges(verified.userId());
         consumePendingPasswordResetChallenges(verified.userId());
-        sessions.revokeAll(verified.userId(), "PASSWORD_RESET");
+        refreshTokens.revokeAll(verified.userId(), "PASSWORD_RESET");
     }
 
     private void consumePendingLoginChallenges(UUID userId) {
@@ -281,8 +267,7 @@ public class AuthenticationFlowService {
         var verified = consumeChallenge(flowId, "TWO_FACTOR", code);
         var account = loadAccount(verified.userId());
         if (!"ACTIVE".equals(account.state())) throw new AuthenticationException(PUBLIC_FAILURE);
-        var issued = sessions.issue(account.id(), account.role());
-        return new LoginResult(Next.SESSION, issued.sessionId(), null, account.role(), account.mustChangePassword());
+        return new LoginResult(Next.AUTHENTICATED, account.id(), null, account.role(), account.mustChangePassword());
     }
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
@@ -362,7 +347,7 @@ public class AuthenticationFlowService {
                         flow_hash, identity_hash, purpose, expires_at
                     ) values (?, ?, ?, ?)
                     """, sha256(flow.toString()),
-                    sessions.opaqueCompletionIdentity(targetIdentity, purpose),
+                    credentialHashing.opaqueCompletionIdentity(targetIdentity, purpose),
                     purpose, Timestamp.from(now.plus(Duration.ofMinutes(10))));
             return flow;
         } catch (Exception exception) {
@@ -464,7 +449,7 @@ public class AuthenticationFlowService {
                     sha256(flowId.toString()), purpose);
             var identityHash = opaqueIdentities.size() == 1
                     ? opaqueIdentities.getFirst()
-                    : sessions.hmac("opaque-completion-forged\0" + purpose + "\0" + flowId);
+                    : credentialHashing.hmac("opaque-completion-forged\0" + purpose + "\0" + flowId);
             recordOpaqueCompletionAttempt(identityHash, purpose);
             throw new AuthenticationException(CODE_FAILURE);
         }
@@ -560,7 +545,7 @@ public class AuthenticationFlowService {
                 """, (rs, rowNum) -> new Account(
                 rs.getObject("id", UUID.class), rs.getString("state"), rs.getString("password_hash"),
                 rs.getBoolean("two_factor_enabled"), rs.getBoolean("must_change_password"),
-                SessionService.SessionRole.valueOf(rs.getString("primary_role"))), userId);
+                AuthenticatedUserService.UserRole.valueOf(rs.getString("primary_role"))), userId);
     }
 
     private void enqueueChallengeMail(
@@ -658,13 +643,13 @@ public class AuthenticationFlowService {
         }
     }
 
-    public enum Next { SESSION, TWO_FACTOR }
+    public enum Next { AUTHENTICATED, TWO_FACTOR }
 
     public record LoginResult(
             Next next,
-            String sessionId,
+            UUID userId,
             String authFlowId,
-            SessionService.SessionRole role,
+            AuthenticatedUserService.UserRole role,
             boolean mustChangePassword) {}
 
     private record Account(
@@ -673,7 +658,7 @@ public class AuthenticationFlowService {
             String passwordHash,
             boolean twoFactorEnabled,
             boolean mustChangePassword,
-            SessionService.SessionRole role) {}
+            AuthenticatedUserService.UserRole role) {}
 
     private record Challenge(
             UUID id,

@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ai.civic.mainauth.auth.SessionService;
+import ai.civic.mainauth.auth.RefreshTokenService;
 
 @Service
 public class AdminRoleService {
@@ -17,23 +17,23 @@ public class AdminRoleService {
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "HIGHEST_ADMIN");
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
-    private final SessionService sessions;
+    private final RefreshTokenService refreshTokens;
     private final AdminAuthorizationService authorization;
 
     public AdminRoleService(
             JdbcTemplate jdbc,
             ObjectMapper json,
-            SessionService sessions,
+            RefreshTokenService refreshTokens,
             AdminAuthorizationService authorization) {
         this.jdbc = jdbc;
         this.json = json;
-        this.sessions = sessions;
+        this.refreshTokens = refreshTokens;
         this.authorization = authorization;
     }
 
     @Transactional
     public void replaceRolesAuthorized(
-            String sessionId,
+            String accessToken,
             UUID subjectId,
             long expectedVersion,
             Set<String> desiredRoles,
@@ -41,7 +41,7 @@ public class AdminRoleService {
             String reason,
             boolean impactConfirmed) {
         lockHighestAdminRoleChanges();
-        var actor = authorization.requireCurrentAdmin(sessionId, true);
+        var actor = authorization.requireCurrentAdmin(accessToken, true);
         replaceRolesAfterAuthorization(
                 actor.userId(), subjectId, expectedVersion, desiredRoles, desiredPermissions,
                 reason, impactConfirmed);
@@ -157,7 +157,7 @@ public class AdminRoleService {
                     """, subjectId, actorId, permission);
         }
         jdbc.update("update users set row_version = row_version + 1, updated_at = now() where id = ?", subjectId);
-        sessions.revokeAll(subjectId, "ROLES_CHANGED");
+        refreshTokens.revokeAll(subjectId, "ROLES_CHANGED");
         appendAudit(actorId, subjectId, current, desiredRoles,
                 currentPermissions, desiredPermissions, normalizedReason);
     }

@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
@@ -14,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -39,12 +40,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @SpringBootTest(properties = {
         "spring.main.lazy-initialization=true",
-        "civic.session.hmac-secret=test-session-hmac-secret-with-at-least-32-bytes"
+        "civic.auth.hmac-secret=test-auth-hmac-secret-with-at-least-32-bytes"
 })
 @AutoConfigureMockMvc
 class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Autowired AuthenticationFlowService auth;
-    @Autowired SessionService sessions;
+    @Autowired RefreshTokenService refreshTokens;
+    @Autowired AccessCredentialTestFactory credentials;
+    @Autowired AuthCredentialHashing credentialHashing;
+    @Autowired AuthenticatedUserService authenticatedUsers;
     @Autowired CsrfService csrf;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
@@ -55,7 +59,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void createActiveParticipant() {
-        jdbc.update("delete from sessions");
+        jdbc.update("delete from refresh_tokens");
         jdbc.update("delete from login_throttles");
         jdbc.update("delete from notification_outbox");
         jdbc.update("delete from auth_challenges");
@@ -77,38 +81,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void successfulLoginRotatesToANewOpaqueSessionAndStoresOnlyHmac() {
-        var login = auth.login(" PERSON@EXAMPLE.COM ", "Valid123!", "127.0.0.1");
-
-        assertThat(login.next()).isEqualTo(AuthenticationFlowService.Next.SESSION);
-        assertThat(login.sessionId()).isNotBlank().doesNotContain(".");
-        var stored = jdbc.queryForObject("select encode(session_hash, 'hex') from sessions", String.class);
-        assertThat(stored).doesNotContain(login.sessionId());
-        assertThat(sessions.require(login.sessionId()).userId()).isEqualTo(userId);
-        assertThat(login.toString()).doesNotContain("Bearer", "access_token", "refresh_token", "internal_token");
-    }
-
-    @Test
-    void browserLoginIssuesBothTheOpaqueSessionAndCommonAccessTokenCookies() throws Exception {
-        mvc.perform(post("/api/v1/auth/login")
-                        .header("Origin", "https://localhost")
-                        .header("Sec-Fetch-Site", "same-origin")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"email":"person@example.com","password":"Valid123!"}
-                                """))
-                .andExpect(status().isNoContent())
-                .andExpect(cookie().exists(SessionCookieFactory.SESSION_COOKIE))
-                .andExpect(cookie().exists(SessionCookieFactory.ACCESS_TOKEN_COOKIE))
-                .andExpect(cookie().path(SessionCookieFactory.ACCESS_TOKEN_COOKIE, "/"))
-                .andExpect(cookie().httpOnly(SessionCookieFactory.ACCESS_TOKEN_COOKIE, true))
-                .andExpect(cookie().secure(SessionCookieFactory.ACCESS_TOKEN_COOKIE, true))
-                .andExpect(cookie().sameSite(SessionCookieFactory.ACCESS_TOKEN_COOKIE, "Lax"))
-                .andExpect(cookie().maxAge(SessionCookieFactory.ACCESS_TOKEN_COOKIE, 900));
-    }
-
-    @Test
-    void loginWaitsForTheUserSecurityLockBeforeIssuingASession() throws Exception {
+    void loginWaitsForTheUserSecurityLockBeforeAuthenticating() throws Exception {
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
             connection.setAutoCommit(false);
@@ -123,7 +96,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                     .isInstanceOf(TimeoutException.class);
             connection.commit();
 
-            assertThat(login.get(10, TimeUnit.SECONDS).sessionId()).isNotBlank();
+            assertThat(login.get(10, TimeUnit.SECONDS).userId()).isEqualTo(userId);
         }
     }
 
@@ -206,11 +179,11 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
         assertThat(captureFailure("person@example.com", "Valid123!"))
                 .isEqualTo("Email or password is invalid");
-        assertThat(jdbc.queryForObject("select count(*) from sessions", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from refresh_tokens", Integer.class)).isZero();
 
         jdbc.update("update login_throttles set next_allowed_at = now() - interval '1 second'");
-        assertThat(auth.login("person@example.com", "Valid123!", "127.0.0.1").sessionId())
-                .isNotBlank();
+        assertThat(auth.login("person@example.com", "Valid123!", "127.0.0.1").userId())
+                .isEqualTo(userId);
     }
 
     @Test
@@ -266,28 +239,29 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void passwordChangeRevokesEveryExistingSession() {
-        var first = auth.login("person@example.com", "Valid123!", "127.0.0.1").sessionId();
-        var second = auth.login("person@example.com", "Valid123!", "127.0.0.2").sessionId();
+    void passwordChangeRevokesEveryExistingRefreshToken() {
+        refreshTokens.issue(userId);
+        refreshTokens.issue(userId);
 
-        auth.changePassword(first, userId, "Valid123!", "Changed123!");
+        auth.changePassword(userId, "Valid123!", "Changed123!");
 
-        assertThatThrownBy(() -> sessions.require(first)).isInstanceOf(AuthenticationException.class);
-        assertThatThrownBy(() -> sessions.require(second)).isInstanceOf(AuthenticationException.class);
         assertThat(jdbc.queryForObject(
-                "select count(*) from sessions where user_id = ? and revoked_at is null", Integer.class, userId))
-                .isZero();
+                "select count(*) from refresh_tokens where user_id = ? and revoked_at is null",
+                Integer.class, userId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from refresh_tokens where user_id = ? and revocation_reason = 'PASSWORD_CHANGED'",
+                Integer.class, userId)).isEqualTo(2);
     }
 
     @Test
     void mandatoryPasswordRotationRejectsReusingTheStoredPassword() {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        refreshTokens.issue(userId);
         jdbc.update("update credentials set must_change_password = true where user_id = ?", userId);
         var before = jdbc.queryForObject(
                 "select password_hash from credentials where user_id = ?", String.class, userId);
 
         assertThatThrownBy(() -> auth.changePassword(
-                session.sessionId(), userId, "Valid123!", "Valid123!"))
+                userId, "Valid123!", "Valid123!"))
                 .isInstanceOf(AuthenticationException.class);
 
         assertThat(jdbc.queryForObject(
@@ -296,7 +270,42 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select must_change_password from credentials where user_id = ?", Boolean.class, userId))
                 .isTrue();
-        assertThat(sessions.require(session.sessionId()).userId()).isEqualTo(userId);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from refresh_tokens where user_id = ? and revoked_at is null",
+                Integer.class, userId)).isOne();
+    }
+
+    @Test
+    void mandatoryPasswordRotationCanOnlyUseThePasswordChangeAccountFlow() throws Exception {
+        jdbc.update("update credentials set must_change_password = true where user_id = ?", userId);
+        var credential = credentials.issue(userId);
+
+        mvc.perform(get("/api/v1/account/profile")
+                        .cookie(new Cookie(
+                                AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(put("/api/v1/account/password")
+                        .cookie(new Cookie(
+                                AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                        .header("X-CSRF-Token", credential.csrfToken())
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"current_password":"Valid123!","new_password":"Changed123!"}
+                                """))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/v1/auth/me")
+                        .cookie(new Cookie(
+                                AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.must_change_password").value(true));
+        mvc.perform(get("/api/v1/account/profile")
+                        .cookie(new Cookie(
+                                AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -321,44 +330,27 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void repeatedCsrfReadsKeepTheSessionTokenValidAcrossTabs() {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+    void repeatedCsrfReadsRemainStableForOneAccessTokenAcrossTabs() {
+        var credential = credentials.issue(userId);
 
-        var firstTab = csrf.issue(session.sessionId());
-        var secondTab = csrf.issue(session.sessionId());
+        var firstTab = csrf.issue(credential.user());
+        var secondTab = csrf.issue(credential.user());
 
         assertThat(firstTab).isEqualTo(secondTab);
-        assertThat(csrf.matches(session.sessionId(), firstTab)).isTrue();
-        assertThat(csrf.matches(session.sessionId(), secondTab)).isTrue();
-    }
-
-    @Test
-    void expiredSessionRevocationRemainsCommittedAfterAuthenticationFailure() {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        jdbc.update("update sessions set idle_expires_at = now() - interval '1 hour'");
-
-        assertThatThrownBy(() -> sessions.require(session.sessionId()))
-                .isInstanceOf(AuthenticationException.class);
-
-        assertThat(jdbc.queryForObject("""
-                select count(*) from sessions
-                where user_id = ? and revoked_at is not null
-                  and revocation_reason = 'EXPIRED_OR_INACTIVE'
-                """, Integer.class, userId)).isOne();
+        assertThat(csrf.matches(credential.user(), firstTab)).isTrue();
+        assertThat(csrf.matches(credential.user(), secondTab)).isTrue();
     }
 
     @Test
     void concurrentPasswordChangesCanConsumeTheCurrentPasswordOnlyOnce() throws Exception {
-        var firstSession = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT).sessionId();
-        var secondSession = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT).sessionId();
-        var ready = new CountDownLatch(2);
+         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
         var executor = Executors.newFixedThreadPool(2);
         try {
             var first = executor.submit(
-                    () -> attemptPasswordChange(firstSession, ready, start, "FirstChanged123!"));
+                    () -> attemptPasswordChange(ready, start, "FirstChanged123!"));
             var second = executor.submit(
-                    () -> attemptPasswordChange(secondSession, ready, start, "SecondChanged123!"));
+                    () -> attemptPasswordChange(ready, start, "SecondChanged123!"));
             assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             start.countDown();
 
@@ -370,12 +362,12 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void passwordChangeResponseDeletesTheNowRevokedBrowserSession() throws Exception {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+    void passwordChangeResponseDeletesBothBrowserCredentials() throws Exception {
+        var credential = credentials.issue(userId);
 
         mvc.perform(put("/api/v1/account/password")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                        .header("X-CSRF-Token", session.csrfToken())
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                        .header("X-CSRF-Token", credential.csrfToken())
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -383,12 +375,13 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                                 {"current_password":"Valid123!","new_password":"Changed123!"}
                                 """))
                 .andExpect(status().isNoContent())
-                .andExpect(cookie().maxAge(SessionCookieFactory.SESSION_COOKIE, 0));
+                .andExpect(cookie().maxAge(AuthCookieFactory.ACCESS_TOKEN_COOKIE, 0))
+                .andExpect(cookie().maxAge(AuthCookieFactory.REFRESH_TOKEN_COOKIE, 0));
     }
 
     @Test
     void deactivationVerifiesThePasswordAfterAcquiringTheUserLifecycleLock() throws Exception {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        var credential = credentials.issue(userId);
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
             connection.setAutoCommit(false);
@@ -397,8 +390,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 lock.executeQuery();
             }
             var response = executor.submit(() -> mvc.perform(post("/api/v1/account/deactivate")
-                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                            .header("X-CSRF-Token", session.csrfToken())
+                            .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                            .header("X-CSRF-Token", credential.csrfToken())
                             .header("Origin", "https://localhost")
                             .header("Sec-Fetch-Site", "same-origin")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -425,45 +418,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void deactivationRevalidatesTheSessionAfterWaitingForTheUserLock() throws Exception {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
-            connection.setAutoCommit(false);
-            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
-                lock.setObject(1, userId);
-                lock.executeQuery();
-            }
-            var response = executor.submit(() -> mvc.perform(post("/api/v1/account/deactivate")
-                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                            .header("X-CSRF-Token", session.csrfToken())
-                            .header("Origin", "https://localhost")
-                            .header("Sec-Fetch-Site", "same-origin")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"password\":\"Valid123!\"}"))
-                    .andReturn().getResponse().getStatus());
-
-            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
-            try (var revoke = connection.prepareStatement("""
-                        update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
-                        where session_hash = ? and revoked_at is null
-                    """)) {
-                revoke.setBytes(1, sessions.hmac(session.sessionId()));
-                assertThat(revoke.executeUpdate()).isOne();
-            }
-            connection.commit();
-
-            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
-        }
-
-        assertThat(jdbc.queryForObject("select state from users where id = ?", String.class, userId))
-                .isEqualTo("ACTIVE");
-    }
-
-    @Test
     void passwordChangeRevalidatesActiveStateAfterAcquiringTheUserLifecycleLock() throws Exception {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        var credential = credentials.issue(userId);
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
             connection.setAutoCommit(false);
@@ -472,8 +428,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 lock.executeQuery();
             }
             var response = executor.submit(() -> mvc.perform(put("/api/v1/account/password")
-                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                            .header("X-CSRF-Token", session.csrfToken())
+                            .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                            .header("X-CSRF-Token", credential.csrfToken())
                             .header("Origin", "https://localhost")
                             .header("Sec-Fetch-Site", "same-origin")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -502,90 +458,13 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void passwordChangeRevalidatesTheSessionAfterWaitingForTheUserLock() throws Exception {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
-            connection.setAutoCommit(false);
-            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
-                lock.setObject(1, userId);
-                lock.executeQuery();
-            }
-            var response = executor.submit(() -> mvc.perform(put("/api/v1/account/password")
-                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                            .header("X-CSRF-Token", session.csrfToken())
-                            .header("Origin", "https://localhost")
-                            .header("Sec-Fetch-Site", "same-origin")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("""
-                                    {"current_password":"Valid123!","new_password":"Changed123!"}
-                                    """))
-                    .andReturn().getResponse().getStatus());
-
-            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
-            try (var revoke = connection.prepareStatement("""
-                        update sessions set revoked_at = now(), revocation_reason = 'LOGOUT_ALL'
-                        where user_id = ? and revoked_at is null
-                    """)) {
-                revoke.setObject(1, userId);
-                assertThat(revoke.executeUpdate()).isOne();
-            }
-            connection.commit();
-
-            assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
-        }
-
-        var encoded = jdbc.queryForObject(
-                "select password_hash from credentials where user_id = ?", String.class, userId);
-        assertThat(Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()
-                        .matches("Valid123!", encoded))
-                .isTrue();
-    }
-
-    @Test
-    void logoutAllRevalidatesTheInitiatingSessionAfterWaitingForTheUserLock() throws Exception {
-        var initiating = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        var other = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-
-        try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
-            connection.setAutoCommit(false);
-            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
-                lock.setObject(1, userId);
-                lock.executeQuery();
-            }
-
-            var response = executor.submit(
-                    () -> sessions.revokeAllFromSession(initiating.sessionId(), "LOGOUT_ALL"));
-
-            assertThatThrownBy(() -> response.get(250, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
-            try (var revoke = connection.prepareStatement("""
-                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
-                    where session_hash = ? and revoked_at is null
-                    """)) {
-                revoke.setBytes(1, sessions.hmac(initiating.sessionId()));
-                assertThat(revoke.executeUpdate()).isOne();
-            }
-            connection.commit();
-
-            assertThatThrownBy(() -> response.get(10, TimeUnit.SECONDS))
-                    .isInstanceOf(ExecutionException.class)
-                    .hasCauseInstanceOf(AuthenticationException.class);
-        }
-
-        assertThat(sessions.require(other.sessionId()).userId()).isEqualTo(userId);
-    }
-
-    @Test
-    void disablingTwoFactorDeletesTheNowRevokedBrowserSession() throws Exception {
+    void disablingTwoFactorDeletesBothBrowserCredentials() throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        var credential = credentials.issue(userId);
 
         mvc.perform(post("/api/v1/account/2fa/disable")
-                        .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                        .header("X-CSRF-Token", session.csrfToken())
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                        .header("X-CSRF-Token", credential.csrfToken())
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -593,7 +472,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                                 {"password":"Valid123!"}
                                 """))
                 .andExpect(status().isNoContent())
-                .andExpect(cookie().maxAge(SessionCookieFactory.SESSION_COOKIE, 0));
+                .andExpect(cookie().maxAge(AuthCookieFactory.ACCESS_TOKEN_COOKIE, 0))
+                .andExpect(cookie().maxAge(AuthCookieFactory.REFRESH_TOKEN_COOKIE, 0));
     }
 
     @Test
@@ -601,14 +481,13 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var pendingLogin = auth.login("person@example.com", "Valid123!", "127.0.0.1");
         var pendingEnable = requestTwoFactorEnable();
-        var enablingSession = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        jdbc.update("""
+         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose in ('TWO_FACTOR', 'TWO_FACTOR_ENABLE')
                   and consumed_at is null
                 """, codeProtector.verifier("123456"), userId);
 
-        auth.disableTwoFactor(enablingSession.sessionId(), userId, "Valid123!");
+        auth.disableTwoFactor(userId, "Valid123!");
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from auth_challenges
@@ -619,136 +498,15 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 UUID.fromString(pendingLogin.authFlowId()), "123456"))
                 .isInstanceOf(AuthenticationException.class);
         assertThatThrownBy(() -> auth.enableTwoFactor(
-                enablingSession.sessionId(), userId, pendingEnable, "123456"))
+                userId, pendingEnable, "123456"))
                 .isInstanceOf(AuthenticationException.class);
-    }
-
-    @Test
-    void enablingTwoFactorWaitsForLogoutAndRejectsTheRevokedSession() throws Exception {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        var flow = auth.requestTwoFactorEnable(
-                session.sessionId(), userId, "person@example.com");
-        jdbc.update("""
-                update auth_challenges set code_hash = ?
-                where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
-                """, codeProtector.verifier("123456"), userId);
-
-        try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
-            connection.setAutoCommit(false);
-            try (var lock = connection.prepareStatement("""
-                    select session_hash from sessions
-                    where user_id = ? and revoked_at is null for update
-                    """)) {
-                lock.setObject(1, userId);
-                lock.executeQuery();
-            }
-
-            var enable = executor.submit(
-                    () -> auth.enableTwoFactor(session.sessionId(), userId, flow, "123456"));
-            assertThatThrownBy(() -> enable.get(250, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
-            try (var revoke = connection.prepareStatement("""
-                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
-                    where user_id = ? and revoked_at is null
-                    """)) {
-                revoke.setObject(1, userId);
-                assertThat(revoke.executeUpdate()).isOne();
-            }
-            connection.commit();
-
-            assertThatThrownBy(() -> enable.get(10, TimeUnit.SECONDS))
-                    .hasCauseInstanceOf(AuthenticationException.class);
-        }
-
-        assertThat(jdbc.queryForObject(
-                "select two_factor_enabled from credentials where user_id = ?",
-                Boolean.class,
-                userId)).isFalse();
-    }
-
-    @Test
-    void requestingTwoFactorEnableWaitsForLogoutAndCreatesNoChallenge() throws Exception {
-        var challengesBefore = count("auth_challenges");
-        var notificationsBefore = count("notification_outbox");
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-
-        try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
-            connection.setAutoCommit(false);
-            try (var lock = connection.prepareStatement("""
-                    select session_hash from sessions
-                    where user_id = ? and revoked_at is null for update
-                    """)) {
-                lock.setObject(1, userId);
-                lock.executeQuery();
-            }
-
-            var request = executor.submit(() -> auth.requestTwoFactorEnable(
-                    session.sessionId(), userId, "person@example.com"));
-            assertThatThrownBy(() -> request.get(250, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
-            try (var revoke = connection.prepareStatement("""
-                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
-                    where user_id = ? and revoked_at is null
-                    """)) {
-                revoke.setObject(1, userId);
-                assertThat(revoke.executeUpdate()).isOne();
-            }
-            connection.commit();
-
-            assertThatThrownBy(() -> request.get(10, TimeUnit.SECONDS))
-                    .hasCauseInstanceOf(AuthenticationException.class);
-        }
-
-        assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
-        assertThat(count("notification_outbox")).isEqualTo(notificationsBefore);
-    }
-
-    @Test
-    void disablingTwoFactorWaitsForLogoutAndRejectsTheRevokedSession() throws Exception {
-        jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-
-        try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
-            connection.setAutoCommit(false);
-            try (var lock = connection.prepareStatement("""
-                    select session_hash from sessions
-                    where user_id = ? and revoked_at is null for update
-                    """)) {
-                lock.setObject(1, userId);
-                lock.executeQuery();
-            }
-
-            var disable = executor.submit(
-                    () -> auth.disableTwoFactor(session.sessionId(), userId, "Valid123!"));
-            assertThatThrownBy(() -> disable.get(250, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
-            try (var revoke = connection.prepareStatement("""
-                    update sessions set revoked_at = now(), revocation_reason = 'LOGOUT'
-                    where user_id = ? and revoked_at is null
-                    """)) {
-                revoke.setObject(1, userId);
-                assertThat(revoke.executeUpdate()).isOne();
-            }
-            connection.commit();
-
-            assertThatThrownBy(() -> disable.get(10, TimeUnit.SECONDS))
-                    .hasCauseInstanceOf(AuthenticationException.class);
-        }
-
-        assertThat(jdbc.queryForObject(
-                "select two_factor_enabled from credentials where user_id = ?",
-                Boolean.class,
-                userId)).isTrue();
     }
 
     @Test
     void disablingTwoFactorRevalidatesActiveStateAfterAcquiringTheUserLifecycleLock()
             throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
+        var credential = credentials.issue(userId);
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
             connection.setAutoCommit(false);
@@ -757,8 +515,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 lock.executeQuery();
             }
             var response = executor.submit(() -> mvc.perform(post("/api/v1/account/2fa/disable")
-                            .cookie(new Cookie(SessionCookieFactory.SESSION_COOKIE, session.sessionId()))
-                            .header("X-CSRF-Token", session.csrfToken())
+                            .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                            .header("X-CSRF-Token", credential.csrfToken())
                             .header("Origin", "https://localhost")
                             .header("Sec-Fetch-Site", "same-origin")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -788,7 +546,6 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Test
     void enablingTwoFactorWaitsForTheUserSecurityLockAndCannotOverrideDisable() throws Exception {
         var pendingEnable = requestTwoFactorEnable();
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
@@ -802,7 +559,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 lock.executeQuery();
             }
             var enable = executor.submit(() -> auth.enableTwoFactor(
-                    session.sessionId(), userId, pendingEnable, "123456"));
+                    userId, pendingEnable, "123456"));
 
             assertThatThrownBy(() -> enable.get(250, TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);
@@ -818,45 +575,6 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 disable.executeUpdate();
                 consume.setObject(1, userId);
                 consume.executeUpdate();
-            }
-            connection.commit();
-
-            assertThatThrownBy(() -> enable.get(10, TimeUnit.SECONDS))
-                    .hasCauseInstanceOf(AuthenticationException.class);
-        }
-
-        assertThat(jdbc.queryForObject(
-                "select two_factor_enabled from credentials where user_id = ?",
-                Boolean.class, userId)).isFalse();
-    }
-
-    @Test
-    void enablingTwoFactorRejectsASessionRevokedWhileWaitingForTheUserLock() throws Exception {
-        var pendingEnable = requestTwoFactorEnable();
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        jdbc.update("""
-                update auth_challenges set code_hash = ?
-                where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
-                """, codeProtector.verifier("123456"), userId);
-
-        try (var connection = jdbc.getDataSource().getConnection();
-                var executor = Executors.newSingleThreadExecutor()) {
-            connection.setAutoCommit(false);
-            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
-                lock.setObject(1, userId);
-                lock.executeQuery();
-            }
-            var enable = executor.submit(() -> auth.enableTwoFactor(
-                    session.sessionId(), userId, pendingEnable, "123456"));
-
-            assertThatThrownBy(() -> enable.get(250, TimeUnit.MILLISECONDS))
-                    .isInstanceOf(TimeoutException.class);
-            try (var revoke = connection.prepareStatement("""
-                        update sessions set revoked_at = now(), revocation_reason = 'PASSWORD_CHANGED'
-                        where user_id = ? and revoked_at is null
-                    """)) {
-                revoke.setObject(1, userId);
-                revoke.executeUpdate();
             }
             connection.commit();
 
@@ -916,13 +634,13 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
                 userId);
 
         mvc.perform(post("/api/v1/auth/2fa/resend")
-                        .cookie(new Cookie(SessionCookieFactory.AUTH_FLOW_COOKIE, login.authFlowId()))
+                        .cookie(new Cookie(AuthCookieFactory.AUTH_FLOW_COOKIE, login.authFlowId()))
                         .header("Origin", "https://localhost")
                         .header("Sec-Fetch-Site", "same-origin")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isAccepted())
-                .andExpect(cookie().maxAge(SessionCookieFactory.AUTH_FLOW_COOKIE, 600));
+                .andExpect(cookie().maxAge(AuthCookieFactory.AUTH_FLOW_COOKIE, 600));
     }
 
     @Test
@@ -952,14 +670,13 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @Test
     void authenticatedPasswordChangeConsumesPendingPasswordResetChallenges() throws Exception {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
         var reset = auth.requestPasswordReset("person@example.com");
         jdbc.update("""
                 update auth_challenges set code_hash = ?
                 where user_id = ? and purpose = 'PASSWORD_RESET' and consumed_at is null
                 """, codeProtector.verifier("654321"), userId);
 
-        auth.changePassword(session.sessionId(), userId, "Valid123!", "Changed123!");
+        auth.changePassword(userId, "Valid123!", "Changed123!");
 
         assertThat(jdbc.queryForObject("""
                 select count(*) from auth_challenges
@@ -1008,10 +725,10 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
         var login = auth.login("person@example.com", "Valid123!", "127.0.0.1");
 
-        assertThat(login.role()).isEqualTo(SessionService.SessionRole.ADMIN);
-        assertThat(sessions.require(login.sessionId()).role())
-                .isEqualTo(SessionService.SessionRole.ADMIN);
-        assertThat(sessions.require(login.sessionId()).permissions()).containsExactly("RAG_ADMIN");
+        assertThat(login.role()).isEqualTo(AuthenticatedUserService.UserRole.ADMIN);
+        assertThat(authenticatedUsers.current(userId).role())
+                .isEqualTo(AuthenticatedUserService.UserRole.ADMIN);
+        assertThat(authenticatedUsers.current(userId).permissions()).containsExactly("RAG_ADMIN");
     }
 
     @Test
@@ -1236,8 +953,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         var identity = "unknown-completion@example.com";
         var firstFakeFlow = auth.requestPasswordReset(identity);
         var secondFakeFlow = auth.requestPasswordReset(identity);
-        var lockKey = ByteBuffer.wrap(sessions.hmac(
-                "opaque-completion-identity\0PASSWORD_RESET\0" + identity)).getLong();
+        var lockKey = ByteBuffer.wrap(credentialHashing.opaqueCompletionIdentity(
+                identity, "PASSWORD_RESET")).getLong();
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newFixedThreadPool(2)) {
@@ -1320,9 +1037,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     private UUID requestTwoFactorEnable() {
-        var session = sessions.issue(userId, SessionService.SessionRole.PARTICIPANT);
-        return auth.requestTwoFactorEnable(
-                session.sessionId(), userId, "person@example.com");
+        return auth.requestTwoFactorEnable(userId, "person@example.com");
     }
 
     private int count(String table) {
@@ -1352,12 +1067,12 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     private boolean attemptPasswordChange(
-            String sessionId, CountDownLatch ready, CountDownLatch start, String newPassword)
+            CountDownLatch ready, CountDownLatch start, String newPassword)
             throws InterruptedException {
         ready.countDown();
         if (!start.await(10, TimeUnit.SECONDS)) throw new AssertionError("password race did not start");
         try {
-            auth.changePassword(sessionId, userId, "Valid123!", newPassword);
+            auth.changePassword(userId, "Valid123!", newPassword);
             return true;
         } catch (AuthenticationException expected) {
             return false;

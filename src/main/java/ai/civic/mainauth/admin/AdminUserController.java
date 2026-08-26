@@ -2,8 +2,8 @@ package ai.civic.mainauth.admin;
 
 import ai.civic.mainauth.auth.BrowserRequestPolicy;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
+import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.auth.CsrfService;
-import ai.civic.mainauth.auth.SessionCookieFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.List;
@@ -47,15 +47,15 @@ public class AdminUserController {
 
     @GetMapping
     ResponseEntity<UserPage> list(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestParam(value = "query", defaultValue = "") String query) {
-        authorization.requireAdmin(sessionId, true);
+        authorization.requireAdmin(accessToken, true);
         var normalized = query.strip().toLowerCase(java.util.Locale.ROOT);
         var users = jdbc.query("""
                 select u.id, u.email, u.state, u.row_version, c.must_change_password,
-                       u.email_verified_at, coalesce(max(s.last_seen_at), u.updated_at) as last_activity_at
+                       u.email_verified_at, coalesce(max(t.last_used_at), u.updated_at) as last_activity_at
                 from users u join credentials c on c.user_id = u.id
-                left join sessions s on s.user_id = u.id
+                left join refresh_tokens t on t.user_id = u.id
                 where ? = '' or u.normalized_email like '%' || ? || '%'
                 group by u.id, c.must_change_password
                 order by u.created_at desc limit 100
@@ -68,26 +68,26 @@ public class AdminUserController {
 
     @GetMapping("/{userId}")
     ResponseEntity<AdminUserView> get(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @PathVariable UUID userId) {
-        authorization.requireAdmin(sessionId, true);
+        authorization.requireAdmin(accessToken, true);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(load(userId));
     }
 
     @PutMapping("/{userId}/roles")
     AdminUserView replaceRoles(
-            @CookieValue(SessionCookieFactory.SESSION_COOKIE) String sessionId,
+            @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
             @RequestHeader("X-CSRF-Token") String csrfToken,
             @PathVariable UUID userId,
             @RequestBody RoleUpdate body,
             HttpServletRequest request) {
-        authorization.requireAdmin(sessionId, true);
-        if (!csrf.matches(sessionId, csrfToken)) throw new BrowserRequestRejectedException("CSRF token is invalid");
+        var actor = authorization.requireAdmin(accessToken, true);
+        if (!csrf.matches(actor, csrfToken)) throw new BrowserRequestRejectedException("CSRF token is invalid");
         browser.requireAuthenticatedMutation(new BrowserRequestPolicy.RequestMetadata(
                 request.getMethod(), request.getHeader(HttpHeaders.ORIGIN), request.getHeader("Sec-Fetch-Site"),
                 request.getContentType(), request.getHeader(HttpHeaders.AUTHORIZATION)), csrfToken, csrfToken);
         roles.replaceRolesAuthorized(
-                sessionId,
+                accessToken,
                 userId,
                 body.rowVersion(),
                 body.roles(),
@@ -100,9 +100,9 @@ public class AdminUserController {
     private AdminUserView load(UUID userId) {
         var users = jdbc.query("""
                 select u.id, u.email, u.state, u.row_version, c.must_change_password,
-                       u.email_verified_at, coalesce(max(s.last_seen_at), u.updated_at) as last_activity_at
+                       u.email_verified_at, coalesce(max(t.last_used_at), u.updated_at) as last_activity_at
                 from users u join credentials c on c.user_id = u.id
-                left join sessions s on s.user_id = u.id
+                left join refresh_tokens t on t.user_id = u.id
                 where u.id = ? group by u.id, c.must_change_password
                 """, (rs, rowNum) -> view(
                 rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("state"),

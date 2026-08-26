@@ -12,21 +12,29 @@ public final class ProductionSecretGuard {
     public ProductionSecretGuard(
             @Value("${civic.production-secrets-required:false}") boolean required,
             @Value("${spring.datasource.password:local-development-only}") String databasePassword,
-            @Value("${civic.session.hmac-secret:local-development-session-hmac-secret-change-me}") String sessionSecret,
-            @Value("${civic.internal.client-secret:local-development-internal-client-secret}") String internalSecret,
+            @Value("${civic.auth.hmac-secret:local-development-auth-hmac-secret-change-me}") String authSecret,
+            @Value("${civic.internal.client-secret:local-development-internal-client-secret}") String internalClientSecret,
             @Value("${civic.notification.code-protection-key:local-development-code-protection-key}") String codeProtectionKey,
             @Value("${spring.flyway.placeholders.bootstrap_admin_password_hash:}") String bootstrapPasswordHash,
+            @Value("${civic.cookies.secure:true}") boolean secureCookies,
             Rs256KeyRing keys) {
-        validate(required, Map.of(
+        validate(required, secureCookies, Map.of(
                 "database password", databasePassword,
-                "session HMAC secret", sessionSecret,
-                "internal client secret", internalSecret,
+                "authentication HMAC secret", authSecret,
+                "internal client secret", internalClientSecret,
                 "verification-code protection key", codeProtectionKey,
                 "bootstrap administrator password hash", bootstrapPasswordHash), keys.active().getKeyID());
     }
 
-    static void validate(boolean required, Map<String, String> values, String activeKeyId) {
+    static void validate(
+            boolean required,
+            boolean secureCookies,
+            Map<String, String> values,
+            String activeKeyId) {
         if (!required) return;
+        if (!secureCookies) {
+            throw new IllegalStateException("Production requires Secure authentication cookies");
+        }
         values.forEach((name, value) -> {
             if (value == null || value.isBlank() || value.startsWith("local-development-")
                     || DEFAULT_BOOTSTRAP_PASSWORD_HASH.equals(value)) {
