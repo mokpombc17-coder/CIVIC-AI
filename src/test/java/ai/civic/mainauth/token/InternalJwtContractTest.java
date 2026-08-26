@@ -104,8 +104,9 @@ class InternalJwtContractTest {
         assertThat(claims.getAudience()).containsExactly("civic-ai-api");
         assertThat(jwt.getPayload().toJSONObject().get("aud"))
                 .isEqualTo(java.util.List.of("civic-ai-api"));
-        assertThat(claims.getSubject()).isEqualTo(loginEmail);
-        assertThat(claims.getStringClaim("user_id")).isEqualTo(userId.toString());
+        assertThat(claims.getSubject()).isEqualTo(userId.toString());
+        assertThat(claims.getStringClaim("email")).isEqualTo(loginEmail);
+        assertThat(claims.getClaim("user_id")).isNull();
         assertThat(claims.getLongClaim("account_state_version")).isEqualTo(7);
         assertThat(claims.getStringClaim("scope")).contains("chat:connect", "vote:surveys:read", "rag:queries:write");
         assertThat(claims.getClaim("roles")).isNull();
