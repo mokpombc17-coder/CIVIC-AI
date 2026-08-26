@@ -1,0 +1,347 @@
+{
+  "version": 2,
+  "capturedAt": "2026-08-12T23:31:00+09:00",
+  "sourceRoot": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures",
+  "entries": [
+    {
+      "id": "AUTH-001",
+      "file": "AUTH-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-001.png",
+      "sha256": "76c2526fc2d7482ae2f3840ed3aed02798db395f404bc32766f465f51a9bc5aa",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-002",
+      "file": "AUTH-002.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-002.png",
+      "sha256": "14dd381835b55dc0e72872eb239282bb6d1581756d1ea6f0088420460ed37bc8",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-003",
+      "file": "AUTH-003.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-003.png",
+      "sha256": "887bbe171164f54cf71b65af8ce9b8a1b197c13a9f6015c892c76519922c7ac4",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-004",
+      "file": "AUTH-004.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-004.png",
+      "sha256": "92c86570792d8007aaacaac5c62a6b37907c29193e89f969904c2ad9904e26e7",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-005",
+      "file": "AUTH-005.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-005.png",
+      "sha256": "a298b905a68ef752c05b44bcf71bfef718626a4333dc49cd57e90b564e0e7d48",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-006",
+      "file": "AUTH-006.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-006.png",
+      "sha256": "9218ed472e98b9aafc7a925b986d5286a1c43ceb107a34892778959dc4c479df",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-007",
+      "file": "AUTH-007.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-007.png",
+      "sha256": "3c4bd0aa3e7ce61df06f25bc6a1a3c3d36a8bead5755b2713a45ef8950b3c797",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-008",
+      "file": "AUTH-008.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-008.png",
+      "sha256": "2b7b4b39c17cb35afaba4fd2758afbcd628d5290e876ae28f633345cd4c55dcb",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-009",
+      "file": "AUTH-009.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-009.png",
+      "sha256": "37cf0d7b958759b3ebe0972e29fb0e18aba6547ff9b3cb0c72a89532d0933efd",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "AUTH-010",
+      "file": "AUTH-010.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/AUTH-010.png",
+      "sha256": "7ca61a6776101bda1fd6d959928bbbdb6b18c6a2291d2585c2fbeafd3d499030",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "COMMON-001",
+      "file": "COMMON-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/COMMON-001.png",
+      "sha256": "81115cd7b07474b58af42c66ea389f41e8402b38c8a7d5141185b0de9cda426d",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "COMMON-002",
+      "file": "COMMON-002.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/COMMON-002.png",
+      "sha256": "686591664c447f2c0786a50c3879f2eeeab0af27ab539cb6a7952ce6d4ca00b0",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "COMMON-003",
+      "file": "COMMON-003.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/COMMON-003.png",
+      "sha256": "169d3272c1896d6af971da02c74e2dc2b1ee906a9468912d2fb8f916f1fddbce",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "COMMON-004",
+      "file": "COMMON-004.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/COMMON-004.png",
+      "sha256": "1b11d349b66b30c72bd16be2b16d646e8dfa0cc7699eb772b75f6885a1061592",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "U-HOME-001",
+      "file": "U-HOME-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-HOME-001.png",
+      "sha256": "e4a4e7e1a314c93240b103cf071e27b2d3e7aca98a4c2e99ee7ce554e5efeba7",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "U-ACCOUNT-001",
+      "file": "U-ACCOUNT-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-ACCOUNT-001.png",
+      "sha256": "95c04579d95fe93542303a2b38fb8f8078d3c8020c13bc4fb9063944457427fb",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "U-ACCOUNT-002",
+      "file": "U-ACCOUNT-002.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-ACCOUNT-002.png",
+      "sha256": "cfc85419d6fd4a09c788317d808bc8c1ebb38f3fb433837013e255c5bcafacfc",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "U-ACCOUNT-003",
+      "file": "U-ACCOUNT-003.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-ACCOUNT-003.png",
+      "sha256": "3998e31112a18292b5f3527ef97867640c203fe4120cc745e2c078a522d75af6",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "U-ACCOUNT-004",
+      "file": "U-ACCOUNT-004.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-ACCOUNT-004.png",
+      "sha256": "013cc060bfac05cbad497fafcbda2c57e609338a53f04b08b524084e4236ec41",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "A-HOME-001",
+      "file": "A-HOME-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-HOME-001.png",
+      "sha256": "1e7efd31dccb50449c5730817f58b428fe2bf652e2aef99af19fab3eac988ca0",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-USER-001",
+      "file": "A-USER-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-USER-001.png",
+      "sha256": "5ab6a293119a72b06f623ae9f1bcf861e022d7d6f920c4679b0b6fb5eb78365d",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-USER-002",
+      "file": "A-USER-002.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-USER-002.png",
+      "sha256": "baad5c17b1f7a6d523d98d4dcc05d69d15103951c4e3590a4fcc85a1485e0bd8",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-USER-003",
+      "file": "A-USER-003.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-USER-003.png",
+      "sha256": "62bdc12d3998c63e739354226e0757dd492b67c0409ca99053f5a2a7b7d90245",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-USER-004",
+      "file": "A-USER-004.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-USER-004.png",
+      "sha256": "5a7804098a4da0ea5ffd7d1af08e2d2c6b4cf16e2710a056c142065e583ce676",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-USER-005",
+      "file": "A-USER-005.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-USER-005.png",
+      "sha256": "c6686f54b6ae690ae3ff30a5bcf253fb037a90a5826f054d20df34bf5b4721de",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "U-RAG-001",
+      "file": "U-RAG-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-RAG-001.png",
+      "sha256": "b1b49fef4226c2880d74e2f0aa1956a324108393ff7e2c9f7144ce52523b97ed",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "U-RAG-002",
+      "file": "U-RAG-002.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-RAG-002.png",
+      "sha256": "b0f92d2c948f5158c1e1aac9aba38cd3f83cb01f4a60b9c2122412a24c7d1a9a",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "U-RAG-003",
+      "file": "U-RAG-003.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/U-RAG-003.png",
+      "sha256": "06a0bc41881d76dd9488b092b3de43d44ee140578cb11da24a30b6de904ad5ba",
+      "width": 788,
+      "height": 1706,
+      "viewportWidth": 394,
+      "viewportHeight": 853
+    },
+    {
+      "id": "A-RAG-001",
+      "file": "A-RAG-001.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-RAG-001.png",
+      "sha256": "ac7e96428790f94b2e8436bd9c491fbae30f88dd628944cda00b1e635e037c0d",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-RAG-002",
+      "file": "A-RAG-002.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-RAG-002.png",
+      "sha256": "11939201d4cfa2a93f28910e7832d71c2e0c8e1d849e844e7bc60acd716e4fb0",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-RAG-003",
+      "file": "A-RAG-003.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-RAG-003.png",
+      "sha256": "4a8d3a644be4462a7e8df1d60d1c89099b8765a3e4b53307761fa2ccaabec345",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-RAG-004",
+      "file": "A-RAG-004.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-RAG-004.png",
+      "sha256": "9b9459a07bca95b4697ad119e09eb4da29beb8e4dddf3ad41b69193fefcf0a5b",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-RAG-005",
+      "file": "A-RAG-005.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-RAG-005.png",
+      "sha256": "c0e855122e117852dabdb9f4e91881fb24b04510910729710887ed28f3695faa",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    },
+    {
+      "id": "A-RAG-006",
+      "file": "A-RAG-006.png",
+      "source": "/Users/junseok/Desktop/CIVIC AI/tmp/pdfs/production-screen-captures/A-RAG-006.png",
+      "sha256": "d4130f7b95c36e2edc8fe64ad4eea8cab040fc99fc1d1fe6239bc74790c984f0",
+      "width": 2880,
+      "height": 1802,
+      "viewportWidth": 1440,
+      "viewportHeight": 901
+    }
+  ]
+}

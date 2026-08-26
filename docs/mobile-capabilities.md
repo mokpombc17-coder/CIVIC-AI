@@ -5,7 +5,7 @@ React Native는 별도 화면을 소유하지 않고 Next.js WebView와 운영�
 ## Environment switches
 
 ```dotenv
-EXPO_PUBLIC_OAUTH_ENABLED=true
+EXPO_PUBLIC_OAUTH_ENABLED=false
 EXPO_PUBLIC_DOWNLOADS_ENABLED=true
 EXPO_PUBLIC_PUSH_ENABLED=false
 ```
@@ -13,23 +13,13 @@ EXPO_PUBLIC_PUSH_ENABLED=false
 기능이 활성화되어도 권한을 앱 시작 시 자동 요청하지 않는다. 푸시 권한은 사용자가 알림 기능을
 선택했을 때 `REQUEST_PUSH_PERMISSION`으로 요청한다.
 
-## OAuth
+## OAuth 비활성 경계
 
-Google 등 OAuth provider 화면은 WebView가 아닌 시스템 인증 브라우저에서 연다.
-
-```text
-WebView → START_OAUTH
-Native → system auth browser
-Provider → Next.js BFF callback
-BFF → nextwebview://auth/callback?handoff=...
-Native → AUTH_RESULT
-WebView → BFF에 handoff code 교환
-BFF → HttpOnly session cookie
-```
-
-웹 인증 adapter는 Platform Shell 템플릿에 포함하지 않는다. OAuth를 사용하는 서비스가 운영 인증
-흐름과 일회용 handoff 교환 endpoint를 별도로 연결한다. provider access token과 서비스 session
-token은 bridge payload 또는 Redux에 저장하지 않는다.
+CIVIC 로그인은 Main/Auth 이메일·비밀번호와 선택적 2FA만 사용한다. Google을 포함한 외부 OAuth
+로그인은 구현하거나 활성화하지 않으며 `EXPO_PUBLIC_OAUTH_ENABLED`는 `false`로 유지한다. bridge에
+남은 OAuth message schema는 템플릿 호환용 비활성 계약일 뿐 CIVIC UI에서 시작하지 않는다.
+Access Token과 Refresh Token은 HttpOnly cookie에만 두고 bridge payload 또는 Redux에 저장하지
+않는다.
 
 ## Downloads
 
@@ -51,8 +41,8 @@ WebView → POST /api/mobile/push-tokens
 BFF → configured upstream token repository
 ```
 
-Push를 사용하는 서비스는 실제 사용자/DB 모델에 맞는 token 저장 endpoint 또는 upstream adapter를
-별도로 연결한다. Platform Shell 템플릿의 웹 앱에는 이 endpoint가 포함되지 않는다.
+`PUSH_TOKEN_UPSTREAM_URL`이 없으면 API는 `503`을 반환한다. 실제 사용자/DB 모델에 맞춰
+`apps/web/lib/server/push/push-token-repository.ts` port를 구현하거나 upstream adapter를 연결한다.
 
 알림 클릭 데이터의 `url`은 기존 딥링크 정규화와 same-origin 검사를 통과한 뒤 Next.js
 `router.push()`로 전달된다.

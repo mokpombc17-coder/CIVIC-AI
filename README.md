@@ -1,55 +1,87 @@
-# CIVIC.AI Platform Shell Template
+# CIVIC.AI Frontend
 
-도메인 애플리케이션을 시작하기 위한 최소 Next.js 템플릿이다. 공통 모바일 Platform Shell과
-Next.js App Router 연결만 포함하며, 웹 인증·Chat·Vote·RAG·Simulation 구현은 포함하지 않는다.
-기존 `apps/mobile`과 `packages/bridge` workspace는 package 구성을 유지하기 위해 원본 그대로 둔다.
+CIVIC의 Next.js 웹 애플리케이션과 Expo WebView 셸을 함께 관리한다. Wire Flow 기반 실제 사용자·관리자
+UI, Main/Auth 연동, RAG 사용자 질의와 관리자 문서 관리 화면이 포함되어 있다. 참여자 화면은
+`frontend2`가 원래 제공하던 `393 × 852` Platform Shell을 외곽 레이아웃으로 사용하고, 이관한 실제
+기능 UI는 그 content 영역 안에서 렌더링한다.
 
-## 포함 범위
+## 현재 범위
 
-- Next.js `16.2.11`, React `19.2.3`, TypeScript `6.0.3`
-- `393 × 852` mobile-first Platform Shell
-- 공통 header, `self | child` scroll 책임, overlay 계층
-- 홈·AI·토론방·투표·계정 bottom navigation
-- `/home`, 404, loading, error의 기본 Shell 조립
-- Platform Shell 단위·E2E 테스트와 사용 문서
+- Main/Auth: 로그인, 회원가입, 비밀번호 재설정, 계정·보안, 사용자·권한 관리자 화면
+- RAG: 사용자 질의, 답변·출처 확인, 피드백, 관리자 폴더·문서·업로드·작업·분석·크롤러 화면
+- 공통: 기존 frontend2 참여자 Platform Shell, 관리자 Shell, 오류 화면, 모바일 bridge,
+  설치·업데이트 안내
+- 준비 중: Chat, Vote/Decision, Task, Simulation의 제품 화면과 서비스 호출
 
-## 시작하기
+준비 중인 기능은 화면 레지스트리의 canonical 경로와 제목만 제공하며 WebSocket이나 백엔드 호출을
+시작하지 않는다. 기존 `civic-ai-frontend`의 오래된 Chat 구현은 이 저장소로 복사하지 않았다.
+
+## 인증 방식
+
+브라우저는 Main/Auth가 발급한 두 HttpOnly 쿠키를 사용한다.
+
+- `civic_ai_access_token`: `Path=/`, 15분 Access Token
+- `civic_ai_refresh_token`: `Path=/api/v1/auth`, 회전형 Refresh Token
+
+Access Token 만료로 API가 `401`을 반환하면 브라우저가 `POST /api/v1/auth/refresh`를 한 번 호출하고
+원래 요청을 한 번만 재시도한다. 동시에 여러 요청이 만료되어도 Refresh Token 회전은 하나의 요청으로
+직렬화한다. Next.js는 JWT를 발급·해석·저장하지 않는다. RAG BFF는 브라우저에서
+받은 동일한 Access Token 원문을 RAG 서버의 Cookie와 Bearer Authorization에 함께 전달한다.
+
+세부 계약은 [`docs/contracts/platform-auth.md`](docs/contracts/platform-auth.md)에 있다.
+
+## 환경 변수
+
+`apps/web/.env.local`에 다음 값을 설정한다.
+
+```dotenv
+CIVIC_BROWSER_ORIGIN=http://localhost:3000
+MAIN_AUTH_INTERNAL_URL=http://localhost:8080
+RAG_INTERNAL_URL=http://localhost:8000
+```
+
+브라우저에는 내부 서비스 URL이나 비밀 키를 노출하지 않는다. 외부 OAuth 로그인은 사용하지 않는다.
+
+## 실행과 검증
+
+Node.js `24.18.0`, pnpm `11.15.1`을 사용한다.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev:web
 ```
 
-전체 정적 검증은 다음 명령으로 실행한다.
+전체 정적 검사·단위 테스트와 production build는 다음과 같다.
 
 ```bash
 pnpm check
 pnpm build
-pnpm test:e2e
 ```
 
-## 구조
+브라우저 시나리오는 목적에 맞는 Playwright 설정을 사용한다.
+
+```bash
+pnpm test:e2e
+pnpm test:e2e:wireflow
+pnpm test:e2e:milestone
+```
+
+## 주요 구조
 
 ```text
-apps/web/
-  app/                         Next.js route와 특수 화면
-  components/platform-shell/  패키징 가능한 공통 Shell
-  components/platform-page-shell.tsx
-                               일반 route용 Next.js adapter
-  components/platform-navigation-client.tsx
-                               pathname 기반 navigation adapter
-  public/assets/               Platform Shell과 navigation 이미지
-packages/typescript-config/    공통 TypeScript 설정
-apps/mobile/                   유지된 Expo native shell workspace
-packages/bridge/               유지된 web/native bridge contract
+apps/web/app/                         Next.js route와 same-origin BFF
+apps/web/components/platform-shell/  frontend2 원본 참여자 레이아웃
+apps/web/components/platform-page-shell.tsx
+                                      참여자 route용 Platform Shell 조립
+apps/web/components/screens/          Main/Auth 실제 기능 화면
+apps/web/components/rag/              사용자·관리자 RAG 실제 기능 화면
+apps/web/components/shell/            Platform Shell participant adapter·관리자 Shell
+apps/web/components/wireflow/         Wire Flow 공용 UI
+apps/web/lib/auth/                     로그인 상태·권한·자동 refresh
+apps/web/lib/api/                      Main/Auth·RAG BFF
+apps/mobile/                           Expo WebView native shell
+packages/bridge/                       web/native bridge 계약
 ```
 
-새 도메인은 `apps/web/app/<domain>`에 route를 만들고 일반 화면에서는 `PlatformPageShell`을
-사용한다. 가상화처럼 자식이 scroll element를 직접 소유할 때만 `PlatformShell`의
-`scroll="child"`를 사용한다.
-
-현재 구현되지 않은 bottom navigation 경로는 로컬에서 공통 404 화면으로 연결된다. 인증은 운영
-서버가 HttpOnly 쿠키로 제공한다는 계약만 전제로 하며, 이 템플릿은 JWT를 발급·저장·해석하지 않는다.
-
-세부 사용법은 [`docs/architecture/platform-shell-usage.md`](docs/architecture/platform-shell-usage.md)를
-참고한다.
+컴포넌트 책임은
+[`docs/architecture/react-component-tree.md`](docs/architecture/react-component-tree.md)에 정리한다.

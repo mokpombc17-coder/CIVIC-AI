@@ -1,0 +1,635 @@
+{
+  "version": 1,
+  "screens": [
+    {
+      "id": "AUTH-001",
+      "canonical_title": "로그인",
+      "audience": "PUBLIC",
+      "route": "/login",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-001 로그인"
+    },
+    {
+      "id": "AUTH-002",
+      "canonical_title": "회원가입 계정 정보",
+      "audience": "PUBLIC",
+      "route": "/signup/account",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-002 회원가입 계정 정보"
+    },
+    {
+      "id": "AUTH-003",
+      "canonical_title": "개인정보·설문 입력",
+      "audience": "PUBLIC",
+      "route": "/signup/profile",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-003 개인정보·설문 입력"
+    },
+    {
+      "id": "AUTH-004",
+      "canonical_title": "필수 동의 및 가입 확인",
+      "audience": "PUBLIC",
+      "route": "/signup/consent",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-004 필수 동의 및 가입 확인"
+    },
+    {
+      "id": "AUTH-005",
+      "canonical_title": "이메일 인증 코드",
+      "audience": "PUBLIC",
+      "route": "/signup/verify",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-005 이메일 인증 코드"
+    },
+    {
+      "id": "AUTH-006",
+      "canonical_title": "가입 이메일 인증 대기",
+      "audience": "PUBLIC",
+      "route": "/signup/pending",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-006 가입 이메일 인증 대기"
+    },
+    {
+      "id": "AUTH-007",
+      "canonical_title": "비밀번호 재설정 요청",
+      "audience": "PUBLIC",
+      "route": "/password-reset",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-007 비밀번호 재설정 요청"
+    },
+    {
+      "id": "AUTH-008",
+      "canonical_title": "인증 코드 확인·새 비밀번호",
+      "audience": "PUBLIC",
+      "route": "/password-reset/complete",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-008 인증 코드 확인·새 비밀번호"
+    },
+    {
+      "id": "AUTH-009",
+      "canonical_title": "계정 재활성화 안내",
+      "audience": "PUBLIC",
+      "route": "/reactivate",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-009 계정 재활성화 안내"
+    },
+    {
+      "id": "AUTH-010",
+      "canonical_title": "재활성화 확인",
+      "audience": "PUBLIC",
+      "route": "/reactivate/complete",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### AUTH-010 재활성화 확인"
+    },
+    {
+      "id": "U-HOME-001",
+      "canonical_title": "참여자 홈",
+      "audience": "PARTICIPANT",
+      "route": "/home",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### U-HOME-001 참여자 홈"
+    },
+    {
+      "id": "U-RAG-001",
+      "canonical_title": "RAG 대화",
+      "audience": "PARTICIPANT",
+      "route": "/rag",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### U-RAG-001 RAG 대화"
+    },
+    {
+      "id": "U-RAG-002",
+      "canonical_title": "참조 PDF 열람",
+      "audience": "PARTICIPANT",
+      "route": "/rag/source",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### U-RAG-002 참조 PDF 열람"
+    },
+    {
+      "id": "U-RAG-003",
+      "canonical_title": "참조 PDF 페이지 이동",
+      "audience": "PARTICIPANT",
+      "route": "/rag/source/page",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### U-RAG-003 참조 PDF 페이지 이동"
+    },
+    {
+      "id": "U-CHAT-001",
+      "canonical_title": "활성 채팅방 목록",
+      "audience": "PARTICIPANT",
+      "route": "/chat",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### U-CHAT-001 활성 채팅방 목록"
+    },
+    {
+      "id": "U-CHAT-002",
+      "canonical_title": "채팅방 상세",
+      "audience": "PARTICIPANT",
+      "route": "/chat/detail",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### U-CHAT-002 채팅방 상세"
+    },
+    {
+      "id": "U-CHAT-003",
+      "canonical_title": "참여 중 채팅방",
+      "audience": "PARTICIPANT",
+      "route": "/chat/room",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### U-CHAT-003 참여 중 채팅방"
+    },
+    {
+      "id": "U-CHAT-004",
+      "canonical_title": "채팅방 생성 요청",
+      "audience": "PARTICIPANT",
+      "route": "/chat/request",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### U-CHAT-004 채팅방 생성 요청"
+    },
+    {
+      "id": "U-CHAT-005",
+      "canonical_title": "생성 요청 접수 완료",
+      "audience": "PARTICIPANT",
+      "route": "/chat/request/complete",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### U-CHAT-005 생성 요청 접수 완료"
+    },
+    {
+      "id": "U-CHAT-006",
+      "canonical_title": "채팅방 접근 종료·차단",
+      "audience": "PARTICIPANT",
+      "route": "/chat/access-ended",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### U-CHAT-006 채팅방 접근 종료·차단"
+    },
+    {
+      "id": "U-VOTE-001",
+      "canonical_title": "과업 목록",
+      "audience": "PARTICIPANT",
+      "route": "/votes",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-001 과업 목록"
+    },
+    {
+      "id": "U-VOTE-002",
+      "canonical_title": "과업 상세·투표 시작",
+      "audience": "PARTICIPANT",
+      "route": "/votes/detail",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-002 과업 상세·투표 시작"
+    },
+    {
+      "id": "U-VOTE-003",
+      "canonical_title": "AI 예상 답변 생성",
+      "audience": "PARTICIPANT",
+      "route": "/votes/prediction",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-003 AI 예상 답변 생성"
+    },
+    {
+      "id": "U-VOTE-004",
+      "canonical_title": "AI 예상 답변 선택",
+      "audience": "PARTICIPANT",
+      "route": "/votes/prediction/select",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-004 AI 예상 답변 선택"
+    },
+    {
+      "id": "U-VOTE-005",
+      "canonical_title": "직접 응답 입력",
+      "audience": "PARTICIPANT",
+      "route": "/votes/direct",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-005 직접 응답 입력"
+    },
+    {
+      "id": "U-VOTE-006",
+      "canonical_title": "투표 제출 확인",
+      "audience": "PARTICIPANT",
+      "route": "/votes/confirm",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-006 투표 제출 확인"
+    },
+    {
+      "id": "U-VOTE-007",
+      "canonical_title": "투표 제출 완료",
+      "audience": "PARTICIPANT",
+      "route": "/votes/complete",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-007 투표 제출 완료"
+    },
+    {
+      "id": "U-VOTE-008",
+      "canonical_title": "투표 중 이탈 복귀 안내",
+      "audience": "PARTICIPANT",
+      "route": "/votes/resume",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-008 투표 중 이탈 복귀 안내"
+    },
+    {
+      "id": "U-VOTE-009",
+      "canonical_title": "마감 과업 실제 결과",
+      "audience": "PARTICIPANT",
+      "route": "/votes/results",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### U-VOTE-009 마감 과업 실제 결과"
+    },
+    {
+      "id": "U-ACCOUNT-001",
+      "canonical_title": "계정 홈",
+      "audience": "PARTICIPANT",
+      "route": "/account",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### U-ACCOUNT-001 계정 홈"
+    },
+    {
+      "id": "U-ACCOUNT-002",
+      "canonical_title": "개인정보·설문 응답",
+      "audience": "PARTICIPANT",
+      "route": "/account/profile",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### U-ACCOUNT-002 개인정보·설문 응답"
+    },
+    {
+      "id": "U-ACCOUNT-003",
+      "canonical_title": "보안 설정",
+      "audience": "PARTICIPANT",
+      "route": "/account/security",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### U-ACCOUNT-003 보안 설정"
+    },
+    {
+      "id": "U-ACCOUNT-004",
+      "canonical_title": "계정 비활성화",
+      "audience": "PARTICIPANT",
+      "route": "/account/deactivate",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### U-ACCOUNT-004 계정 비활성화"
+    },
+    {
+      "id": "A-HOME-001",
+      "canonical_title": "관리 업무 선택",
+      "audience": "ADMIN",
+      "route": "/admin",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### A-HOME-001 관리 업무 선택"
+    },
+    {
+      "id": "A-USER-001",
+      "canonical_title": "사용자 목록",
+      "audience": "ADMIN",
+      "route": "/admin/users",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### A-USER-001 사용자 목록"
+    },
+    {
+      "id": "A-USER-002",
+      "canonical_title": "사용자·관리자 상세",
+      "audience": "ADMIN",
+      "route": "/admin/users/detail",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### A-USER-002 사용자·관리자 상세"
+    },
+    {
+      "id": "A-USER-003",
+      "canonical_title": "관리자 전환·권한 편집",
+      "audience": "ADMIN",
+      "route": "/admin/users/roles",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### A-USER-003 관리자 전환·권한 편집"
+    },
+    {
+      "id": "A-USER-004",
+      "canonical_title": "권한 회수 영향 확인",
+      "audience": "ADMIN",
+      "route": "/admin/users/roles/revoke",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### A-USER-004 권한 회수 영향 확인"
+    },
+    {
+      "id": "A-USER-005",
+      "canonical_title": "권한 변경 이력",
+      "audience": "ADMIN",
+      "route": "/admin/users/audit",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### A-USER-005 권한 변경 이력"
+    },
+    {
+      "id": "A-RAG-001",
+      "canonical_title": "폴더·문서 관리",
+      "audience": "ADMIN",
+      "route": "/admin/rag",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### A-RAG-001 폴더·문서 관리"
+    },
+    {
+      "id": "A-RAG-002",
+      "canonical_title": "폴더 추가·수정·삭제",
+      "audience": "ADMIN",
+      "route": "/admin/rag/folders",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### A-RAG-002 폴더 추가·수정·삭제"
+    },
+    {
+      "id": "A-RAG-003",
+      "canonical_title": "선택 폴더 문서 목록",
+      "audience": "ADMIN",
+      "route": "/admin/rag/documents",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### A-RAG-003 선택 폴더 문서 목록"
+    },
+    {
+      "id": "A-RAG-004",
+      "canonical_title": "선택 폴더 문서 업로드",
+      "audience": "ADMIN",
+      "route": "/admin/rag/upload",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### A-RAG-004 선택 폴더 문서 업로드"
+    },
+    {
+      "id": "A-RAG-005",
+      "canonical_title": "문서 처리 상태",
+      "audience": "ADMIN",
+      "route": "/admin/rag/jobs",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### A-RAG-005 문서 처리 상태"
+    },
+    {
+      "id": "A-RAG-006",
+      "canonical_title": "선택 폴더 문서 삭제 확인",
+      "audience": "ADMIN",
+      "route": "/admin/rag/delete",
+      "status": "FUNCTIONAL",
+      "owner": "RAG",
+      "source_heading": "### A-RAG-006 선택 폴더 문서 삭제 확인"
+    },
+    {
+      "id": "A-CHAT-001",
+      "canonical_title": "활성 채팅방 목록",
+      "audience": "ADMIN",
+      "route": "/admin/chat",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-001 활성 채팅방 목록"
+    },
+    {
+      "id": "A-CHAT-002",
+      "canonical_title": "활성 채팅방 상세",
+      "audience": "ADMIN",
+      "route": "/admin/chat/detail",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-002 활성 채팅방 상세"
+    },
+    {
+      "id": "A-CHAT-003",
+      "canonical_title": "관리자 채팅방 생성",
+      "audience": "ADMIN",
+      "route": "/admin/chat/create",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-003 관리자 채팅방 생성"
+    },
+    {
+      "id": "A-CHAT-004",
+      "canonical_title": "채팅방 생성 요청 목록",
+      "audience": "ADMIN",
+      "route": "/admin/chat/requests",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-004 채팅방 생성 요청 목록"
+    },
+    {
+      "id": "A-CHAT-005",
+      "canonical_title": "생성 요청 상세",
+      "audience": "ADMIN",
+      "route": "/admin/chat/requests/detail",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-005 생성 요청 상세"
+    },
+    {
+      "id": "A-CHAT-006",
+      "canonical_title": "생성 요청 승인·반려",
+      "audience": "ADMIN",
+      "route": "/admin/chat/requests/review",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-006 생성 요청 승인·반려"
+    },
+    {
+      "id": "A-CHAT-007",
+      "canonical_title": "카테고리 관리",
+      "audience": "ADMIN",
+      "route": "/admin/chat/categories",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-007 카테고리 관리"
+    },
+    {
+      "id": "A-CHAT-008",
+      "canonical_title": "채팅 통계",
+      "audience": "ADMIN",
+      "route": "/admin/chat/statistics",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-008 채팅 통계"
+    },
+    {
+      "id": "A-CHAT-009",
+      "canonical_title": "메시지 Export",
+      "audience": "ADMIN",
+      "route": "/admin/chat/export",
+      "status": "PLACEHOLDER",
+      "owner": "CHAT",
+      "source_heading": "### A-CHAT-009 메시지 Export"
+    },
+    {
+      "id": "A-TASK-001",
+      "canonical_title": "과업 목록",
+      "audience": "ADMIN",
+      "route": "/admin/tasks",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### A-TASK-001 과업 목록"
+    },
+    {
+      "id": "A-TASK-002",
+      "canonical_title": "과업 생성",
+      "audience": "ADMIN",
+      "route": "/admin/tasks/create",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### A-TASK-002 과업 생성"
+    },
+    {
+      "id": "A-TASK-003",
+      "canonical_title": "과업 상세",
+      "audience": "ADMIN",
+      "route": "/admin/tasks/detail",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### A-TASK-003 과업 상세"
+    },
+    {
+      "id": "A-TASK-004",
+      "canonical_title": "조기 마감 확인",
+      "audience": "ADMIN",
+      "route": "/admin/tasks/close",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### A-TASK-004 조기 마감 확인"
+    },
+    {
+      "id": "A-TASK-005",
+      "canonical_title": "실제 투표 결과",
+      "audience": "ADMIN",
+      "route": "/admin/tasks/results",
+      "status": "PLACEHOLDER",
+      "owner": "DECISION",
+      "source_heading": "### A-TASK-005 실제 투표 결과"
+    },
+    {
+      "id": "A-SIM-001",
+      "canonical_title": "시뮬레이션 실행 대상",
+      "audience": "ADMIN",
+      "route": "/admin/simulations",
+      "status": "PLACEHOLDER",
+      "owner": "SIMULATION",
+      "source_heading": "### A-SIM-001 시뮬레이션 실행 대상"
+    },
+    {
+      "id": "A-SIM-002",
+      "canonical_title": "시뮬레이션 기본 설정",
+      "audience": "ADMIN",
+      "route": "/admin/simulations/setup",
+      "status": "PLACEHOLDER",
+      "owner": "SIMULATION",
+      "source_heading": "### A-SIM-002 시뮬레이션 기본 설정"
+    },
+    {
+      "id": "A-SIM-003",
+      "canonical_title": "수동 패널 조건",
+      "audience": "ADMIN",
+      "route": "/admin/simulations/panel",
+      "status": "PLACEHOLDER",
+      "owner": "SIMULATION",
+      "source_heading": "### A-SIM-003 수동 패널 조건"
+    },
+    {
+      "id": "A-SIM-004",
+      "canonical_title": "시뮬레이션 실행 상태",
+      "audience": "ADMIN",
+      "route": "/admin/simulations/status",
+      "status": "PLACEHOLDER",
+      "owner": "SIMULATION",
+      "source_heading": "### A-SIM-004 시뮬레이션 실행 상태"
+    },
+    {
+      "id": "A-SIM-005",
+      "canonical_title": "실패·수동 재실행",
+      "audience": "ADMIN",
+      "route": "/admin/simulations/retry",
+      "status": "PLACEHOLDER",
+      "owner": "SIMULATION",
+      "source_heading": "### A-SIM-005 실패·수동 재실행"
+    },
+    {
+      "id": "A-SIM-006",
+      "canonical_title": "시뮬레이션 결과",
+      "audience": "ADMIN",
+      "route": "/admin/simulations/results",
+      "status": "PLACEHOLDER",
+      "owner": "SIMULATION",
+      "source_heading": "### A-SIM-006 시뮬레이션 결과"
+    },
+    {
+      "id": "A-SIM-007",
+      "canonical_title": "시뮬레이션 패널 상세",
+      "audience": "ADMIN",
+      "route": "/admin/simulations/panel/detail",
+      "status": "PLACEHOLDER",
+      "owner": "SIMULATION",
+      "source_heading": "### A-SIM-007 시뮬레이션 패널 상세"
+    },
+    {
+      "id": "COMMON-001",
+      "canonical_title": "권한 없음",
+      "audience": "AUTHENTICATED",
+      "route": "/forbidden",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### COMMON-001 권한 없음"
+    },
+    {
+      "id": "COMMON-002",
+      "canonical_title": "상태 변경 충돌",
+      "audience": "AUTHENTICATED",
+      "route": "/conflict",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### COMMON-002 상태 변경 충돌"
+    },
+    {
+      "id": "COMMON-003",
+      "canonical_title": "처리 결과 확인 중",
+      "audience": "AUTHENTICATED",
+      "route": "/processing",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### COMMON-003 처리 결과 확인 중"
+    },
+    {
+      "id": "COMMON-004",
+      "canonical_title": "서비스 오류·점검",
+      "audience": "AUTHENTICATED",
+      "route": "/service-unavailable",
+      "status": "FUNCTIONAL",
+      "owner": "MAIN_AUTH",
+      "source_heading": "### COMMON-004 서비스 오류·점검"
+    }
+  ]
+}

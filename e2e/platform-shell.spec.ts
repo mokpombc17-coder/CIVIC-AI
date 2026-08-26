@@ -1,16 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-test("홈에서 공통 Platform Shell을 렌더링한다", async ({ page }) => {
-  await page.goto("/home");
+test("로그인 실제 UI를 공통 Platform Shell 안에 렌더링한다", async ({ page }) => {
+  await page.goto("/login");
 
-  await expect(page.getByRole("heading", { name: "홈", exact: true })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "참여자 주요 메뉴" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "홈", exact: true })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("name@example.com")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "참여자 주요 메뉴" })).toHaveCount(0);
 
   const shell = page.locator('[data-platform-shell="true"]');
+  await expect(shell).toHaveCount(1);
   await expect(shell).toBeVisible();
   expect((await shell.boundingBox())?.width).toBeLessThanOrEqual(393);
 });

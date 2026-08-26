@@ -41,26 +41,29 @@ BRIDGE_ERROR
 
 `id`는 요청과 응답을 연결한다. `version`은 오래된 앱 바이너리와 최신 웹 배포 간 호환성을 판단한다.
 
+`START_OAUTH`, `AUTH_RESULT`, `AUTH_CANCELLED`는 공용 템플릿 호환을 위해 schema에 남아 있지만
+CIVIC에서는 외부 OAuth 로그인을 사용하지 않으므로 capability가 비활성이고 어떤 제품 UI도
+이 message를 보내지 않는다.
+
 ## Security rules
 
 - 모든 수신 메시지를 schema로 검증한다.
 - 지원하지 않는 `type`은 실행하지 않는다.
 - JavaScript 문자열이나 함수 이름을 payload로 받아 실행하지 않는다.
 - access token, refresh token, API key를 bridge로 전달하지 않는다.
-- OAuth 결과는 짧게 만료되는 일회용 handoff code를 담은 callback URL만 전달한다.
-- OAuth 시작 URL은 설정된 Next.js BFF origin만 허용한다.
+- 비활성 OAuth message를 수신하면 실행하지 않고 지원하지 않는 capability로 처리한다.
 - 다운로드 URL은 설정된 HTTPS origin allowlist만 허용한다.
 - 딥링크는 Next.js origin과 등록한 native scheme만 허용한다.
 - 외부 URL은 WebView 안에서 탐색하지 않고 검토한 scheme(`https`, `mailto`, `tel`, `sms`)만 OS에 위임한다.
 - bridge capability는 명시적인 allowlist로 관리한다.
-- WebView ref, OAuth session, notification subscription, 다운로드 작업은 Redux에 저장하지 않는다.
+- WebView ref, notification subscription, 다운로드 작업은 Redux에 저장하지 않는다.
 
 ## Optional capabilities
 
-`oauth`, `download`, `push`는 앱 바이너리에 구현되어 있어도 런타임 설정에 따라 capability 목록에서
-빠질 수 있다. 웹은 `NATIVE_CONTEXT.capabilities`를 확인한 뒤 관련 UI를 노출해야 한다.
+`download`, `push`는 앱 바이너리에 구현되어 있어도 런타임 설정에 따라 capability 목록에서
+빠질 수 있다. 웹은 `NATIVE_CONTEXT.capabilities`를 확인한 뒤 관련 UI를 노출해야 한다. OAuth는
+CIVIC에서 항상 비활성이다.
 
-- OAuth는 `EXPO_PUBLIC_OAUTH_ENABLED`
 - 다운로드는 `EXPO_PUBLIC_DOWNLOADS_ENABLED`
 - 푸시는 `EXPO_PUBLIC_PUSH_ENABLED`
 

@@ -82,6 +82,7 @@ export function WebAppView() {
     }
     if (DOWNLOADS_ENABLED) {
       capabilities.push("download");
+      capabilities.push("authenticated-download");
     }
     if (PUSH_ENABLED) {
       capabilities.push("push");

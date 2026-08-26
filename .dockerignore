@@ -1,0 +1,10 @@
+.git
+.next
+**/.next
+node_modules
+**/node_modules
+coverage
+test-results
+playwright-report
+e2e/.artifacts
+*.log

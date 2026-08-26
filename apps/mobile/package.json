@@ -13,6 +13,7 @@
     "clean": "rm -rf .expo dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@preeternal/react-native-cookie-manager": "6.4.0",
     "@repo/bridge": "workspace:*",
     "expo": "catalog:",
     "expo-application": "catalog:",

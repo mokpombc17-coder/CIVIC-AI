@@ -1,3 +1,5 @@
+import type { Route } from "next";
+import Link from "next/link";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -49,7 +51,7 @@ describe("PlatformHeader", () => {
     const markup = renderToStaticMarkup(
       <PlatformHeader
         actions={<button type="button">추가 작업</button>}
-        leading={<a href="/account">계정으로</a>}
+        leading={<Link href={"/account" as Route}>계정으로</Link>}
         title="내 정보 관리"
       />,
     );
@@ -129,6 +131,16 @@ describe("PlatformNavigation", () => {
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
     expect(markup).toMatch(/aria-current="page" href="\/vote"/);
     expect(markup).toContain("/assets/platform-navigation/account.png");
+  });
+
+  it("이관 전 실제 UI의 복수형 경로도 frontend2 표준 메뉴에 매핑한다", () => {
+    const vote = renderToStaticMarkup(<PlatformNavigation currentPathname="/votes/results" />);
+    const account = renderToStaticMarkup(
+      <PlatformNavigation currentPathname="/account/security" />,
+    );
+
+    expect(vote).toMatch(/aria-current="page" href="\/vote"/);
+    expect(account).toMatch(/aria-current="page" href="\/mypage"/);
   });
 });
 

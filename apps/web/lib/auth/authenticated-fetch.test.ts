@@ -1,0 +1,81 @@
+import { describe, expect, it, vi } from "vitest";
+import { createAuthenticatedFetch } from "./authenticated-fetch";
+
+describe("createAuthenticatedFetch", () => {
+  it("rotates the refresh token and retries a resource request once", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({ status: "ok" }));
+
+    const response = await createAuthenticatedFetch(request)(
+      "https://civic.example/api/v1/rag/queries/job-1",
+    );
+
+    expect(response.status).toBe(200);
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(new URL((request.mock.calls[1]![0] as Request).url).pathname).toBe(
+      "/api/v1/auth/refresh",
+    );
+    expect((request.mock.calls[2]![0] as Request).url).toBe(
+      "https://civic.example/api/v1/rag/queries/job-1",
+    );
+  });
+
+  it("returns the original 401 when refresh is unavailable", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+
+    const response = await createAuthenticatedFetch(request)(
+      "https://civic.example/api/v1/rag/queries/job-1",
+    );
+
+    expect(response.status).toBe(401);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("never recursively refreshes an Auth request", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+
+    await createAuthenticatedFetch(request)("https://civic.example/api/v1/auth/me");
+
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes concurrent refresh-token rotation", async () => {
+    const firstAttempts = new Set<string>();
+    let releaseRefresh: (() => void) | undefined;
+    let refreshCalls = 0;
+    const request = vi.fn<typeof fetch>(async (input) => {
+      const pathname = new URL((input as Request).url).pathname;
+      if (pathname === "/api/v1/auth/refresh") {
+        refreshCalls += 1;
+        return new Promise<Response>((resolve) => {
+          releaseRefresh = () => resolve(new Response(null, { status: 204 }));
+        });
+      }
+      if (!firstAttempts.has(pathname)) {
+        firstAttempts.add(pathname);
+        return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
+      }
+      return Response.json({ status: "ok" });
+    });
+    const authenticatedRequest = createAuthenticatedFetch(request);
+
+    const first = authenticatedRequest("https://civic.example/api/v1/rag/folders");
+    const second = authenticatedRequest("https://civic.example/api/v1/rag/jobs/summary");
+    await vi.waitFor(() => expect(refreshCalls).toBe(1));
+    releaseRefresh?.();
+
+    await expect(Promise.all([first, second])).resolves.toMatchObject([
+      { status: 200 },
+      { status: 200 },
+    ]);
+    expect(refreshCalls).toBe(1);
+  });
+});

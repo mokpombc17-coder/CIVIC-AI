@@ -38,5 +38,5 @@ Next.js는 origin을 검증하고 `router.push()`로 이동한다. WebView를 �
 
 웹 검증 route도 필요한 식별자 또는 인증서 fingerprint가 없으면 `404`를 반환한다.
 
-커스텀 scheme은 개발과 OAuth callback의 보조 수단이다. 앱 미설치 시 웹 fallback이 필요한 공개
-링크에는 HTTPS Universal Link/App Link를 사용한다.
+커스텀 scheme은 개발용 보조 수단이다. CIVIC은 외부 OAuth callback에 사용하지 않는다. 앱 미설치 시
+웹 fallback이 필요한 공개 링크에는 HTTPS Universal Link/App Link를 사용한다.

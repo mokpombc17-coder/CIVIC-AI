@@ -24,6 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-web-browser",
     "expo-sharing",
     "expo-notifications",
+    "@preeternal/react-native-cookie-manager/app.plugin",
   ],
   extra: {
     ...config.extra,

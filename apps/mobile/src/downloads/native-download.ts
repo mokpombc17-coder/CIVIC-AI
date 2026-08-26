@@ -1,6 +1,8 @@
 import { Directory, File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { DOWNLOAD_ORIGINS, IS_DEVELOPMENT } from "../config/runtime";
+import CookieManager from "@preeternal/react-native-cookie-manager";
+import { DOWNLOAD_ORIGINS, IS_DEVELOPMENT, WEB_APP_ORIGIN } from "../config/runtime";
+import { webViewDownloadHeaders } from "./webview-download-headers";
 
 type DownloadRequest = {
   url: string;
@@ -27,10 +29,16 @@ export async function downloadAndShareFile(request: DownloadRequest): Promise<st
 
   const fileName = sanitizeFileName(request.fileName ?? inferFileName(url));
   const destination = new File(directory, fileName);
+  const headers = await webViewDownloadHeaders({
+    url,
+    webAppOrigin: WEB_APP_ORIGIN,
+    readCookieHeader: (target, useWebKit) => CookieManager.getCookieHeader(target, useWebKit),
+  });
 
   try {
     const file = await File.downloadFileAsync(url.toString(), destination, {
       idempotent: true,
+      ...(headers ? { headers } : {}),
     });
     await Sharing.shareAsync(file.uri, {
       dialogTitle: `Save ${fileName}`,
