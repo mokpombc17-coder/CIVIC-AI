@@ -24,8 +24,6 @@
 
 .shell {
   position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
   width: 100%;
   max-width: var(--platform-shell-max-width);
   height: 100dvh;
@@ -35,6 +33,14 @@
   background: var(--platform-shell-color-surface);
   box-shadow: var(--platform-shell-shadow);
   color: var(--platform-shell-color-text);
+}
+
+.surface {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .content {
@@ -52,6 +58,12 @@
 
 .content[data-scroll="child"] {
   overflow: hidden;
+}
+
+.overlay {
+  position: absolute;
+  z-index: var(--platform-z-overlay);
+  inset: 0;
 }
 
 .header {
@@ -86,6 +98,46 @@
   width: 100%;
   height: 100%;
   place-items: center;
+}
+
+.headerBackControl {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--platform-shell-color-text);
+  cursor: pointer;
+  place-items: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.headerBackControl:disabled {
+  color: var(--platform-shell-color-muted);
+  cursor: default;
+}
+
+.headerBackControl:not(:disabled):hover {
+  background: color-mix(in srgb, var(--platform-shell-color-text) 6%, transparent);
+}
+
+.headerBackControl:focus-visible {
+  outline: 2px solid var(--platform-shell-color-primary);
+  outline-offset: -2px;
+}
+
+.headerBackIcon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  mask: url("/assets/platform-shell/back.png") center / contain no-repeat;
+  -webkit-mask: url("/assets/platform-shell/back.png") center / contain no-repeat;
+  transform: rotate(90deg);
+  transform-origin: center;
 }
 
 .headerTitle {
@@ -159,6 +211,13 @@
 .bottomNavigationIcon > * {
   width: 100%;
   height: 100%;
+}
+
+.navigationIcon {
+  display: block;
+  background: currentColor;
+  mask: var(--platform-navigation-icon) center / contain no-repeat;
+  -webkit-mask: var(--platform-navigation-icon) center / contain no-repeat;
 }
 
 .bottomNavigationLabel {

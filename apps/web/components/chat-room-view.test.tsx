@@ -1,0 +1,60 @@
+import type { ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import { ChatRoomView, type ChatMessageHistoryViewModel } from "./chat-room-view";
+
+vi.mock("@/components/chat-message-viewport", () => ({
+  ChatMessageViewport: ({ history }: { history: { readStatePaused: boolean } }) => (
+    <div data-message-viewport="true" data-read-state-paused={history.readStatePaused} />
+  ),
+}));
+
+vi.mock("@/components/use-chat-room-visual-viewport", () => ({
+  useChatRoomVisualViewportHeight: () => ({ current: null }),
+}));
+
+describe("ChatRoomView platform shell integration", () => {
+  it("공통 header와 child-owned message viewport를 조립한다", () => {
+    const markup = renderChatRoomView();
+
+    expect(markup).toContain('data-platform-shell="true"');
+    expect(markup.match(/data-scroll="child"/g)).toHaveLength(2);
+    expect(markup).toContain('href="/chat"');
+    expect(markup).toContain(">프로젝트 회의방</h1>");
+    expect(markup).toContain('data-message-viewport="true"');
+    expect(markup).toContain('data-read-state-paused="false"');
+    expect(markup).toContain("세션 안내");
+    expect(markup).toContain("메시지 입력");
+    expect(markup).not.toContain("채팅 주요 메뉴");
+  });
+
+  it("overlay가 열리면 shell surface와 read-state를 함께 멈춘다", () => {
+    const markup = renderChatRoomView(<div role="dialog">검색 대화상자</div>);
+
+    expect(markup).toContain('data-platform-shell-overlay="true"');
+    expect(markup).toContain('data-read-state-paused="true"');
+    expect(markup).toContain('aria-hidden="true"');
+    expect(markup).toContain('inert=""');
+    expect(markup).toContain("검색 대화상자");
+  });
+});
+
+function renderChatRoomView(overlay: ReactNode = null): string {
+  return renderToStaticMarkup(
+    <ChatRoomView
+      header={{
+        description: "참여자 3명",
+        statusLabel: "연결됨",
+        title: "프로젝트 회의방",
+      }}
+      headerAction={<button type="button">방 정보</button>}
+      messageHistory={{} as ChatMessageHistoryViewModel}
+      overlay={overlay}
+      roomError={null}
+      sessionControls={<div>메시지 입력</div>}
+      sessionIndicator={<span>실시간 연결됨</span>}
+      sessionNotice={<div>세션 안내</div>}
+      syncStatus={null}
+    />,
+  );
+}

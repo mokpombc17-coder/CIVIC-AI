@@ -23,6 +23,8 @@ import {
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
 import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
 import { PublicRoomSearchForm } from "@/components/public-room-search-form";
+import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
+import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
@@ -65,11 +67,12 @@ export function ChatRoomListView({
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
   return (
-    <div className="chat-room-list chat-publishing-surface mx-auto min-h-dvh w-full max-w-[393px] overflow-hidden bg-white text-[var(--chat-publishing-color-text)] shadow-[var(--chat-publishing-shadow-card)]">
-      <header className="flex h-16 items-center border-b border-[var(--chat-publishing-color-border)] px-4">
-        <h1 className="text-xl font-bold tracking-[-0.025em]">토론방</h1>
-      </header>
-
+    <PlatformShell
+      bottomNavigation={<PlatformNavigationClient />}
+      className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
+      contentClassName="chat-room-list"
+      header={<PlatformHeader title="토론방" />}
+    >
       <div className="grid gap-6 px-4 py-4">
         <section aria-label="채팅방 검색과 생성" className="grid gap-3">
           <PublicRoomSearchForm controller={publicRoomSearch} />
@@ -86,6 +89,11 @@ export function ChatRoomListView({
               {isCreateRoomOpen ? "작성 닫기" : CHAT_ROOM_PUBLISHING_COPY.createRoom}
             </button>
           </div>
+          {isCreateRoomOpen ? (
+            <div className="rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] p-4">
+              <CreateChatRoomForm onCancel={closeCreateRoomForm} />
+            </div>
+          ) : null}
           <Link
             className="secondary-button inline-flex items-center justify-center"
             href="/chat/creation-requests"
@@ -93,12 +101,6 @@ export function ChatRoomListView({
             채팅방 생성 신청 내역
           </Link>
         </section>
-
-        {isCreateRoomOpen ? (
-          <div className="rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] p-4">
-            <CreateChatRoomForm onCancel={closeCreateRoomForm} />
-          </div>
-        ) : null}
 
         <ChatConnectionStatus />
 
@@ -190,7 +192,7 @@ export function ChatRoomListView({
       {roomDetail.selection ? (
         <ChatRoomListDetailDialog onClose={roomDetail.close} selection={roomDetail.selection} />
       ) : null}
-    </div>
+    </PlatformShell>
   );
 }
 

@@ -8,6 +8,7 @@ import { ChatRoomListDetailDialog } from "./chat-room-list-detail-dialog";
 import { ChatRoomListView, MyRoomCard, PublicRoomCard } from "./chat-room-list-view";
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/chat",
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -26,6 +27,17 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain(">참여한 방</h2>");
     expect(html).toContain(">참여 가능한 방</h2>");
     expect(html).toContain("참여 가능한 방이 없습니다.");
+    expect(html).toContain('data-platform-shell="true"');
+    expect(html.match(/data-scroll="self"/g)).toHaveLength(2);
+    expect(html).toContain('aria-label="참여자 주요 메뉴"');
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain('href="/home"');
+    expect(html).toContain('href="/rag"');
+    expect(html).toContain('aria-current="page" href="/chat"');
+    expect(html).toContain('href="/vote"');
+    expect(html).toContain('href="/mypage"');
+    expect(html).toContain(">AI</span>");
+    expect(html).toContain(">계정</span>");
     expect(html).not.toContain("Chat Resource Server");
   });
 

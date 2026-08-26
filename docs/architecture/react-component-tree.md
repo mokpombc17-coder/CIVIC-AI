@@ -33,25 +33,37 @@ view와 독립 feature control 사이의 논리적 조립 관계를 정리한다
 - 조건부로 렌더링되는 intrinsic element는 트리에 나타내지 않는다. 포함 대상인 프로젝트 컴포넌트
   호출이 조건식 안에 있으면 `[conditional]`로 표시한다.
 
-## Route `/`
+## Route `/`와 `/home`
 
-`RootLayout`의 `children`은 App Router가 현재 route segment에 맞게 제공한다. 이 route에서는 `HomePage`로 확정된다. `AppShell`은 `children`의 구체 타입을 알지 못하고 전달받아 렌더링한다.
+`RootLayout`의 `children`은 App Router가 현재 route segment에 맞게 제공한다. `/`의
+`IndexPage`는 표준 홈 경로인 `/home`으로 redirect하고, `/home`의 `HomePage`가 일반 플랫폼
+화면용 `PlatformPageShell`을 조립한다. `AppShell`은 route UI를 감싸는 `main`이나 site header를
+소유하지 않고 bridge·update 같은 전역 runtime만 조립한다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
-└── AppShell [Client] [Container] (apps/web/components/app-shell.tsx)
+└── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
     ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
     └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
         ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
         ├── AppInstallBanner [Client] [Feature] [conditional] (apps/web/components/app-install-banner.tsx)
         │   └── 조건: store URL이 없으면 null 반환
-        ├── TemporaryLoginControl [Client] [Feature] [conditional] (apps/web/components/temporary-login-control.tsx)
-        │   └── 조건: NODE_ENV가 production이 아닐 때만 렌더링
         └── children [slot: App Router가 route child를 제공]
-            └── HomePage [Server] [Route] (apps/web/app/page.tsx)
+            ├── route /: IndexPage [Server] [Route] [redirect: /home] (apps/web/app/page.tsx)
+            └── route /home: HomePage [Server] [Route] (apps/web/app/home/page.tsx)
+                ├── PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
+                │   └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
+                │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+                │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+                │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+                │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
+                └── TemporaryLoginControl [Client] [Feature] [conditional: development] (apps/web/components/temporary-login-control.tsx)
 ```
 
-`TemporaryLoginControl` 내부의 조건부 UI와 `HomePage`의 화면 요소는 intrinsic HTML element이므로 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
+`PlatformPageShell`은 일반 화면의 기본 header, `scroll="self"` content와 pathname 기반 하단
+내비게이션을 조립한다. 홈의 뒤로가기 control은 목적지가 없으므로 비활성 상태다.
+`TemporaryLoginControl` 내부의 조건부 UI와 `HomePage`의 화면 요소는 intrinsic HTML element이므로
+이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
 
 ## Route `/chat`와 `/chat/[roomId]`
 
@@ -72,11 +84,10 @@ generation과 ordered delivery를 공유하고 Receipt 오류는 core message/Ro
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
-└── AppShell [Client] [Container] (apps/web/components/app-shell.tsx)
+└── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
     ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
     └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
         ├── AppInstallBanner [Client] [Feature] [conditional] (apps/web/components/app-install-banner.tsx)
-        ├── TemporaryLoginControl [Client] [Feature] [conditional: non-chat route, development] (apps/web/components/temporary-login-control.tsx)
         └── children [slot: App Router가 route child를 제공]
             └── ChatLayout [Server] [Route] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] [Provider] (apps/web/components/chat-query-provider.tsx)
@@ -86,13 +97,18 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             ├── route /chat: ChatPage [Server] [Route] (apps/web/app/chat/page.tsx)
                             │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
                             │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
-                            │           ├── ChatConnectionStatus [Client] [Feature] (apps/web/components/chat-connection-status.tsx)
-                            │           ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
-                            │           ├── CreateChatRoomForm [Client] [Feature] [conditional] (apps/web/components/create-chat-room-form.tsx)
-                            │           │   └── ChatRoomCategorySelector [Client] [Feature] (apps/web/components/chat-room-category-selector.tsx)
-                            │           ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
-                            │           └── ChatRoomListDetailDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-list-detail-dialog.tsx)
-                            │               └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
+                            │           └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
+                            │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+                            │               ├── ChatConnectionStatus [Client] [Feature] (apps/web/components/chat-connection-status.tsx)
+                            │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
+                            │               ├── CreateChatRoomForm [Client] [Feature] [conditional] (apps/web/components/create-chat-room-form.tsx)
+                            │               │   └── ChatRoomCategorySelector [Client] [Feature] (apps/web/components/chat-room-category-selector.tsx)
+                            │               ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
+                            │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-list-detail-dialog.tsx)
+                            │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
+                            │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+                            │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+                            │                       └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                             ├── route /chat/creation-requests: RoomCreationRequestsPage [Server] [Route] (apps/web/app/chat/creation-requests/page.tsx)
                             │   └── RoomCreationRequestListScreen [Client] [Container] (apps/web/components/room-creation-request-list-screen.tsx)
                             │       └── RoomCreationRequestListView [Client] [View] (apps/web/components/room-creation-request-list-view.tsx)
@@ -102,8 +118,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
                                     ├── ChatRoomView [Client] [View] (apps/web/components/chat-room-view.tsx)
-                                    │   ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
-                                    │   └── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
+                                    │   └── PlatformShell [Server-compatible] [View] [scroll: child] (apps/web/components/platform-shell/platform-shell.tsx)
+                                    │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+                                    │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
+                                    │       └── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
                                     ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat-room-session-status.tsx)
                                     ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                     ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
@@ -124,10 +142,21 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
 ```
 
-`AppShell`은 `/chat`와 `/chat/[roomId]`에서 starter용 `site-header`를 렌더링하지 않고 chat
-route가 자체 제품 header와 mobile-first surface를 소유하게 한다. 전역 하단 내비게이션은 아직
-조립하지 않는다. 다른 route에서는 기존 site header와 development용 `TemporaryLoginControl`을
-유지한다.
+`AppShell`은 route별 시각 layout을 소유하지 않는다. `/chat` 목록과 `/chat/[roomId]` 상세의
+View는 공통 `PlatformShell`을 조립해 393px mobile-first surface와
+header를 공유한다. 목록은 `scroll="self"`로 Shell content가 스크롤을 소유하고 실제 route로
+이동하는 `PlatformNavigationClient`를 하단 slot에 제공한다. 이 Client adapter는 Next.js의 현재
+pathname을 읽어 router-independent `PlatformNavigation`에 전달하며, 표준 5개 도메인 anchor 중
+현재 도메인에만 `aria-current="page"`를 설정한다. 채팅방은
+`scroll="child"`로 `ChatMessageViewport`에 스크롤 책임을 위임하고 composer가 있는 상세 화면에서는
+하단 내비게이션 slot을 비워 둔다. 일반 플랫폼 화면은 `PlatformPageShell`을 사용하고, 채팅방처럼
+scroll·overlay 제어가 필요한 화면은 `PlatformShell`을 직접 조립한다.
+
+`PlatformShell`은 header, content, bottom navigation과 overlay slot의 배치, safe area, 공통
+z-index만 책임진다. modal overlay가 열리면 `contentInert`가 header·content·navigation surface를
+함께 비활성화한다. `PlatformHeader`는 공통 back icon의 link/button/disabled 표현을 소유하지만,
+뒤로 갈 수 있는지는 추론하지 않고 화면이 `backAction`으로 목적지나 동작을 제공한다. 도메인은 route,
+active anchor, 동작과 overlay 상태를 계속 소유한다.
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
 제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
@@ -206,9 +235,11 @@ viewport 초기 이동과 새 read-state 보고를 보류하며, 탐색 결과�
 같은 hook이 Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, receipt snapshot의 self
 membership 불일치에서는 generation별 한 번만 Room detail과 receipt를 함께 재조회한다. 재참여 후 새
 실시간 generation이 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
-`ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 배치하는
-대표 View 경계이며 overlay 존재 여부를 read-state pause 신호로 viewport에 전달한다. 내부 header,
-session indicator처럼 받은 값을 표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·방 정보
+`ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 공통
+`PlatformShell`에 배치하는 대표 View 경계다. `PlatformHeader`에 `/chat` back action, 제목과 도메인 action을
+전달하고, visual viewport 높이 ref로 키보드가 열린 동안 shell 높이만 보정한다. overlay 존재 여부는
+공통 surface의 inert 상태와 read-state pause 신호에 함께 전달한다. session indicator처럼 받은 값을
+표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·방 정보
 trigger를 배치하고, `ChatRoomScreenOverlay`는 검색, 참여자 정보, 메시지 action 순서의 단일 overlay 우선순위를
 표현한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
 focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 생명주기를 소유하므로 독립 Feature로 유지하고,
@@ -252,9 +283,15 @@ ErrorPage [Client] [Route] [conditional: uncaught route error]
 
 NotFound [Server] [Route] [conditional: unmatched route 또는 notFound()]
 (apps/web/app/not-found.tsx)
+└── PlatformPageShell [Server-compatible] [View]
+    └── PlatformShell [Server-compatible] [View] [scroll: self]
+        ├── PlatformHeader [Server-compatible] [View]
+        └── PlatformNavigationClient [Client] [View]
 ```
 
-세 special component 모두 프로젝트에서 정의한 다른 React 컴포넌트를 렌더링하지 않는다.
+`Loading`과 `ErrorPage`는 프로젝트에서 정의한 다른 React 컴포넌트를 렌더링하지 않는다.
+`NotFound`는 일반 플랫폼 화면과 같은 shell을 사용하고 `/home`으로 이동할 수 있는 header
+back action과 본문 link를 제공한다. 알 수 없는 pathname에서는 하단 내비게이션의 active item이 없다.
 
 ## 전체 component dependency graph
 
@@ -265,14 +302,17 @@ NotFound [Server] [Route] [conditional: unmatched route 또는 notFound()]
 ```mermaid
 flowchart TD
     RootLayout["RootLayout [Server] [Route]<br/>apps/web/app/layout.tsx"]
-    AppShell["AppShell [Client] [Container]<br/>apps/web/components/app-shell.tsx"]
+    AppShell["AppShell [Server] [Container]<br/>apps/web/components/app-shell.tsx"]
     NativeBridgeRuntime["NativeBridgeRuntime [Client] [Runtime]<br/>apps/web/components/native-bridge-runtime.tsx"]
     AppUpdateGate["AppUpdateGate [Client] [Feature] [conditional]<br/>apps/web/components/app-update-gate.tsx"]
     AppInstallBanner["AppInstallBanner [Client] [Feature] [conditional]<br/>apps/web/components/app-install-banner.tsx"]
     ChildrenSlot["children slot<br/>App Router가 실제 자식을 결정"]
 
-    HomePage["HomePage [Server] [Route]<br/>apps/web/app/page.tsx"]
+    IndexPage["IndexPage [Server] [Route] [redirect: /home]<br/>apps/web/app/page.tsx"]
+    HomePage["HomePage [Server] [Route]<br/>apps/web/app/home/page.tsx"]
     TemporaryLoginControl["TemporaryLoginControl [Client] [Feature] [conditional]<br/>apps/web/components/temporary-login-control.tsx"]
+    PlatformPageShell["PlatformPageShell [Server-compatible] [View]<br/>apps/web/components/platform-page-shell.tsx"]
+    DefaultPlatformShell["PlatformShell [Server-compatible] [View] [scroll: self]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
 
     ChatLayout["ChatLayout [Server] [Route]<br/>apps/web/app/chat/layout.tsx"]
     ChatQueryProvider["ChatQueryProvider [Client] [Provider]<br/>apps/web/components/chat-query-provider.tsx"]
@@ -285,6 +325,12 @@ flowchart TD
     ChatPage["ChatPage [Server] [Route]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomListScreen["ChatRoomListScreen [Client] [Container]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat-room-list-view.tsx"]
+    ChatListPlatformShell["PlatformShell [Server-compatible] [View] [scroll: self]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
+    ChatRoomPlatformShell["PlatformShell [Server-compatible] [View] [scroll: child]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
+    PlatformHeader["PlatformHeader [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-header.tsx"]
+    PlatformNavigationClient["PlatformNavigationClient [Client] [View]<br/>apps/web/components/platform-navigation-client.tsx"]
+    PlatformNavigation["PlatformNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-navigation.tsx"]
+    PlatformBottomNavigation["PlatformBottomNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-bottom-navigation.tsx"]
     ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
     PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/public-room-search-form.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional]<br/>apps/web/components/create-chat-room-form.tsx"]
@@ -326,10 +372,15 @@ flowchart TD
     AppShell --> NativeBridgeRuntime
     AppShell -->|"update policy branch"| AppUpdateGate
     AppUpdateGate -->|"component output conditional"| AppInstallBanner
-    AppUpdateGate -->|"non-chat route, development only"| TemporaryLoginControl
     AppUpdateGate --> ChildrenSlot
 
-    ChildrenSlot -. "route /" .-> HomePage
+    ChildrenSlot -. "route /" .-> IndexPage
+    ChildrenSlot -. "route /home" .-> HomePage
+    HomePage --> PlatformPageShell
+    HomePage -->|"development only"| TemporaryLoginControl
+    PlatformPageShell --> DefaultPlatformShell
+    DefaultPlatformShell --> PlatformHeader
+    DefaultPlatformShell --> PlatformNavigationClient
 
     ChildrenSlot -. "route /chat" .-> ChatLayout
     ChatLayout --> ChatQueryProvider
@@ -345,12 +396,17 @@ flowchart TD
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
     ChatPage --> ChatRoomListScreen
     ChatRoomListScreen --> ChatRoomListView
-    ChatRoomListView --> ChatConnectionStatus
-    ChatRoomListView --> PublicRoomSearchForm
-    ChatRoomListView -->|"conditional create form"| CreateChatRoomForm
+    ChatRoomListView -->|"self scroll"| ChatListPlatformShell
+    ChatListPlatformShell --> PlatformHeader
+    ChatListPlatformShell --> ChatConnectionStatus
+    ChatListPlatformShell --> PublicRoomSearchForm
+    ChatListPlatformShell -->|"conditional create form"| CreateChatRoomForm
     CreateChatRoomForm --> ChatRoomCategorySelector
-    ChatRoomListView -->|"room cards"| ChatRoomCategoryBadges
-    ChatRoomListView -->|"selected room detail"| ChatRoomListDetailDialog
+    ChatListPlatformShell -->|"room cards"| ChatRoomCategoryBadges
+    ChatListPlatformShell -->|"selected room detail"| ChatRoomListDetailDialog
+    ChatListPlatformShell --> PlatformNavigationClient
+    PlatformNavigationClient --> PlatformNavigation
+    PlatformNavigation --> PlatformBottomNavigation
     ChatRoomListDetailDialog -->|"available room action"| JoinChatRoomControl
     RoomCreationRequestsPage --> RoomCreationRequestListScreen
     RoomCreationRequestListScreen --> RoomCreationRequestListView
@@ -358,8 +414,10 @@ flowchart TD
     RoomCreationRequestScreen --> RoomCreationRequestView
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView
-    ChatRoomView -->|"room detail error"| ChatRoomEntryError
-    ChatRoomView --> ChatMessageViewport
+    ChatRoomView -->|"child scroll"| ChatRoomPlatformShell
+    ChatRoomPlatformShell --> PlatformHeader
+    ChatRoomPlatformShell -->|"room detail error"| ChatRoomEntryError
+    ChatRoomPlatformShell --> ChatMessageViewport
     ChatRoomScreen -->|"actionable session state"| ChatRoomSessionNotice
     ChatRoomScreen -->|"snapshot sync recovery"| ChatRealtimeSyncStatus
     ChatRoomScreen -->|"message draft and send"| ChatRoomSessionControls
@@ -379,13 +437,14 @@ flowchart TD
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage
     SpecialBoundary -. "not-found state" .-> NotFound
+    NotFound --> PlatformPageShell
 
     classDef server fill:#e8f1ff,stroke:#2563eb,color:#172554;
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,HomePage,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,Loading,NotFound server;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

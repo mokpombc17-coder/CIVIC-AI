@@ -64,59 +64,11 @@ pre {
 
 .app-shell {
   min-height: 100dvh;
-  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
-    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 }
 
-.app-shell-chat {
-  background: var(--chat-publishing-color-neutral-soft, #edf2f7);
-  padding: 0;
-}
-
-.app-shell-chat .chat-product-main {
+.app-route-content {
+  min-height: 100dvh;
   width: 100%;
-}
-
-.site-header {
-  position: sticky;
-  z-index: 10;
-  top: 0.75rem;
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 1rem;
-  width: min(1120px, 100%);
-  margin: 0 auto 2rem;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.88);
-  padding: 0.85rem 1rem;
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-}
-
-.site-header nav {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.site-header nav a {
-  border-radius: 0.65rem;
-  color: #475569;
-  padding: 0.55rem 0.75rem;
-  text-decoration: none;
-}
-
-.site-header nav a[aria-current="page"] {
-  background: #e8edff;
-  color: #263c9b;
-  font-weight: 700;
-}
-
-main {
-  width: min(1120px, 100%);
-  margin: 0 auto;
 }
 
 .page-stack {
@@ -132,7 +84,7 @@ main {
   border-radius: 1.5rem;
   background: #172554;
   color: white;
-  padding: clamp(1.5rem, 5vw, 4rem);
+  padding: clamp(1.5rem, 8vw, 2rem);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
 }
 
@@ -140,10 +92,11 @@ main {
   min-height: 13rem;
 }
 
-.hero h1 {
+.hero h1,
+.hero h2 {
   max-width: 860px;
   margin: 0;
-  font-size: clamp(2rem, 5vw, 4.5rem);
+  font-size: clamp(2rem, 10vw, 2.5rem);
   line-height: 1.05;
   letter-spacing: -0.05em;
 }
