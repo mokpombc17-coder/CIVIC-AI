@@ -632,10 +632,15 @@ const CREATE_ROOM_RESPONSE = {
   clientRequestId: IDEMPOTENCY_KEY,
   code: "ROOM_CREATED",
   replayed: false,
+  creationRequestId: "creation-request-01",
+  status: "APPROVED",
+  requestedAt: "2026-08-25T07:00:00Z",
+  resolvedAt: "2026-08-25T07:00:01Z",
   roomId: "room-01",
   ownerMembershipId: "membership-01",
   roomVersion: 1,
   ownerMembershipVersion: 1,
+  rejectionReason: null,
 };
 
 const UPDATE_ROOM_SETTINGS_RESPONSE = {

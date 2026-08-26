@@ -7,6 +7,7 @@ import {
   createRoomMessageContextResponseSchema,
   createRoomMessageSearchResponseSchema,
   createRoomRequestSchema,
+  createRoomResponseSchema,
   messageHistoryRequestSchema,
   membershipDisplayNameSchema,
   myRoomListResponseSchema,
@@ -155,6 +156,128 @@ describe("chat room REST contracts", () => {
         code: "ROOM_SETTINGS_UNCHANGED",
         description: undefined,
       }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    {
+      code: "ROOM_CREATION_REQUESTED",
+      status: "PENDING",
+      resolvedAt: null,
+      roomId: null,
+      ownerMembershipId: null,
+      roomVersion: null,
+      ownerMembershipVersion: null,
+      rejectionReason: null,
+    },
+    {
+      code: "ROOM_CREATED",
+      status: "APPROVED",
+      resolvedAt: "2026-08-25T07:00:01Z",
+      roomId: "room-123",
+      ownerMembershipId: "membership-123",
+      roomVersion: 1,
+      ownerMembershipVersion: 1,
+      rejectionReason: null,
+    },
+    {
+      code: "ROOM_CREATION_REJECTED",
+      status: "REJECTED",
+      resolvedAt: "2026-08-25T07:00:01Z",
+      roomId: null,
+      ownerMembershipId: null,
+      roomVersion: null,
+      ownerMembershipVersion: null,
+      rejectionReason: "연구 목적과 맞지 않는 Room입니다.",
+    },
+    {
+      code: "ROOM_CREATION_CANCELED",
+      status: "CANCELED",
+      resolvedAt: "2026-08-25T07:00:01Z",
+      roomId: null,
+      ownerMembershipId: null,
+      roomVersion: null,
+      ownerMembershipVersion: null,
+      rejectionReason: null,
+    },
+  ] as const)("방 생성 신청의 $status 응답을 허용한다", (state) => {
+    const response = createRoomCreationResponse(state);
+
+    expect(createRoomResponseSchema.parse(response)).toEqual(response);
+  });
+
+  it("방 생성 신청 status와 code 조합이 다르면 거절한다", () => {
+    expect(
+      createRoomResponseSchema.safeParse(
+        createRoomCreationResponse({
+          code: "ROOM_CREATED",
+          status: "PENDING",
+          resolvedAt: null,
+          roomId: null,
+          ownerMembershipId: null,
+          roomVersion: null,
+          ownerMembershipVersion: null,
+          rejectionReason: null,
+        }),
+      ).success,
+    ).toBe(false);
+  });
+
+  it("방 생성 신청 상태별 nullable invariant를 검증한다", () => {
+    expect(
+      createRoomResponseSchema.safeParse(
+        createRoomCreationResponse({
+          code: "ROOM_CREATION_REQUESTED",
+          status: "PENDING",
+          resolvedAt: "2026-08-25T07:00:01Z",
+          roomId: "room-123",
+          ownerMembershipId: "membership-123",
+          roomVersion: 1,
+          ownerMembershipVersion: 1,
+          rejectionReason: null,
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      createRoomResponseSchema.safeParse(
+        createRoomCreationResponse({
+          code: "ROOM_CREATION_REJECTED",
+          status: "REJECTED",
+          resolvedAt: "2026-08-25T07:00:01Z",
+          roomId: null,
+          ownerMembershipId: null,
+          roomVersion: null,
+          ownerMembershipVersion: null,
+          rejectionReason: null,
+        }),
+      ).success,
+    ).toBe(false);
+  });
+
+  it("방 생성 반려 사유는 canonical 한 줄 100 code point 이하여야 한다", () => {
+    const createRejectedResponse = (rejectionReason: string) =>
+      createRoomCreationResponse({
+        code: "ROOM_CREATION_REJECTED",
+        status: "REJECTED",
+        resolvedAt: "2026-08-25T07:00:01Z",
+        roomId: null,
+        ownerMembershipId: null,
+        roomVersion: null,
+        ownerMembershipVersion: null,
+        rejectionReason,
+      });
+
+    expect(createRoomResponseSchema.safeParse(createRejectedResponse("반려 사유")).success).toBe(
+      true,
+    );
+    expect(createRoomResponseSchema.safeParse(createRejectedResponse(" 반려 사유 ")).success).toBe(
+      false,
+    );
+    expect(
+      createRoomResponseSchema.safeParse(createRejectedResponse("첫 줄\n둘째 줄")).success,
+    ).toBe(false);
+    expect(
+      createRoomResponseSchema.safeParse(createRejectedResponse("😀".repeat(101))).success,
     ).toBe(false);
   });
 
@@ -996,5 +1119,15 @@ function createRoomRequest(description: string) {
     categories: ["POLICY"],
     visibility: "LISTED",
     joinPolicy: "OPEN",
+  };
+}
+
+function createRoomCreationResponse(state: Record<string, unknown>) {
+  return {
+    clientRequestId: "b3688817-a610-4ef2-987a-1172945974c7",
+    replayed: false,
+    creationRequestId: "creation-request-123",
+    requestedAt: "2026-08-25T07:00:00Z",
+    ...state,
   };
 }
