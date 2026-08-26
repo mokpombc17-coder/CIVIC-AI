@@ -22,9 +22,12 @@ export function CreateChatRoomForm({ onCancel }: { onCancel: () => void }) {
             반려 사유: {form.creationRequestResult.rejectionReason}
           </p>
         ) : null}
-        <div className="mt-4 flex justify-end">
-          <button className="primary-button" onClick={onCancel} type="button">
-            확인
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <button className="secondary-button" onClick={onCancel} type="button">
+            닫기
+          </button>
+          <button className="primary-button" onClick={form.openCreationRequest} type="button">
+            신청 상태 확인
           </button>
         </div>
       </section>

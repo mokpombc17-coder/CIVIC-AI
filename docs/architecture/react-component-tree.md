@@ -93,6 +93,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │           ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
                             │           └── ChatRoomListDetailDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-list-detail-dialog.tsx)
                             │               └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
+                            ├── route /chat/creation-requests/[creationRequestId]: RoomCreationRequestPage [Server] [Route] (apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx)
+                            │   └── RoomCreationRequestScreen [Client] [Container] (apps/web/components/room-creation-request-screen.tsx)
+                            │       └── RoomCreationRequestView [Client] [View] (apps/web/components/room-creation-request-view.tsx)
                             └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
                                 └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
                                     ├── ChatRoomView [Client] [View] (apps/web/components/chat-room-view.tsx)
@@ -150,6 +153,12 @@ control은 각각 동작 hook을 호출하되, validation, mutation, 멱등성 k
 `ChatRoomCategorySelector`는 생성·설정 UI가 공유하는 controlled 단일 선택 표현을 담당하고,
 Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
 `ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
+
+`RoomCreationRequestScreen`은 `creationRequestId`별 상세 Query, 상태·오류 presentation과
+명시적 새로고침을 조립해 `RoomCreationRequestView`에 전달한다. View는 신청의
+`PENDING`·`APPROVED`·`REJECTED`·`CANCELED` 상태, 시각, 반려 사유와 승인된 Room
+이동을 표현한다. 실시간 알림을 가정하지 않고, 사용자가 상세 화면에서 최신 상태를
+직접 재조회할 수 있게 한다.
 
 `ChatRoomScreen`은 화면에 필요한 controller와 ViewModel을 조립하는 container다.
 `useChatRoomRealtimeExperience`는 Room session, Message History와 Read Receipt snapshot,
@@ -273,6 +282,9 @@ flowchart TD
     ChatRoomCategoryBadges["ChatRoomCategoryBadges [Server-compatible] [View]<br/>apps/web/components/chat-room-category-badges.tsx"]
     JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
     ChatConnectionStatus["ChatConnectionStatus [Client] [Feature]<br/>apps/web/components/chat-connection-status.tsx"]
+    RoomCreationRequestPage["RoomCreationRequestPage [Server] [Route]<br/>apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx"]
+    RoomCreationRequestScreen["RoomCreationRequestScreen [Client] [Container]<br/>apps/web/components/room-creation-request-screen.tsx"]
+    RoomCreationRequestView["RoomCreationRequestView [Client] [View]<br/>apps/web/components/room-creation-request-view.tsx"]
     ChatRoomPage["ChatRoomPage [Server] [Route]<br/>apps/web/app/chat/[roomId]/page.tsx"]
     ChatRoomScreen["ChatRoomScreen [Client] [Container]<br/>apps/web/components/chat-room-screen.tsx"]
     ChatRoomView["ChatRoomView [Client] [View]<br/>apps/web/components/chat-room-view.tsx"]
@@ -315,6 +327,7 @@ flowchart TD
     ChatRealtimeProvider -->|"development only"| ChatRealtimeDiagnosticsPanel
     ChatRoomInboxRuntime -->|"conditional toast"| ChatRoomInboxToastList
     ChatChildrenSlot -. "route /chat" .-> ChatPage
+    ChatChildrenSlot -. "route /chat/creation-requests/[creationRequestId]" .-> RoomCreationRequestPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
     ChatPage --> ChatRoomListScreen
     ChatRoomListScreen --> ChatRoomListView
@@ -325,6 +338,8 @@ flowchart TD
     ChatRoomListView -->|"room cards"| ChatRoomCategoryBadges
     ChatRoomListView -->|"selected room detail"| ChatRoomListDetailDialog
     ChatRoomListDetailDialog -->|"available room action"| JoinChatRoomControl
+    RoomCreationRequestPage --> RoomCreationRequestScreen
+    RoomCreationRequestScreen --> RoomCreationRequestView
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView
     ChatRoomView -->|"room detail error"| ChatRoomEntryError
@@ -353,8 +368,8 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,HomePage,ChatLayout,ChatPage,ChatRoomPage,Loading,NotFound server;
-    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class RootLayout,HomePage,ChatLayout,ChatPage,RoomCreationRequestPage,ChatRoomPage,Loading,NotFound server;
+    class AppShell,NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

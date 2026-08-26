@@ -248,6 +248,8 @@ export function myRoomCreationRequestQueryOptions(
   return queryOptions({
     queryKey: chatRoomQueryKeys.creationRequestDetail(creationRequestId),
     queryFn: ({ signal }) => api.getMyRoomCreationRequest(creationRequestId, signal),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 

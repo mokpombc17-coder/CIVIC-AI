@@ -275,6 +275,8 @@ describe("chat room query options", () => {
     expect(options.queryKey).toEqual(
       chatRoomQueryKeys.creationRequestDetail("creation-request-01"),
     );
+    expect(options.staleTime).toBe(0);
+    expect(options.refetchOnMount).toBe("always");
     expect(getMyRoomCreationRequest).toHaveBeenCalledWith(
       "creation-request-01",
       expect.any(AbortSignal),

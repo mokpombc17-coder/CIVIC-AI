@@ -83,6 +83,13 @@ export function useCreateChatRoomForm() {
     errorMessage: createRoom.isError ? getCreateRoomErrorMessage(createRoom.error) : null,
     handleSubmit,
     isPending: createRoom.isPending,
+    openCreationRequest: () => {
+      if (creationRequestResult) {
+        router.push(
+          `/chat/creation-requests/${encodeURIComponent(creationRequestResult.creationRequestId)}`,
+        );
+      }
+    },
     selectedCategory,
     selectCategory: setSelectedCategory,
     retry: () => {
