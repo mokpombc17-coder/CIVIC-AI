@@ -1,0 +1,176 @@
+.stage {
+  --platform-shell-max-width: 393px;
+  --platform-shell-max-height: 852px;
+  --platform-shell-header-height: 69px;
+  --platform-shell-navigation-height: 64px;
+  --platform-shell-color-surface: #ffffff;
+  --platform-shell-color-text: #121417;
+  --platform-shell-color-muted: #59616b;
+  --platform-shell-color-primary: #266ef5;
+  --platform-shell-color-primary-emphasis: #0a4fd1;
+  --platform-shell-color-border: #ccd1d6;
+  --platform-shell-radius: 12px;
+  --platform-shell-shadow: 0 8px 24px rgba(18, 20, 23, 0.12);
+  --platform-z-header: 10;
+  --platform-z-navigation: 10;
+  --platform-z-overlay: 100;
+  --platform-z-toast: 200;
+
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+.shell {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  max-width: var(--platform-shell-max-width);
+  height: 100dvh;
+  max-height: var(--platform-shell-max-height);
+  overflow: hidden;
+  border-radius: var(--platform-shell-radius);
+  background: var(--platform-shell-color-surface);
+  box-shadow: var(--platform-shell-shadow);
+  color: var(--platform-shell-color-text);
+}
+
+.content {
+  min-width: 0;
+  min-height: 0;
+  background: var(--platform-shell-color-surface);
+}
+
+.content[data-scroll="self"] {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content[data-scroll="child"] {
+  overflow: hidden;
+}
+
+.header {
+  position: relative;
+  z-index: var(--platform-z-header);
+  flex: none;
+  min-height: calc(var(--platform-shell-header-height) + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--platform-shell-color-border);
+  background: var(--platform-shell-color-surface);
+  padding-top: env(safe-area-inset-top);
+}
+
+.headerRow {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--platform-shell-header-height) - 1px);
+  align-items: center;
+  gap: 12px;
+  padding-inline: 16px;
+}
+
+.headerLeading {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+}
+
+.headerLeading > * {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.headerTitle {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  margin: 0;
+  color: var(--platform-shell-color-text);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 27px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.bottomNavigation {
+  position: relative;
+  z-index: var(--platform-z-navigation);
+  display: grid;
+  min-height: calc(var(--platform-shell-navigation-height) + env(safe-area-inset-bottom));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  border-top: 1px solid var(--platform-shell-color-border);
+  background: var(--platform-shell-color-surface);
+  padding: 4px 4px env(safe-area-inset-bottom);
+}
+
+.bottomNavigationItem {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 59px;
+  align-items: center;
+  border-top: 3px solid transparent;
+  color: var(--platform-shell-color-muted);
+  flex-direction: column;
+  gap: 2px;
+  justify-content: flex-start;
+  padding: 6px 4px 3px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottomNavigationItem[aria-current="page"] {
+  border-top-color: var(--platform-shell-color-primary);
+  color: var(--platform-shell-color-primary-emphasis);
+}
+
+.bottomNavigationItem:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--platform-shell-color-primary);
+  outline-offset: -2px;
+}
+
+.bottomNavigationIcon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+}
+
+.bottomNavigationIcon > * {
+  width: 100%;
+  height: 100%;
+}
+
+.bottomNavigationLabel {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bottomNavigationItem[aria-current="page"] .bottomNavigationLabel {
+  font-weight: 700;
+}
