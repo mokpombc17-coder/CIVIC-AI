@@ -358,3 +358,35 @@ Safari 또는 Expo WebView의 공식 지원 범위 확정
 GitHub-hosted runner에서 nightly를 실행한다면 개발자 개인 컴퓨터를 켜둘 필요는 없다. 다만
 Backend와 MongoDB를 runner 안에서 준비할 방법이 확정되기 전에는 nightly workflow를 만들지
 않는다.
+
+## Room 생성 승인 모드 후속 E2E
+
+현재 Chat Playwright suite는 로컬 Backend의 `DIRECT` 생성 모드를 기준으로 한다.
+사용자 측 프론트엔드는 `201 APPROVED`, `202 PENDING`, `200 REJECTED/CANCELED replay`
+계약과 신청 목록·상세·취소를 단위 테스트로 검증한다. 다만 실제 관리자 결정이
+포함된 브라우저 E2E는 현재 로컬 기본 실행에서 제외한다.
+
+후속 E2E는 다음 fixture가 공유 가능해진 뒤 추가한다.
+
+```text
+CHAT_ROOM_CREATION_MODE=APPROVAL_REQUIRED로 고정된 Backend 실행 방법
+일반 사용자 JWT
+chat:rooms:approve scope를 가진 관리자 JWT
+테스트가 생성한 신청을 관리자 API로 결정하는 fixture
+```
+
+필수 시나리오:
+
+```text
+사용자가 Room 생성 요청
+→ 202 PENDING과 신청 상세 진입
+→ 관리자 승인 후 수동 상태 재조회
+→ APPROVED와 생성된 Room 이동
+
+PENDING 신청 취소
+→ CANCELED 상태와 목록 반영
+
+관리자 결정과 사용자 취소 경합
+→ ROOM_CREATION_DECISION_CONFLICT
+→ 상세 재조회 후 서버 최신 상태 표시
+```

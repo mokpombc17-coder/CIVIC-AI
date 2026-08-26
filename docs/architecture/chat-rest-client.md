@@ -168,9 +168,19 @@ Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를
 않는다.
 
 ```text
-방 생성 성공
-  → 공개 방 목록 무효화
-  → 내 방 목록 무효화
+방 생성 APPROVED
+  → 신청 상세 cache 저장
+  → 신청 목록 무효화
+  → 공개 방·내 방·inbox 목록 무효화
+
+방 생성 PENDING / REJECTED / CANCELED replay
+  → 신청 상세 cache 저장
+  → 신청 목록 무효화
+  → Room 목록은 무효화하지 않음
+
+PENDING 신청 취소
+  → 신청 상세 cache를 CANCELED 응답으로 교체
+  → 신청 목록 무효화
 
 방 상태 Command 성공
   → 공개 방 목록 무효화
@@ -183,8 +193,12 @@ Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를
 서버의 최신 전체 표현을 다시 조회하는 방식을 사용하면 Command별 부분 응답을 조합하면서
 발생하는 cache 불일치를 피할 수 있다.
 
-방 생성과 참여가 성공하면 관련 cache 무효화가 끝난 뒤 응답의 `roomId`에 해당하는 채팅방
-화면으로 이동한다.
+방 생성은 `APPROVED`이고 `roomId`가 있는 응답에서만 채팅방으로 이동한다.
+`PENDING`과 terminal replay는 `creationRequestId`별 상세 화면으로 이동해 사용자가
+최신 상태를 명시적으로 재조회할 수 있게 한다. 신청 취소와 관리자 결정이
+경합해 `ROOM_CREATION_DECISION_CONFLICT`가 발생하면 취소를 자동 재시도하지 않고
+상세를 재조회한다. 채팅방 참여는 성공 후 기존과 같이 해당 `roomId` 화면으로
+이동한다.
 
 방 상세 화면은 내 멤버십을 별도 endpoint로 동기화한다. 방장 역할이 확인된 경우에만 상태별
 멤버 목록 Query를 활성화하며, 일반 멤버에게는 방장 전용 요청 자체를 보내지 않는다. 방장 위임,
@@ -195,6 +209,7 @@ Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를
 ### Command
 
 - `POST /rooms`
+- `POST /me/room-creation-requests/{creationRequestId}/cancel`
 - `POST /rooms/{roomId}/commands/join`
 - `POST /rooms/{roomId}/commands/leave`
 - `POST /rooms/{roomId}/commands/transfer-ownership`
@@ -208,6 +223,8 @@ Command 성공 응답은 room의 전체 표현이 아니므로 version 일부를
 - `GET /rooms/{roomId}`
 - `GET /rooms/{roomId}/memberships/me`
 - `GET /me/rooms`
+- `GET /me/room-creation-requests`
+- `GET /me/room-creation-requests/{creationRequestId}`
 - `GET /rooms/{roomId}/memberships`
 - `GET /rooms/{roomId}/messages`
 
