@@ -99,8 +99,8 @@ public class AuthenticatedUserService {
             var issuedAt = claims.getIssueTime();
             var expiresAt = claims.getExpirationTime();
             var jwtId = claims.getJWTID();
-            var subjectEmail = claims.getSubject();
-            var rawUserId = claims.getStringClaim("user_id");
+            var rawSubject = claims.getSubject();
+            var subjectEmail = claims.getStringClaim("email");
             var scope = claims.getStringClaim("scope");
             var accountStateVersion = claims.getLongClaim("account_state_version");
             var mustChangePassword = claims.getBooleanClaim("must_change_password");
@@ -113,10 +113,10 @@ public class AuthenticatedUserService {
                     || expiresAt == null
                     || jwtId == null
                     || jwtId.isBlank()
+                    || rawSubject == null
+                    || rawSubject.isBlank()
                     || subjectEmail == null
                     || subjectEmail.isBlank()
-                    || rawUserId == null
-                    || rawUserId.isBlank()
                     || scope == null
                     || accountStateVersion == null
                     || mustChangePassword == null
@@ -126,7 +126,7 @@ public class AuthenticatedUserService {
             }
             var scopes = scope.isBlank() ? Set.<String>of() : Set.copyOf(Arrays.asList(scope.split(" ")));
             return new TokenCredential(
-                    UUID.fromString(rawUserId), subjectEmail, jwtId,
+                    UUID.fromString(rawSubject), subjectEmail, jwtId,
                     issuedAt.toInstant(), expiresAt.toInstant(),
                     accountStateVersion, scopes, mustChangePassword);
         } catch (AuthenticationException exception) {

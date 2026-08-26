@@ -61,9 +61,9 @@ class RefreshTokenAuthenticationLifecycleTest extends PostgresIntegrationTest {
 
         assertThat(access.getValue()).contains(".");
         var accessClaims = SignedJWT.parse(access.getValue()).getJWTClaimsSet();
-        assertThat(accessClaims.getSubject()).isEqualTo(jdbc.queryForObject(
+        assertThat(accessClaims.getSubject()).isEqualTo(userId.toString());
+        assertThat(accessClaims.getStringClaim("email")).isEqualTo(jdbc.queryForObject(
                 "select normalized_email from users where id = ?", String.class, userId));
-        assertThat(accessClaims.getStringClaim("user_id")).isEqualTo(userId.toString());
         assertThat(refresh.getValue()).doesNotContain(".");
         assertThat(login.getResponse().getCookie("__Host-civic-session")).isNull();
         assertThat(refresh.getPath()).isEqualTo(AuthCookieFactory.REFRESH_TOKEN_PATH);
