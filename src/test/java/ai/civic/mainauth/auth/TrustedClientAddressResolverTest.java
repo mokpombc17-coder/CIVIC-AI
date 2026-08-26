@@ -24,4 +24,26 @@ class TrustedClientAddressResolverTest {
                 .thenReturn("internal-secret");
         assertThat(resolver.resolve(request)).isEqualTo("203.0.113.20");
     }
+
+    @Test
+    void trustedReverseProxyAddressIsUsedWithoutCollapsingAllClientsIntoOneBucket() {
+        var request = mock(HttpServletRequest.class);
+        when(request.getRemoteAddr()).thenReturn("172.18.0.4");
+        when(request.getHeader(TrustedClientAddressResolver.REVERSE_PROXY_IP_HEADER))
+                .thenReturn("203.0.113.21");
+        var resolver = new TrustedClientAddressResolver("internal-secret", "172.16.0.0/12");
+
+        assertThat(resolver.resolve(request)).isEqualTo("203.0.113.21");
+    }
+
+    @Test
+    void untrustedOrMalformedForwardedAddressIsIgnoredWithoutDnsLookup() {
+        var request = mock(HttpServletRequest.class);
+        when(request.getRemoteAddr()).thenReturn("198.51.100.10");
+        when(request.getHeader(TrustedClientAddressResolver.REVERSE_PROXY_IP_HEADER))
+                .thenReturn("attacker.example");
+        var resolver = new TrustedClientAddressResolver("internal-secret", "172.16.0.0/12");
+
+        assertThat(resolver.resolve(request)).isEqualTo("198.51.100.10");
+    }
 }

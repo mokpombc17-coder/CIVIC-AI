@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,9 +21,7 @@ public final class Rs256KeyRing {
     private final List<RSAKey> retiring;
 
     public Rs256KeyRing(RSAKey active, List<RSAKey> retiring) {
-        if (active == null || active.getKeyID() == null || !active.isPrivate()) {
-            throw new IllegalArgumentException("Active RS256 key must contain private material and kid");
-        }
+        validateKeys(active, retiring);
         this.active = active;
         this.retiring = List.copyOf(retiring);
     }
@@ -41,6 +40,7 @@ public final class Rs256KeyRing {
             this.active = loaded.getLast();
             this.retiring = List.copyOf(loaded.subList(0, loaded.size() - 1));
         }
+        validateKeys(this.active, this.retiring);
     }
 
     public RSAKey active() {
@@ -91,6 +91,26 @@ public final class Rs256KeyRing {
                     }).toList();
         } catch (Exception exception) {
             throw new IllegalStateException("Could not read CIVIC_RS256_KEY_DIRECTORY", exception);
+        }
+    }
+
+    private static void validateKeys(RSAKey active, List<RSAKey> retiring) {
+        if (active == null || retiring == null) {
+            throw new IllegalArgumentException("RS256 key ring is required");
+        }
+        var keyIds = new HashSet<String>();
+        validateKey(active, "Active", keyIds);
+        retiring.forEach(key -> validateKey(key, "Retiring", keyIds));
+    }
+
+    private static void validateKey(RSAKey key, String kind, HashSet<String> keyIds) {
+        if (key == null || key.getKeyID() == null || key.getKeyID().isBlank()
+                || !key.isPrivate() || key.size() < 2048) {
+            throw new IllegalArgumentException(
+                    kind + " RS256 key must contain at least 2048-bit private material and a non-empty kid");
+        }
+        if (!keyIds.add(key.getKeyID())) {
+            throw new IllegalArgumentException("RS256 key IDs must be unique");
         }
     }
 }

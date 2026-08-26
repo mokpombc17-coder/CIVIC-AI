@@ -2,12 +2,16 @@ package ai.civic.mainauth.auth;
 
 import ai.civic.mainauth.token.AccessTokenService;
 import ai.civic.mainauth.token.Rs256KeyRing;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.SignedJWT;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,7 +93,8 @@ public class AuthenticatedUserService {
         if (rawAccessToken == null || rawAccessToken.isBlank()) throw invalid();
         try {
             var jwt = SignedJWT.parse(rawAccessToken);
-            if (!JWSAlgorithm.RS256.equals(jwt.getHeader().getAlgorithm())) throw invalid();
+            if (!JWSAlgorithm.RS256.equals(jwt.getHeader().getAlgorithm())
+                    || !JOSEObjectType.JWT.equals(jwt.getHeader().getType())) throw invalid();
             var key = keyRing.verificationKey(jwt.getHeader().getKeyID());
             if (key == null || !jwt.verify(new RSASSAVerifier(key))) throw invalid();
 
@@ -105,10 +110,9 @@ public class AuthenticatedUserService {
             var accountStateVersion = claims.getLongClaim("account_state_version");
             var mustChangePassword = claims.getBooleanClaim("must_change_password");
             if (!issuer.equals(claims.getIssuer())
-                    || claims.getAudience() == null
-                    || !claims.getAudience().contains(AccessTokenService.AUDIENCE)
+                    || !List.of(AccessTokenService.AUDIENCE).equals(claims.getAudience())
                     || !(serializedAudience instanceof java.util.List<?> audience)
-                    || !audience.contains(AccessTokenService.AUDIENCE)
+                    || !List.of(AccessTokenService.AUDIENCE).equals(audience)
                     || issuedAt == null
                     || expiresAt == null
                     || jwtId == null
@@ -117,16 +121,22 @@ public class AuthenticatedUserService {
                     || rawSubject.isBlank()
                     || subjectEmail == null
                     || subjectEmail.isBlank()
+                    || !subjectEmail.equals(subjectEmail.strip().toLowerCase(Locale.ROOT))
                     || scope == null
                     || accountStateVersion == null
+                    || accountStateVersion < 0
                     || mustChangePassword == null
                     || !expiresAt.toInstant().isAfter(now)
-                    || issuedAt.toInstant().isAfter(now.plusSeconds(30))) {
+                    || issuedAt.toInstant().isAfter(now.plusSeconds(30))
+                    || !Duration.between(issuedAt.toInstant(), expiresAt.toInstant())
+                            .equals(AccessTokenService.LIFETIME)) {
                 throw invalid();
             }
-            var scopes = scope.isBlank() ? Set.<String>of() : Set.copyOf(Arrays.asList(scope.split(" ")));
+            var userId = canonicalUuid(rawSubject);
+            canonicalUuid(jwtId);
+            var scopes = parseScopes(scope);
             return new TokenCredential(
-                    UUID.fromString(rawSubject), subjectEmail, jwtId,
+                    userId, subjectEmail, jwtId,
                     issuedAt.toInstant(), expiresAt.toInstant(),
                     accountStateVersion, scopes, mustChangePassword);
         } catch (AuthenticationException exception) {
@@ -177,6 +187,23 @@ public class AuthenticatedUserService {
 
     private static AuthenticationException invalid() {
         return new AuthenticationException("Access token is invalid or expired");
+    }
+
+    private static UUID canonicalUuid(String raw) {
+        var parsed = UUID.fromString(raw);
+        if (!parsed.toString().equals(raw)) throw invalid();
+        return parsed;
+    }
+
+    private static Set<String> parseScopes(String raw) {
+        if (raw == null || raw.isBlank() || !raw.equals(raw.strip())) throw invalid();
+        var result = new LinkedHashSet<String>();
+        for (var item : raw.split(" ", -1)) {
+            if (item.isBlank() || item.chars().anyMatch(Character::isWhitespace) || !result.add(item)) {
+                throw invalid();
+            }
+        }
+        return Set.copyOf(result);
     }
 
     public enum UserRole { PARTICIPANT, ADMIN, HIGHEST_ADMIN }
