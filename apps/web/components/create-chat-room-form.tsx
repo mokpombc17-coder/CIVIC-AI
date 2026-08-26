@@ -8,6 +8,29 @@ export const CREATE_CHAT_ROOM_FORM_ID = "create-room-form";
 export function CreateChatRoomForm({ onCancel }: { onCancel: () => void }) {
   const form = useCreateChatRoomForm();
 
+  if (form.creationRequestResult) {
+    return (
+      <section aria-live="polite" className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <h2 className="text-sm font-semibold text-slate-950">
+          {getCreationRequestResultTitle(form.creationRequestResult.status)}
+        </h2>
+        <p className="mt-2 text-sm text-slate-700">
+          {getCreationRequestResultDescription(form.creationRequestResult.status)}
+        </p>
+        {form.creationRequestResult.status === "REJECTED" ? (
+          <p className="mt-2 text-sm text-red-700">
+            반려 사유: {form.creationRequestResult.rejectionReason}
+          </p>
+        ) : null}
+        <div className="mt-4 flex justify-end">
+          <button className="primary-button" onClick={onCancel} type="button">
+            확인
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <form
       className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4"
@@ -113,4 +136,23 @@ export function CreateChatRoomForm({ onCancel }: { onCancel: () => void }) {
       </fieldset>
     </form>
   );
+}
+
+function getCreationRequestResultTitle(status: "PENDING" | "REJECTED" | "CANCELED"): string {
+  switch (status) {
+    case "PENDING":
+      return "채팅방 생성 신청이 접수되었습니다.";
+    case "REJECTED":
+      return "채팅방 생성 신청이 반려되었습니다.";
+    case "CANCELED":
+      return "채팅방 생성 신청이 취소되었습니다.";
+  }
+}
+
+function getCreationRequestResultDescription(status: "PENDING" | "REJECTED" | "CANCELED"): string {
+  if (status === "PENDING") {
+    return "관리자 승인 후 채팅방이 생성됩니다. 승인 결과는 신청 상태에서 직접 확인해 주세요.";
+  }
+
+  return "현재 신청 상태를 확인했습니다.";
 }

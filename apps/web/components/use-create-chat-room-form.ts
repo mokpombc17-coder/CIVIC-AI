@@ -2,10 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { parseCreateChatRoomFormData } from "@/components/create-chat-room-form-model";
+import {
+  parseCreateChatRoomFormData,
+  resolveCreateChatRoomResultDestination,
+} from "@/components/create-chat-room-form-model";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
 import { getCreateRoomErrorMessage } from "@/lib/chat/chat-room-command-error-presentation";
-import type { CreateRoomRequest, RoomCategory } from "@/lib/chat/chat-room-contracts";
+import type {
+  CreateRoomRequest,
+  CreateRoomResponse,
+  RoomCategory,
+} from "@/lib/chat/chat-room-contracts";
 import { useCreateRoomMutation } from "@/lib/chat/chat-room-mutations";
 import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
@@ -13,6 +20,10 @@ export function useCreateChatRoomForm() {
   const router = useRouter();
   const createRoom = useCreateRoomMutation();
   const [selectedCategory, setSelectedCategory] = useState<RoomCategory | null>(null);
+  const [creationRequestResult, setCreationRequestResult] = useState<Exclude<
+    CreateRoomResponse,
+    { status: "APPROVED" }
+  > | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [retryCommand, setRetryCommand] = useState<IdempotentCommand<CreateRoomRequest> | null>(
     null,
@@ -30,7 +41,16 @@ export function useCreateChatRoomForm() {
   function execute(command: IdempotentCommand<CreateRoomRequest>) {
     void createRoom
       .mutateAsync(command)
-      .then((response) => router.push(`/chat/${response.roomId}`))
+      .then((response) => {
+        const destination = resolveCreateChatRoomResultDestination(response);
+
+        if (destination.kind === "room") {
+          router.push(destination.href);
+          return;
+        }
+
+        setCreationRequestResult(destination.response);
+      })
       .catch(() => undefined);
   }
 
@@ -59,6 +79,7 @@ export function useCreateChatRoomForm() {
     canRetry,
     canSubmit: selectedCategory !== null && !createRoom.isPending,
     clearFailedAttempt,
+    creationRequestResult,
     errorMessage: createRoom.isError ? getCreateRoomErrorMessage(createRoom.error) : null,
     handleSubmit,
     isPending: createRoom.isPending,
