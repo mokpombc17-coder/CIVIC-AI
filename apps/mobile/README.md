@@ -48,11 +48,11 @@ cp apps/mobile/.env.example apps/mobile/.env.local
 | ------------------------------- | ------------------------------------- | ----------------------- | ----------------------------------------------- |
 | `EXPO_PUBLIC_WEB_APP_URL`       | WebView가 불러올 Next.js 주소         | `http://localhost:3000` | 개발 중에는 reload, 운영 반영 시 새 bundle 필요 |
 | `EXPO_PUBLIC_APP_HOST`          | Universal Link/App Link host          | 비어 있음, 기능 OFF     | 필요                                            |
-| `EXPO_PUBLIC_APP_SCHEME`        | OAuth callback과 개발용 custom scheme | `nextwebview`           | 필요                                            |
+| `EXPO_PUBLIC_APP_SCHEME`        | 개발용 custom scheme                  | `nextwebview`           | 필요                                            |
 | `IOS_BUNDLE_IDENTIFIER`         | iOS 앱 식별자                         | 예제 식별자             | 필요                                            |
 | `ANDROID_PACKAGE_NAME`          | Android 앱 식별자                     | 예제 식별자             | 필요                                            |
 | `EAS_PROJECT_ID`                | Expo push token을 발급할 프로젝트     | 비어 있음               | 운영 build 전에 설정                            |
-| `EXPO_PUBLIC_OAUTH_ENABLED`     | 네이티브 OAuth bridge                 | `true`                  | 개발 중에는 reload, 운영 반영 시 새 bundle 필요 |
+| `EXPO_PUBLIC_OAUTH_ENABLED`     | 템플릿 OAuth bridge, CIVIC에서 비활성 | `false`                 | 개발 중에는 reload, 운영 반영 시 새 bundle 필요 |
 | `EXPO_PUBLIC_DOWNLOADS_ENABLED` | 네이티브 파일 다운로드                | `true`                  | 개발 중에는 reload, 운영 반영 시 새 bundle 필요 |
 | `EXPO_PUBLIC_PUSH_ENABLED`      | 푸시 등록과 알림 링크 처리            | `false`                 | 개발 중에는 reload, 운영 반영 시 새 bundle 필요 |
 | `EXPO_PUBLIC_DOWNLOAD_ORIGINS`  | 다운로드를 허용할 추가 CDN origin     | 비어 있음               | 개발 중에는 reload, 운영 반영 시 새 bundle 필요 |
@@ -156,31 +156,17 @@ origin을 사용한다.
 - `share`
 - `deep-link`
 - `app-state`
-- `oauth`
 - `download`
 - `push`
 
 메시지 종류, payload와 버전 변경 규칙은 [브리지 문서](../../docs/bridge.md)를 참고한다.
 
-## OAuth와 소셜 로그인
+## OAuth와 소셜 로그인 비활성
 
-OAuth provider 화면은 WebView 안에서 열지 않고 시스템 인증 브라우저를 사용한다.
-
-```text
-WebView
-→ Next.js BFF의 authorization URL 요청
-→ START_OAUTH
-→ 시스템 인증 브라우저
-→ provider 로그인
-→ nextwebview://auth/callback?handoff=...
-→ WebView가 handoff code를 BFF session으로 교환
-```
-
-네이티브 workspace는 안전한 callback 전달 경계까지 제공한다. 실제 provider 설정, 운영 인증
-session과 일회용 handoff code 발급은 이 Platform Shell 템플릿에 포함되지 않으며, 사용하는
-서비스가 별도의 web endpoint로 연결해야 한다.
-
-provider access token은 네이티브 앱이나 bridge payload에 전달하지 않고 서버에 유지한다.
+CIVIC은 Main/Auth 이메일·비밀번호와 선택적 2FA만 사용한다. Google을 포함한 외부 OAuth 또는
+소셜 로그인은 연결하지 않으며 `EXPO_PUBLIC_OAUTH_ENABLED=false`를 유지한다. 공용 템플릿의
+OAuth bridge schema와 handler는 호환 목적으로 남아 있지만 capability 목록에 포함되지 않고
+제품 UI에서 호출하지 않는다.
 
 ## Universal Links와 App Links
 
@@ -219,8 +205,11 @@ Custom scheme은 OAuth callback과 개발 보조 수단이다. 앱 미설치 시
 허용한다. 운영 빌드에서는 HTTPS만 허용한다.
 
 파일은 앱 cache에 임시로 내려받고 운영체제 저장/공유 창을 연 뒤 삭제한다. 따라서 앱 시작 시
-광범위한 저장소 권한을 요청하지 않는다. 인증 파일은 BFF가 짧게 만료되는 일회용 URL을 발급하는
-방식을 권장한다.
+광범위한 저장소 권한을 요청하지 않는다. WebView와 같은 origin의 인증 파일은 native cookie
+store에서 해당 origin의 세션 cookie만 읽어 다운로드 요청에 전달한다. 다른 허용 origin에는 세션
+cookie를 전달하지 않으며, 외부 인증 파일은 BFF가 짧게 만료되는 일회용 URL을 발급하는 방식을 권장한다.
+웹은 `authenticated-download` capability를 확인한 뒤에만 이 흐름을 사용하므로, cookie 전달 기능이 없는
+이전 앱에서는 다운로드를 시도하지 않고 업데이트 안내를 표시한다.
 
 ## 푸시 알림
 
@@ -228,7 +217,7 @@ Custom scheme은 OAuth callback과 개발 보조 수단이다. 앱 미설치 시
 
 1. EAS 프로젝트를 생성하고 `EAS_PROJECT_ID`를 설정한다.
 2. iOS APNs와 Android FCM credentials를 구성한다.
-3. 서비스 웹 앱에 push token 저장 endpoint를 연결한다.
+3. 웹의 `PUSH_TOKEN_UPSTREAM_URL` 또는 `PushTokenRepository`를 실제 저장소에 연결한다.
 4. `EXPO_PUBLIC_PUSH_ENABLED=true`로 변경한다.
 5. 앱을 다시 build하고 실제 기기에서 테스트한다.
 
@@ -318,12 +307,6 @@ APNs/FCM 동작은 development/preview/production build를 실제 기기에 설�
 - Android emulator에서는 `adb reverse tcp:3000 tcp:3000`을 다시 실행한다.
 - 실제 기기에서는 localhost 대신 개발 PC LAN 주소 또는 HTTPS tunnel을 사용한다.
 - 운영 build에서 HTTP 주소를 사용하지 않았는지 확인한다.
-
-### OAuth가 WebView에서 열리거나 callback이 돌아오지 않음
-
-- 웹에서 native bridge의 `START_OAUTH`를 사용했는지 확인한다.
-- provider에 등록한 callback과 `EXPO_PUBLIC_APP_SCHEME`이 일치하는지 확인한다.
-- authorization URL이 설정된 Next.js BFF origin에서 시작하는지 확인한다.
 
 ### 푸시가 `unavailable`을 반환함
 

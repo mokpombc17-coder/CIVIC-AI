@@ -6,6 +6,7 @@ node_modules
 .env*.local
 *.tsbuildinfo
 next-env.d.ts
+/apps/web/certificates/
 
 # Expo-generated files
 /apps/mobile/expo-env.d.ts

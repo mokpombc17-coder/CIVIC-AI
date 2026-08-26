@@ -1,43 +1,132 @@
-# apps/web React component responsibility tree
+# apps/web React 책임 구조
 
-## 문서 목적
-
-Platform Shell 템플릿의 route, Server·Client 경계와 Shell 조립 관계를 기록한다. 순수 표현용
-HTML 구조와 CSS 세부 구현은 이 문서에 포함하지 않는다.
-
-## 공통 조립 관계
+## Root
 
 ```text
-RootLayout [Server] [Route] (apps/web/app/layout.tsx)
-└── children [slot: App Router가 현재 route를 제공]
-    ├── route /: IndexPage [Server] [Route] [redirect: /home] (apps/web/app/page.tsx)
-    ├── route /home: HomePage [Server] [Route] (apps/web/app/home/page.tsx)
-    │   └── PlatformPageShell [Server-compatible] [View]
-    │       └── PlatformShell [Server-compatible] [View] [scroll: self]
-    │           ├── PlatformHeader [Server-compatible] [View]
-    │           └── PlatformNavigationClient [Client] [Adapter]
-    │               └── PlatformNavigation [Server-compatible] [View]
-    │                   └── PlatformBottomNavigation [Server-compatible] [View]
-    ├── not-found: NotFound [Server] [Route]
-    │   └── PlatformPageShell
-    ├── loading: Loading [Server] [Route]
-    │   └── PlatformPageShell
-    └── error: ErrorPage [Client] [Route]
-        └── PlatformPageShell
+RootLayout [Server Route]
+└── AppShell [Client]
+    ├── NativeBridgeRuntime
+    └── AppUpdateGate
+        ├── AppInstallBanner [conditional]
+        └── App Router children
 ```
 
-`RootLayout`은 HTML 문서와 전역 CSS만 소유한다. route마다 title, back action, bottom navigation과
-scroll 책임이 달라질 수 있으므로 완성된 `PlatformShell`을 root layout에 고정하지 않는다.
+`AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 앱 설치·업데이트 정책만 소유한다.
+참여자 레이아웃은 저장소에 원래 있던 `PlatformShell`이 소유하고, 관리자 레이아웃은 `AdminShell`이
+소유한다.
 
-## 책임 경계
+## 실제 제품 route
 
-- `PlatformShell`: header, content, bottom navigation, overlay와 safe area를 배치한다.
-- `PlatformHeader`: title, leading, actions와 back control의 표현만 담당한다.
-- `PlatformBottomNavigation`: 전달받은 anchor 항목을 배치한다.
-- `PlatformNavigation`: 플랫폼 표준 경로와 pathname 기반 active 상태를 표현한다.
-- `PlatformNavigationClient`: Next.js `usePathname()`을 읽는 Client adapter다.
-- `PlatformPageShell`: 일반 route의 header, `scroll="self"`와 표준 navigation을 조립한다.
+화면 레지스트리는 `apps/web/lib/screens/screens.v1.generated.json`이다. optional catch-all page가
+canonical route를 조회하고 화면 owner·audience·status에 따라 실제 기능 화면 또는 준비 중 화면을
+선택한다.
 
-`apps/web/components/platform-shell`은 Next.js router, 인증, 환경변수와 도메인 코드를 import하지
-않는다. 새 도메인의 상태·데이터·화면 컴포넌트는 이 트리에 추가하되, 단순 표현용 내부 컴포넌트는
-생략한다.
+```text
+HomePage /home [Server Route]
+├── requireParticipantSession
+└── ParticipantShell
+    └── PlatformPageShell
+        └── 기존 frontend2 PlatformShell
+            └── MainFunctionalScreen [U-HOME-001]
+
+ParticipantCatchAllPage [Server Route]
+├── PUBLIC Main/Auth
+│   └── PlatformPageShell [bottom navigation 없음]
+│       └── MainFunctionalScreen
+├── PARTICIPANT or AUTHENTICATED Main/Auth
+│   ├── requireParticipantSession
+│   └── ParticipantShell 또는 AdminShell
+│       ├── ParticipantShell
+│       │   └── PlatformPageShell
+│       │       └── 기존 frontend2 PlatformShell [정확히 1개]
+│       │           └── MainFunctionalScreen
+│       │               └── AccountFunctionalScreen [conditional]
+│       └── AdminShell
+│           └── MainFunctionalScreen
+├── RAG
+│   ├── requireParticipantSession
+│   └── ParticipantShell
+│       └── PlatformPageShell
+│           └── 기존 frontend2 PlatformShell [정확히 1개]
+│               └── RagFunctionalScreen
+│                   └── ParticipantRagScreen
+└── PLACEHOLDER
+    ├── requireParticipantSession
+    └── ParticipantShell
+        └── PlatformPageShell
+            └── 기존 frontend2 PlatformShell [정확히 1개]
+                └── ComingSoonScreen
+
+AdminCatchAllPage [Server Route]
+├── requireAdminSession(role 또는 permission)
+└── AdminShell
+    ├── MainFunctionalScreen [Main/Auth]
+    ├── RagFunctionalScreen [RAG]
+    │   └── AdminRagScreen
+    │       ├── FolderTree
+    │       ├── DocumentLedger / Upload / Job panel
+    │       ├── DocumentInspector
+    │       ├── AdminRagAnalytics
+    │       └── AdminRagCrawler
+    └── ComingSoonScreen [placeholder]
+```
+
+사용자·권한 관리 화면은 `HIGHEST_ADMIN`을 요구한다. RAG, Chat, Vote, Simulation 관리자 화면은
+`ADMIN | HIGHEST_ADMIN` role과 해당 `*_ADMIN` permission을 함께 사용한다.
+
+참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
+adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,
+`/vote`, `/mypage` navigation을 그대로 사용한다. 이관 전 실제 UI의 `/votes`, `/account` 주소도
+호환 별칭으로 같은 화면과 active menu에 매핑한다.
+
+## 인증 책임
+
+```text
+Protected Server Route
+└── loadShellSession
+    ├── HttpOnly Access Token cookie 읽기
+    └── Main/Auth GET /api/v1/auth/me
+        └── ShellSession view model
+
+Protected Client request
+└── authenticatedFetch
+    ├── 원래 same-origin API 요청
+    └── 401일 때
+        ├── 동시 요청을 하나의 POST /api/v1/auth/refresh로 직렬화
+        └── 원래 요청 1회 재시도
+```
+
+Refresh Token은 `/api/v1/auth` path로 제한되므로 일반 Server Component가 읽지 않는다. Access Token이
+없거나 만료된 Server Route는 `/auth/refresh`를 거쳐 브라우저가 갱신한다. Frontend는 JWT payload를
+해석하지 않고 `/me` 응답을 화면 접근 판정에 사용한다.
+
+## BFF 책임
+
+```text
+Browser /api/v1/auth|account|admin/**
+└── MainAuth BFF
+    ├── route/method allowlist
+    ├── same-origin 검사
+    ├── mutation CSRF 획득
+    └── Auth cookie Set-Cookie 검증
+
+Browser /api/v1/rag/**
+└── RAG BFF
+    ├── same-origin 검사
+    ├── Access Token raw equality 검사
+    └── RAG upstream에 동일 Cookie + Bearer 전달
+```
+
+RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 Next.js SSE 프록시를
+통해 연결하며 provider API key나 JWT를 Client Component에 전달하지 않는다.
+
+## 현재 비활성 기능
+
+Chat, Vote/Decision, Task, Simulation route는 `ComingSoonScreen`만 렌더링한다. 해당 화면에서는 REST
+mutation, WebSocket, SharedWorker를 시작하지 않는다. 각 기능의 실제 구현은 해당 서비스 팀의 최신
+코드를 별도로 통합한다.
+
+## App Router special UI
+
+`loading.tsx`, `error.tsx`, `not-found.tsx`도 기존 `PlatformPageShell`을 사용한다. 일반 제품 화면의
+상태와 데이터 요청은 소유하지 않는다.

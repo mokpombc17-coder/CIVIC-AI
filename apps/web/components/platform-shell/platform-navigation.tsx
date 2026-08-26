@@ -56,7 +56,10 @@ export function PlatformNavigation({ currentPathname }: PlatformNavigationProps)
 }
 
 export function isPlatformNavigationItemActive(currentPathname: string, href: string): boolean {
-  return currentPathname === href || currentPathname.startsWith(`${href}/`);
+  const pathname = currentPathname
+    .replace(/^\/votes(?=\/|$)/u, "/vote")
+    .replace(/^\/account(?=\/|$)/u, "/mypage");
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function PlatformNavigationIcon({ src }: { src: string }) {

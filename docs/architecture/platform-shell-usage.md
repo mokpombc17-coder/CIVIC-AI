@@ -93,8 +93,9 @@ bottom navigation을 표시하지 않을 화면은 `bottomNavigation={null}`을 
 | 투표   | `/vote`   |
 | 계정   | `/mypage` |
 
-현재 pathname과 정확히 일치하거나 그 하위 경로인 항목만 `aria-current="page"`로 표시한다. 이
-템플릿에서 구현되지 않은 경로는 공통 404 화면으로 이동한다.
+현재 pathname과 정확히 일치하거나 그 하위 경로인 항목만 `aria-current="page"`로 표시한다.
+이관 전 실제 UI의 `/votes/**`, `/account/**` 주소는 각각 표준 `/vote`, `/mypage` 메뉴의 호환
+별칭으로 취급한다. 표준 주소와 호환 주소는 같은 화면을 조회한다.
 
 ## Overlay와 viewport
 

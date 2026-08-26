@@ -10,6 +10,7 @@ export const KNOWN_NATIVE_CAPABILITIES = [
   "app-state",
   "oauth",
   "download",
+  "authenticated-download",
   "push",
 ] as const;
 

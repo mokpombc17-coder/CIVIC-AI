@@ -22,6 +22,20 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/api/v1/rag/sources/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
+        source: "/api/v1/rag/documents/:documentId/versions/:versionId/preview",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
     ];
   },
 };
