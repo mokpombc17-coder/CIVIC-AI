@@ -150,6 +150,16 @@ class InternalJwtContractTest {
                 .doesNotContain("\"d\"");
     }
 
+    @Test
+    void keyRingRejectsDuplicateSigningKeyIds() throws Exception {
+        var active = new RSAKeyGenerator(2048).keyID("duplicate").generate();
+        var duplicate = new RSAKeyGenerator(2048).keyID("duplicate").generate();
+
+        assertThatThrownBy(() -> new Rs256KeyRing(active, java.util.List.of(duplicate)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unique");
+    }
+
     private static java.util.List<String> voteScopes(java.util.List<String> scopes) {
         return scopes.stream().filter(scope -> scope.startsWith("vote:")).toList();
     }
