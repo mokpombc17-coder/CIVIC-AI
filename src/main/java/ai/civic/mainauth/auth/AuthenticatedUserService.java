@@ -41,7 +41,7 @@ public class AuthenticatedUserService {
     @Transactional(readOnly = true)
     public AuthenticatedUser require(String rawAccessToken) {
         var credential = verify(rawAccessToken);
-        var current = loadCurrent(credential.userId());
+        var current = loadCurrentByEmail(credential.subjectEmail());
         if (!"ACTIVE".equals(current.accountState())
                 || current.accountStateVersion() != credential.accountStateVersion()) {
             throw invalid();
@@ -54,8 +54,8 @@ public class AuthenticatedUserService {
     @Transactional
     public AuthenticatedUser requireLocked(String rawAccessToken) {
         var credential = verify(rawAccessToken);
-        lockUser(credential.userId());
-        var current = loadCurrent(credential.userId());
+        var userId = lockUserByEmail(credential.subjectEmail());
+        var current = loadCurrent(userId);
         if (!"ACTIVE".equals(current.accountState())
                 || current.accountStateVersion() != credential.accountStateVersion()) {
             throw invalid();
@@ -97,7 +97,7 @@ public class AuthenticatedUserService {
             var issuedAt = claims.getIssueTime();
             var expiresAt = claims.getExpirationTime();
             var jwtId = claims.getJWTID();
-            var subject = claims.getSubject();
+            var subjectEmail = claims.getSubject();
             var scope = claims.getStringClaim("scope");
             var accountStateVersion = claims.getLongClaim("account_state_version");
             var mustChangePassword = claims.getBooleanClaim("must_change_password");
@@ -110,7 +110,8 @@ public class AuthenticatedUserService {
                     || expiresAt == null
                     || jwtId == null
                     || jwtId.isBlank()
-                    || subject == null
+                    || subjectEmail == null
+                    || subjectEmail.isBlank()
                     || scope == null
                     || accountStateVersion == null
                     || mustChangePassword == null
@@ -120,7 +121,7 @@ public class AuthenticatedUserService {
             }
             var scopes = scope.isBlank() ? Set.<String>of() : Set.copyOf(Arrays.asList(scope.split(" ")));
             return new TokenCredential(
-                    UUID.fromString(subject), jwtId, issuedAt.toInstant(), expiresAt.toInstant(),
+                    subjectEmail, jwtId, issuedAt.toInstant(), expiresAt.toInstant(),
                     accountStateVersion, scopes, mustChangePassword);
         } catch (AuthenticationException exception) {
             throw exception;
@@ -131,7 +132,7 @@ public class AuthenticatedUserService {
 
     private AuthenticatedUser loadCurrent(UUID userId) {
         var rows = jdbc.query("""
-                select u.id, u.state, u.account_state_version, c.must_change_password,
+                select u.id, u.email, u.state, u.account_state_version, c.must_change_password,
                        case
                          when bool_or(r.code = 'SUPER_ADMIN') then 'HIGHEST_ADMIN'
                          when bool_or(r.code = 'ADMIN') then 'ADMIN'
@@ -142,13 +143,22 @@ public class AuthenticatedUserService {
                 left join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
                 left join roles r on r.id = ur.role_id
                 where u.id = ?
-                group by u.id, u.state, u.account_state_version, c.must_change_password
+                group by u.id, u.email, u.state, u.account_state_version, c.must_change_password
                 """, (rs, rowNum) -> new AuthenticatedUser(
-                rs.getObject("id", UUID.class), UserRole.valueOf(rs.getString("primary_role")),
+                rs.getObject("id", UUID.class), rs.getString("email"),
+                UserRole.valueOf(rs.getString("primary_role")),
                 currentPermissions(userId), rs.getString("state"), rs.getLong("account_state_version"),
                 rs.getBoolean("must_change_password"), null, null, null, Set.of()), userId);
         if (rows.size() != 1) throw invalid();
         return rows.getFirst();
+    }
+
+    private AuthenticatedUser loadCurrentByEmail(String subjectEmail) {
+        var userIds = jdbc.query(
+                "select id from users where email = ? and deleted_at is null",
+                (rs, rowNum) -> rs.getObject("id", UUID.class), subjectEmail);
+        if (userIds.size() != 1) throw invalid();
+        return loadCurrent(userIds.getFirst());
     }
 
     private Set<String> currentPermissions(UUID userId) {
@@ -165,6 +175,14 @@ public class AuthenticatedUserService {
         if (locked.size() != 1) throw invalid();
     }
 
+    private UUID lockUserByEmail(String subjectEmail) {
+        var locked = jdbc.query(
+                "select id from users where email = ? and deleted_at is null for update",
+                (rs, rowNum) -> rs.getObject("id", UUID.class), subjectEmail);
+        if (locked.size() != 1) throw invalid();
+        return locked.getFirst();
+    }
+
     private static AuthenticationException invalid() {
         return new AuthenticationException("Access token is invalid or expired");
     }
@@ -173,6 +191,7 @@ public class AuthenticatedUserService {
 
     public record AuthenticatedUser(
             UUID userId,
+            String email,
             UserRole role,
             Set<String> permissions,
             String accountState,
@@ -189,7 +208,7 @@ public class AuthenticatedUserService {
                 Set<String> scopes,
                 boolean credentialRequiresPasswordChange) {
             return new AuthenticatedUser(
-                    userId, role, permissions, accountState, accountStateVersion,
+                    userId, email, role, permissions, accountState, accountStateVersion,
                     // A token issued under mandatory rotation stays restricted for its full life.
                     mustChangePassword || credentialRequiresPasswordChange,
                     jwtId, issuedAt, expiresAt, scopes);
@@ -197,7 +216,7 @@ public class AuthenticatedUserService {
     }
 
     private record TokenCredential(
-            UUID userId,
+            String subjectEmail,
             String jwtId,
             Instant issuedAt,
             Instant expiresAt,

@@ -48,7 +48,7 @@ public class CredentialIssuanceService {
             AuthenticatedUserService.AuthenticatedUser user,
             RefreshTokenService.IssuedRefreshToken refresh) {
         var access = accessTokens.issue(
-                user.userId(), user.accountStateVersion(), user.permissions(), user.mustChangePassword());
+                user.email(), user.accountStateVersion(), user.permissions(), user.mustChangePassword());
         return new IssuedCredentials(
                 access.token(), access.expiresAt(), refresh.token(), refresh.expiresAt());
     }

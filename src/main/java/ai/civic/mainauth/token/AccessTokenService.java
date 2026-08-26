@@ -67,18 +67,19 @@ public final class AccessTokenService {
     }
 
     public IssuedAccessToken issue(
-            UUID subject,
+            String subjectEmail,
             long accountStateVersion,
             java.util.Set<String> permissions) {
-        return issue(subject, accountStateVersion, permissions, false);
+        return issue(subjectEmail, accountStateVersion, permissions, false);
     }
 
     public IssuedAccessToken issue(
-            UUID subject,
+            String subjectEmail,
             long accountStateVersion,
             java.util.Set<String> permissions,
             boolean mustChangePassword) {
-        if (subject == null || accountStateVersion < 0 || permissions == null) {
+        if (subjectEmail == null || subjectEmail.isBlank()
+                || accountStateVersion < 0 || permissions == null) {
             throw new IllegalArgumentException("Access token subject and account state are required");
         }
         try {
@@ -90,7 +91,7 @@ public final class AccessTokenService {
             var claims = new JWTClaimsSet.Builder()
                     .issuer(issuer)
                     .audience(List.of(AUDIENCE))
-                    .subject(subject.toString())
+                    .subject(subjectEmail)
                     .issueTime(Date.from(now))
                     .expirationTime(Date.from(expiresAt))
                     .jwtID(UUID.randomUUID().toString())

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import com.nimbusds.jwt.SignedJWT;
 import jakarta.servlet.http.Cookie;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -59,6 +60,9 @@ class RefreshTokenAuthenticationLifecycleTest extends PostgresIntegrationTest {
         var refresh = responseCookie(login, AuthCookieFactory.REFRESH_TOKEN_COOKIE);
 
         assertThat(access.getValue()).contains(".");
+        assertThat(SignedJWT.parse(access.getValue()).getJWTClaimsSet().getSubject())
+                .isEqualTo(jdbc.queryForObject(
+                        "select email from users where id = ?", String.class, userId));
         assertThat(refresh.getValue()).doesNotContain(".");
         assertThat(login.getResponse().getCookie("__Host-civic-session")).isNull();
         assertThat(refresh.getPath()).isEqualTo(AuthCookieFactory.REFRESH_TOKEN_PATH);

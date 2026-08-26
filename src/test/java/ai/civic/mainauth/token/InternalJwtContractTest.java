@@ -11,7 +11,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Set;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class InternalJwtContractTest {
@@ -89,9 +88,9 @@ class InternalJwtContractTest {
         var tokens = new AccessTokenService(
                 new Rs256KeyRing(key, java.util.List.of()), "https://auth.civic.example",
                 Clock.fixed(NOW, ZoneOffset.UTC));
-        var userId = UUID.randomUUID();
+        var loginEmail = "person@example.com";
 
-        var issued = tokens.issue(userId, 7, Set.of());
+        var issued = tokens.issue(loginEmail, 7, Set.of());
         var jwt = SignedJWT.parse(issued.token());
         var claims = jwt.getJWTClaimsSet();
 
@@ -103,7 +102,7 @@ class InternalJwtContractTest {
         assertThat(claims.getAudience()).containsExactly("civic-ai-api");
         assertThat(jwt.getPayload().toJSONObject().get("aud"))
                 .isEqualTo(java.util.List.of("civic-ai-api"));
-        assertThat(claims.getSubject()).isEqualTo(userId.toString());
+        assertThat(claims.getSubject()).isEqualTo(loginEmail);
         assertThat(claims.getLongClaim("account_state_version")).isEqualTo(7);
         assertThat(claims.getStringClaim("scope")).contains("chat:connect", "vote:surveys:read", "rag:queries:write");
         assertThat(claims.getClaim("roles")).isNull();
@@ -123,7 +122,8 @@ class InternalJwtContractTest {
                 Clock.fixed(NOW, ZoneOffset.UTC));
 
         var jwt = SignedJWT.parse(tokens.issue(
-                UUID.randomUUID(), 0, Set.of("RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN"), true).token());
+                "admin@example.com", 0,
+                Set.of("RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN"), true).token());
 
         assertThat(jwt.getJWTClaimsSet().getStringClaim("scope"))
                 .isEqualTo("account:password:write");
