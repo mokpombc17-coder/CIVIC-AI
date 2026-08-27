@@ -72,9 +72,9 @@ const ragScreens = screenRegistry.filter(
 );
 
 const latestWireflowTitles = Object.freeze({
-  "U-RAG-001": "문서 질문",
-  "U-RAG-002": "문서 질문",
-  "U-RAG-003": "문서 질문",
+  "U-RAG-001": "AI",
+  "U-RAG-002": "AI",
+  "U-RAG-003": "AI",
   "A-RAG-001": "문서 관리",
   "A-RAG-002": "문서 관리",
   "A-RAG-003": "문서 관리",
@@ -1491,10 +1491,10 @@ describe("9 functional RAG screens", () => {
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
-    expect(participantHtml).toContain("AI 생성 · 문서 기반 답변");
+    expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
+    expect(participantHtml).toContain("새 질문");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
-    expect(participantHtml).toContain("근거 문서");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');
     expect(adminHtml).toContain("폴더 추가");
     expect(adminHtml).toContain("폴더 수정");

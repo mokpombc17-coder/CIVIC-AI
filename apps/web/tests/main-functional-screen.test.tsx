@@ -516,16 +516,16 @@ describe("25 functional Main/Auth screens", () => {
   it("Wire Flow의 첫 번째 행동 문구를 그대로 사용한다", () => {
     expect(mainScreenPrimaryActions).toEqual({
       "AUTH-001": "로그인",
-      "AUTH-002": "개인정보·설문 입력",
-      "AUTH-003": "필수 동의 단계로",
-      "AUTH-004": "필수 동의 후 가입",
-      "AUTH-005": "인증 완료",
+      "AUTH-002": "다음으로",
+      "AUTH-003": "다음으로",
+      "AUTH-004": "가입하기",
+      "AUTH-005": "인증하기",
       "AUTH-006": "가입 이메일 인증",
       "AUTH-007": "재설정 이메일 보내기",
       "AUTH-008": "비밀번호 변경",
-      "AUTH-009": "재활성화 계속",
+      "AUTH-009": "인증 코드 받기",
       "AUTH-010": "계정 재활성화",
-      "U-HOME-001": "진행 중 과업",
+      "U-HOME-001": "질문하기",
       "U-ACCOUNT-001": "개인정보·설문",
       "U-ACCOUNT-002": "필수 정보·동의 저장",
       "U-ACCOUNT-003": "2단계 인증 활성화",
@@ -567,7 +567,7 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(signupHtml).toContain('data-wireflow-screen="AUTH-002"');
     expect(signupHtml).toContain('aria-label="회원가입 단계"');
-    expect(signupHtml).toContain("1 / 3");
+    expect(signupHtml).toContain("1/3");
     expect(loginHtml).toContain("회원가입");
     expect(loginHtml).toContain("비밀번호 재설정");
   });
@@ -584,13 +584,14 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml).toContain('placeholder="name@example.com"');
     expect(loginHtml).toContain('placeholder="비밀번호 입력"');
     expect(loginHtml).toContain('class="wf-button wf-button-primary civic-auth-submit"');
-    expect(loginHtml.match(/class="wf-card wf-action-card"/g)).toHaveLength(2);
+    expect(loginHtml).toContain('class="civic-auth-support civic-auth-support-compact"');
     expect(loginHtml.indexOf('data-wireflow-slot="auth-reset"')).toBeGreaterThan(
       loginHtml.indexOf('data-wireflow-layout="auth-login"'),
     );
     expect(loginHtml.indexOf('data-wireflow-slot="auth-signup"')).toBeGreaterThan(
       loginHtml.indexOf('data-wireflow-slot="auth-reset"'),
     );
+    expect(loginHtml).toContain("계정 재활성화");
   });
 
   it("인증 코드와 비밀번호 재설정은 최신 카드·안내 구조를 공유한다", () => {
@@ -604,14 +605,34 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("COMMON 화면은 최신 상태 카드 구조를 사용한다", () => {
-    for (const id of ["COMMON-001", "COMMON-002", "COMMON-003", "COMMON-004"]) {
+    const renderCommon = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
-      const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
-      expect(html).toContain('class="wf-common-state"');
-      expect(html).toContain('class="wf-button wf-button-primary"');
-      if (id === "COMMON-004") expect(html).toContain('href="/home"');
-    }
+      return renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
+    };
+
+    const forbidden = renderCommon("COMMON-001");
+    expect(forbidden).toContain('class="wf-common-state"');
+    expect(forbidden).toContain('class="wf-button wf-button-primary"');
+
+    const conflict = renderCommon("COMMON-002");
+    expect(conflict).toContain('class="wf-conflict-state"');
+    expect(conflict).toContain("화면에 보인 상태");
+    expect(conflict).toContain("최신 상태 보기");
+    expect(conflict).toContain("과업 목록으로");
+
+    const progress = renderCommon("COMMON-003");
+    expect(progress).toContain('class="wf-progress-state"');
+    expect(progress).toContain("처리 진행 상태");
+    expect(progress).toContain("요청 접수");
+    expect(progress).toContain("결과 확인");
+    expect(progress).toContain("처리 결과 재조회");
+
+    const outage = renderCommon("COMMON-004");
+    expect(outage).toContain('class="wf-outage-state"');
+    expect(outage).toContain("입력한 내용은 유지됩니다");
+    expect(outage).toContain("다시 시도");
+    expect(outage).toContain('href="/home"');
   });
 
   it("가입·계정 화면은 고정 정책의 비민감 2문항과 두 필수 동의만 설명한다", () => {
@@ -659,15 +680,14 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
-    expect(html).toContain("진행 중 과업");
-    expect(html).toContain("마감 임박 순으로 확인");
-    expect(html).toContain("과업 보기");
-    expect(html).toContain("내 채팅");
-    expect(html).toContain("참여 중인 방과 새 메시지");
-    expect(html).toContain("채팅 보기");
-    expect(html).toContain("문서에 질문하기");
-    expect(html).toContain("공개 문서를 근거로 답변");
-    expect(html).toContain("질문 시작");
+    expect(html).toContain('class="wf-card wf-home-welcome"');
+    expect(html).toContain("배우고, 함께 토론하고, 결정합니다.");
+    expect(html).toContain("문서 질문");
+    expect(html).toContain("질문하기");
+    expect(html).toContain("주제별 토론");
+    expect(html).toContain("토론하기");
+    expect(html).toContain("과업 투표");
+    expect(html).toContain("투표하기");
     expect(html).not.toMatch(/[▣◇▤›]/);
     expect(html).not.toContain("오픈 예정");
   });
@@ -705,7 +725,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(deactivate).toContain('data-wireflow-layout="account-deactivate"');
     expect(deactivate).toContain('role="alertdialog"');
     expect(deactivate).toContain('aria-modal="true"');
-    expect(deactivate).toContain("계정을 비활성화하시겠습니까?");
+    expect(deactivate).toContain("계정을 비활성화할까요?");
     expect(deactivate).toContain("계정 유지");
   });
 

@@ -1355,16 +1355,6 @@ body:has([data-wireflow-shell]) {
   gap: 7px;
 }
 
-[data-wireflow-screen^="U-RAG"] .civic-rag-citations a {
-  border: 1px solid #83c9ff;
-  border-radius: 8px;
-  background: #eef8ff;
-  color: var(--wf-blue-dark);
-  padding: 12px;
-  font-weight: 800;
-  text-decoration: none;
-}
-
 [data-wireflow-screen^="U-RAG"] .civic-rag-conversation > .civic-form-message {
   margin: 0 16px 8px;
   color: var(--wf-muted);
@@ -1374,28 +1364,12 @@ body:has([data-wireflow-shell]) {
 [data-wireflow-screen^="U-RAG"] .civic-rag-composer {
   position: static;
   display: grid;
-  min-height: 122px;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(64px, 1fr);
   gap: 8px;
   margin: 0 16px 16px;
-  border: 1px solid var(--wf-line);
-  border-radius: 12px;
-  background: #fff;
-  padding: 14px 12px 12px;
+  border: 0;
+  padding: 0;
   box-shadow: none;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-composer label,
-[data-wireflow-screen^="U-RAG"] .civic-rag-composer > strong {
-  position: static;
-  grid-column: 1 / -1;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  clip: auto;
-  font-size: 15px;
-  font-weight: 800;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-composer textarea {
@@ -1460,12 +1434,14 @@ body:has([data-wireflow-shell]) {
   gap: 0;
   border: 0;
   background: #fff;
+  color: var(--wf-ink);
   padding: 0;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar {
   display: flex;
   min-height: 70px;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   border: 0;
@@ -1479,7 +1455,8 @@ body:has([data-wireflow-shell]) {
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar h2 {
-  font-size: 25px;
+  font-family: var(--wf-font);
+  font-size: 22px;
 }
 
 .wf-rag-dialog-close {
@@ -1491,9 +1468,9 @@ body:has([data-wireflow-shell]) {
 }
 
 .wf-rag-document-card {
-  margin: 8px 24px 0;
+  margin: 8px 24px 24px;
   border: 1px solid var(--wf-line);
-  border-radius: 9px 9px 0 0;
+  border-radius: 9px;
   padding: 14px;
 }
 
@@ -1509,20 +1486,14 @@ body:has([data-wireflow-shell]) {
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls {
   display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-[data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls .civic-icon-action {
-  min-width: 46px;
-  min-height: 40px;
-  padding: 7px;
-  font-size: 12px;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-canvas {
   min-height: 200px;
-  margin: 0 24px;
+  margin: 12px 0 0;
   border: 1px solid var(--wf-line);
   background: #f4f5f6;
   padding: 16px;
@@ -1713,7 +1684,20 @@ body:has([data-wireflow-shell]) {
 
 [data-wireflow-screen^="A-RAG"] .civic-table-scroll table {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
+}
+
+/* B6: 가로 스크롤 어포던스 — 오른쪽 가장자리 그림자 힌트 */
+[data-wireflow-screen^="A-RAG"] .civic-table-scroll {
+  background:
+    linear-gradient(to right, #fff 30%, rgb(255 255 255 / 0%)) left / 40px 100%,
+    linear-gradient(to left, #fff 30%, rgb(255 255 255 / 0%)) right / 40px 100%,
+    radial-gradient(farthest-side at 0 50%, rgb(16 17 20 / 14%), transparent) left / 14px 100%,
+    radial-gradient(farthest-side at 100% 50%, rgb(16 17 20 / 14%), transparent) right / 14px 100%;
+  background-attachment: local, local, scroll, scroll;
+  background-color: #fff;
+  background-repeat: no-repeat;
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-table-scroll th,
@@ -1823,7 +1807,9 @@ body:has([data-wireflow-shell]) {
 
 [data-wireflow-layout="rag-job-status"] .civic-job-timeline {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
+  border: 0;
 }
 
 [data-wireflow-layout="rag-job-status"] .civic-job-timeline > div {
@@ -1831,10 +1817,65 @@ body:has([data-wireflow-shell]) {
   min-height: 54px;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
+  align-content: center;
   gap: 10px;
+  border: 0;
   border-radius: 6px;
   background: #eef1f5;
   padding: 12px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline .civic-job-step-icon {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--wf-line-strong);
+  border-radius: 50%;
+  color: inherit;
+  font-family: var(--wf-font);
+  font-size: 11px;
+  place-items: center;
+}
+
+[data-wireflow-layout="rag-job-status"]
+  .civic-job-timeline
+  > div[data-state="done"]
+  .civic-job-step-icon {
+  border-color: var(--wf-success);
+}
+
+[data-wireflow-layout="rag-job-status"]
+  .civic-job-timeline
+  > div[data-state="done"]
+  .civic-job-step-icon::after {
+  color: var(--wf-success);
+  content: "✓";
+  font-weight: 800;
+}
+
+[data-wireflow-layout="rag-job-status"]
+  .civic-job-timeline
+  > div[data-state="failed"]
+  .civic-job-step-icon {
+  border-color: var(--wf-danger);
+}
+
+[data-wireflow-layout="rag-job-status"]
+  .civic-job-timeline
+  > div[data-state="failed"]
+  .civic-job-step-icon::after {
+  color: var(--wf-danger);
+  content: "!";
+  font-weight: 800;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline strong {
+  font-size: 14px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline small {
+  color: var(--wf-muted);
+  font-size: 13px;
 }
 
 .wf-rag-admin-dialog {
@@ -1905,17 +1946,24 @@ body:has([data-wireflow-shell]) {
 
 .wf-rag-admin-dialog .civic-delete-panel dl {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
   margin: 0;
+  border: 0;
 }
 
 .wf-rag-admin-dialog .civic-delete-panel dl > div {
   display: grid;
   grid-template-columns: 130px minmax(0, 1fr);
   gap: 12px;
+  border: 0;
   border-radius: 6px;
   background: #eef1f5;
   padding: 12px;
+}
+
+.wf-rag-admin-dialog .civic-delete-panel dd {
+  text-align: left;
 }
 
 .wf-rag-admin-dialog .civic-delete-panel dt,
@@ -2633,4 +2681,536 @@ body:has([data-wireflow-shell]) {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* === 2026-08-28 Figma 디자이너 수정분 정렬 ===================== */
+
+/* 공통 헤더: 브랜드 타이틀(홈) */
+.civic-brand-title {
+  color: var(--wf-blue);
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+/* 카드 부제(예: AUTH-005 마스킹 이메일 안내) */
+.wf-card-subtitle {
+  margin: 6px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* 필드 하단 도움말 */
+.civic-field-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.civic-code-countdown {
+  margin: -4px 0 0;
+}
+
+/* 오류 안내(앰버 경고 카드) */
+.civic-form-alert {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e7c27a;
+  border-radius: var(--wf-radius);
+  background: #fdf6e7;
+  padding: 12px 14px;
+}
+
+.civic-form-alert strong {
+  color: #8a5a12;
+  font-size: 14px;
+}
+
+.civic-form-alert p {
+  margin: 0;
+  color: #5d4a22;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* 필수 배지 */
+.civic-required-badge {
+  margin-left: 6px;
+  color: var(--wf-danger);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.civic-consent-item {
+  display: grid;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.civic-consent-item .civic-check span {
+  font-weight: 700;
+}
+
+.civic-consent-item .civic-help {
+  margin: 0 0 0 2px;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+/* 로그인 보조 행동: 컴팩트 버튼 2개 + 재활성화 링크 */
+.civic-auth-support-compact {
+  display: grid;
+  gap: 14px;
+}
+
+.civic-auth-support-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.civic-auth-support-row .wf-button {
+  min-height: 48px;
+  border: 1px solid var(--wf-blue);
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+  text-align: center;
+  text-decoration: none;
+}
+
+.civic-auth-reactivate {
+  justify-self: center;
+  color: var(--wf-blue-dark);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 재활성화 안내 카드 3종 (AUTH-009·010) */
+.civic-reactivation-notes {
+  display: grid;
+  gap: 10px;
+}
+
+.civic-reactivation-note {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  padding: 13px 14px;
+}
+
+.civic-reactivation-note span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.civic-reactivation-note strong {
+  font-size: 15px;
+}
+
+/* 홈: 환영 카드 + 액션 카드 강조 */
+.wf-home-welcome {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.wf-home-welcome h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.wf-home-welcome p {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.wf-home-welcome .wf-badge {
+  justify-self: start;
+}
+
+.wf-participant-home .wf-action-card {
+  border-color: var(--wf-blue);
+}
+
+.wf-participant-home .wf-action-control .wf-button-primary {
+  border: 0;
+  background: var(--wf-blue);
+  color: #fff;
+}
+
+/* COMMON-002 상태 충돌 */
+.wf-conflict-state,
+.wf-progress-state,
+.wf-outage-state {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.wf-status-card {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  padding: 14px;
+}
+
+.wf-status-card span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.wf-status-card strong {
+  font-size: 16px;
+}
+
+.wf-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wf-state-actions .wf-button {
+  min-height: 46px;
+  text-decoration: none;
+}
+
+/* COMMON-003 진행 상태 */
+.wf-progress-card {
+  display: grid;
+  gap: 12px;
+}
+
+.wf-progress-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wf-progress-track {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: #e3e7ec;
+}
+
+.wf-progress-fill {
+  display: block;
+  width: 67%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--wf-blue);
+}
+
+.wf-progress-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wf-progress-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--wf-radius);
+  background: #eef1f5;
+  padding: 12px 14px;
+}
+
+.wf-progress-steps b {
+  flex: 1;
+  font-size: 14px;
+}
+
+.wf-progress-step-status {
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+.wf-progress-step-icon {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--wf-success);
+  border-radius: 50%;
+  place-items: center;
+}
+
+.wf-progress-steps li[data-state="done"] .wf-progress-step-icon::after {
+  color: var(--wf-success);
+  content: "✓";
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.wf-progress-steps li[data-state="active"] .wf-progress-step-icon {
+  border-color: var(--wf-muted);
+  border-top-color: transparent;
+  animation: wf-progress-spin 1.1s linear infinite;
+}
+
+@keyframes wf-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* COMMON-004 · 인증 오류 공용 앰버 카드 */
+.wf-warning-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #e7c27a;
+  border-radius: var(--wf-radius);
+  background: #fdf6e7;
+  padding: 16px;
+}
+
+.wf-warning-icon {
+  font-size: 20px;
+}
+
+.wf-warning-card strong {
+  color: #8a5a12;
+  font-size: 15px;
+}
+
+.wf-warning-card p {
+  margin: 0;
+  color: #5d4a22;
+  font-size: 13px;
+}
+
+.wf-warning-card .wf-state-actions {
+  display: grid;
+  margin-top: 8px;
+}
+
+/* RAG 대화: 인트로/타임스탬프/출처 카드 */
+[data-wireflow-screen^="U-RAG"] .civic-rag-intro {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-question-row {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-time {
+  color: var(--wf-muted);
+  font-size: 11px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-answer-row {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-answer-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-answer-meta strong {
+  font-size: 13px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-citations {
+  width: min(340px, 100%);
+}
+
+.civic-rag-citation-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #83c9ff;
+  border-radius: 10px;
+  background: #eef8ff;
+  padding: 12px;
+}
+
+.civic-rag-citation-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.civic-rag-citation-copy strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wf-blue-dark);
+  font-size: 13px;
+}
+
+.civic-rag-citation-icon {
+  font-size: 14px;
+}
+
+.civic-rag-citation-copy p {
+  margin: 0;
+  color: #24313f;
+  font-size: 13px;
+}
+
+.civic-rag-citation-card .wf-button {
+  flex: none;
+  min-height: 40px;
+  border: 1px solid var(--wf-blue);
+  background: #fff;
+  color: var(--wf-blue-dark);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+/* RAG 답변 평가 (A3: 무스타일 네이티브 버튼 정리) */
+.civic-rag-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.civic-rag-feedback > span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.civic-rag-feedback button {
+  min-height: 34px;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--wf-ink);
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.civic-rag-feedback button[aria-pressed="true"] {
+  border-color: var(--wf-blue);
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+}
+
+.civic-rag-feedback button:disabled {
+  opacity: 0.55;
+}
+
+.civic-rag-feedback small {
+  color: var(--wf-muted);
+}
+
+/* PDF 뷰어 문서 메타 */
+.wf-rag-document-meta {
+  display: grid;
+  gap: 4px;
+}
+
+/* B2: 네이티브 파일 입력 숨김 + 찾아보기 버튼 표현 */
+.civic-upload-dropzone input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.civic-upload-browse {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  margin-top: 6px;
+  border: 1px solid var(--wf-blue);
+  border-radius: var(--wf-radius);
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+  padding: 8px 16px;
+  font-weight: 700;
+}
+
+.civic-upload-dropzone {
+  position: relative;
+}
+
+/* 진행 막대: 브랜드 블루로 통일 (기본 렌더러 녹색 방지) */
+[data-wireflow-shell="admin"] progress,
+[data-wireflow-layout="rag-job-status"] progress {
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: #e3e7ec;
+  appearance: none;
+}
+
+[data-wireflow-shell="admin"] progress::-webkit-progress-bar,
+[data-wireflow-layout="rag-job-status"] progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: #e3e7ec;
+}
+
+[data-wireflow-shell="admin"] progress::-webkit-progress-value,
+[data-wireflow-layout="rag-job-status"] progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--wf-blue);
+}
+
+/* B3: 조기 종료 등 위험 행동은 위험색으로 렌더링 */
+[data-wireflow-shell="admin"] .civic-detail-actions a.civic-danger-action {
+  border-color: var(--wf-danger);
+  background: var(--wf-danger);
+  color: #fff;
+}
+
+/* B8: 권한 회수 다이얼로그 헤더(제목 + ✕)와 사유 라벨 줄바꿈 방지 */
+.wf-role-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wf-role-dialog-heading .wf-dialog-close {
+  color: #2b3138;
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 1;
+  text-decoration: none;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .civic-field > span {
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* Tailwind preflight로 사라진 UA 헤딩 크기의 안전 기본값 (명시 규칙이 항상 우선) */
+:where([data-wireflow-shell="admin"], [data-wireflow-screen]) h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+:where([data-wireflow-shell="admin"], [data-wireflow-screen]) h3 {
+  font-size: 16px;
+  font-weight: 700;
 }

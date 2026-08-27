@@ -661,10 +661,19 @@ function RoleForm({
       aria-modal={confirmation ? "true" : undefined}
     >
       {confirmation ? (
-        <header>
-          <span>확인</span>
-          <h2 id="role-revoke-title">권한을 회수하시겠습니까?</h2>
-          <p>문서와 감사 이력은 삭제되지 않으며 저장 시 최신 권한 version을 다시 확인합니다.</p>
+        <header className="wf-role-dialog-heading">
+          <div>
+            <span>확인</span>
+            <h2 id="role-revoke-title">권한을 회수하시겠습니까?</h2>
+            <p>문서와 감사 이력은 삭제되지 않으며 저장 시 최신 권한 버전을 다시 확인합니다.</p>
+          </div>
+          <Link
+            aria-label="닫기"
+            className="wf-dialog-close"
+            href={userRoute("/admin/users/roles", selected)}
+          >
+            ×
+          </Link>
         </header>
       ) : null}
       {!confirmation ? (
@@ -759,9 +768,16 @@ function RoleForm({
       ) : null}
       <div className="civic-form-actions">
         {confirmation ? (
-          <Link href={userRoute("/admin/users/roles", selected)}>편집으로</Link>
+          <Link className="civic-secondary-action" href={userRoute("/admin/users/roles", selected)}>
+            편집으로
+          </Link>
         ) : (
-          <Link href={userRoute("/admin/users/roles/revoke", selected)}>권한 회수 영향 확인</Link>
+          <Link
+            className="civic-secondary-action"
+            href={userRoute("/admin/users/roles/revoke", selected)}
+          >
+            권한 회수 영향 확인
+          </Link>
         )}
         <button
           className={confirmation ? "civic-danger-action" : "civic-primary-action"}

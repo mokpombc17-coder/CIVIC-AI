@@ -529,7 +529,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
   return (
     <section className="civic-domain-result civic-simulation-status-card">
       <header>
-        <span>SONA WORKER</span>
+        <span>SONA 워커</span>
         <h2>{view ? simulationStateLabel(view.state) : "실행 상태 확인 중"}</h2>
       </header>
       {view ? (
@@ -631,7 +631,7 @@ function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | nul
         <h2>실패 원인을 확인한 뒤 새 설정으로 실행</h2>
       </header>
       <p>
-        실행 요청은 자동으로 반복하지 않습니다. 모델 키·데이터 번들·worker 로그를 확인한 뒤 같은
+        실행 요청은 자동으로 반복하지 않습니다. 모델 키·데이터 번들·워커 로그를 확인한 뒤 같은
         과업의 설정 화면에서 새 실행을 요청하세요.
       </p>
       {view ? (
@@ -674,7 +674,7 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
   return (
     <section className="civic-domain-result">
       <header>
-        <span>SONA AGGREGATE</span>
+        <span>SONA 집계</span>
         <h2>{result?.task.title ?? "집계 결과 불러오는 중"}</h2>
       </header>
       {result ? (

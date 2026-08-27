@@ -18,6 +18,7 @@ export default async function HomePage() {
   return (
     <ParticipantShell
       activeRoute="/home"
+      headerTitle={<span className="civic-brand-title">CIVIC.AI</span>}
       requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
       title={heading.title}
     >

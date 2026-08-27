@@ -29,7 +29,13 @@ export function PlatformHeader({
   title,
 }: PlatformHeaderProps) {
   const resolvedLeading =
-    leading === undefined ? <PlatformHeaderBackControl action={backAction} /> : leading;
+    leading === undefined ? (
+      backAction ? (
+        <PlatformHeaderBackControl action={backAction} />
+      ) : null
+    ) : (
+      leading
+    );
 
   return (
     <header className={[styles.header, className].filter(Boolean).join(" ")}>
@@ -43,22 +49,9 @@ export function PlatformHeader({
 }
 
 function PlatformHeaderBackControl({ action }: { action: PlatformHeaderBackAction | undefined }) {
-  const ariaLabel = action?.ariaLabel ?? "뒤로 가기";
+  if (!action) return null;
+  const ariaLabel = action.ariaLabel ?? "뒤로 가기";
   const icon = <span aria-hidden="true" className={styles.headerBackIcon} />;
-
-  if (!action) {
-    return (
-      <button
-        aria-label={ariaLabel}
-        className={styles.headerBackControl}
-        data-state="disabled"
-        disabled
-        type="button"
-      >
-        {icon}
-      </button>
-    );
-  }
 
   if (action.href) {
     return (

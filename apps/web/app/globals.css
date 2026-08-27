@@ -960,57 +960,31 @@ body:has(.civic-shell-participant) {
   list-style: none;
 }
 
+.civic-step-indicator ol {
+  gap: 0.5rem;
+}
+
 .civic-step-indicator li {
-  position: relative;
-  display: grid;
-  justify-items: start;
-  gap: 0.32rem;
-  color: var(--civic-muted);
-  font-size: 0.68rem;
-}
-
-.civic-step-indicator li:not(:last-child)::after {
-  position: absolute;
-  z-index: 0;
-  top: 0.8rem;
-  right: 0.35rem;
-  left: 1.85rem;
-  height: 2px;
+  height: 5px;
+  border-radius: 999px;
   background: var(--civic-line);
-  content: "";
 }
 
-.civic-step-indicator li.is-done:not(:last-child)::after {
+.civic-step-indicator li.is-done {
   background: var(--civic-blue);
-}
-
-.civic-step-indicator li > span {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: 1.6rem;
-  height: 1.6rem;
-  place-items: center;
-  border: 1px solid var(--civic-line-strong);
-  border-radius: 50%;
-  background: #fff;
-  font-size: 0.72rem;
-  font-weight: 700;
 }
 
 .civic-step-indicator li.is-current {
-  color: var(--civic-blue-dark);
-}
-
-.civic-step-indicator li.is-current > span {
-  border-color: var(--civic-blue);
+  height: 7px;
   background: var(--civic-blue);
-  color: #fff;
 }
 
-.civic-step-indicator li.is-done > span {
-  border-color: var(--civic-blue);
-  color: var(--civic-blue-dark);
+.civic-step-indicator > p {
+  font-weight: 700;
+}
+
+.civic-step-indicator > p span {
+  color: var(--civic-ink, #101114);
 }
 
 .civic-auth-grid {
@@ -3524,12 +3498,18 @@ body:has(.civic-shell-participant) {
   box-shadow: var(--civic-shadow);
 }
 
-[data-wireflow-shell="admin"] .civic-role-dialog header {
+[data-wireflow-shell="admin"] .civic-role-dialog header:not(.wf-role-dialog-heading) {
   display: grid;
   gap: 0.4rem;
 }
 
-[data-wireflow-shell="admin"] .civic-role-dialog header > span {
+[data-wireflow-shell="admin"] .civic-role-dialog .wf-role-dialog-heading > div {
+  display: grid;
+  gap: 0.4rem;
+}
+
+[data-wireflow-shell="admin"] .civic-role-dialog header > span,
+[data-wireflow-shell="admin"] .civic-role-dialog header > div > span {
   color: var(--civic-blue-dark);
   font-size: 0.75rem;
   font-weight: 700;

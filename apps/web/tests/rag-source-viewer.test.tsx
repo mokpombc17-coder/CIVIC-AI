@@ -14,11 +14,11 @@ describe("read-only immutable citation viewer", () => {
     );
 
     expect(html).toContain("합성 정책");
-    expect(html).toContain("3 / 7");
+    expect(html).toContain("3/7페이지 · 100%");
     expect(html).toContain("이전 페이지");
     expect(html).toContain("다음 페이지");
-    expect(html).toContain("확대");
-    expect(html).toContain("축소");
+    expect(html).not.toContain("확대");
+    expect(html).not.toContain("축소");
     expect(html).toContain("참조 문서 닫기");
     expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
     expect(html).not.toContain("/api/v1/rag/sources/version-1/pages/3");

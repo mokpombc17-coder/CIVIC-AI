@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import type { ScreenDefinition } from "@/lib/screens/registry";
-import { AuthFormCard, AuthInfo, AuthSupportCard } from "@/components/wireflow/auth-layouts";
+import { AuthFormCard, AuthInfo } from "@/components/wireflow/auth-layouts";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
@@ -66,6 +66,7 @@ export function AuthFunctionalScreen({
   );
   const [draft, setDraft] = useState<SignupDraft>(initialDraft);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<"error" | "info">("info");
   const [busy, setBusy] = useState(false);
   const [postLoginReturnTo, setPostLoginReturnTo] = useState<string | null>(() =>
     safeReturnTarget(initialSearch),
@@ -90,6 +91,7 @@ export function AuthFunctionalScreen({
     event.preventDefault();
     setBusy(true);
     setMessage("");
+    setMessageKind("info");
     try {
       if (activeId === "AUTH-001") {
         const data = new FormData(event.currentTarget);
@@ -180,6 +182,7 @@ export function AuthFunctionalScreen({
         location.assign(authCompletionDestination(activeId, verificationKind) ?? "/login");
       }
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
     } finally {
       setBusy(false);
@@ -196,8 +199,10 @@ export function AuthFunctionalScreen({
           : "/api/v1/signup/verification/resend",
         {},
       );
+      setMessageKind("info");
       setMessage("최신 인증 코드를 다시 보냈습니다.");
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? error.message : "인증 코드를 다시 보내지 못했습니다.");
     } finally {
       setBusy(false);
@@ -222,16 +227,38 @@ export function AuthFunctionalScreen({
         className="civic-auth-grid"
         data-wireflow-layout={activeId === "AUTH-001" ? "auth-login" : "auth-flow"}
       >
-        <AuthFormCard onSubmit={submit} title={authCardTitle(activeId)}>
+        {activeId === "AUTH-009" || activeId === "AUTH-010" ? <ReactivationNotes /> : null}
+        <AuthFormCard
+          onSubmit={submit}
+          subtitle={authCardSubtitle(activeId, draft.email)}
+          title={authCardTitle(activeId)}
+        >
           {renderFields(activeId, draft, setDraft)}
           {message ? (
-            <p aria-live="polite" className="civic-form-message" role="status">
-              {message}
-            </p>
+            messageKind === "error" ? (
+              <div aria-live="polite" className="civic-form-alert" role="status">
+                <strong>입력 내용을 확인해 주세요</strong>
+                <p>{message}</p>
+              </div>
+            ) : (
+              <p aria-live="polite" className="civic-form-message" role="status">
+                {message}
+              </p>
+            )
+          ) : null}
+          {activeId === "AUTH-003" || activeId === "AUTH-004" ? (
+            <WireflowButton
+              disabled={busy}
+              onClick={() => history.back()}
+              type="button"
+              variant="secondary"
+            >
+              이전으로
+            </WireflowButton>
           ) : null}
           <WireflowButton
             className={activeId === "AUTH-001" ? "civic-auth-submit" : undefined}
-            disabled={busy}
+            disabled={busy || (activeId === "AUTH-004" && !(draft.terms && draft.privacy))}
             type="submit"
           >
             {busy ? "처리 중…" : action}
@@ -260,13 +287,16 @@ function renderFields(
     return (
       <>
         <Field
+          help="로그인에 사용할 이메일"
           label="이메일"
           name="email"
+          placeholder="name@example.com"
           type="email"
           value={draft.email}
           onChange={(value) => setDraft((v) => ({ ...v, email: value }))}
         />
         <Field
+          help="8자 이상 · 영문·숫자·특수문자 포함"
           label="비밀번호"
           name="password"
           type="password"
@@ -280,7 +310,6 @@ function renderFields(
           value={draft.passwordConfirmation}
           onChange={(value) => setDraft((v) => ({ ...v, passwordConfirmation: value }))}
         />
-        <p className="civic-help">영문·숫자·허용 특수문자를 포함해 8자 이상 입력하세요.</p>
         <Check
           label="만 14세 이상입니다"
           checked={draft.ageConfirmed}
@@ -295,18 +324,25 @@ function renderFields(
         <SelectField
           label="선호 언어"
           value={draft.preferredLanguage}
-          options={["ko", "en"]}
+          options={[
+            { label: "한국어", value: "ko" },
+            { label: "English", value: "en" },
+          ]}
           onChange={(value) => setDraft((v) => ({ ...v, preferredLanguage: value as "ko" | "en" }))}
         />
         <SelectField
-          label="RAG 답변 상세도"
+          label="AI 답변 상세도"
           value={draft.answerDetail}
-          options={["concise", "balanced", "detailed"]}
+          options={[
+            { label: "간결하게", value: "concise" },
+            { label: "균형 있게", value: "balanced" },
+            { label: "상세하게", value: "detailed" },
+          ]}
           onChange={(value) =>
             setDraft((v) => ({ ...v, answerDetail: value as SignupDraft["answerDetail"] }))
           }
         />
-        <p className="civic-help">만 14세 이상임을 확인하고 다음 단계로 이동합니다.</p>
+        <p className="civic-help">투표·AI 답변 품질을 맞추는 데 사용하는 설정입니다.</p>
       </>
     );
   }
@@ -315,24 +351,49 @@ function renderFields(
     const privacy = draft.documents.ACCOUNT_RAG_PRIVACY;
     return (
       <fieldset className="civic-consent-fieldset">
-        <legend>필수 동의 2건</legend>
-        <ConsentDocumentLink document={terms} label="서비스 이용약관" />
-        <Check
-          label="이용약관에 동의합니다"
-          checked={draft.terms}
-          onChange={(checked) => setDraft((v) => ({ ...v, terms: checked }))}
-        />
-        <ConsentDocumentLink document={privacy} label="계정·RAG 개인정보 수집·이용" />
-        <Check
-          label="계정·RAG 개인정보 처리에 동의합니다"
-          checked={draft.privacy}
-          onChange={(checked) => setDraft((v) => ({ ...v, privacy: checked }))}
-        />
+        <legend className="sr-only">필수 동의 항목</legend>
+        <div className="civic-consent-item">
+          <Check
+            label="이용약관에 동의합니다"
+            required
+            checked={draft.terms}
+            onChange={(checked) => setDraft((v) => ({ ...v, terms: checked }))}
+          />
+          <ConsentDocumentLink
+            document={terms}
+            hint="전문을 확인한 뒤 동의해 주세요."
+            label="서비스 이용약관"
+          />
+        </div>
+        <div className="civic-consent-item">
+          <Check
+            label="계정·RAG 개인정보 수집·이용에 동의합니다"
+            required
+            checked={draft.privacy}
+            onChange={(checked) => setDraft((v) => ({ ...v, privacy: checked }))}
+          />
+          <ConsentDocumentLink
+            document={privacy}
+            hint="수집 목적과 항목을 확인해 주세요."
+            label="계정·RAG 개인정보 수집·이용"
+          />
+        </div>
       </fieldset>
     );
   }
   if (id === "AUTH-005" || id === "AUTH-010")
-    return <Field label="인증 코드" name="code" inputMode="numeric" />;
+    return (
+      <>
+        <Field
+          inputMode="numeric"
+          label="6자리 인증 코드"
+          maxLength={6}
+          name="code"
+          placeholder="000000"
+        />
+        {id === "AUTH-005" ? <CodeCountdown /> : null}
+      </>
+    );
   if (id === "AUTH-006")
     return (
       <div className="civic-auth-pending">
@@ -341,22 +402,32 @@ function renderFields(
         <Link href={"/signup/verify" as Route}>인증 코드 입력</Link>
       </div>
     );
-  if (id === "AUTH-007") return <Field label="가입 이메일" name="email" type="email" />;
+  if (id === "AUTH-007")
+    return <Field label="등록 이메일" name="email" placeholder="name@example.com" type="email" />;
   if (id === "AUTH-009")
     return (
       <>
-        <Field label="가입 이메일" name="email" type="email" />
-        <Field label="현재 비밀번호" name="password" type="password" />
-        <p className="civic-help">
-          등록 이메일 인증까지 완료하면 기존 계정 데이터가 다시 연결됩니다.
-        </p>
+        <Field label="이메일" name="email" placeholder="등록 이메일 입력" type="email" />
+        <Field label="비밀번호 확인" name="password" type="password" />
       </>
     );
   if (id === "AUTH-008")
     return (
       <>
-        <Field label="인증 코드" name="code" inputMode="numeric" />
-        <Field label="새 비밀번호" name="new_password" type="password" />
+        <Field
+          help="가장 최근에 받은 코드를 입력하세요."
+          inputMode="numeric"
+          label="6자리 인증 코드"
+          maxLength={6}
+          name="code"
+          placeholder="000000"
+        />
+        <Field
+          help="8자 이상 · 영문·숫자·특수문자 포함"
+          label="새 비밀번호"
+          name="new_password"
+          type="password"
+        />
         <Field label="새 비밀번호 확인" name="new_password_confirmation" type="password" />
       </>
     );
@@ -372,7 +443,7 @@ function AuthSupport({
     return (
       <AuthInfo
         actionLabel="코드 재발송"
-        body="메일함과 스팸함을 확인하세요. 60초 뒤 다시 받을 수 있습니다."
+        body="아래 버튼을 누르면 다시 받을 수 있습니다. 메일함과 스팸함을 확인해 주세요."
         disabled={busy}
         onAction={onResend}
         title="코드가 오지 않았나요?"
@@ -391,24 +462,62 @@ function AuthSupport({
   }
   if (activeId !== "AUTH-001") return null;
   return (
-    <aside aria-label="로그인 보조 행동" className="civic-auth-support">
-      <AuthSupportCard
-        badge="복구"
-        description="등록 이메일로 인증 코드 발송"
-        href={"/password-reset" as Route}
-        linkLabel="비밀번호 재설정"
-        slot="auth-reset"
-        title="비밀번호 재설정"
-      />
-      <AuthSupportCard
-        badge="신규"
-        description="계정 정보부터 입력"
-        href={"/signup/account" as Route}
-        linkLabel="회원가입"
-        slot="auth-signup"
-        title="회원가입"
-      />
+    <aside aria-label="로그인 보조 행동" className="civic-auth-support civic-auth-support-compact">
+      <div className="civic-auth-support-row">
+        <Link
+          className="wf-button wf-button-secondary"
+          data-wireflow-slot="auth-reset"
+          href={"/password-reset" as Route}
+        >
+          비밀번호 재설정
+        </Link>
+        <Link
+          className="wf-button wf-button-secondary"
+          data-wireflow-slot="auth-signup"
+          href={"/signup/account" as Route}
+        >
+          회원가입
+        </Link>
+      </div>
+      <Link className="civic-auth-reactivate" href={"/reactivate" as Route}>
+        계정 재활성화
+      </Link>
     </aside>
+  );
+}
+
+function ReactivationNotes() {
+  const notes = [
+    { label: "복원 항목", value: "계정·응답·과거 참여 이력" },
+    { label: "복원되지 않는 항목", value: "삭제된 정보·이전 로그인 상태" },
+    { label: "본인 확인", value: "비밀번호·등록 이메일 인증" },
+  ];
+  return (
+    <div aria-label="재활성화 안내" className="civic-reactivation-notes">
+      {notes.map((note) => (
+        <div className="civic-reactivation-note" key={note.label}>
+          <span>{note.label}</span>
+          <strong>{note.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CodeCountdown() {
+  const [remaining, setRemaining] = useState(10 * 60);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRemaining((value) => (value > 0 ? value - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
+  const seconds = String(remaining % 60).padStart(2, "0");
+  return (
+    <p aria-live="off" className="civic-field-help civic-code-countdown">
+      남은 시간 {minutes}:{seconds}
+    </p>
   );
 }
 
@@ -433,13 +542,25 @@ function authCardTitle(id: string): string {
   if (id === "AUTH-001") return "계정 정보";
   if (id === "AUTH-002") return "필수 입력";
   if (id === "AUTH-003") return "응답 설정";
-  if (id === "AUTH-004") return "필수 동의";
+  if (id === "AUTH-004") return "필수 동의 항목";
+  if (id === "AUTH-005") return "인증 코드 입력";
   if (id === "AUTH-006") return "인증 대기";
-  if (id === "AUTH-005" || id === "AUTH-006") return "인증 코드 입력";
-  if (id === "AUTH-007") return "등록 이메일";
-  if (id === "AUTH-008") return "비밀번호 재설정";
+  if (id === "AUTH-007") return "";
+  if (id === "AUTH-008") return "인증코드 입력";
   if (id === "AUTH-009" || id === "AUTH-010") return "재활성화 본인 확인";
   return "요청 정보";
+}
+
+function authCardSubtitle(id: string, email: string): string | undefined {
+  if (id !== "AUTH-005") return undefined;
+  const masked = maskAuthEmail(email);
+  return masked ? `${masked}으로 코드를 전송했습니다.` : "등록 이메일로 코드를 전송했습니다.";
+}
+
+export function maskAuthEmail(email: string): string | null {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return null;
+  return `${local.slice(0, 2)}***@${domain}`;
 }
 
 function Field({
@@ -448,7 +569,9 @@ function Field({
   type = "text",
   value,
   inputMode,
+  maxLength,
   placeholder,
+  help,
   onChange,
 }: {
   label: string;
@@ -456,7 +579,9 @@ function Field({
   type?: string;
   value?: string;
   inputMode?: "numeric";
+  maxLength?: number;
   placeholder?: string;
+  help?: string;
   onChange?: (value: string) => void;
 }) {
   return (
@@ -467,6 +592,7 @@ function Field({
           type === "password" ? "current-password" : name === "email" ? "email" : "one-time-code"
         }
         inputMode={inputMode}
+        maxLength={maxLength}
         name={name}
         onChange={onChange ? (event) => onChange(event.target.value) : undefined}
         placeholder={placeholder}
@@ -474,6 +600,7 @@ function Field({
         type={type}
         value={onChange ? value : undefined}
       />
+      {help ? <small className="civic-field-help">{help}</small> : null}
     </label>
   );
 }
@@ -486,7 +613,7 @@ function SelectField({
 }: {
   label: string;
   value: string;
-  options: string[];
+  options: readonly { label: string; value: string }[];
   onChange: (value: string) => void;
 }) {
   return (
@@ -494,8 +621,8 @@ function SelectField({
       <span>{label}</span>
       <select onChange={(event) => onChange(event.target.value)} value={value}>
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>
@@ -506,10 +633,12 @@ function SelectField({
 function Check({
   label,
   checked,
+  required = false,
   onChange,
 }: {
   label: string;
   checked: boolean;
+  required?: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -519,7 +648,10 @@ function Check({
         onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
       />
-      <span>{label}</span>
+      <span>
+        {label}
+        {required ? <em className="civic-required-badge">필수</em> : null}
+      </span>
     </label>
   );
 }
@@ -536,13 +668,15 @@ function evidence(document: SignupDocument) {
 
 function ConsentDocumentLink({
   document,
+  hint,
   label,
-}: Readonly<{ document: SignupDocument | undefined; label: string }>) {
+}: Readonly<{ document: SignupDocument | undefined; hint?: string; label: string }>) {
   if (!document) return <p className="civic-help">{label} 문서를 불러오지 못했습니다.</p>;
   return (
     <p className="civic-help">
+      {hint ? <span>{hint} </span> : null}
       <a href={document.path} rel="noopener noreferrer" target="_blank">
-        {label} 전문 보기
+        전문 보기
       </a>{" "}
       <span>버전 {document.document_version}</span>
     </p>

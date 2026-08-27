@@ -269,7 +269,10 @@ export function AdminRagScreen({
       >
         <main className="wf-rag-task-page" data-wireflow-layout="rag-upload">
           <p className="civic-breadcrumb">
-            문서 / {selectedFolder?.parent_id ? "정책자료 / " : ""}
+            문서 /{" "}
+            {ragFolderAncestorPath(folders, selectedFolder)
+              .map((name) => `${name} / `)
+              .join("")}
             {selectedFolder?.name ?? "선택 폴더"}
           </p>
           <section className="wf-rag-task-card">
@@ -386,6 +389,11 @@ export function AdminRagScreen({
           <FolderEditor
             cancelHref={ragWorkspaceHref(selectedFolder?.folder_id ?? folderId)}
             folder={selectedFolder}
+            parentName={
+              folderMode === "ADD"
+                ? (selectedFolder?.name ?? "문서")
+                : (ragFolderAncestorPath(folders, selectedFolder).at(-1) ?? "문서")
+            }
             key={`${folderMode}-${selectedFolder?.folder_id ?? "new-folder"}`}
             mode={folderMode}
             onComplete={() => {
@@ -1419,12 +1427,14 @@ function FolderEditor({
   mode,
   onComplete,
   onMessage,
+  parentName,
 }: Readonly<{
   cancelHref: Route;
   folder: Folder | undefined;
   mode: "ADD" | "EDIT" | "DELETE";
   onComplete: () => void;
   onMessage: (message: string) => void;
+  parentName?: string;
 }>) {
   const editable =
     folder !== undefined && mode !== "DELETE" && (mode === "ADD" || folder.kind === "NORMAL");
@@ -1517,7 +1527,7 @@ function FolderEditor({
           </label>
           <label className="civic-field">
             <span>상위 폴더</span>
-            <input disabled value={folder?.name ?? "Root"} />
+            <input disabled value={parentName ?? folder?.name ?? "문서"} />
           </label>
         </>
       )}
@@ -1543,6 +1553,22 @@ function FolderEditor({
       </div>
     </form>
   );
+}
+
+export function ragFolderAncestorPath(
+  folders: readonly Folder[],
+  folder: Folder | undefined,
+): string[] {
+  const byId = new Map(folders.map((item) => [item.folder_id, item]));
+  const names: string[] = [];
+  let parentId = folder?.parent_id ?? null;
+  while (parentId) {
+    const parent = byId.get(parentId);
+    if (!parent || names.length >= 8) break;
+    names.unshift(parent.name);
+    parentId = parent.parent_id;
+  }
+  return names;
 }
 
 export function resolveFolderEditorMode(value: string | undefined): "ADD" | "EDIT" | "DELETE" {
@@ -1748,6 +1774,9 @@ function UploadPanel({
           }}
           type="file"
         />
+        <span aria-hidden="true" className="civic-upload-browse">
+          파일 찾아보기
+        </span>
       </label>
       <ul className="civic-upload-queue">
         {files.map((file) => (
@@ -1961,10 +1990,11 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
         <progress max={100} value={job?.progress ?? 0} />
         <div className="civic-job-timeline" aria-label="문서 처리 단계">
           {ragJobTimelineStates(job).map(([label, state]) => (
-            <div key={label}>
-              <span aria-hidden="true">
-                {state === "완료" ? "●" : state === "실패" ? "!" : "…"}
-              </span>
+            <div
+              data-state={state === "완료" ? "done" : state === "실패" ? "failed" : "pending"}
+              key={label}
+            >
+              <span aria-hidden="true" className="civic-job-step-icon" />
               <strong>{label}</strong>
               <small>{state}</small>
             </div>
