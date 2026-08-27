@@ -407,7 +407,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
     let disposed = false;
     const poll = async () => {
       const next = await load();
-      if (!disposed && next && ["READY", "RUNNING"].includes(next.state)) {
+      if (!disposed && next && ["READY", "RUNNING", "WAITING_PROVIDER"].includes(next.state)) {
         timer = window.setTimeout(() => void poll(), 2000);
       }
     };
@@ -468,9 +468,21 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
               <dt>완료 시각</dt>
               <dd>{formatDate(view.completedAt)}</dd>
             </div>
+            {view.state === "WAITING_PROVIDER" ? (
+              <>
+                <div>
+                  <dt>자동 재개 예정</dt>
+                  <dd>{formatDate(view.resumeAt)}</dd>
+                </div>
+                <div>
+                  <dt>대기 이유</dt>
+                  <dd>{providerWaitLabel(view.waitReason)}</dd>
+                </div>
+              </>
+            ) : null}
           </dl>
           <div className="civic-simulation-actions">
-            {["READY", "RUNNING"].includes(view.state) ? (
+            {["READY", "RUNNING", "WAITING_PROVIDER"].includes(view.state) ? (
               <button
                 className="civic-danger-action"
                 disabled={pending}
@@ -602,6 +614,58 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
               </li>
             ))}
           </ol>
+          <section className="civic-domain-form-section">
+            <header>
+              <span>전체 실행 검증</span>
+              <h3>자료조사 · 정보처리 · Persona 응답</h3>
+            </header>
+            <dl className="civic-domain-impact-list">
+              <div>
+                <dt>응답 비율 예측</dt>
+                <dd>{result.engine.calibration.answerDistributionModel}</dd>
+              </div>
+              <div>
+                <dt>Persona 적합도 배정</dt>
+                <dd>{result.engine.calibration.assignmentModel}</dd>
+              </div>
+              <div>
+                <dt>A / B / C 배정</dt>
+                <dd>
+                  {result.engine.calibration.assignedInformationPracticeCounts.A} /{" "}
+                  {result.engine.calibration.assignedInformationPracticeCounts.B} /{" "}
+                  {result.engine.calibration.assignedInformationPracticeCounts.C}
+                </dd>
+              </div>
+              <div>
+                <dt>Naver 수집 문서</dt>
+                <dd>{result.engine.externalInformation.collectedDocumentCount}건</dd>
+              </div>
+              <div>
+                <dt>뉴스 / 블로그</dt>
+                <dd>
+                  {result.engine.externalInformation.documentCountsByNaverEndpoint.news} /{" "}
+                  {result.engine.externalInformation.documentCountsByNaverEndpoint.blog}
+                </dd>
+              </div>
+              <div>
+                <dt>카페 / 웹문서</dt>
+                <dd>
+                  {result.engine.externalInformation.documentCountsByNaverEndpoint.cafearticle} /{" "}
+                  {result.engine.externalInformation.documentCountsByNaverEndpoint.webkr}
+                </dd>
+              </div>
+              <div>
+                <dt>최종 Persona 응답 모델</dt>
+                <dd>{result.engine.modelType ?? result.run.modelType}</dd>
+              </div>
+              <div>
+                <dt>병렬 처리</dt>
+                <dd>
+                  Persona {result.engine.personaWorkers} · 내부 {result.engine.innerWorkers}
+                </dd>
+              </div>
+            </dl>
+          </section>
           {result.respondents.length > 0 ? (
             <Link
               className="civic-secondary-action"
@@ -931,10 +995,20 @@ function simulationStateLabel(state: SimulationState): string {
   return {
     READY: "실행 대기",
     RUNNING: "실행 중",
+    WAITING_PROVIDER: "공급자 응답 대기",
     COMPLETED: "완료",
     FAILED: "실패",
     CANCELLED: "취소됨",
   }[state];
+}
+
+function providerWaitLabel(reason: string | null): string {
+  if (!reason) return "외부 모델 응답을 기다리는 중입니다.";
+  if (reason.includes("answer_distribution")) return "응답 비율 예측 모델 재시도 대기";
+  if (reason.includes("answer_fit")) return "Persona 응답 적합도 모델 재시도 대기";
+  if (reason.includes("information_ratio")) return "정보처리 비율 모델 재시도 대기";
+  if (reason.includes("information_fit")) return "Persona 정보처리 적합도 모델 재시도 대기";
+  return "외부 모델 자동 재시도 대기";
 }
 
 function simulationLayout(screenId: string): string {

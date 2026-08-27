@@ -15,6 +15,27 @@ describe("simulation contracts", () => {
         progressPercent: 50,
         cancelRequested: false,
         errorCode: null,
+        resumeAt: null,
+        waitReason: null,
+        createdAt: "2026-08-26T00:00:00Z",
+        startedAt: "2026-08-26T00:00:01Z",
+        completedAt: null,
+      }),
+    ).not.toBeNull();
+  });
+
+  it("accepts a durable provider-wait status", () => {
+    expect(
+      readSimulationView({
+        simulationId,
+        taskId,
+        state: "WAITING_PROVIDER",
+        personaCount: 10,
+        progressPercent: 3,
+        cancelRequested: false,
+        errorCode: null,
+        resumeAt: "2026-08-26T00:01:00Z",
+        waitReason: "calibration_answer_fit_provider_wait",
         createdAt: "2026-08-26T00:00:00Z",
         startedAt: "2026-08-26T00:00:01Z",
         completedAt: null,

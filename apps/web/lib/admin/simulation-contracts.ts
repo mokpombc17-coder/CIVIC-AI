@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-export const simulationStates = ["READY", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"] as const;
+export const simulationStates = [
+  "READY",
+  "RUNNING",
+  "WAITING_PROVIDER",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+] as const;
 export type SimulationState = (typeof simulationStates)[number];
 
 const simulationViewSchema = z
@@ -12,6 +19,8 @@ const simulationViewSchema = z
     progressPercent: z.number().int().min(0).max(100),
     cancelRequested: z.boolean(),
     errorCode: z.string().nullable(),
+    resumeAt: z.string().min(1).nullable(),
+    waitReason: z.string().min(1).nullable(),
     createdAt: z.string().min(1),
     startedAt: z.string().min(1).nullable(),
     completedAt: z.string().min(1).nullable(),
@@ -118,6 +127,62 @@ const simulationResultSchema = z
         elapsedSeconds: z.number().nonnegative().nullable(),
         profileSha256: z.string().min(1),
         networkSha256: z.string().min(1),
+        calibration: z
+          .object({
+            pipelineVersion: z.string().min(1),
+            contractVersion: z.string().min(1),
+            answerDistributionModel: z.string().min(1),
+            assignmentModel: z.string().min(1),
+            answerDistribution: z.array(z.array(z.string().min(1))).min(1),
+            informationPracticeDistribution: z.array(z.string().min(1)).length(3),
+            assignedInformationPracticeCounts: z
+              .object({
+                A: z.number().int().nonnegative(),
+                B: z.number().int().nonnegative(),
+                C: z.number().int().nonnegative(),
+              })
+              .strict(),
+            targetPopulation: z.string().min(1),
+            referenceTime: z.string().min(1),
+            personaSetDigest: z.string().min(1),
+            proxyEligiblePersonaCount: z.number().int().nonnegative(),
+            providerEvidence: z
+              .object({
+                totalProviderCalls: z.number().int().nonnegative(),
+                validatedProviderCalls: z.number().int().nonnegative(),
+                callsByStageAndModel: z.array(
+                  z
+                    .object({
+                      stage: z.string().min(1),
+                      model: z.string().min(1),
+                      count: z.number().int().positive(),
+                    })
+                    .strict(),
+                ),
+              })
+              .strict(),
+          })
+          .strict(),
+        externalInformation: z
+          .object({
+            sourceMode: z.string().nullable(),
+            keywordCount: z.number().int().nonnegative(),
+            collectedDocumentCount: z.number().int().nonnegative(),
+            documentCountsBySource: z.record(z.string(), z.number().int().nonnegative()),
+            documentCountsByNaverEndpoint: z
+              .object({
+                news: z.number().int().nonnegative(),
+                blog: z.number().int().nonnegative(),
+                cafearticle: z.number().int().nonnegative(),
+                webkr: z.number().int().nonnegative(),
+              })
+              .strict(),
+            personaSeenItemCount: z.number().int().nonnegative(),
+            providerCallCountsByStage: z.record(z.string(), z.number().int().nonnegative()),
+          })
+          .strict(),
+        personaWorkers: z.number().int().positive(),
+        innerWorkers: z.number().int().positive(),
       })
       .strict(),
   })
