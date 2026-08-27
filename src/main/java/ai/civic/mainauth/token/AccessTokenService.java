@@ -48,6 +48,11 @@ public final class AccessTokenService {
     private static final List<String> VOTE_ADMIN_SCOPES = List.of(
             "vote:survey-outbox-replays:write",
             "vote:persona-generation-retries:write");
+    private static final List<String> SIMULATION_ADMIN_SCOPES = List.of(
+            "simulation:tasks:read",
+            "simulation:tasks:run",
+            "simulation:billing:read",
+            "simulation:billing:write");
 
     private final Rs256KeyRing keyRing;
     private final String issuer;
@@ -128,6 +133,9 @@ public final class AccessTokenService {
         }
         if (permissions.contains("VOTE_ADMIN")) {
             scopes.addAll(VOTE_ADMIN_SCOPES);
+        }
+        if (permissions.contains("SIMULATION_ADMIN")) {
+            scopes.addAll(SIMULATION_ADMIN_SCOPES);
         }
         return List.copyOf(new ArrayList<>(scopes));
     }

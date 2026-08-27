@@ -43,7 +43,11 @@ class InternalJwtContractTest {
                         "chat:research:exports",
                         "vote:survey-outbox-replays:write",
                         "vote:persona-generation-retries:write",
-                        "rag:documents:write");
+                        "rag:documents:write",
+                        "simulation:tasks:read",
+                        "simulation:tasks:run",
+                        "simulation:billing:read",
+                        "simulation:billing:write");
         assertThat(AccessTokenService.scopesForPermissions(Set.of("RAG_ADMIN")))
                 .contains("rag:documents:write")
                 .doesNotContain("chat:audit:exports");
@@ -56,7 +60,11 @@ class InternalJwtContractTest {
                         "chat:audit:exports",
                         "chat:research:exports",
                         "vote:survey-outbox-replays:write",
-                        "vote:persona-generation-retries:write");
+                        "vote:persona-generation-retries:write",
+                        "simulation:tasks:read",
+                        "simulation:tasks:run",
+                        "simulation:billing:read",
+                        "simulation:billing:write");
     }
 
     @Test

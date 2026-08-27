@@ -83,9 +83,10 @@ rag:jobs:read
 | `RAG_ADMIN` | `rag:documents:write` |
 | `CHAT_ADMIN` | `chat:rooms:approve`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
 | `VOTE_ADMIN` | `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
+| `SIMULATION_ADMIN` | `simulation:tasks:read`, `simulation:tasks:run`, `simulation:billing:read`, `simulation:billing:write` |
 
-`SIMULATION_ADMIN` permission에는 현재 추가 JWT scope가 없다. `/me`의 역할 값은
-`PARTICIPANT`, `ADMIN`, `HIGHEST_ADMIN`이며 Resource Server의 API 권한 판정은 `scope`로 한다.
+`/me`의 역할 값은 `PARTICIPANT`, `ADMIN`, `HIGHEST_ADMIN`이며 Resource Server의 API
+권한 판정은 `scope`로 한다.
 
 ## 5. 브라우저 쿠키
 
