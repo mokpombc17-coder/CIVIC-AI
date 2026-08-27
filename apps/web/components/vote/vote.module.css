@@ -192,48 +192,63 @@
 }
 
 .flowSurface {
-  padding: 0 16px 32px;
+  padding: 16px 16px 32px;
 }
 
 .progressBlock {
-  margin-inline: 0;
-  border-bottom: 1px solid #e5e8eb;
-  padding: 28px 16px 16px;
+  margin: 0;
+  border-bottom: 1px solid var(--vote-border);
+  padding: 12px 16px;
 }
 
 .progressLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 0;
-  font-size: 14px;
-  line-height: 20px;
+}
+
+.progressLabel span {
+  color: var(--vote-primary-emphasis);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 19.5px;
 }
 
 .progressLabel strong {
-  margin-right: 3px;
-  color: var(--vote-primary-emphasis);
+  color: #1f2124;
+  font-size: 16px;
   font-weight: 700;
+  line-height: 22.4px;
 }
 
 .progressBars {
   display: grid;
+  height: 8px;
   grid-template-columns: repeat(4, 1fr);
+  align-items: center;
   gap: 4px;
   margin-top: 10px;
 }
 
 .progressBar {
   height: 4px;
-  border-radius: 999px;
   background: #8a949e;
 }
 
-.progressBar[data-complete="true"] {
+.progressBar[data-state="done"],
+.progressBar[data-state="current"] {
   background: var(--vote-primary);
+}
+
+.progressBar[data-state="current"] {
+  height: 8px;
 }
 
 .flowBody {
   display: grid;
   gap: 16px;
-  padding-top: 16px;
+  padding-top: 10px;
 }
 
 .flowSection {
@@ -251,8 +266,8 @@
   visibility: hidden;
   grid-template-rows: 0fr;
   transition:
-    grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1),
-    margin-top 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    grid-template-rows 60ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-top 60ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .reasonTitleDisclosure[data-visible="true"] {
@@ -299,7 +314,7 @@
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  line-height: 26px;
+  line-height: 27px;
 }
 
 .infoCard {
@@ -422,12 +437,12 @@
   position: relative;
   display: grid;
   min-height: 69px;
-  align-content: center;
-  gap: 5px;
+  align-content: start;
+  gap: 4px;
   border: 1px solid var(--vote-border);
   border-radius: 8px;
   background: #fff;
-  padding: 10px 10px 10px 42px;
+  padding: 9px 11px 11px 39px;
   cursor: pointer;
   text-align: left;
 }
@@ -465,16 +480,24 @@
   content: "";
 }
 
-.choiceCard span,
-.reasonCard span {
+.choiceCard span {
+  display: inline-flex;
+  width: fit-content;
+  height: 22px;
+  align-items: center;
+  border-radius: 4px;
+  background: #fff;
+  padding: 0 6px;
   color: var(--vote-primary-emphasis);
+  font-weight: 700;
 }
 
-.choiceCard[aria-pressed="true"] span {
-  width: fit-content;
-  border-radius: 2px;
-  background: #fff;
-  padding-inline: 4px;
+.choiceCard strong {
+  line-height: 21px;
+}
+
+.reasonCard span {
+  color: var(--vote-primary-emphasis);
 }
 
 .choiceCard[aria-pressed="true"],
@@ -530,6 +553,21 @@
   background: #fff;
 }
 
+.directInputDisclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.directInputDisclosure[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.directInputDisclosureInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .directInputWrap {
   position: relative;
   padding: 0 12px 14px;
@@ -581,7 +619,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .reasonTitleDisclosure,
-  .reasonAccordion {
+  .reasonAccordion,
+  .directInputDisclosure {
     transition: none;
   }
 }

@@ -73,7 +73,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             onCancel={() => setCancelOpen(true)}
             onChooseOption={chooseOption}
             onChooseReason={(choice) => {
-              setReasonChoice(choice);
+              setReasonChoice((currentChoice) => (currentChoice === choice ? null : choice));
               setShowDirectError(false);
             }}
             onDirectReasonChange={(value) => {
@@ -110,12 +110,21 @@ function VoteProgress({ step }: { step: VoteStep }) {
   return (
     <div className={styles.progressBlock}>
       <p className={styles.progressLabel}>
-        <strong>{step}/4</strong> {labels[step]}
+        <span>{step}/4</span>
+        <strong>{labels[step]}</strong>
       </p>
       <div aria-label={`진행 단계 ${step}/4`} className={styles.progressBars}>
-        {[1, 2, 3, 4].map((segment) => (
-          <span className={styles.progressBar} data-complete={segment <= step} key={segment} />
-        ))}
+        {[1, 2, 3, 4].map((segment) => {
+          const state = segment < step ? "done" : segment === step ? "current" : "upcoming";
+          return (
+            <span
+              aria-current={state === "current" ? "step" : undefined}
+              className={styles.progressBar}
+              data-state={state}
+              key={segment}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -243,24 +252,31 @@ function ResponseComposer(props: ComposerProps) {
                   <span>직접 입력</span>
                   <strong>나의 생각을 직접 작성합니다.</strong>
                 </button>
-                {props.reasonChoice === "direct" ? (
-                  <div className={styles.directInputWrap}>
-                    <textarea
-                      aria-invalid={props.showDirectError}
-                      className={styles.directTextarea}
-                      maxLength={votePublishingTask.reasonMaxLength}
-                      onChange={(event) => props.onDirectReasonChange(event.target.value)}
-                      placeholder="응답 이유를 입력해 주세요."
-                      value={props.directReason}
-                    />
-                    <span className={styles.characterCount}>
-                      {props.directReason.length.toLocaleString("ko-KR")} / 1,000자
-                    </span>
-                    {props.showDirectError ? (
-                      <p className={styles.fieldError}>응답 이유를 입력해 주세요.</p>
-                    ) : null}
+                <div
+                  aria-hidden={props.reasonChoice !== "direct"}
+                  className={styles.directInputDisclosure}
+                  data-open={props.reasonChoice === "direct"}
+                  inert={props.reasonChoice !== "direct"}
+                >
+                  <div className={styles.directInputDisclosureInner}>
+                    <div className={styles.directInputWrap}>
+                      <textarea
+                        aria-invalid={props.showDirectError}
+                        className={styles.directTextarea}
+                        maxLength={votePublishingTask.reasonMaxLength}
+                        onChange={(event) => props.onDirectReasonChange(event.target.value)}
+                        placeholder="응답 이유를 입력해 주세요."
+                        value={props.directReason}
+                      />
+                      <span className={styles.characterCount}>
+                        {props.directReason.length.toLocaleString("ko-KR")} / 1,000자
+                      </span>
+                      {props.showDirectError ? (
+                        <p className={styles.fieldError}>응답 이유를 입력해 주세요.</p>
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
+                </div>
               </div>
             </div>
           </div>
