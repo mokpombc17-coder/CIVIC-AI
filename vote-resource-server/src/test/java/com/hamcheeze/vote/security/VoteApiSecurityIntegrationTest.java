@@ -343,7 +343,7 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
-    void allowsCredentialCorsOnlyFromFrontendOrigin()
+    void allowsCredentialCorsOnlyFromFrontendOrigins()
             throws Exception {
         mockMvc.perform(options("/api/v1/test/current-user")
                         .header(
@@ -359,6 +359,24 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
                         "http://localhost:3000"))
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
+                        "true"));
+
+        mockMvc.perform(options("/api/v1/test/current-user")
+                        .header(
+                                HttpHeaders.ORIGIN,
+                                "http://localhost:3100")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                "POST")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "content-type,idempotency-key,authorization"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                        "http://localhost:3100"))
                 .andExpect(header().string(
                         HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
                         "true"));

@@ -72,7 +72,9 @@ public class FixtureJwtConfiguration {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(
-                List.of("http://localhost:3000"));
+                List.of(
+                        "http://localhost:3000",
+                        "http://localhost:3100"));
         configuration.setAllowedMethods(
                 List.of("GET", "POST", "PUT", "OPTIONS"));
         configuration.setAllowedHeaders(
