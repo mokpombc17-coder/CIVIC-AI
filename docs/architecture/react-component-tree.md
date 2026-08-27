@@ -121,7 +121,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     │   └── PlatformShell [Server-compatible] [View] [scroll: child] (apps/web/components/platform-shell/platform-shell.tsx)
                                     │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
                                     │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
-                                    │       └── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
+                                    │       ├── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
+                                    │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+                                    │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+                                    │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                                     ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat-room-session-status.tsx)
                                     ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
                                     ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
@@ -143,13 +146,13 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 ```
 
 `AppShell`은 route별 시각 layout을 소유하지 않는다. `/chat` 목록과 `/chat/[roomId]` 상세의
-View는 공통 `PlatformShell`을 조립해 393px mobile-first surface와
-header를 공유한다. 목록은 `scroll="self"`로 Shell content가 스크롤을 소유하고 실제 route로
-이동하는 `PlatformNavigationClient`를 하단 slot에 제공한다. 이 Client adapter는 Next.js의 현재
+View는 공통 `PlatformShell`을 조립해 393px mobile-first surface, header와 하단 내비게이션을
+공유한다. 목록과 채팅방 모두 실제 route로 이동하는 `PlatformNavigationClient`를 하단 slot에
+제공한다. 이 Client adapter는 Next.js의 현재
 pathname을 읽어 router-independent `PlatformNavigation`에 전달하며, 표준 5개 도메인 anchor 중
-현재 도메인에만 `aria-current="page"`를 설정한다. 채팅방은
-`scroll="child"`로 `ChatMessageViewport`에 스크롤 책임을 위임하고 composer가 있는 상세 화면에서는
-하단 내비게이션 slot을 비워 둔다. 일반 플랫폼 화면은 `PlatformPageShell`을 사용하고, 채팅방처럼
+현재 도메인에만 `aria-current="page"`를 설정한다. 목록은 `scroll="self"`로 Shell content가
+스크롤을 소유하고, 채팅방은 `scroll="child"`로 `ChatMessageViewport`에 스크롤 책임을 위임한다.
+일반 플랫폼 화면은 `PlatformPageShell`을 사용하고, 채팅방처럼
 scroll·overlay 제어가 필요한 화면은 `PlatformShell`을 직접 조립한다.
 
 `PlatformShell`은 header, content, bottom navigation과 overlay slot의 배치, safe area, 공통
@@ -237,7 +240,8 @@ membership 불일치에서는 generation별 한 번만 Room detail과 receipt를
 실시간 generation이 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 공통
 `PlatformShell`에 배치하는 대표 View 경계다. `PlatformHeader`에 `/chat` back action, 제목과 도메인 action을
-전달하고, visual viewport 높이 ref로 키보드가 열린 동안 shell 높이만 보정한다. overlay 존재 여부는
+전달하고, `PlatformNavigationClient`를 하단 slot에 제공하며 visual viewport 높이 ref로 키보드가 열린 동안
+shell 높이만 보정한다. overlay 존재 여부는
 공통 surface의 inert 상태와 read-state pause 신호에 함께 전달한다. session indicator처럼 받은 값을
 표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·방 정보
 trigger를 배치하고, `ChatRoomScreenOverlay`는 검색, 참여자 정보, 메시지 action 순서의 단일 overlay 우선순위를
@@ -418,6 +422,7 @@ flowchart TD
     ChatRoomPlatformShell --> PlatformHeader
     ChatRoomPlatformShell -->|"room detail error"| ChatRoomEntryError
     ChatRoomPlatformShell --> ChatMessageViewport
+    ChatRoomPlatformShell --> PlatformNavigationClient
     ChatRoomScreen -->|"actionable session state"| ChatRoomSessionNotice
     ChatRoomScreen -->|"snapshot sync recovery"| ChatRealtimeSyncStatus
     ChatRoomScreen -->|"message draft and send"| ChatRoomSessionControls

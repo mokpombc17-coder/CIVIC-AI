@@ -10,6 +10,7 @@ import {
   type ChatMessageViewportViewModel,
 } from "@/components/chat-message-viewport";
 import type { ChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
+import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 import { useChatRoomVisualViewportHeight } from "@/components/use-chat-room-visual-viewport";
 
@@ -44,6 +45,7 @@ export function ChatRoomView({
 
   return (
     <PlatformShell
+      bottomNavigation={<PlatformNavigationClient />}
       className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
       contentInert={hasOverlay}
       header={

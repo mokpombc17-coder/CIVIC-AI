@@ -13,8 +13,12 @@ vi.mock("@/components/use-chat-room-visual-viewport", () => ({
   useChatRoomVisualViewportHeight: () => ({ current: null }),
 }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/chat/room-01",
+}));
+
 describe("ChatRoomView platform shell integration", () => {
-  it("공통 header와 child-owned message viewport를 조립한다", () => {
+  it("공통 header, child-owned message viewport와 하단 내비게이션을 조립한다", () => {
     const markup = renderChatRoomView();
 
     expect(markup).toContain('data-platform-shell="true"');
@@ -25,7 +29,9 @@ describe("ChatRoomView platform shell integration", () => {
     expect(markup).toContain('data-read-state-paused="false"');
     expect(markup).toContain("세션 안내");
     expect(markup).toContain("메시지 입력");
-    expect(markup).not.toContain("채팅 주요 메뉴");
+    expect(markup).toContain('aria-label="참여자 주요 메뉴"');
+    expect(markup).toContain('aria-current="page"');
+    expect(markup).toContain("토론방");
   });
 
   it("overlay가 열리면 shell surface와 read-state를 함께 멈춘다", () => {
