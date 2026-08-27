@@ -1,6 +1,9 @@
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
-import { createRoomSettingsPatch } from "@/components/chat-room-settings-form";
+import {
+  createEditableRoomDetailsPatch,
+  createRoomSettingsPatch,
+} from "@/components/chat-room-settings-form";
 import type { RoomSettings } from "@/lib/chat/chat-room-contracts";
 import { updateRoomSettingsMutationOptions } from "@/lib/chat/chat-room-mutations";
 import { chatRoomQueryKeys } from "@/lib/chat/chat-room-queries";
@@ -13,6 +16,21 @@ const PUBLIC_LIST_KEY = chatRoomQueryKeys.publicList({
 });
 
 describe("room settings form patch", () => {
+  it("인라인 방 정보 수정은 이름과 설명만 patch에 포함할 수 있다", () => {
+    expect(
+      createEditableRoomDetailsPatch(CURRENT_SETTINGS, {
+        description: " 인라인에서 수정한 설명 ",
+        name: "수정된 방 이름",
+      }),
+    ).toEqual({
+      success: true,
+      patch: {
+        description: "인라인에서 수정한 설명",
+        name: "수정된 방 이름",
+      },
+    });
+  });
+
   it("서버 canonical 값과 같아지는 공백 차이는 변경으로 보내지 않는다", () => {
     expect(
       createRoomSettingsPatch(CURRENT_SETTINGS, {

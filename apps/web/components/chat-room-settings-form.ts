@@ -12,6 +12,11 @@ export type RoomSettingsDraft = Readonly<{
   joinPolicy: unknown;
 }>;
 
+export type RoomEditableDetailsDraft = Readonly<{
+  description: unknown;
+  name: unknown;
+}>;
+
 export type RoomSettingsPatchResult =
   | Readonly<{
       success: true;
@@ -64,6 +69,18 @@ export function createRoomSettingsPatch(
     success: true,
     patch: Object.keys(patch).length === 0 ? null : patch,
   };
+}
+
+export function createEditableRoomDetailsPatch(
+  current: RoomSettings,
+  draft: RoomEditableDetailsDraft,
+): RoomSettingsPatchResult {
+  return createRoomSettingsPatch(current, {
+    ...draft,
+    categories: current.categories,
+    joinPolicy: current.joinPolicy,
+    visibility: current.visibility,
+  });
 }
 
 function haveSameCategories(next: readonly string[], current: readonly string[]): boolean {

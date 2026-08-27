@@ -21,8 +21,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push }),
 }));
 
-vi.mock("@/components/chat-room-settings-dialog", () => ({
-  ChatRoomSettingsControl: () => null,
+vi.mock("@/components/chat-room-settings-control", () => ({
+  ChatRoomSettingsControl: () => <form aria-label="방 정보 수정" />,
 }));
 
 vi.mock("@/lib/chat/chat-room-mutations", () => ({
@@ -69,9 +69,14 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain("참여자 목록");
     expect(html).toContain("참여자 1");
     expect(html).toContain("참여자 2");
+    expect(html).toContain("참여자 프로필 테스트");
+    expect(html).not.toContain("방 상세");
+    expect(html).not.toContain("내 멤버십");
+    expect(html).not.toContain("version 6");
     expect(html).toContain(">나</span>");
     expect(html).toContain('data-avatar-fallback="anonymous"');
-    expect(html).not.toContain("비활성 멤버 관리");
+    expect(html).not.toContain("차단된 사용자 관리");
+    expect(html).not.toContain("방 정보 수정");
     expect(html).not.toContain("방장 위임");
     expect(html).not.toContain(">차단</button>");
     expect(mocks.useRoomMembershipsQuery).toHaveBeenCalledTimes(2);
@@ -82,11 +87,11 @@ describe("ChatRoomMembershipPanel", () => {
     });
     expect(mocks.useRoomMembershipsQuery).toHaveBeenNthCalledWith(2, "room-01", {
       enabled: false,
-      status: "LEFT",
+      status: "BANNED",
     });
   });
 
-  it("방장에게 ACTIVE 명령과 별도의 LEFT/BANNED 관리 영역을 제공한다", () => {
+  it("방장에게 ACTIVE 명령과 별도의 BANNED 관리 영역을 제공한다", () => {
     const membership = createMembership({
       membershipId: "membership-owner",
       role: "OWNER",
@@ -103,11 +108,12 @@ describe("ChatRoomMembershipPanel", () => {
           membershipId: "membership-member",
         }),
       ],
-      LEFT: [
+      BANNED: [
         createMembershipListItem({
           displayName: "참여자 3",
-          membershipId: "membership-left",
-          status: "LEFT",
+          membershipId: "membership-banned",
+          status: "BANNED",
+          bannedAt: "2026-08-10T02:00:00Z",
         }),
       ],
     });
@@ -122,10 +128,16 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain("참여자 목록");
     expect(html).toContain("방장 위임");
     expect(html).toContain(">차단</button>");
-    expect(html).toContain("비활성 멤버 관리");
+    expect(html).toContain("차단된 사용자 관리");
+    expect(html).toContain("방 정보 수정");
     expect(html).toContain("참여자 3");
-    expect(html).toContain('aria-label="비활성 멤버 상태 필터"');
-    expect(html).not.toContain('aria-label="멤버 상태 필터"');
+    expect(html).toContain("차단 해제");
+    expect(html).not.toContain("비활성 멤버 상태 필터");
+    expect(html).not.toContain("나감");
+    expect(mocks.useRoomMembershipsQuery).toHaveBeenNthCalledWith(2, "room-01", {
+      enabled: true,
+      status: "BANNED",
+    });
   });
 
   it("View는 Query나 mutation hook 없이 controller 상태만 렌더링한다", () => {
@@ -259,11 +271,7 @@ function createMembershipPanelController(
     },
     isActiveMembershipListEnabled: true,
     isOwner: false,
-    ownerManagedMemberships: {
-      ...emptyList,
-      setStatus: vi.fn(),
-      status: "LEFT",
-    },
+    ownerManagedMemberships: emptyList,
     roomActionKind: "leave",
     selfMembership: {
       errorMessage: null,

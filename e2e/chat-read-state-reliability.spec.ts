@@ -124,7 +124,7 @@ test("채팅 화면 unmount 뒤에도 최종 실패한 read-state를 focus에서
   }
 });
 
-test("방 정보 overlay가 열린 동안에는 새 read-state를 보고하지 않고 닫힌 뒤 보고한다", async ({
+test("채팅방 메뉴 overlay가 열린 동안에는 새 read-state를 보고하지 않고 닫힌 뒤 보고한다", async ({
   browser,
 }, testInfo) => {
   const fixture = await createReadStateFixture(browser, String(testInfo.project.use.baseURL));
@@ -133,8 +133,8 @@ test("방 정보 overlay가 열린 동안에는 새 read-state를 보고하지 �
   try {
     await fixture.memberPage.bringToFront();
     await expect.poll(() => fixture.memberPage.evaluate(() => document.hasFocus())).toBe(true);
-    await fixture.memberPage.getByRole("button", { name: "방 정보", exact: true }).click();
-    const dialog = fixture.memberPage.getByRole("dialog", { name: "방 정보와 멤버십" });
+    await fixture.memberPage.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
+    const dialog = fixture.memberPage.getByRole("dialog", { name: "채팅방 메뉴" });
     await expect(dialog).toBeVisible();
 
     await sendMessage(fixture.ownerPage, message);
@@ -147,7 +147,7 @@ test("방 정보 overlay가 열린 동안에는 새 read-state를 보고하지 �
     await expectNoReadStateRequest(fixture.memberPage, fixture.roomId);
 
     const readStateResponse = waitForReadState(fixture.memberPage, fixture.roomId);
-    await dialog.getByRole("button", { name: "방 정보와 멤버십 닫기", exact: true }).click();
+    await dialog.getByRole("button", { name: "채팅방 메뉴 닫기", exact: true }).click();
     await expect(dialog).toBeHidden();
 
     expect(

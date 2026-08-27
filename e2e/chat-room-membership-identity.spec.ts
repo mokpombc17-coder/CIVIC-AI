@@ -92,7 +92,7 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
       await expect(ownerRow.getByText("방장", { exact: true })).toBeVisible();
       await expect(dialog.getByRole("button", { name: "차단", exact: true })).toHaveCount(0);
 
-      await dialog.getByRole("button", { name: "방 정보와 멤버십 닫기" }).click();
+      await dialog.getByRole("button", { name: "채팅방 메뉴 닫기" }).click();
     });
 
     await test.step("방장이 targetMembershipId로 참여자를 차단한다", async () => {
@@ -113,7 +113,7 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 
       expect(responseBody.targetMembershipId).toBe(requestBody.targetMembershipId);
       await expect(dialog.getByRole("status")).toContainText("차단했습니다");
-      await dialog.getByRole("button", { name: "방 정보와 멤버십 닫기" }).click();
+      await dialog.getByRole("button", { name: "채팅방 메뉴 닫기" }).click();
 
       const ownerLog = ownerPage.getByRole("log", { name: `${roomId} 메시지` });
       await expect(getMessageRow(ownerLog, memberMessage)).toContainText("알 수 없는 참여자");
@@ -133,7 +133,7 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 
       expect(responseBody.targetMembershipId).toBe(requestBody.targetMembershipId);
       await expect(dialog.getByRole("status")).toContainText("차단을 해제했습니다");
-      await dialog.getByRole("button", { name: "방 정보와 멤버십 닫기" }).click();
+      await dialog.getByRole("button", { name: "채팅방 메뉴 닫기" }).click();
     });
 
     await test.step("참여자가 재참여하고 방장이 targetMembershipId로 소유권을 넘긴다", async () => {
@@ -142,7 +142,7 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 
       const participantDialog = await openMembershipDialog(ownerPage);
       await expect(participantDialog.getByText("참여자 2", { exact: true })).toBeVisible();
-      await participantDialog.getByRole("button", { name: "방 정보와 멤버십 닫기" }).click();
+      await participantDialog.getByRole("button", { name: "채팅방 메뉴 닫기" }).click();
       const ownerLog = ownerPage.getByRole("log", { name: `${roomId} 메시지` });
       await expect(getMessageRow(ownerLog, memberMessage)).toContainText("참여자 2");
       const commandDialog = await openMembershipDialog(ownerPage);
@@ -191,10 +191,10 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 });
 
 async function openMembershipDialog(page: Page): Promise<Locator> {
-  const dialog = page.getByRole("dialog", { name: "방 정보와 멤버십" });
+  const dialog = page.getByRole("dialog", { name: "채팅방 메뉴" });
 
   if ((await dialog.count()) === 0) {
-    await page.getByRole("button", { name: "방 정보", exact: true }).click();
+    await page.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
   }
 
   await expect(dialog).toBeVisible();

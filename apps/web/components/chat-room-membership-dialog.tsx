@@ -16,16 +16,19 @@ export const ChatRoomMembershipDialogTrigger = forwardRef<
     <button
       aria-expanded={isOpen}
       aria-haspopup="dialog"
-      aria-label="방 정보"
+      aria-label="채팅방 메뉴"
       className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
       onClick={onOpen}
       ref={ref}
       type="button"
     >
       <svg aria-hidden="true" className="size-6" fill="none" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-        <path d="M12 10.75V17" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-        <circle cx="12" cy="7.25" fill="currentColor" r="1.1" />
+        <path
+          d="M4 7H20M4 12H20M4 17H20"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="1.8"
+        />
       </svg>
     </button>
   );
@@ -99,7 +102,7 @@ export function ChatRoomMembershipDialog({
         <ChatRoomMembershipPanel
           headerAction={
             <button
-              aria-label="방 정보와 멤버십 닫기"
+              aria-label="채팅방 메뉴 닫기"
               autoFocus
               className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
               onClick={onClose}

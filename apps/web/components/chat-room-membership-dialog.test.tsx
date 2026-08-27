@@ -13,14 +13,14 @@ vi.mock("@/components/chat-room-membership-panel", () => ({
     headingId: string;
   }) => (
     <section aria-labelledby={headingId} className="panel">
-      <h2 id={headingId}>방 정보와 멤버십</h2>
+      <h2 id={headingId}>채팅방 메뉴</h2>
       {headerAction}
     </section>
   ),
 }));
 
 describe("ChatRoomMembershipDialog", () => {
-  it("방 정보와 관리 내용을 platform bottom sheet로 렌더링한다", () => {
+  it("채팅방 메뉴를 platform bottom sheet로 렌더링한다", () => {
     const html = renderToStaticMarkup(
       <ChatRoomMembershipDialog onClose={vi.fn()} room={{} as RoomDetails} roomId="room-01" />,
     );
@@ -28,7 +28,7 @@ describe("ChatRoomMembershipDialog", () => {
     expect(html).toContain('role="dialog"');
     expect(html).toContain('data-chat-room-membership-bottom-sheet="true"');
     expect(html).toContain("rounded-t-xl");
-    expect(html).toContain('aria-label="방 정보와 멤버십 닫기"');
+    expect(html).toContain('aria-label="채팅방 메뉴 닫기"');
     expect(html).toContain("close.png");
   });
 });

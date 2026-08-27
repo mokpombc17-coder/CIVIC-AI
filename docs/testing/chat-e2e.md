@@ -193,7 +193,7 @@ read-state PUT을 retryable 503으로 bounded retry까지 실패
 → Next.js 링크로 방 화면을 unmount하고 /chat 목록으로 이동
 → focus lifecycle에서 provider가 보존한 sequence 재전송
 
-방 정보 overlay open 상태에서 새 메시지 렌더링
+채팅방 메뉴 overlay open 상태에서 새 메시지 렌더링
 → overlay 동안 PUT 없음
 → overlay close 뒤 viewport 재평가와 PUT 성공
 ```

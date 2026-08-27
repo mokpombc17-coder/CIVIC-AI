@@ -6,7 +6,6 @@ import { selectRetryableChatCommand } from "@/lib/chat/chat-command-retry";
 import { resolveRoomMembershipListPolicy } from "@/lib/chat/chat-room-membership-list-policy";
 import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
 import type {
-  MembershipStatus,
   RoomDetails,
   RoomMembership,
   RoomMembershipListItem,
@@ -27,8 +26,6 @@ export type ChatRoomMemberCommandKind = Extract<
   ChatRoomManagementCommandKind,
   "transfer" | "ban" | "unban"
 >;
-export type ChatRoomOwnerManagedMembershipStatus = Extract<MembershipStatus, "LEFT" | "BANNED">;
-
 export type ChatRoomMembershipPendingCommand =
   | Readonly<{
       kind: "leave" | "close";
@@ -81,11 +78,7 @@ export type ChatRoomMembershipPanelController = Readonly<{
   }>;
   isActiveMembershipListEnabled: boolean;
   isOwner: boolean;
-  ownerManagedMemberships: MembershipListController &
-    Readonly<{
-      setStatus: (status: ChatRoomOwnerManagedMembershipStatus) => void;
-      status: ChatRoomOwnerManagedMembershipStatus;
-    }>;
+  ownerManagedMemberships: MembershipListController;
   roomActionKind: "leave" | "close" | null;
   selfMembership: Readonly<{
     errorMessage: string | null;
@@ -117,8 +110,6 @@ export function useChatRoomMembershipPanel(
   roomId: string,
 ): ChatRoomMembershipPanelController {
   const router = useRouter();
-  const [ownerManagedStatus, setOwnerManagedStatus] =
-    useState<ChatRoomOwnerManagedMembershipStatus>("LEFT");
   const [pendingCommand, setPendingCommand] = useState<RoomManagementCommand | null>(null);
   const [failedCommand, setFailedCommand] = useState<RoomManagementCommand | null>(null);
   const [commandError, setCommandError] = useState<unknown>(null);
@@ -136,7 +127,7 @@ export function useChatRoomMembershipPanel(
   });
   const ownerManagedMembershipsQuery = useRoomMembershipsQuery(roomId, {
     enabled: isOwner,
-    status: ownerManagedStatus,
+    status: "BANNED",
   });
   const leaveRoom = useLeaveRoomMutation();
   const transferOwnership = useTransferRoomOwnershipMutation();
@@ -276,8 +267,6 @@ export function useChatRoomMembershipPanel(
       isPending: ownerManagedMembershipsQuery.isPending,
       memberships: ownerManagedMembershipsQuery.memberships,
       retry: () => void ownerManagedMembershipsQuery.refetch(),
-      setStatus: setOwnerManagedStatus,
-      status: ownerManagedStatus,
     },
     roomActionKind,
     selfMembership: {

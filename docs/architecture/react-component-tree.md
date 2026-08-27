@@ -137,9 +137,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                             └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
                                                 └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
                                                     ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
-                                                    └── ChatRoomSettingsControl [Client] [Container] [conditional] (apps/web/components/chat-room-settings-dialog.tsx)
-                                                        └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-dialog.tsx)
-                                                            └── ChatRoomCategorySelector [Client] [Feature] [conditional] (apps/web/components/chat-room-category-selector.tsx)
+                                                    └── ChatRoomSettingsControl [Client] [Container] [conditional] (apps/web/components/chat-room-settings-control.tsx)
+                                                        └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-control.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
                         │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
@@ -185,9 +184,9 @@ hook을 `ChatRoomListView`에 연결한다.
 control은 각각 동작 hook을 호출하되, validation, mutation, 멱등성 key 재시도와 라우팅 구현은 JSX
 밖에 둔다. 방 card, unread badge, avatar, notice와 pagination button은 이 책임 경계를 바꾸지 않는
 순수 표현 요소라 생략한다.
-`ChatRoomCategorySelector`는 생성·설정 UI가 공유하는 controlled 단일 선택 표현을 담당하고,
-Backend enum 검증과 command payload 생성은 각 form model이 담당한다.
-`ChatRoomCategoryBadges`는 공개·참여 Room card와 방 상세에서 같은 category label 표현을 공유한다.
+`ChatRoomCategorySelector`는 생성 UI의 controlled 단일 선택 표현을 담당하고,
+Backend enum 검증과 command payload 생성은 생성 form model이 담당한다.
+`ChatRoomCategoryBadges`는 공개·참여 Room card와 채팅방 메뉴에서 같은 category label 표현을 공유한다.
 
 `RoomCreationRequestListScreen`은 사용자의 신청 이력 infinite Query와 opaque cursor
 pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationRequestListView`는
@@ -243,8 +242,8 @@ membership 불일치에서는 generation별 한 번만 Room detail과 receipt를
 전달하고, `PlatformNavigationClient`를 하단 slot에 제공하며 visual viewport 높이 ref로 키보드가 열린 동안
 shell 높이만 보정한다. overlay 존재 여부는
 공통 surface의 inert 상태와 read-state pause 신호에 함께 전달한다. session indicator처럼 받은 값을
-표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·방 정보
-trigger를 배치하고, `ChatRoomScreenOverlay`는 검색, 참여자 정보, 메시지 action 순서의 단일 overlay 우선순위를
+표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·채팅방 메뉴
+trigger를 배치하고, `ChatRoomScreenOverlay`는 검색, 채팅방 메뉴, 메시지 action 순서의 단일 overlay 우선순위를
 표현한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
 focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 생명주기를 소유하므로 독립 Feature로 유지하고,
 상단 loading/error, 이력 안내, 새 메시지 이동 버튼과 가상 row 선택 렌더링은
@@ -259,7 +258,7 @@ Room detail 조회가 실패하면 `useChatRoomContentExperience`가 API 오류�
 session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 입력·전송 및 키보드 동작을
 담당한다. 메시지 수정·삭제 lifecycle과 transport command는 `useChatRoomMessageExperience`가 조립하고,
 선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
-`useChatRoomOverlayExperience`는 방 정보·메시지 검색 disclosure, trigger focus 복원과
+`useChatRoomOverlayExperience`는 채팅방 메뉴·메시지 검색 disclosure, trigger focus 복원과
 검색/멤버십/메시지 액션의 단일 overlay 우선순위를 조립한다. Screen은 이 controller가 제공한
 header action과 overlay model을 View에 배치하고, `ChatRoomMembershipDialog` 안에서만
 `ChatRoomMembershipPanel`을 mount한다. 세 overlay는 동시에 렌더링하지 않는다.
@@ -268,11 +267,13 @@ experience hook이 `.tsx` 표현 컴포넌트의 구현 타입을 역으로 참�
 `ChatRoomMembershipPanel`은 `useChatRoomMembershipPanel`이 조립한 controller를
 `ChatRoomMembershipPanelView`에 전달하는 얇은 container다. controller hook은 Membership Query,
 관리 mutation, 멱등성 key·재시도, 완료 라우팅을 소유하며 View에는 정규화된 목록 상태,
-사용자 문구와 callback만 제공한다. View는 모든 ACTIVE membership에 profile 목록을 제공하고,
-LEFT/BANNED 조회와 관리 control은 활성 OWNER에게만 표시한다.
+사용자 문구와 callback만 제공한다. View는 방 설명·카테고리와 모든 ACTIVE membership의 profile 목록을
+제공하고, BANNED 조회와 차단 해제 control은 활성 OWNER에게만 표시한다. LEFT membership은 조회하거나
+렌더링하지 않는다.
 `ChatRoomSettingsControl`은 `useChatRoomSettingsControl`의 controller를 설정 View에 전달하는 container다.
-controller hook은 draft category, 부분 patch 계산, update-settings mutation과 멱등성 key 재시도를 소유하고,
-View는 native Dialog의 focus·Escape·backdrop 동작과 form 표현만 담당한다.
+controller hook은 이름·설명만 허용하는 draft, 부분 patch 계산, update-settings mutation과 멱등성 key 재시도를
+소유한다. View는 방장에게 채팅방 메뉴 안에서 항상 보이는 인라인 form을 제공하고, 별도 modal이나 disclosure
+단계를 생성하지 않는다.
 
 ## App Router special UI
 
@@ -360,8 +361,8 @@ flowchart TD
     ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatRoomMembershipPanelView["ChatRoomMembershipPanelView [Client] [View]<br/>apps/web/components/chat-room-membership-panel.tsx"]
-    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Container] [conditional]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
-    ChatRoomSettingsControlView["ChatRoomSettingsControlView [Client] [View]<br/>apps/web/components/chat-room-settings-dialog.tsx"]
+    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Container] [conditional]<br/>apps/web/components/chat-room-settings-control.tsx"]
+    ChatRoomSettingsControlView["ChatRoomSettingsControlView [Client] [View]<br/>apps/web/components/chat-room-settings-control.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [Feature] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client] [Feature]<br/>apps/web/components/chat-room-session-controls.tsx"]
     ChatRoomSessionNotice["ChatRoomSessionNotice [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-session-status.tsx"]
@@ -431,13 +432,12 @@ flowchart TD
     ChatRoomScreen -->|"single overlay priority"| ChatRoomScreenOverlay
     ChatRoomScreenOverlay -->|"one selected message"| ChatMessageActionsBottomSheet
     ChatRoomScreenOverlay -->|"isolated Room message search and context windows"| ChatRoomMessageSearchDialog
-    ChatRoomScreenOverlay -->|"room info disclosure"| ChatRoomMembershipDialog
+    ChatRoomScreenOverlay -->|"room menu disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel --> ChatRoomMembershipPanelView
     ChatRoomMembershipPanelView --> ChatRoomCategoryBadges
     ChatRoomMembershipPanelView -->|"active OWNER only"| ChatRoomSettingsControl
     ChatRoomSettingsControl --> ChatRoomSettingsControlView
-    ChatRoomSettingsControlView -->|"conditional settings dialog"| ChatRoomCategorySelector
 
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage

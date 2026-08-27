@@ -3,26 +3,18 @@
 import type { ReactNode } from "react";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomParticipantProfile } from "@/components/chat-room-participant-profile";
-import { ChatRoomSettingsControl } from "@/components/chat-room-settings-dialog";
+import { ChatRoomSettingsControl } from "@/components/chat-room-settings-control";
 import {
   useChatRoomMembershipPanel,
   type ChatRoomMemberCommandKind,
   type ChatRoomMembershipPanelController,
   type ChatRoomMembershipPendingCommand,
-  type ChatRoomOwnerManagedMembershipStatus,
 } from "@/components/use-chat-room-membership-panel";
 import type {
   MembershipStatus,
   RoomDetails,
-  RoomMembership,
   RoomMembershipListItem,
 } from "@/lib/chat/chat-room-contracts";
-
-const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Asia/Seoul",
-});
 
 const MEMBERSHIP_STATUS_LABEL: Record<MembershipStatus, string> = {
   ACTIVE: "참여 중",
@@ -77,50 +69,46 @@ export function ChatRoomMembershipPanelView({
   return (
     <section className="panel">
       <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Room membership</p>
-          <h2 id={headingId}>방 정보와 멤버십</h2>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="status">version {room.version}</span>
-          {isOwner ? <ChatRoomSettingsControl room={room} /> : null}
-          {headerAction}
-        </div>
+        <h2 id={headingId}>채팅방 메뉴</h2>
+        <div className="flex flex-wrap items-center justify-end gap-2">{headerAction}</div>
       </div>
 
-      <div className="grid gap-4">
-        <RoomDetailsCard room={room} />
-        <MyMembershipCard
-          errorMessage={selfMembership.errorMessage}
-          isError={selfMembership.isError}
-          isFetching={selfMembership.isFetching}
-          membership={selfMembership.membership}
-          onRetry={selfMembership.retry}
+      <RoomSummary room={room} />
+      {isOwner ? <ChatRoomSettingsControl room={room} /> : null}
+
+      {isActiveMembershipListEnabled ? (
+        <ActiveMembershipList
+          errorMessage={activeMemberships.errorMessage}
+          hasNextPage={activeMemberships.hasNextPage}
+          isCommandPending={command.isPending}
+          isError={activeMemberships.isError}
+          isFetchingNextPage={activeMemberships.isFetchingNextPage}
+          isOwner={isOwner}
+          isPending={activeMemberships.isPending}
+          memberships={activeMemberships.memberships}
+          onFetchNextPage={activeMemberships.fetchNextPage}
+          onMemberCommand={command.startMember}
+          onRetry={activeMemberships.retry}
+          pendingCommand={command.pending}
+          selfMembershipId={selfMembership.membership?.membershipId ?? null}
         />
-      </div>
+      ) : null}
 
-      {roomActionKind ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {roomActionKind === "leave" ? (
-            <button
-              className="secondary-button"
-              disabled={command.isPending}
-              onClick={() => command.startRoom("leave")}
-              type="button"
-            >
-              {command.pending?.kind === "leave" ? "나가는 중…" : "방 나가기"}
-            </button>
-          ) : (
-            <button
-              className="secondary-button border-red-300 text-red-700"
-              disabled={command.isPending}
-              onClick={() => command.startRoom("close")}
-              type="button"
-            >
-              {command.pending?.kind === "close" ? "종료 중…" : "방 종료"}
-            </button>
-          )}
-        </div>
+      {isOwner ? (
+        <BlockedMembershipManagement
+          errorMessage={ownerManagedMemberships.errorMessage}
+          hasNextPage={ownerManagedMemberships.hasNextPage}
+          isCommandPending={command.isPending}
+          isError={ownerManagedMemberships.isError}
+          isFetchingNextPage={ownerManagedMemberships.isFetchingNextPage}
+          isPending={ownerManagedMemberships.isPending}
+          memberships={ownerManagedMemberships.memberships}
+          onFetchNextPage={ownerManagedMemberships.fetchNextPage}
+          onMemberCommand={command.startMember}
+          onRetry={ownerManagedMemberships.retry}
+          pendingCommand={command.pending}
+          selfMembershipId={selfMembership.membership?.membershipId ?? null}
+        />
       ) : null}
 
       {command.error ? (
@@ -152,113 +140,41 @@ export function ChatRoomMembershipPanelView({
         </p>
       ) : null}
 
-      {isActiveMembershipListEnabled ? (
-        <ActiveMembershipList
-          errorMessage={activeMemberships.errorMessage}
-          hasNextPage={activeMemberships.hasNextPage}
-          isCommandPending={command.isPending}
-          isError={activeMemberships.isError}
-          isFetchingNextPage={activeMemberships.isFetchingNextPage}
-          isOwner={isOwner}
-          isPending={activeMemberships.isPending}
-          memberships={activeMemberships.memberships}
-          onFetchNextPage={activeMemberships.fetchNextPage}
-          onMemberCommand={command.startMember}
-          onRetry={activeMemberships.retry}
-          pendingCommand={command.pending}
-          selfMembershipId={selfMembership.membership?.membershipId ?? null}
-        />
-      ) : null}
-
-      {isOwner ? (
-        <OwnerMembershipManagement
-          errorMessage={ownerManagedMemberships.errorMessage}
-          hasNextPage={ownerManagedMemberships.hasNextPage}
-          isCommandPending={command.isPending}
-          isError={ownerManagedMemberships.isError}
-          isFetchingNextPage={ownerManagedMemberships.isFetchingNextPage}
-          isPending={ownerManagedMemberships.isPending}
-          memberships={ownerManagedMemberships.memberships}
-          onFetchNextPage={ownerManagedMemberships.fetchNextPage}
-          onMemberCommand={command.startMember}
-          onRetry={ownerManagedMemberships.retry}
-          onStatusChange={ownerManagedMemberships.setStatus}
-          pendingCommand={command.pending}
-          selfMembershipId={selfMembership.membership?.membershipId ?? null}
-          status={ownerManagedMemberships.status}
-        />
+      {roomActionKind ? (
+        <div className="mt-6 border-t border-slate-200 pt-5">
+          {roomActionKind === "leave" ? (
+            <button
+              className="secondary-button w-full"
+              disabled={command.isPending}
+              onClick={() => command.startRoom("leave")}
+              type="button"
+            >
+              {command.pending?.kind === "leave" ? "나가는 중…" : "방 나가기"}
+            </button>
+          ) : (
+            <button
+              className="secondary-button w-full border-red-300 text-red-700"
+              disabled={command.isPending}
+              onClick={() => command.startRoom("close")}
+              type="button"
+            >
+              {command.pending?.kind === "close" ? "종료 중…" : "방 종료"}
+            </button>
+          )}
+        </div>
       ) : null}
     </section>
   );
 }
 
-function RoomDetailsCard({ room }: { room: RoomDetails }) {
+function RoomSummary({ room }: { room: RoomDetails }) {
   return (
-    <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <h3 className="text-sm font-semibold text-slate-950">방 상세</h3>
-      <dl className="mt-3 grid gap-2 text-sm">
-        <DetailRow label="방 이름" value={room.name} />
-        <DetailRow label="방 설명" value={room.description || "설명 없음"} />
-        <DetailRow
-          label="카테고리"
-          value={<ChatRoomCategoryBadges categories={room.categories} />}
-        />
-        <DetailRow label="방 ID" value={room.roomId} />
-        <DetailRow label="공개 범위" value={room.visibility} />
-        <DetailRow label="참여 정책" value={room.joinPolicy} />
-        <DetailRow label="방 상태" value={room.status} />
-        <DetailRow
-          label="방장"
-          value={room.ownerMembershipId === room.myMembership?.membershipId ? "나" : "참여자"}
-        />
-        <DetailRow label="생성 시각" value={formatDateTime(room.createdAt)} />
-        {room.closedAt ? (
-          <DetailRow label="종료 시각" value={formatDateTime(room.closedAt)} />
-        ) : null}
-      </dl>
-    </article>
-  );
-}
-
-function MyMembershipCard({
-  errorMessage,
-  isError,
-  isFetching,
-  membership,
-  onRetry,
-}: {
-  errorMessage: string | null;
-  isError: boolean;
-  isFetching: boolean;
-  membership: RoomMembership | null;
-  onRetry: () => void;
-}) {
-  return (
-    <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-950">내 멤버십</h3>
-        {isFetching ? <span className="text-xs text-slate-500">동기화 중…</span> : null}
-      </div>
-
-      {isError ? (
-        <div className="mt-3 text-red-700" role="alert">
-          <p className="text-xs">{errorMessage}</p>
-          <button className="secondary-button mt-3" onClick={onRetry} type="button">
-            내 멤버십 다시 불러오기
-          </button>
-        </div>
-      ) : membership ? (
-        <dl className="mt-3 grid gap-2 text-sm">
-          <DetailRow label="참여자" value="나" />
-          <DetailRow label="역할" value={membership.role} />
-          <DetailRow label="상태" value={MEMBERSHIP_STATUS_LABEL[membership.status]} />
-          <DetailRow label="참여 시각" value={formatDateTime(membership.joinedAt)} />
-          <DetailRow label="멤버십 version" value={String(membership.version)} />
-        </dl>
-      ) : (
-        <p className="mt-3 text-sm text-slate-500">이 방의 멤버십이 없습니다.</p>
-      )}
-    </article>
+    <div className="mt-4 grid gap-3 rounded-xl bg-[var(--chat-publishing-color-neutral-soft)] p-4">
+      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+        {room.description || "채팅방 소개가 없습니다."}
+      </p>
+      <ChatRoomCategoryBadges categories={room.categories} />
+    </div>
   );
 }
 
@@ -297,10 +213,7 @@ function ActiveMembershipList({
 }) {
   return (
     <div className="mt-6 border-t border-slate-200 pt-5">
-      <div>
-        <p className="eyebrow">Room participants</p>
-        <h3 className="text-lg font-bold text-slate-950">참여자 목록</h3>
-      </div>
+      <h3 className="text-lg font-bold text-slate-950">참여자 목록</h3>
 
       {isError ? (
         <div
@@ -337,7 +250,7 @@ function ActiveMembershipList({
   );
 }
 
-function OwnerMembershipManagement({
+function BlockedMembershipManagement({
   errorMessage,
   hasNextPage,
   isCommandPending,
@@ -348,10 +261,8 @@ function OwnerMembershipManagement({
   onFetchNextPage,
   onMemberCommand,
   onRetry,
-  onStatusChange,
   pendingCommand,
   selfMembershipId,
-  status,
 }: {
   errorMessage: string | null;
   hasNextPage: boolean;
@@ -367,51 +278,31 @@ function OwnerMembershipManagement({
     targetLabel: string,
   ) => void;
   onRetry: () => void;
-  onStatusChange: (status: ChatRoomOwnerManagedMembershipStatus) => void;
   pendingCommand: ChatRoomMembershipPendingCommand | null;
   selfMembershipId: string | null;
-  status: ChatRoomOwnerManagedMembershipStatus;
 }) {
   return (
     <div className="mt-6 border-t border-slate-200 pt-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="eyebrow">Owner controls</p>
-          <h3 className="text-lg font-bold text-slate-950">비활성 멤버 관리</h3>
-        </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="비활성 멤버 상태 필터">
-          {(["LEFT", "BANNED"] as const).map((value) => (
-            <button
-              aria-pressed={status === value}
-              className={status === value ? "primary-button" : "secondary-button"}
-              key={value}
-              onClick={() => onStatusChange(value)}
-              type="button"
-            >
-              {MEMBERSHIP_STATUS_LABEL[value]}
-            </button>
-          ))}
-        </div>
-      </div>
+      <h3 className="text-lg font-bold text-slate-950">차단된 사용자 관리</h3>
 
       {isError ? (
         <div
           className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
           role="alert"
         >
-          <p className="text-sm font-semibold">비활성 멤버 목록을 불러오지 못했습니다.</p>
+          <p className="text-sm font-semibold">차단된 사용자 목록을 불러오지 못했습니다.</p>
           <p className="mt-1 text-xs opacity-80">{errorMessage}</p>
           <button className="secondary-button mt-3" onClick={onRetry} type="button">
-            비활성 멤버 목록 다시 불러오기
+            차단된 사용자 목록 다시 불러오기
           </button>
         </div>
       ) : isPending ? (
-        <MembershipNotice message="비활성 멤버 목록을 불러오고 있습니다." />
+        <MembershipNotice message="차단된 사용자 목록을 불러오고 있습니다." />
       ) : memberships.length === 0 ? (
-        <MembershipNotice message={`${MEMBERSHIP_STATUS_LABEL[status]} 상태의 멤버가 없습니다.`} />
+        <MembershipNotice message="차단된 사용자가 없습니다." />
       ) : (
         <MembershipRows
-          actionMode={status === "BANNED" ? "banned-owner" : "none"}
+          actionMode="banned-owner"
           isCommandPending={isCommandPending}
           memberships={memberships}
           onMemberCommand={onMemberCommand}
@@ -526,17 +417,6 @@ function MembershipPagination({
   ) : null;
 }
 
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="min-w-0 whitespace-pre-line break-words font-medium text-slate-800">
-        {value}
-      </dd>
-    </div>
-  );
-}
-
 function MembershipNotice({ message }: { message: string }) {
   return (
     <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
@@ -551,9 +431,4 @@ function isPendingForMember(
   targetMembershipId: string,
 ): boolean {
   return command?.kind === kind && command.targetMembershipId === targetMembershipId;
-}
-
-function formatDateTime(value: string): string {
-  const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? value : DATE_TIME_FORMATTER.format(timestamp);
 }
