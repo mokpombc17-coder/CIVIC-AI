@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  openTaskListSchema,
   sortPredictedReasons,
   sortTaskOptions,
   submitTaskRequestSchema,
@@ -16,6 +17,64 @@ const IDS = {
 };
 
 describe("Vote Task contracts", () => {
+  it("Backend Java UUID가 사용하는 canonical 문자열을 version과 무관하게 수용한다", () => {
+    expect(
+      openTaskListSchema.safeParse([
+        {
+          taskId: "13000000-0000-0000-0000-000000000001",
+          title: "과업",
+          description: null,
+          openedAt: "2026-08-27T00:00:00Z",
+          closesAt: "2026-08-30T00:00:00Z",
+          submission: { submitted: false, submissionId: null, submittedAt: null },
+        },
+      ]).success,
+    ).toBe(true);
+  });
+
+  it("과업 제출 여부와 제출 식별자 null 조합을 일치시킨다", () => {
+    const base = {
+      taskId: IDS.selectedOptionId,
+      title: "과업",
+      description: null,
+      openedAt: "2026-08-27T00:00:00Z",
+      closesAt: "2026-08-30T00:00:00Z",
+    };
+
+    expect(
+      openTaskListSchema.safeParse([
+        {
+          ...base,
+          submission: { submitted: false, submissionId: null, submittedAt: null },
+        },
+      ]).success,
+    ).toBe(true);
+    expect(
+      openTaskListSchema.safeParse([
+        {
+          ...base,
+          submission: {
+            submitted: true,
+            submissionId: null,
+            submittedAt: "2026-08-28T03:00:00Z",
+          },
+        },
+      ]).success,
+    ).toBe(false);
+    expect(
+      openTaskListSchema.safeParse([
+        {
+          ...base,
+          submission: {
+            submitted: false,
+            submissionId: IDS.reasonId,
+            submittedAt: "2026-08-28T03:00:00Z",
+          },
+        },
+      ]).success,
+    ).toBe(false);
+  });
+
   it("AI_ACCEPTED와 USER_WRITTEN의 금지 필드를 분리한다", () => {
     expect(
       submitTaskRequestSchema.safeParse({

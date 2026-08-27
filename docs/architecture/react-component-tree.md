@@ -272,32 +272,33 @@ View는 native Dialog의 focus·Escape·backdrop 동작과 form 표현만 담당
 
 ## Route `/vote`, `/vote/[taskId]`, `/vote/[taskId]/result`
 
-`VoteLayout`은 별도 client provider를 두지 않고 nested Vote page를 그대로 제공한다. Backend READY 전
-퍼블리싱 단계에서는 각 Vote screen container가 `vote-publishing-fixtures`를 읽고 자체 `PlatformShell`,
-`PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의 `VoteTaskListScreen`은 검색 실행,
-진행 중·완료 필터와 목 카드 목록을 소유한다.
+`VoteLayout`은 `VoteQueryProvider`를 `/vote` 하위 route 전체에 제공한다. Provider는 Vote 전용
+`QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
+`PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
+`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중 목록은 Vote Query를 API 기반
+카드 view model로 변환하고 완료 목록은 후속 연동 전까지 publishing fixture를 사용한다.
 
 `VoteTaskScreen`은 1/4 과업 확인부터 4/4 참여 완료까지의 local draft와 단계 전이, 직접 입력,
 종료 bottom sheet를 소유한다. `VoteTaskResultScreen`은 예정 결과 계약을 반영한 fixture의 count를
-percentage로 변환하고 내 선택과 이유를 표시한다. 기존 Vote API client, query hook과
-`VoteQueryProvider`는 Backend READY 이후 연동 재개를 위해 코드에 보존하지만 현재 route graph에는
-설치하지 않는다.
+percentage로 변환하고 내 선택과 이유를 표시한다. Vote API client와 query hook은 Provider가 제공하는
+client cache를 공유한다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 └── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
     └── children [slot: App Router가 route child를 제공]
         └── VoteLayout [Server] [Route] (apps/web/app/vote/layout.tsx)
-            └── children [slot: nested page를 제공]
-                ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
-                │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
-                │       └── PlatformShell [Client graph] [View]
-                ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
-                │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
-                │       └── PlatformShell [Client graph] [View] [conditional bottom sheet]
-                └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)
-                    └── VoteTaskResultScreen [Client] [Container] (apps/web/components/vote/vote-task-result-screen.tsx)
-                        └── PlatformShell [Client graph] [View]
+            └── VoteQueryProvider [Client] [Provider] (apps/web/components/vote/vote-query-provider.tsx)
+                └── children [slot: nested page를 제공]
+                    ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
+                    │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
+                    │       └── PlatformShell [Client graph] [View]
+                    ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
+                    │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
+                    │       └── PlatformShell [Client graph] [View] [conditional bottom sheet]
+                    └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)
+                        └── VoteTaskResultScreen [Client] [Container] (apps/web/components/vote/vote-task-result-screen.tsx)
+                            └── PlatformShell [Client graph] [View]
 ```
 
 ## App Router special UI
@@ -394,6 +395,7 @@ flowchart TD
     ChatMessageComposer["ChatMessageComposer [Client] [Feature]<br/>apps/web/components/chat-message-composer.tsx"]
 
     VoteLayout["VoteLayout [Server] [Route]<br/>apps/web/app/vote/layout.tsx"]
+    VoteQueryProvider["VoteQueryProvider [Client] [Provider]<br/>apps/web/components/vote/vote-query-provider.tsx"]
     VoteChildrenSlot["vote children slot<br/>nested page를 제공"]
     VotePage["VotePage [Server] [Route]<br/>apps/web/app/vote/page.tsx"]
     VoteTaskListScreen["VoteTaskListScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-list-screen.tsx"]
@@ -474,7 +476,8 @@ flowchart TD
     ChatRoomSettingsControlView -->|"conditional settings dialog"| ChatRoomCategorySelector
 
     ChildrenSlot -. "route /vote" .-> VoteLayout
-    VoteLayout --> VoteChildrenSlot
+    VoteLayout --> VoteQueryProvider
+    VoteQueryProvider --> VoteChildrenSlot
     VoteChildrenSlot -. "route /vote" .-> VotePage
     VotePage --> VoteTaskListScreen
     VoteTaskListScreen --> PlatformShell

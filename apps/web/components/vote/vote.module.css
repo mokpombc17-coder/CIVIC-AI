@@ -199,6 +199,31 @@
   text-align: center;
 }
 
+.listFeedback {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin: 48px 0;
+  color: var(--vote-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.listFeedback p {
+  margin: 0;
+}
+
+.listRetryButton {
+  min-width: 88px;
+  height: 40px;
+  border: 1px solid var(--vote-primary);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--vote-primary-emphasis);
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .flowSurface {
   padding: 16px 16px 32px;
 }

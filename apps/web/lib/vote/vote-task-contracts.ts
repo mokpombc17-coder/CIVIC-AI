@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-export const voteTaskIdSchema = z.string().uuid();
+const canonicalUuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const voteTaskIdSchema = z.string().regex(canonicalUuidPattern, "UUID 형식이어야 합니다.");
 const uuidSchema = voteTaskIdSchema;
 const timestampSchema = z.string().min(1);
 
@@ -17,11 +19,18 @@ export const taskQuestionSchema = z.object({
   options: z.array(taskOptionSchema),
 });
 
-const taskSubmissionSummarySchema = z.object({
-  submitted: z.boolean(),
-  submissionId: uuidSchema.nullable(),
-  submittedAt: timestampSchema.nullable(),
-});
+const taskSubmissionSummarySchema = z.discriminatedUnion("submitted", [
+  z.object({
+    submitted: z.literal(false),
+    submissionId: z.null(),
+    submittedAt: z.null(),
+  }),
+  z.object({
+    submitted: z.literal(true),
+    submissionId: uuidSchema,
+    submittedAt: timestampSchema,
+  }),
+]);
 
 export const userTaskSummarySchema = z.object({
   taskId: uuidSchema,
