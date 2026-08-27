@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { forwardRef, useEffect, useId, useRef, type FormEvent, type KeyboardEvent } from "react";
 import type { RoomMessageContextDirection } from "@/components/use-room-message-context";
 import {
@@ -67,13 +68,13 @@ export const ChatRoomMessageSearchDialogTrigger = forwardRef<
       aria-expanded={isOpen}
       aria-haspopup="dialog"
       aria-label="메시지 검색"
-      className="inline-flex h-9 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-2.5 text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full transition hover:bg-[var(--chat-publishing-color-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
       disabled={disabled}
       onClick={onOpen}
       ref={ref}
       type="button"
     >
-      검색
+      <Image alt="" aria-hidden height={24} src="/assets/chat/search.png" width={24} />
     </button>
   );
 });

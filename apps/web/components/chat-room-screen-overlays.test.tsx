@@ -4,7 +4,7 @@ import { ChatRoomScreenHeaderActions } from "./chat-room-screen-overlays";
 import { resolveChatRoomScreenOverlayKind } from "./chat-room-screen-overlay-model";
 
 describe("ChatRoomScreen overlay presentation", () => {
-  it("Room이 준비되면 검색과 방 정보 trigger를 렌더링한다", () => {
+  it("Room이 준비되면 아이콘 검색 trigger만 렌더링한다", () => {
     const markup = renderToStaticMarkup(
       <ChatRoomScreenHeaderActions
         isMembershipDialogOpen={false}
@@ -18,8 +18,9 @@ describe("ChatRoomScreen overlay presentation", () => {
       />,
     );
 
-    expect(markup).toContain("메시지 검색");
-    expect(markup).toContain("방 정보");
+    expect(markup).toContain('aria-label="메시지 검색"');
+    expect(markup).toContain("search.png");
+    expect(markup).not.toContain('aria-label="방 정보"');
     expect(markup).toContain("disabled");
   });
 

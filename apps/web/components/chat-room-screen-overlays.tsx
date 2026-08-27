@@ -1,10 +1,7 @@
 "use client";
 
 import { ChatMessageActionsBottomSheet } from "@/components/chat-message-actions-bottom-sheet";
-import {
-  ChatRoomMembershipDialog,
-  ChatRoomMembershipDialogTrigger,
-} from "@/components/chat-room-membership-dialog";
+import { ChatRoomMembershipDialog } from "@/components/chat-room-membership-dialog";
 import {
   ChatRoomMessageSearchDialog,
   ChatRoomMessageSearchDialogTrigger,
@@ -17,11 +14,8 @@ import type { RoomDetails } from "@/lib/chat/chat-room-contracts";
 type ChatRoomScreenHeaderActionsViewModel = ChatRoomOverlayExperience["headerActions"];
 
 export function ChatRoomScreenHeaderActions({
-  isMembershipDialogOpen,
   isMessageSearchDialogOpen,
-  membershipDialogTriggerRef,
   messageSearchDialogTriggerRef,
-  onOpenMembershipDialog,
   onOpenMessageSearchDialog,
   roomAvailable,
   searchDisabled,
@@ -37,11 +31,6 @@ export function ChatRoomScreenHeaderActions({
         isOpen={isMessageSearchDialogOpen}
         onOpen={onOpenMessageSearchDialog}
         ref={messageSearchDialogTriggerRef}
-      />
-      <ChatRoomMembershipDialogTrigger
-        isOpen={isMembershipDialogOpen}
-        onOpen={onOpenMembershipDialog}
-        ref={membershipDialogTriggerRef}
       />
     </div>
   );
