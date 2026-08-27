@@ -241,6 +241,60 @@
   gap: 8px;
 }
 
+.responseComposerSections {
+  display: grid;
+}
+
+.reasonTitleDisclosure {
+  display: grid;
+  margin-top: 0;
+  visibility: hidden;
+  grid-template-rows: 0fr;
+  transition:
+    grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-top 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reasonTitleDisclosure[data-visible="true"] {
+  margin-top: 12px;
+  visibility: visible;
+  grid-template-rows: 1fr;
+}
+
+.reasonTitleDisclosureInner {
+  min-height: 0;
+  overflow: visible;
+}
+
+.reasonAccordion {
+  display: grid;
+  margin-top: 0;
+  visibility: hidden;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-top 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 240ms;
+}
+
+.reasonAccordion[data-open="true"] {
+  margin-top: 8px;
+  visibility: visible;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+.reasonAccordionInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sectionTitle {
   margin: 0;
   font-size: 18px;
@@ -352,6 +406,10 @@
   background: var(--vote-primary);
   padding: 0 18px;
   color: #fff;
+}
+
+.overviewContinueButton {
+  justify-self: end;
 }
 
 .choiceGrid {
@@ -516,8 +574,16 @@
   gap: 6px;
 }
 
-.flowSection + .fullActions {
+.flowSection + .fullActions,
+.responseComposerSections + .fullActions {
   margin-top: -4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reasonTitleDisclosure,
+  .reasonAccordion {
+    transition: none;
+  }
 }
 
 .fullPrimaryButton,

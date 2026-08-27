@@ -28,14 +28,15 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const confirmationReason =
     selectedReason?.content ?? trimmedDirectReason ?? votePublishingTask.confirmationReason;
 
-  const backAction = useMemo<PlatformHeaderBackAction | undefined>(() => {
+  const backAction = useMemo<PlatformHeaderBackAction>(() => {
     if (step === 1) return { href: "/vote", ariaLabel: "투표 목록으로" };
+    if (step === 2) return { onClick: () => setStep(1), ariaLabel: "과업 확인으로" };
     if (step === 3) return { onClick: () => setStep(2), ariaLabel: "응답 작성으로" };
-    return undefined;
+    return { href: "/vote", ariaLabel: "투표 목록으로" };
   }, [step]);
 
   function chooseOption(optionId: string) {
-    setSelectedOptionId(optionId);
+    setSelectedOptionId((currentOptionId) => (currentOptionId === optionId ? null : optionId));
     setReasonChoice(null);
     setDirectReason("");
     setShowDirectError(false);
@@ -56,9 +57,8 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       contentInert={cancelOpen}
       header={
         <PlatformHeader
-          {...(backAction ? { backAction } : {})}
+          backAction={backAction}
           className={styles.voteHeader!}
-          leading={step === 2 || step === 4 ? null : undefined}
           title="투표 참여하기"
         />
       }
@@ -143,7 +143,11 @@ function TaskOverview({ onContinue }: { onContinue: () => void }) {
           ))}
         </div>
       </section>
-      <button className={styles.compactPrimaryButton} onClick={onContinue} type="button">
+      <button
+        className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
+        onClick={onContinue}
+        type="button"
+      >
         참여하기
       </button>
     </div>
@@ -173,76 +177,95 @@ type ComposerProps = Readonly<{
 }>;
 
 function ResponseComposer(props: ComposerProps) {
+  const hasSelectedOption = Boolean(props.selectedOptionId);
+
   return (
     <div className={styles.flowBody}>
-      <section className={styles.flowSection}>
-        <h2 className={styles.sectionTitle}>응답 선택지</h2>
-        <div className={styles.choiceGrid}>
-          {votePublishingTask.options.map((option) => (
-            <button
-              aria-pressed={props.selectedOptionId === option.id}
-              className={styles.choiceCard}
-              key={option.id}
-              onClick={() => props.onChooseOption(option.id)}
-              type="button"
-            >
-              <span>{option.label}</span>
-              <strong>{option.content}</strong>
-            </button>
-          ))}
-        </div>
-      </section>
-      {props.selectedOptionId ? (
+      <div className={styles.responseComposerSections}>
         <section className={styles.flowSection}>
-          <h2 className={styles.sectionTitle}>응답 이유</h2>
-          <div className={styles.reasonList}>
-            {votePublishingTask.reasons.map((reason) => (
+          <h2 className={styles.sectionTitle}>응답 선택지</h2>
+          <div className={styles.choiceGrid}>
+            {votePublishingTask.options.map((option) => (
               <button
-                aria-pressed={props.reasonChoice === reason.id}
-                className={styles.reasonCard}
-                key={reason.id}
-                onClick={() => props.onChooseReason(reason.id as ReasonChoice)}
+                aria-pressed={props.selectedOptionId === option.id}
+                className={styles.choiceCard}
+                key={option.id}
+                onClick={() => props.onChooseOption(option.id)}
                 type="button"
               >
-                <span>{reason.label}</span>
-                <strong>{reason.content}</strong>
+                <span>{option.label}</span>
+                <strong>{option.content}</strong>
               </button>
             ))}
-            <div
-              className={styles.directReasonCard}
-              data-selected={props.reasonChoice === "direct"}
-            >
-              <button
-                aria-pressed={props.reasonChoice === "direct"}
-                className={styles.directReasonSelect}
-                onClick={() => props.onChooseReason("direct")}
-                type="button"
-              >
-                <span>직접 입력</span>
-                <strong>나의 생각을 직접 작성합니다.</strong>
-              </button>
-              {props.reasonChoice === "direct" ? (
-                <div className={styles.directInputWrap}>
-                  <textarea
-                    aria-invalid={props.showDirectError}
-                    className={styles.directTextarea}
-                    maxLength={votePublishingTask.reasonMaxLength}
-                    onChange={(event) => props.onDirectReasonChange(event.target.value)}
-                    placeholder="응답 이유를 입력해 주세요."
-                    value={props.directReason}
-                  />
-                  <span className={styles.characterCount}>
-                    {props.directReason.length.toLocaleString("ko-KR")} / 1,000자
-                  </span>
-                  {props.showDirectError ? (
-                    <p className={styles.fieldError}>응답 이유를 입력해 주세요.</p>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
           </div>
         </section>
-      ) : null}
+        <div
+          aria-hidden={!hasSelectedOption}
+          className={styles.reasonTitleDisclosure}
+          data-visible={hasSelectedOption}
+          inert={!hasSelectedOption}
+        >
+          <div className={styles.reasonTitleDisclosureInner}>
+            <h2 className={styles.sectionTitle}>응답 이유</h2>
+          </div>
+        </div>
+        <div
+          aria-hidden={!hasSelectedOption}
+          className={styles.reasonAccordion}
+          data-open={hasSelectedOption}
+          data-phase={hasSelectedOption ? "open" : "closed"}
+          inert={!hasSelectedOption}
+        >
+          <div className={styles.reasonAccordionInner}>
+            <div className={styles.reasonList}>
+              {votePublishingTask.reasons.map((reason) => (
+                <button
+                  aria-pressed={props.reasonChoice === reason.id}
+                  className={styles.reasonCard}
+                  key={reason.id}
+                  onClick={() => props.onChooseReason(reason.id as ReasonChoice)}
+                  type="button"
+                >
+                  <span>{reason.label}</span>
+                  <strong>{reason.content}</strong>
+                </button>
+              ))}
+              <div
+                className={styles.directReasonCard}
+                data-selected={props.reasonChoice === "direct"}
+              >
+                <button
+                  aria-pressed={props.reasonChoice === "direct"}
+                  className={styles.directReasonSelect}
+                  onClick={() => props.onChooseReason("direct")}
+                  type="button"
+                >
+                  <span>직접 입력</span>
+                  <strong>나의 생각을 직접 작성합니다.</strong>
+                </button>
+                {props.reasonChoice === "direct" ? (
+                  <div className={styles.directInputWrap}>
+                    <textarea
+                      aria-invalid={props.showDirectError}
+                      className={styles.directTextarea}
+                      maxLength={votePublishingTask.reasonMaxLength}
+                      onChange={(event) => props.onDirectReasonChange(event.target.value)}
+                      placeholder="응답 이유를 입력해 주세요."
+                      value={props.directReason}
+                    />
+                    <span className={styles.characterCount}>
+                      {props.directReason.length.toLocaleString("ko-KR")} / 1,000자
+                    </span>
+                    {props.showDirectError ? (
+                      <p className={styles.fieldError}>응답 이유를 입력해 주세요.</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div className={styles.fullActions}>
         <button
           className={styles.fullPrimaryButton}
