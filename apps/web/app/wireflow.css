@@ -1747,9 +1747,10 @@ body:has([data-wireflow-shell]) {
 
 .wf-rag-task-page {
   display: grid;
+  width: min(100%, 960px);
   align-content: start;
-  gap: 20px;
-  padding: 32px;
+  gap: 24px;
+  padding: 32px clamp(20px, 3vw, 40px) 48px;
 }
 
 .wf-rag-task-page > .civic-breadcrumb {
@@ -1759,11 +1760,12 @@ body:has([data-wireflow-shell]) {
 
 .wf-rag-task-card {
   display: grid;
-  gap: 20px;
+  gap: 24px;
   border: 1px solid var(--wf-line);
-  border-radius: 9px;
+  border-radius: 12px;
   background: #fff;
-  padding: 20px;
+  padding: clamp(20px, 2.5vw, 28px);
+  box-shadow: 0 10px 28px rgb(15 45 82 / 6%);
 }
 
 .wf-rag-task-heading {
@@ -1791,6 +1793,11 @@ body:has([data-wireflow-shell]) {
   padding: 0;
 }
 
+[data-wireflow-layout="rag-job-status"] .civic-job-panel {
+  display: grid;
+  gap: 16px;
+}
+
 [data-wireflow-layout="rag-upload"] .civic-upload-mode {
   display: none;
 }
@@ -1804,37 +1811,298 @@ body:has([data-wireflow-shell]) {
 
 [data-wireflow-layout="rag-job-status"] .civic-job-summary {
   display: grid;
-  gap: 14px;
-  border: 1px solid var(--wf-line);
-  border-radius: 8px;
-  padding: 18px;
+  gap: 20px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
-[data-wireflow-layout="rag-job-status"] .civic-job-summary > header {
+[data-wireflow-layout="rag-job-status"] .civic-job-document {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid #d8e0eb;
+  border-radius: 10px;
+  background: #f7f9fc;
+  padding: 16px 18px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-file-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 9px;
+  background: #e7efff;
+  color: var(--wf-blue-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-document > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-document > div > span {
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-document strong {
+  overflow: hidden;
+  color: #172033;
+  font-size: 17px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-status-badge {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border-radius: 999px;
+  background: #e7efff;
+  color: var(--wf-blue-dark);
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-status-badge.is-failed {
+  background: #feeceb;
+  color: #b42318;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-status-badge.is-succeeded {
+  background: #e8f7ef;
+  color: #067647;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-progress {
+  display: grid;
+  gap: 10px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-progress > header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 16px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-progress > header strong {
+  color: #172033;
+  font-size: 15px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-progress > header b {
+  color: var(--wf-blue-dark);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
 }
 
 [data-wireflow-layout="rag-job-status"] progress {
+  appearance: none;
+  display: block;
   width: 100%;
-  height: 10px;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
   accent-color: var(--wf-blue);
+}
+
+[data-wireflow-layout="rag-job-status"] progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: #e4e9f0;
+}
+
+[data-wireflow-layout="rag-job-status"] progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--wf-blue);
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-panel.is-failed progress {
+  accent-color: #d92d20;
+}
+
+[data-wireflow-layout="rag-job-status"]
+  .civic-job-panel.is-failed
+  progress::-webkit-progress-value {
+  background: #d92d20;
 }
 
 [data-wireflow-layout="rag-job-status"] .civic-job-timeline {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  list-style: none;
 }
 
-[data-wireflow-layout="rag-job-status"] .civic-job-timeline > div {
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li {
   display: grid;
-  min-height: 54px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  border: 1px solid #dfe4ec;
+  border-radius: 9px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li.is-active {
+  border-color: #9db9f5;
+  background: #f2f6ff;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li.is-failed {
+  border-color: #f1b4af;
+  background: #fff7f6;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li.is-waiting {
+  color: #667085;
+  background: #f8f9fb;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-step-marker {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8f7ef;
+  color: #067647;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li.is-active .civic-job-step-marker {
+  background: #dbe7ff;
+  color: var(--wf-blue-dark);
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li.is-failed .civic-job-step-marker {
+  background: #d92d20;
+  color: #fff;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li.is-waiting .civic-job-step-marker {
+  background: #e8ebf0;
+  color: #667085;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline > li > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline strong {
+  color: #172033;
+  font-size: 15px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline small {
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-timeline .is-failed small {
+  color: #b42318;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  border-left: 4px solid #d92d20;
+  border-radius: 8px;
+  background: #fff2f1;
+  padding: 14px 16px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: #d92d20;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure > div {
+  display: grid;
+  gap: 4px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure strong {
+  color: #912018;
+  font-size: 14px;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure p {
+  margin: 0;
+  color: #5f2924;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-live-message {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-actions {
   gap: 10px;
-  border-radius: 6px;
-  background: #eef1f5;
-  padding: 12px;
+  border-top: 1px solid var(--wf-line);
+  padding-top: 18px;
+}
+
+@media (max-width: 720px) {
+  .wf-rag-task-page {
+    padding: 20px 16px 32px;
+  }
+
+  [data-wireflow-layout="rag-job-status"] .civic-job-document {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  [data-wireflow-layout="rag-job-status"] .civic-job-status-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  [data-wireflow-layout="rag-job-status"] .civic-job-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  [data-wireflow-layout="rag-job-status"] .civic-job-actions > * {
+    width: 100%;
+  }
 }
 
 .wf-rag-admin-dialog {
