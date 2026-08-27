@@ -6,8 +6,10 @@ import com.hamcheeze.vote.task.application.prediction.TaskPredictionService;
 import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
+import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +30,7 @@ final class TaskUserController {
     private final AuthenticatedUserIdResolver userIds;
     private final UserTaskQueryService tasks;
     private final CompletedTaskQueryService completedTasks;
+    private final MyTaskResultQueryService taskResults;
     private final TaskPredictionService predictions;
     private final TaskPredictionQueryService predictionQueries;
 
@@ -35,12 +38,14 @@ final class TaskUserController {
             AuthenticatedUserIdResolver userIds,
             UserTaskQueryService tasks,
             CompletedTaskQueryService completedTasks,
+            MyTaskResultQueryService taskResults,
             TaskPredictionService predictions,
             TaskPredictionQueryService predictionQueries
     ) {
         this.userIds = userIds;
         this.tasks = tasks;
         this.completedTasks = completedTasks;
+        this.taskResults = taskResults;
         this.predictions = predictions;
         this.predictionQueries = predictionQueries;
     }
@@ -63,6 +68,22 @@ final class TaskUserController {
         return TaskApiModels.CompletedTaskPageResponse.from(
                 completedTasks.findByUser(
                         user(authentication), cursor, size));
+    }
+
+    @GetMapping("/{taskId}/result")
+    ResponseEntity<TaskApiModels.MyTaskResultResponse> findMyTaskResult(
+            Authentication authentication,
+            @PathVariable UUID taskId
+    ) {
+        TaskApiModels.MyTaskResultResponse response = taskResults.findByTask(
+                        user(authentication), id(taskId))
+                .map(TaskApiModels.MyTaskResultResponse::from)
+                .orElseThrow(() -> TaskApiException.notFound(
+                        "TASK_RESULT_NOT_FOUND",
+                        "The task result is not available."));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-cache")
+                .body(response);
     }
 
     @GetMapping("/{taskId}")

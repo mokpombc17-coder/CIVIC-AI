@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
+import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
@@ -359,6 +360,93 @@ final class TaskApiModels {
         ) {
             return new MyCompletedTaskSubmissionResponse(
                     submission.submissionId().value(),
+                    submission.submittedAt());
+        }
+    }
+
+    record MyTaskResultResponse(
+            UUID taskId,
+            String title,
+            String description,
+            Instant closedAt,
+            TaskClosureType closureType,
+            int resultVersion,
+            Instant finalizedAt,
+            int responseCount,
+            MyTaskResultQuestionResponse question,
+            List<MyTaskResultOptionResponse> options,
+            MyTaskResultSubmissionResponse mySubmission
+    ) {
+        static MyTaskResultResponse from(
+                MyTaskResultQueryService.MyTaskResult result
+        ) {
+            return new MyTaskResultResponse(
+                    result.taskId().value(),
+                    result.title(),
+                    result.description(),
+                    result.closedAt(),
+                    result.closureType(),
+                    result.resultVersion(),
+                    result.finalizedAt(),
+                    result.responseCount(),
+                    MyTaskResultQuestionResponse.from(result.question()),
+                    result.options().stream()
+                            .map(MyTaskResultOptionResponse::from)
+                            .toList(),
+                    MyTaskResultSubmissionResponse.from(
+                            result.mySubmission()));
+        }
+    }
+
+    record MyTaskResultQuestionResponse(
+            UUID id,
+            String content,
+            String description
+    ) {
+        static MyTaskResultQuestionResponse from(
+                MyTaskResultQueryService.ResultQuestion question
+        ) {
+            return new MyTaskResultQuestionResponse(
+                    question.id().value(),
+                    question.content(),
+                    question.description());
+        }
+    }
+
+    record MyTaskResultOptionResponse(
+            UUID id,
+            int displayOrder,
+            String content,
+            int count,
+            boolean selectedByMe
+    ) {
+        static MyTaskResultOptionResponse from(
+                MyTaskResultQueryService.ResultOption option
+        ) {
+            return new MyTaskResultOptionResponse(
+                    option.id().value(),
+                    option.displayOrder(),
+                    option.content(),
+                    option.count(),
+                    option.selectedByMe());
+        }
+    }
+
+    record MyTaskResultSubmissionResponse(
+            UUID submissionId,
+            UUID selectedOptionId,
+            TaskReasonSource reasonSource,
+            String finalReason,
+            Instant submittedAt
+    ) {
+        static MyTaskResultSubmissionResponse from(
+                MyTaskResultQueryService.ResultSubmission submission
+        ) {
+            return new MyTaskResultSubmissionResponse(
+                    submission.submissionId().value(),
+                    submission.selectedOptionId().value(),
+                    submission.reasonSource(),
+                    submission.finalReason(),
                     submission.submittedAt());
         }
     }

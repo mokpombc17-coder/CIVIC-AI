@@ -7,10 +7,14 @@ import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
+import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
+import com.hamcheeze.vote.task.application.result.TaskResultViewIntegrityException;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
@@ -19,6 +23,7 @@ import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
@@ -57,6 +62,8 @@ class TaskUserControllerTest {
             mock(UserTaskQueryService.class);
     private final CompletedTaskQueryService completedTasks =
             mock(CompletedTaskQueryService.class);
+    private final MyTaskResultQueryService taskResults =
+            mock(MyTaskResultQueryService.class);
     private final TaskPredictionService predictions =
             mock(TaskPredictionService.class);
     private final TaskPredictionQueryService predictionQueries =
@@ -74,12 +81,93 @@ class TaskUserControllerTest {
         when(userIds.resolve(authentication)).thenReturn("user-a");
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new TaskUserController(
-                                userIds, tasks, completedTasks, predictions,
-                                predictionQueries),
+                                userIds, tasks, completedTasks, taskResults,
+                                predictions, predictionQueries),
                         new TaskSubmissionController(
                                 userIds, submissions, submissionQueries))
                 .setControllerAdvice(new TaskApiExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void participantResultMatchesContractAndUsesPrivateCache()
+            throws Exception {
+        when(taskResults.findByTask(any(), any()))
+                .thenReturn(Optional.of(myTaskResult()));
+
+        mockMvc.perform(get("/api/v1/me/tasks/{taskId}/result",
+                        taskId().value()).principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL, "private, no-cache"))
+                .andExpect(jsonPath("$.taskId")
+                        .value(taskId().value().toString()))
+                .andExpect(jsonPath("$.title").value("결과 Task"))
+                .andExpect(jsonPath("$.description").value("결과 설명"))
+                .andExpect(jsonPath("$.closedAt").value(NOW.toString()))
+                .andExpect(jsonPath("$.closureType")
+                        .value("DEADLINE_REACHED"))
+                .andExpect(jsonPath("$.resultVersion").value(1))
+                .andExpect(jsonPath("$.finalizedAt")
+                        .value(NOW.plusSeconds(10).toString()))
+                .andExpect(jsonPath("$.responseCount").value(3))
+                .andExpect(jsonPath("$.question.id")
+                        .value(questionId(1).value().toString()))
+                .andExpect(jsonPath("$.options[0].count").value(2))
+                .andExpect(jsonPath("$.options[0].selectedByMe")
+                        .value(false))
+                .andExpect(jsonPath("$.options[1].selectedByMe")
+                        .value(true))
+                .andExpect(jsonPath("$.mySubmission.submissionId")
+                        .value(submissionId().value().toString()))
+                .andExpect(jsonPath("$.mySubmission.selectedOptionId")
+                        .value(resultOptionId(2).value().toString()))
+                .andExpect(jsonPath("$.mySubmission.reasonSource")
+                        .value("USER_WRITTEN"))
+                .andExpect(jsonPath("$.mySubmission.finalReason")
+                        .value("내 최종 이유"))
+                .andExpect(jsonPath("$.schemaVersion").doesNotExist())
+                .andExpect(jsonPath("$.percentage").doesNotExist())
+                .andExpect(jsonPath("$.options[0].key").doesNotExist())
+                .andExpect(jsonPath("$.options[0].reason").doesNotExist())
+                .andExpect(jsonPath(
+                        "$.mySubmission.personaGenerationId")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.responses").doesNotExist());
+
+        verify(taskResults).findByTask(eq(userId()), eq(taskId()));
+    }
+
+    @Test
+    void unavailableParticipantResultUsesOnePrivacySafeNotFound()
+            throws Exception {
+        when(taskResults.findByTask(any(), any()))
+                .thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/me/tasks/{taskId}/result",
+                        taskId().value()).principal(authentication))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_RESULT_NOT_FOUND"))
+                .andExpect(jsonPath("$.detail")
+                        .value("The task result is not available."))
+                .andExpect(jsonPath("$.instance")
+                        .value("/api/v1/me/tasks/"
+                                + taskId().value() + "/result"));
+    }
+
+    @Test
+    void participantResultIntegrityFailureRemainsServerError()
+            throws Exception {
+        when(taskResults.findByTask(any(), any()))
+                .thenThrow(new TaskResultViewIntegrityException(
+                        taskId(), "test mismatch"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/{taskId}/result",
+                        taskId().value()).principal(authentication))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_RESULT_VIEW_INTEGRITY_FAILURE"));
     }
 
     @Test
@@ -359,6 +447,35 @@ class TaskUserControllerTest {
         verify(submissionQueries).findById(
                 eq(new TaskUserId("user-a")),
                 eq(new TaskSubmissionId(submissionId().value())));
+    }
+
+    private static MyTaskResultQueryService.MyTaskResult myTaskResult() {
+        return new MyTaskResultQueryService.MyTaskResult(
+                taskId(),
+                "결과 Task",
+                "결과 설명",
+                NOW,
+                TaskClosureType.DEADLINE_REACHED,
+                1,
+                NOW.plusSeconds(10),
+                3,
+                new MyTaskResultQueryService.ResultQuestion(
+                        questionId(1), "선호 질문", null),
+                List.of(
+                        new MyTaskResultQueryService.ResultOption(
+                                resultOptionId(1), 1, "첫 번째", 2, false),
+                        new MyTaskResultQueryService.ResultOption(
+                                resultOptionId(2), 2, "두 번째", 1, true)),
+                new MyTaskResultQueryService.ResultSubmission(
+                        submissionId(),
+                        resultOptionId(2),
+                        TaskReasonSource.USER_WRITTEN,
+                        "내 최종 이유",
+                        NOW.minusSeconds(600)));
+    }
+
+    private static TaskOptionId resultOptionId(long value) {
+        return new TaskOptionId(new UUID(100, value));
     }
 
     private static String submitBody() {

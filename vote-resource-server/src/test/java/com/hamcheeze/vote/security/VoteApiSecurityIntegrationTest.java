@@ -349,6 +349,40 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
+    void participantResultUsesTaskReadScopeAndPrivacyNotFound()
+            throws Exception {
+        String path = "/api/v1/me/tasks/"
+                + "00000000-0000-0000-0000-000000000999/result";
+
+        mockMvc.perform(get(path))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "result-security-user",
+                                        VoteScopes.SURVEYS_READ)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "result-security-user",
+                                        VoteScopes.TASKS_READ)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_RESULT_NOT_FOUND"))
+                .andExpect(jsonPath("$.detail")
+                        .value("The task result is not available."));
+    }
+
+    @Test
     void localFixtureAllowsTaskAdminApiWithTaskAdminScope()
             throws Exception {
         String taskAdminToken = scopedToken(
