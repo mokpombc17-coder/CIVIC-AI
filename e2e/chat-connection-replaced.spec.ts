@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUser } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUser } from "./chat-e2e-helpers";
 
 const CONNECTED_LABEL = "실시간 연결: 연결됨";
 const CONNECTION_REPLACED_LABEL = "실시간 연결: 다른 환경에서 연결됨";
@@ -18,14 +18,14 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
 
   try {
     await test.step("첫 번째 브라우저가 같은 사용자의 활성 WebSocket 연결을 소유한다", async () => {
-      await authenticateDevUser(firstPage, firstContext);
+      await authenticateLocalE2EUser(firstPage, firstContext);
       await firstPage.goto("/chat");
 
       await expect(firstPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
     });
 
     await test.step("두 번째 브라우저가 연결되면 첫 번째 연결이 4001 상태로 교체된다", async () => {
-      await authenticateDevUser(secondPage, secondContext);
+      await authenticateLocalE2EUser(secondPage, secondContext);
       await secondPage.goto("/chat");
 
       await expect(secondPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();

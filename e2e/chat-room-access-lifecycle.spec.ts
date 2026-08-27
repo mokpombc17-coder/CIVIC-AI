@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const REPLACED_ROOM_LABEL = "다른 탭에서 채팅방을 사용 중입니다.";
@@ -18,7 +18,7 @@ test("방 종료를 전달받은 활성 탭은 4003 이후 해당 방을 다시 
 
   try {
     await test.step("방장으로 로그인하고 종료할 공개 방을 만든다", async () => {
-      await authenticateDevUserAs(commandPage, ownerContext, ownerSubject);
+      await authenticateLocalE2EUserAs(commandPage, ownerContext, ownerSubject);
     });
 
     const { activePage, roomId } =

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   findPublicRoomCard,
   joinPublicRoomAndEnter,
@@ -20,7 +20,7 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
 
   try {
     await test.step("방장이 설명이 있는 공개 채팅방을 만든다", async () => {
-      await authenticateDevUserAs(ownerPage, ownerContext, `e2e-settings-owner-${uniqueId}`);
+      await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-settings-owner-${uniqueId}`);
       await createRoomAndEnter(ownerPage, initialName, {
         category: "LOCAL_ISSUE",
         description: initialDescription,
@@ -48,7 +48,11 @@ test("방장은 설정을 변경하고 참여자는 실시간 반영만 받는�
     expect(roomId, "생성한 채팅방 URL에서 roomId를 읽을 수 있어야 합니다.").toBeTruthy();
 
     await test.step("일반 참여자는 방에 들어와도 설정 버튼을 볼 수 없다", async () => {
-      await authenticateDevUserAs(memberPage, memberContext, `e2e-settings-member-${uniqueId}`);
+      await authenticateLocalE2EUserAs(
+        memberPage,
+        memberContext,
+        `e2e-settings-member-${uniqueId}`,
+      );
       await memberPage.goto("/chat");
 
       const publicRoomCard = await findPublicRoomCard(memberPage, initialName);

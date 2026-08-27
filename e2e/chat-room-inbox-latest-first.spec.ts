@@ -7,7 +7,7 @@ import {
   type Page,
   type Response,
 } from "@playwright/test";
-import { authenticateDevUserAs } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs } from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const CONNECTED_LABEL = "실시간 연결: 연결됨";
@@ -397,8 +397,12 @@ async function createActors(
   const ownerPage = await ownerContext.newPage();
   const memberPage = await memberContext.newPage();
 
-  await authenticateDevUserAs(ownerPage, ownerContext, `e2e-latest-owner-${scenario}-${uniqueId}`);
-  await authenticateDevUserAs(
+  await authenticateLocalE2EUserAs(
+    ownerPage,
+    ownerContext,
+    `e2e-latest-owner-${scenario}-${uniqueId}`,
+  );
+  await authenticateLocalE2EUserAs(
     memberPage,
     memberContext,
     `e2e-latest-member-${scenario}-${uniqueId}`,

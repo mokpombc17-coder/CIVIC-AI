@@ -5,9 +5,9 @@ import {
   PLATFORM_AUTH_COOKIE_PATH,
 } from "@/lib/server/auth/platform-auth-contract";
 import {
-  issueLocalPlatformJwt,
-  LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS,
-} from "@/lib/server/auth/local-platform-jwt";
+  issueLocalE2EJwt,
+  LOCAL_E2E_AUTH_TOKEN_TTL_SECONDS,
+} from "@/lib/server/auth/local-e2e-jwt";
 
 const createSessionRequestSchema = z.object({
   subject: z.string().trim().min(1).max(128),
@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const token = await issueLocalPlatformJwt({
+  const token = await issueLocalE2EJwt({
     subject: parsed.data.subject,
   });
   const response = new NextResponse(null, {
@@ -50,7 +50,7 @@ export async function POST(request: Request): Promise<Response> {
     secure: false,
     sameSite: "lax",
     path: PLATFORM_AUTH_COOKIE_PATH,
-    maxAge: LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS,
+    maxAge: LOCAL_E2E_AUTH_TOKEN_TTL_SECONDS,
   });
 
   return response;

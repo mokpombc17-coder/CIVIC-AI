@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 
 test("채팅방 생성 폼은 키보드로 열고 닫아도 논리적인 포커스를 유지한다", async ({
   context,
   page,
 }) => {
-  await authenticateDevUserAs(page, context, `e2e-room-list-keyboard-${crypto.randomUUID()}`);
+  await authenticateLocalE2EUserAs(page, context, `e2e-room-list-keyboard-${crypto.randomUUID()}`);
   await page.goto("/chat");
 
   const createRoomButton = page.getByRole("button", { name: "채팅방 생성", exact: true });
@@ -58,7 +58,7 @@ test("참여 중인 방 목록은 제한된 높이 안에서 키보드로 탐색
   context,
   page,
 }) => {
-  await authenticateDevUserAs(page, context, `e2e-room-list-scroll-${crypto.randomUUID()}`);
+  await authenticateLocalE2EUserAs(page, context, `e2e-room-list-scroll-${crypto.randomUUID()}`);
 
   const roomName = `키보드 스크롤 방 ${crypto.randomUUID()}`;
   await createRoomAndEnter(page, roomName);

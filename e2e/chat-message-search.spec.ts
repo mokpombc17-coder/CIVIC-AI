@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -26,8 +26,8 @@ test("메시지를 검색해 Context로 이동하고 실시간 수정·삭제를
 
   try {
     await Promise.all([
-      authenticateDevUserAs(ownerPage, ownerContext, `e2e-search-owner-${uniqueId}`),
-      authenticateDevUserAs(memberPage, memberContext, `e2e-search-member-${uniqueId}`),
+      authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-search-owner-${uniqueId}`),
+      authenticateLocalE2EUserAs(memberPage, memberContext, `e2e-search-member-${uniqueId}`),
     ]);
 
     const roomId = await createRoomAndEnter(ownerPage, roomName);

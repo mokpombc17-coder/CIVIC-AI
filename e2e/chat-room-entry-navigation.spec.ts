@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -26,8 +26,8 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
   const memberPage = await memberContext.newPage();
 
   try {
-    await authenticateDevUserAs(ownerPage, ownerContext, `e2e-entry-owner-${uniqueId}`);
-    await authenticateDevUserAs(memberPage, memberContext, `e2e-entry-member-${uniqueId}`);
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-entry-owner-${uniqueId}`);
+    await authenticateLocalE2EUserAs(memberPage, memberContext, `e2e-entry-member-${uniqueId}`);
 
     const roomId = await createRoomAndEnter(ownerPage, roomName);
     await expect(ownerPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();

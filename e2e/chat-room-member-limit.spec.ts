@@ -6,7 +6,12 @@ import {
   type Page,
   type Response,
 } from "@playwright/test";
-import { authenticateDevUserAs, createRoomAndEnter, findPublicRoomCard } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUserAs,
+  createRoomAndEnter,
+  findPublicRoomCard,
+  issueLocalE2EAuthenticationSession,
+} from "./chat-e2e-helpers";
 
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
@@ -28,17 +33,13 @@ test("정원이 가득 찬 방은 참여를 거절하고 새 클릭에는 새 Id
   const candidatePage = await candidateContext.newPage();
 
   try {
-    await authenticateDevUserAs(ownerPage, ownerContext, `e2e-limit-owner-${uniqueId}`);
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-limit-owner-${uniqueId}`);
     const roomId = await createRoomAndEnter(ownerPage, roomName);
 
     await test.step("OWNER를 포함해 ACTIVE 참여 인원을 정원까지 채운다", async () => {
       for (let index = 1; index < ACTIVE_MEMBER_LIMIT; index += 1) {
         const subject = `e2e-limit-member-${uniqueId}-${index}`;
-        const authResponse = await request.post("/api/dev/auth/session", {
-          data: { subject },
-        });
-
-        expect(authResponse.status(), `${subject} 임시 로그인이 성공해야 합니다.`).toBe(204);
+        await issueLocalE2EAuthenticationSession(request, subject);
 
         const joinResponse = await request.post(createJoinUrl(roomId), {
           headers: {
@@ -53,7 +54,11 @@ test("정원이 가득 찬 방은 참여를 거절하고 새 클릭에는 새 Id
       }
     });
 
-    await authenticateDevUserAs(candidatePage, candidateContext, `e2e-limit-candidate-${uniqueId}`);
+    await authenticateLocalE2EUserAs(
+      candidatePage,
+      candidateContext,
+      `e2e-limit-candidate-${uniqueId}`,
+    );
     await candidatePage.goto("/chat");
 
     const roomCard = await findPublicRoomCard(candidatePage, roomName);

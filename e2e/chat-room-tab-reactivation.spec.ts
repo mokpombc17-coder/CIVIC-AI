@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUser, createRoomAndEnter } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUser, createRoomAndEnter } from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const REPLACED_ROOM_LABEL = "다른 탭에서 채팅방을 사용 중입니다.";
@@ -13,7 +13,7 @@ test("같은 브라우저의 두 탭이 채팅방을 선점하고 다시 활성�
   const preservedDraft = `탭 전환 중 보존할 초안 ${uniqueId}`;
 
   await test.step("첫 번째 탭이 채팅방을 활성화하고 작성 중인 초안을 가진다", async () => {
-    await authenticateDevUser(firstPage, context);
+    await authenticateLocalE2EUser(firstPage, context);
     await createRoomAndEnter(firstPage, roomName);
 
     const firstMessageInput = firstPage.getByRole("textbox", { name: "메시지" });
@@ -71,7 +71,7 @@ test("활성 탭이 종료된 뒤 남은 탭이 수동으로 채팅방을 다시
 }) => {
   const roomName = `e2e-tab-close-${crypto.randomUUID()}`;
 
-  await authenticateDevUser(firstPage, context);
+  await authenticateLocalE2EUser(firstPage, context);
   await createRoomAndEnter(firstPage, roomName);
   await expect(firstPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
 

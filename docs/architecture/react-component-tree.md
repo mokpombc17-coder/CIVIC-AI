@@ -57,12 +57,12 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
                 │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                 │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
-                └── TemporaryLoginControl [Client] [Feature] [conditional: development] (apps/web/components/temporary-login-control.tsx)
+                └── LocalE2ELoginControl [Client] [Feature] [conditional: development] (apps/web/components/local-e2e-login-control.tsx)
 ```
 
 `PlatformPageShell`은 일반 화면의 기본 header, `scroll="self"` content와 pathname 기반 하단
 내비게이션을 조립한다. 홈의 뒤로가기 control은 목적지가 없으므로 비활성 상태다.
-`TemporaryLoginControl` 내부의 조건부 UI와 `HomePage`의 화면 요소는 intrinsic HTML element이므로
+`LocalE2ELoginControl` 내부의 조건부 UI와 `HomePage`의 화면 요소는 intrinsic HTML element이므로
 이 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
 
 ## Route `/chat`와 `/chat/[roomId]`
@@ -310,7 +310,7 @@ flowchart TD
 
     IndexPage["IndexPage [Server] [Route] [redirect: /home]<br/>apps/web/app/page.tsx"]
     HomePage["HomePage [Server] [Route]<br/>apps/web/app/home/page.tsx"]
-    TemporaryLoginControl["TemporaryLoginControl [Client] [Feature] [conditional]<br/>apps/web/components/temporary-login-control.tsx"]
+    LocalE2ELoginControl["LocalE2ELoginControl [Client] [Feature] [conditional]<br/>apps/web/components/local-e2e-login-control.tsx"]
     PlatformPageShell["PlatformPageShell [Server-compatible] [View]<br/>apps/web/components/platform-page-shell.tsx"]
     DefaultPlatformShell["PlatformShell [Server-compatible] [View] [scroll: self]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
 
@@ -377,7 +377,7 @@ flowchart TD
     ChildrenSlot -. "route /" .-> IndexPage
     ChildrenSlot -. "route /home" .-> HomePage
     HomePage --> PlatformPageShell
-    HomePage -->|"development only"| TemporaryLoginControl
+    HomePage -->|"development only"| LocalE2ELoginControl
     PlatformPageShell --> DefaultPlatformShell
     DefaultPlatformShell --> PlatformHeader
     DefaultPlatformShell --> PlatformNavigationClient
@@ -444,7 +444,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,TemporaryLoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

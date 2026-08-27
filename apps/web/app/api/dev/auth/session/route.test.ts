@@ -22,24 +22,24 @@ describe("/api/dev/auth/session", () => {
     vi.resetModules();
   });
 
-  it("issues a local platform JWT in an HttpOnly cookie", async () => {
+  it("issues a local E2E JWT in an HttpOnly cookie", async () => {
     const { POST } = await import("./route");
     const {
-      LOCAL_PLATFORM_AUTH_ALGORITHM,
-      LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY,
-      LOCAL_PLATFORM_AUTH_ISSUER,
-      LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS,
-    } = await import("@/lib/server/auth/local-platform-jwt");
+      LOCAL_E2E_AUTH_ALGORITHM,
+      LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY,
+      LOCAL_E2E_AUTH_ISSUER,
+      LOCAL_E2E_AUTH_TOKEN_TTL_SECONDS,
+    } = await import("@/lib/server/auth/local-e2e-jwt");
     const response = await POST(sessionRequest({ subject: "owner-1" }));
     const setCookie = requiredSetCookie(response);
     const token = requiredCookieValue(setCookie);
     const { payload, protectedHeader } = await jwtVerify(
       token,
-      new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY),
+      new TextEncoder().encode(LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY),
       {
-        issuer: LOCAL_PLATFORM_AUTH_ISSUER,
+        issuer: LOCAL_E2E_AUTH_ISSUER,
         audience: PLATFORM_AUTH_AUDIENCE,
-        algorithms: [LOCAL_PLATFORM_AUTH_ALGORITHM],
+        algorithms: [LOCAL_E2E_AUTH_ALGORITHM],
       },
     );
 
@@ -48,14 +48,14 @@ describe("/api/dev/auth/session", () => {
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("Path=/");
     expect(setCookie).toContain("SameSite=lax");
-    expect(setCookie).toContain(`Max-Age=${LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS}`);
+    expect(setCookie).toContain(`Max-Age=${LOCAL_E2E_AUTH_TOKEN_TTL_SECONDS}`);
     expect(setCookie).not.toContain("Secure");
     expect(protectedHeader).toEqual({
       alg: "HS256",
       typ: "JWT",
     });
     expect(payload).toMatchObject({
-      iss: LOCAL_PLATFORM_AUTH_ISSUER,
+      iss: LOCAL_E2E_AUTH_ISSUER,
       aud: PLATFORM_AUTH_AUDIENCE,
       sub: "owner-1",
       scope: PLATFORM_AUTH_SCOPE,
@@ -70,47 +70,44 @@ describe("/api/dev/auth/session", () => {
   it("issues the audit Export scope only through the allowlisted local Super Admin subject", async () => {
     const { POST } = await import("./route");
     const {
-      LOCAL_CHAT_EXPORT_ADMIN_SUBJECT,
-      LOCAL_PLATFORM_AUTH_ALGORITHM,
-      LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY,
-      LOCAL_PLATFORM_AUTH_ISSUER,
-    } = await import("@/lib/server/auth/local-platform-jwt");
-    const response = await POST(sessionRequest({ subject: LOCAL_CHAT_EXPORT_ADMIN_SUBJECT }));
+      LOCAL_E2E_CHAT_EXPORT_ADMIN_SUBJECT,
+      LOCAL_E2E_AUTH_ALGORITHM,
+      LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY,
+      LOCAL_E2E_AUTH_ISSUER,
+    } = await import("@/lib/server/auth/local-e2e-jwt");
+    const response = await POST(sessionRequest({ subject: LOCAL_E2E_CHAT_EXPORT_ADMIN_SUBJECT }));
     const token = requiredCookieValue(requiredSetCookie(response));
     const { payload } = await jwtVerify(
       token,
-      new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY),
+      new TextEncoder().encode(LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY),
       {
-        issuer: LOCAL_PLATFORM_AUTH_ISSUER,
+        issuer: LOCAL_E2E_AUTH_ISSUER,
         audience: PLATFORM_AUTH_AUDIENCE,
-        algorithms: [LOCAL_PLATFORM_AUTH_ALGORITHM],
+        algorithms: [LOCAL_E2E_AUTH_ALGORITHM],
       },
     );
 
     expect(response.status).toBe(204);
     expect(payload).toMatchObject({
-      sub: LOCAL_CHAT_EXPORT_ADMIN_SUBJECT,
+      sub: LOCAL_E2E_CHAT_EXPORT_ADMIN_SUBJECT,
       scope: `${PLATFORM_AUTH_SCOPE} ${CHAT_AUDIT_EXPORT_SCOPE}`,
     });
   });
 
   it("issues the quota exemption only through an allowlisted pagination subject", async () => {
     const { POST } = await import("./route");
-    const {
-      LOCAL_PLATFORM_AUTH_ALGORITHM,
-      LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY,
-      LOCAL_PLATFORM_AUTH_ISSUER,
-    } = await import("@/lib/server/auth/local-platform-jwt");
+    const { LOCAL_E2E_AUTH_ALGORITHM, LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY, LOCAL_E2E_AUTH_ISSUER } =
+      await import("@/lib/server/auth/local-e2e-jwt");
     const subject = "e2e-latest-member-pagination-43d79df6-df54-4d02-8ecf-a1f410d53e16";
     const response = await POST(sessionRequest({ subject }));
     const token = requiredCookieValue(requiredSetCookie(response));
     const { payload } = await jwtVerify(
       token,
-      new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY),
+      new TextEncoder().encode(LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY),
       {
-        issuer: LOCAL_PLATFORM_AUTH_ISSUER,
+        issuer: LOCAL_E2E_AUTH_ISSUER,
         audience: PLATFORM_AUTH_AUDIENCE,
-        algorithms: [LOCAL_PLATFORM_AUTH_ALGORITHM],
+        algorithms: [LOCAL_E2E_AUTH_ALGORITHM],
       },
     );
 

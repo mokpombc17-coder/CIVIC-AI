@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -28,8 +28,8 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
 
   try {
     await test.step("서로 다른 사용자로 로그인하고 같은 공개 방에 참여한다", async () => {
-      await authenticateDevUserAs(ownerPage, ownerContext, ownerSubject);
-      await authenticateDevUserAs(memberPage, memberContext, memberSubject);
+      await authenticateLocalE2EUserAs(ownerPage, ownerContext, ownerSubject);
+      await authenticateLocalE2EUserAs(memberPage, memberContext, memberSubject);
     });
 
     const roomId = await test.step("방을 만들고 참여자의 개인 inbox 구독을 준비한다", async () => {

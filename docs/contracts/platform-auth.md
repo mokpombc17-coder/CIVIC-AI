@@ -3,20 +3,24 @@
 ## 문서 상태와 범위
 
 이 문서는 웹 애플리케이션, 운영 서버, 사내 Resource Server가 공유할 인증 경계를 정의한다.
-로컬 Next.js 구현은 향후 운영 서버가 담당할 JWT 발급을 실행 가능한 형태로 모방한다. 이 구현은
-운영용 Authorization Server가 아니다.
+로컬 Next.js 구현은 개발자 노트북에서만 사용할 Local E2E JWT fixture issuer다. 이 구현은
+운영용 Authorization Server가 아니며 staging, production 또는 GitHub Actions에 배포하지
+않는다. 운영 인증 서버와 CI 전용 E2E 인증은 각각 별도 환경에서 구성한다.
+
+Local E2E fixture의 실행 범위, 고정 계약과 운영 격리 정책은
+[`local-e2e-auth-fixture.md`](./local-e2e-auth-fixture.md)에서 관리한다.
 
 첫 번째 연동 대상은 `chat-resource-server`이지만 issuer, cookie, subject, audience는 채팅
 전용이 아닌 플랫폼 공통 계약으로 관리한다.
 
 ## 구성요소별 책임
 
-| 구성요소              | 로컬 환경의 책임                                                  | 운영 환경의 책임                                                                          |
-| --------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Next.js               | 로그인을 모방하고 로컬 JWT를 서명해 HttpOnly 쿠키를 설정·삭제한다 | 운영 서버 로그인 흐름을 시작하거나 그 결과를 사용하며 access token을 직접 서명하지 않는다 |
-| 운영 서버             | 아직 존재하지 않는다                                              | 사용자를 인증하고 access token을 발급·갱신하며 쿠키를 설정·삭제한다                       |
-| 브라우저 또는 WebView | 쿠키를 자동으로 전달하며 토큰을 직접 읽지 않는다                  | 동일                                                                                      |
-| Resource Server       | 명시적인 local profile에서만 로컬 fixture JWT를 검증한다          | 운영 서버 JWT를 검증하고 scope를 적용한다                                                 |
+| 구성요소              | 개발자 노트북의 Local E2E 책임                                     | 운영 환경의 책임                                                                          |
+| --------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Next.js               | Local E2E JWT를 서명해 HttpOnly 쿠키를 설정·삭제한다               | 운영 서버 로그인 흐름을 시작하거나 그 결과를 사용하며 access token을 직접 서명하지 않는다 |
+| 운영 서버             | Local E2E fixture 발급에 관여하지 않는다                           | 사용자를 인증하고 access token을 발급·갱신하며 쿠키를 설정·삭제한다                       |
+| 브라우저 또는 WebView | `localhost` 쿠키를 자동으로 전달하며 토큰을 직접 읽지 않는다       | 운영 쿠키를 자동으로 전달하며 토큰을 직접 읽지 않는다                                     |
+| Resource Server       | 노트북에서 실행한 local profile로 Local E2E JWT와 scope를 검증한다 | 운영 서버 JWT만 검증하고 scope를 적용한다                                                 |
 
 ## 공통 access token claims
 
@@ -99,11 +103,11 @@ http://localhost:8082
 
 `localhost`와 `127.0.0.1`을 섞으면 서로 다른 cookie host가 된다.
 
-## 로컬 Next.js issuer
+## Local E2E Next.js issuer
 
-Emulator는 `NODE_ENV`가 `production`이 아닐 때만 사용할 수 있다.
+Fixture issuer는 개발자 노트북에서 `NODE_ENV`가 `production`이 아닐 때만 사용할 수 있다.
 
-로컬 개발자는 전역 헤더의 `임시 로그인 갱신` 버튼으로 session을 생성하거나 갱신한다. 버튼은
+로컬 개발자는 전역 헤더의 `로컬 E2E 로그인 갱신` 버튼으로 session을 생성하거나 갱신한다. 버튼은
 `local-user-1`을 subject로 사용해 아래 API를 호출하며, 현재 route와 관계없이 다시 발급할 수
 있다. 이 UI는 production에서 렌더링되지 않는다.
 
@@ -135,11 +139,12 @@ DELETE /api/dev/auth/session
 잘못된 JSON, 빈 subject, 128자를 초과한 subject는 `400`을 반환한다. Production에서는 두
 method 모두 `404`를 반환하며 쿠키를 설정하거나 삭제하지 않는다.
 
-이 emulator를 활성화하거나 설정하기 위한 `.env` 값은 존재하지 않는다. Resource Server
-담당자가 계약을 그대로 재현할 수 있도록 로컬 계약 전체를 소스에 고정했다. 운영 서버 인증을
-연결하면 구현과 route를 삭제해야 한다.
+현재 fixture issuer를 활성화하거나 설정하기 위한 `.env` 값은 존재하지 않는다. Resource Server
+담당자가 계약을 그대로 재현할 수 있도록 Local E2E 계약 전체를 소스에 고정했다. 운영 서버
+인증을 연결해도 이 구현과 route는 개발자 노트북의 로컬 프로세스에서만 유지한다. GitHub
+Actions, staging과 production에는 포함하거나 배포하지 않는다.
 
-## 로컬 signing fixture
+## Local E2E signing fixture
 
 Algorithm:
 
@@ -156,8 +161,8 @@ civic-ai-local-auth-fixture-signing-key-v1-public-do-not-use-in-production
 이 값은 credential이 아니라 공개된 테스트 재료다. 소스 파일을 나중에 삭제해도 Git 기록에서는
 사라지지 않는다. 따라서 Resource Server는 다음 조건을 모두 지켜야 한다.
 
-1. 명시적인 local profile에서만 fixture key를 허용한다.
-2. 로컬 issuer `http://localhost:3000/api/dev/auth`를 반드시 검증한다.
+1. 개발자 노트북에서 실행한 Resource Server의 local profile에서만 fixture key를 허용한다.
+2. Local E2E issuer `http://localhost:3000/api/dev/auth`를 반드시 검증한다.
 3. Audience `civic-ai-api`를 반드시 검증한다.
 4. Staging과 production에서는 fixture key와 로컬 issuer를 절대 로드하지 않는다.
 5. Production 설정이 fixture로 서명한 토큰을 거부한다는 테스트를 둔다.
@@ -202,8 +207,9 @@ Vote Resource Server도 같은 로컬 issuer, HS256 fixture key, `civic-ai-api` 
 
 ## 운영 계약
 
-운영 서버는 로컬 issuer 구현만 대체한다. 브라우저에 노출되는 쿠키 이름, subject 의미,
-audience, scope와 Resource Server 검증 경계는 유지한다.
+운영 서버는 production 인증 경로를 새로 제공한다. Local E2E issuer는 개발자 노트북에만 남고
+운영 issuer로 교체하거나 배포하지 않는다. 브라우저에 노출되는 쿠키 이름, subject 의미,
+audience, scope와 Resource Server 검증 경계는 가능한 한 동일하게 유지한다.
 
 운영 환경은 로컬 HS256 fixture를 복사해서는 안 된다. 목표 운영 모델은 다음과 같다.
 
@@ -220,15 +226,19 @@ audience, scope와 Resource Server 검증 경계는 유지한다.
 domain 중 하나를 선택해야 한다. 형제 hostname 전체로 쿠키 노출 범위를 넓히지 않도록
 same-origin gateway 방식을 우선한다.
 
-## 로컬 구현 제거 체크리스트
+## 운영 인증 연동 체크리스트
 
 운영 서버 인증을 연결할 때 다음을 수행한다.
 
-1. `local-platform-jwt.ts`를 삭제한다.
-2. `/api/dev/auth/session`을 삭제한다.
-3. 관련 로컬 전용 테스트를 삭제한다.
-4. 운영 서버 모듈에서 사용하지 않는다면 `jose` 의존성을 제거한다.
-5. 이 문서, 플랫폼 계약 상수, 쿠키를 사용하는 클라이언트와 Resource Server contract test는
-   유지한다.
-6. 로컬 issuer 섹션을 최종 운영 issuer, key 배포, 갱신, 로그아웃, WebSocket 만료 정책으로
-   교체한다.
+1. 운영 로그인·로그아웃·세션 확인 endpoint와 쿠키 발급 책임을 운영 서버에 둔다.
+2. Production Resource Server에는 운영 issuer, audience, key/JWKS와 scope 검증만 설정한다.
+3. `local-e2e-jwt.ts`와 `/api/dev/auth/session`은 개발자 노트북에서만 유지하고 배포 산출물로
+   사용하지 않는다.
+4. Production과 staging Resource Server 설정에 Local E2E issuer와 fixture key를 추가하지
+   않는다.
+5. 로컬 채팅 E2E는 Local E2E fixture를 사용한다. CI 전용 E2E와 운영 인증 서버 연동 테스트는
+   별도의 인증 구성을 사용한다.
+6. 운영 JWT 문서를 받으면 issuer, key 배포·회전, 갱신, 로그아웃, WebSocket 만료 정책을 이
+   문서의 운영 계약에 추가한다.
+7. 쿠키 이름이나 subject, audience, scope 계약이 달라지면 웹, 운영 인증 서버와 모든 Resource
+   Server가 함께 검토한다.

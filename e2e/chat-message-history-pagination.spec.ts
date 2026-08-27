@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const MESSAGE_COUNT = 52;
@@ -17,7 +17,7 @@ test("메시지 상단 접근이 beforeSequence 이력을 자동 조회하고 �
     (_, index) => `pagination-${String(index + 1).padStart(2, "0")}-${uniqueId}`,
   );
 
-  await authenticateDevUserAs(page, context, `e2e-pagination-${uniqueId}`);
+  await authenticateLocalE2EUserAs(page, context, `e2e-pagination-${uniqueId}`);
   const roomId = await createRoomAndEnter(page, roomName);
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
   const messageInput = page.getByRole("textbox", { name: "메시지" });

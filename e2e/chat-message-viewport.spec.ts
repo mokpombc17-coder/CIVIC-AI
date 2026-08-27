@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -32,8 +32,12 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
 
   try {
     await test.step("서로 다른 사용자로 로그인해 같은 공개 방의 실시간 구독을 준비한다", async () => {
-      await authenticateDevUserAs(ownerPage, ownerContext, `e2e-viewport-owner-${uniqueId}`);
-      await authenticateDevUserAs(memberPage, memberContext, `e2e-viewport-member-${uniqueId}`);
+      await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-viewport-owner-${uniqueId}`);
+      await authenticateLocalE2EUserAs(
+        memberPage,
+        memberContext,
+        `e2e-viewport-member-${uniqueId}`,
+      );
     });
 
     const roomId = await createRoomAndEnter(ownerPage, roomName);

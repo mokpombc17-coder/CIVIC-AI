@@ -1,9 +1,12 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
-import { AUTHENTICATION_SUCCEEDED_EVENT } from "../apps/web/lib/auth/authentication-session-events";
-import { TEMPORARY_LOGIN_SUBJECT } from "../apps/web/lib/auth/request-temporary-login";
-import { authenticateDevUser, createRoomAndEnter } from "./chat-e2e-helpers";
+import { DEFAULT_LOCAL_E2E_AUTH_SUBJECT } from "../apps/web/lib/auth/request-local-e2e-login";
+import {
+  authenticateLocalE2EUser,
+  createRoomAndEnter,
+  renewLocalE2EAuthenticationSession,
+} from "./chat-e2e-helpers";
 
-test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 흐름을 검증한다", async ({
+test("로컬 E2E 로그인부터 메시지 새로고침 복구까지 실제 채팅 흐름을 검증한다", async ({
   context,
   page,
 }) => {
@@ -11,8 +14,8 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
   const roomName = `e2e-room-${uniqueId}`;
   const message = `Playwright 메시지 ${uniqueId}`;
 
-  await test.step("임시 로그인으로 HttpOnly 인증 쿠키를 발급한다", async () => {
-    await authenticateDevUser(page, context);
+  await test.step("로컬 E2E 로그인으로 HttpOnly 인증 쿠키를 발급한다", async () => {
+    await authenticateLocalE2EUser(page, context);
   });
 
   const roomId = await test.step("실제 REST command로 공개 채팅방을 만들고 방으로 진입한다", () =>
@@ -20,32 +23,10 @@ test("임시 로그인부터 메시지 새로고침 복구까지 실제 채팅 �
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
   const messageInput = page.getByRole("textbox", { name: "메시지" });
 
-  await test.step("채팅 화면을 유지한 채 임시 로그인 세션을 갱신할 수 있다", async () => {
+  await test.step("채팅 화면을 유지한 채 로컬 E2E 로그인 세션을 갱신할 수 있다", async () => {
     const previousAuthCookie = await readAuthCookieValue(context);
-    const sessionStatus = await page.evaluate(
-      async ({ authenticationSucceededEvent, subject }) => {
-        const response = await fetch("/api/dev/auth/session", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ subject }),
-          credentials: "same-origin",
-        });
+    await renewLocalE2EAuthenticationSession(page, DEFAULT_LOCAL_E2E_AUTH_SUBJECT);
 
-        if (response.ok) {
-          window.dispatchEvent(new Event(authenticationSucceededEvent));
-        }
-
-        return response.status;
-      },
-      {
-        authenticationSucceededEvent: AUTHENTICATION_SUCCEEDED_EVENT,
-        subject: TEMPORARY_LOGIN_SUBJECT,
-      },
-    );
-
-    expect(sessionStatus).toBe(204);
     expect(await readAuthCookieValue(context)).not.toBe(previousAuthCookie);
   });
 
@@ -85,6 +66,6 @@ async function readAuthCookieValue(context: BrowserContext): Promise<string> {
     (cookie) => cookie.name === "civic_ai_access_token",
   );
 
-  expect(authCookie, "임시 로그인 쿠키가 발급되어야 합니다.").toBeDefined();
+  expect(authCookie, "로컬 E2E 로그인 쿠키가 발급되어야 합니다.").toBeDefined();
   return authCookie!.value;
 }

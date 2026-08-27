@@ -1,7 +1,16 @@
-import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  type APIRequestContext,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type Response,
+} from "@playwright/test";
+import { AUTHENTICATION_SUCCEEDED_EVENT } from "../apps/web/lib/auth/authentication-session-events";
 import { registerE2EWindow } from "./chat-e2e-window-layout";
 
 const AUTH_COOKIE_NAME = "civic_ai_access_token";
+const LOCAL_E2E_AUTH_SESSION_PATH = "/api/dev/auth/session";
 const ROOM_CATEGORY_LABEL = {
   POLICY: "정책",
   ENVIRONMENT: "환경",
@@ -10,12 +19,12 @@ const ROOM_CATEGORY_LABEL = {
 
 type E2ERoomCategory = keyof typeof ROOM_CATEGORY_LABEL;
 
-export async function authenticateDevUser(page: Page, context: BrowserContext): Promise<void> {
+export async function authenticateLocalE2EUser(page: Page, context: BrowserContext): Promise<void> {
   await registerE2EWindow(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "임시 로그인 갱신", exact: true }).click();
+  await page.getByRole("button", { name: "로컬 E2E 로그인 갱신", exact: true }).click();
 
-  await expect(page.getByRole("button", { name: "임시 로그인 다시 갱신" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "로컬 E2E 로그인 다시 갱신" })).toBeEnabled();
 
   const authCookie = (await context.cookies()).find((cookie) => cookie.name === AUTH_COOKIE_NAME);
 
@@ -23,7 +32,7 @@ export async function authenticateDevUser(page: Page, context: BrowserContext): 
   expect(authCookie?.httpOnly).toBe(true);
 }
 
-export async function authenticateDevUserAs(
+export async function authenticateLocalE2EUserAs(
   page: Page,
   context: BrowserContext,
   subject: string,
@@ -31,16 +40,10 @@ export async function authenticateDevUserAs(
   await registerE2EWindow(page);
   await page.goto("/");
 
-  const response = await page.request.post("/api/dev/auth/session", {
-    data: {
-      subject,
-    },
-  });
-
-  expect(response.status(), `${subject} 사용자의 임시 로그인이 성공해야 합니다.`).toBe(204);
+  await issueLocalE2EAuthenticationSession(page.request, subject);
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "임시 로그인 갱신" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "로컬 E2E 로그인 갱신" })).toBeEnabled();
 
   const authCookie = (await context.cookies()).find((cookie) => cookie.name === AUTH_COOKIE_NAME);
 
@@ -49,6 +52,37 @@ export async function authenticateDevUserAs(
     `${subject} 사용자의 ${AUTH_COOKIE_NAME} 쿠키가 발급되어야 합니다.`,
   ).toBeDefined();
   expect(authCookie?.httpOnly).toBe(true);
+}
+
+export async function issueLocalE2EAuthenticationSession(
+  request: APIRequestContext,
+  subject: string,
+): Promise<void> {
+  const response = await request.post(LOCAL_E2E_AUTH_SESSION_PATH, {
+    data: {
+      subject,
+    },
+  });
+
+  expect(response.status(), `${subject} 사용자의 E2E 로그인이 성공해야 합니다.`).toBe(204);
+}
+
+export async function renewLocalE2EAuthenticationSession(
+  page: Page,
+  subject: string,
+): Promise<void> {
+  await issueLocalE2EAuthenticationSession(page.request, subject);
+  await page.evaluate((eventName) => {
+    window.dispatchEvent(new Event(eventName));
+  }, AUTHENTICATION_SUCCEEDED_EVENT);
+}
+
+export function waitForLocalE2EAuthenticationSessionResponse(page: Page): Promise<Response> {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === LOCAL_E2E_AUTH_SESSION_PATH,
+  );
 }
 
 export async function createRoomAndEnter(

@@ -7,7 +7,7 @@ import {
   type Page,
 } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -45,7 +45,7 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
   let ownerWorkerSessionId: string | null = null;
 
   try {
-    await authenticateDevUserAs(ownerPage, ownerContext, `e2e-receipt-owner-${uniqueId}`);
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-receipt-owner-${uniqueId}`);
     const roomId = await createRoomAndEnter(ownerPage, roomName);
     await expect(ownerPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
 
@@ -60,7 +60,7 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
     ownerWorkerSessionId = attachedOwnerWorker.sessionId;
     await enableSharedWorkerNetwork(browserSession, ownerWorkerSessionId);
 
-    await authenticateDevUserAs(memberPage, memberContext, `e2e-receipt-member-${uniqueId}`);
+    await authenticateLocalE2EUserAs(memberPage, memberContext, `e2e-receipt-member-${uniqueId}`);
     const ownerTopologySnapshot = waitForReceiptState(ownerPage, roomId);
     const memberInitialSnapshot = waitForReceiptState(memberPage, roomId);
     await joinPublicRoomAndEnter(memberPage, roomId, roomName);

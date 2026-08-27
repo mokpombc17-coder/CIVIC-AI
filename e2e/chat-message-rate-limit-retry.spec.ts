@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
 
 test("USER_RATE_LIMITED 중에도 composer를 열어 두고 FIFO로 자동 재전송한다", async ({
   context,
@@ -13,7 +13,7 @@ test("USER_RATE_LIMITED 중에도 composer를 열어 두고 FIFO로 자동 재�
   const queuedMessage = createMaximumCostMessage(`대기열 메시지 ${uniqueId}`);
 
   await test.step("고유 사용자로 로그인해 사용자별 token bucket을 격리한다", async () => {
-    await authenticateDevUserAs(page, context, subject);
+    await authenticateLocalE2EUserAs(page, context, subject);
   });
 
   const roomId = await test.step("실제 REST command로 테스트 방을 만들고 진입한다", () =>

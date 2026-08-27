@@ -7,7 +7,7 @@ import {
   type Page,
 } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -181,8 +181,8 @@ async function createReadStateFixture(
   const memberPage = await memberContext.newPage();
 
   try {
-    await authenticateDevUserAs(ownerPage, ownerContext, `e2e-read-owner-${uniqueId}`);
-    await authenticateDevUserAs(memberPage, memberContext, `e2e-read-member-${uniqueId}`);
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-read-owner-${uniqueId}`);
+    await authenticateLocalE2EUserAs(memberPage, memberContext, `e2e-read-member-${uniqueId}`);
     const roomId = await createRoomAndEnter(ownerPage, roomName);
 
     await expect(ownerPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();

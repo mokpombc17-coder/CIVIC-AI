@@ -2,8 +2,12 @@
 
 이 테스트는 브라우저 API를 흉내 내지 않고 실제 Chromium을 실행해 다음 흐름을 검증한다.
 
+현재 Local E2E 인증 fixture는 개발자 노트북에서 `localhost:3000`의 Next.js와
+`localhost:8082`의 Chat Resource Server를 함께 실행할 때만 사용한다. GitHub Actions를 포함한
+CI에는 이 fixture를 올리지 않으며, CI 자동화에는 별도의 전용 E2E 인증을 구성한다.
+
 ```text
-임시 로그인
+로컬 E2E 로그인
 → 방 생성
 → 방 진입
 → SharedWorker WebSocket 및 STOMP 구독 준비
@@ -133,7 +137,7 @@ ROOM_CLOSED`는 동일 사용자의 두 탭 중 하나가 활성 방 구독을 �
 Optimistic 메시지 행의 `data-delivery-status`를 E2E 관찰 지점으로 사용한다.
 
 ```text
-고유 사용자로 임시 로그인
+고유 사용자로 로컬 E2E 로그인
 → cost 5 메시지로 사용자 token bucket 소진
 → 두 번째 cost 5 메시지 전송
 → retry-waiting 진입 확인
@@ -327,8 +331,8 @@ Backend와 MongoDB를 로컬에서 실행
 → pnpm check와 pnpm build:web 실행
 ```
 
-현재 GitHub Actions의 필수 검사는 `pnpm check`와 `pnpm build:web`이다. Playwright는
-로컬에서 명시적으로 실행하며, 다음 자동화는 아직 추가하지 않는다.
+현재 GitHub Actions의 필수 검사는 `pnpm check`와 `pnpm build:web`이다. Playwright와 Local E2E
+인증 fixture는 개발자 노트북에서 명시적으로 실행하며, 다음 자동화는 아직 추가하지 않는다.
 
 ```text
 PR마다 실행하는 Playwright smoke

@@ -2,18 +2,18 @@
 
 import { useState } from "react";
 import { notifyAuthenticationSucceeded } from "@/lib/auth/authentication-session-events";
-import { requestTemporaryLogin } from "@/lib/auth/request-temporary-login";
+import { requestLocalE2ELogin } from "@/lib/auth/request-local-e2e-login";
 
-type TemporaryLoginStatus = "idle" | "loading" | "authenticated" | "error";
+type LocalE2ELoginStatus = "idle" | "loading" | "authenticated" | "error";
 
-export function TemporaryLoginControl() {
-  const [status, setStatus] = useState<TemporaryLoginStatus>("idle");
+export function LocalE2ELoginControl() {
+  const [status, setStatus] = useState<LocalE2ELoginStatus>("idle");
 
   const login = async () => {
     setStatus("loading");
 
     try {
-      await requestTemporaryLogin();
+      await requestLocalE2ELogin();
       notifyAuthenticationSucceeded(window);
       setStatus("authenticated");
     } catch {
@@ -29,20 +29,20 @@ export function TemporaryLoginControl() {
       onClick={() => void login()}
       type="button"
     >
-      {temporaryLoginLabel(status)}
+      {localE2ELoginLabel(status)}
     </button>
   );
 }
 
-function temporaryLoginLabel(status: TemporaryLoginStatus): string {
+function localE2ELoginLabel(status: LocalE2ELoginStatus): string {
   switch (status) {
     case "loading":
-      return "임시 로그인 발급 중…";
+      return "로컬 E2E 로그인 발급 중…";
     case "authenticated":
-      return "임시 로그인 다시 갱신";
+      return "로컬 E2E 로그인 다시 갱신";
     case "error":
-      return "임시 로그인 실패 · 다시 시도";
+      return "로컬 E2E 로그인 실패 · 다시 시도";
     case "idle":
-      return "임시 로그인 갱신";
+      return "로컬 E2E 로그인 갱신";
   }
 }

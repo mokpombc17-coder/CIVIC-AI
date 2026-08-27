@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -37,7 +37,7 @@ test("네트워크 단절 중 누락된 메시지를 afterSequence로 재연결 
 
   try {
     await test.step("방장 사용자로 로그인한다", async () => {
-      await authenticateDevUserAs(ownerPage, ownerContext, ownerSubject);
+      await authenticateLocalE2EUserAs(ownerPage, ownerContext, ownerSubject);
     });
 
     const roomId =
@@ -62,7 +62,7 @@ test("네트워크 단절 중 누락된 메시지를 afterSequence로 재연결 
 
     const memberPage = await memberContext.newPage();
     await test.step("다른 플랫폼 사용자가 같은 공개 방에 참여한다", async () => {
-      await authenticateDevUserAs(memberPage, memberContext, memberSubject);
+      await authenticateLocalE2EUserAs(memberPage, memberContext, memberSubject);
       await joinPublicRoomAndEnter(memberPage, roomId, roomName);
       await expect(memberPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
     });

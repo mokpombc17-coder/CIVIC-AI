@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUserAs } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs } from "./chat-e2e-helpers";
 
 test("차단된 채팅방 진입은 메시지 화면 대신 목록 복귀 안내를 표시한다", async ({
   context,
@@ -9,7 +9,7 @@ test("차단된 채팅방 진입은 메시지 화면 대신 목록 복귀 안내
   const roomDetailPath = `/api/v1/rooms/${roomId}`;
   const frontendOrigin = new URL(String(testInfo.project.use.baseURL)).origin;
 
-  await authenticateDevUserAs(context, page, `e2e-blocked-member-${crypto.randomUUID()}`);
+  await authenticateLocalE2EUserAs(context, page, `e2e-blocked-member-${crypto.randomUUID()}`);
   await page.route(`**${roomDetailPath}`, async (route) => {
     const request = route.request();
     const url = new URL(request.url());

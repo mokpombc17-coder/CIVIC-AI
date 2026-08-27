@@ -10,33 +10,33 @@ import {
 
 vi.mock("server-only", () => ({}));
 
-describe("issueLocalPlatformJwt", () => {
+describe("issueLocalE2EJwt", () => {
   const paginationFixtureId = "43d79df6-df54-4d02-8ecf-a1f410d53e16";
   const exportFixtureId = "1327c7c0-6241-4fa2-93a5-9abc44bebbc0";
 
   it("issues the documented local platform access-token contract", async () => {
     const {
-      issueLocalPlatformJwt,
-      LOCAL_PLATFORM_AUTH_ALGORITHM,
-      LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY,
-      LOCAL_PLATFORM_AUTH_ISSUER,
-      LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS,
-    } = await import("./local-platform-jwt");
+      issueLocalE2EJwt,
+      LOCAL_E2E_AUTH_ALGORITHM,
+      LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY,
+      LOCAL_E2E_AUTH_ISSUER,
+      LOCAL_E2E_AUTH_TOKEN_TTL_SECONDS,
+    } = await import("./local-e2e-jwt");
     const now = new Date("2026-07-29T00:00:00.000Z");
     const jwtId = "43d79df6-df54-4d02-8ecf-a1f410d53e16";
 
-    const token = await issueLocalPlatformJwt({
+    const token = await issueLocalE2EJwt({
       subject: " owner-1 ",
       now,
       jwtId,
     });
     const { payload, protectedHeader } = await jwtVerify(
       token,
-      new TextEncoder().encode(LOCAL_PLATFORM_AUTH_FIXTURE_SIGNING_KEY),
+      new TextEncoder().encode(LOCAL_E2E_AUTH_FIXTURE_SIGNING_KEY),
       {
-        issuer: LOCAL_PLATFORM_AUTH_ISSUER,
+        issuer: LOCAL_E2E_AUTH_ISSUER,
         audience: PLATFORM_AUTH_AUDIENCE,
-        algorithms: [LOCAL_PLATFORM_AUTH_ALGORITHM],
+        algorithms: [LOCAL_E2E_AUTH_ALGORITHM],
         currentDate: now,
       },
     );
@@ -47,12 +47,12 @@ describe("issueLocalPlatformJwt", () => {
       typ: "JWT",
     });
     expect(payload).toMatchObject({
-      iss: LOCAL_PLATFORM_AUTH_ISSUER,
+      iss: LOCAL_E2E_AUTH_ISSUER,
       aud: PLATFORM_AUTH_AUDIENCE,
       sub: "owner-1",
       scope: PLATFORM_AUTH_SCOPE,
       iat: issuedAt,
-      exp: issuedAt + LOCAL_PLATFORM_AUTH_TOKEN_TTL_SECONDS,
+      exp: issuedAt + LOCAL_E2E_AUTH_TOKEN_TTL_SECONDS,
       jti: jwtId,
     });
     const grantedScopes = String(payload.scope).split(" ");
@@ -65,8 +65,8 @@ describe("issueLocalPlatformJwt", () => {
   it.each(["owner", "member"])(
     "adds the Room membership quota exemption for the pagination %s fixture",
     async (actor) => {
-      const { issueLocalPlatformJwt } = await import("./local-platform-jwt");
-      const token = await issueLocalPlatformJwt({
+      const { issueLocalE2EJwt } = await import("./local-e2e-jwt");
+      const token = await issueLocalE2EJwt({
         subject: `e2e-latest-${actor}-pagination-${paginationFixtureId}`,
       });
 
@@ -79,8 +79,8 @@ describe("issueLocalPlatformJwt", () => {
   it.each(["local-super-admin", `e2e-chat-export-admin-${exportFixtureId}`])(
     "adds the chat audit Export scope for the allowlisted subject: %s",
     async (subject) => {
-      const { issueLocalPlatformJwt } = await import("./local-platform-jwt");
-      const token = await issueLocalPlatformJwt({ subject });
+      const { issueLocalE2EJwt } = await import("./local-e2e-jwt");
+      const token = await issueLocalE2EJwt({ subject });
 
       expect(decodeJwt(token).scope).toBe(`${PLATFORM_AUTH_SCOPE} ${CHAT_AUDIT_EXPORT_SCOPE}`);
     },
@@ -96,16 +96,16 @@ describe("issueLocalPlatformJwt", () => {
     "e2e-chat-export-admin-not-a-uuid",
     `e2e-chat-export-owner-${exportFixtureId}`,
   ])("does not grant a privileged scope to a non-allowlisted subject: %s", async (subject) => {
-    const { issueLocalPlatformJwt } = await import("./local-platform-jwt");
-    const token = await issueLocalPlatformJwt({ subject });
+    const { issueLocalE2EJwt } = await import("./local-e2e-jwt");
+    const token = await issueLocalE2EJwt({ subject });
 
     expect(decodeJwt(token).scope).toBe(PLATFORM_AUTH_SCOPE);
   });
 
   it("rejects an empty subject before signing", async () => {
-    const { issueLocalPlatformJwt } = await import("./local-platform-jwt");
+    const { issueLocalE2EJwt } = await import("./local-e2e-jwt");
 
-    await expect(issueLocalPlatformJwt({ subject: "   " })).rejects.toThrow(
+    await expect(issueLocalE2EJwt({ subject: "   " })).rejects.toThrow(
       "A non-empty subject is required.",
     );
   });

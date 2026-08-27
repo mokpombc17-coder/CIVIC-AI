@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -27,8 +27,8 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
 
   try {
     await test.step("서로 다른 사용자로 로그인하고 같은 공개 방에 참여한다", async () => {
-      await authenticateDevUserAs(ownerPage, ownerContext, ownerSubject);
-      await authenticateDevUserAs(memberPage, memberContext, memberSubject);
+      await authenticateLocalE2EUserAs(ownerPage, ownerContext, ownerSubject);
+      await authenticateLocalE2EUserAs(memberPage, memberContext, memberSubject);
     });
 
     const roomId =

@@ -44,7 +44,7 @@ export function getChatRealtimeQueryErrorPresentation(
       return {
         action: null,
         actionLabel: null,
-        description: "임시 로그인을 다시 실행한 뒤 이 페이지를 새로고침해 주세요.",
+        description: "로컬 E2E 로그인을 다시 실행한 뒤 이 페이지를 새로고침해 주세요.",
         title: "채팅 인증이 필요합니다.",
       };
     }

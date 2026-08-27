@@ -8,7 +8,7 @@ import {
   type Page,
   type Response,
 } from "@playwright/test";
-import { authenticateDevUserAs, findPublicRoomCard } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs, findPublicRoomCard } from "./chat-e2e-helpers";
 
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
@@ -31,12 +31,12 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
   const ownerPage = await ownerContext.newPage();
 
   try {
-    await authenticateDevUserAs(
+    await authenticateLocalE2EUserAs(
       candidatePage,
       candidateContext,
       `e2e-active-room-candidate-${uniqueId}`,
     );
-    await authenticateDevUserAs(ownerPage, ownerContext, `e2e-active-room-owner-${uniqueId}`);
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-active-room-owner-${uniqueId}`);
 
     const targetRoom = await createRoomViaApi(
       ownerContext.request,

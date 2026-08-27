@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { authenticateDevUser, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUser,
+  createRoomAndEnter,
+  waitForLocalE2EAuthenticationSessionResponse,
+} from "./chat-e2e-helpers";
 import {
   closeSharedWorkerWebSockets,
   findNewSharedWorkerTargetId,
@@ -19,7 +23,7 @@ test.skip(
   "백엔드 AUTHENTICATION_REQUIRED STOMP ERROR 계약이 준비되면 CHAT_E2E_AUTHENTICATION_REQUIRED=true로 실행합니다.",
 );
 
-test("인증 실패는 terminal 상태를 유지하고 임시 로그인 성공 후에만 재연결한다", async ({
+test("인증 실패는 terminal 상태를 유지하고 로컬 E2E 로그인 성공 후에만 재연결한다", async ({
   browser,
 }, testInfo) => {
   const baseURL = String(testInfo.project.use.baseURL);
@@ -33,8 +37,8 @@ test("인증 실패는 terminal 상태를 유지하고 임시 로그인 성공 �
   const page = await context.newPage();
 
   try {
-    await test.step("유효한 임시 로그인으로 채팅방 실시간 연결을 활성화한다", async () => {
-      await authenticateDevUser(page, context);
+    await test.step("유효한 로컬 E2E 로그인으로 채팅방 실시간 연결을 활성화한다", async () => {
+      await authenticateLocalE2EUser(page, context);
       await createRoomAndEnter(page, `e2e-authentication-required-${crypto.randomUUID()}`);
 
       await expect(page.getByRole("status").filter({ hasText: ACTIVE_ROOM_LABEL })).toBeVisible();
@@ -92,14 +96,10 @@ test("인증 실패는 terminal 상태를 유지하고 임시 로그인 성공 �
       ).toHaveCount(0);
     });
 
-    await test.step("임시 로그인 성공 이벤트가 명시적으로 실시간 연결을 복구한다", async () => {
-      const loginResponse = page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          new URL(response.url()).pathname === "/api/dev/auth/session",
-      );
+    await test.step("로컬 E2E 로그인 성공 이벤트가 명시적으로 실시간 연결을 복구한다", async () => {
+      const loginResponse = waitForLocalE2EAuthenticationSessionResponse(page);
 
-      await page.getByRole("button", { name: /^임시 로그인(?: 다시)? 갱신$/ }).click();
+      await page.getByRole("button", { name: /^로컬 E2E 로그인(?: 다시)? 갱신$/ }).click();
       expect((await loginResponse).status()).toBe(204);
 
       await expect(page.getByRole("status").filter({ hasText: ACTIVE_ROOM_LABEL })).toBeVisible();

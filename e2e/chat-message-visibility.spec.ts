@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
-  authenticateDevUserAs,
+  authenticateLocalE2EUserAs,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -25,8 +25,8 @@ test("신규 참여자는 참여 이전 메시지를 볼 수 없고 참여 이�
 
   try {
     await test.step("서로 다른 플랫폼 사용자로 로그인하고 공개 채팅방을 만든다", async () => {
-      await authenticateDevUserAs(ownerPage, ownerContext, ownerSubject);
-      await authenticateDevUserAs(memberPage, memberContext, memberSubject);
+      await authenticateLocalE2EUserAs(ownerPage, ownerContext, ownerSubject);
+      await authenticateLocalE2EUserAs(memberPage, memberContext, memberSubject);
     });
 
     const roomId =
@@ -107,8 +107,8 @@ test("재참여자는 이전 참여 구간과 퇴장 중 메시지를 볼 수 �
 
   try {
     await test.step("서로 다른 플랫폼 사용자로 로그인하고 같은 공개 방에 참여한다", async () => {
-      await authenticateDevUserAs(ownerPage, ownerContext, ownerSubject);
-      await authenticateDevUserAs(memberPage, memberContext, memberSubject);
+      await authenticateLocalE2EUserAs(ownerPage, ownerContext, ownerSubject);
+      await authenticateLocalE2EUserAs(memberPage, memberContext, memberSubject);
     });
 
     const roomId = await test.step("방을 만들고 두 사용자의 실시간 구독을 준비한다", async () => {

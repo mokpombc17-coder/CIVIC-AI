@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PlatformPageShell } from "@/components/platform-page-shell";
-import { TemporaryLoginControl } from "@/components/temporary-login-control";
+import { LocalE2ELoginControl } from "@/components/local-e2e-login-control";
 
 export const metadata: Metadata = {
   title: "홈",
@@ -20,9 +20,9 @@ export default function HomePage() {
         </section>
         {process.env.NODE_ENV !== "production" ? (
           <section className="panel">
-            <h2>개발용 인증</h2>
-            <p>로컬 채팅 기능을 확인할 임시 세션을 발급합니다.</p>
-            <TemporaryLoginControl />
+            <h2>로컬 E2E 인증</h2>
+            <p>개발자 노트북에서 로컬 채팅 프로세스를 확인할 E2E 세션을 발급합니다.</p>
+            <LocalE2ELoginControl />
           </section>
         ) : null}
       </div>

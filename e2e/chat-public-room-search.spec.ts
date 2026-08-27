@@ -6,7 +6,7 @@ import {
   type Page,
   type Response,
 } from "@playwright/test";
-import { authenticateDevUserAs } from "./chat-e2e-helpers";
+import { authenticateLocalE2EUserAs } from "./chat-e2e-helpers";
 
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
@@ -36,17 +36,17 @@ test("공개 방 검색과 카테고리 필터가 같은 조건의 cursor pagina
 
   try {
     await Promise.all([
-      authenticateDevUserAs(
+      authenticateLocalE2EUserAs(
         observerPage,
         observerContext,
         `e2e-public-search-observer-${uniqueId}`,
       ),
-      authenticateDevUserAs(
+      authenticateLocalE2EUserAs(
         primaryOwnerPage,
         primaryOwnerContext,
         `e2e-public-search-owner-a-${uniqueId}`,
       ),
-      authenticateDevUserAs(
+      authenticateLocalE2EUserAs(
         secondaryOwnerPage,
         secondaryOwnerContext,
         `e2e-public-search-owner-b-${uniqueId}`,
