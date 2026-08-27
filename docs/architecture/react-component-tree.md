@@ -272,36 +272,32 @@ View는 native Dialog의 focus·Escape·backdrop 동작과 form 표현만 담당
 
 ## Route `/vote`, `/vote/[taskId]`, `/vote/[taskId]/result`
 
-`VoteLayout`은 Vote route segment 전체에 `VoteQueryProvider`를 배치한다. Provider는 Task 목록·상세,
-prediction, submission과 완료 결과 query cache를 소유하고 인증 성공 이벤트에서 이전 사용자의
-Vote cache를 제거한다. `/vote` 목록은 `VotePage`가 공통 `PlatformPageShell`과 하단 플랫폼
-내비게이션을 조립하고, `VoteTaskListScreen`이 진행 중 Task의 실제 API 상태와 완료 Task의 adapter
-상태를 탭별로 제어한다. 완료 탭은 검색을 제공하지 않는다.
+`VoteLayout`은 별도 client provider를 두지 않고 nested Vote page를 그대로 제공한다. Backend READY 전
+퍼블리싱 단계에서는 각 Vote screen container가 `vote-publishing-fixtures`를 읽고 자체 `PlatformShell`,
+`PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의 `VoteTaskListScreen`은 검색 실행,
+진행 중·완료 필터와 목 카드 목록을 소유한다.
 
-상세의 `VoteTaskScreen`은 1/4 과업 확인부터 4/4 참여 완료까지의 단계, prediction capability와
-bounded polling, 선택지·이유 draft, 제출용 idempotency key와 동일 body 복구, 종료 bottom sheet를
-소유한다. 상세·결과 화면은 입력 흐름에 집중하도록 하단 내비게이션을 비운 자체
-`PlatformPageShell`을 조립한다. `VoteTaskResultScreen`은 확정 결과 adapter를 조회해 선택지 count를
-percentage로 변환하고 내 선택과 immutable `finalReason`을 표시한다. 완료·결과 Backend가 READY가
-되기 전에는 명시적 mock adapter를 사용하며 실제 API 오류에서 mock으로 자동 전환하지 않는다.
+`VoteTaskScreen`은 1/4 과업 확인부터 4/4 참여 완료까지의 local draft와 단계 전이, 직접 입력,
+종료 bottom sheet를 소유한다. `VoteTaskResultScreen`은 예정 결과 계약을 반영한 fixture의 count를
+percentage로 변환하고 내 선택과 이유를 표시한다. 기존 Vote API client, query hook과
+`VoteQueryProvider`는 Backend READY 이후 연동 재개를 위해 코드에 보존하지만 현재 route graph에는
+설치하지 않는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 └── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
     └── children [slot: App Router가 route child를 제공]
         └── VoteLayout [Server] [Route] (apps/web/app/vote/layout.tsx)
-            └── VoteQueryProvider [Client] [Provider] (apps/web/components/vote/vote-query-provider.tsx)
-                └── children [slot: nested page를 제공]
-                    ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
-                    │   └── PlatformPageShell [Server-compatible] [View]
-                    │       ├── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
-                    │       └── PlatformNavigationClient [Client] [View]
-                    ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
-                    │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
-                    │       └── PlatformPageShell [Client graph] [View] [bottom navigation: none]
-                    └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)
-                        └── VoteTaskResultScreen [Client] [Container] (apps/web/components/vote/vote-task-result-screen.tsx)
-                            └── PlatformPageShell [Client graph] [View] [bottom navigation: none]
+            └── children [slot: nested page를 제공]
+                ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
+                │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
+                │       └── PlatformShell [Client graph] [View]
+                ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
+                │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
+                │       └── PlatformShell [Client graph] [View] [conditional bottom sheet]
+                └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)
+                    └── VoteTaskResultScreen [Client] [Container] (apps/web/components/vote/vote-task-result-screen.tsx)
+                        └── PlatformShell [Client graph] [View]
 ```
 
 ## App Router special UI
@@ -398,7 +394,6 @@ flowchart TD
     ChatMessageComposer["ChatMessageComposer [Client] [Feature]<br/>apps/web/components/chat-message-composer.tsx"]
 
     VoteLayout["VoteLayout [Server] [Route]<br/>apps/web/app/vote/layout.tsx"]
-    VoteQueryProvider["VoteQueryProvider [Client] [Provider]<br/>apps/web/components/vote/vote-query-provider.tsx"]
     VoteChildrenSlot["vote children slot<br/>nested page를 제공"]
     VotePage["VotePage [Server] [Route]<br/>apps/web/app/vote/page.tsx"]
     VoteTaskListScreen["VoteTaskListScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-list-screen.tsx"]
@@ -479,17 +474,19 @@ flowchart TD
     ChatRoomSettingsControlView -->|"conditional settings dialog"| ChatRoomCategorySelector
 
     ChildrenSlot -. "route /vote" .-> VoteLayout
-    VoteLayout --> VoteQueryProvider
-    VoteQueryProvider --> VoteChildrenSlot
+    VoteLayout --> VoteChildrenSlot
     VoteChildrenSlot -. "route /vote" .-> VotePage
-    VotePage --> PlatformPageShell
-    PlatformPageShell --> VoteTaskListScreen
+    VotePage --> VoteTaskListScreen
+    VoteTaskListScreen --> PlatformShell
+    VoteTaskListScreen --> PlatformNavigationClient
     VoteChildrenSlot -. "route /vote/[taskId]" .-> VoteTaskPage
     VoteTaskPage --> VoteTaskScreen
-    VoteTaskScreen --> PlatformPageShell
+    VoteTaskScreen --> PlatformShell
+    VoteTaskScreen --> PlatformNavigationClient
     VoteChildrenSlot -. "route /vote/[taskId]/result" .-> VoteTaskResultPage
     VoteTaskResultPage --> VoteTaskResultScreen
-    VoteTaskResultScreen --> PlatformPageShell
+    VoteTaskResultScreen --> PlatformShell
+    VoteTaskResultScreen --> PlatformNavigationClient
 
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage
