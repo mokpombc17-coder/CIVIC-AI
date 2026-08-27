@@ -64,7 +64,7 @@ describe("simulation billing contracts", () => {
           outputUsdPerMillion: "15",
           cacheReadUsdPerMillion: "0.3",
           cacheWriteUsdPerMillion: "3.75",
-          reasoningUsdPerMillion: "15",
+          reasoningUsdPerMillion: "0E-12",
         },
       ],
     };
