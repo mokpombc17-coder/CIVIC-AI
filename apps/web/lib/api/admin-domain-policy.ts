@@ -1,6 +1,12 @@
 export type AdminDomainRoute = Readonly<{
   path: string;
-  scope: "chat:rooms:approve" | "vote:tasks:admin";
+  scope:
+    | "chat:rooms:approve"
+    | "simulation:billing:read"
+    | "simulation:billing:write"
+    | "simulation:tasks:read"
+    | "simulation:tasks:run"
+    | "vote:tasks:admin";
 }>;
 
 type RouteFailure = Readonly<{ allowedMethods: readonly string[]; status: 404 | 405 }>;
@@ -57,6 +63,128 @@ export function matchVoteTaskAdminRoute(
     : { allowedMethods: [], status: 404 };
 }
 
+export function matchSimulationTaskRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  if (!uuid.test(segments[0] ?? "") || segments[1] !== "simulations") {
+    return { allowedMethods: [], status: 404 };
+  }
+  if (segments.length === 3 && segments[2] === "preview") {
+    return allow(normalizedMethod, ["POST"], taskPath(segments), "simulation:tasks:read");
+  }
+  if (segments.length !== 2) return { allowedMethods: [], status: 404 };
+  const scope = normalizedMethod === "POST" ? "simulation:tasks:run" : "simulation:tasks:read";
+  return allow(normalizedMethod, ["GET", "POST"], taskPath(segments), scope);
+}
+
+export function matchSimulationTaskCatalogRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  if (segments.length === 0) {
+    return allow(
+      normalizedMethod,
+      ["GET"],
+      simulationTaskCatalogPath(segments),
+      "simulation:tasks:read",
+    );
+  }
+  if (segments.length === 1 && uuid.test(segments[0] ?? "")) {
+    return allow(
+      normalizedMethod,
+      ["GET"],
+      simulationTaskCatalogPath(segments),
+      "simulation:tasks:read",
+    );
+  }
+  return { allowedMethods: [], status: 404 };
+}
+
+export function matchSimulationBillingRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  const read = (allowedMethods: readonly string[] = ["GET"]) =>
+    allow(
+      normalizedMethod,
+      allowedMethods,
+      simulationBillingPath(segments),
+      "simulation:billing:read",
+    );
+  const write = (allowedMethods: readonly string[] = ["POST"]) =>
+    allow(
+      normalizedMethod,
+      allowedMethods,
+      simulationBillingPath(segments),
+      "simulation:billing:write",
+    );
+  if (segments.length === 1 && ["wallet", "policies"].includes(segments[0] ?? "")) {
+    return read();
+  }
+  if (segments.length === 1 && segments[0] === "coupons") return write();
+  if (segments.length === 2 && segments[0] === "coupons" && segments[1] === "redeem") {
+    return write();
+  }
+  if (
+    segments.length === 2 &&
+    ((segments[0] === "reports" && ["daily", "daily.csv"].includes(segments[1] ?? "")) ||
+      (segments[0] === "imports" && segments[1] === "latest"))
+  ) {
+    return read();
+  }
+  if (
+    segments.length === 3 &&
+    segments[0] === "policies" &&
+    ["fx", "provider-prices", "model-prices"].includes(segments[1] ?? "") &&
+    segments[2] === "drafts"
+  ) {
+    return write();
+  }
+  if (
+    segments.length === 4 &&
+    segments[0] === "policies" &&
+    ["fx", "provider-prices", "model-prices"].includes(segments[1] ?? "") &&
+    /^[1-9]\d*$/u.test(segments[2] ?? "") &&
+    segments[3] === "activate"
+  ) {
+    return write();
+  }
+  return { allowedMethods: [], status: 404 };
+}
+
+export function matchSimulationAdminRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  if (!uuid.test(segments[0] ?? "")) return { allowedMethods: [], status: 404 };
+  if (segments.length === 1) {
+    return allow(normalizedMethod, ["GET"], simulationPath(segments), "simulation:tasks:read");
+  }
+  if (segments.length !== 2) return { allowedMethods: [], status: 404 };
+  const action = segments[1] ?? "";
+  if (action === "cancel") {
+    return allow(normalizedMethod, ["POST"], simulationPath(segments), "simulation:tasks:run");
+  }
+  if (action === "results") {
+    return allow(normalizedMethod, ["GET"], simulationPath(segments), "simulation:tasks:read");
+  }
+  return { allowedMethods: [], status: 404 };
+}
+
+export function matchSimulationOptionsRoute(method: string): AdminDomainRoute | RouteFailure {
+  return allow(
+    method.toUpperCase(),
+    ["GET"],
+    "/api/v1/admin/simulation-options",
+    "simulation:tasks:read",
+  );
+}
+
 function allow(
   method: string,
   allowedMethods: readonly string[],
@@ -72,6 +200,18 @@ function chatPath(segments: readonly string[]): string {
 
 function taskPath(segments: readonly string[]): string {
   return path("/api/v1/admin/tasks", segments);
+}
+
+function simulationPath(segments: readonly string[]): string {
+  return path("/api/v1/admin/simulations", segments);
+}
+
+function simulationTaskCatalogPath(segments: readonly string[]): string {
+  return path("/api/v1/admin/simulation-tasks", segments);
+}
+
+function simulationBillingPath(segments: readonly string[]): string {
+  return path("/api/v1/admin/simulation-billing", segments);
 }
 
 function path(prefix: string, segments: readonly string[]): string {

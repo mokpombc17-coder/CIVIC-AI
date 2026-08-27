@@ -34,6 +34,7 @@ export function createResourceServerProxy(config: ResourceServerProxyConfig) {
     try {
       credential = await resolveCivicProductionCredential({
         browserRequest: incoming,
+        expectedOrigin: browserOrigin,
         requestId,
       });
     } catch (error) {
