@@ -7,7 +7,7 @@ import org.springframework.validation.annotation.Validated;
 
 @Validated
 @ConfigurationProperties("chat.security.local-jwt")
-public class LocalJwtProperties {
+public class FixtureJwtProperties {
 
     @NotBlank
     @Size(min = 32)

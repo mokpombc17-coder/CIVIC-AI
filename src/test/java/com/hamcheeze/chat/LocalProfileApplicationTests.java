@@ -54,7 +54,7 @@ import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import com.hamcheeze.chat.room.mongo.MongoRoomAccessReader;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.support.RecordingChatMessagePipeline;
-import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
+import com.hamcheeze.chat.websocket.config.FixtureJwtProperties;
 import com.hamcheeze.chat.websocket.health.ChatPipelineHealthIndicator;
 import com.hamcheeze.chat.websocket.access.WebSocketRoomAccessRevoker;
 import com.mongodb.ReadConcern;
@@ -181,7 +181,7 @@ class LocalProfileApplicationTests
     private JwtDecoder jwtDecoder;
 
     @Autowired
-    private LocalJwtProperties jwtProperties;
+    private FixtureJwtProperties jwtProperties;
 
     @Autowired
     private RoomAuthorizationService authorizationService;

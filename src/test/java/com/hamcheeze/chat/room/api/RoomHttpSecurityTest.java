@@ -7,7 +7,7 @@ import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
-import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
+import com.hamcheeze.chat.websocket.config.FixtureJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -59,7 +59,7 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private LocalJwtProperties localJwtProperties;
+    private FixtureJwtProperties localJwtProperties;
 
     @Test
     void chatExportRequiresDedicatedAuditScope() throws Exception {

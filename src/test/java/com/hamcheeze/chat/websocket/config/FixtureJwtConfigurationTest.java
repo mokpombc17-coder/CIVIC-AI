@@ -17,16 +17,16 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class LocalJwtConfigurationTest {
+class FixtureJwtConfigurationTest {
 
-    private LocalJwtProperties properties;
+    private FixtureJwtProperties properties;
     private JwtDecoder decoder;
 
     @BeforeEach
     void setUp() {
-        properties = new LocalJwtProperties();
-        decoder = new LocalJwtConfiguration(properties)
-                .localJwtDecoder();
+        properties = new FixtureJwtProperties();
+        decoder = new FixtureJwtConfiguration(properties)
+                .fixtureJwtDecoder();
     }
 
     @Test
@@ -40,7 +40,7 @@ class LocalJwtConfigurationTest {
     }
 
     @Test
-    void acceptsLocalTokenWithExpectedIssuerAndAudience()
+    void acceptsFixtureTokenWithExpectedIssuerAndAudience()
             throws Exception {
         String token = token(
                 "local-user-1",

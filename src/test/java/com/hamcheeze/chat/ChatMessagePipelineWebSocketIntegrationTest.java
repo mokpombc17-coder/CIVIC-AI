@@ -17,7 +17,7 @@ import com.hamcheeze.chat.room.application.RoomCommandService;
 import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
-import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
+import com.hamcheeze.chat.websocket.config.FixtureJwtProperties;
 import com.hamcheeze.chat.websocket.subscription.ChatSubscriptionRegistry;
 import com.hamcheeze.chat.websocket.subscription.SubscriptionDescriptor;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -92,7 +92,7 @@ class ChatMessagePipelineWebSocketIntegrationTest
     private int port;
 
     @Autowired
-    private LocalJwtProperties jwtProperties;
+    private FixtureJwtProperties jwtProperties;
 
     @Autowired
     private ActiveConnectionRegistry activeConnections;

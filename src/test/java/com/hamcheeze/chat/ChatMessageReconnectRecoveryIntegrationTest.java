@@ -10,7 +10,7 @@ import com.hamcheeze.chat.delivery.ChatMessageEventEnvelope;
 import com.hamcheeze.chat.message.mongo.MongoChatMessageDocument;
 import com.hamcheeze.chat.message.mongo.MongoRoomSequenceDocument;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
-import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
+import com.hamcheeze.chat.websocket.config.FixtureJwtProperties;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -73,7 +73,7 @@ class ChatMessageReconnectRecoveryIntegrationTest
     private int port;
 
     @Autowired
-    private LocalJwtProperties jwtProperties;
+    private FixtureJwtProperties jwtProperties;
 
     @MockitoSpyBean
     private ActiveConnectionRegistry activeConnections;

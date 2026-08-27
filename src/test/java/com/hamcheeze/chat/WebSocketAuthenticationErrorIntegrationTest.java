@@ -2,7 +2,7 @@ package com.hamcheeze.chat;
 
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
-import com.hamcheeze.chat.websocket.config.LocalJwtProperties;
+import com.hamcheeze.chat.websocket.config.FixtureJwtProperties;
 import com.hamcheeze.chat.websocket.protocol.ChatStompErrorHandler;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -45,7 +45,7 @@ class WebSocketAuthenticationErrorIntegrationTest
     private int port;
 
     @Autowired
-    private LocalJwtProperties jwtProperties;
+    private FixtureJwtProperties jwtProperties;
 
     @Autowired
     private ChatStompErrorHandler stompErrorHandler;

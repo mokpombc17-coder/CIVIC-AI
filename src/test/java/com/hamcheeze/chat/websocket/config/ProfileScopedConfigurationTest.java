@@ -22,16 +22,29 @@ class ProfileScopedConfigurationTest {
                                     + "http://localhost:3000/api/dev/auth",
                             "chat.security.local-jwt.audience="
                                     + "civic-ai-api")
-                    .withUserConfiguration(LocalJwtConfiguration.class);
+                    .withUserConfiguration(FixtureJwtConfiguration.class);
 
     @Test
-    void prodDoesNotCreateLocalFixtureDecoder() {
+    void prodDoesNotCreateFixtureDecoder() {
         contextRunner.run(context -> {
             assertThat(context.getBeansOfType(
-                    LocalJwtProperties.class)).isEmpty();
+                    FixtureJwtProperties.class)).isEmpty();
             assertThat(context.getBeansOfType(
                     JwtDecoder.class)).isEmpty();
         });
+    }
+
+    @Test
+    void localCreatesNamedFixtureDecoder() {
+        new ApplicationContextRunner()
+                .withPropertyValues("spring.profiles.active=local")
+                .withUserConfiguration(FixtureJwtConfiguration.class)
+                .run(context -> {
+                    assertThat(context)
+                            .hasSingleBean(FixtureJwtProperties.class)
+                            .hasSingleBean(JwtDecoder.class)
+                            .hasBean("fixtureJwtDecoder");
+                });
     }
 
     @Test
