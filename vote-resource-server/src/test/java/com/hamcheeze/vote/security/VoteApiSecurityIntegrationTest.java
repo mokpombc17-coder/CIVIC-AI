@@ -1,7 +1,7 @@
 package com.hamcheeze.vote.security;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
-import com.hamcheeze.vote.security.local.LocalJwtProperties;
+import com.hamcheeze.vote.security.local.FixtureJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -54,7 +54,7 @@ class VoteApiSecurityIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private LocalJwtProperties properties;
+    private FixtureJwtProperties properties;
 
     @Autowired
     private VoteApiSecurityProblemWriter problemWriter;
@@ -307,7 +307,7 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
-    void allowsTaskAdminApiWithTaskAdminScope()
+    void localFixtureAllowsTaskAdminApiWithTaskAdminScope()
             throws Exception {
         String taskAdminToken = scopedToken(
                 "user-a",
@@ -321,7 +321,7 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
-    void deniesTaskAdminApiWithOnlyUserScopes()
+    void localFixtureDeniesTaskAdminApiWithOnlyUserScopes()
             throws Exception {
         String allUserScopesToken = scopedToken(
                 "user-a",

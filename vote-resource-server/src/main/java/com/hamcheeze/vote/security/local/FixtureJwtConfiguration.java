@@ -23,19 +23,19 @@ import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 @Profile("local")
-@EnableConfigurationProperties(LocalJwtProperties.class)
-public class LocalJwtConfiguration {
+@EnableConfigurationProperties(FixtureJwtProperties.class)
+public class FixtureJwtConfiguration {
 
-    private final LocalJwtProperties properties;
+    private final FixtureJwtProperties properties;
 
-    public LocalJwtConfiguration(
-            LocalJwtProperties properties
+    public FixtureJwtConfiguration(
+            FixtureJwtProperties properties
     ) {
         this.properties = properties;
     }
 
-    @Bean
-    JwtDecoder localJwtDecoder() {
+    @Bean("fixtureJwtDecoder")
+    JwtDecoder fixtureJwtDecoder() {
         SecretKeySpec secretKey = new SecretKeySpec(
                 properties.getSecret().getBytes(StandardCharsets.UTF_8),
                 "HmacSHA256");
