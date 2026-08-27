@@ -11,6 +11,10 @@ import {
   SimulationSectionTabs,
 } from "@/components/admin/simulation-billing-panels";
 import {
+  AnonymousPanelAttributes,
+  PublicSimulationEvidence,
+} from "@/components/admin/simulation-result-presentation";
+import {
   formatAdminProblem,
   readAdminProblem,
   readTaskDetail,
@@ -719,58 +723,7 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
               </li>
             ))}
           </ol>
-          <section className="civic-domain-form-section">
-            <header>
-              <span>전체 실행 검증</span>
-              <h3>자료조사 · 정보처리 · Persona 응답</h3>
-            </header>
-            <dl className="civic-domain-impact-list">
-              <div>
-                <dt>응답 비율 예측</dt>
-                <dd>{result.engine.calibration.answerDistributionModel}</dd>
-              </div>
-              <div>
-                <dt>Persona 적합도 배정</dt>
-                <dd>{result.engine.calibration.assignmentModel}</dd>
-              </div>
-              <div>
-                <dt>A / B / C 배정</dt>
-                <dd>
-                  {result.engine.calibration.assignedInformationPracticeCounts.A} /{" "}
-                  {result.engine.calibration.assignedInformationPracticeCounts.B} /{" "}
-                  {result.engine.calibration.assignedInformationPracticeCounts.C}
-                </dd>
-              </div>
-              <div>
-                <dt>Naver 수집 문서</dt>
-                <dd>{result.engine.externalInformation.collectedDocumentCount}건</dd>
-              </div>
-              <div>
-                <dt>뉴스 / 블로그</dt>
-                <dd>
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.news} /{" "}
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.blog}
-                </dd>
-              </div>
-              <div>
-                <dt>카페 / 웹문서</dt>
-                <dd>
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.cafearticle} /{" "}
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.webkr}
-                </dd>
-              </div>
-              <div>
-                <dt>최종 Persona 응답 모델</dt>
-                <dd>{result.engine.modelType ?? result.run.modelType}</dd>
-              </div>
-              <div>
-                <dt>병렬 처리</dt>
-                <dd>
-                  Persona {result.engine.personaWorkers} · 내부 {result.engine.innerWorkers}
-                </dd>
-              </div>
-            </dl>
-          </section>
+          <PublicSimulationEvidence engine={result.engine} />
           {result.respondents.length > 0 ? (
             <Link
               className="civic-secondary-action"
@@ -813,26 +766,7 @@ function SimulationPanelDetail({
               <dt>선택</dt>
               <dd>{selected?.content ?? "미응답"}</dd>
             </div>
-            <div>
-              <dt>성별</dt>
-              <dd>{respondent.demographics.gender ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>연령대</dt>
-              <dd>{respondent.demographics.ageGroup ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>지역</dt>
-              <dd>{respondent.demographics.region ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>정치 성향</dt>
-              <dd>{respondent.demographics.politicalIdeology ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>정보 유형</dt>
-              <dd>{respondent.demographics.informationType ?? "미분류"}</dd>
-            </div>
+            <AnonymousPanelAttributes respondent={respondent} />
           </dl>
           <div className="civic-simulation-actions">
             {requestedOrdinal > 1 ? (
