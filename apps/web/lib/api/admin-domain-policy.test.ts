@@ -4,7 +4,6 @@ import {
   matchSimulationAdminRoute,
   matchSimulationOptionsRoute,
   matchSimulationTaskRoute,
-  matchSimulationTaskSnapshotRoute,
   matchVoteTaskAdminRoute,
 } from "./admin-domain-policy";
 
@@ -61,14 +60,6 @@ describe("admin domain route allowlist", () => {
   });
 
   it("allows only aggregate Task simulation routes", () => {
-    expect(matchSimulationTaskSnapshotRoute("GET", [])).toEqual({
-      path: "/api/v1/admin/simulation-tasks",
-      scope: "simulation:tasks:read",
-    });
-    expect(matchSimulationTaskSnapshotRoute("GET", [taskId])).toEqual({
-      path: `/api/v1/admin/simulation-tasks/${taskId}`,
-      scope: "simulation:tasks:read",
-    });
     expect(matchSimulationTaskRoute("POST", [taskId, "simulations"])).toEqual({
       path: `/api/v1/admin/tasks/${taskId}/simulations`,
       scope: "simulation:tasks:run",
@@ -88,10 +79,6 @@ describe("admin domain route allowlist", () => {
   });
 
   it("does not expose individual Persona routes through the simulation proxy", () => {
-    expect(matchSimulationTaskSnapshotRoute("POST", [taskId])).toEqual({
-      allowedMethods: ["GET"],
-      status: 405,
-    });
     expect(matchSimulationAdminRoute("GET", [taskId, "personas"])).toEqual({
       allowedMethods: [],
       status: 404,

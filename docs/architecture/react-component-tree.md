@@ -130,7 +130,7 @@ Browser /api/v1/admin/tasks/{taskId}/simulations|simulations/**|simulation-optio
     ├── Access Token raw equality 검사
     └── Simulation upstream에 동일 Cookie + Bearer 전달
 
-Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/tasks/** | /api/v1/admin/simulation-tasks/**
+Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/tasks/**
 └── Admin Domain BFF
     ├── 화면별 path·method allowlist
     ├── same-origin 검사
