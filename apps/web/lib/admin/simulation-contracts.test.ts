@@ -20,6 +20,11 @@ describe("simulation contracts", () => {
         createdAt: "2026-08-26T00:00:00Z",
         startedAt: "2026-08-26T00:00:01Z",
         completedAt: null,
+        estimatedKrw: 2700,
+        holdKrw: 3240,
+        settledKrw: null,
+        absorbedKrw: null,
+        billingState: "HELD",
       }),
     ).not.toBeNull();
   });

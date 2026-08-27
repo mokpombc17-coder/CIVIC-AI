@@ -24,6 +24,11 @@ const simulationViewSchema = z
     createdAt: z.string().min(1),
     startedAt: z.string().min(1).nullable(),
     completedAt: z.string().min(1).nullable(),
+    estimatedKrw: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+    holdKrw: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+    settledKrw: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+    absorbedKrw: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+    billingState: z.enum(["UNBILLED", "HELD", "SETTLED", "RELEASED"]).optional(),
   })
   .strict();
 

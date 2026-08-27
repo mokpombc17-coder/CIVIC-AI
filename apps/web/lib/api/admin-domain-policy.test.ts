@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   matchChatAdminRoute,
   matchSimulationAdminRoute,
+  matchSimulationBillingRoute,
   matchSimulationOptionsRoute,
   matchSimulationTaskRoute,
   matchVoteTaskAdminRoute,
@@ -75,6 +76,43 @@ describe("admin domain route allowlist", () => {
     expect(matchSimulationOptionsRoute("GET")).toEqual({
       path: "/api/v1/admin/simulation-options",
       scope: "simulation:tasks:read",
+    });
+    expect(matchSimulationTaskRoute("POST", [taskId, "simulations", "preview"])).toEqual({
+      path: `/api/v1/admin/tasks/${taskId}/simulations/preview`,
+      scope: "simulation:tasks:read",
+    });
+  });
+
+  it("allows the documented simulation billing surface only", () => {
+    expect(matchSimulationBillingRoute("GET", ["wallet"])).toEqual({
+      path: "/api/v1/admin/simulation-billing/wallet",
+      scope: "simulation:billing:read",
+    });
+    expect(matchSimulationBillingRoute("POST", ["coupons", "redeem"])).toEqual({
+      path: "/api/v1/admin/simulation-billing/coupons/redeem",
+      scope: "simulation:billing:write",
+    });
+    expect(
+      matchSimulationBillingRoute("POST", ["policies", "provider-prices", "2", "activate"]),
+    ).toEqual({
+      path: "/api/v1/admin/simulation-billing/policies/provider-prices/2/activate",
+      scope: "simulation:billing:write",
+    });
+    expect(matchSimulationBillingRoute("GET", ["imports", "latest"])).toEqual({
+      path: "/api/v1/admin/simulation-billing/imports/latest",
+      scope: "simulation:billing:read",
+    });
+    expect(matchSimulationBillingRoute("GET", ["reports", "daily.csv"])).toEqual({
+      path: "/api/v1/admin/simulation-billing/reports/daily.csv",
+      scope: "simulation:billing:read",
+    });
+    expect(matchSimulationBillingRoute("DELETE", ["wallet"])).toEqual({
+      allowedMethods: ["GET"],
+      status: 405,
+    });
+    expect(matchSimulationBillingRoute("POST", ["wallet", "credit"])).toEqual({
+      allowedMethods: [],
+      status: 404,
     });
   });
 
