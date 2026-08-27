@@ -56,6 +56,88 @@ describe("simulation contracts", () => {
     expect(readSimulationResult({ personaId: "user-persona", prediction: "A" })).toBeNull();
   });
 
+  it("accepts the pricing fingerprint returned by billed simulation results", () => {
+    const result = readSimulationResult({
+      schemaVersion: "CIVIC_TASK_SIMULATION_RESULT_V1",
+      task: {
+        id: taskId,
+        title: "AI 투명성 의무",
+        description: null,
+        status: "DRAFT",
+        question: {
+          id: "4adc6519-8a61-4724-af2a-21979688b2f4",
+          content: "의무 강화에 동의하십니까?",
+          description: null,
+          options: [
+            {
+              id: "f8f5ca57-c1d3-4a28-949a-c48b6d508b6a",
+              displayOrder: 1,
+              content: "동의한다",
+            },
+            {
+              id: "04e503a5-7655-4ce8-aa19-364d2e7426be",
+              displayOrder: 2,
+              content: "동의하지 않는다",
+            },
+          ],
+        },
+      },
+      run: {
+        personaCount: 10,
+        modelType: "claude-sonnet-4-6",
+        sampleSeed: 20260827,
+        filters: {},
+        pricingFingerprint: "pricing-policy-sha256",
+      },
+      summary: {
+        requestedPersonaCount: 10,
+        answeredPersonaCount: 10,
+        unansweredPersonaCount: 0,
+        optionResults: [],
+      },
+      respondents: [],
+      engine: {
+        name: "SONA PersonaSim",
+        sourceCommit: "source-commit",
+        modelType: "claude-sonnet-4-6",
+        elapsedSeconds: 263.585,
+        profileSha256: "profile-sha256",
+        networkSha256: "network-sha256",
+        calibration: {
+          pipelineVersion: "CALIBRATED_PERSONA_PIPELINE_V1",
+          contractVersion: "PERSONA_CALIBRATION_V1",
+          answerDistributionModel: "anthropic/claude-sonnet-5",
+          assignmentModel: "openai/gpt-5.6-luna",
+          answerDistribution: [["68.0", "32.0"]],
+          informationPracticeDistribution: ["22", "58", "20"],
+          assignedInformationPracticeCounts: { A: 2, B: 6, C: 2 },
+          targetPopulation: "대한민국 성인",
+          referenceTime: "2026-08-27",
+          personaSetDigest: "sha256:persona-set",
+          proxyEligiblePersonaCount: 4,
+          providerEvidence: {
+            totalProviderCalls: 4,
+            validatedProviderCalls: 4,
+            callsByStageAndModel: [],
+          },
+        },
+        externalInformation: {
+          sourceMode: "text",
+          keywordCount: 4,
+          collectedDocumentCount: 158,
+          documentCountsBySource: { naver: 158 },
+          documentCountsByNaverEndpoint: { news: 40, blog: 40, cafearticle: 38, webkr: 40 },
+          personaSeenItemCount: 38,
+          providerCallCountsByStage: { "llm.generate": 10 },
+        },
+        personaWorkers: 2,
+        innerWorkers: 1,
+      },
+    });
+
+    expect(result?.run.pricingFingerprint).toBe("pricing-policy-sha256");
+  });
+
   it("rejects a tampered manual-panel count above the runtime limit", () => {
     expect(isPersonaCountWithinLimit(10, 10)).toBe(true);
     expect(isPersonaCountWithinLimit(11, 10)).toBe(false);
