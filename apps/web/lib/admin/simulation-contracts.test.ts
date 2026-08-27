@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readSimulationResult, readSimulationView } from "./simulation-contracts";
+import {
+  isPersonaCountWithinLimit,
+  readSimulationResult,
+  readSimulationView,
+} from "./simulation-contracts";
 
 const simulationId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
 const taskId = "eb6b5f2b-4969-4e6e-a3e2-d6826620b837";
@@ -50,5 +54,11 @@ describe("simulation contracts", () => {
 
   it("rejects an individual Persona payload at the simulation result boundary", () => {
     expect(readSimulationResult({ personaId: "user-persona", prediction: "A" })).toBeNull();
+  });
+
+  it("rejects a tampered manual-panel count above the runtime limit", () => {
+    expect(isPersonaCountWithinLimit(10, 10)).toBe(true);
+    expect(isPersonaCountWithinLimit(11, 10)).toBe(false);
+    expect(isPersonaCountWithinLimit(0, 10)).toBe(false);
   });
 });

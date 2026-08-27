@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   readBillingPolicies,
   readCouponIssue,
@@ -17,6 +17,11 @@ import {
   type WalletSummary,
 } from "@/lib/admin/simulation-billing-contracts";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import {
+  IdempotentMutationKeys,
+  mutationFingerprint,
+  toKoreanCalendarDate,
+} from "@/lib/admin/simulation-billing-mutation";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 
 export type SimulationSection = "run" | "wallet" | "policies" | "usage" | "imports";
@@ -40,6 +45,7 @@ const sections: readonly Readonly<{ id: SimulationSection; label: string; href: 
     href: "/admin/simulations?section=imports" as Route,
   },
 ];
+const finalResponseExactModelId = "anthropic/claude-sonnet-4.6";
 
 export function readSimulationSection(value: string | null): SimulationSection {
   return sections.some((item) => item.id === value) ? (value as SimulationSection) : "run";
@@ -71,6 +77,7 @@ export function SimulationBillingSection({ section }: Readonly<{ section: Simula
 }
 
 function WalletPanel() {
+  const mutate = useIdempotentMutation();
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [issued, setIssued] = useState<CouponIssue | null>(null);
   const [amount, setAmount] = useState("10000");
@@ -221,6 +228,7 @@ function WalletPanel() {
 }
 
 function PolicyPanel() {
+  const mutate = useIdempotentMutation();
   const [policies, setPolicies] = useState<BillingPolicies | null>(null);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
@@ -257,7 +265,7 @@ function PolicyPanel() {
               items: [
                 {
                   provider: "openrouter",
-                  exactModelId: "anthropic/claude-sonnet-4.6",
+                  exactModelId: finalResponseExactModelId,
                   inputUsdPerMillion: provider.input,
                   outputUsdPerMillion: provider.output,
                   cacheReadUsdPerMillion: provider.cacheRead,
@@ -271,7 +279,7 @@ function PolicyPanel() {
               sourceLabel,
               items: [
                 {
-                  exactModelId: "claude-sonnet-4-6",
+                  exactModelId: finalResponseExactModelId,
                   modelMultiplier: model.multiplier,
                   initialAverageUsd: model.average,
                 },
@@ -443,7 +451,7 @@ function PolicyPanel() {
 }
 
 function UsagePanel() {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => toKoreanCalendarDate(new Date()), []);
   const monthStart = useMemo(() => `${today.slice(0, 8)}01`, [today]);
   const [start, setStart] = useState(monthStart);
   const [end, setEnd] = useState(today);
@@ -685,15 +693,22 @@ function useInitialLoad(load: () => Promise<void>, setMessage: (value: string) =
   }, [load, setMessage]);
 }
 
-async function mutate(path: string, body?: unknown): Promise<Response> {
-  return authenticatedFetch(path, {
-    method: "POST",
-    headers: {
-      ...(body === undefined ? {} : { "content-type": "application/json" }),
-      "idempotency-key": window.crypto.randomUUID(),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
+function useIdempotentMutation() {
+  const keys = useRef<IdempotentMutationKeys | null>(null);
+  keys.current ??= new IdempotentMutationKeys();
+  return useCallback(async (path: string, body?: unknown): Promise<Response> => {
+    const fingerprint = mutationFingerprint(path, body);
+    const response = await authenticatedFetch(path, {
+      method: "POST",
+      headers: {
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        "idempotency-key": keys.current!.keyFor(fingerprint),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    keys.current!.resolve(fingerprint);
+    return response;
+  }, []);
 }
 
 function policyRows(policies: BillingPolicies | null) {

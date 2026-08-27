@@ -25,6 +25,7 @@ import {
   type WalletSummary,
 } from "@/lib/admin/simulation-billing-contracts";
 import {
+  isPersonaCountWithinLimit,
   readSimulationOptions,
   readSimulationResult,
   readSimulationView,
@@ -99,7 +100,9 @@ function SimulationTargets() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await authenticatedFetch("/api/v1/admin/tasks", { cache: "no-store" });
+      const response = await authenticatedFetch("/api/v1/admin/simulation-tasks", {
+        cache: "no-store",
+      });
       if (!response.ok) {
         setMessage(formatAdminProblem(await readAdminProblem(response)));
         return;
@@ -210,7 +213,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
     if (!taskId) return;
     const timer = window.setTimeout(() => {
       void Promise.all([
-        authenticatedFetch(`/api/v1/admin/tasks/${encodeURIComponent(taskId)}`, {
+        authenticatedFetch(`/api/v1/admin/simulation-tasks/${encodeURIComponent(taskId)}`, {
           cache: "no-store",
         }),
         authenticatedFetch("/api/v1/admin/simulation-options", { cache: "no-store" }),
@@ -348,8 +351,11 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
   const sampleSeedValue = first(query.sampleSeed);
   const sampleSeed =
     sampleSeedValue === null || sampleSeedValue === "" ? null : integer(sampleSeedValue);
+  const personaCountAllowed = Boolean(
+    options && personaCount && isPersonaCountWithinLimit(personaCount, options.maxPersonaCount),
+  );
   const runInput: RunInput | null =
-    taskId && personaCount && modelType && sampleSeed !== undefined
+    taskId && personaCount && modelType && sampleSeed !== undefined && personaCountAllowed
       ? { personaCount, modelType, sampleSeed, filters }
       : null;
   const previewState = useSimulationPreview(taskId, runInput);
@@ -404,6 +410,11 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           항목을 선택하지 않으면 해당 범주는 전체를 사용합니다. 여기에 표시되는 값은 현재 서버에
           마운트된 프로필 번들에서 읽은 범주이며 개인 레코드는 노출하지 않습니다.
         </p>
+        {options && !personaCountAllowed ? (
+          <StatusMessage>
+            {`가상 패널 수는 1명부터 현재 환경 최대 ${options.maxPersonaCount}명까지 입력할 수 있습니다.`}
+          </StatusMessage>
+        ) : null}
         <div className="civic-filter-grid">
           {groups.map(([key, label, values]) => (
             <FilterGroup

@@ -129,7 +129,7 @@ Browser /api/v1/rag/**
     ├── Access Token raw equality 검사
     └── RAG upstream에 동일 Cookie + Bearer 전달
 
-Browser /api/v1/admin/tasks/{taskId}/simulations|simulations/**|simulation-options|simulation-billing/**
+Browser /api/v1/admin/simulation-tasks/**|tasks/{taskId}/simulations|simulations/**|simulation-options|simulation-billing/**
 └── Simulation BFF
     ├── route/method allowlist
     ├── same-origin 검사

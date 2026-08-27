@@ -16,17 +16,22 @@
 `civic_ai_access_token` Cookie와 Bearer Authorization에 넣는다. 각 Resource Server가 최종 scope와
 JWT를 검증한다.
 
-| 영역                           | 서버 business scope     |
-| ------------------------------ | ----------------------- |
-| Chat 생성 신청                 | `chat:rooms:approve`    |
-| Vote 과업                      | `vote:tasks:admin`      |
-| 과업 집계 시뮬레이션 조회      | `simulation:tasks:read` |
-| 과업 집계 시뮬레이션 실행·취소 | `simulation:tasks:run`  |
+| 영역                             | 서버 business scope        |
+| -------------------------------- | -------------------------- |
+| Chat 생성 신청                   | `chat:rooms:approve`       |
+| Vote 과업                        | `vote:tasks:admin`         |
+| 과업 집계 시뮬레이션 조회        | `simulation:tasks:read`    |
+| 과업 집계 시뮬레이션 실행·취소   | `simulation:tasks:run`     |
+| 시뮬레이션 지갑·정책·사용량 조회 | `simulation:billing:read`  |
+| 시뮬레이션 쿠폰·정책 변경        | `simulation:billing:write` |
 
 Main/Auth는 `VOTE_ADMIN`에 `vote:tasks:admin`, `SIMULATION_ADMIN`에
-`simulation:tasks:read`·`simulation:tasks:run`을 발급한다. Simulation 과업 선택 화면은 Vote의
-기존 `/api/v1/admin/tasks/**` 계약을 사용하며 Vote 저장소의 API와 권한 정책은 이 PR에서 변경하지
-않는다. Chat의 `chat:rooms:approve` 발급·검사 경로는 현재 계약과 일치한다.
+`simulation:tasks:read`·`simulation:tasks:run`·`simulation:billing:read`·
+`simulation:billing:write`을 발급한다. Simulation 과업 선택 화면은
+Simulation 서버의 읽기 전용 `/api/v1/admin/simulation-tasks/**`를 호출한다. Simulation 서버가
+Vote의 기존 과업 조회 계약을 내부에서 사용하므로 브라우저의 `SIMULATION_ADMIN` 토큰을 Vote 관리자
+BFF에 직접 전달하지 않는다. Vote 저장소의 API와 권한 정책은 변경하지 않는다. Chat의
+`chat:rooms:approve` 발급·검사 경로는 현재 계약과 일치한다.
 
 mutation은 자동 재전송하지 않는다. 응답이 불명확하거나 `409`이면 상세를 먼저 다시 조회한다. `429`의
 `Retry-After`, Problem Details의 `code`, `violations`, `traceId`를 보존한다. Vote 상세 결과는 JSON으로

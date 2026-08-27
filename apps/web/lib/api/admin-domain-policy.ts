@@ -79,6 +79,30 @@ export function matchSimulationTaskRoute(
   return allow(normalizedMethod, ["GET", "POST"], taskPath(segments), scope);
 }
 
+export function matchSimulationTaskCatalogRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  if (segments.length === 0) {
+    return allow(
+      normalizedMethod,
+      ["GET"],
+      simulationTaskCatalogPath(segments),
+      "simulation:tasks:read",
+    );
+  }
+  if (segments.length === 1 && uuid.test(segments[0] ?? "")) {
+    return allow(
+      normalizedMethod,
+      ["GET"],
+      simulationTaskCatalogPath(segments),
+      "simulation:tasks:read",
+    );
+  }
+  return { allowedMethods: [], status: 404 };
+}
+
 export function matchSimulationBillingRoute(
   method: string,
   segments: readonly string[],
@@ -180,6 +204,10 @@ function taskPath(segments: readonly string[]): string {
 
 function simulationPath(segments: readonly string[]): string {
   return path("/api/v1/admin/simulations", segments);
+}
+
+function simulationTaskCatalogPath(segments: readonly string[]): string {
+  return path("/api/v1/admin/simulation-tasks", segments);
 }
 
 function simulationBillingPath(segments: readonly string[]): string {

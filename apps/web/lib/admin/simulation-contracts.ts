@@ -216,3 +216,13 @@ export function readSimulationResult(value: unknown): SimulationResult | null {
   const parsed = simulationResultSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
+
+export function isPersonaCountWithinLimit(personaCount: number, maxPersonaCount: number): boolean {
+  return (
+    Number.isSafeInteger(personaCount) &&
+    personaCount > 0 &&
+    Number.isSafeInteger(maxPersonaCount) &&
+    maxPersonaCount > 0 &&
+    personaCount <= maxPersonaCount
+  );
+}
