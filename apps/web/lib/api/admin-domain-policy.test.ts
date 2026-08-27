@@ -3,6 +3,7 @@ import {
   matchChatAdminRoute,
   matchSimulationAdminRoute,
   matchSimulationBillingRoute,
+  matchSimulationCapacityRoute,
   matchSimulationOptionsRoute,
   matchSimulationTaskCatalogRoute,
   matchSimulationTaskRoute,
@@ -82,6 +83,14 @@ describe("admin domain route allowlist", () => {
       path: `/api/v1/admin/simulations/${taskId}/cancel`,
       scope: "simulation:tasks:run",
     });
+    expect(matchSimulationAdminRoute("POST", [taskId, "retry-failed"])).toEqual({
+      path: `/api/v1/admin/simulations/${taskId}/retry-failed`,
+      scope: "simulation:tasks:run",
+    });
+    expect(matchSimulationCapacityRoute("POST")).toEqual({
+      path: "/api/v1/admin/simulation-capacity",
+      scope: "simulation:tasks:read",
+    });
     expect(matchSimulationOptionsRoute("GET")).toEqual({
       path: "/api/v1/admin/simulation-options",
       scope: "simulation:tasks:read",
@@ -97,6 +106,10 @@ describe("admin domain route allowlist", () => {
     expect(matchSimulationTaskCatalogRoute("GET", [taskId, "personas"])).toEqual({
       allowedMethods: [],
       status: 404,
+    });
+    expect(matchSimulationCapacityRoute("GET")).toEqual({
+      allowedMethods: ["POST"],
+      status: 405,
     });
   });
 

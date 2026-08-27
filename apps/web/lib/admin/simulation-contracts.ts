@@ -8,6 +8,8 @@ export const simulationStates = [
   "FAILED",
   "FAILED_PROVIDER",
   "REVIEW_REQUIRED",
+  "PUBLISHING",
+  "REJECTED_PROVIDER_POLICY",
   "CANCELLED",
 ] as const;
 export type SimulationState = (typeof simulationStates)[number];
@@ -22,10 +24,14 @@ const simulationViewSchema = z
     cancelRequested: z.boolean(),
     errorCode: z.string().nullable(),
     resumeAt: z.string().min(1).nullable(),
+    retryAvailableAt: z.string().min(1).nullable(),
     waitReason: z.string().min(1).nullable(),
     createdAt: z.string().min(1),
     startedAt: z.string().min(1).nullable(),
     completedAt: z.string().min(1).nullable(),
+    deadlineAt: z.string().min(1),
+    estimatedCompletionAt: z.string().min(1).nullable(),
+    canCancel: z.boolean(),
     estimatedKrw: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
     holdKrw: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
     settledKrw: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable().optional(),
@@ -38,21 +44,46 @@ const filterOptionsSchema = z
   .object({
     genders: z.array(z.string().min(1)),
     ageGroups: z.array(z.string().min(1)),
-    regions: z.array(z.string().min(1)),
-    politicalIdeologies: z.array(z.string().min(1)),
   })
   .strict();
 
 const simulationOptionsSchema = z
   .object({
+    minPersonaCount: z.number().int().positive(),
     maxPersonaCount: z.number().int().positive(),
     defaultModel: z.string().min(1),
     models: z.array(z.string().min(1)).min(1),
     filters: filterOptionsSchema,
   })
   .strict()
+  .refine((value) => value.minPersonaCount <= value.maxPersonaCount, {
+    message: "minPersonaCount must not exceed maxPersonaCount",
+  })
   .refine((value) => value.models.includes(value.defaultModel), {
     message: "defaultModel must be included in models",
+  });
+
+const simulationCapacitySchema = z
+  .object({
+    minPersonaCount: z.number().int().positive(),
+    maxPersonaCount: z.number().int().positive(),
+    availablePersonaCount: z.number().int().nonnegative(),
+    requestedPersonaCount: z.number().int().positive(),
+    canSimulate: z.boolean(),
+    blockReason: z
+      .enum([
+        "PERSONA_COUNT_BELOW_MINIMUM",
+        "PERSONA_COUNT_ABOVE_MAXIMUM",
+        "INSUFFICIENT_UNIQUE_CAPACITY",
+      ])
+      .nullable(),
+  })
+  .strict()
+  .refine((value) => value.minPersonaCount <= value.maxPersonaCount, {
+    message: "minPersonaCount must not exceed maxPersonaCount",
+  })
+  .refine((value) => value.canSimulate === (value.blockReason === null), {
+    message: "canSimulate and blockReason must agree",
   });
 
 const taskOptionSchema = z
@@ -199,6 +230,7 @@ const simulationResultSchema = z
 
 export type SimulationView = z.infer<typeof simulationViewSchema>;
 export type SimulationOptions = z.infer<typeof simulationOptionsSchema>;
+export type SimulationCapacity = z.infer<typeof simulationCapacitySchema>;
 export type SimulationResult = z.infer<typeof simulationResultSchema>;
 
 export function readSimulationView(value: unknown): SimulationView | null {
@@ -216,17 +248,28 @@ export function readSimulationOptions(value: unknown): SimulationOptions | null 
   return parsed.success ? parsed.data : null;
 }
 
+export function readSimulationCapacity(value: unknown): SimulationCapacity | null {
+  const parsed = simulationCapacitySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 export function readSimulationResult(value: unknown): SimulationResult | null {
   const parsed = simulationResultSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
-export function isPersonaCountWithinLimit(personaCount: number, maxPersonaCount: number): boolean {
+export function isPersonaCountWithinLimit(
+  personaCount: number,
+  minPersonaCount: number,
+  maxPersonaCount: number,
+): boolean {
   return (
     Number.isSafeInteger(personaCount) &&
-    personaCount > 0 &&
+    Number.isSafeInteger(minPersonaCount) &&
+    minPersonaCount > 0 &&
     Number.isSafeInteger(maxPersonaCount) &&
-    maxPersonaCount > 0 &&
+    maxPersonaCount >= minPersonaCount &&
+    personaCount >= minPersonaCount &&
     personaCount <= maxPersonaCount
   );
 }

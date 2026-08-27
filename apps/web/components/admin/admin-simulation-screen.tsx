@@ -11,6 +11,10 @@ import {
   SimulationSectionTabs,
 } from "@/components/admin/simulation-billing-panels";
 import {
+  AnonymousPanelAttributes,
+  PublicSimulationEvidence,
+} from "@/components/admin/simulation-result-presentation";
+import {
   formatAdminProblem,
   readAdminProblem,
   readTaskDetail,
@@ -26,9 +30,11 @@ import {
 } from "@/lib/admin/simulation-billing-contracts";
 import {
   isPersonaCountWithinLimit,
+  readSimulationCapacity,
   readSimulationOptions,
   readSimulationResult,
   readSimulationView,
+  type SimulationCapacity,
   type SimulationOptions,
   type SimulationResult,
   type SimulationState,
@@ -44,6 +50,7 @@ type RunInput = Readonly<{
   personaCount: number;
   sampleSeed: number | null;
 }>;
+type CapacityInput = Pick<RunInput, "filters" | "personaCount" | "sampleSeed">;
 
 export function AdminSimulationScreen({
   screen,
@@ -206,7 +213,16 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
   const [sampleSeed, setSampleSeed] = useState("");
   const [message, setMessage] = useState("");
   const { pending, start, startMessage } = useStartSimulation(taskId);
-  const runInput = normalizeRunInput(personaCount, modelType, sampleSeed);
+  const runInput = normalizeRunInput(
+    personaCount,
+    modelType,
+    sampleSeed,
+    options?.minPersonaCount,
+    options?.maxPersonaCount,
+  );
+  const capacityState = useSimulationCapacity(
+    options ? normalizeCapacityInput(personaCount, sampleSeed) : null,
+  );
   const previewState = useSimulationPreview(taskId, runInput);
 
   useEffect(() => {
@@ -229,7 +245,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           setTask(nextTask);
           setOptions(nextOptions);
           setModelType(nextOptions.defaultModel);
-          setPersonaCount(Math.min(30, nextOptions.maxPersonaCount));
+          setPersonaCount(nextOptions.minPersonaCount);
           setMessage("");
         })
         .catch((error: unknown) =>
@@ -245,6 +261,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
   const canStart = Boolean(
     previewState.preview &&
     previewState.wallet &&
+    capacityState.capacity?.canSimulate &&
     previewState.wallet.availableKrw >= previewState.preview.holdKrw,
   );
 
@@ -254,6 +271,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
       onSubmit={(event) => {
         event.preventDefault();
         if (!runInput) return;
+        if (!capacityState.capacity?.canSimulate) return;
         if (!canStart || !previewState.preview) return void previewState.load();
         void start(runInput, previewState.preview.policyFingerprint);
       }}
@@ -270,13 +288,16 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
             <input
               disabled={pending}
               max={options?.maxPersonaCount ?? 1}
-              min={1}
+              min={options?.minPersonaCount ?? 1}
               onChange={(event) => setPersonaCount(event.currentTarget.valueAsNumber)}
               required
               type="number"
               value={personaCount}
             />
-            <small>현재 환경 최대 {options?.maxPersonaCount ?? "-"}명</small>
+            <small>
+              현재 환경 {options?.minPersonaCount ?? "-"}명 이상 {options?.maxPersonaCount ?? "-"}명
+              이하
+            </small>
           </label>
           <label className="civic-field">
             <span>실행 모델</span>
@@ -304,6 +325,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           </label>
         </div>
       </section>
+      <SimulationCapacityCard capacity={capacityState.capacity} message={capacityState.message} />
       <SimulationPreviewCard
         message={previewState.message}
         preview={previewState.preview}
@@ -315,6 +337,8 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           disabled={
             !canSubmit ||
             pending ||
+            capacityState.pending ||
+            !capacityState.capacity?.canSimulate ||
             previewState.pending ||
             Boolean(previewState.preview && !canStart)
           }
@@ -352,13 +376,18 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
   const sampleSeed =
     sampleSeedValue === null || sampleSeedValue === "" ? null : integer(sampleSeedValue);
   const personaCountAllowed = Boolean(
-    options && personaCount && isPersonaCountWithinLimit(personaCount, options.maxPersonaCount),
+    options &&
+    personaCount &&
+    isPersonaCountWithinLimit(personaCount, options.minPersonaCount, options.maxPersonaCount),
   );
   const runInput: RunInput | null =
     taskId && personaCount && modelType && sampleSeed !== undefined && personaCountAllowed
       ? { personaCount, modelType, sampleSeed, filters }
       : null;
   const previewState = useSimulationPreview(taskId, runInput);
+  const capacityState = useSimulationCapacity(
+    options ? normalizeCapacityInput(personaCount, sampleSeedValue ?? "", filters) : null,
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -384,8 +413,6 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
     ? ([
         ["genders", "성별", options.filters.genders],
         ["age_groups", "연령대", options.filters.ageGroups],
-        ["regions", "지역", options.filters.regions],
-        ["political_ideologies", "정치 성향", options.filters.politicalIdeologies],
       ] as const)
     : [];
 
@@ -395,6 +422,7 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
       onSubmit={(event) => {
         event.preventDefault();
         if (!runInput) return;
+        if (!capacityState.capacity?.canSimulate) return;
         if (!previewState.preview) return void previewState.load();
         if (!previewState.wallet || previewState.wallet.availableKrw < previewState.preview.holdKrw)
           return;
@@ -412,7 +440,7 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
         </p>
         {options && !personaCountAllowed ? (
           <StatusMessage>
-            {`가상 패널 수는 1명부터 현재 환경 최대 ${options.maxPersonaCount}명까지 입력할 수 있습니다.`}
+            {`가상 패널 수는 현재 환경에서 ${options.minPersonaCount}명부터 ${options.maxPersonaCount}명까지 입력할 수 있습니다.`}
           </StatusMessage>
         ) : null}
         <div className="civic-filter-grid">
@@ -429,6 +457,7 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           ))}
         </div>
       </section>
+      <SimulationCapacityCard capacity={capacityState.capacity} message={capacityState.message} />
       <SimulationPreviewCard
         message={previewState.message}
         preview={previewState.preview}
@@ -440,6 +469,8 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           disabled={
             !options ||
             pending ||
+            capacityState.pending ||
+            !capacityState.capacity?.canSimulate ||
             previewState.pending ||
             Boolean(
               previewState.preview &&
@@ -495,7 +526,10 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
     let disposed = false;
     const poll = async () => {
       const next = await load();
-      if (!disposed && (!next || ["READY", "RUNNING", "WAITING_PROVIDER"].includes(next.state))) {
+      if (
+        !disposed &&
+        (!next || ["READY", "RUNNING", "WAITING_PROVIDER", "PUBLISHING"].includes(next.state))
+      ) {
         timer = window.setTimeout(() => void poll(), 2000);
       }
     };
@@ -559,6 +593,14 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
               <dd>{formatDate(view.completedAt)}</dd>
             </div>
             <div>
+              <dt>전체 실행 완료 예상</dt>
+              <dd>{wholeRunEtaLabel(view.estimatedCompletionAt)}</dd>
+            </div>
+            <div>
+              <dt>실행 기한</dt>
+              <dd>{formatDate(view.deadlineAt)}</dd>
+            </div>
+            <div>
               <dt>예상 / 보류</dt>
               <dd>
                 {formatKrw(view.estimatedKrw ?? undefined)} / {formatKrw(view.holdKrw ?? undefined)}
@@ -586,7 +628,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
           </dl>
           {recoveryMessage ? <StatusMessage>{recoveryMessage}</StatusMessage> : null}
           <div className="civic-simulation-actions">
-            {["READY", "RUNNING", "WAITING_PROVIDER"].includes(view.state) ? (
+            {view.canCancel ? (
               <button
                 className="civic-danger-action"
                 disabled={pending}
@@ -613,7 +655,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
                   `/admin/simulations/retry?simulationId=${encodeURIComponent(view.simulationId)}` as Route
                 }
               >
-                {view.state === "REVIEW_REQUIRED" ? "새 표본 시드로 실행" : "실패 내용 확인"}
+                {view.state === "REVIEW_REQUIRED" ? "실패 패널만 다시 실행" : "실패 내용 확인"}
               </Link>
             ) : null}
           </div>
@@ -626,13 +668,54 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
 
 function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | null }>) {
   const { message, view } = useSimulationView(simulationId);
+  const router = useRouter();
+  const operationKey = useRef<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
   const recoveryMessage = view ? simulationRecoveryMessage(view) : null;
+  const now = useRetryFenceClock(view?.retryAvailableAt ?? null);
+  const retryBlocked = isRetryBlocked(view?.retryAvailableAt ?? null, now);
+
+  async function retryFailed() {
+    if (!simulationId || !view || view.state !== "REVIEW_REQUIRED" || retryBlocked) return;
+    operationKey.current ??= window.crypto.randomUUID();
+    setPending(true);
+    setActionMessage("");
+    try {
+      const response = await authenticatedFetch(
+        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/retry-failed`,
+        {
+          method: "POST",
+          headers: { "idempotency-key": operationKey.current },
+        },
+      );
+      if (!response.ok) {
+        setActionMessage(formatAdminProblem(await readAdminProblem(response)));
+        return;
+      }
+      const next = readSimulationView(await response.json());
+      if (!next) {
+        setActionMessage("서버의 재실행 응답 형식을 확인해야 합니다.");
+        return;
+      }
+      router.push(
+        `/admin/simulations/status?simulationId=${encodeURIComponent(next.simulationId)}` as Route,
+      );
+    } catch {
+      setActionMessage(
+        "재실행 요청 결과가 불명확합니다. 다시 누르면 동일 요청 키로 서버 상태를 확인합니다.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   if (!simulationId) return <MissingContext>재실행할 실행을 선택해 주세요.</MissingContext>;
   return (
     <section className="civic-domain-action-panel civic-domain-danger-panel">
       <header>
         <span>수동 재실행</span>
-        <h2>실패 원인을 확인한 뒤 새 설정으로 실행</h2>
+        <h2>{view?.state === "REVIEW_REQUIRED" ? "실패 패널만 다시 실행" : "실패 내용 확인"}</h2>
       </header>
       <p>
         {recoveryMessage ??
@@ -656,9 +739,28 @@ function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | nul
             <dt>완료 시각</dt>
             <dd>{formatDate(view.completedAt)}</dd>
           </div>
+          {view.state === "REVIEW_REQUIRED" ? (
+            <div>
+              <dt>재실행 가능 시각</dt>
+              <dd>{view.retryAvailableAt ? formatDate(view.retryAvailableAt) : "지금 가능"}</dd>
+            </div>
+          ) : null}
         </dl>
       ) : null}
-      {view ? (
+      {view?.state === "REVIEW_REQUIRED" ? (
+        <button
+          className="civic-primary-action"
+          disabled={pending || retryBlocked}
+          onClick={() => void retryFailed()}
+          type="button"
+        >
+          {pending
+            ? "재실행 요청 중…"
+            : retryBlocked
+              ? "잠시 후 다시 시도해 주세요"
+              : "실패 패널만 다시 실행"}
+        </button>
+      ) : view && !["REJECTED_PROVIDER_POLICY", "PUBLISHING"].includes(view.state) ? (
         <Link
           className="civic-primary-action"
           href={`/admin/simulations/setup?taskId=${encodeURIComponent(view.taskId)}` as Route}
@@ -666,7 +768,7 @@ function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | nul
           같은 과업으로 새 설정
         </Link>
       ) : null}
-      {message ? <StatusMessage>{message}</StatusMessage> : null}
+      {message || actionMessage ? <StatusMessage>{message || actionMessage}</StatusMessage> : null}
     </section>
   );
 }
@@ -719,58 +821,7 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
               </li>
             ))}
           </ol>
-          <section className="civic-domain-form-section">
-            <header>
-              <span>전체 실행 검증</span>
-              <h3>자료조사 · 정보처리 · Persona 응답</h3>
-            </header>
-            <dl className="civic-domain-impact-list">
-              <div>
-                <dt>응답 비율 예측</dt>
-                <dd>{result.engine.calibration.answerDistributionModel}</dd>
-              </div>
-              <div>
-                <dt>Persona 적합도 배정</dt>
-                <dd>{result.engine.calibration.assignmentModel}</dd>
-              </div>
-              <div>
-                <dt>A / B / C 배정</dt>
-                <dd>
-                  {result.engine.calibration.assignedInformationPracticeCounts.A} /{" "}
-                  {result.engine.calibration.assignedInformationPracticeCounts.B} /{" "}
-                  {result.engine.calibration.assignedInformationPracticeCounts.C}
-                </dd>
-              </div>
-              <div>
-                <dt>Naver 수집 문서</dt>
-                <dd>{result.engine.externalInformation.collectedDocumentCount}건</dd>
-              </div>
-              <div>
-                <dt>뉴스 / 블로그</dt>
-                <dd>
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.news} /{" "}
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.blog}
-                </dd>
-              </div>
-              <div>
-                <dt>카페 / 웹문서</dt>
-                <dd>
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.cafearticle} /{" "}
-                  {result.engine.externalInformation.documentCountsByNaverEndpoint.webkr}
-                </dd>
-              </div>
-              <div>
-                <dt>최종 Persona 응답 모델</dt>
-                <dd>{result.engine.modelType ?? result.run.modelType}</dd>
-              </div>
-              <div>
-                <dt>병렬 처리</dt>
-                <dd>
-                  Persona {result.engine.personaWorkers} · 내부 {result.engine.innerWorkers}
-                </dd>
-              </div>
-            </dl>
-          </section>
+          <PublicSimulationEvidence engine={result.engine} />
           {result.respondents.length > 0 ? (
             <Link
               className="civic-secondary-action"
@@ -813,26 +864,7 @@ function SimulationPanelDetail({
               <dt>선택</dt>
               <dd>{selected?.content ?? "미응답"}</dd>
             </div>
-            <div>
-              <dt>성별</dt>
-              <dd>{respondent.demographics.gender ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>연령대</dt>
-              <dd>{respondent.demographics.ageGroup ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>지역</dt>
-              <dd>{respondent.demographics.region ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>정치 성향</dt>
-              <dd>{respondent.demographics.politicalIdeology ?? "미분류"}</dd>
-            </div>
-            <div>
-              <dt>정보 유형</dt>
-              <dd>{respondent.demographics.informationType ?? "미분류"}</dd>
-            </div>
+            <AnonymousPanelAttributes respondent={respondent} />
           </dl>
           <div className="civic-simulation-actions">
             {requestedOrdinal > 1 ? (
@@ -921,6 +953,62 @@ function useStartSimulation(taskId: string | null) {
   return { pending, start, startMessage: message };
 }
 
+function useSimulationCapacity(input: CapacityInput | null) {
+  const signature = input
+    ? JSON.stringify({
+        personaCount: input.personaCount,
+        sampleSeed: input.sampleSeed,
+        filters: input.filters ?? {},
+      })
+    : null;
+  const [result, setResult] = useState<{
+    capacity: SimulationCapacity;
+    signature: string;
+  } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+  const current = result?.signature === signature ? result.capacity : null;
+
+  useEffect(() => {
+    if (!signature) return;
+    let disposed = false;
+    const timer = window.setTimeout(() => {
+      setPending(true);
+      setMessage("");
+      void authenticatedFetch("/api/v1/admin/simulation-capacity", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: signature,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          const capacity = readSimulationCapacity(await response.json());
+          if (!capacity) throw new Error("서버의 패널 수용량 응답 형식을 확인해야 합니다.");
+          if (!disposed) setResult({ capacity, signature });
+        })
+        .catch((error: unknown) => {
+          if (!disposed)
+            setMessage(
+              error instanceof Error ? error.message : "패널 수용량을 확인하지 못했습니다.",
+            );
+        })
+        .finally(() => {
+          if (!disposed) setPending(false);
+        });
+    }, 150);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [signature]);
+
+  return {
+    capacity: current,
+    message: signature ? message : "",
+    pending: Boolean(signature && pending),
+  };
+}
+
 function useSimulationPreview(taskId: string | null, input: RunInput | null) {
   const signature = input
     ? JSON.stringify({
@@ -981,6 +1069,47 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
     preview: current?.preview ?? null,
     wallet: current?.wallet ?? null,
   };
+}
+
+function SimulationCapacityCard({
+  capacity,
+  message,
+}: Readonly<{
+  capacity: SimulationCapacity | null;
+  message: string;
+}>) {
+  if (!capacity && !message) return null;
+  return (
+    <section className="civic-domain-form-section civic-simulation-capacity-card">
+      <header>
+        <span>실행 가능 표본</span>
+        <h2>패널 수용량 확인</h2>
+      </header>
+      {capacity ? (
+        <dl className="civic-domain-impact-list">
+          <div>
+            <dt>요청 패널</dt>
+            <dd>{capacity.requestedPersonaCount.toLocaleString("ko-KR")}명</dd>
+          </div>
+          <div>
+            <dt>사용 가능 패널</dt>
+            <dd>{capacity.availablePersonaCount.toLocaleString("ko-KR")}명</dd>
+          </div>
+          <div>
+            <dt>허용 범위</dt>
+            <dd>
+              {capacity.minPersonaCount.toLocaleString("ko-KR")}–
+              {capacity.maxPersonaCount.toLocaleString("ko-KR")}명
+            </dd>
+          </div>
+        </dl>
+      ) : null}
+      {capacity && !capacity.canSimulate ? (
+        <StatusMessage>{capacityBlockMessage(capacity)}</StatusMessage>
+      ) : null}
+      {message ? <StatusMessage>{message}</StatusMessage> : null}
+    </section>
+  );
 }
 
 function SimulationPreviewCard({
@@ -1058,6 +1187,21 @@ function useSimulationView(simulationId: string | null) {
     return () => window.clearTimeout(timer);
   }, [simulationId]);
   return { message, view };
+}
+
+function useRetryFenceClock(retryAvailableAt: string | null): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!retryAvailableAt) return;
+    const target = Date.parse(retryAvailableAt);
+    if (!Number.isFinite(target) || target <= now) return;
+    const timer = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.min(target - now + 25, 2_147_483_647),
+    );
+    return () => window.clearTimeout(timer);
+  }, [now, retryAvailableAt]);
+  return now;
 }
 
 function useSimulationResult(simulationId: string | null) {
@@ -1177,10 +1321,38 @@ function manualPanelHref(taskId: string, input: RunInput): Route {
   return `/admin/simulations/panel?${params.toString()}` as Route;
 }
 
-function normalizeRunInput(personaCount: number, modelType: string, seed: string): RunInput | null {
-  if (!Number.isInteger(personaCount) || personaCount < 1 || !modelType) return null;
+function normalizeRunInput(
+  personaCount: number,
+  modelType: string,
+  seed: string,
+  minPersonaCount?: number,
+  maxPersonaCount?: number,
+): RunInput | null {
+  if (
+    minPersonaCount === undefined ||
+    maxPersonaCount === undefined ||
+    !isPersonaCountWithinLimit(personaCount, minPersonaCount, maxPersonaCount) ||
+    !modelType
+  )
+    return null;
   const parsedSeed = seed.trim() === "" ? null : integer(seed);
   return parsedSeed === undefined ? null : { personaCount, modelType, sampleSeed: parsedSeed };
+}
+
+function normalizeCapacityInput(
+  personaCount: number | null,
+  seed: string,
+  filters?: Readonly<Record<string, readonly string[]>>,
+): CapacityInput | null {
+  if (personaCount === null || !Number.isSafeInteger(personaCount) || personaCount <= 0)
+    return null;
+  const parsedSeed = seed.trim() === "" ? null : integer(seed);
+  if (parsedSeed === undefined) return null;
+  return {
+    personaCount,
+    sampleSeed: parsedSeed,
+    ...(filters === undefined ? {} : { filters }),
+  };
 }
 
 function toggle(values: readonly string[], value: string): readonly string[] {
@@ -1216,6 +1388,16 @@ function evidenceLabel(value: string): string {
   return value === "rolling_provider_cost" ? "완료 실행 이동 평균" : "초기 모델 평균";
 }
 
+function capacityBlockMessage(capacity: SimulationCapacity): string {
+  if (capacity.blockReason === "PERSONA_COUNT_BELOW_MINIMUM") {
+    return `가상 패널 수를 ${capacity.minPersonaCount.toLocaleString("ko-KR")}명 이상으로 입력해 주세요.`;
+  }
+  if (capacity.blockReason === "PERSONA_COUNT_ABOVE_MAXIMUM") {
+    return `가상 패널 수를 ${capacity.maxPersonaCount.toLocaleString("ko-KR")}명 이하로 입력해 주세요.`;
+  }
+  return `현재 조건에서 사용할 수 있는 패널은 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대 조건이나 요청 수를 조정해 주세요.`;
+}
+
 function taskStatusLabel(status: TaskSummary["status"]): string {
   return { DRAFT: "작성 중", SCHEDULED: "예약", OPEN: "진행 중", CLOSED: "종료" }[status];
 }
@@ -1228,7 +1410,9 @@ export function simulationStateLabel(state: SimulationState): string {
     COMPLETED: "완료",
     FAILED: "실패",
     FAILED_PROVIDER: "외부 모델 호출 실패",
-    REVIEW_REQUIRED: "표본 재설정 필요",
+    REVIEW_REQUIRED: "일부 패널 응답 실패",
+    PUBLISHING: "결과 정리 중",
+    REJECTED_PROVIDER_POLICY: "시뮬레이션 불가",
     CANCELLED: "취소됨",
   }[state];
 }
@@ -1236,14 +1420,14 @@ export function simulationStateLabel(state: SimulationState): string {
 export function simulationRecoveryMessage(
   view: Pick<SimulationView, "state" | "errorCode">,
 ): string | null {
-  if (
-    view.state === "REVIEW_REQUIRED" ||
-    view.errorCode === "CALIBRATION_C_NETWORK_CAPACITY_INSUFFICIENT"
-  ) {
-    return "C형 네트워크 가능 인원이 부족합니다. 다른 표본 시드로 다시 실행하세요.";
+  if (view.state === "REJECTED_PROVIDER_POLICY") {
+    return "이 질문은 AI 공급자 정책상 시뮬레이션할 수 없습니다.";
+  }
+  if (view.state === "REVIEW_REQUIRED") {
+    return "일부 가상 패널 응답을 완료하지 못했습니다. 실패 패널만 다시 실행할 수 있습니다.";
   }
   if (view.state === "FAILED_PROVIDER" || view.errorCode === "CALIBRATION_ATTEMPTS_EXHAUSTED") {
-    return "외부 모델 호출이 누적 3회 실패했습니다. 모델 상태를 확인한 뒤 새 실행을 요청하세요.";
+    return "AI 응답 검증에 반복 실패해 시뮬레이션을 중단했습니다. 잠시 후 다시 시도해 주세요.";
   }
   if (view.state === "FAILED") {
     return "실행 중 오류가 발생했습니다. 실행 환경을 확인한 뒤 새 실행을 요청하세요.";
@@ -1251,13 +1435,30 @@ export function simulationRecoveryMessage(
   return null;
 }
 
-function providerWaitLabel(reason: string | null): string {
-  if (!reason) return "외부 모델 응답을 기다리는 중입니다.";
-  if (reason.includes("answer_distribution")) return "응답 비율 예측 모델 재시도 대기";
-  if (reason.includes("answer_fit")) return "Persona 응답 적합도 모델 재시도 대기";
-  if (reason.includes("information_ratio")) return "정보처리 비율 모델 재시도 대기";
-  if (reason.includes("information_fit")) return "Persona 정보처리 적합도 모델 재시도 대기";
-  return "외부 모델 자동 재시도 대기";
+export function providerWaitLabel(reason: string | null): string {
+  void reason;
+  return "외부 모델 응답 지연으로 자동 재시도 중입니다.";
+}
+
+export function roundWholeRunEtaSeconds(seconds: number): number | null {
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  const unit = seconds >= 3600 ? 300 : 60;
+  return Math.ceil(seconds / unit) * unit;
+}
+
+export function isRetryBlocked(retryAvailableAt: string | null, now: number): boolean {
+  if (!retryAvailableAt) return false;
+  const target = Date.parse(retryAvailableAt);
+  return Number.isFinite(target) && target > now;
+}
+
+function wholeRunEtaLabel(estimatedCompletionAt: string | null): string {
+  if (!estimatedCompletionAt) return "계산 중";
+  const target = Date.parse(estimatedCompletionAt);
+  if (!Number.isFinite(target)) return "-";
+  const remaining = roundWholeRunEtaSeconds((target - Date.now()) / 1000);
+  if (remaining === null) return "완료 처리 중";
+  return `${formatDate(estimatedCompletionAt)} · 약 ${Math.ceil(remaining / 60).toLocaleString("ko-KR")}분 후`;
 }
 
 function simulationLayout(screenId: string): string {
