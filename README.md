@@ -85,6 +85,7 @@ rag:jobs:read
 | `RAG_ADMIN` | `rag:documents:write` |
 | `CHAT_ADMIN` | `chat:rooms:approve`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
 | `VOTE_ADMIN` | `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
+| `SIMULATION_ADMIN` | `simulation:tasks:read`, `simulation:tasks:run`, `simulation:billing:read`, `simulation:billing:write` |
 
 따라서 위 관리 scope는 일반 사용자에게 발급되지 않습니다. 강제 비밀번호 변경 대상은
 완료 전까지 `account:password:write`만 받습니다.
