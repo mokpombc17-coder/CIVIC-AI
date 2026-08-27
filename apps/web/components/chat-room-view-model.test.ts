@@ -281,6 +281,34 @@ describe("chat room view model", () => {
     expect(outgoing?.renderKey).toBe(confirmed?.renderKey);
   });
 
+  it("서버가 전송 명령을 수락한 뒤에는 별도의 확인 문구를 표시하지 않는다", () => {
+    const [accepted] = createChatMessageItemViewModels(
+      [
+        {
+          kind: "outgoing",
+          message: {
+            attempt: 1,
+            clientMessageId: "550e8400-e29b-41d4-a716-446655440014",
+            content: "수락된 메시지",
+            enqueuedAt: 0,
+            generation: 1,
+            message: null,
+            retryAt: null,
+            roomId: "room-01",
+            status: "accepted",
+          },
+        },
+      ],
+      "membership-01",
+    );
+
+    expect(accepted).toMatchObject({
+      deliveryLabel: null,
+      deliveryStatus: "accepted",
+      deliveryTone: "pending",
+    });
+  });
+
   it("작성자 삭제 메시지를 기존 위치의 tombstone 문구로 변환한다", () => {
     const [deleted] = createChatMessageItemViewModels(
       [

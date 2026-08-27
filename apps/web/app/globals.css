@@ -167,6 +167,17 @@ pre {
   color: #166534;
 }
 
+.chat-message-delivery-pending {
+  opacity: 0;
+  animation: chat-message-delivery-pending-reveal 0s linear 700ms forwards;
+}
+
+@keyframes chat-message-delivery-pending-reveal {
+  to {
+    opacity: 1;
+  }
+}
+
 .primary-button,
 .secondary-button,
 .link-button {

@@ -46,6 +46,36 @@ describe("chat room publishing view", () => {
     expect(html).not.toContain("<time");
   });
 
+  it("전송 중 상태를 확정 bubble 스타일과 동일하게 유지하고 지연 indicator로 표시한다", () => {
+    const html = renderMessage({
+      canOpenActions: false,
+      deliveryLabel: "전송 중",
+      deliveryStatus: "sending",
+      deliveryTone: "pending",
+      messageId: null,
+    });
+
+    expect(html).toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(html).not.toContain("opacity-80");
+    expect(html).toContain('data-delivery-indicator="pending"');
+    expect(html).toContain("chat-message-delivery-pending");
+    expect(html).toContain("absolute");
+  });
+
+  it("전송 실패 상태는 즉시 보이는 오류 indicator로 표시한다", () => {
+    const html = renderMessage({
+      canOpenActions: false,
+      deliveryLabel: "메시지를 전송하지 못했습니다.",
+      deliveryStatus: "failed",
+      deliveryTone: "error",
+      messageId: null,
+    });
+
+    expect(html).toContain('data-delivery-indicator="error"');
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain("chat-message-delivery-pending");
+  });
+
   it("composer를 72px 입력창과 48px 전송 control로 조립한다", () => {
     const html = renderToStaticMarkup(
       createElement(ChatMessageComposer, {

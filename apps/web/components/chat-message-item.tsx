@@ -14,10 +14,8 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
     const bubbleClassName = `w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
       item.isDeleted
         ? "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] italic text-[var(--chat-publishing-color-muted)]"
-        : item.deliveryTone !== null
-          ? failed
-            ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-red-300 bg-red-50 text-red-950"
-            : "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-primary)] text-white opacity-80"
+        : failed
+          ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-red-300 bg-red-50 text-red-950"
           : item.isMine
             ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-primary)] text-white"
             : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
@@ -36,7 +34,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         ref={ref}
         style={style}
       >
-        <div className="flex w-full max-w-[82%] flex-col">
+        <div className="relative flex w-full max-w-[82%] flex-col">
           {item.startsSenderGroup ? (
             <div
               className="mb-1 flex min-h-[29px] items-center justify-between gap-3"
@@ -103,7 +101,12 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
           ) : null}
           {item.deliveryLabel ? (
             <p
-              className={`mt-1 px-1 text-[0.7rem] ${failed ? "text-red-700" : "text-[var(--chat-publishing-color-muted)]"}`}
+              className={
+                failed
+                  ? "mt-1 px-1 text-[0.7rem] text-red-700"
+                  : "chat-message-delivery-pending pointer-events-none absolute -bottom-[18px] right-1 px-1 text-[0.7rem] text-[var(--chat-publishing-color-muted)]"
+              }
+              data-delivery-indicator={failed ? "error" : "pending"}
               role={failed ? "alert" : "status"}
             >
               {item.deliveryLabel}

@@ -290,7 +290,7 @@ function createChatMessageRenderKey(clientMessageId: string): string {
 
 function getOutgoingMessageStatusLabel(
   message: Extract<ChatMessageTimelineItem, { kind: "outgoing" }>["message"],
-): string {
+): string | null {
   switch (message.status) {
     case "queued":
       return "전송 대기 중";
@@ -298,7 +298,7 @@ function getOutgoingMessageStatusLabel(
     case "retry-waiting":
       return "전송 중";
     case "accepted":
-      return "전송 확인 중";
+      return null;
     case "failed":
     case "cancelled":
       return message.message ?? "메시지를 전송하지 못했습니다.";

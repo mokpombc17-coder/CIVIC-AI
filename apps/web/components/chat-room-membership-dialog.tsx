@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { forwardRef, useId, type KeyboardEvent } from "react";
 import { ChatRoomMembershipPanel } from "@/components/chat-room-membership-panel";
 import type { RoomDetails } from "@/lib/chat/chat-room-contracts";
@@ -16,12 +17,16 @@ export const ChatRoomMembershipDialogTrigger = forwardRef<
       aria-expanded={isOpen}
       aria-haspopup="dialog"
       aria-label="방 정보"
-      className="inline-flex h-9 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-2.5 text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)]"
+      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
       onClick={onOpen}
       ref={ref}
       type="button"
     >
-      정보
+      <svg aria-hidden="true" className="size-6" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M12 10.75V17" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <circle cx="12" cy="7.25" fill="currentColor" r="1.1" />
+      </svg>
     </button>
   );
 });
@@ -75,7 +80,7 @@ export function ChatRoomMembershipDialog({
 
   return (
     <div
-      className="relative flex size-full items-center justify-center p-3 sm:p-4"
+      className="relative flex size-full items-end justify-center bg-[#121417]/[0.56]"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -85,7 +90,8 @@ export function ChatRoomMembershipDialog({
       <section
         aria-labelledby={titleId}
         aria-modal="true"
-        className="max-h-full w-full max-w-5xl overflow-y-auto rounded-2xl text-slate-950 shadow-2xl"
+        className="max-h-[92%] w-full overflow-y-auto overscroll-contain rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white pb-[env(safe-area-inset-bottom)] text-slate-950 shadow-[0_16px_40px_rgba(18,20,23,0.2)] [&>.panel]:rounded-none [&>.panel]:border-0 [&>.panel]:shadow-none"
+        data-chat-room-membership-bottom-sheet="true"
         data-chat-room-membership-dialog="true"
         onKeyDown={handleKeyDown}
         role="dialog"
@@ -95,11 +101,17 @@ export function ChatRoomMembershipDialog({
             <button
               aria-label="방 정보와 멤버십 닫기"
               autoFocus
-              className="flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-100"
+              className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
               onClick={onClose}
               type="button"
             >
-              ×
+              <Image
+                alt=""
+                aria-hidden="true"
+                height={24}
+                src="/assets/chat/close.png"
+                width={24}
+              />
             </button>
           }
           headingId={titleId}
