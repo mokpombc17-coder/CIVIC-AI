@@ -4,6 +4,9 @@ import com.hamcheeze.vote.task.application.prediction.EnsureTaskPredictionResult
 import com.hamcheeze.vote.task.application.query.AdminTaskQueryService;
 import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskLifecycleStatus;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
@@ -309,6 +312,85 @@ final class TaskApiModels {
             return new UserTaskDetailResponse(
                     TaskResponse.from(detail.task()), detail.closesAt(),
                     SubmissionStateResponse.from(detail.submission()));
+        }
+    }
+
+    record ParticipatedTaskPageResponse(
+            List<ParticipatedTaskSummaryResponse> items,
+            String nextCursor
+    ) {
+        static ParticipatedTaskPageResponse from(
+                ParticipatedTaskQueryService.ParticipatedTaskPage page
+        ) {
+            return new ParticipatedTaskPageResponse(
+                    page.items().stream()
+                            .map(ParticipatedTaskSummaryResponse::from)
+                            .toList(),
+                    page.nextCursor());
+        }
+    }
+
+    record ParticipatedTaskSummaryResponse(
+            UUID taskId,
+            String title,
+            String description,
+            Instant openedAt,
+            Instant closesAt,
+            Instant closedAt,
+            TaskClosureType closureType,
+            ParticipatedTaskLifecycleStatus taskStatus,
+            boolean canSubmit,
+            ParticipatedTaskSubmissionResponse participation,
+            ParticipatedTaskResultResponse result
+    ) {
+        static ParticipatedTaskSummaryResponse from(
+                ParticipatedTaskQueryService.ParticipatedTaskSummary summary
+        ) {
+            return new ParticipatedTaskSummaryResponse(
+                    summary.taskId().value(),
+                    summary.title(),
+                    summary.description(),
+                    summary.openedAt(),
+                    summary.closesAt(),
+                    summary.closedAt(),
+                    summary.closureType(),
+                    summary.taskStatus(),
+                    summary.canSubmit(),
+                    ParticipatedTaskSubmissionResponse.from(
+                            summary.participation()),
+                    ParticipatedTaskResultResponse.from(summary.result()));
+        }
+    }
+
+    record ParticipatedTaskSubmissionResponse(
+            ParticipatedTaskQueryService.ParticipationStatus status,
+            UUID submissionId,
+            Instant submittedAt
+    ) {
+        static ParticipatedTaskSubmissionResponse from(
+                ParticipatedTaskQueryService.Participation participation
+        ) {
+            return new ParticipatedTaskSubmissionResponse(
+                    participation.status(),
+                    participation.submissionId().value(),
+                    participation.submittedAt());
+        }
+    }
+
+    record ParticipatedTaskResultResponse(
+            ParticipatedTaskResultStatus status,
+            Integer version,
+            Instant finalizedAt,
+            boolean accessAllowed
+    ) {
+        static ParticipatedTaskResultResponse from(
+                ParticipatedTaskQueryService.Result result
+        ) {
+            return new ParticipatedTaskResultResponse(
+                    result.status(),
+                    result.version(),
+                    result.finalizedAt(),
+                    result.accessAllowed());
         }
     }
 

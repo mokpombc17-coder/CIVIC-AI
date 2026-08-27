@@ -225,6 +225,12 @@ class VoteApiSecurityIntegrationTest {
                                 "Bearer " + taskReadToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isArray());
+        mockMvc.perform(get("/api/v1/me/tasks/participated")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray());
         mockMvc.perform(get("/api/v1/me/tasks/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
@@ -323,7 +329,7 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
-    void completedTaskPaginationRejectsInvalidCursorAndSize()
+    void taskListPaginationRejectsInvalidCursorSizeAndSearch()
             throws Exception {
         String taskReadToken = scopedToken(
                 "completed-contract-user",
@@ -340,6 +346,33 @@ class VoteApiSecurityIntegrationTest {
 
         mockMvc.perform(get("/api/v1/me/tasks/completed")
                         .queryParam("size", "101")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/participated")
+                        .queryParam("cursor", "invalid")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/participated")
+                        .queryParam("size", "101")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/participated")
+                        .queryParam("query", "a".repeat(201))
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + taskReadToken))

@@ -2,10 +2,13 @@ package com.hamcheeze.vote.task.infra.persistence;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.task.application.port.out.CompletedTaskReader;
+import com.hamcheeze.vote.task.application.port.out.ParticipatedTaskReader;
 import com.hamcheeze.vote.task.application.query.CompletedTaskCursor;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskCursor;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
+import com.hamcheeze.vote.task.domain.task.TaskStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,6 +45,9 @@ class CompletedTaskJdbcAdapterIntegrationTest {
 
     @Autowired
     private CompletedTaskReader completedTasks;
+
+    @Autowired
+    private ParticipatedTaskReader participatedTasks;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -208,6 +214,124 @@ class CompletedTaskJdbcAdapterIntegrationTest {
         assertThat(third).extracting(row -> row.taskId().value())
                 .containsExactly(finalItem);
         assertThat(afterLast).isEmpty();
+    }
+
+    @Test
+    void participatedReaderKeepsEverySubmissionSearchableAndStable() {
+        Instant base = Instant.parse("2026-08-27T12:00:00Z");
+        TaskUserId userId = new TaskUserId("participated-reader-user");
+        PersonaFixture persona = insertSucceededPersona(
+                userId.value(), base.minus(1, ChronoUnit.DAYS));
+
+        UUID open = UUID.fromString(
+                "21000000-0000-0000-0000-000000000004");
+        insertOpenTask(
+                open, "환경 진행 중 Task",
+                base.minus(2, ChronoUnit.HOURS), false);
+        Instant openSubmittedAt = base.minus(10, ChronoUnit.MINUTES);
+        insertSubmission(userId.value(), persona, open, openSubmittedAt);
+
+        UUID closing = UUID.fromString(
+                "21000000-0000-0000-0000-000000000005");
+        insertTask(
+                closing,
+                "마감 처리 대기 Task",
+                null,
+                "OPEN",
+                null,
+                base.minus(2, ChronoUnit.HOURS),
+                base.minus(1, ChronoUnit.MINUTES),
+                null);
+        insertSubmission(
+                userId.value(), persona, closing,
+                base.minus(15, ChronoUnit.MINUTES));
+
+        UUID finalized = UUID.fromString(
+                "21000000-0000-0000-0000-000000000003");
+        insertClosedTask(
+                finalized, "환경 결과 Task", "검색 가능한 결과",
+                TaskClosureType.DEADLINE_REACHED,
+                base.minus(1, ChronoUnit.HOURS), true);
+        Instant finalizedSubmittedAt = base.minus(20, ChronoUnit.MINUTES);
+        insertSubmission(
+                userId.value(), persona, finalized, finalizedSubmittedAt);
+
+        UUID cancelled = UUID.fromString(
+                "21000000-0000-0000-0000-000000000002");
+        insertClosedTask(
+                cancelled, "취소된 참여 Task", null,
+                TaskClosureType.CANCELLED,
+                base.minus(30, ChronoUnit.MINUTES), false);
+        Instant cancelledSubmittedAt = base.minus(30, ChronoUnit.MINUTES);
+        insertSubmission(
+                userId.value(), persona, cancelled, cancelledSubmittedAt);
+
+        UUID awaitingResult = UUID.fromString(
+                "21000000-0000-0000-0000-000000000001");
+        insertClosedTask(
+                awaitingResult, "집계 대기 Task", null,
+                TaskClosureType.EARLY_CLOSED,
+                base.minus(40, ChronoUnit.MINUTES), false);
+        insertSubmission(
+                userId.value(), persona, awaitingResult,
+                base.minus(40, ChronoUnit.MINUTES));
+
+        UUID missed = UUID.fromString(
+                "21000000-0000-0000-0000-000000000006");
+        insertMissedTask(
+                missed, "일정 미진행 참여 Task",
+                base.minus(50, ChronoUnit.MINUTES), false);
+        insertSubmission(
+                userId.value(), persona, missed,
+                base.minus(50, ChronoUnit.MINUTES));
+
+        TaskUserId otherUser = new TaskUserId("participated-reader-other");
+        PersonaFixture otherPersona = insertSucceededPersona(
+                otherUser.value(), base.minus(1, ChronoUnit.DAYS));
+        UUID otherTask = UUID.fromString(
+                "21000000-0000-0000-0000-000000000009");
+        insertOpenTask(
+                otherTask, "다른 사용자 Task",
+                base.minus(2, ChronoUnit.HOURS), false);
+        insertSubmission(
+                otherUser.value(), otherPersona, otherTask,
+                base.minus(5, ChronoUnit.MINUTES));
+
+        List<ParticipatedTaskReader.ParticipatedTaskRow> first =
+                participatedTasks.findByUser(
+                        userId, null, Optional.empty(), 4);
+        List<ParticipatedTaskReader.ParticipatedTaskRow> second =
+                participatedTasks.findByUser(
+                        userId,
+                        null,
+                        Optional.of(new ParticipatedTaskCursor(
+                                "a".repeat(64),
+                                first.getLast().submittedAt(),
+                                first.getLast().taskId())),
+                        4);
+        List<ParticipatedTaskReader.ParticipatedTaskRow> searched =
+                participatedTasks.findByUser(
+                        userId, "검색 가능한", Optional.empty(), 10);
+
+        assertThat(first).extracting(row -> row.taskId().value())
+                .containsExactly(open, closing, finalized, cancelled);
+        assertThat(second).extracting(row -> row.taskId().value())
+                .containsExactly(awaitingResult, missed);
+        assertThat(searched).singleElement().satisfies(row -> {
+            assertThat(row.taskId()).isEqualTo(new TaskId(finalized));
+            assertThat(row.taskStatus()).isEqualTo(TaskStatus.CLOSED);
+            assertThat(row.closureType())
+                    .isEqualTo(TaskClosureType.DEADLINE_REACHED);
+            assertThat(row.resultVersion()).isEqualTo(1);
+            assertThat(row.finalizedAt())
+                    .isEqualTo(base.minus(1, ChronoUnit.HOURS));
+        });
+        assertThat(first.getFirst().resultVersion()).isNull();
+        assertThat(first.get(3).closureType())
+                .isEqualTo(TaskClosureType.CANCELLED);
+        assertThat(second.get(1).openedAt()).isNull();
+        assertThat(second.get(1).closureType())
+                .isEqualTo(TaskClosureType.MISSED_SCHEDULE);
     }
 
     @Test

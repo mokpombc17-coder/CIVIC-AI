@@ -5,6 +5,9 @@ import com.hamcheeze.vote.task.application.prediction.EnsureTaskPredictionResult
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionService;
 import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskLifecycleStatus;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
@@ -60,6 +63,8 @@ class TaskUserControllerTest {
             mock(AuthenticatedUserIdResolver.class);
     private final UserTaskQueryService tasks =
             mock(UserTaskQueryService.class);
+    private final ParticipatedTaskQueryService participatedTasks =
+            mock(ParticipatedTaskQueryService.class);
     private final CompletedTaskQueryService completedTasks =
             mock(CompletedTaskQueryService.class);
     private final MyTaskResultQueryService taskResults =
@@ -81,12 +86,65 @@ class TaskUserControllerTest {
         when(userIds.resolve(authentication)).thenReturn("user-a");
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new TaskUserController(
-                                userIds, tasks, completedTasks, taskResults,
-                                predictions, predictionQueries),
+                                userIds, tasks, participatedTasks,
+                                completedTasks, taskResults, predictions,
+                                predictionQueries),
                         new TaskSubmissionController(
                                 userIds, submissions, submissionQueries))
                 .setControllerAdvice(new TaskApiExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void participatedTasksExposeIndependentStateAxesAndPrivateCache()
+            throws Exception {
+        ParticipatedTaskQueryService.ParticipatedTaskSummary item =
+                new ParticipatedTaskQueryService.ParticipatedTaskSummary(
+                        taskId(),
+                        "참여한 과업",
+                        "결과 확인 가능한 과업",
+                        NOW.minusSeconds(3_600),
+                        NOW.minusSeconds(60),
+                        NOW.minusSeconds(59),
+                        TaskClosureType.DEADLINE_REACHED,
+                        ParticipatedTaskLifecycleStatus.CLOSED,
+                        false,
+                        new ParticipatedTaskQueryService.Participation(
+                                ParticipatedTaskQueryService
+                                        .ParticipationStatus.SUBMITTED,
+                                submissionId(),
+                                NOW.minusSeconds(600)),
+                        new ParticipatedTaskQueryService.Result(
+                                ParticipatedTaskResultStatus.AVAILABLE,
+                                1,
+                                NOW.minusSeconds(59),
+                                true));
+        when(participatedTasks.findByUser(
+                new TaskUserId("user-a"), "환경", null, 10))
+                .thenReturn(new ParticipatedTaskQueryService
+                        .ParticipatedTaskPage(List.of(item), "next-cursor"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/participated")
+                        .param("query", "환경")
+                        .param("size", "10")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL, "private, no-cache"))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].taskStatus")
+                        .value("CLOSED"))
+                .andExpect(jsonPath("$.items[0].canSubmit").value(false))
+                .andExpect(jsonPath("$.items[0].participation.status")
+                        .value("SUBMITTED"))
+                .andExpect(jsonPath("$.items[0].participation.submissionId")
+                        .value(submissionId().value().toString()))
+                .andExpect(jsonPath("$.items[0].result.status")
+                        .value("AVAILABLE"))
+                .andExpect(jsonPath("$.items[0].result.version").value(1))
+                .andExpect(jsonPath("$.items[0].result.accessAllowed")
+                        .value(true))
+                .andExpect(jsonPath("$.nextCursor").value("next-cursor"));
     }
 
     @Test
