@@ -1240,10 +1240,10 @@ export function simulationRecoveryMessage(
     view.state === "REVIEW_REQUIRED" ||
     view.errorCode === "CALIBRATION_C_NETWORK_CAPACITY_INSUFFICIENT"
   ) {
-    return "C형 네트워크 가능 인원이 부족합니다. 다른 표본 시드로 다시 실행하세요.";
+    return "선택 조건에 맞는 가상 패널이 부족합니다. 조건을 조정하거나 새 표본 시드로 다시 실행하세요.";
   }
   if (view.state === "FAILED_PROVIDER" || view.errorCode === "CALIBRATION_ATTEMPTS_EXHAUSTED") {
-    return "외부 모델 호출이 누적 3회 실패했습니다. 모델 상태를 확인한 뒤 새 실행을 요청하세요.";
+    return "외부 모델 호출에 실패했습니다. 모델 상태를 확인한 뒤 다시 실행하세요.";
   }
   if (view.state === "FAILED") {
     return "실행 중 오류가 발생했습니다. 실행 환경을 확인한 뒤 새 실행을 요청하세요.";
@@ -1251,13 +1251,9 @@ export function simulationRecoveryMessage(
   return null;
 }
 
-function providerWaitLabel(reason: string | null): string {
-  if (!reason) return "외부 모델 응답을 기다리는 중입니다.";
-  if (reason.includes("answer_distribution")) return "응답 비율 예측 모델 재시도 대기";
-  if (reason.includes("answer_fit")) return "Persona 응답 적합도 모델 재시도 대기";
-  if (reason.includes("information_ratio")) return "정보처리 비율 모델 재시도 대기";
-  if (reason.includes("information_fit")) return "Persona 정보처리 적합도 모델 재시도 대기";
-  return "외부 모델 자동 재시도 대기";
+export function providerWaitLabel(reason: string | null): string {
+  void reason;
+  return "외부 모델 응답 지연으로 자동 재시도 중입니다.";
 }
 
 function simulationLayout(screenId: string): string {
