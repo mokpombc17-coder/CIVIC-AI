@@ -5,6 +5,10 @@ import com.hamcheeze.vote.task.application.port.out.CompletedTaskReader;
 import com.hamcheeze.vote.task.application.port.out.ParticipatedTaskReader;
 import com.hamcheeze.vote.task.application.query.CompletedTaskCursor;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskCursor;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskLifecycleStatus;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
+import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
+import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -48,6 +52,12 @@ class CompletedTaskJdbcAdapterIntegrationTest {
 
     @Autowired
     private ParticipatedTaskReader participatedTasks;
+
+    @Autowired
+    private UserTaskQueryService openTaskQueries;
+
+    @Autowired
+    private ParticipatedTaskQueryService participatedTaskQueries;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -335,6 +345,48 @@ class CompletedTaskJdbcAdapterIntegrationTest {
     }
 
     @Test
+    void submittedOpenTaskIsConsistentAcrossFrontendListQueries() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        TaskUserId userId = new TaskUserId("task-list-flow-user");
+        PersonaFixture persona = insertSucceededPersona(
+                userId.value(), now.minus(1, ChronoUnit.DAYS));
+        UUID taskId = UUID.fromString(
+                "22000000-0000-0000-0000-000000000001");
+        insertOpenTask(
+                taskId,
+                "교차 흐름 환경 과업",
+                now.minus(1, ChronoUnit.HOURS),
+                false);
+        UUID submissionId = insertSubmission(
+                userId.value(),
+                persona,
+                taskId,
+                now.minus(5, ChronoUnit.MINUTES));
+
+        List<UserTaskQueryService.UserTaskSummary> openItems =
+                openTaskQueries.findOpenTasks(userId);
+        ParticipatedTaskQueryService.ParticipatedTaskPage participatedPage =
+                participatedTaskQueries.findByUser(
+                        userId, "교차 흐름", null, 20);
+
+        assertThat(openItems).singleElement().satisfies(item -> {
+            assertThat(item.taskId()).isEqualTo(new TaskId(taskId));
+            assertThat(item.submission().submitted()).isTrue();
+            assertThat(item.submission().submissionId().value())
+                    .isEqualTo(submissionId);
+        });
+        assertThat(participatedPage.items()).singleElement().satisfies(item -> {
+            assertThat(item.taskId()).isEqualTo(new TaskId(taskId));
+            assertThat(item.taskStatus())
+                    .isEqualTo(ParticipatedTaskLifecycleStatus.OPEN);
+            assertThat(item.participation().submissionId().value())
+                    .isEqualTo(submissionId);
+            assertThat(item.result().status())
+                    .isEqualTo(ParticipatedTaskResultStatus.NOT_AVAILABLE);
+        });
+    }
+
+    @Test
     void rejectsNonPositiveLimit() {
         assertThatThrownBy(() -> completedTasks.findByUser(
                 new TaskUserId("completed-reader-limit"),
@@ -497,6 +549,15 @@ class CompletedTaskJdbcAdapterIntegrationTest {
                 optionId(taskId),
                 taskId,
                 questionId(taskId));
+        jdbcTemplate.update("""
+                INSERT INTO task_options (
+                    option_id, task_id, question_id, question_type,
+                    kind, content, display_order)
+                VALUES (?, ?, ?, 'SINGLE_CHOICE', 'STANDARD', '다른 선택지', 2)
+                """,
+                secondOptionId(taskId),
+                taskId,
+                questionId(taskId));
     }
 
     private UUID insertSubmission(
@@ -630,6 +691,11 @@ class CompletedTaskJdbcAdapterIntegrationTest {
     private UUID optionId(UUID taskId) {
         return UUID.nameUUIDFromBytes(
                 ("option:" + taskId).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private UUID secondOptionId(UUID taskId) {
+        return UUID.nameUUIDFromBytes(
+                ("option-2:" + taskId).getBytes(StandardCharsets.UTF_8));
     }
 
     private record PersonaFixture(
