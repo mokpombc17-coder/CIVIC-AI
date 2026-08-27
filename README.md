@@ -84,11 +84,15 @@ rag:jobs:read
 | --- | --- |
 | `RAG_ADMIN` | `rag:documents:write` |
 | `CHAT_ADMIN` | `chat:rooms:approve`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
-| `VOTE_ADMIN` | `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
+| `VOTE_ADMIN` | `vote:tasks:admin`, `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
 | `SIMULATION_ADMIN` | `simulation:tasks:read`, `simulation:tasks:run`, `simulation:billing:read`, `simulation:billing:write` |
 
 따라서 위 관리 scope는 일반 사용자에게 발급되지 않습니다. 강제 비밀번호 변경 대상은
 완료 전까지 `account:password:write`만 받습니다.
+
+Vote 과업을 기반으로 시뮬레이션을 실행하는 관리자는 `VOTE_ADMIN`과
+`SIMULATION_ADMIN`을 함께 부여받습니다. 두 permission은 독립적으로 유지되고 access
+token에는 두 scope 집합이 합쳐져 발급됩니다.
 
 ## 브라우저 흐름
 
