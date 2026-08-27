@@ -268,6 +268,93 @@ class AdminRoomCreationRequestApiIntegrationTest
                         "ROOM_CREATION_REQUEST_NOT_FOUND"));
     }
 
+    @Test
+    void adminListCursorIsOpaqueStatusBoundAndPaginatesWithoutDuplicates()
+            throws Exception {
+        String requestId1 = submit(
+                "cursor-applicant-1",
+                "커서 방 1",
+                "첫 번째 신청");
+        String requestId2 = submit(
+                "cursor-applicant-2",
+                "커서 방 2",
+                "두 번째 신청");
+
+        MvcResult firstPageResult = mockMvc.perform(get(
+                        "/api/v1/admin/room-creation-requests")
+                        .queryParam("status", "PENDING")
+                        .queryParam("limit", "1")
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty())
+                .andReturn();
+        JsonNode firstPage = json(firstPageResult);
+        String cursor = firstPage.get("nextCursor").asText();
+        String firstPageId = firstPage.get("items").get(0)
+                .get("creationRequestId").asText();
+
+        MvcResult secondPageResult = mockMvc.perform(get(
+                        "/api/v1/admin/room-creation-requests")
+                        .queryParam("status", "PENDING")
+                        .queryParam("limit", "1")
+                        .queryParam("cursor", cursor)
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andReturn();
+        JsonNode secondPage = json(secondPageResult);
+        String secondPageId = secondPage.get("items").get(0)
+                .get("creationRequestId").asText();
+
+        assertThat(Arrays.asList(firstPageId, secondPageId))
+                .containsExactlyInAnyOrder(requestId1, requestId2);
+        assertThat(secondPage.get("nextCursor").isNull()).isTrue();
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/room-creation-requests")
+                        .queryParam("status", "APPROVED")
+                        .queryParam("limit", "1")
+                        .queryParam("cursor", cursor)
+                        .with(admin("admin-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+    }
+
+    @Test
+    void adminListRejectsInvalidLimitAndStatusAndDetailIsNotCached()
+            throws Exception {
+        for (String limit : new String[]{"0", "101"}) {
+            mockMvc.perform(get(
+                            "/api/v1/admin/room-creation-requests")
+                            .queryParam("limit", limit)
+                            .with(admin("admin-1")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/room-creation-requests")
+                        .queryParam("status", "UNKNOWN")
+                        .with(admin("admin-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        String requestId = submit(
+                "cache-applicant",
+                "캐시 확인 방",
+                "상세 캐시 금지");
+        mockMvc.perform(get(
+                        "/api/v1/admin/room-creation-requests/{id}",
+                        requestId)
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
     private String submit(
             String requesterUserId,
             String name,
