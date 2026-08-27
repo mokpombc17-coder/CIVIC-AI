@@ -22,22 +22,25 @@ public class LocalTaskBootstrapService {
 
     @Transactional
     public LocalTaskBootstrapResult initialize() {
-        var existing = tasks.findById(LocalTaskFixture.TASK_ID);
-        if (existing.isPresent()) {
-            validateCompleteFixture(existing.get());
-            return LocalTaskBootstrapResult.ALREADY_PRESENT;
+        boolean created = false;
+        for (Task fixture : LocalTaskFixture.drafts()) {
+            var existing = tasks.findById(fixture.id());
+            if (existing.isPresent()) {
+                validateCompleteFixture(existing.get());
+                continue;
+            }
+            createFixture(fixture);
+            created = true;
         }
+        return created
+                ? LocalTaskBootstrapResult.CREATED
+                : LocalTaskBootstrapResult.ALREADY_PRESENT;
+    }
 
-        Task task = LocalTaskFixture.draft();
-        TaskLifecycleHistory opened = task.openImmediately(
-                LocalTaskFixture.HISTORY_ID,
-                LocalTaskFixture.CLOSE_AT,
-                LocalTaskFixture.ACTOR,
-                LocalTaskFixture.OPEN_REASON,
-                LocalTaskFixture.CREATED_AT);
-        tasks.save(task);
+    private void createFixture(Task fixture) {
+        TaskLifecycleHistory opened = LocalTaskFixture.open(fixture);
+        tasks.save(fixture);
         tasks.appendLifecycleHistory(List.of(opened));
-        return LocalTaskBootstrapResult.CREATED;
     }
 
     private void validateCompleteFixture(Task task) {
@@ -45,7 +48,7 @@ public class LocalTaskBootstrapService {
             throw conflict("local Task fixture is partial or changed");
         }
         List<TaskLifecycleHistory> histories =
-                tasks.findLifecycleHistory(LocalTaskFixture.TASK_ID);
+                tasks.findLifecycleHistory(task.id());
         if (histories.size() != 1
                 || !LocalTaskFixture.matches(histories.getFirst())) {
             throw conflict(

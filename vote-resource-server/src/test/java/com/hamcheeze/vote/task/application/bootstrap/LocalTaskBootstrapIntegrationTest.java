@@ -2,6 +2,8 @@ package com.hamcheeze.vote.task.application.bootstrap;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.task.TaskQuestionType;
 import com.hamcheeze.vote.task.domain.task.TaskStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,16 +55,24 @@ class LocalTaskBootstrapIntegrationTest {
         assertThat(bootstrap.initialize())
                 .isEqualTo(LocalTaskBootstrapResult.ALREADY_PRESENT);
 
-        var task = tasks.findById(LocalTaskFixture.TASK_ID).orElseThrow();
-        assertThat(LocalTaskFixture.matches(task)).isTrue();
-        assertThat(task.questions())
-                .extracting(question -> question.type())
-                .containsExactly(
-                        com.hamcheeze.vote.task.domain.task.TaskQuestionType
-                                .SINGLE_CHOICE);
-        assertThat(tasks.findLifecycleHistory(LocalTaskFixture.TASK_ID))
-                .singleElement()
-                .matches(LocalTaskFixture::matches);
+        assertThat(tasks.findAll()).hasSize(2);
+        assertFixture(LocalTaskFixture.TASK_ID);
+        assertFixture(LocalTaskFixture.SECOND_TASK_ID);
+    }
+
+    @Test
+    void addsSecondFixtureWhenOriginalFixtureAlreadyExists() {
+        var original = LocalTaskFixture.draft();
+        var opened = LocalTaskFixture.open(original);
+        tasks.save(original);
+        tasks.appendLifecycleHistory(List.of(opened));
+
+        assertThat(bootstrap.initialize())
+                .isEqualTo(LocalTaskBootstrapResult.CREATED);
+
+        assertThat(tasks.findAll()).hasSize(2);
+        assertFixture(LocalTaskFixture.TASK_ID);
+        assertFixture(LocalTaskFixture.SECOND_TASK_ID);
     }
 
     @Test
@@ -77,5 +89,17 @@ class LocalTaskBootstrapIntegrationTest {
                 .isEqualTo(TaskStatus.DRAFT);
         assertThat(tasks.findLifecycleHistory(LocalTaskFixture.TASK_ID))
                 .isEmpty();
+        assertThat(tasks.findById(LocalTaskFixture.SECOND_TASK_ID)).isEmpty();
+    }
+
+    private void assertFixture(TaskId taskId) {
+        var task = tasks.findById(taskId).orElseThrow();
+        assertThat(LocalTaskFixture.matches(task)).isTrue();
+        assertThat(task.questions())
+                .extracting(question -> question.type())
+                .containsExactly(TaskQuestionType.SINGLE_CHOICE);
+        assertThat(tasks.findLifecycleHistory(taskId))
+                .singleElement()
+                .matches(LocalTaskFixture::matches);
     }
 }
