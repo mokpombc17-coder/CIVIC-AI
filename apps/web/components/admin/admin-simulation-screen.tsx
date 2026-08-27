@@ -8,14 +8,14 @@ import { ScreenFrame } from "@/components/screens/screen-frame";
 import {
   formatAdminProblem,
   readAdminProblem,
-  readTaskDetail,
-  readTaskSummaries,
   type TaskDetail,
   type TaskSummary,
 } from "@/lib/admin/domain-contracts";
 import {
   readSimulationOptions,
   readSimulationResult,
+  readSimulationTaskDetail,
+  readSimulationTaskSummaries,
   readSimulationView,
   type SimulationOptions,
   type SimulationResult,
@@ -85,12 +85,14 @@ function SimulationTargets() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await authenticatedFetch("/api/v1/admin/tasks", { cache: "no-store" });
+      const response = await authenticatedFetch("/api/v1/admin/simulation-tasks", {
+        cache: "no-store",
+      });
       if (!response.ok) {
         setMessage(formatAdminProblem(await readAdminProblem(response)));
         return;
       }
-      const tasks = readTaskSummaries(await response.json());
+      const tasks = readSimulationTaskSummaries(await response.json());
       if (!tasks) return setMessage("서버의 과업 목록 응답 형식을 확인해야 합니다.");
       setItems(tasks);
       setMessage("");
@@ -194,7 +196,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
     if (!taskId) return;
     const timer = window.setTimeout(() => {
       void Promise.all([
-        authenticatedFetch(`/api/v1/admin/tasks/${encodeURIComponent(taskId)}`, {
+        authenticatedFetch(`/api/v1/admin/simulation-tasks/${encodeURIComponent(taskId)}`, {
           cache: "no-store",
         }),
         authenticatedFetch("/api/v1/admin/simulation-options", { cache: "no-store" }),
@@ -204,7 +206,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
             throw new Error(formatAdminProblem(await readAdminProblem(taskResponse)));
           if (!optionsResponse.ok)
             throw new Error(formatAdminProblem(await readAdminProblem(optionsResponse)));
-          const nextTask = readTaskDetail(await taskResponse.json());
+          const nextTask = readSimulationTaskDetail(await taskResponse.json());
           const nextOptions = readSimulationOptions(await optionsResponse.json());
           if (!nextTask || !nextOptions) throw new Error("서버 응답 형식을 확인해야 합니다.");
           setTask(nextTask);
@@ -407,7 +409,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
     let disposed = false;
     const poll = async () => {
       const next = await load();
-      if (!disposed && next && ["READY", "RUNNING", "WAITING_PROVIDER"].includes(next.state)) {
+      if (!disposed && (!next || ["READY", "RUNNING", "WAITING_PROVIDER"].includes(next.state))) {
         timer = window.setTimeout(() => void poll(), 2000);
       }
     };

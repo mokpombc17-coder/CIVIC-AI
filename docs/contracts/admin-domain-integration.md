@@ -16,17 +16,18 @@
 `civic_ai_access_token` Cookie와 Bearer Authorization에 넣는다. 각 Resource Server가 최종 scope와
 JWT를 검증한다.
 
-| 영역                           | 서버 business scope     |
-| ------------------------------ | ----------------------- |
-| Chat 생성 신청                 | `chat:rooms:approve`    |
-| Vote 과업                      | `vote:tasks:admin`      |
-| 과업 집계 시뮬레이션 조회      | `simulation:tasks:read` |
-| 과업 집계 시뮬레이션 실행·취소 | `simulation:tasks:run`  |
+| 영역                            | 서버 business scope     |
+| ------------------------------- | ----------------------- |
+| Chat 생성 신청                  | `chat:rooms:approve`    |
+| Vote 과업                       | `vote:tasks:admin`      |
+| Simulation용 Vote 과업 snapshot | `simulation:tasks:read` |
+| 과업 집계 시뮬레이션 조회       | `simulation:tasks:read` |
+| 과업 집계 시뮬레이션 실행·취소  | `simulation:tasks:run`  |
 
-현재 배포 전 필수 조치는 두 가지다. Main/Auth의 `VOTE_ADMIN` scope 목록에 `vote:tasks:admin`을
-추가하고, Vote Resource Server의 local profile 전용 `/api/v1/admin/**` gate를 운영에서도 해당
-scope를 검사하도록 교체해야 한다. 이 조치 전에는 Frontend 화면이 완성되어도 운영 Vote API가
-`403`으로 차단된다. Chat의 `chat:rooms:approve` 발급·검사 경로는 현재 계약과 일치한다.
+Main/Auth는 `VOTE_ADMIN`에 `vote:tasks:admin`, `SIMULATION_ADMIN`에
+`simulation:tasks:read`·`simulation:tasks:run`을 발급한다. Simulation 과업 선택은 lifecycle
+audit를 반환하지 않는 Vote의 `/api/v1/admin/simulation-tasks/**` 읽기 전용 계약을 사용한다.
+Chat의 `chat:rooms:approve` 발급·검사 경로는 현재 계약과 일치한다.
 
 mutation은 자동 재전송하지 않는다. 응답이 불명확하거나 `409`이면 상세를 먼저 다시 조회한다. `429`의
 `Retry-After`, Problem Details의 `code`, `violations`, `traceId`를 보존한다. Vote 상세 결과는 JSON으로

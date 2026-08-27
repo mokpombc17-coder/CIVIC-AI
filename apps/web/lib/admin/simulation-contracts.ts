@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readTask, readTaskSummaries, type TaskDetail, type TaskSummary } from "./domain-contracts";
 
 export const simulationStates = [
   "READY",
@@ -210,4 +211,14 @@ export function readSimulationOptions(value: unknown): SimulationOptions | null 
 export function readSimulationResult(value: unknown): SimulationResult | null {
   const parsed = simulationResultSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
+}
+
+export function readSimulationTaskSummaries(value: unknown): readonly TaskSummary[] | null {
+  return readTaskSummaries(value);
+}
+
+export function readSimulationTaskDetail(value: unknown): TaskDetail | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const task = readTask((value as Record<string, unknown>).task);
+  return task ? { task, lifecycleHistory: [] } : null;
 }
