@@ -47,15 +47,15 @@ describe("deferred placeholder static boundary", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("인증 공용 화면의 관리자 shell은 실제 세션 역할을 전달한다", async () => {
+  it("인증 공용 화면의 관리자 shell은 실제 현재 사용자 역할을 전달한다", async () => {
     const source = await readFile(
       path.join(webRoot, "app/(participant)/[feature]/[[...screen]]/page.tsx"),
       "utf8",
     );
 
-    expect(source).toContain("permissions={session.permissions}");
-    expect(source).toContain("role={session.role}");
-    expect(source).toContain("const session = await requireParticipantSession(pathname);");
-    expect(source).not.toContain("loadShellSession");
+    expect(source).toContain("permissions={currentUser.permissions}");
+    expect(source).toContain("role={currentUser.role}");
+    expect(source).toContain("const currentUser = await requireParticipantAccess(pathname);");
+    expect(source).not.toContain("loadCurrentUser");
   });
 });

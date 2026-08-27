@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useState } from "react";
 import { AuthenticatedResourceFrame } from "@/components/auth/authenticated-resource-frame";
 
 type ReadOnlyPdfViewerProps = Readonly<{
@@ -22,7 +21,6 @@ export function ReadOnlyPdfViewer({
   onClose,
   onPageChange,
 }: ReadOnlyPdfViewerProps) {
-  const [zoom, setZoom] = useState(100);
   const safePage = Math.max(1, Math.min(currentPage, totalPages));
   const viewerSource = `${sourceUrl}#page=${safePage}&toolbar=0&navpanes=0&scrollbar=1`;
 
@@ -46,14 +44,25 @@ export function ReadOnlyPdfViewer({
         )}
       </header>
       <div className="wf-rag-document-card">
-        <h3>{documentTitle}</h3>
-        <p>
-          {safePage} / {totalPages}페이지 · {zoom}%
-        </p>
+        <header className="wf-rag-document-meta">
+          <h3>{documentTitle}</h3>
+          <p>
+            {safePage}/{totalPages}페이지 · 100%
+          </p>
+        </header>
+        <div className="civic-pdf-canvas">
+          <AuthenticatedResourceFrame
+            src={viewerSource}
+            title={`${documentTitle} ${safePage}페이지`}
+          />
+        </div>
+        <strong aria-live="polite" className="sr-only">
+          {safePage} / {totalPages}페이지
+        </strong>
         <div aria-label="PDF 페이지 도구" className="civic-pdf-controls" role="toolbar">
           {onPageChange ? (
             <button
-              className="civic-icon-action"
+              className="wf-button wf-button-secondary"
               data-page-target={safePage - 1}
               disabled={safePage <= 1}
               onClick={() => onPageChange(safePage - 1)}
@@ -64,7 +73,7 @@ export function ReadOnlyPdfViewer({
           ) : (
             <Link
               aria-disabled={safePage <= 1}
-              className="civic-icon-action"
+              className="wf-button wf-button-secondary"
               href={
                 (safePage <= 1
                   ? "#"
@@ -74,12 +83,9 @@ export function ReadOnlyPdfViewer({
               이전 페이지
             </Link>
           )}
-          <strong aria-live="polite" className="sr-only">
-            {safePage} / {totalPages}
-          </strong>
           {onPageChange ? (
             <button
-              className="civic-icon-action"
+              className="wf-button wf-button-primary"
               data-page-target={safePage + 1}
               disabled={safePage >= totalPages}
               onClick={() => onPageChange(safePage + 1)}
@@ -90,7 +96,7 @@ export function ReadOnlyPdfViewer({
           ) : (
             <Link
               aria-disabled={safePage >= totalPages}
-              className="civic-icon-action"
+              className="wf-button wf-button-primary"
               href={
                 (safePage >= totalPages
                   ? "#"
@@ -100,37 +106,8 @@ export function ReadOnlyPdfViewer({
               다음 페이지
             </Link>
           )}
-          <button
-            className="civic-icon-action"
-            disabled={zoom <= 75}
-            onClick={() => setZoom((value) => Math.max(75, value - 25))}
-            type="button"
-          >
-            축소
-          </button>
-          <span>{zoom}%</span>
-          <button
-            className="civic-icon-action"
-            disabled={zoom >= 200}
-            onClick={() => setZoom((value) => Math.min(200, value + 25))}
-            type="button"
-          >
-            확대
-          </button>
         </div>
       </div>
-      <div
-        className="civic-pdf-canvas"
-        style={{ "--pdf-zoom": `${zoom / 100}` } as React.CSSProperties}
-      >
-        <AuthenticatedResourceFrame
-          src={viewerSource}
-          title={`${documentTitle} ${safePage}페이지`}
-        />
-      </div>
-      <p className="civic-reader-note">
-        이 화면은 읽기 전용입니다. 원본 저장 기능은 제공하지 않습니다.
-      </p>
     </section>
   );
 }

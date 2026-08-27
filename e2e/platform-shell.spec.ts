@@ -1,5 +1,57 @@
 import { expect, test } from "@playwright/test";
 
+test("루트는 공개 홈으로 직접 이동한다", async ({ page }) => {
+  const response = await page.request.get("/", { maxRedirects: 0 });
+
+  expect(response.status()).toBe(307);
+  expect(response.headers().location).toBe("/home");
+
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/home$/u);
+  await expect(page.getByRole("heading", { name: "홈", exact: true })).toBeVisible();
+});
+
+test("비로그인 사용자는 홈을 보고 보호 기능 링크에서 로그인으로 이동한다", async ({ page }) => {
+  await page.goto("/home");
+
+  await expect(page).toHaveURL(/\/home$/u);
+  await expect(page.getByRole("heading", { name: "홈", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "홈", exact: true })).toHaveAttribute(
+    "href",
+    "/home",
+  );
+  await expect(page.getByRole("link", { name: "AI", exact: true })).toHaveAttribute(
+    "href",
+    "/login?returnTo=%2Frag",
+  );
+  await expect(page.getByRole("link", { name: "과업 보기", exact: true })).toHaveAttribute(
+    "href",
+    "/login?returnTo=%2Fvotes",
+  );
+
+  await page.getByRole("link", { name: "AI", exact: true }).click();
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Frag$/u);
+  await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
+});
+
+test("Access Token 쿠키가 있으면 홈의 보호 기능 링크를 그대로 유지한다", async ({ page }) => {
+  await page.context().addCookies([
+    {
+      name: "civic_ai_access_token",
+      value: "header.payload.signature",
+      url: "http://localhost:3310",
+    },
+  ]);
+
+  await page.goto("/home");
+
+  await expect(page.getByRole("link", { name: "AI", exact: true })).toHaveAttribute("href", "/rag");
+  await expect(page.getByRole("link", { name: "과업 보기", exact: true })).toHaveAttribute(
+    "href",
+    "/votes",
+  );
+});
+
 test("로그인 실제 UI를 공통 Platform Shell 안에 렌더링한다", async ({ page }) => {
   await page.goto("/login");
 

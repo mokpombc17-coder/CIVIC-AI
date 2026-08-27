@@ -6,18 +6,26 @@ import { AdminFunctionalScreen } from "./admin-functional-screen";
 import { AuthFunctionalScreen } from "./auth-functional-screen";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
-import { WireflowCommonState } from "@/components/wireflow/common-state-layouts";
+import {
+  WireflowCommonState,
+  WireflowConflictState,
+  WireflowOutageState,
+  WireflowProgressState,
+} from "@/components/wireflow/common-state-layouts";
+import { WireflowBadge, WireflowCard } from "@/components/wireflow/wireflow-primitives";
 import { ParticipantHomeLayout } from "@/components/wireflow/participant-layouts";
-import type { ShellSession } from "@/lib/auth/shell-access";
+import type { CurrentUser } from "@/lib/auth/shell-access";
 
 export function MainFunctionalScreen({
   screen,
   initialSearch = "",
-  adminSession,
+  adminCurrentUser,
+  requiresLoginForProtectedLinks = false,
 }: Readonly<{
   screen: ScreenDefinition;
   initialSearch?: string;
-  adminSession?: Pick<ShellSession, "role" | "permissions">;
+  adminCurrentUser?: Pick<CurrentUser, "role" | "permissions">;
+  requiresLoginForProtectedLinks?: boolean;
 }>) {
   if (screen.owner !== "MAIN_AUTH" || screen.status !== "FUNCTIONAL") {
     throw new TypeError(`MainFunctionalScreen cannot render ${screen.id}.`);
@@ -27,8 +35,8 @@ export function MainFunctionalScreen({
   }
   if (screen.id.startsWith("U-ACCOUNT-")) return <AccountFunctionalScreen screen={screen} />;
   if (screen.id.startsWith("A-")) {
-    return adminSession ? (
-      <AdminFunctionalScreen adminSession={adminSession} screen={screen} />
+    return adminCurrentUser ? (
+      <AdminFunctionalScreen adminCurrentUser={adminCurrentUser} screen={screen} />
     ) : (
       <AdminFunctionalScreen screen={screen} />
     );
@@ -36,42 +44,75 @@ export function MainFunctionalScreen({
 
   const action = mainScreenPrimaryActions[screen.id] ?? "계속";
   if (screen.id === "U-HOME-001") {
+    const protectedHref = (path: string) =>
+      (requiresLoginForProtectedLinks
+        ? `/login?returnTo=${encodeURIComponent(path)}`
+        : path) as Route;
     return (
       <ScreenFrame screen={screen}>
+        <WireflowCard className="wf-home-welcome">
+          <WireflowBadge>참여 안내</WireflowBadge>
+          <h2>배우고, 함께 토론하고, 결정합니다.</h2>
+          <p>
+            CIVIC.AI와 함께 문서로 정보를 확인하고, 다른 참여자와 의견을 나눈 다음, 나의 생각을
+            투표로 남겨보세요.
+          </p>
+        </WireflowCard>
         <ParticipantHomeLayout
           actions={[
             {
               action: (
-                <Link className="wf-button wf-button-secondary" href={"/votes" as Route}>
-                  과업 보기
+                <Link className="wf-button wf-button-primary" href={protectedHref("/rag")}>
+                  질문하기
+                </Link>
+              ),
+              badge: "AI",
+              description: "문서를 근거로 학습하기",
+              title: "문서 질문",
+            },
+            {
+              action: (
+                <Link className="wf-button wf-button-primary" href={protectedHref("/chat")}>
+                  토론하기
+                </Link>
+              ),
+              badge: "토론방",
+              description: "다른 참여자와 채팅하며 의견 나누기",
+              title: "주제별 토론",
+            },
+            {
+              action: (
+                <Link className="wf-button wf-button-primary" href={protectedHref("/votes")}>
+                  투표하기
                 </Link>
               ),
               badge: "투표",
-              description: "마감 임박 순으로 확인",
-              title: "진행 중 과업",
-            },
-            {
-              action: (
-                <Link className="wf-button wf-button-secondary" href={"/chat" as Route}>
-                  채팅 보기
-                </Link>
-              ),
-              badge: "채팅",
-              description: "참여 중인 방과 새 메시지",
-              title: "내 채팅",
-            },
-            {
-              action: (
-                <Link className="wf-button wf-button-secondary" href={"/rag" as Route}>
-                  질문 시작
-                </Link>
-              ),
-              badge: "문서",
-              description: "공개 문서를 근거로 답변",
-              title: "문서에 질문하기",
+              description: "진행 중인 과업에 의견 제출하기",
+              title: "과업 투표",
             },
           ]}
         />
+      </ScreenFrame>
+    );
+  }
+  if (screen.id === "COMMON-002") {
+    return (
+      <ScreenFrame screen={screen}>
+        <WireflowConflictState latestHref={screen.route as Route} listHref={"/votes" as Route} />
+      </ScreenFrame>
+    );
+  }
+  if (screen.id === "COMMON-003") {
+    return (
+      <ScreenFrame screen={screen}>
+        <WireflowProgressState homeHref={"/home" as Route} retryHref={screen.route as Route} />
+      </ScreenFrame>
+    );
+  }
+  if (screen.id === "COMMON-004") {
+    return (
+      <ScreenFrame screen={screen}>
+        <WireflowOutageState homeHref={"/home" as Route} retryHref={"/home" as Route} />
       </ScreenFrame>
     );
   }
@@ -80,11 +121,7 @@ export function MainFunctionalScreen({
       <WireflowCommonState
         action={action}
         body="자격증명이나 임시 처리 결과를 표시하지 않고 서버의 최신 상태를 다시 확인합니다."
-        href={
-          (screen.id === "COMMON-001" || screen.id === "COMMON-004"
-            ? "/home"
-            : screen.route) as Route
-        }
+        href={(screen.id === "COMMON-001" ? "/home" : screen.route) as Route}
         title={stateMessage(screen.id)}
       />
     </ScreenFrame>
@@ -93,7 +130,5 @@ export function MainFunctionalScreen({
 
 function stateMessage(id: string) {
   if (id === "COMMON-001") return "이 계정에는 요청한 화면의 권한이 없습니다.";
-  if (id === "COMMON-002") return "다른 요청이 먼저 상태를 변경했습니다.";
-  if (id === "COMMON-003") return "서버에서 처리 결과를 확인하고 있습니다.";
-  return "서비스 연결을 잠시 확인하고 있습니다.";
+  return "요청한 화면의 상태를 확인하고 있습니다.";
 }

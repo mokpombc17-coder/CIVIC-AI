@@ -61,12 +61,11 @@ describe("PlatformHeader", () => {
     expect(markup).toContain("추가 작업");
   });
 
-  it("back action이 없으면 Figma icon을 비활성 상태로 유지한다", () => {
+  it("back action이 없으면 뒤로 가기 컨트롤을 렌더링하지 않는다", () => {
     const markup = renderToStaticMarkup(<PlatformHeader title="목록" />);
 
-    expect(markup).toContain('aria-label="뒤로 가기"');
-    expect(markup).toContain('data-state="disabled"');
-    expect(markup).toContain("disabled");
+    expect(markup).not.toContain('aria-label="뒤로 가기"');
+    expect(markup).not.toContain('data-state="disabled"');
   });
 
   it("back href가 있으면 활성 anchor로 표현한다", () => {

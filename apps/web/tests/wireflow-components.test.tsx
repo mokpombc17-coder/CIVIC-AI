@@ -70,7 +70,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain("/assets/platform-navigation/account.png");
   });
 
-  it("renders the latest admin navigation without the legacy session explainer", () => {
+  it("renders the latest admin navigation without the legacy auth explainer", () => {
     const html = renderToStaticMarkup(
       <AdminShell activeRoute="/admin/users" permissions={["RAG_ADMIN"]}>
         <p>content</p>

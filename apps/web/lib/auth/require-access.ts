@@ -3,12 +3,16 @@ import "server-only";
 import type { Route } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { decideShellAccess, type ShellSession } from "./shell-access";
-import { fetchCurrentUser, MainAuthUnavailableError } from "./shell-session-client";
+import { decideShellAccess, type CurrentUser } from "./shell-access";
+import { fetchCurrentUser, MainAuthUnavailableError } from "./current-user-client";
 import { serverEnv } from "@/lib/server/env";
 import { PLATFORM_AUTH_COOKIE_NAME } from "@/lib/server/auth/platform-auth-contract";
 
-export async function loadShellSession(): Promise<ShellSession | null> {
+export async function hasAccessCredential(): Promise<boolean> {
+  return Boolean((await cookies()).get(PLATFORM_AUTH_COOKIE_NAME)?.value);
+}
+
+export async function loadCurrentUser(): Promise<CurrentUser | null> {
   const cookieValue = (await cookies()).get(PLATFORM_AUTH_COOKIE_NAME)?.value;
   if (!cookieValue || !serverEnv.MAIN_AUTH_INTERNAL_URL) return null;
 
@@ -23,14 +27,14 @@ export async function loadShellSession(): Promise<ShellSession | null> {
   }
 }
 
-export async function requireParticipantSession(returnTo: string): Promise<ShellSession> {
-  const session = await loadShellSession();
-  const decision = decideShellAccess("PARTICIPANT", session, returnTo);
+export async function requireParticipantAccess(returnTo: string): Promise<CurrentUser> {
+  const currentUser = await loadCurrentUser();
+  const decision = decideShellAccess("PARTICIPANT", currentUser, returnTo);
 
   if (decision === "REDIRECT_LOGIN") {
     redirect(`/auth/refresh?returnTo=${encodeURIComponent(returnTo)}` as Route);
   }
   if (decision === "FORBIDDEN") redirect("/forbidden");
 
-  return session as ShellSession;
+  return currentUser as CurrentUser;
 }

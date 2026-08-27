@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   transpilePackages: ["@repo/bridge"],
 
+  async redirects() {
+    return [{ source: "/", destination: "/home", permanent: false }];
+  },
+
   async headers() {
     return [
       {

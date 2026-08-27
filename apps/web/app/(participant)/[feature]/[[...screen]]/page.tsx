@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
-import { requireParticipantSession } from "@/lib/auth/require-session";
+import { requireParticipantAccess } from "@/lib/auth/require-access";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { RagFunctionalScreen, type RagQuery } from "@/components/rag/rag-functional-screen";
@@ -46,7 +46,7 @@ export default async function ParticipantPlaceholderPage({
       );
     }
     if (definition.audience === "PARTICIPANT") {
-      await requireParticipantSession(pathname);
+      await requireParticipantAccess(pathname);
       return (
         <ParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
@@ -58,8 +58,8 @@ export default async function ParticipantPlaceholderPage({
       );
     }
     if (definition.audience === "AUTHENTICATED") {
-      const session = await requireParticipantSession(pathname);
-      return session.role === "PARTICIPANT" ? (
+      const currentUser = await requireParticipantAccess(pathname);
+      return currentUser.role === "PARTICIPANT" ? (
         <ParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
           activeRoute={pathname}
@@ -68,7 +68,11 @@ export default async function ParticipantPlaceholderPage({
           <MainFunctionalScreen screen={definition} />
         </ParticipantShell>
       ) : (
-        <AdminShell activeRoute={pathname} permissions={session.permissions} role={session.role}>
+        <AdminShell
+          activeRoute={pathname}
+          permissions={currentUser.permissions}
+          role={currentUser.role}
+        >
           <MainFunctionalScreen screen={definition} />
         </AdminShell>
       );
@@ -76,7 +80,7 @@ export default async function ParticipantPlaceholderPage({
   }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "RAG") {
-    await requireParticipantSession(ragReturnTarget(pathname, query));
+    await requireParticipantAccess(ragReturnTarget(pathname, query));
     return (
       <ParticipantShell
         {...(heading.backHref ? { backHref: heading.backHref } : {})}
@@ -90,7 +94,7 @@ export default async function ParticipantPlaceholderPage({
 
   if (definition.status !== "PLACEHOLDER" || definition.audience !== "PARTICIPANT") notFound();
 
-  await requireParticipantSession(pathname);
+  await requireParticipantAccess(pathname);
 
   return (
     <ParticipantShell activeRoute={pathname} title={participantPlaceholderTitle(pathname)}>

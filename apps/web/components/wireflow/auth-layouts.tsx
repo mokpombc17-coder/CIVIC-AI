@@ -7,15 +7,19 @@ import { WireflowButton } from "./wireflow-primitives";
 type AuthFormCardProps = Readonly<{
   children: ReactNode;
   onSubmit: FormEventHandler<HTMLFormElement>;
+  subtitle?: string | undefined;
   title: string;
 }>;
 
-export function AuthFormCard({ children, onSubmit, title }: AuthFormCardProps) {
+export function AuthFormCard({ children, onSubmit, subtitle, title }: AuthFormCardProps) {
   return (
     <form className="wf-auth-form" onSubmit={onSubmit}>
-      <header className="wf-card-heading">
-        <h2>{title}</h2>
-      </header>
+      {title ? (
+        <header className="wf-card-heading">
+          <h2>{title}</h2>
+          {subtitle ? <p className="wf-card-subtitle">{subtitle}</p> : null}
+        </header>
+      ) : null}
       {children}
     </form>
   );
