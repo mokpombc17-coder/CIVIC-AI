@@ -14,6 +14,8 @@ public final class VoteScopes {
             "vote:personas:read";
     public static final String TASKS_READ =
             "vote:tasks:read";
+    public static final String TASKS_ADMIN =
+            "vote:tasks:admin";
     public static final String PREDICTIONS_WRITE =
             "vote:predictions:write";
     public static final String SUBMISSIONS_READ =

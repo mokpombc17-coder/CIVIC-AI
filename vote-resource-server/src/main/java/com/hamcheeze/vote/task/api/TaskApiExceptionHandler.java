@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -54,6 +55,28 @@ final class TaskApiExceptionHandler {
                 request, false, exception.violations());
     }
 
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<ProblemDetail> beanValidation(
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request
+    ) {
+        List<TaskViolation> violations = exception.getBindingResult()
+                .getAllErrors()
+                .stream()
+                .map(error -> TaskViolation.of(
+                        "TASK_FIELD_INVALID",
+                        error instanceof FieldError fieldError
+                                ? fieldError.getField() : "$",
+                        error.getDefaultMessage() == null
+                                ? "The field is invalid."
+                                : error.getDefaultMessage()))
+                .toList();
+        return response(HttpStatus.UNPROCESSABLE_ENTITY,
+                "TASK_VALIDATION_FAILED",
+                "The task request failed validation.",
+                request, false, violations);
+    }
+
     @ExceptionHandler(TaskDomainException.class)
     ResponseEntity<ProblemDetail> domain(
             TaskDomainException exception,
@@ -79,7 +102,6 @@ final class TaskApiExceptionHandler {
     }
 
     @ExceptionHandler({
-            MethodArgumentNotValidException.class,
             MissingRequestHeaderException.class,
             HandlerMethodValidationException.class,
             MethodArgumentTypeMismatchException.class,

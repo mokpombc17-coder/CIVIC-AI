@@ -50,6 +50,11 @@ public class VoteSecurityConfig {
                         .requestMatchers("/api/v1/operations/**")
                         .denyAll()
                         .requestMatchers(
+                                "/api/v1/admin/tasks",
+                                "/api/v1/admin/tasks/**")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.TASKS_ADMIN))
+                        .requestMatchers(
                                 "/api/v1/admin",
                                 "/api/v1/admin/**")
                         .access((authentication, context) ->

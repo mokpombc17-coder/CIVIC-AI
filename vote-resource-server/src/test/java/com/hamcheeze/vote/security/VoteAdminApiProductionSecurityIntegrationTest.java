@@ -9,6 +9,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,19 +38,49 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles({"prod", "test"})
 @Import({
         TestcontainersConfiguration.class,
-        VoteAdminApiProductionClosedSecurityIntegrationTest.AdminProbeController.class,
-        VoteAdminApiProductionClosedSecurityIntegrationTest.JwtTestConfiguration.class
+        VoteAdminApiProductionSecurityIntegrationTest.AdminProbeController.class,
+        VoteAdminApiProductionSecurityIntegrationTest.JwtTestConfiguration.class
 })
-class VoteAdminApiProductionClosedSecurityIntegrationTest {
+class VoteAdminApiProductionSecurityIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Test
-    void deniesAdminApiInProductionEvenWhenTemporaryFlagIsEnabled()
+    void deniesNonTaskAdminApiInProductionEvenWithTaskAdminScope()
             throws Exception {
         mockMvc.perform(get("/api/v1/admin/security-probe")
-                        .with(jwt().jwt(token -> token.subject("user-a"))))
+                        .with(jwt()
+                                .jwt(token -> token.subject("admin-a"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        VoteScopes.authority(
+                                                VoteScopes.TASKS_ADMIN)))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void allowsTaskAdminApiInProductionWithTaskAdminScope()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/admin/tasks/security-probe")
+                        .with(jwt()
+                                .jwt(token -> token.subject("admin-a"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        VoteScopes.authority(
+                                                VoteScopes.TASKS_ADMIN)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subject").value("admin-a"));
+    }
+
+    @Test
+    void deniesTaskAdminApiInProductionWithoutTaskAdminScope()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/admin/tasks/security-probe")
+                        .with(jwt()
+                                .jwt(token -> token.subject("user-a"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        VoteScopes.authority(
+                                                VoteScopes.TASKS_READ)))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
@@ -57,7 +88,10 @@ class VoteAdminApiProductionClosedSecurityIntegrationTest {
     @RestController
     static class AdminProbeController {
 
-        @GetMapping("/api/v1/admin/security-probe")
+        @GetMapping({
+                "/api/v1/admin/security-probe",
+                "/api/v1/admin/tasks/security-probe"
+        })
         Map<String, String> probe(Authentication authentication) {
             return Map.of("subject", authentication.getName());
         }

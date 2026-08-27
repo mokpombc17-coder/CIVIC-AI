@@ -307,7 +307,21 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
-    void allowsAuthenticatedUserOnAdminApiOnlyInLocalProfile()
+    void allowsTaskAdminApiWithTaskAdminScope()
+            throws Exception {
+        String taskAdminToken = scopedToken(
+                "user-a",
+                VoteScopes.TASKS_ADMIN);
+
+        mockMvc.perform(get("/api/v1/admin/tasks/security-probe")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskAdminToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void deniesTaskAdminApiWithOnlyUserScopes()
             throws Exception {
         String allUserScopesToken = scopedToken(
                 "user-a",
@@ -323,7 +337,9 @@ class VoteApiSecurityIntegrationTest {
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + allUserScopesToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
     }
 
     @Test
