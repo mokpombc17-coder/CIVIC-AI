@@ -142,9 +142,9 @@ RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스�
 
 ## 현재 비활성 기능
 
-참여자 Chat·Vote, Chat의 활성 방·카테고리·통계 운영, Simulation route는 `ComingSoonScreen`만
-렌더링한다. Chat 생성 신청과 Vote 과업 관리자 route는 실제 REST API를 사용한다. placeholder 화면은
-REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
+참여자 Chat·Vote와 Chat의 활성 방·카테고리·통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
+Chat 생성 신청, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를 사용한다.
+placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 
 ## App Router special UI
 
