@@ -170,6 +170,9 @@ export function matchSimulationAdminRoute(
   if (action === "cancel") {
     return allow(normalizedMethod, ["POST"], simulationPath(segments), "simulation:tasks:run");
   }
+  if (action === "retry-failed") {
+    return allow(normalizedMethod, ["POST"], simulationPath(segments), "simulation:tasks:run");
+  }
   if (action === "results") {
     return allow(normalizedMethod, ["GET"], simulationPath(segments), "simulation:tasks:read");
   }
@@ -181,6 +184,15 @@ export function matchSimulationOptionsRoute(method: string): AdminDomainRoute | 
     method.toUpperCase(),
     ["GET"],
     "/api/v1/admin/simulation-options",
+    "simulation:tasks:read",
+  );
+}
+
+export function matchSimulationCapacityRoute(method: string): AdminDomainRoute | RouteFailure {
+  return allow(
+    method.toUpperCase(),
+    ["POST"],
+    "/api/v1/admin/simulation-capacity",
     "simulation:tasks:read",
   );
 }

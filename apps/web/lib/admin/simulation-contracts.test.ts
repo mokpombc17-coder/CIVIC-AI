@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   isPersonaCountWithinLimit,
+  readSimulationCapacity,
+  readSimulationOptions,
   readSimulationResult,
   readSimulationView,
 } from "./simulation-contracts";
@@ -20,10 +22,14 @@ describe("simulation contracts", () => {
         cancelRequested: false,
         errorCode: null,
         resumeAt: null,
+        retryAvailableAt: null,
         waitReason: null,
         createdAt: "2026-08-26T00:00:00Z",
         startedAt: "2026-08-26T00:00:01Z",
         completedAt: null,
+        deadlineAt: "2026-08-26T00:30:00Z",
+        estimatedCompletionAt: "2026-08-26T00:12:00Z",
+        canCancel: false,
         estimatedKrw: 2700,
         holdKrw: 3240,
         settledKrw: null,
@@ -44,17 +50,23 @@ describe("simulation contracts", () => {
         cancelRequested: false,
         errorCode: null,
         resumeAt: "2026-08-26T00:01:00Z",
+        retryAvailableAt: null,
         waitReason: "calibration_answer_fit_provider_wait",
         createdAt: "2026-08-26T00:00:00Z",
         startedAt: "2026-08-26T00:00:01Z",
         completedAt: null,
+        deadlineAt: "2026-08-26T00:30:00Z",
+        estimatedCompletionAt: "2026-08-26T00:12:00Z",
+        canCancel: false,
       }),
     ).not.toBeNull();
   });
 
   it.each([
     ["FAILED_PROVIDER", "CALIBRATION_ATTEMPTS_EXHAUSTED"],
-    ["REVIEW_REQUIRED", "CALIBRATION_C_NETWORK_CAPACITY_INSUFFICIENT"],
+    ["REVIEW_REQUIRED", "FINAL_RESPONSE_SLOTS_INCOMPLETE"],
+    ["PUBLISHING", null],
+    ["REJECTED_PROVIDER_POLICY", "PROVIDER_POLICY_REFUSAL"],
   ])("accepts the V2 terminal state %s", (state, errorCode) => {
     expect(
       readSimulationView({
@@ -66,10 +78,14 @@ describe("simulation contracts", () => {
         cancelRequested: false,
         errorCode,
         resumeAt: null,
+        retryAvailableAt: state === "REVIEW_REQUIRED" ? "2026-08-27T00:00:20Z" : null,
         waitReason: null,
         createdAt: "2026-08-27T00:00:00Z",
         startedAt: "2026-08-27T00:00:01Z",
         completedAt: "2026-08-27T00:00:10Z",
+        deadlineAt: "2026-08-27T00:30:00Z",
+        estimatedCompletionAt: null,
+        canCancel: false,
         billingState: "RELEASED",
       }),
     ).not.toBeNull();
@@ -163,9 +179,54 @@ describe("simulation contracts", () => {
     expect(result?.engine.calibration.pipelineVersion).toBe("CALIBRATED_PERSONA_PIPELINE_V2");
   });
 
-  it("rejects a tampered manual-panel count above the runtime limit", () => {
-    expect(isPersonaCountWithinLimit(10, 10)).toBe(true);
-    expect(isPersonaCountWithinLimit(11, 10)).toBe(false);
-    expect(isPersonaCountWithinLimit(0, 10)).toBe(false);
+  it("accepts configured bounds and only the allowed gender/age filters", () => {
+    expect(
+      readSimulationOptions({
+        minPersonaCount: 100,
+        maxPersonaCount: 1000,
+        defaultModel: "anthropic/claude-sonnet-4.6",
+        models: ["anthropic/claude-sonnet-4.6"],
+        filters: { genders: ["여성", "남성"], ageGroups: ["20대", "30대"] },
+      }),
+    ).not.toBeNull();
+    expect(
+      readSimulationOptions({
+        minPersonaCount: 100,
+        maxPersonaCount: 1000,
+        defaultModel: "anthropic/claude-sonnet-4.6",
+        models: ["anthropic/claude-sonnet-4.6"],
+        filters: {
+          genders: ["여성"],
+          ageGroups: ["20대"],
+          regions: ["서울"],
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("accepts capacity evidence with an actionable closed block reason", () => {
+    expect(
+      readSimulationCapacity({
+        minPersonaCount: 100,
+        maxPersonaCount: 1000,
+        availablePersonaCount: 84,
+        requestedPersonaCount: 100,
+        canSimulate: false,
+        blockReason: "INSUFFICIENT_UNIQUE_CAPACITY",
+      }),
+    ).toEqual({
+      minPersonaCount: 100,
+      maxPersonaCount: 1000,
+      availablePersonaCount: 84,
+      requestedPersonaCount: 100,
+      canSimulate: false,
+      blockReason: "INSUFFICIENT_UNIQUE_CAPACITY",
+    });
+  });
+
+  it("rejects a tampered panel count outside both runtime bounds", () => {
+    expect(isPersonaCountWithinLimit(100, 100, 1000)).toBe(true);
+    expect(isPersonaCountWithinLimit(99, 100, 1000)).toBe(false);
+    expect(isPersonaCountWithinLimit(1001, 100, 1000)).toBe(false);
   });
 });
