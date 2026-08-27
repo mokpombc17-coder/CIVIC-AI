@@ -265,15 +265,15 @@ function ResponseComposer(props: ComposerProps) {
                         className={styles.directTextarea}
                         maxLength={votePublishingTask.reasonMaxLength}
                         onChange={(event) => props.onDirectReasonChange(event.target.value)}
-                        placeholder="응답 이유를 입력해 주세요."
+                        placeholder="응답 이유를 입력하세요…"
                         value={props.directReason}
                       />
-                      <span className={styles.characterCount}>
-                        {props.directReason.length.toLocaleString("ko-KR")} / 1,000자
-                      </span>
-                      {props.showDirectError ? (
-                        <p className={styles.fieldError}>응답 이유를 입력해 주세요.</p>
-                      ) : null}
+                      <div className={styles.directFieldMeta}>
+                        <span className={styles.directFieldHint}>1~1,000자</span>
+                        {props.showDirectError ? (
+                          <span className={styles.fieldError}>응답 이유를 입력해 주세요.</span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -285,7 +285,7 @@ function ResponseComposer(props: ComposerProps) {
       <div className={styles.fullActions}>
         <button
           className={styles.fullPrimaryButton}
-          disabled={!props.reasonReady}
+          disabled={!props.reasonChoice}
           onClick={props.onSubmit}
           type="button"
         >
