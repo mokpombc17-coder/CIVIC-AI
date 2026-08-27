@@ -82,11 +82,15 @@ rag:jobs:read
 | --- | --- |
 | `RAG_ADMIN` | `rag:documents:write` |
 | `CHAT_ADMIN` | `chat:rooms:approve`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
-| `VOTE_ADMIN` | `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
+| `VOTE_ADMIN` | `vote:tasks:admin`, `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
 | `SIMULATION_ADMIN` | `simulation:tasks:read`, `simulation:tasks:run`, `simulation:billing:read`, `simulation:billing:write` |
 
 `/me`의 역할 값은 `PARTICIPANT`, `ADMIN`, `HIGHEST_ADMIN`이며 Resource Server의 API
 권한 판정은 `scope`로 한다.
+
+Vote 과업 기반 시뮬레이션 관리자는 `VOTE_ADMIN`과 `SIMULATION_ADMIN`을 함께
+부여받는다. permission 자체는 분리하며 access token은 두 permission의 scope 합집합을
+포함한다.
 
 ## 5. 브라우저 쿠키
 

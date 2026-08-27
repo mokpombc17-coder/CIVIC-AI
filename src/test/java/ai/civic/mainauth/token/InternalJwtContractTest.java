@@ -41,6 +41,7 @@ class InternalJwtContractTest {
                         "chat:rooms:membership-limit:exempt",
                         "chat:audit:exports",
                         "chat:research:exports",
+                        "vote:tasks:admin",
                         "vote:survey-outbox-replays:write",
                         "vote:persona-generation-retries:write",
                         "rag:documents:write",
@@ -51,6 +52,13 @@ class InternalJwtContractTest {
         assertThat(AccessTokenService.scopesForPermissions(Set.of("RAG_ADMIN")))
                 .contains("rag:documents:write")
                 .doesNotContain("chat:audit:exports");
+        assertThat(AccessTokenService.scopesForPermissions(Set.of("SIMULATION_ADMIN")))
+                .contains(
+                        "simulation:tasks:read",
+                        "simulation:tasks:run",
+                        "simulation:billing:read",
+                        "simulation:billing:write")
+                .doesNotContain("vote:tasks:admin");
         assertThat(AccessTokenService.scopesForPermissions(Set.of(
                         "RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN")))
                 .contains(
@@ -59,6 +67,7 @@ class InternalJwtContractTest {
                         "chat:rooms:membership-limit:exempt",
                         "chat:audit:exports",
                         "chat:research:exports",
+                        "vote:tasks:admin",
                         "vote:survey-outbox-replays:write",
                         "vote:persona-generation-retries:write",
                         "simulation:tasks:read",
@@ -87,6 +96,7 @@ class InternalJwtContractTest {
                         "vote:predictions:write",
                         "vote:submissions:read",
                         "vote:submissions:write",
+                        "vote:tasks:admin",
                         "vote:survey-outbox-replays:write",
                         "vote:persona-generation-retries:write");
     }

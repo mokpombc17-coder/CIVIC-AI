@@ -46,6 +46,7 @@ public final class AccessTokenService {
             "chat:audit:exports",
             "chat:research:exports");
     private static final List<String> VOTE_ADMIN_SCOPES = List.of(
+            "vote:tasks:admin",
             "vote:survey-outbox-replays:write",
             "vote:persona-generation-retries:write");
     private static final List<String> SIMULATION_ADMIN_SCOPES = List.of(
