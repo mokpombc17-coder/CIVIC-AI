@@ -5,9 +5,12 @@ const timestamp = z.string().min(1);
 const decimalText = z
   .union([z.string(), z.number().finite()])
   .transform((value) => String(value))
-  .refine((value) => /^-?\d+(?:\.\d+)?$/u.test(value) && Number.isFinite(Number(value)), {
-    message: "finite decimal required",
-  });
+  .refine(
+    (value) => /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/u.test(value) && Number.isFinite(Number(value)),
+    {
+      message: "finite decimal required",
+    },
+  );
 const nonnegativeDecimalText = decimalText.refine((value) => Number(value) >= 0);
 const positiveDecimalText = decimalText.refine((value) => Number(value) > 0);
 const policyStatus = z.enum(["DRAFT", "ACTIVE", "RETIRED"]);
