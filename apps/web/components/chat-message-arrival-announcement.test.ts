@@ -55,6 +55,7 @@ function createMessage(
     readReceiptLabel: null,
     renderKey: crypto.randomUUID(),
     roomSequence: null,
+    senderIsOwner: false,
     senderLabel: "local-user-1",
     timeLabel: "오후 3:00",
     ...overrides,

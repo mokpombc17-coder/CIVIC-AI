@@ -67,7 +67,11 @@ describe("chat room view model", () => {
       "membership-01",
       new Map(),
       new Map(),
-      new Map([["membership-02", "참여자 2"]]),
+      new Map([
+        ["membership-01", "참여자 1"],
+        ["membership-02", "참여자 2"],
+      ]),
+      "membership-01",
     );
     const [unknownParticipant] = createChatMessageItemViewModels([timeline[0]!], "membership-01");
 
@@ -83,6 +87,7 @@ describe("chat room view model", () => {
       readReceiptLabel: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440001",
       roomSequence: 1,
+      senderIsOwner: false,
       senderLabel: "참여자 2",
     });
     expect(items[1]).toMatchObject({
@@ -98,6 +103,8 @@ describe("chat room view model", () => {
       readReceiptLabel: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440002",
       roomSequence: null,
+      senderIsOwner: true,
+      senderLabel: "참여자 1",
     });
     expect(unknownParticipant?.senderLabel).toBe("알 수 없는 참여자");
   });

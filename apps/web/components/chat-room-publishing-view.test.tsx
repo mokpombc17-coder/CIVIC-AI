@@ -7,10 +7,14 @@ import { ChatRoomEntryError } from "./chat-room-entry-error";
 import type { ChatMessageItemViewModel } from "./chat-room-view-model";
 
 describe("chat room publishing view", () => {
-  it("내 메시지를 Figma blue bubble과 나 label로 표시한다", () => {
-    const html = renderMessage({ isMine: true, senderLabel: null });
+  it("방장 메시지를 Figma blue bubble과 참여자 displayName·방장 badge로 표시한다", () => {
+    const html = renderMessage({ isMine: true, senderIsOwner: true, senderLabel: "noah111" });
 
-    expect(html).toContain(">나</span>");
+    expect(html).toContain(">noah111</strong>");
+    expect(html).toContain(">방장</span>");
+    expect(html).toContain("border-[#9ed1fa]");
+    expect(html).toContain("bg-[#edf7ff]");
+    expect(html).toContain("text-[#085985]");
     expect(html).toContain("bg-[var(--chat-publishing-color-primary)]");
     expect(html).toContain("rounded-br-[4px]");
     expect(html).toContain("오전 10:14");
@@ -20,6 +24,9 @@ describe("chat room publishing view", () => {
     const html = renderMessage({ isMine: false, senderLabel: "참여자 2" });
 
     expect(html).toContain("참여자 2");
+    expect(html).toContain("h-[29px]");
+    expect(html).toContain("px-[6px]");
+    expect(html).toContain("rounded-[var(--chat-publishing-radius-control)]");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
     expect(html).toContain("rounded-bl-[4px]");
@@ -101,6 +108,7 @@ function renderMessage(patch: Partial<ChatMessageItemViewModel>): string {
     readReceiptLabel: null,
     renderKey: "client-message-550e8400-e29b-41d4-a716-446655440000",
     roomSequence: 1,
+    senderIsOwner: false,
     senderLabel: null,
     timeLabel: "오전 10:14",
     ...patch,

@@ -22,7 +22,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
             ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-primary)] text-white"
             : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
     }`;
-    const senderLabel = item.isMine ? "나" : item.senderLabel;
+    const senderLabel = item.senderLabel ?? (item.isMine ? "나" : null);
 
     return (
       <li
@@ -36,16 +36,25 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         style={style}
       >
         <div className="flex w-full max-w-[82%] flex-col">
-          <div className="mb-1 flex min-h-7 items-center justify-between gap-3">
-            {senderLabel ? (
-              <span
-                className={
-                  item.isMine
-                    ? "px-0 text-[13px] font-bold text-[var(--chat-publishing-color-muted)]"
-                    : "inline-flex min-h-7 items-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-2 text-[13px] font-bold text-[var(--chat-publishing-color-primary-emphasis)]"
-                }
-              >
-                {senderLabel}
+          <div className="mb-1 flex min-h-[29px] items-center justify-between gap-3">
+            {senderLabel || item.senderIsOwner ? (
+              <span className="inline-flex min-w-0 items-center gap-[3px]">
+                {senderLabel ? (
+                  <strong
+                    className={
+                      item.isMine || item.senderIsOwner
+                        ? "min-w-0 truncate text-[13px] font-bold leading-[19.5px] text-[var(--chat-publishing-color-muted)]"
+                        : "inline-flex h-[29px] max-w-full items-center truncate rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-[6px] text-[13px] font-bold leading-[16.25px] text-[var(--chat-publishing-color-primary-emphasis)]"
+                    }
+                  >
+                    {senderLabel}
+                  </strong>
+                ) : null}
+                {item.senderIsOwner ? (
+                  <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#9ed1fa] bg-[#edf7ff] px-[6px] text-xs font-bold leading-[18px] text-[#085985]">
+                    방장
+                  </span>
+                ) : null}
               </span>
             ) : (
               <span />

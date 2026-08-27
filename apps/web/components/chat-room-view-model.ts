@@ -52,6 +52,7 @@ export type ChatMessageItemViewModel = Readonly<{
   readReceiptLabel: string | null;
   renderKey: string;
   roomSequence: number | null;
+  senderIsOwner: boolean;
   senderLabel: string | null;
   timeLabel: string;
 }>;
@@ -107,12 +108,14 @@ export function createChatMessageItemViewModels(
   mutationStates: ChatMessageMutationStates = new Map(),
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
+  ownerMembershipId: string | null = null,
 ): readonly ChatMessageItemViewModel[] {
   return timeline.map((item) =>
     createChatMessageItemViewModel(
       item,
       selfMembershipId,
       participantDisplayNames,
+      ownerMembershipId,
       mutationStates,
       readReceiptSummaries,
     ),
@@ -125,6 +128,7 @@ export function createChatMessageViewportItemViewModels(
   mutationStates: ChatMessageMutationStates = new Map(),
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
+  ownerMembershipId: string | null = null,
 ): readonly ChatMessageViewportItemViewModel[] {
   return rows.map((row) => {
     if (row.kind === "date-separator") {
@@ -147,6 +151,7 @@ export function createChatMessageViewportItemViewModels(
       row.item,
       selfMembershipId,
       participantDisplayNames,
+      ownerMembershipId,
       mutationStates,
       readReceiptSummaries,
     );
@@ -162,9 +167,13 @@ function createChatMessageItemViewModel(
   item: ChatMessageTimelineItem,
   selfMembershipId: string | null,
   participantDisplayNames: ReadonlyMap<string, string>,
+  ownerMembershipId: string | null,
   mutationStates: ChatMessageMutationStates,
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary>,
 ): ChatMessageItemViewModel {
+  const selfDisplayName =
+    selfMembershipId === null ? null : (participantDisplayNames.get(selfMembershipId) ?? null);
+
   if (item.kind === "outgoing") {
     const failed = item.message.status === "failed" || item.message.status === "cancelled";
 
@@ -185,7 +194,8 @@ function createChatMessageItemViewModel(
       readReceiptLabel: null,
       renderKey: createChatMessageRenderKey(item.message.clientMessageId),
       roomSequence: null,
-      senderLabel: null,
+      senderIsOwner: selfMembershipId !== null && selfMembershipId === ownerMembershipId,
+      senderLabel: selfDisplayName,
       timeLabel: formatMessageTime(item.message.enqueuedAt),
     };
   }
@@ -211,10 +221,10 @@ function createChatMessageItemViewModel(
     readReceiptLabel: visibleReadCount === null ? null : `${visibleReadCount}명 읽음`,
     renderKey: createChatMessageRenderKey(item.message.clientMessageId),
     roomSequence: item.message.roomSequence,
-    senderLabel: isMine
-      ? null
-      : (participantDisplayNames.get(item.message.senderMembershipId) ??
-        UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME),
+    senderIsOwner: item.message.senderMembershipId === ownerMembershipId,
+    senderLabel:
+      participantDisplayNames.get(item.message.senderMembershipId) ??
+      (isMine ? selfDisplayName : UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME),
     timeLabel: formatMessageTime(item.message.createdAt),
   };
 }

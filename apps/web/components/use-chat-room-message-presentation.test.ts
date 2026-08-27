@@ -9,7 +9,7 @@ describe("chat room message presentation", () => {
       confirmedMessages: [MESSAGE],
       mutationStates: new Map(),
       outgoingMessages: [OUTGOING_MESSAGE],
-      participantProfiles: [PARTICIPANT],
+      participantProfiles: [SELF_PARTICIPANT, PARTICIPANT],
       readBoundaryAfterSequence: 1,
       receiptState: {
         generatedAt: "2026-08-10T03:00:00Z",
@@ -45,12 +45,15 @@ describe("chat room message presentation", () => {
       isMine: false,
       readCount: 1,
       readReceiptLabel: "1명 읽음",
+      senderIsOwner: false,
       senderLabel: "참여자 2",
     });
     expect(presentation.messageItems[1]).toMatchObject({
       deliveryStatus: "queued",
       isMine: true,
       readReceiptLabel: null,
+      senderIsOwner: true,
+      senderLabel: "참여자 1",
     });
     expect(presentation.participantDisplayNames.get("membership-02")).toBe("참여자 2");
   });
@@ -118,4 +121,11 @@ const PARTICIPANT = {
   role: "MEMBER",
   status: "ACTIVE",
   version: 1,
+} satisfies RoomMembershipListItem;
+
+const SELF_PARTICIPANT = {
+  ...PARTICIPANT,
+  displayName: "참여자 1",
+  membershipId: "membership-01",
+  role: "OWNER",
 } satisfies RoomMembershipListItem;

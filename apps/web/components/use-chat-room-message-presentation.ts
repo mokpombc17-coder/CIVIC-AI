@@ -81,6 +81,8 @@ export function createChatRoomMessagePresentation({
   selfMembershipId,
 }: ChatRoomMessagePresentationInput): ChatRoomMessagePresentation {
   const participantDisplayNames = createRoomParticipantDisplayNames(participantProfiles);
+  const ownerMembershipId =
+    participantProfiles.find((participant) => participant.role === "OWNER")?.membershipId ?? null;
   const readReceiptPresentation = createChatMessageReadReceiptPresentation({
     messages: confirmedMessages,
     receiptState,
@@ -97,6 +99,7 @@ export function createChatRoomMessagePresentation({
     mutationStates,
     readReceiptPresentation.summaries,
     participantDisplayNames,
+    ownerMembershipId,
   );
 
   return {
