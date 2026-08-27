@@ -90,6 +90,52 @@ class TaskUserControllerTest {
     }
 
     @Test
+    void openTasksExposeSubmittedAndNotSubmittedContract() throws Exception {
+        TaskId availableTaskId = new TaskId(new UUID(11, 1));
+        TaskId submittedTaskId = new TaskId(new UUID(11, 2));
+        when(tasks.findOpenTasks(new TaskUserId("user-a"))).thenReturn(List.of(
+                new UserTaskQueryService.UserTaskSummary(
+                        availableTaskId,
+                        "참여할 과업",
+                        "아직 제출하지 않은 진행 중 과업",
+                        NOW.minusSeconds(600),
+                        NOW.plusSeconds(600),
+                        new UserTaskQueryService.SubmissionState(
+                                false, null, null)),
+                new UserTaskQueryService.UserTaskSummary(
+                        submittedTaskId,
+                        "참여 완료한 진행 중 과업",
+                        "제출 후에도 마감 전까지 목록에 유지되는 과업",
+                        NOW.minusSeconds(600),
+                        NOW.plusSeconds(1_200),
+                        new UserTaskQueryService.SubmissionState(
+                                true,
+                                submissionId(),
+                                NOW.minusSeconds(30)))));
+
+        mockMvc.perform(get("/api/v1/me/tasks")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].taskId")
+                        .value(availableTaskId.value().toString()))
+                .andExpect(jsonPath("$[0].submission.submitted")
+                        .value(false))
+                .andExpect(jsonPath("$[0].submission.submissionId")
+                        .doesNotExist())
+                .andExpect(jsonPath("$[0].submission.submittedAt")
+                        .doesNotExist())
+                .andExpect(jsonPath("$[1].taskId")
+                        .value(submittedTaskId.value().toString()))
+                .andExpect(jsonPath("$[1].submission.submitted")
+                        .value(true))
+                .andExpect(jsonPath("$[1].submission.submissionId")
+                        .value(submissionId().value().toString()))
+                .andExpect(jsonPath("$[1].submission.submittedAt")
+                        .value(NOW.minusSeconds(30).toString()));
+    }
+
+    @Test
     void participantResultMatchesContractAndUsesPrivateCache()
             throws Exception {
         when(taskResults.findByTask(any(), any()))

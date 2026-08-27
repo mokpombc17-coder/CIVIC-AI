@@ -18,6 +18,7 @@ import java.util.Optional;
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.NOW;
 import static com.hamcheeze.vote.task.application.query.TaskQueryFixtures.USER;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,7 +68,24 @@ class UserTaskQueryServiceTest {
         assertThat(result.getFirst().submission().submitted()).isTrue();
         assertThat(result.getFirst().submission().submissionId())
                 .isEqualTo(submitted.id());
+        assertThat(result.getFirst().submission().submittedAt())
+                .isEqualTo(submitted.submittedAt());
         assertThat(result.get(1).submission().submitted()).isFalse();
+        assertThat(result.get(1).submission().submissionId()).isNull();
+        assertThat(result.get(1).submission().submittedAt()).isNull();
+    }
+
+    @Test
+    void excludesTaskAtExactScheduledCloseTimeBeforeLifecycleTransition() {
+        Task awaitingLifecycleTransition = TaskQueryFixtures.openTask(
+                "마감 전환 대기", NOW);
+        when(tasks.findAll()).thenReturn(List.of(awaitingLifecycleTransition));
+
+        List<UserTaskQueryService.UserTaskSummary> result =
+                service.findOpenTasks(USER);
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(submissions);
     }
 
     @Test
