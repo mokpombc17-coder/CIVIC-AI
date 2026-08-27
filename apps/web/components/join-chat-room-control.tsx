@@ -17,7 +17,7 @@ export function JoinChatRoomControl({
     return (
       <span
         className={`inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 text-sm font-bold text-[var(--chat-publishing-color-muted)] ${
-          isSheet ? "w-full" : "min-w-[108px] shrink-0"
+          isSheet ? "w-fit" : "min-w-[108px] shrink-0"
         }`}
       >
         초대 전용
@@ -28,13 +28,15 @@ export function JoinChatRoomControl({
   return (
     <div
       className={
-        isSheet ? "grid w-full gap-2" : "flex max-w-[140px] shrink-0 flex-col items-end gap-2"
+        isSheet
+          ? "grid w-full justify-items-start gap-2"
+          : "flex max-w-[140px] shrink-0 flex-col items-end gap-2"
       }
     >
       <button
         className={`inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] px-4 text-base font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
           isSheet
-            ? "w-full bg-[var(--chat-publishing-color-primary)] text-white hover:bg-[var(--chat-publishing-color-primary-emphasis)]"
+            ? "w-fit bg-[var(--chat-publishing-color-primary)] text-white hover:bg-[var(--chat-publishing-color-primary-emphasis)]"
             : "min-w-[108px] bg-white text-[var(--chat-publishing-color-primary-emphasis)] hover:bg-[var(--chat-publishing-color-accent-soft)]"
         }`}
         disabled={join.isPending}
@@ -46,9 +48,7 @@ export function JoinChatRoomControl({
 
       {join.errorMessage ? (
         <div
-          className={
-            isSheet ? "text-center text-xs text-red-700" : "text-right text-xs text-red-700"
-          }
+          className={isSheet ? "text-left text-xs text-red-700" : "text-right text-xs text-red-700"}
           role="alert"
         >
           <p>{join.errorMessage}</p>
