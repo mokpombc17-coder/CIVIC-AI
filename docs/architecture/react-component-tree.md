@@ -22,19 +22,21 @@ canonical route를 조회하고 화면 owner·audience·status에 따라 실제 
 선택한다.
 
 ```text
+IndexPage / [Server Route] [redirect: /home]
+
 HomePage /home [Server Route]
-├── requireParticipantSession
-└── ParticipantShell
+├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
+└── ParticipantShell [비로그인 보호 메뉴: /login?returnTo=...]
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            └── MainFunctionalScreen [U-HOME-001]
+            └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
 
 ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
 │   └── PlatformPageShell [bottom navigation 없음]
 │       └── MainFunctionalScreen
 ├── PARTICIPANT or AUTHENTICATED Main/Auth
-│   ├── requireParticipantSession
+│   ├── requireParticipantAccess
 │   └── ParticipantShell 또는 AdminShell
 │       ├── ParticipantShell
 │       │   └── PlatformPageShell
@@ -44,21 +46,21 @@ ParticipantCatchAllPage [Server Route]
 │       └── AdminShell
 │           └── MainFunctionalScreen
 ├── RAG
-│   ├── requireParticipantSession
+│   ├── requireParticipantAccess
 │   └── ParticipantShell
 │       └── PlatformPageShell
 │           └── 기존 frontend2 PlatformShell [정확히 1개]
 │               └── RagFunctionalScreen
 │                   └── ParticipantRagScreen
 └── PLACEHOLDER
-    ├── requireParticipantSession
+    ├── requireParticipantAccess
     └── ParticipantShell
         └── PlatformPageShell
             └── 기존 frontend2 PlatformShell [정확히 1개]
                 └── ComingSoonScreen
 
 AdminCatchAllPage [Server Route]
-├── requireAdminSession(role 또는 permission)
+├── requireAdminAccess(role 또는 permission)
 └── AdminShell
     ├── MainFunctionalScreen [Main/Auth]
     ├── RagFunctionalScreen [RAG]
@@ -92,14 +94,19 @@ adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/ho
 `/vote`, `/mypage` navigation을 그대로 사용한다. 이관 전 실제 UI의 `/votes`, `/account` 주소도
 호환 별칭으로 같은 화면과 active menu에 매핑한다.
 
+`/home`은 인증 없이 렌더링한다. Access Token cookie가 없는 경우 홈의 기능 동작과 하단 메뉴 중
+`/rag`, `/chat`, `/vote`, `/mypage`는 `/login?returnTo=...`로 연결하고, `/home` 메뉴는 공개 홈에
+남는다. cookie가 있으면 원래 보호 경로를 유지하며, 실제 자격 확인과 refresh는 각 보호 route가
+담당한다.
+
 ## 인증 책임
 
 ```text
 Protected Server Route
-└── loadShellSession
+└── loadCurrentUser
     ├── HttpOnly Access Token cookie 읽기
     └── Main/Auth GET /api/v1/auth/me
-        └── ShellSession view model
+        └── CurrentUser view model
 
 Protected Client request
 └── authenticatedFetch

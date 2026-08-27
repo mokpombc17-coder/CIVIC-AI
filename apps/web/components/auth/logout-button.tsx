@@ -18,7 +18,7 @@ export function LogoutButton() {
   }
 
   return (
-    <div className="civic-session-action">
+    <div className="civic-auth-action">
       <button disabled={busy} onClick={() => void logout()} type="button">
         {busy ? "로그아웃 중…" : "로그아웃"}
       </button>

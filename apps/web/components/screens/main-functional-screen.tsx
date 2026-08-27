@@ -8,16 +8,18 @@ import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
 import { WireflowCommonState } from "@/components/wireflow/common-state-layouts";
 import { ParticipantHomeLayout } from "@/components/wireflow/participant-layouts";
-import type { ShellSession } from "@/lib/auth/shell-access";
+import type { CurrentUser } from "@/lib/auth/shell-access";
 
 export function MainFunctionalScreen({
   screen,
   initialSearch = "",
-  adminSession,
+  adminCurrentUser,
+  requiresLoginForProtectedLinks = false,
 }: Readonly<{
   screen: ScreenDefinition;
   initialSearch?: string;
-  adminSession?: Pick<ShellSession, "role" | "permissions">;
+  adminCurrentUser?: Pick<CurrentUser, "role" | "permissions">;
+  requiresLoginForProtectedLinks?: boolean;
 }>) {
   if (screen.owner !== "MAIN_AUTH" || screen.status !== "FUNCTIONAL") {
     throw new TypeError(`MainFunctionalScreen cannot render ${screen.id}.`);
@@ -27,8 +29,8 @@ export function MainFunctionalScreen({
   }
   if (screen.id.startsWith("U-ACCOUNT-")) return <AccountFunctionalScreen screen={screen} />;
   if (screen.id.startsWith("A-")) {
-    return adminSession ? (
-      <AdminFunctionalScreen adminSession={adminSession} screen={screen} />
+    return adminCurrentUser ? (
+      <AdminFunctionalScreen adminCurrentUser={adminCurrentUser} screen={screen} />
     ) : (
       <AdminFunctionalScreen screen={screen} />
     );
@@ -42,7 +44,14 @@ export function MainFunctionalScreen({
           actions={[
             {
               action: (
-                <Link className="wf-button wf-button-secondary" href={"/votes" as Route}>
+                <Link
+                  className="wf-button wf-button-secondary"
+                  href={
+                    requiresLoginForProtectedLinks
+                      ? (`/login?returnTo=${encodeURIComponent("/votes")}` as Route)
+                      : ("/votes" as Route)
+                  }
+                >
                   과업 보기
                 </Link>
               ),
@@ -52,7 +61,14 @@ export function MainFunctionalScreen({
             },
             {
               action: (
-                <Link className="wf-button wf-button-secondary" href={"/chat" as Route}>
+                <Link
+                  className="wf-button wf-button-secondary"
+                  href={
+                    requiresLoginForProtectedLinks
+                      ? (`/login?returnTo=${encodeURIComponent("/chat")}` as Route)
+                      : ("/chat" as Route)
+                  }
+                >
                   채팅 보기
                 </Link>
               ),
@@ -62,7 +78,14 @@ export function MainFunctionalScreen({
             },
             {
               action: (
-                <Link className="wf-button wf-button-secondary" href={"/rag" as Route}>
+                <Link
+                  className="wf-button wf-button-secondary"
+                  href={
+                    requiresLoginForProtectedLinks
+                      ? (`/login?returnTo=${encodeURIComponent("/rag")}` as Route)
+                      : ("/rag" as Route)
+                  }
+                >
                   질문 시작
                 </Link>
               ),

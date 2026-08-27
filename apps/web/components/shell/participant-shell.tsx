@@ -7,6 +7,7 @@ type ParticipantShellProps = Readonly<{
   activeRoute: string;
   backHref?: Route;
   children: ReactNode;
+  requiresLoginForProtectedLinks?: boolean;
   title?: string;
 }>;
 
@@ -14,6 +15,7 @@ export function ParticipantShell({
   activeRoute,
   backHref,
   children,
+  requiresLoginForProtectedLinks = false,
   title,
 }: ParticipantShellProps) {
   const section = participantSection(activeRoute);
@@ -25,7 +27,12 @@ export function ParticipantShell({
             backAction: { ariaLabel: "이전 화면으로 돌아가기", href: resolvedBackHref },
           }
         : {})}
-      bottomNavigation={<PlatformNavigation currentPathname={activeRoute} />}
+      bottomNavigation={
+        <PlatformNavigation
+          currentPathname={activeRoute}
+          requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
+        />
+      }
       contentClassName="civic-platform-participant-content"
       title={title ?? section.title}
     >

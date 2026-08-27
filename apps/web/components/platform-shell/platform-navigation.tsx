@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { CSSProperties } from "react";
 import {
   PlatformBottomNavigation,
@@ -35,9 +36,13 @@ const PLATFORM_NAVIGATION_ITEMS = [
 
 export type PlatformNavigationProps = Readonly<{
   currentPathname: string;
+  requiresLoginForProtectedLinks?: boolean;
 }>;
 
-export function PlatformNavigation({ currentPathname }: PlatformNavigationProps) {
+export function PlatformNavigation({
+  currentPathname,
+  requiresLoginForProtectedLinks = false,
+}: PlatformNavigationProps) {
   return (
     <PlatformBottomNavigation>
       {PLATFORM_NAVIGATION_ITEMS.map((item) => (
@@ -45,7 +50,11 @@ export function PlatformNavigation({ currentPathname }: PlatformNavigationProps)
           aria-current={
             isPlatformNavigationItemActive(currentPathname, item.href) ? "page" : undefined
           }
-          href={item.href}
+          href={
+            requiresLoginForProtectedLinks && item.href !== "/home"
+              ? (`/login?returnTo=${encodeURIComponent(item.href)}` as Route)
+              : item.href
+          }
           icon={<PlatformNavigationIcon src={item.iconSrc} />}
           key={item.href}
           label={item.label}

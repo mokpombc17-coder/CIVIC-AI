@@ -646,17 +646,20 @@ export function signupRecovery(
 async function redirectToRoleHome(returnTo: string | null): Promise<void> {
   const response = await fetch("/api/v1/auth/me", { cache: "no-store" });
   if (!response.ok) throw new Error("로그인 정보를 확인하지 못했습니다.");
-  const session = (await response.json()) as { role?: unknown; must_change_password?: unknown };
-  location.assign(authenticatedDestination(session, returnTo));
+  const currentUser = (await response.json()) as {
+    role?: unknown;
+    must_change_password?: unknown;
+  };
+  location.assign(authenticatedDestination(currentUser, returnTo));
 }
 
 export function authenticatedDestination(
-  session: Readonly<{ role?: unknown; must_change_password?: unknown }>,
+  currentUser: Readonly<{ role?: unknown; must_change_password?: unknown }>,
   returnTo: string | null,
 ): string {
-  if (session.must_change_password === true) return "/account/security";
+  if (currentUser.must_change_password === true) return "/account/security";
   if (returnTo) {
     return returnTo;
   }
-  return session.role === "ADMIN" || session.role === "HIGHEST_ADMIN" ? "/admin" : "/home";
+  return currentUser.role === "ADMIN" || currentUser.role === "HIGHEST_ADMIN" ? "/admin" : "/home";
 }

@@ -969,7 +969,13 @@
         {
           "key": "workspaces",
           "type": "cards",
-          "actions": ["manage-users", "manage-rag", "manage-chat", "manage-task", "manage-sim"],
+          "actions": [
+            "manage-users",
+            "manage-rag",
+            "manage-chat",
+            "manage-task",
+            "manage-sim"
+          ],
           "records": [
             {
               "badge": "부여된 권한",
@@ -1035,7 +1041,13 @@
           "key": "user-table",
           "type": "table",
           "actions": ["open-user", "admin-home"],
-          "columns": ["이메일", "계정 상태", "이메일 인증", "관리자 역할", "최근 활동"],
+          "columns": [
+            "이메일",
+            "계정 상태",
+            "이메일 인증",
+            "관리자 역할",
+            "최근 활동"
+          ],
           "rows": [
             {
               "cells": [
@@ -1048,7 +1060,13 @@
               "actionId": "open-user"
             },
             {
-              "cells": ["user42@example.com", "활성", "인증 완료", "없음", "2026-07-20 13:58"]
+              "cells": [
+                "user42@example.com",
+                "활성",
+                "인증 완료",
+                "없음",
+                "2026-07-20 13:58"
+              ]
             },
             {
               "cells": [
@@ -1274,7 +1292,14 @@
           "key": "audit-table",
           "type": "table",
           "actions": ["open-audit-user", "back-user-list"],
-          "columns": ["실행자", "대상", "변경 전", "변경 후", "사유", "시각 KST"],
+          "columns": [
+            "실행자",
+            "대상",
+            "변경 전",
+            "변경 후",
+            "사유",
+            "시각 KST"
+          ],
           "rows": [
             {
               "cells": [
@@ -1496,11 +1521,21 @@
           "columns": ["문서명", "처리 상태", "업로드 관리자", "업로드 시각"],
           "rows": [
             {
-              "cells": ["2026_복지정책_기본계획.pdf", "처리 완료", "admin01", "2026-07-20 09:12"],
+              "cells": [
+                "2026_복지정책_기본계획.pdf",
+                "처리 완료",
+                "admin01",
+                "2026-07-20 09:12"
+              ],
               "actionId": "folder-docs"
             },
             {
-              "cells": ["청년지원사업.xlsx", "인덱싱 중", "admin02", "2026-07-20 09:32"]
+              "cells": [
+                "청년지원사업.xlsx",
+                "인덱싱 중",
+                "admin02",
+                "2026-07-20 09:32"
+              ]
             }
           ],
           "visibility": "default",
@@ -1606,7 +1641,9 @@
           "type": "key-values",
           "actions": [],
           "variant": "rag-context",
-          "items": [{ "label": "현재 폴더", "value": "전체 문서 / 정책자료 / 복지정책" }],
+          "items": [
+            { "label": "현재 폴더", "value": "전체 문서 / 정책자료 / 복지정책" }
+          ],
           "visibility": "default",
           "emphasis": "none"
         },
@@ -1618,11 +1655,21 @@
           "columns": ["문서명", "처리 상태", "업로드 관리자", "업로드 시각"],
           "rows": [
             {
-              "cells": ["2026_복지정책_기본계획.pdf", "처리 완료", "admin01", "2026-07-20 09:12"],
+              "cells": [
+                "2026_복지정책_기본계획.pdf",
+                "처리 완료",
+                "admin01",
+                "2026-07-20 09:12"
+              ],
               "actionId": "processing-doc"
             },
             {
-              "cells": ["청년지원사업.xlsx", "처리 완료", "admin02", "2026-07-19 16:04"],
+              "cells": [
+                "청년지원사업.xlsx",
+                "처리 완료",
+                "admin02",
+                "2026-07-19 16:04"
+              ],
               "actionId": "delete-doc"
             }
           ],
@@ -1765,7 +1812,12 @@
           "rows": [
             { "cells": ["복지계획.pdf", "인덱싱", "자동 1/2", "처리 중"] },
             {
-              "cells": ["정책자료.hwpx", "추출·OCR", "자동 2회 재시도 완료", "수동 재시도 필요"],
+              "cells": [
+                "정책자료.hwpx",
+                "추출·OCR",
+                "자동 2회 재시도 완료",
+                "수동 재시도 필요"
+              ],
               "actionId": "retry-processing"
             }
           ],

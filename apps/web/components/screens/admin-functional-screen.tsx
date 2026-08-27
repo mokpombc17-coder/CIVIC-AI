@@ -8,7 +8,7 @@ import type { ScreenDefinition } from "@/lib/screens/registry";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
-import type { ShellSession } from "@/lib/auth/shell-access";
+import type { CurrentUser } from "@/lib/auth/shell-access";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 
 type AdminUser = {
@@ -61,10 +61,10 @@ export type AdminDomainMetricState =
 
 export function AdminFunctionalScreen({
   screen,
-  adminSession = { role: "PARTICIPANT", permissions: [] },
+  adminCurrentUser = { role: "PARTICIPANT", permissions: [] },
 }: Readonly<{
   screen: ScreenDefinition;
-  adminSession?: Pick<ShellSession, "role" | "permissions">;
+  adminCurrentUser?: Pick<CurrentUser, "role" | "permissions">;
 }>) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selected, setSelected] = useState<AdminUser | null>(null);
@@ -72,10 +72,10 @@ export function AdminFunctionalScreen({
   const [auditUserLabels, setAuditUserLabels] = useState<Map<string, string>>(new Map());
   const [ragJobSummary, setRagJobSummary] = useState<RagJobSummaryState>({ status: "loading" });
   const [chatRequestSummary, setChatRequestSummary] = useState<AdminDomainMetricState>({
-    status: adminSession.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
+    status: adminCurrentUser.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
   });
   const [taskDeadlineSummary, setTaskDeadlineSummary] = useState<AdminDomainMetricState>({
-    status: adminSession.permissions.includes("VOTE_ADMIN") ? "loading" : "forbidden",
+    status: adminCurrentUser.permissions.includes("VOTE_ADMIN") ? "loading" : "forbidden",
   });
   const [message, setMessage] = useState("");
   const [auditMessage, setAuditMessage] = useState("");
@@ -83,9 +83,9 @@ export function AdminFunctionalScreen({
   const [roleMutationPending, setRoleMutationPending] = useState(false);
   const roleMutationLock = useRef(createMutationLock());
   const userLoadGate = useRef(createLatestAdminUserRequestGate());
-  const canReadRag = adminSession.permissions.includes("RAG_ADMIN");
-  const canManageChat = adminSession.permissions.includes("CHAT_ADMIN");
-  const canManageVote = adminSession.permissions.includes("VOTE_ADMIN");
+  const canReadRag = adminCurrentUser.permissions.includes("RAG_ADMIN");
+  const canManageChat = adminCurrentUser.permissions.includes("CHAT_ADMIN");
+  const canManageVote = adminCurrentUser.permissions.includes("VOTE_ADMIN");
 
   useEffect(() => {
     const activeUserLoadGate = userLoadGate.current;
@@ -225,7 +225,7 @@ export function AdminFunctionalScreen({
     >
       {screen.id === "A-HOME-001" ? (
         <AdminHome
-          adminSession={adminSession}
+          adminCurrentUser={adminCurrentUser}
           chatRequestSummary={chatRequestSummary}
           ragJobSummary={ragJobSummary}
           taskDeadlineSummary={taskDeadlineSummary}
@@ -333,17 +333,17 @@ export function filterAdminUsers(users: AdminUser[], filter: UserStatusFilter) {
 
 function AdminHome({
   ragJobSummary,
-  adminSession,
+  adminCurrentUser,
   chatRequestSummary,
   taskDeadlineSummary,
 }: {
   ragJobSummary: RagJobSummaryState;
   chatRequestSummary: AdminDomainMetricState;
   taskDeadlineSummary: AdminDomainMetricState;
-  adminSession: Pick<ShellSession, "role" | "permissions">;
+  adminCurrentUser: Pick<CurrentUser, "role" | "permissions">;
 }) {
-  const can = (permission: ShellSession["permissions"][number]) =>
-    adminSession.permissions.includes(permission);
+  const can = (permission: CurrentUser["permissions"][number]) =>
+    adminCurrentUser.permissions.includes(permission);
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
       <ul aria-label="관리 현황" className="civic-admin-metrics">
@@ -392,7 +392,7 @@ function AdminHome({
         </section>
       ) : null}
       <section aria-label="관리 업무" className="civic-admin-cards">
-        {adminSession.role === "HIGHEST_ADMIN" ? (
+        {adminCurrentUser.role === "HIGHEST_ADMIN" ? (
           <WireflowActionCard
             action={<AdminCardLink href="/admin/users">사용자 관리 열기</AdminCardLink>}
             badge="계정"

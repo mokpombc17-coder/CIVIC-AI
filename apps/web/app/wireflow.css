@@ -476,12 +476,12 @@ body:has([data-wireflow-shell]) {
   padding-bottom: 64px;
 }
 
-.civic-session-action {
+.civic-auth-action {
   display: grid;
   gap: 4px;
 }
 
-.civic-session-action button {
+.civic-auth-action button {
   min-height: 36px;
   border: 1px solid currentColor;
   border-radius: 6px;
@@ -494,12 +494,12 @@ body:has([data-wireflow-shell]) {
   cursor: pointer;
 }
 
-.civic-session-action button:disabled {
+.civic-auth-action button:disabled {
   cursor: wait;
   opacity: 0.65;
 }
 
-.civic-session-action span {
+.civic-auth-action span {
   color: #b42318;
   font-size: 12px;
 }
@@ -833,7 +833,7 @@ body:has([data-wireflow-shell]) {
   gap: 6px;
 }
 
-.civic-admin-sidebar > .civic-session-action {
+.civic-admin-sidebar > .civic-auth-action {
   margin-top: auto;
   padding: 16px 8px 0;
 }

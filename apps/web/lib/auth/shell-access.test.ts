@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { decideShellAccess, type ShellSession } from "./shell-access";
+import { decideShellAccess, type CurrentUser } from "./shell-access";
 
-const participant: ShellSession = {
+const participant: CurrentUser = {
   userId: "participant-1",
   role: "PARTICIPANT",
   permissions: [],
@@ -9,7 +9,7 @@ const participant: ShellSession = {
   mustChangePassword: false,
 };
 
-const admin: ShellSession = {
+const admin: CurrentUser = {
   userId: "admin-1",
   role: "ADMIN",
   permissions: ["RAG_ADMIN"],
@@ -30,7 +30,7 @@ describe("shell access decisions", () => {
     expect(decideShellAccess("ADMIN", participant)).toBe("FORBIDDEN");
   });
 
-  it("강제 비밀번호 변경 세션은 보안 화면만 열 수 있다", () => {
+  it("비밀번호 변경이 필요한 사용자는 보안 화면만 열 수 있다", () => {
     const forced = { ...participant, mustChangePassword: true };
     expect(decideShellAccess("PARTICIPANT", forced, "/account/security")).toBe("ALLOW");
     expect(decideShellAccess("PARTICIPANT", forced, "/home")).toBe("FORBIDDEN");

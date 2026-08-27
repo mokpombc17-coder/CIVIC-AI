@@ -2,7 +2,7 @@ export type ShellRole = "PARTICIPANT" | "ADMIN" | "HIGHEST_ADMIN";
 export type ShellPermission = "RAG_ADMIN" | "CHAT_ADMIN" | "VOTE_ADMIN" | "SIMULATION_ADMIN";
 export type ShellAccountState = "ACTIVE" | "INACTIVE" | "DELETED";
 
-export type ShellSession = Readonly<{
+export type CurrentUser = Readonly<{
   userId: string;
   role: ShellRole;
   permissions: readonly ShellPermission[];
@@ -15,12 +15,12 @@ export type ShellAccessDecision = "ALLOW" | "REDIRECT_LOGIN" | "FORBIDDEN";
 
 export function decideShellAccess(
   audience: ShellAudience,
-  session: ShellSession | null,
+  currentUser: CurrentUser | null,
   pathname?: string,
 ): ShellAccessDecision {
-  if (!session || session.accountState !== "ACTIVE") return "REDIRECT_LOGIN";
+  if (!currentUser || currentUser.accountState !== "ACTIVE") return "REDIRECT_LOGIN";
 
-  if (session.mustChangePassword) {
+  if (currentUser.mustChangePassword) {
     return audience === "PARTICIPANT" && pathname?.split("?", 1)[0] === "/account/security"
       ? "ALLOW"
       : "FORBIDDEN";
@@ -30,11 +30,11 @@ export function decideShellAccess(
     return "ALLOW";
   }
 
-  const isAdministrator = session.role === "ADMIN" || session.role === "HIGHEST_ADMIN";
+  const isAdministrator = currentUser.role === "ADMIN" || currentUser.role === "HIGHEST_ADMIN";
   if (!isAdministrator) return "FORBIDDEN";
   if (audience === "ADMIN") return "ALLOW";
   if (audience === "HIGHEST_ADMIN") {
-    return session.role === "HIGHEST_ADMIN" ? "ALLOW" : "FORBIDDEN";
+    return currentUser.role === "HIGHEST_ADMIN" ? "ALLOW" : "FORBIDDEN";
   }
-  return session.permissions.includes(audience) ? "ALLOW" : "FORBIDDEN";
+  return currentUser.permissions.includes(audience) ? "ALLOW" : "FORBIDDEN";
 }

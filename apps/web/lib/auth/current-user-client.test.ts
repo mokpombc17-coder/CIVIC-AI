@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchCurrentUser, MainAuthUnavailableError } from "./shell-session-client";
+import { fetchCurrentUser, MainAuthUnavailableError } from "./current-user-client";
 
 describe("Main/Auth current-user client", () => {
   const accessToken = "header.payload.signature";

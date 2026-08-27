@@ -545,7 +545,7 @@ describe("25 functional Main/Auth screens", () => {
 
   it.each(mainScreens)("$id 제품 제목·대표 행동을 렌더링한다", (screen) => {
     const html = renderToStaticMarkup(
-      createElement(MainFunctionalScreen, { screen, adminSession: fullAdminSession }),
+      createElement(MainFunctionalScreen, { screen, adminCurrentUser: fullAdminSession }),
     );
     expect(html).toContain(screen.id);
     expect(html).toContain('<h1 id="civic-screen-title">');
@@ -677,7 +677,7 @@ describe("25 functional Main/Auth screens", () => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
       return renderToStaticMarkup(
-        createElement(MainFunctionalScreen, { screen, adminSession: fullAdminSession }),
+        createElement(MainFunctionalScreen, { screen, adminCurrentUser: fullAdminSession }),
       );
     };
 
@@ -753,7 +753,7 @@ describe("25 functional Main/Auth screens", () => {
     if (!home) throw new Error("A-HOME-001 missing");
 
     const html = renderToStaticMarkup(
-      createElement(MainFunctionalScreen, { screen: home, adminSession: fullAdminSession }),
+      createElement(MainFunctionalScreen, { screen: home, adminCurrentUser: fullAdminSession }),
     );
 
     expect(html).toContain('data-wireflow-layout="admin-home"');

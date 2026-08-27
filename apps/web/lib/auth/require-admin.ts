@@ -2,16 +2,16 @@ import "server-only";
 
 import type { Route } from "next";
 import { redirect } from "next/navigation";
-import { decideShellAccess, type ShellAudience, type ShellSession } from "./shell-access";
-import { loadShellSession } from "./require-session";
+import { decideShellAccess, type CurrentUser, type ShellAudience } from "./shell-access";
+import { loadCurrentUser } from "./require-access";
 import { safeAdminReturnTarget } from "./return-target";
 
-export async function requireAdminSession(
+export async function requireAdminAccess(
   audience: Exclude<ShellAudience, "PARTICIPANT"> = "ADMIN",
   returnTo = "/admin",
-): Promise<ShellSession> {
-  const session = await loadShellSession();
-  const decision = decideShellAccess(audience, session);
+): Promise<CurrentUser> {
+  const currentUser = await loadCurrentUser();
+  const decision = decideShellAccess(audience, currentUser);
 
   if (decision === "REDIRECT_LOGIN") {
     redirect(
@@ -20,5 +20,5 @@ export async function requireAdminSession(
   }
   if (decision === "FORBIDDEN") redirect("/forbidden");
 
-  return session as ShellSession;
+  return currentUser as CurrentUser;
 }
