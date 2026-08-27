@@ -32,6 +32,18 @@ describe("chat room publishing view", () => {
     expect(html).toContain("rounded-bl-[4px]");
   });
 
+  it("말풍선은 내용과 metadata 중 넓은 너비를 따르되 메시지 영역의 82%를 넘지 않는다", () => {
+    const mine = renderMessage({ content: "네", isMine: true });
+    const other = renderMessage({ content: "확인했습니다", isMine: false });
+
+    expect(mine).toContain('data-message-bubble-container="true"');
+    expect(mine).toContain("w-fit min-w-0 max-w-[82%]");
+    expect(mine).toContain("w-full min-w-0 max-w-full");
+    expect(mine).toContain("inline-flex min-w-0 flex-1");
+    expect(mine).toContain("flex w-full min-w-0 justify-end");
+    expect(other).toContain("flex w-full min-w-0 justify-start");
+  });
+
   it("연속 메시지는 시각적 작성자·시간을 숨기고 접근 가능한 정보만 유지한다", () => {
     const html = renderMessage({
       isMine: false,
@@ -110,6 +122,10 @@ describe("chat room publishing view", () => {
 
     expect(html).toContain("border-[#ffc95c]");
     expect(html).toContain("bg-[#fff7e8]");
+    expect(html).toContain("min-h-[204px]");
+    expect(html).toContain("pt-[18px] pb-[18px]");
+    expect(html).toContain("mt-auto flex flex-wrap gap-2 pt-4");
+    expect(html).toContain("h-12 min-w-[131px]");
     expect(html).toContain("채팅방에 참여할 수 없습니다.");
     expect(html).toContain("방장에 의해 채팅방에서 퇴장되었습니다.");
     expect(html).toContain('href="/chat"');

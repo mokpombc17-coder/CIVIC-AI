@@ -136,9 +136,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                         └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                             └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
                                                 └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
-                                                    ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
-                                                    └── ChatRoomSettingsControl [Client] [Container] [conditional] (apps/web/components/chat-room-settings-control.tsx)
-                                                        └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-control.tsx)
+                                                    └── ChatRoomInformationSection [Client] [Feature] (apps/web/components/chat-room-settings-control.tsx)
+                                                        ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
+                                                        └── ChatRoomSettingsControl [Client] [Container] [conditional, OWNER] (apps/web/components/chat-room-settings-control.tsx)
+                                                            └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-control.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
                         │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
                         └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
@@ -267,13 +268,14 @@ experience hook이 `.tsx` 표현 컴포넌트의 구현 타입을 역으로 참�
 `ChatRoomMembershipPanel`은 `useChatRoomMembershipPanel`이 조립한 controller를
 `ChatRoomMembershipPanelView`에 전달하는 얇은 container다. controller hook은 Membership Query,
 관리 mutation, 멱등성 key·재시도, 완료 라우팅을 소유하며 View에는 정규화된 목록 상태,
-사용자 문구와 callback만 제공한다. View는 방 설명·카테고리와 모든 ACTIVE membership의 profile 목록을
-제공하고, BANNED 조회와 차단 해제 control은 활성 OWNER에게만 표시한다. LEFT membership은 조회하거나
-렌더링하지 않는다.
+사용자 문구와 callback만 제공한다. View는 `ChatRoomInformationSection`과 모든 ACTIVE membership의
+profile 목록을 제공하고, BANNED 조회와 차단 해제 control은 활성 OWNER에게만 표시한다. LEFT membership은
+조회하거나 렌더링하지 않는다. `ChatRoomInformationSection`은 모든 사용자에게 이름·설명·카테고리 요약을
+제공하고 활성 OWNER일 때만 같은 카드 안의 수정 disclosure를 조립한다.
 `ChatRoomSettingsControl`은 `useChatRoomSettingsControl`의 controller를 설정 View에 전달하는 container다.
 controller hook은 이름·설명만 허용하는 draft, 부분 patch 계산, update-settings mutation과 멱등성 key 재시도를
-소유한다. View는 방장에게 채팅방 메뉴 안에서 항상 보이는 인라인 form을 제공하고, 별도 modal이나 disclosure
-단계를 생성하지 않는다.
+소유한다. container는 조회·편집 전환과 완료 후 trigger focus 복원을 소유하며, View는 별도 modal 없이 같은
+방 정보 카드 안에서 조회 요약 또는 인라인 form 중 하나만 표시한다.
 
 ## App Router special UI
 
@@ -361,7 +363,8 @@ flowchart TD
     ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatRoomMembershipPanelView["ChatRoomMembershipPanelView [Client] [View]<br/>apps/web/components/chat-room-membership-panel.tsx"]
-    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Container] [conditional]<br/>apps/web/components/chat-room-settings-control.tsx"]
+    ChatRoomInformationSection["ChatRoomInformationSection [Client] [Feature]<br/>apps/web/components/chat-room-settings-control.tsx"]
+    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Container] [conditional, OWNER]<br/>apps/web/components/chat-room-settings-control.tsx"]
     ChatRoomSettingsControlView["ChatRoomSettingsControlView [Client] [View]<br/>apps/web/components/chat-room-settings-control.tsx"]
     ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [Feature] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
     ChatRoomSessionControls["ChatRoomSessionControls [Client] [Feature]<br/>apps/web/components/chat-room-session-controls.tsx"]
@@ -435,8 +438,9 @@ flowchart TD
     ChatRoomScreenOverlay -->|"room menu disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel --> ChatRoomMembershipPanelView
-    ChatRoomMembershipPanelView --> ChatRoomCategoryBadges
-    ChatRoomMembershipPanelView -->|"active OWNER only"| ChatRoomSettingsControl
+    ChatRoomMembershipPanelView --> ChatRoomInformationSection
+    ChatRoomInformationSection --> ChatRoomCategoryBadges
+    ChatRoomInformationSection -->|"active OWNER only"| ChatRoomSettingsControl
     ChatRoomSettingsControl --> ChatRoomSettingsControlView
 
     SpecialBoundary -. "loading state" .-> Loading
@@ -449,7 +453,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,ChatRoomCategorySelector,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

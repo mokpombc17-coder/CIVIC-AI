@@ -1,9 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomParticipantProfile } from "@/components/chat-room-participant-profile";
-import { ChatRoomSettingsControl } from "@/components/chat-room-settings-control";
+import { ChatRoomInformationSection } from "@/components/chat-room-settings-control";
 import {
   useChatRoomMembershipPanel,
   type ChatRoomMemberCommandKind,
@@ -73,8 +72,7 @@ export function ChatRoomMembershipPanelView({
         <div className="flex flex-wrap items-center justify-end gap-2">{headerAction}</div>
       </div>
 
-      <RoomSummary room={room} />
-      {isOwner ? <ChatRoomSettingsControl room={room} /> : null}
+      <ChatRoomInformationSection canEdit={isOwner} room={room} />
 
       {isActiveMembershipListEnabled ? (
         <ActiveMembershipList
@@ -164,17 +162,6 @@ export function ChatRoomMembershipPanelView({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function RoomSummary({ room }: { room: RoomDetails }) {
-  return (
-    <div className="mt-4 grid gap-3 rounded-xl bg-[var(--chat-publishing-color-neutral-soft)] p-4">
-      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-        {room.description || "채팅방 소개가 없습니다."}
-      </p>
-      <ChatRoomCategoryBadges categories={room.categories} />
-    </div>
   );
 }
 

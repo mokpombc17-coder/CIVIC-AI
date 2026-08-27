@@ -62,7 +62,6 @@ export function ChatMessageActionsBottomSheet({
         onKeyDown={handleKeyDown}
         role="dialog"
       >
-        <div aria-hidden="true" className="mx-auto mb-2 h-1 w-10 rounded-full bg-slate-300" />
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-base font-bold" id={titleId}>
             메시지 작업
@@ -78,13 +77,11 @@ export function ChatMessageActionsBottomSheet({
         </div>
 
         {sheet.mode === "menu" ? (
-          <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-            <p className="line-clamp-1 whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+          <div className="mt-3 grid gap-3">
+            <p className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-3 py-2 text-sm leading-6 text-slate-700">
               {sheet.content}
             </p>
-            <div
-              className={`grid gap-2 ${sheet.canMutate ? "grid-cols-3 sm:min-w-80" : "grid-cols-1 sm:min-w-28"}`}
-            >
+            <div className={`grid gap-2 ${sheet.canMutate ? "grid-cols-3" : "grid-cols-1"}`}>
               <button
                 autoFocus
                 className="secondary-button"
@@ -129,7 +126,7 @@ export function ChatMessageActionsBottomSheet({
         ) : null}
 
         {sheet.mode !== "menu" ? (
-          <p className="mt-3 line-clamp-2 whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+          <p className="mt-3 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-slate-100 px-3 py-2 text-sm leading-6 text-slate-700">
             {sheet.content}
           </p>
         ) : null}

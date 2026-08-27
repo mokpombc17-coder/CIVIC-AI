@@ -11,7 +11,7 @@ type ChatMessageItemProps = Readonly<{
 export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
   function ChatMessageItem({ item, onOpenActions, style, virtualIndex }, ref) {
     const failed = item.deliveryTone === "error";
-    const bubbleClassName = `w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
+    const bubbleClassName = `w-full min-w-0 max-w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
       item.isDeleted
         ? "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] italic text-[var(--chat-publishing-color-muted)]"
         : failed
@@ -34,14 +34,17 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         ref={ref}
         style={style}
       >
-        <div className="relative flex w-full max-w-[82%] flex-col">
+        <div
+          className="relative flex w-fit min-w-0 max-w-[82%] flex-col"
+          data-message-bubble-container="true"
+        >
           {item.startsSenderGroup ? (
             <div
               className="mb-1 flex min-h-[29px] items-center justify-between gap-3"
               data-message-metadata="visible"
             >
               {senderLabel || item.senderIsOwner ? (
-                <span className="inline-flex min-w-0 items-center gap-[3px]">
+                <span className="inline-flex min-w-0 flex-1 items-center gap-[3px]">
                   {senderLabel ? (
                     <strong
                       className={
@@ -72,18 +75,21 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
               {item.senderIsOwner ? ", 방장" : ""}, {item.timeLabel}
             </span>
           )}
-          <div className="w-full">
+          <div className={`flex w-full min-w-0 ${item.isMine ? "justify-end" : "justify-start"}`}>
             {item.canOpenActions && item.messageId ? (
               <button
                 aria-haspopup="dialog"
                 className={`${bubbleClassName} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]`}
+                data-message-bubble="true"
                 onClick={(event) => onOpenActions(item, event.currentTarget)}
                 type="button"
               >
                 {item.content}
               </button>
             ) : (
-              <p className={bubbleClassName}>{item.content}</p>
+              <p className={bubbleClassName} data-message-bubble="true">
+                {item.content}
+              </p>
             )}
           </div>
           {item.isEdited ? (

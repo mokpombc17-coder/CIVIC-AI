@@ -5,35 +5,52 @@ import { ChatRoomSettingsControlView } from "./chat-room-settings-control";
 import type { ChatRoomSettingsControlController } from "./use-chat-room-settings-control";
 
 describe("ChatRoomSettingsControlView", () => {
-  it("controller가 제공한 완료 문구와 방 이름·설명 form을 인라인으로 렌더링한다", () => {
+  it("조회 상태에서 방 정보와 방장용 수정하기 action을 함께 렌더링한다", () => {
     const controller = createController({
       completionMessage: "방 정보를 수정했습니다.",
     });
 
     const html = renderToStaticMarkup(
-      <ChatRoomSettingsControlView controller={controller} room={createRoomDetails()} />,
+      <ChatRoomSettingsControlView
+        controller={controller}
+        isEditing={false}
+        onCancel={vi.fn()}
+        onEdit={vi.fn()}
+        room={createRoomDetails()}
+      />,
     );
 
     expect(html).toContain("방 정보를 수정했습니다.");
-    expect(html).toContain("<form");
+    expect(html).toContain("방 정보");
+    expect(html).toContain("시민 토론방");
+    expect(html).toContain("방 설정 View 테스트");
+    expect(html).toContain(">수정하기</button>");
+    expect(html).not.toContain("<form");
     expect(html).not.toContain("<dialog");
+    expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+  });
+
+  it("편집 상태에서 이름·설명 form과 취소·저장 action을 인라인으로 렌더링한다", () => {
+    const html = renderToStaticMarkup(
+      <ChatRoomSettingsControlView
+        controller={createController()}
+        isEditing
+        onCancel={vi.fn()}
+        onEdit={vi.fn()}
+        room={createRoomDetails()}
+      />,
+    );
+
+    expect(html).toContain("방 정보");
+    expect(html).toContain("<form");
     expect(html).toContain('name="name"');
     expect(html).toContain('name="description"');
     expect(html).not.toContain("방 카테고리");
     expect(html).not.toContain("공개 범위");
     expect(html).not.toContain("참여 정책");
-    expect(html).not.toContain("방 정보를 수정하지 못했습니다.");
-    expect(html).toContain("되돌리기");
-  });
-
-  it("완료 문구가 없어도 방 정보 수정 form을 바로 렌더링한다", () => {
-    const html = renderToStaticMarkup(
-      <ChatRoomSettingsControlView controller={createController()} room={createRoomDetails()} />,
-    );
-
-    expect(html).toContain("방 정보 수정");
-    expect(html).toContain("<form");
-    expect(html).not.toContain("방 정보 수정</button>");
+    expect(html).toContain(">취소</button>");
+    expect(html).toContain(">저장</button>");
+    expect(html).not.toContain(">수정하기</button>");
   });
 });
 

@@ -27,6 +27,16 @@ describe("ChatMessageActionsBottomSheet", () => {
     expect(html).toContain('role="status"');
     expect(html).toContain("메시지를 클립보드에 복사했습니다.");
   });
+
+  it("메시지 본문은 여러 줄로 표시하고 길어지면 미리보기 영역만 스크롤한다", () => {
+    const html = renderSheet({ content: "첫 번째 줄\n두 번째 줄" });
+
+    expect(html).toContain("첫 번째 줄\n두 번째 줄");
+    expect(html).toContain("max-h-32 overflow-y-auto whitespace-pre-wrap");
+    expect(html).not.toContain("line-clamp");
+    expect(html).not.toContain("sm:grid-cols");
+    expect(html).not.toContain("h-1 w-10 rounded-full bg-slate-300");
+  });
 });
 
 function renderSheet(overrides: Partial<ChatMessageActionsBottomSheetViewModel>): string {

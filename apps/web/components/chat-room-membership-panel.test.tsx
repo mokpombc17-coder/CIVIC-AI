@@ -22,7 +22,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/chat-room-settings-control", () => ({
-  ChatRoomSettingsControl: () => <form aria-label="방 정보 수정" />,
+  ChatRoomInformationSection: ({ canEdit, room }: { canEdit: boolean; room: RoomDetails }) => (
+    <section>
+      방 정보
+      <strong>{room.name}</strong>
+      <p>{room.description || "채팅방 소개가 없습니다."}</p>
+      {canEdit ? <button type="button">수정하기</button> : null}
+    </section>
+  ),
 }));
 
 vi.mock("@/lib/chat/chat-room-mutations", () => ({
@@ -76,7 +83,8 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain(">나</span>");
     expect(html).toContain('data-avatar-fallback="anonymous"');
     expect(html).not.toContain("차단된 사용자 관리");
-    expect(html).not.toContain("방 정보 수정");
+    expect(html).toContain("방 정보");
+    expect(html).not.toContain("수정하기");
     expect(html).not.toContain("방장 위임");
     expect(html).not.toContain(">차단</button>");
     expect(mocks.useRoomMembershipsQuery).toHaveBeenCalledTimes(2);
@@ -129,7 +137,8 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain("방장 위임");
     expect(html).toContain(">차단</button>");
     expect(html).toContain("차단된 사용자 관리");
-    expect(html).toContain("방 정보 수정");
+    expect(html).toContain("방 정보");
+    expect(html).toContain("수정하기");
     expect(html).toContain("참여자 3");
     expect(html).toContain("차단 해제");
     expect(html).not.toContain("비활성 멤버 상태 필터");
