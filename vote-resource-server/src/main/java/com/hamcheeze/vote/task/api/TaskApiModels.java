@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.task.application.prediction.EnsureTaskPredictionResult;
 import com.hamcheeze.vote.task.application.query.AdminTaskQueryService;
+import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
@@ -307,6 +308,58 @@ final class TaskApiModels {
             return new UserTaskDetailResponse(
                     TaskResponse.from(detail.task()), detail.closesAt(),
                     SubmissionStateResponse.from(detail.submission()));
+        }
+    }
+
+    record CompletedTaskPageResponse(
+            List<CompletedTaskSummaryResponse> items,
+            String nextCursor
+    ) {
+        static CompletedTaskPageResponse from(
+                CompletedTaskQueryService.CompletedTaskPage page
+        ) {
+            return new CompletedTaskPageResponse(
+                    page.items().stream()
+                            .map(CompletedTaskSummaryResponse::from)
+                            .toList(),
+                    page.nextCursor());
+        }
+    }
+
+    record CompletedTaskSummaryResponse(
+            UUID taskId,
+            String title,
+            String description,
+            Instant openedAt,
+            Instant closedAt,
+            TaskClosureType closureType,
+            MyCompletedTaskSubmissionResponse mySubmission
+    ) {
+        static CompletedTaskSummaryResponse from(
+                CompletedTaskQueryService.CompletedTaskSummary summary
+        ) {
+            return new CompletedTaskSummaryResponse(
+                    summary.taskId().value(),
+                    summary.title(),
+                    summary.description(),
+                    summary.openedAt(),
+                    summary.closedAt(),
+                    summary.closureType(),
+                    MyCompletedTaskSubmissionResponse.from(
+                            summary.mySubmission()));
+        }
+    }
+
+    record MyCompletedTaskSubmissionResponse(
+            UUID submissionId,
+            Instant submittedAt
+    ) {
+        static MyCompletedTaskSubmissionResponse from(
+                CompletedTaskQueryService.MySubmission submission
+        ) {
+            return new MyCompletedTaskSubmissionResponse(
+                    submission.submissionId().value(),
+                    submission.submittedAt());
         }
     }
 

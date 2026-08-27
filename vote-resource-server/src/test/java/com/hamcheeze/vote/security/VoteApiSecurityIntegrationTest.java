@@ -219,11 +219,12 @@ class VoteApiSecurityIntegrationTest {
         String taskReadToken = scopedToken(
                 "user-a",
                 VoteScopes.TASKS_READ);
-        mockMvc.perform(get("/api/v1/me/tasks/security-probe")
+        mockMvc.perform(get("/api/v1/me/tasks/completed")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
                                 "Bearer " + taskReadToken))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray());
         mockMvc.perform(get("/api/v1/me/tasks/security-probe")
                         .header(
                                 HttpHeaders.AUTHORIZATION,
@@ -260,6 +261,21 @@ class VoteApiSecurityIntegrationTest {
     @Test
     void rejectsMissingOrWrongUserScopeWithProblemDetail()
             throws Exception {
+        mockMvc.perform(get("/api/v1/me/tasks/completed"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/completed")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "user-a",
+                                        VoteScopes.SURVEYS_READ)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("ACCESS_DENIED"));
+
         mockMvc.perform(get("/api/v1/me/surveys/security-probe"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code")
@@ -304,6 +320,32 @@ class VoteApiSecurityIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code")
                         .value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void completedTaskPaginationRejectsInvalidCursorAndSize()
+            throws Exception {
+        String taskReadToken = scopedToken(
+                "completed-contract-user",
+                VoteScopes.TASKS_READ);
+
+        mockMvc.perform(get("/api/v1/me/tasks/completed")
+                        .queryParam("cursor", "invalid")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/completed")
+                        .queryParam("size", "101")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + taskReadToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_REQUEST"));
     }
 
     @Test

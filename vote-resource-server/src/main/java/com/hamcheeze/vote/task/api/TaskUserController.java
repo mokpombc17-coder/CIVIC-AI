@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.api;
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.task.application.prediction.EnsureTaskPredictionResult;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionService;
+import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
@@ -25,17 +27,20 @@ final class TaskUserController {
 
     private final AuthenticatedUserIdResolver userIds;
     private final UserTaskQueryService tasks;
+    private final CompletedTaskQueryService completedTasks;
     private final TaskPredictionService predictions;
     private final TaskPredictionQueryService predictionQueries;
 
     TaskUserController(
             AuthenticatedUserIdResolver userIds,
             UserTaskQueryService tasks,
+            CompletedTaskQueryService completedTasks,
             TaskPredictionService predictions,
             TaskPredictionQueryService predictionQueries
     ) {
         this.userIds = userIds;
         this.tasks = tasks;
+        this.completedTasks = completedTasks;
         this.predictions = predictions;
         this.predictionQueries = predictionQueries;
     }
@@ -47,6 +52,17 @@ final class TaskUserController {
         return tasks.findOpenTasks(user(authentication)).stream()
                 .map(TaskApiModels.UserTaskSummaryResponse::from)
                 .toList();
+    }
+
+    @GetMapping("/completed")
+    TaskApiModels.CompletedTaskPageResponse findCompletedTasks(
+            Authentication authentication,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return TaskApiModels.CompletedTaskPageResponse.from(
+                completedTasks.findByUser(
+                        user(authentication), cursor, size));
     }
 
     @GetMapping("/{taskId}")

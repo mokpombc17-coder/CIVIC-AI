@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.api;
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.task.application.prediction.EnsureTaskPredictionResult;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionService;
+import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
@@ -15,6 +16,7 @@ import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
+import com.hamcheeze.vote.task.domain.task.TaskClosureType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -53,6 +55,8 @@ class TaskUserControllerTest {
             mock(AuthenticatedUserIdResolver.class);
     private final UserTaskQueryService tasks =
             mock(UserTaskQueryService.class);
+    private final CompletedTaskQueryService completedTasks =
+            mock(CompletedTaskQueryService.class);
     private final TaskPredictionService predictions =
             mock(TaskPredictionService.class);
     private final TaskPredictionQueryService predictionQueries =
@@ -70,12 +74,94 @@ class TaskUserControllerTest {
         when(userIds.resolve(authentication)).thenReturn("user-a");
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new TaskUserController(
-                                userIds, tasks, predictions,
+                                userIds, tasks, completedTasks, predictions,
                                 predictionQueries),
                         new TaskSubmissionController(
                                 userIds, submissions, submissionQueries))
                 .setControllerAdvice(new TaskApiExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void completedTasksExposeOnlyTheFixedCardContract() throws Exception {
+        CompletedTaskQueryService.CompletedTaskPage page =
+                new CompletedTaskQueryService.CompletedTaskPage(
+                        List.of(new CompletedTaskQueryService
+                                .CompletedTaskSummary(
+                                taskId(),
+                                "완료 Task",
+                                "완료 목록 설명",
+                                NOW.minusSeconds(3600),
+                                NOW,
+                                TaskClosureType.DEADLINE_REACHED,
+                                new CompletedTaskQueryService.MySubmission(
+                                        submissionId(),
+                                        NOW.minusSeconds(1800)))),
+                        "next-cursor");
+        when(completedTasks.findByUser(
+                any(), eq("current-cursor"), eq(1)))
+                .thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/me/tasks/completed")
+                        .principal(authentication)
+                        .queryParam("cursor", "current-cursor")
+                        .queryParam("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].taskId")
+                        .value(taskId().value().toString()))
+                .andExpect(jsonPath("$.items[0].title")
+                        .value("완료 Task"))
+                .andExpect(jsonPath("$.items[0].description")
+                        .value("완료 목록 설명"))
+                .andExpect(jsonPath("$.items[0].openedAt")
+                        .value(NOW.minusSeconds(3600).toString()))
+                .andExpect(jsonPath("$.items[0].closedAt")
+                        .value(NOW.toString()))
+                .andExpect(jsonPath("$.items[0].closureType")
+                        .value("DEADLINE_REACHED"))
+                .andExpect(jsonPath(
+                        "$.items[0].mySubmission.submissionId")
+                        .value(submissionId().value().toString()))
+                .andExpect(jsonPath(
+                        "$.items[0].mySubmission.submittedAt")
+                        .value(NOW.minusSeconds(1800).toString()))
+                .andExpect(jsonPath("$.items[0].responseCount")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.nextCursor")
+                        .value("next-cursor"));
+
+        verify(completedTasks).findByUser(
+                eq(userId()), eq("current-cursor"), eq(1));
+    }
+
+    @Test
+    void completedTasksDefaultToTwentyAndReturnEmptyPage() throws Exception {
+        when(completedTasks.findByUser(any(), eq(null), eq(20)))
+                .thenReturn(new CompletedTaskQueryService.CompletedTaskPage(
+                        List.of(), null));
+
+        mockMvc.perform(get("/api/v1/me/tasks/completed")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+
+        verify(completedTasks).findByUser(
+                eq(userId()), eq(null), eq(20));
+    }
+
+    @Test
+    void completedTasksMapInvalidPaginationToBadRequest()
+            throws Exception {
+        when(completedTasks.findByUser(any(), eq("invalid"), eq(101)))
+                .thenThrow(new IllegalArgumentException("invalid page"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/completed")
+                        .principal(authentication)
+                        .queryParam("cursor", "invalid")
+                        .queryParam("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test
