@@ -6,7 +6,7 @@ import {
 } from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
-const CONNECTED_LABEL = "실시간 연결: 연결됨";
+const CONNECTED_STATUS_SELECTOR = '[data-chat-connection-status="connected"]';
 
 test("신규 참여자는 참여 이전 메시지를 볼 수 없고 참여 이후 메시지만 복구한다", async ({
   browser,
@@ -142,7 +142,7 @@ test("재참여자는 이전 참여 구간과 퇴장 중 메시지를 볼 수 �
       await memberPage.getByRole("button", { name: "방 나가기", exact: true }).click();
 
       await expect(memberPage).toHaveURL(/\/chat$/);
-      await expect(memberPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(memberPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
     });
 
     await test.step("퇴장 중 생성된 메시지는 방장에게만 표시된다", async () => {

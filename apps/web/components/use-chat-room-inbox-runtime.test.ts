@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   attachChatRoomInboxRuntime,
   canShowRoomInboxCreateToast,
-  shouldResetRoomInboxForMessageCommand,
-  shouldResetRoomInboxForMessageMutation,
+  shouldRefreshRoomInboxForMessageCommand,
+  shouldRefreshRoomInboxForMessageMutation,
 } from "./use-chat-room-inbox-runtime";
 import { ROOM_INBOX_INVALIDATION_DEBOUNCE_MS } from "@/lib/chat/realtime/chat-room-inbox-event-coordinator";
 import type {
@@ -27,14 +27,14 @@ describe("Room inbox runtime", () => {
     runtime.emitInbox(CREATED_EVENT);
     vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
     expect(runtime.onCreate).toHaveBeenCalledWith(CREATED_EVENT, 1);
-    expect(runtime.onReset).toHaveBeenCalledTimes(1);
+    expect(runtime.onRefresh).toHaveBeenCalledTimes(1);
 
     runtime.emitInbox(UPDATED_EVENT);
     vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
     runtime.emitInbox(DELETED_EVENT);
     vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
     expect(runtime.onCreate).toHaveBeenCalledTimes(1);
-    expect(runtime.onReset).toHaveBeenCalledTimes(3);
+    expect(runtime.onRefresh).toHaveBeenCalledTimes(3);
 
     detach();
   });
@@ -49,7 +49,7 @@ describe("Room inbox runtime", () => {
     vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
 
     expect(runtime.onCreate).toHaveBeenCalledTimes(1);
-    expect(runtime.onReset).toHaveBeenCalledTimes(1);
+    expect(runtime.onRefresh).toHaveBeenCalledTimes(1);
     detach();
   });
 
@@ -66,7 +66,7 @@ describe("Room inbox runtime", () => {
     runtime.emitMutation(createMessageMutationEvent("UPDATED"));
     vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
 
-    expect(runtime.onReset).toHaveBeenCalledTimes(1);
+    expect(runtime.onRefresh).toHaveBeenCalledTimes(1);
     detach();
   });
 
@@ -83,7 +83,7 @@ describe("Room inbox runtime", () => {
     vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
 
     expect(runtime.onCreate).not.toHaveBeenCalled();
-    expect(runtime.onReset).not.toHaveBeenCalled();
+    expect(runtime.onRefresh).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -92,7 +92,9 @@ describe("Room inbox runtime", () => {
     ["REJECTED", false],
     ["FAILED", false],
   ] as const)("send %s의 Room inbox reset 여부를 판정한다", (status, expected) => {
-    expect(shouldResetRoomInboxForMessageCommand(createMessageCommandEvent(status))).toBe(expected);
+    expect(shouldRefreshRoomInboxForMessageCommand(createMessageCommandEvent(status))).toBe(
+      expected,
+    );
   });
 
   it.each([
@@ -103,7 +105,7 @@ describe("Room inbox runtime", () => {
     ["REJECTED", false],
     ["FAILED", false],
   ] as const)("mutation %s의 Room inbox reset 여부를 판정한다", (status, expected) => {
-    expect(shouldResetRoomInboxForMessageMutation(createMessageMutationEvent(status))).toBe(
+    expect(shouldRefreshRoomInboxForMessageMutation(createMessageMutationEvent(status))).toBe(
       expected,
     );
   });
@@ -190,7 +192,7 @@ function createRuntimeHarness() {
   let inboxListener: ((event: ChatRoomInboxEvent) => void) | null = null;
   const targetListeners = new Map<"focus" | "online", () => void>();
   const onCreate = vi.fn();
-  const onReset = vi.fn();
+  const onRefresh = vi.fn();
   const harness = {
     connectionStatus: "disconnected" as ReturnType<ChatRealtimeTransport["getSnapshot"]>["status"],
     emitCommand: (event: ChatMessageCommandEvent) => commandListener?.(event),
@@ -199,10 +201,10 @@ function createRuntimeHarness() {
     emitMutation: (event: ChatMessageMutationEvent) => mutationListener?.(event),
     emitTarget: (type: "focus" | "online") => targetListeners.get(type)?.(),
     onCreate,
-    onReset,
+    onRefresh,
     options: {
       onCreate,
-      onReset,
+      onRefresh,
       target: {
         addEventListener: (type: "focus" | "online", listener: () => void) => {
           targetListeners.set(type, listener);

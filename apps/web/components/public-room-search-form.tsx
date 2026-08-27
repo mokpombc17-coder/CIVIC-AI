@@ -2,12 +2,7 @@
 
 import Image from "next/image";
 import { useId } from "react";
-import {
-  CHAT_ROOM_CATEGORY_OPTIONS,
-  getChatRoomCategoryLabel,
-} from "@/components/chat-room-category";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
-import type { RoomCategory } from "@/lib/chat/chat-room-contracts";
 
 type PublicRoomSearchFormProps = Readonly<{
   controller: PublicRoomSearchController;
@@ -50,7 +45,7 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
             onChange={(event) => controller.setDraftQuery(event.currentTarget.value)}
             onCompositionEnd={controller.endComposition}
             onCompositionStart={controller.startComposition}
-            placeholder="채팅방 이름을 입력해 주세요"
+            placeholder="검색어 입력…"
             type="search"
             value={controller.draftQuery}
           />
@@ -64,24 +59,8 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
         </span>
       </label>
 
-      <label className="grid gap-1.5 text-xs font-medium text-[var(--chat-publishing-color-muted)] sm:max-w-xs">
-        카테고리
-        <select
-          className="h-11 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 text-sm text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
-          onChange={(event) => controller.setCategory(readCategory(event.currentTarget.value))}
-          value={controller.category ?? ""}
-        >
-          <option value="">전체</option>
-          {CHAT_ROOM_CATEGORY_OPTIONS.map((category) => (
-            <option key={category} value={category}>
-              {getChatRoomCategoryLabel(category)}
-            </option>
-          ))}
-        </select>
-      </label>
-
       <p className="sr-only" id={helpId}>
-        제목 검색은 검색 버튼을 누르면 적용되며, 카테고리 필터는 선택 즉시 적용됩니다.
+        제목 검색은 검색 버튼을 누르면 적용됩니다.
       </p>
       {controller.validationMessage ? (
         <p className="text-sm font-medium text-red-700" id={errorId} role="alert">
@@ -90,8 +69,4 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
       ) : null}
     </form>
   );
-}
-
-function readCategory(value: string): RoomCategory | undefined {
-  return CHAT_ROOM_CATEGORY_OPTIONS.find((category) => category === value);
 }

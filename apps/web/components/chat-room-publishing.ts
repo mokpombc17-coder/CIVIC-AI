@@ -1,7 +1,7 @@
 export const TEMPORARY_CHAT_ROOM_MEMBER_LIMIT = 50;
 
 export const CHAT_ROOM_PUBLISHING_COPY = {
-  createRoom: "채팅방 생성",
+  createRoom: "채팅방 생성 요청",
   noAvailableRooms: "참여 가능한 방이 없습니다.",
 } as const;
 

@@ -4,7 +4,7 @@ import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/r
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomInboxListResponse } from "@/lib/chat/chat-room-contracts";
-import { resetRoomInboxQueries } from "@/lib/chat/chat-room-cache-effects";
+import { refreshRoomInboxQueries } from "@/lib/chat/chat-room-cache-effects";
 import { chatRoomQueryKeys } from "@/lib/chat/chat-room-queries";
 import { ChatRoomInboxEventCoordinator } from "@/lib/chat/realtime/chat-room-inbox-event-coordinator";
 import type {
@@ -102,7 +102,7 @@ export function useChatRoomInboxRuntime(transport: ChatRealtimeTransport) {
     () =>
       attachChatRoomInboxRuntime({
         onCreate: showCreateToast,
-        onReset: () => resetRoomInboxQueries(queryClient),
+        onRefresh: () => refreshRoomInboxQueries(queryClient),
         target: window,
         transport,
       }),
@@ -130,12 +130,12 @@ export function useChatRoomInboxRuntime(transport: ChatRealtimeTransport) {
 
 export function attachChatRoomInboxRuntime({
   onCreate,
-  onReset,
+  onRefresh,
   target,
   transport,
 }: Readonly<{
   onCreate: (event: RoomInboxCreatedEvent, unseenCount: number) => void;
-  onReset: () => Promise<void> | void;
+  onRefresh: () => Promise<void> | void;
   target: ChatRoomInboxRuntimeTarget;
   transport: Pick<
     ChatRealtimeTransport,
@@ -150,9 +150,9 @@ export function attachChatRoomInboxRuntime({
     onCreate,
     onInvalidate: () => {
       try {
-        void Promise.resolve(onReset()).catch(() => undefined);
+        void Promise.resolve(onRefresh()).catch(() => undefined);
       } catch {
-        // REST reset 실패는 다음 focus/online/reconnect 신호에서 다시 복구한다.
+        // REST refresh 실패는 다음 focus/online/reconnect 신호에서 다시 복구한다.
       }
     },
   });
@@ -168,39 +168,39 @@ export function attachChatRoomInboxRuntime({
     previousConnectionStatus = connectionStatus;
   });
   const stopMessageCommands = transport.observeMessageCommandEvent((event) => {
-    if (shouldResetRoomInboxForMessageCommand(event)) {
+    if (shouldRefreshRoomInboxForMessageCommand(event)) {
       coordinator.requestInvalidation();
     }
   });
   const stopMessageMutations = transport.observeMessageMutationEvent((event) => {
-    if (shouldResetRoomInboxForMessageMutation(event)) {
+    if (shouldRefreshRoomInboxForMessageMutation(event)) {
       coordinator.requestInvalidation();
     }
   });
-  const requestReset = () => coordinator.requestInvalidation();
+  const requestRefresh = () => coordinator.requestInvalidation();
 
-  target.addEventListener("focus", requestReset);
-  target.addEventListener("online", requestReset);
+  target.addEventListener("focus", requestRefresh);
+  target.addEventListener("online", requestRefresh);
 
   return () => {
     stopMessageMutations();
     stopMessageCommands();
     stopConnection();
     stopInboxEvents();
-    target.removeEventListener("focus", requestReset);
-    target.removeEventListener("online", requestReset);
+    target.removeEventListener("focus", requestRefresh);
+    target.removeEventListener("online", requestRefresh);
     coordinator.dispose();
   };
 }
 
-export function shouldResetRoomInboxForMessageCommand(event: ChatMessageCommandEvent): boolean {
+export function shouldRefreshRoomInboxForMessageCommand(event: ChatMessageCommandEvent): boolean {
   return (
     event.kind === "result" &&
     (event.result.status === "ACCEPTED" || event.result.status === "DUPLICATE")
   );
 }
 
-export function shouldResetRoomInboxForMessageMutation(event: ChatMessageMutationEvent): boolean {
+export function shouldRefreshRoomInboxForMessageMutation(event: ChatMessageMutationEvent): boolean {
   return (
     event.kind === "result" &&
     (event.result.status === "UPDATED" ||

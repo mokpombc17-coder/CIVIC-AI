@@ -13,6 +13,12 @@ export async function resetRoomInboxQueries(queryClient: QueryClient): Promise<v
   );
 }
 
+export async function refreshRoomInboxQueries(queryClient: QueryClient): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: chatRoomQueryKeys.roomInboxes(),
+  });
+}
+
 export async function resetRoomMembershipQueries(
   queryClient: QueryClient,
   roomId: string,

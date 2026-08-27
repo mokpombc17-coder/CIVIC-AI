@@ -7,6 +7,7 @@ import {
   invalidateRoomSettingsState,
   invalidateRoomState,
   refreshAuthoritativeRoomQueries,
+  refreshRoomInboxQueries,
   resetRoomInboxQueries,
   resetRoomMembershipQueries,
 } from "./chat-room-cache-effects";
@@ -74,6 +75,57 @@ describe("chat room cache effects", () => {
     await resetRoomInboxQueries(queryClient);
 
     expectRoomInboxReset(resetQueries);
+  });
+
+  it("active Room inbox refresh는 기존 data를 유지하면서 백그라운드 재조회한다", async () => {
+    const queryClient = createTestQueryClient();
+    const initialPage: RoomInboxTestPage = {
+      items: ["room-A", "room-B"],
+      nextCursor: null,
+    };
+    const refreshedPage: RoomInboxTestPage = {
+      items: ["room-B", "room-A"],
+      nextCursor: null,
+    };
+    let requestCount = 0;
+    let resolveRefresh: ((page: RoomInboxTestPage) => void) | undefined;
+    const queryFn = vi.fn(() => {
+      requestCount += 1;
+
+      if (requestCount === 1) {
+        return Promise.resolve(initialPage);
+      }
+
+      return new Promise<RoomInboxTestPage>((resolve) => {
+        resolveRefresh = resolve;
+      });
+    });
+    const observer = new InfiniteQueryObserver(queryClient, createRoomInboxTestOptions(queryFn));
+    const unsubscribe = observer.subscribe(() => {});
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+
+    const refresh = refreshRoomInboxQueries(queryClient);
+    await vi.waitFor(() => expect(resolveRefresh).toBeTypeOf("function"));
+
+    expect(observer.getCurrentResult()).toMatchObject({
+      data: {
+        pages: [initialPage],
+        pageParams: [null],
+      },
+      isFetching: true,
+      isPending: false,
+    });
+
+    resolveRefresh?.(refreshedPage);
+    await refresh;
+
+    expect(observer.getCurrentResult().data).toEqual({
+      pages: [refreshedPage],
+      pageParams: [null],
+    });
+
+    unsubscribe();
   });
 
   it("Room 참여자 전용 helper가 해당 Room의 page chain reset 옵션을 사용한다", async () => {

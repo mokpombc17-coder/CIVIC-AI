@@ -6,7 +6,7 @@ import {
 } from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
-const CONNECTED_LABEL = "실시간 연결: 연결됨";
+const CONNECTED_STATUS_SELECTOR = '[data-chat-connection-status="connected"]';
 const INBOX_TOAST_LABEL = "새 채팅 메시지 알림";
 
 test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 읽음 처리한다", async ({
@@ -42,7 +42,7 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
       const inboxResponse = waitForRoomInbox(memberPage);
       await memberPage.goto("/chat");
       expect((await inboxResponse).ok(), "초기 Room inbox 조회가 성공해야 합니다.").toBe(true);
-      await expect(memberPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(memberPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
       await expect(getParticipatingRoomCard(memberPage, roomName)).toBeVisible();
 
       return createdRoomId;
@@ -66,7 +66,8 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
       await expect(
         getParticipatingRoomCard(memberPage, roomName).getByLabel("읽지 않은 메시지 1개"),
       ).toBeVisible();
-      await expect(getParticipatingRoomCard(memberPage, roomName)).toContainText(readMessage);
+      await expect(getParticipatingRoomCard(memberPage, roomName)).toContainText("읽지 않음 1");
+      await expect(getParticipatingRoomCard(memberPage, roomName)).not.toContainText(readMessage);
       await expect(getParticipatingRoomCard(memberPage, roomName).locator("time")).not.toHaveText(
         "",
       );
@@ -84,11 +85,7 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
 
       const entryRoomCard = getParticipatingRoomCard(memberPage, roomName);
       await entryRoomCard
-        .getByRole("button", { name: `${roomName} 자세히 보기`, exact: true })
-        .click();
-      await memberPage
-        .getByRole("dialog", { name: roomName, exact: true })
-        .getByRole("link", { name: "채팅방 입장", exact: true })
+        .getByRole("link", { name: `${roomName} 채팅방 입장`, exact: true })
         .click();
       await expect(memberPage.getByRole("log", { name: `${roomId} 메시지` })).toContainText(
         readMessage,
@@ -113,12 +110,13 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
       const roomCard = getParticipatingRoomCard(memberPage, roomName);
       await expect(roomCard).toBeVisible();
       await expect(roomCard.getByLabel(/읽지 않은 메시지/)).toHaveCount(0);
+      await expect(roomCard).toContainText("새 메시지 없음");
       await expect(memberPage.locator(`aside[aria-label="${INBOX_TOAST_LABEL}"]`)).toHaveCount(0, {
         timeout: 10_000,
       });
     });
 
-    await test.step("latest message UPDATE는 토스트 없이 authoritative preview를 갱신한다", async () => {
+    await test.step("latest message UPDATE는 토스트와 unread 상태를 바꾸지 않는다", async () => {
       await ownerPage.bringToFront();
       await ownerMessageLog.getByRole("button", { name: readMessage, exact: true }).click();
       const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
@@ -134,7 +132,8 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
 
       expect((await inboxResponse).ok(), "수정 후 Room inbox 조회가 성공해야 합니다.").toBe(true);
       const roomCard = getParticipatingRoomCard(memberPage, roomName);
-      await expect(roomCard).toContainText(editedMessage);
+      await expect(roomCard).not.toContainText(editedMessage);
+      await expect(roomCard).toContainText("새 메시지 없음");
       await expect(roomCard.getByLabel(/읽지 않은 메시지/)).toHaveCount(0);
       await expect(memberPage.locator(`aside[aria-label="${INBOX_TOAST_LABEL}"]`)).toHaveCount(0);
     });
@@ -146,7 +145,10 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
       await expect(
         getParticipatingRoomCard(memberPage, roomName).getByLabel("읽지 않은 메시지 1개"),
       ).toBeVisible();
-      await expect(getParticipatingRoomCard(memberPage, roomName)).toContainText(deletedMessage);
+      await expect(getParticipatingRoomCard(memberPage, roomName)).toContainText("읽지 않음 1");
+      await expect(getParticipatingRoomCard(memberPage, roomName)).not.toContainText(
+        deletedMessage,
+      );
 
       await ownerMessageLog.getByRole("button", { name: deletedMessage, exact: true }).click();
       const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
@@ -165,7 +167,7 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
       expect((await inboxResponse).ok(), "삭제 후 Room inbox 조회가 성공해야 합니다.").toBe(true);
       const roomCard = getParticipatingRoomCard(memberPage, roomName);
       await expect(roomCard.getByLabel(/읽지 않은 메시지/)).toHaveCount(0);
-      await expect(roomCard).toContainText("삭제된 메시지입니다.");
+      await expect(roomCard).toContainText("새 메시지 없음");
       await expect(memberPage.locator(`aside[aria-label="${INBOX_TOAST_LABEL}"]`)).toHaveCount(0);
     });
   } finally {

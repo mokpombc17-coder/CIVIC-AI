@@ -21,9 +21,14 @@ export function ChatConnectionStatus() {
   const { status, error, reconnect } = useChatRealtimeConnection();
   const presentation = getChatConnectionPresentation(status);
 
+  if (presentation.tone !== "negative") {
+    return <span data-chat-connection-status={status} hidden />;
+  }
+
   return (
     <div
       className={`flex w-fit max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-full border px-3 py-1.5 text-xs font-semibold ${TONE_CLASS_NAMES[presentation.tone]}`}
+      data-chat-connection-status={status}
       role={presentation.tone === "negative" ? "alert" : "status"}
     >
       <span

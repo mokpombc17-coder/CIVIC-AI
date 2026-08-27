@@ -23,7 +23,7 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain(">토론방</h1>");
     expect(html).toContain('aria-label="채팅방 검색과 생성"');
     expect(html).toContain('aria-label="참여한 방 필터"');
-    expect(html).toContain(">채팅방 생성</button>");
+    expect(html).toContain(">채팅방 생성 요청</button>");
     expect(html).toContain(">참여한 방</h2>");
     expect(html).toContain(">참여 가능한 방</h2>");
     expect(html).toContain("참여 가능한 방이 없습니다.");
@@ -38,6 +38,7 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain('href="/mypage"');
     expect(html).toContain(">AI</span>");
     expect(html).toContain(">계정</span>");
+    expect(html).not.toContain("채팅방 생성 신청 내역");
     expect(html).not.toContain("Chat Resource Server");
   });
 
@@ -50,22 +51,26 @@ describe("chat room list publishing layout", () => {
 });
 
 describe("chat room list cards", () => {
-  it("참여 Room card에 category, 제목, 최신 메시지·활동 시각, 정원·unread와 상세 action을 표시한다", () => {
+  it("참여 Room card에 category, 제목, 정원·unread 상태와 분리된 입장·상세 action을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem());
 
     expect(html).toContain("프로젝트 회의방");
     expect(html).toContain("지역 현안");
-    expect(html).toContain("다음 회의는 월요일입니다.");
-    expect(html).toContain('<time class="shrink-0 text-xs leading-5');
-    expect(html).toContain('dateTime="2026-08-04T08:30:00Z"');
-    expect(html).toContain("5 / 50명 · 읽지 않음 4");
-    expect(html).toContain('aria-label="현재 참여 인원 5명, 최대 50명, 읽지 않은 메시지 4개"');
+    expect(html).not.toContain("다음 회의는 월요일입니다.");
+    expect(html).toContain("읽지 않음 4");
+    expect(html).toContain('aria-hidden="true">·</span>');
+    expect(html).not.toContain("<time");
+    expect(html).toContain("5 / 50명");
+    expect(html).toContain('aria-label="읽지 않은 메시지 4개"');
+    expect(html).toContain('aria-label="현재 참여 인원 5명, 최대 50명"');
+    expect(html).toContain('aria-label="프로젝트 회의방 채팅방 입장"');
+    expect(html).toContain('href="/chat/room-01"');
     expect(html).toContain("자세히 보기");
     expect(html).toContain('id="chat-room-list-detail-trigger-room-01"');
   });
 
-  it("마지막 메시지가 없거나 삭제됐으면 기존 preview fallback을 표시한다", () => {
-    const emptyHtml = renderMyRoomCard(createRoomInboxItem({ lastMessage: null }));
+  it("마지막 메시지 상태와 관계없이 unread가 없으면 새 메시지 없음만 표시한다", () => {
+    const emptyHtml = renderMyRoomCard(createRoomInboxItem({ lastMessage: null, unreadCount: 0 }));
     const deletedHtml = renderMyRoomCard(
       createRoomInboxItem({
         lastMessage: {
@@ -77,26 +82,32 @@ describe("chat room list cards", () => {
           previewTruncated: false,
           createdAt: "2026-08-04T08:30:00Z",
         },
+        unreadCount: 0,
       }),
     );
 
-    expect(emptyHtml).toContain("표시할 메시지가 없습니다.");
-    expect(deletedHtml).toContain("삭제된 메시지입니다.");
+    expect(emptyHtml).toContain("새 메시지 없음");
+    expect(deletedHtml).toContain("새 메시지 없음");
+    expect(emptyHtml).not.toContain("<time");
+    expect(deletedHtml).not.toContain("<time");
+    expect(emptyHtml).not.toContain("표시할 메시지가 없습니다.");
+    expect(deletedHtml).not.toContain("삭제된 메시지입니다.");
   });
 
-  it("capped unread count는 inline metadata에서도 상한 표시를 유지한다", () => {
+  it("capped unread count는 메시지 상태 문구에서도 상한 표시를 유지한다", () => {
     const html = renderMyRoomCard(
       createRoomInboxItem({ unreadCount: 99, unreadCountCapped: true }),
     );
 
-    expect(html).toContain("5 / 50명 · 읽지 않음 99+");
+    expect(html).toContain("읽지 않음 99+");
     expect(html).toContain("읽지 않은 메시지 99개 이상");
   });
 
-  it("unreadCount가 0이면 badge를 숨긴다", () => {
+  it("unreadCount가 0이면 새 메시지 없음을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem({ unreadCount: 0 }));
 
     expect(html).not.toContain("읽지 않은 메시지");
+    expect(html).toContain("새 메시지 없음");
   });
 
   it("참여 가능 Room card는 category, 제목, 정원과 상세 action만 표시한다", () => {

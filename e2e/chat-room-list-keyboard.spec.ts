@@ -8,7 +8,7 @@ test("채팅방 생성 폼은 키보드로 열고 닫아도 논리적인 포커�
   await authenticateLocalE2EUserAs(page, context, `e2e-room-list-keyboard-${crypto.randomUUID()}`);
   await page.goto("/chat");
 
-  const createRoomButton = page.getByRole("button", { name: "채팅방 생성", exact: true });
+  const createRoomButton = page.getByRole("button", { name: "채팅방 생성 요청", exact: true });
 
   await createRoomButton.focus();
   await page.keyboard.press("Enter");
@@ -82,6 +82,13 @@ test("참여 중인 방 목록은 제한된 높이 안에서 키보드로 탐색
 
   await roomList.focus();
   await expect(roomList).toBeFocused();
+  await page.keyboard.press("Tab");
+  const roomLink = roomList.getByRole("link", {
+    name: `${roomName} 채팅방 입장`,
+    exact: true,
+  });
+  await expect(roomLink).toBeFocused();
+
   await page.keyboard.press("Tab");
   const detailButton = roomList.getByRole("button", {
     name: `${roomName} 자세히 보기`,

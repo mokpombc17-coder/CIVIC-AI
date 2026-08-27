@@ -10,7 +10,7 @@ import {
 import { authenticateLocalE2EUserAs } from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
-const CONNECTED_LABEL = "실시간 연결: 연결됨";
+const CONNECTED_STATUS_SELECTOR = '[data-chat-connection-status="connected"]';
 const INBOX_TOAST_LABEL = "새 채팅 메시지 알림";
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
@@ -82,10 +82,10 @@ test.describe("채팅방 목록 latest-first", () => {
       const initialResponsePromise = waitForFirstRoomInboxResponse(memberPage);
       await memberPage.goto("/chat");
       const initialPage = await readRoomInboxResponse(await initialResponsePromise);
-      await expect(memberPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(memberPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
       await expectRoomOrder(memberPage, [roomB.roomId, roomA.roomId]);
       const bOriginalActivityAt = getRoomItem(initialPage, roomB.roomId).lastActivityAt;
-      await expectRoomPreview(memberPage, roomB.roomId, bLatest);
+      await expectRoomMessageStatus(memberPage, roomB.roomId);
       await expectRoomActivity(memberPage, roomB.roomId, bOriginalActivityAt);
 
       await enterRoom(ownerPage, roomA);
@@ -102,8 +102,8 @@ test.describe("채팅방 목록 latest-first", () => {
       const aCreatePage = (await aCreateRefresh).page;
       expect(roomIds(aCreatePage).slice(0, 2)).toEqual([roomA.roomId, roomB.roomId]);
       await expectRoomOrder(memberPage, [roomA.roomId, roomB.roomId]);
-      await expectRoomPreview(memberPage, roomA.roomId, aLatest);
-      await expectRoomPreview(memberPage, roomB.roomId, bLatest);
+      await expectRoomMessageStatus(memberPage, roomA.roomId);
+      await expectRoomMessageStatus(memberPage, roomB.roomId);
       await expect(memberPage.locator(`aside[aria-label="${INBOX_TOAST_LABEL}"]`)).toBeVisible();
       await expect(memberPage.locator(`aside[aria-label="${INBOX_TOAST_LABEL}"]`)).toHaveCount(0, {
         timeout: 10_000,
@@ -115,7 +115,7 @@ test.describe("채팅방 목록 latest-first", () => {
       expectRoomSummary(afterOldUpdate, roomB.roomId, bLatest, bOriginalActivityAt);
       await refreshMemberInbox(memberPage);
       await expectRoomOrder(memberPage, [roomA.roomId, roomB.roomId]);
-      await expectRoomPreview(memberPage, roomB.roomId, bLatest);
+      await expectRoomMessageStatus(memberPage, roomB.roomId);
       await expect(getRoomCard(memberPage, roomB.roomId)).not.toContainText(bOldEdited);
 
       await deleteMessage(ownerPage, bOldEdited);
@@ -123,7 +123,7 @@ test.describe("채팅방 목록 latest-first", () => {
       expectRoomSummary(afterOldDelete, roomB.roomId, bLatest, bOriginalActivityAt);
       await refreshMemberInbox(memberPage);
       await expectRoomOrder(memberPage, [roomA.roomId, roomB.roomId]);
-      await expectRoomPreview(memberPage, roomB.roomId, bLatest);
+      await expectRoomMessageStatus(memberPage, roomB.roomId);
       await expect(getRoomCard(memberPage, roomB.roomId)).not.toContainText("삭제된 메시지입니다.");
 
       const latestEditDialog = await prepareEditMessage(ownerPage, bLatest, bLatestEdited);
@@ -137,7 +137,7 @@ test.describe("채팅방 목록 latest-first", () => {
       const latestUpdatePage = (await latestUpdateRefresh).page;
       expectRoomSummary(latestUpdatePage, roomB.roomId, bLatestEdited, bOriginalActivityAt);
       await expectRoomOrder(memberPage, [roomA.roomId, roomB.roomId]);
-      await expectRoomPreview(memberPage, roomB.roomId, bLatestEdited);
+      await expectRoomMessageStatus(memberPage, roomB.roomId);
       await expectRoomActivity(memberPage, roomB.roomId, bOriginalActivityAt);
       await expect(memberPage.locator(`aside[aria-label="${INBOX_TOAST_LABEL}"]`)).toHaveCount(0);
 
@@ -156,7 +156,7 @@ test.describe("채팅방 목록 latest-first", () => {
       expect(deletedSummary.lastMessage?.state).toBe("DELETED_BY_AUTHOR");
       expect(deletedSummary.lastActivityAt).toBe(bOriginalActivityAt);
       await expectRoomOrder(memberPage, [roomA.roomId, roomB.roomId]);
-      await expectRoomPreview(memberPage, roomB.roomId, "삭제된 메시지입니다.");
+      await expectRoomMessageStatus(memberPage, roomB.roomId);
       await expectRoomActivity(memberPage, roomB.roomId, bOriginalActivityAt);
       await expect(memberPage.locator(`aside[aria-label="${INBOX_TOAST_LABEL}"]`)).toHaveCount(0);
 
@@ -176,7 +176,7 @@ test.describe("채팅방 목록 latest-first", () => {
       expect(bNewSummary.lastActivityAt).not.toBe(bOriginalActivityAt);
       expect(bNewSummary.lastMessage?.preview).toBe(bNew);
       await expectRoomOrder(memberPage, [roomB.roomId, roomA.roomId]);
-      await expectRoomPreview(memberPage, roomB.roomId, bNew);
+      await expectRoomMessageStatus(memberPage, roomB.roomId);
 
       await testInfo.attach("latest-first-ordering.json", {
         body: JSON.stringify(
@@ -224,12 +224,12 @@ test.describe("채팅방 목록 latest-first", () => {
       const initialResponsePromise = waitForFirstRoomInboxResponse(memberPage);
       await memberPage.goto("/chat");
       const initialPage = await readRoomInboxResponse(await initialResponsePromise);
-      await expect(memberPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(memberPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
       const initialRoomC = getRoomItem(initialPage, roomC.roomId);
       expect(initialRoomC.lastMessage).toBeNull();
       expect(initialRoomC.lastActivityAt).not.toBe(preJoinActivityAt);
       await expectRoomOrder(memberPage, [baselineRoom.roomId, roomC.roomId]);
-      await expectRoomPreview(memberPage, roomC.roomId, "표시할 메시지가 없습니다.");
+      await expectRoomMessageStatus(memberPage, roomC.roomId);
       await expect(getRoomCard(memberPage, roomC.roomId)).not.toContainText(beforeJoinMessage);
 
       await enterRoom(ownerPage, roomC);
@@ -250,7 +250,7 @@ test.describe("채팅방 목록 latest-first", () => {
       expect(afterJoinRoomC.lastActivityAt).not.toBe(preJoinActivityAt);
       expect(roomIds(afterJoinPage).slice(0, 2)).toEqual([roomC.roomId, baselineRoom.roomId]);
       await expectRoomOrder(memberPage, [roomC.roomId, baselineRoom.roomId]);
-      await expectRoomPreview(memberPage, roomC.roomId, afterJoinMessage);
+      await expectRoomMessageStatus(memberPage, roomC.roomId);
 
       await testInfo.attach("membership-boundary.json", {
         body: JSON.stringify(
@@ -344,7 +344,7 @@ test.describe("채팅방 목록 latest-first", () => {
       await expectRenderedRoomIds(memberPage, resetFirstIds);
       expect(resetFirstIds).toHaveLength(ROOM_INBOX_PAGE_SIZE);
       expect(resetFirstIds.filter((roomId) => roomId === targetRoomId)).toHaveLength(1);
-      await expectRoomPreview(memberPage, targetRoomId, targetMessage);
+      await expectRoomMessageStatus(memberPage, targetRoomId);
       await expect(
         memberPage.getByRole("button", { name: "참여 중인 방 더 보기", exact: true }),
       ).toBeVisible();
@@ -639,8 +639,8 @@ async function getRenderedRoomIds(page: Page): Promise<string[]> {
     .evaluateAll((cards) => cards.map((card) => card.dataset.roomId ?? ""));
 }
 
-async function expectRoomPreview(page: Page, roomId: string, preview: string): Promise<void> {
-  await expect(getRoomCard(page, roomId)).toContainText(preview);
+async function expectRoomMessageStatus(page: Page, roomId: string): Promise<void> {
+  await expect(getRoomCard(page, roomId)).toContainText(/읽지 않음 \d+\+?|새 메시지 없음/);
 }
 
 async function expectRoomActivity(page: Page, roomId: string, activityAt: string): Promise<void> {

@@ -19,9 +19,7 @@ type PublicRoomPage = Readonly<{
   hasNext: boolean;
 }>;
 
-test("공개 방 검색과 카테고리 필터가 같은 조건의 cursor pagination을 유지한다", async ({
-  browser,
-}, testInfo) => {
+test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", async ({ browser }, testInfo) => {
   test.setTimeout(180_000);
 
   const baseURL = String(testInfo.project.use.baseURL);
@@ -144,43 +142,7 @@ test("공개 방 검색과 카테고리 필터가 같은 조건의 cursor pagina
       expect(new Set(renderedRoomIds).size).toBe(21);
     });
 
-    await test.step("카테고리 변경은 즉시 첫 페이지부터 다시 조회한다", async () => {
-      const filteredResponsePromise = observerPage.waitForResponse((response) => {
-        if (!isPublicRoomListResponse(response)) {
-          return false;
-        }
-
-        const searchParams = new URL(response.url()).searchParams;
-        return (
-          searchParams.get("query") === searchTerm &&
-          searchParams.get("category") === "ENVIRONMENT" &&
-          !searchParams.has("cursor")
-        );
-      });
-
-      await observerPage.getByRole("combobox", { name: "카테고리" }).selectOption("ENVIRONMENT");
-
-      const filteredResponse = await filteredResponsePromise;
-      expect(filteredResponse.ok()).toBe(true);
-      expectPublicRoomCriteria(filteredResponse, {
-        query: searchTerm,
-        category: "ENVIRONMENT",
-        cursor: null,
-      });
-
-      const filteredPage = (await filteredResponse.json()) as PublicRoomPage;
-      expect(filteredPage.items).toHaveLength(5);
-      expect(filteredPage.hasNext).toBe(false);
-
-      const renderedRoomIds = await readRenderedRoomIds(observerPage);
-      const expectedEnvironmentRoomIds = fixtures
-        .slice(0, 5)
-        .map((room) => room.roomId)
-        .sort();
-      expect(renderedRoomIds.sort()).toEqual(expectedEnvironmentRoomIds);
-    });
-
-    await test.step("공백 검색어는 query를 생략하고 선택 category만 유지한다", async () => {
+    await test.step("공백 검색어는 query와 category를 생략한다", async () => {
       await observerPage.getByRole("searchbox", { name: "채팅방 이름 검색" }).fill("   ");
 
       const responsePromise = observerPage.waitForResponse((response) => {
@@ -190,9 +152,7 @@ test("공개 방 검색과 카테고리 필터가 같은 조건의 cursor pagina
 
         const searchParams = new URL(response.url()).searchParams;
         return (
-          !searchParams.has("query") &&
-          searchParams.get("category") === "ENVIRONMENT" &&
-          !searchParams.has("cursor")
+          !searchParams.has("query") && !searchParams.has("category") && !searchParams.has("cursor")
         );
       });
 
@@ -202,7 +162,7 @@ test("공개 방 검색과 카테고리 필터가 같은 조건의 cursor pagina
       expect(response.ok()).toBe(true);
       expectPublicRoomCriteria(response, {
         query: null,
-        category: "ENVIRONMENT",
+        category: null,
         cursor: null,
       });
     });

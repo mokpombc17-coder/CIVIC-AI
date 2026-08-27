@@ -6,8 +6,6 @@ import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomInboxFilterControl } from "@/components/chat-room-inbox-filter-control";
 import type { ChatRoomInboxFilterController } from "@/components/chat-room-inbox-filter";
-import { getRoomInboxPreviewPresentation } from "@/components/chat-room-inbox-preview";
-import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
 import {
   getChatRoomListDetailTriggerId,
   type ChatRoomListDetailController,
@@ -30,7 +28,7 @@ import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
-  "grid max-h-[60dvh] scroll-p-1 gap-3 overflow-y-auto overscroll-contain pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] sm:max-h-[32rem] [scrollbar-gutter:stable]";
+  "grid max-h-[60dvh] scroll-p-1 gap-3 overflow-y-auto overscroll-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] sm:max-h-[32rem] [scrollbar-gutter:stable]";
 
 type RoomListState<TItem> = Readonly<{
   error: unknown;
@@ -94,12 +92,6 @@ export function ChatRoomListView({
               <CreateChatRoomForm onCancel={closeCreateRoomForm} />
             </div>
           ) : null}
-          <Link
-            className="secondary-button inline-flex items-center justify-center"
-            href="/chat/creation-requests"
-          >
-            채팅방 생성 신청 내역
-          </Link>
         </section>
 
         <ChatConnectionStatus />
@@ -227,43 +219,33 @@ export function MyRoomCard({
   room: RoomInboxListItem;
 }>) {
   const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
-  const preview = getRoomInboxPreviewPresentation(room.lastMessage);
   const unread = getChatRoomUnreadBadgePresentation(room.unreadCount, room.unreadCountCapped);
-  const previewToneClassName =
-    preview.tone === "normal"
-      ? "text-[var(--chat-publishing-color-text)]"
-      : "text-[var(--chat-publishing-color-muted)]";
 
   return (
     <article
-      className="grid min-h-[140px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)]"
+      className="relative isolate grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)]"
       data-room-id={room.roomId}
     >
-      <span className="min-w-0 flex-1">
+      <Link
+        aria-label={`${room.name} 채팅방 입장`}
+        className="absolute inset-0 z-0 rounded-[var(--chat-publishing-radius-card)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        href={`/chat/${room.roomId}`}
+      >
+        <span className="sr-only">{room.name} 채팅방 입장</span>
+      </Link>
+      <span className="pointer-events-none relative z-[1] min-w-0 flex-1">
         <ChatRoomCategoryBadges categories={room.categories} />
         <strong className="mt-1.5 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
           {room.name}
         </strong>
-        <span className="mt-1 flex min-w-0 items-center gap-2">
-          <span className={`min-w-0 flex-1 truncate text-sm leading-5 ${previewToneClassName}`}>
-            {preview.text}
+        <span className="mt-1 flex min-w-0 items-center gap-1 text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
+          <span aria-label={memberCount.ariaLabel} className="shrink-0">
+            {memberCount.text}
           </span>
-          <time
-            className="shrink-0 text-xs leading-5 text-[var(--chat-publishing-color-muted)]"
-            dateTime={room.lastActivityAt}
-            suppressHydrationWarning
-          >
-            {formatRoomInboxActivityTime(room.lastActivityAt, new Date())}
-          </time>
-        </span>
-        <span
-          aria-label={
-            unread ? `${memberCount.ariaLabel}, ${unread.ariaLabel}` : memberCount.ariaLabel
-          }
-          className="mt-1 block truncate text-sm leading-5 text-[var(--chat-publishing-color-muted)]"
-        >
-          {memberCount.text}
-          {unread ? ` · 읽지 않음 ${unread.text}` : null}
+          <span aria-hidden="true">·</span>
+          <span aria-label={unread?.ariaLabel ?? "새 메시지 없음"} className="min-w-0 truncate">
+            {unread ? `읽지 않음 ${unread.text}` : "새 메시지 없음"}
+          </span>
         </span>
       </span>
       <button
@@ -271,7 +253,7 @@ export function MyRoomCard({
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
-        className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
@@ -293,7 +275,7 @@ export function PublicRoomCard({
 }>) {
   return (
     <article
-      className="grid min-h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4"
+      className="grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4"
       data-room-id={room.roomId}
     >
       <RoomSummary room={room} />

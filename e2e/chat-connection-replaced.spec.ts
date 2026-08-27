@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { authenticateLocalE2EUser } from "./chat-e2e-helpers";
 
-const CONNECTED_LABEL = "실시간 연결: 연결됨";
+const CONNECTED_STATUS_SELECTOR = '[data-chat-connection-status="connected"]';
 const CONNECTION_REPLACED_LABEL = "실시간 연결: 다른 환경에서 연결됨";
 const CONNECTION_REPLACED_MESSAGE =
   "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.";
@@ -21,14 +21,14 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
       await authenticateLocalE2EUser(firstPage, firstContext);
       await firstPage.goto("/chat");
 
-      await expect(firstPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(firstPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
     });
 
     await test.step("두 번째 브라우저가 연결되면 첫 번째 연결이 4001 상태로 교체된다", async () => {
       await authenticateLocalE2EUser(secondPage, secondContext);
       await secondPage.goto("/chat");
 
-      await expect(secondPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(secondPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
 
       const replacedAlert = firstPage
         .getByRole("alert")
@@ -42,14 +42,14 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
       await firstPage.waitForTimeout(RECONNECT_DELAY_GUARD_MS);
 
       await expect(firstPage.getByText(CONNECTION_REPLACED_LABEL, { exact: true })).toBeVisible();
-      await expect(secondPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(secondPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
     });
 
     await test.step("새 연결이 종료된 뒤 첫 번째 브라우저를 새로고침하면 수동으로 복구된다", async () => {
       await secondPage.close();
       await firstPage.reload();
 
-      await expect(firstPage.getByText(CONNECTED_LABEL, { exact: true })).toBeVisible();
+      await expect(firstPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
       await expect(firstPage.getByText(CONNECTION_REPLACED_LABEL, { exact: true })).toHaveCount(0);
     });
   } finally {
