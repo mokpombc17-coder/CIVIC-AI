@@ -120,27 +120,27 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
 
   const cards = page.locator('[data-wireflow-layout="participant-home"] .wf-action-card');
   await expect(cards).toHaveCount(3);
-  await expect(cards.nth(0)).toContainText("진행 중 과업");
-  await expect(cards.nth(0)).toContainText("과업 보기");
-  await expect(cards.nth(1)).toContainText("내 채팅");
-  await expect(cards.nth(1)).toContainText("채팅 보기");
-  await expect(cards.nth(2)).toContainText("문서에 질문하기");
-  await expect(cards.nth(2)).toContainText("질문 시작");
+  await expect(cards.nth(0)).toContainText("문서 질문");
+  await expect(cards.nth(0)).toContainText("질문하기");
+  await expect(cards.nth(1)).toContainText("주제별 토론");
+  await expect(cards.nth(1)).toContainText("토론하기");
+  await expect(cards.nth(2)).toContainText("과업 투표");
+  await expect(cards.nth(2)).toContainText("투표하기");
 
   await expectBox(cards.nth(0), {
     x: [16, 18],
     width: [359, 362],
-    height: [118, 122],
+    height: [110, 165],
   });
   await expectBox(cards.nth(1), {
     x: [16, 18],
     width: [359, 362],
-    height: [118, 122],
+    height: [110, 165],
   });
   await expectBox(cards.nth(2), {
     x: [16, 18],
     width: [359, 362],
-    height: [118, 122],
+    height: [110, 165],
   });
   await expectBox(shell, {
     x: [0, 1],
@@ -178,7 +178,7 @@ test("U-ACCOUNT는 최신 Wire Flow의 탭·보안 카드·비활성화 dialog�
   ).toHaveCount(2);
 
   await page.goto("/account/deactivate");
-  const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화하시겠습니까?" });
+  const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("link", { name: "계정 유지" })).toBeVisible();
@@ -382,8 +382,8 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 BFF 경계를
   await authenticate(context, "participant.payload.signature");
   await page.goto("/rag");
 
-  await expect(page.getByRole("heading", { exact: true, name: "문서 질문" })).toBeVisible();
-  await expect(page.getByText("AI 생성 · 문서 기반 답변")).toBeVisible();
+  await expect(page.getByRole("heading", { exact: true, name: "AI" })).toBeVisible();
+  await expect(page.getByText("궁금한 정보를 질문하세요.")).toBeVisible();
   const shell = page.locator('[data-platform-shell="true"]');
   await expect(shell).toHaveCount(1);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"] .wf-screen-heading')).toBeHidden();
