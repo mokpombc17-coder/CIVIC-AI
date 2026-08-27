@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import {
+  readSimulationSection,
+  SimulationBillingSection,
+  SimulationSectionTabs,
+} from "@/components/admin/simulation-billing-panels";
+import {
   formatAdminProblem,
   readAdminProblem,
   readTaskDetail,
@@ -13,6 +18,12 @@ import {
   type TaskDetail,
   type TaskSummary,
 } from "@/lib/admin/domain-contracts";
+import {
+  readSimulationPreview,
+  readWalletSummary,
+  type SimulationPreview,
+  type WalletSummary,
+} from "@/lib/admin/simulation-billing-contracts";
 import {
   readSimulationOptions,
   readSimulationResult,
@@ -39,6 +50,7 @@ export function AdminSimulationScreen({
 }: Readonly<{ screen: ScreenDefinition; query: AdminQuery }>) {
   const taskId = first(query.taskId);
   const simulationId = first(query.simulationId);
+  const section = screen.id === "A-SIM-001" ? readSimulationSection(first(query.section)) : "run";
 
   return (
     <ScreenFrame
@@ -50,7 +62,9 @@ export function AdminSimulationScreen({
         data-wireflow-layout={simulationLayout(screen.id)}
       >
         <BoundaryNote />
-        {screen.id === "A-SIM-001" ? <SimulationTargets /> : null}
+        <SimulationSectionTabs active={section} />
+        {screen.id === "A-SIM-001" && section === "run" ? <SimulationTargets /> : null}
+        {screen.id === "A-SIM-001" ? <SimulationBillingSection section={section} /> : null}
         {screen.id === "A-SIM-002" ? <SimulationSetup taskId={taskId} /> : null}
         {screen.id === "A-SIM-003" ? <ManualPanel query={query} taskId={taskId} /> : null}
         {screen.id === "A-SIM-004" ? <SimulationStatus simulationId={simulationId} /> : null}
@@ -189,6 +203,8 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
   const [sampleSeed, setSampleSeed] = useState("");
   const [message, setMessage] = useState("");
   const { pending, start, startMessage } = useStartSimulation(taskId);
+  const runInput = normalizeRunInput(personaCount, modelType, sampleSeed);
+  const previewState = useSimulationPreview(taskId, runInput);
 
   useEffect(() => {
     if (!taskId) return;
@@ -222,15 +238,21 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
 
   if (!taskId) return <MissingContext>먼저 시뮬레이션할 과업을 선택해 주세요.</MissingContext>;
 
-  const runInput = normalizeRunInput(personaCount, modelType, sampleSeed);
   const canSubmit = Boolean(task && options && runInput);
+  const canStart = Boolean(
+    previewState.preview &&
+    previewState.wallet &&
+    previewState.wallet.availableKrw >= previewState.preview.holdKrw,
+  );
 
   return (
     <form
       className="civic-domain-form"
       onSubmit={(event) => {
         event.preventDefault();
-        if (runInput) void start(runInput);
+        if (!runInput) return;
+        if (!canStart || !previewState.preview) return void previewState.load();
+        void start(runInput, previewState.preview.policyFingerprint);
       }}
     >
       <TaskSnapshotCard task={task} />
@@ -279,9 +301,31 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           </label>
         </div>
       </section>
+      <SimulationPreviewCard
+        message={previewState.message}
+        preview={previewState.preview}
+        wallet={previewState.wallet}
+      />
       <div className="civic-simulation-actions">
-        <button className="civic-primary-action" disabled={!canSubmit || pending} type="submit">
-          {pending ? "실행 요청 중…" : "전체 표본에서 실행"}
+        <button
+          className="civic-primary-action"
+          disabled={
+            !canSubmit ||
+            pending ||
+            previewState.pending ||
+            Boolean(previewState.preview && !canStart)
+          }
+          type="submit"
+        >
+          {pending
+            ? "실행 요청 중…"
+            : previewState.pending
+              ? "예상 비용 계산 중…"
+              : canStart
+                ? "예상 비용 확인 후 실행"
+                : previewState.preview
+                  ? "공용 지갑 잔액 부족"
+                  : "예상 비용 먼저 확인"}
         </button>
         {runInput ? (
           <Link className="civic-secondary-action" href={manualPanelHref(taskId, runInput)}>
@@ -304,6 +348,11 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
   const sampleSeedValue = first(query.sampleSeed);
   const sampleSeed =
     sampleSeedValue === null || sampleSeedValue === "" ? null : integer(sampleSeedValue);
+  const runInput: RunInput | null =
+    taskId && personaCount && modelType && sampleSeed !== undefined
+      ? { personaCount, modelType, sampleSeed, filters }
+      : null;
+  const previewState = useSimulationPreview(taskId, runInput);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -339,7 +388,11 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
       className="civic-domain-form"
       onSubmit={(event) => {
         event.preventDefault();
-        void start({ personaCount, modelType, sampleSeed, filters });
+        if (!runInput) return;
+        if (!previewState.preview) return void previewState.load();
+        if (!previewState.wallet || previewState.wallet.availableKrw < previewState.preview.holdKrw)
+          return;
+        void start(runInput, previewState.preview.policyFingerprint);
       }}
     >
       <section className="civic-domain-form-section">
@@ -365,9 +418,33 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           ))}
         </div>
       </section>
+      <SimulationPreviewCard
+        message={previewState.message}
+        preview={previewState.preview}
+        wallet={previewState.wallet}
+      />
       <div className="civic-simulation-actions">
-        <button className="civic-primary-action" disabled={!options || pending} type="submit">
-          {pending ? "실행 요청 중…" : `${personaCount}명 집계 시뮬레이션 실행`}
+        <button
+          className="civic-primary-action"
+          disabled={
+            !options ||
+            pending ||
+            previewState.pending ||
+            Boolean(
+              previewState.preview &&
+              (!previewState.wallet ||
+                previewState.wallet.availableKrw < previewState.preview.holdKrw),
+            )
+          }
+          type="submit"
+        >
+          {pending
+            ? "실행 요청 중…"
+            : previewState.pending
+              ? "예상 비용 계산 중…"
+              : previewState.preview
+                ? `${personaCount}명 집계 시뮬레이션 실행`
+                : "예상 비용 먼저 확인"}
         </button>
       </div>
       {message || startMessage ? <StatusMessage>{message || startMessage}</StatusMessage> : null}
@@ -467,6 +544,19 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
             <div>
               <dt>완료 시각</dt>
               <dd>{formatDate(view.completedAt)}</dd>
+            </div>
+            <div>
+              <dt>예상 / 보류</dt>
+              <dd>
+                {formatKrw(view.estimatedKrw ?? undefined)} / {formatKrw(view.holdKrw ?? undefined)}
+              </dd>
+            </div>
+            <div>
+              <dt>정산 / 서비스 부담</dt>
+              <dd>
+                {formatKrw(view.settledKrw ?? undefined)} /{" "}
+                {formatKrw(view.absorbedKrw ?? undefined)}
+              </dd>
             </div>
             {view.state === "WAITING_PROVIDER" ? (
               <>
@@ -769,13 +859,14 @@ function useStartSimulation(taskId: string | null) {
   const [message, setMessage] = useState("");
 
   const start = useCallback(
-    async (input: RunInput) => {
+    async (input: RunInput, pricingFingerprint: string) => {
       if (!taskId) return;
       const body = {
         personaCount: input.personaCount,
         modelType: input.modelType,
         sampleSeed: input.sampleSeed,
         filters: input.filters ?? {},
+        pricingFingerprint,
       };
       const signature = JSON.stringify(body);
       if (!requestRef.current || requestRef.current.signature !== signature) {
@@ -813,6 +904,121 @@ function useStartSimulation(taskId: string | null) {
   );
 
   return { pending, start, startMessage: message };
+}
+
+function useSimulationPreview(taskId: string | null, input: RunInput | null) {
+  const signature = input
+    ? JSON.stringify({
+        personaCount: input.personaCount,
+        modelType: input.modelType,
+        sampleSeed: input.sampleSeed,
+        filters: input.filters ?? {},
+      })
+    : null;
+  const [result, setResult] = useState<{
+    preview: SimulationPreview;
+    signature: string;
+    wallet: WalletSummary;
+  } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+  const current = result?.signature === signature ? result : null;
+
+  const load = useCallback(async () => {
+    if (!taskId || !signature) return;
+    setPending(true);
+    setMessage("");
+    try {
+      const [previewResponse, walletResponse] = await Promise.all([
+        authenticatedFetch(
+          `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/simulations/preview`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: signature,
+          },
+        ),
+        authenticatedFetch("/api/v1/admin/simulation-billing/wallet", {
+          cache: "no-store",
+        }),
+      ]);
+      if (!previewResponse.ok) {
+        return setMessage(formatAdminProblem(await readAdminProblem(previewResponse)));
+      }
+      if (!walletResponse.ok) {
+        return setMessage(formatAdminProblem(await readAdminProblem(walletResponse)));
+      }
+      const preview = readSimulationPreview(await previewResponse.json());
+      const wallet = readWalletSummary(await walletResponse.json());
+      if (!preview || !wallet) return setMessage("예상 비용 응답 형식을 확인해야 합니다.");
+      setResult({ preview, signature, wallet });
+    } catch {
+      setMessage("네트워크 오류로 예상 비용을 계산하지 못했습니다.");
+    } finally {
+      setPending(false);
+    }
+  }, [signature, taskId]);
+
+  return {
+    load,
+    message,
+    pending,
+    preview: current?.preview ?? null,
+    wallet: current?.wallet ?? null,
+  };
+}
+
+function SimulationPreviewCard({
+  message,
+  preview,
+  wallet,
+}: Readonly<{
+  message: string;
+  preview: SimulationPreview | null;
+  wallet: WalletSummary | null;
+}>) {
+  if (!preview && !message) return null;
+  return (
+    <section className="civic-domain-form-section civic-simulation-preview-card">
+      <header>
+        <span>실행 전 확인</span>
+        <h2>예상 비용과 시간</h2>
+      </header>
+      {preview ? (
+        <dl className="civic-domain-impact-list">
+          <div>
+            <dt>예상 과금액</dt>
+            <dd>{formatKrw(preview.estimatedKrw)}</dd>
+          </div>
+          <div>
+            <dt>보류 예정액</dt>
+            <dd>{formatKrw(preview.holdKrw)}</dd>
+          </div>
+          <div>
+            <dt>예상 시간</dt>
+            <dd>
+              {preview.estimatedSeconds === null
+                ? "근거 수집 중"
+                : `약 ${preview.estimatedSeconds.toLocaleString("ko-KR")}초`}
+            </dd>
+          </div>
+          <div>
+            <dt>사용 가능액</dt>
+            <dd>{formatKrw(wallet?.availableKrw)}</dd>
+          </div>
+          <div>
+            <dt>비용 근거</dt>
+            <dd>{evidenceLabel(preview.evidenceSource)}</dd>
+          </div>
+          <div>
+            <dt>완료 표본</dt>
+            <dd>{preview.sampleCount.toLocaleString("ko-KR")}건</dd>
+          </div>
+        </dl>
+      ) : null}
+      {message ? <StatusMessage>{message}</StatusMessage> : null}
+    </section>
+  );
 }
 
 function useSimulationView(simulationId: string | null) {
@@ -985,6 +1191,14 @@ function formatDate(value: string | null): string {
   if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("ko-KR");
+}
+
+function formatKrw(value: number | undefined): string {
+  return value === undefined ? "-" : `${value.toLocaleString("ko-KR")}원`;
+}
+
+function evidenceLabel(value: string): string {
+  return value === "rolling_provider_cost" ? "완료 실행 이동 평균" : "초기 모델 평균";
 }
 
 function taskStatusLabel(status: TaskSummary["status"]): string {

@@ -3834,6 +3834,110 @@ body:has(.civic-shell-participant) {
   grid-template-columns: minmax(16rem, 1fr) auto;
 }
 
+[data-wireflow-shell="admin"] .civic-simulation-section-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--civic-line);
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-section-tab {
+  flex: 0 0 auto;
+  border-bottom: 0.2rem solid transparent;
+  color: var(--civic-muted);
+  padding: 0.75rem 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-section-tab[aria-current="page"] {
+  border-color: var(--civic-blue);
+  color: var(--civic-blue-dark);
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-billing-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-summary-grid > article {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  border: 1px solid var(--civic-line);
+  border-radius: var(--civic-radius);
+  background: #fff;
+  padding: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-summary-grid > article.is-emphasis {
+  border-color: #9ab8f5;
+  background: #f4f7fd;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-summary-grid span {
+  color: var(--civic-muted);
+  font-size: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-summary-grid strong {
+  overflow-wrap: anywhere;
+  color: var(--civic-blue-dark);
+  font-size: 1.2rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-two-column,
+[data-wireflow-shell="admin"] .civic-simulation-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-policy-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-compact-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-secret {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid #f2c46d;
+  border-radius: var(--civic-radius);
+  background: #fff9e9;
+  padding: 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-secret :is(p, code) {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-secret code {
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-usage-filter {
+  grid-template-columns: minmax(10rem, 0.5fr) minmax(10rem, 0.5fr) auto auto;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-preview-card {
+  border-color: #9ab8f5;
+  background: #f8faff;
+}
+
 [data-wireflow-shell="admin"] .civic-simulation-fields {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3925,7 +4029,11 @@ body:has(.civic-shell-participant) {
   }
 
   [data-wireflow-shell="admin"] .civic-simulation-fields,
-  [data-wireflow-shell="admin"] .civic-filter-grid {
+  [data-wireflow-shell="admin"] .civic-filter-grid,
+  [data-wireflow-shell="admin"] .civic-simulation-policy-grid,
+  [data-wireflow-shell="admin"] .civic-simulation-summary-grid,
+  [data-wireflow-shell="admin"] .civic-simulation-two-column,
+  [data-wireflow-shell="admin"] .civic-simulation-usage-filter {
     grid-template-columns: 1fr;
   }
 }
