@@ -11,7 +11,9 @@ import {
   filterAdminUsers,
   loadRequestedAdminUser,
   loadRoleConflictUser,
+  loadChatRequestSummary,
   loadRagJobSummary,
+  loadTaskDeadlineSummary,
   requestAdminUsers,
   requestAdminAudit,
   roleFormKey,
@@ -418,6 +420,40 @@ describe("25 functional Main/Auth screens", () => {
     });
   });
 
+  it("관리 홈은 Chat 승인 대기와 24시간 내 과업 마감을 실제 응답에서 계산한다", async () => {
+    const now = Date.parse("2026-08-26T00:00:00Z");
+    const chat = vi.fn(async () =>
+      Response.json({ items: [{ id: "one" }, { id: "two" }], hasNext: false }),
+    );
+    const tasks = vi.fn(async () =>
+      Response.json([
+        {
+          status: "OPEN",
+          schedule: { closesAt: "2026-08-26T12:00:00Z" },
+        },
+        {
+          status: "OPEN",
+          schedule: { closesAt: "2026-08-28T12:00:00Z" },
+        },
+        {
+          status: "CLOSED",
+          schedule: { closesAt: "2026-08-26T03:00:00Z" },
+        },
+      ]),
+    );
+
+    await expect(loadChatRequestSummary(chat as typeof fetch)).resolves.toEqual({
+      status: "ready",
+      count: 2,
+      hasMore: false,
+    });
+    await expect(loadTaskDeadlineSummary(tasks as typeof fetch, now)).resolves.toEqual({
+      status: "ready",
+      count: 1,
+      hasMore: false,
+    });
+  });
+
   it("로그인 복귀 경로는 동일 출처 상대 경로만 허용한다", () => {
     expect(safeReturnTarget("?returnTo=%2Frag%3FfolderId%3Dwelfare")).toBe("/rag?folderId=welfare");
     expect(safeReturnTarget("?returnTo=https%3A%2F%2Fevil.example")).toBeNull();
@@ -723,14 +759,14 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain('data-wireflow-layout="admin-home"');
     expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(3);
     expect(html).toContain("승인 대기");
-    expect(html).toContain("채팅 승인 연동 전");
+    expect(html).toContain("채팅 생성 신청 확인 중");
     expect(html).toContain("처리 실패");
     expect(html).toContain("확인 중");
-    expect(html).toContain("마감 임박");
+    expect(html).toContain("24시간 내 마감");
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(5);
     expect(html).toContain("사용자 관리 열기");
     expect(html).toContain("문서 관리 열기");
-    expect(html).toContain("채팅 운영 열기");
+    expect(html).toContain("채팅 신청 열기");
     expect(html).toContain("과업 관리 열기");
     expect(html).toContain("시뮬레이션 열기");
     expect(html).not.toContain("RAG 자료");

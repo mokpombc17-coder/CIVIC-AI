@@ -438,7 +438,7 @@
       "canonical_title": "채팅방 생성 요청 목록",
       "audience": "ADMIN",
       "route": "/admin/chat/requests",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-004 채팅방 생성 요청 목록"
     },
@@ -447,7 +447,7 @@
       "canonical_title": "생성 요청 상세",
       "audience": "ADMIN",
       "route": "/admin/chat/requests/detail",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-005 생성 요청 상세"
     },
@@ -456,7 +456,7 @@
       "canonical_title": "생성 요청 승인·반려",
       "audience": "ADMIN",
       "route": "/admin/chat/requests/review",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-006 생성 요청 승인·반려"
     },
@@ -492,7 +492,7 @@
       "canonical_title": "과업 목록",
       "audience": "ADMIN",
       "route": "/admin/tasks",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "DECISION",
       "source_heading": "### A-TASK-001 과업 목록"
     },
@@ -501,7 +501,7 @@
       "canonical_title": "과업 생성",
       "audience": "ADMIN",
       "route": "/admin/tasks/create",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "DECISION",
       "source_heading": "### A-TASK-002 과업 생성"
     },
@@ -510,7 +510,7 @@
       "canonical_title": "과업 상세",
       "audience": "ADMIN",
       "route": "/admin/tasks/detail",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "DECISION",
       "source_heading": "### A-TASK-003 과업 상세"
     },
@@ -519,7 +519,7 @@
       "canonical_title": "조기 마감 확인",
       "audience": "ADMIN",
       "route": "/admin/tasks/close",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "DECISION",
       "source_heading": "### A-TASK-004 조기 마감 확인"
     },
@@ -528,7 +528,7 @@
       "canonical_title": "실제 투표 결과",
       "audience": "ADMIN",
       "route": "/admin/tasks/results",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "DECISION",
       "source_heading": "### A-TASK-005 실제 투표 결과"
     },
@@ -537,7 +537,7 @@
       "canonical_title": "시뮬레이션 실행 대상",
       "audience": "ADMIN",
       "route": "/admin/simulations",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "SIMULATION",
       "source_heading": "### A-SIM-001 시뮬레이션 실행 대상"
     },
@@ -546,7 +546,7 @@
       "canonical_title": "시뮬레이션 기본 설정",
       "audience": "ADMIN",
       "route": "/admin/simulations/setup",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "SIMULATION",
       "source_heading": "### A-SIM-002 시뮬레이션 기본 설정"
     },
@@ -555,7 +555,7 @@
       "canonical_title": "수동 패널 조건",
       "audience": "ADMIN",
       "route": "/admin/simulations/panel",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "SIMULATION",
       "source_heading": "### A-SIM-003 수동 패널 조건"
     },
@@ -564,7 +564,7 @@
       "canonical_title": "시뮬레이션 실행 상태",
       "audience": "ADMIN",
       "route": "/admin/simulations/status",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "SIMULATION",
       "source_heading": "### A-SIM-004 시뮬레이션 실행 상태"
     },
@@ -573,7 +573,7 @@
       "canonical_title": "실패·수동 재실행",
       "audience": "ADMIN",
       "route": "/admin/simulations/retry",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "SIMULATION",
       "source_heading": "### A-SIM-005 실패·수동 재실행"
     },
@@ -582,7 +582,7 @@
       "canonical_title": "시뮬레이션 결과",
       "audience": "ADMIN",
       "route": "/admin/simulations/results",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "SIMULATION",
       "source_heading": "### A-SIM-006 시뮬레이션 결과"
     },
@@ -591,7 +591,7 @@
       "canonical_title": "시뮬레이션 패널 상세",
       "audience": "ADMIN",
       "route": "/admin/simulations/panel/detail",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "SIMULATION",
       "source_heading": "### A-SIM-007 시뮬레이션 패널 상세"
     },

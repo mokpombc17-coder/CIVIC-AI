@@ -97,6 +97,14 @@ const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title:
     "A-RAG-004": { title: "선택 폴더에 문서 업로드" },
     "A-RAG-005": { title: "문서 준비 상태" },
     "A-RAG-006": { title: "문서 관리" },
+    "A-CHAT-004": { title: "채팅방 생성 요청" },
+    "A-CHAT-005": { backHref: "/admin/chat/requests" as Route, title: "생성 요청 상세" },
+    "A-CHAT-006": { backHref: "/admin/chat/requests" as Route, title: "생성 요청 승인·반려" },
+    "A-TASK-001": { title: "과업 목록" },
+    "A-TASK-002": { backHref: "/admin/tasks" as Route, title: "과업 생성" },
+    "A-TASK-003": { backHref: "/admin/tasks" as Route, title: "과업 상세" },
+    "A-TASK-004": { backHref: "/admin/tasks" as Route, title: "조기 마감 확인" },
+    "A-TASK-005": { backHref: "/admin/tasks" as Route, title: "실제 투표 결과" },
   });
 
 function SignupStepIndicator({ current }: Readonly<{ current: number }>) {

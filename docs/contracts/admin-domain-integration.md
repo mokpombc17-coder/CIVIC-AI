@@ -1,0 +1,49 @@
+# 관리자 Chat·Vote·Simulation 연동 경계
+
+이 문서는 Frontend2가 현재 실제로 호출하는 관리자 도메인 API만 요약한다. 상세 request·response와
+상태 전이는 서버 팀의 `admin-console-domain-api-contract.md`를 원문 계약으로 사용한다.
+
+## 구현된 화면
+
+- Chat `A-CHAT-004..006`: 생성 신청 목록·상세, 승인, 반려
+- Vote `A-TASK-001..005`: Draft 생성·전체 수정, 예약·즉시 발행, 일정 변경, 종료·취소,
+  정량 결과와 JSONL 다운로드
+- Simulation `A-SIM-001..007`: Vote 과업 선택, SONA 집계 패널 설정·실행, 상태·취소,
+  수동 재설정, 집계 결과와 익명 패널 응답 상세
+
+브라우저는 same-origin `/api/v1/admin/**`만 호출한다. Next.js BFF는 허용한 path와 method만 각각
+`CHAT_INTERNAL_URL`, `VOTE_INTERNAL_URL`, `SIMULATION_INTERNAL_URL`로 전달한다. Access Token은 해석하지 않고 같은 원문을
+`civic_ai_access_token` Cookie와 Bearer Authorization에 넣는다. 각 Resource Server가 최종 scope와
+JWT를 검증한다.
+
+| 영역                             | 서버 business scope        |
+| -------------------------------- | -------------------------- |
+| Chat 생성 신청                   | `chat:rooms:approve`       |
+| Vote 과업                        | `vote:tasks:admin`         |
+| 과업 집계 시뮬레이션 조회        | `simulation:tasks:read`    |
+| 과업 집계 시뮬레이션 실행·취소   | `simulation:tasks:run`     |
+| 시뮬레이션 지갑·정책·사용량 조회 | `simulation:billing:read`  |
+| 시뮬레이션 쿠폰·정책 변경        | `simulation:billing:write` |
+
+Main/Auth는 `VOTE_ADMIN`에 `vote:tasks:admin`, `SIMULATION_ADMIN`에
+`simulation:tasks:read`·`simulation:tasks:run`·`simulation:billing:read`·
+`simulation:billing:write`을 발급한다. Simulation 과업 선택 화면은
+Simulation 서버의 읽기 전용 `/api/v1/admin/simulation-tasks/**`를 호출한다. Simulation 서버가
+Vote의 기존 과업 조회 계약을 내부에서 사용하므로 브라우저의 `SIMULATION_ADMIN` 토큰을 Vote 관리자
+BFF에 직접 전달하지 않는다. Vote 저장소의 API와 권한 정책은 변경하지 않는다. Chat의
+`chat:rooms:approve` 발급·검사 경로는 현재 계약과 일치한다.
+
+mutation은 자동 재전송하지 않는다. 응답이 불명확하거나 `409`이면 상세를 먼저 다시 조회한다. `429`의
+`Retry-After`, Problem Details의 `code`, `violations`, `traceId`를 보존한다. Vote 상세 결과는 JSON으로
+변환하지 않고 NDJSON attachment로 전달한다.
+
+Simulation은 `Persona-main/main`에서 이관한 SONA 실행기를 사용하지만 과업 단위 가상 패널의
+집계 실행만 소유한다. CIVIC 개별 사용자의 Persona 생성, 사용자별 Task 예측, 해당 데이터 조회는
+Simulation BFF allowlist와 화면 계약에 포함하지 않는다.
+
+## 아직 서버 계약이 없는 화면
+
+- Chat 활성 방 전체 관리, 관리자 직접 생성, 카테고리, 통계
+
+Chat 서버의 일반 방 API는 관리자 전체 방을 조회하거나 비회원 관리자가 임의 방을 운영하는 계약이
+아니므로 위 화면에 재사용하지 않는다.

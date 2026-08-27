@@ -10,13 +10,19 @@ const optionalUrl = z.preprocess(
 const productionServiceSchema = z.object({
   MAIN_AUTH_INTERNAL_URL: optionalUrl,
   RAG_INTERNAL_URL: optionalUrl,
+  CHAT_INTERNAL_URL: optionalUrl,
+  VOTE_INTERNAL_URL: optionalUrl,
+  SIMULATION_INTERNAL_URL: optionalUrl,
   CIVIC_BROWSER_ORIGIN: optionalUrl,
 });
 
 export type CivicProductionServiceConfig = Readonly<{
   browserOrigin?: string;
+  chatUrl?: string;
   mainAuthUrl?: string;
   ragUrl?: string;
+  voteUrl?: string;
+  simulationUrl?: string;
 }>;
 
 export function readCivicProductionServiceConfig(
@@ -25,8 +31,11 @@ export function readCivicProductionServiceConfig(
   const parsed = productionServiceSchema.parse(environment);
   return {
     ...(parsed.CIVIC_BROWSER_ORIGIN ? { browserOrigin: parsed.CIVIC_BROWSER_ORIGIN } : {}),
+    ...(parsed.CHAT_INTERNAL_URL ? { chatUrl: parsed.CHAT_INTERNAL_URL } : {}),
     ...(parsed.MAIN_AUTH_INTERNAL_URL ? { mainAuthUrl: parsed.MAIN_AUTH_INTERNAL_URL } : {}),
     ...(parsed.RAG_INTERNAL_URL ? { ragUrl: parsed.RAG_INTERNAL_URL } : {}),
+    ...(parsed.VOTE_INTERNAL_URL ? { voteUrl: parsed.VOTE_INTERNAL_URL } : {}),
+    ...(parsed.SIMULATION_INTERNAL_URL ? { simulationUrl: parsed.SIMULATION_INTERNAL_URL } : {}),
   };
 }
 

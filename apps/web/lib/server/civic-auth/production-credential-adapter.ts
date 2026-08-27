@@ -10,6 +10,7 @@ export type CivicProductionCredential = Readonly<{
 
 export type ResolveCivicProductionCredentialOptions = Readonly<{
   browserRequest: Request;
+  expectedOrigin: string;
   requestId: string;
 }>;
 
@@ -32,8 +33,9 @@ export class CivicProductionCredentialError extends Error {
  */
 export async function resolveCivicProductionCredential({
   browserRequest,
+  expectedOrigin,
 }: ResolveCivicProductionCredentialOptions): Promise<CivicProductionCredential> {
-  assertSameOrigin(browserRequest);
+  assertSameOrigin(browserRequest, expectedOrigin);
 
   const cookieToken = readSingleCookie(
     browserRequest.headers.get("cookie"),
@@ -66,9 +68,9 @@ export function applyCivicProductionCredential(
   return headers;
 }
 
-function assertSameOrigin(request: Request): void {
+function assertSameOrigin(request: Request, expectedOrigin: string): void {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
+  if (origin && origin !== new URL(expectedOrigin).origin) {
     throw new CivicProductionCredentialError(403, "ACCESS_DENIED");
   }
 }

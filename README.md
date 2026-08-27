@@ -9,9 +9,12 @@ UI, Main/Auth 연동, RAG 사용자 질의와 관리자 문서 관리 화면이 
 
 - Main/Auth: 로그인, 회원가입, 비밀번호 재설정, 계정·보안, 사용자·권한 관리자 화면
 - RAG: 사용자 질의, 답변·출처 확인, 피드백, 관리자 폴더·문서·업로드·작업·분석·크롤러 화면
+- Chat 관리자: 채팅방 생성 신청 목록·상세·승인·반려
+- Vote 관리자: 과업 Draft 작성·수정, 예약·발행·마감·취소, 결과 조회·JSONL 다운로드
+- Simulation 관리자: Vote 과업 선택, SONA 집계 패널 설정·비용 확인·실행, 상태·결과·과금 관리
 - 공통: 기존 frontend2 참여자 Platform Shell, 관리자 Shell, 오류 화면, 모바일 bridge,
   설치·업데이트 안내
-- 준비 중: Chat, Vote/Decision, Task, Simulation의 제품 화면과 서비스 호출
+- 준비 중: 참여자 Chat·Vote, 별도 관리자 API가 없는 채팅 운영 화면
 
 준비 중인 기능은 화면 레지스트리의 canonical 경로와 제목만 제공하며 WebSocket이나 백엔드 호출을
 시작하지 않는다. 기존 `civic-ai-frontend`의 오래된 Chat 구현은 이 저장소로 복사하지 않았다.
@@ -38,6 +41,9 @@ Access Token 만료로 API가 `401`을 반환하면 브라우저가 `POST /api/v
 CIVIC_BROWSER_ORIGIN=http://localhost:3000
 MAIN_AUTH_INTERNAL_URL=http://localhost:8080
 RAG_INTERNAL_URL=http://localhost:8000
+CHAT_INTERNAL_URL=http://localhost:8082
+VOTE_INTERNAL_URL=http://localhost:8083
+SIMULATION_INTERNAL_URL=http://localhost:8084
 ```
 
 브라우저에는 내부 서비스 URL이나 비밀 키를 노출하지 않는다. 외부 OAuth 로그인은 사용하지 않는다.
@@ -75,10 +81,11 @@ apps/web/components/platform-page-shell.tsx
                                       참여자 route용 Platform Shell 조립
 apps/web/components/screens/          Main/Auth 실제 기능 화면
 apps/web/components/rag/              사용자·관리자 RAG 실제 기능 화면
+apps/web/components/admin/            Chat 승인·Vote 과업·Simulation 관리자 화면
 apps/web/components/shell/            Platform Shell participant adapter·관리자 Shell
 apps/web/components/wireflow/         Wire Flow 공용 UI
 apps/web/lib/auth/                     로그인 상태·권한·자동 refresh
-apps/web/lib/api/                      Main/Auth·RAG BFF
+apps/web/lib/api/                      Main/Auth·RAG·Chat·Vote allowlist BFF
 apps/mobile/                           Expo WebView native shell
 packages/bridge/                       web/native bridge 계약
 ```

@@ -68,7 +68,20 @@ AdminCatchAllPage [Server Route]
     │       ├── DocumentInspector
     │       ├── AdminRagAnalytics
     │       └── AdminRagCrawler
-    └── ComingSoonScreen [placeholder]
+    ├── AdminChatRequestScreen [Chat 생성 신청 관리]
+    ├── AdminTaskScreen [Vote 과업 관리]
+    ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
+    │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
+    │   ├── Vote 과업 선택·실행 전 비용/시간 견적·설정
+    │   ├── 활성 데이터 번들 기반 패널 필터
+    │   ├── 실행 상태·취소·수동 재설정
+    │   ├── 집계 결과·익명 패널 응답 상세
+    │   └── SimulationBillingSection
+    │       ├── 공용 지갑 조회·쿠폰 발급/사용
+    │       ├── 환율·공급자 단가·모델 가격 초안/활성화
+    │       ├── 일별 정산 사용량
+    │       └── 최근 SONA 근거 이관 상태
+    └── ComingSoonScreen [서버 계약 미확정 화면]
 ```
 
 사용자·권한 관리 화면은 `HIGHEST_ADMIN`을 요구한다. RAG, Chat, Vote, Simulation 관리자 화면은
@@ -115,16 +128,35 @@ Browser /api/v1/rag/**
     ├── same-origin 검사
     ├── Access Token raw equality 검사
     └── RAG upstream에 동일 Cookie + Bearer 전달
+
+Browser /api/v1/admin/simulation-tasks/**|tasks/{taskId}/simulations|simulations/**|simulation-options|simulation-billing/**
+└── Simulation BFF
+    ├── route/method allowlist
+    ├── same-origin 검사
+    ├── Access Token raw equality 검사
+    └── Simulation upstream에 동일 Cookie + Bearer 전달
+
+Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/tasks/**
+└── Admin Domain BFF
+    ├── 화면별 path·method allowlist
+    ├── same-origin 검사
+    └── Chat 또는 Vote upstream에 동일 Cookie + Bearer 전달
 ```
+
+실행 요청은 먼저 `/api/v1/admin/tasks/{taskId}/simulations/preview`에서 예상 원화 비용·20% 보류액·
+예상 시간·가격 정책 fingerprint를 받는다. 관리자가 화면에서 이를 확인한 다음 동일 fingerprint를
+실행 요청에 넣는다. 지갑·정책·사용량·이관 화면은 내부 UUID 대신 금액, 버전, 이메일, 상태처럼
+운영자가 판단할 수 있는 값만 표시한다. 쿠폰 원문은 발급 응답 직후의 Client state에만 존재하며
+URL, 브라우저 저장소, 로그에는 기록하지 않는다.
 
 RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 Next.js SSE 프록시를
 통해 연결하며 provider API key나 JWT를 Client Component에 전달하지 않는다.
 
 ## 현재 비활성 기능
 
-Chat, Vote/Decision, Task, Simulation route는 `ComingSoonScreen`만 렌더링한다. 해당 화면에서는 REST
-mutation, WebSocket, SharedWorker를 시작하지 않는다. 각 기능의 실제 구현은 해당 서비스 팀의 최신
-코드를 별도로 통합한다.
+참여자 Chat·Vote와 Chat의 활성 방·카테고리·통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
+Chat 생성 신청, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를 사용한다.
+placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 
 ## App Router special UI
 
