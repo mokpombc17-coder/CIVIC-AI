@@ -52,6 +52,29 @@ describe("simulation contracts", () => {
     ).not.toBeNull();
   });
 
+  it.each([
+    ["FAILED_PROVIDER", "CALIBRATION_ATTEMPTS_EXHAUSTED"],
+    ["REVIEW_REQUIRED", "CALIBRATION_C_NETWORK_CAPACITY_INSUFFICIENT"],
+  ])("accepts the V2 terminal state %s", (state, errorCode) => {
+    expect(
+      readSimulationView({
+        simulationId,
+        taskId,
+        state,
+        personaCount: 10,
+        progressPercent: 20,
+        cancelRequested: false,
+        errorCode,
+        resumeAt: null,
+        waitReason: null,
+        createdAt: "2026-08-27T00:00:00Z",
+        startedAt: "2026-08-27T00:00:01Z",
+        completedAt: "2026-08-27T00:00:10Z",
+        billingState: "RELEASED",
+      }),
+    ).not.toBeNull();
+  });
+
   it("rejects an individual Persona payload at the simulation result boundary", () => {
     expect(readSimulationResult({ personaId: "user-persona", prediction: "A" })).toBeNull();
   });
@@ -104,8 +127,8 @@ describe("simulation contracts", () => {
         profileSha256: "profile-sha256",
         networkSha256: "network-sha256",
         calibration: {
-          pipelineVersion: "CALIBRATED_PERSONA_PIPELINE_V1",
-          contractVersion: "PERSONA_CALIBRATION_V1",
+          pipelineVersion: "CALIBRATED_PERSONA_PIPELINE_V2",
+          contractVersion: "PERSONA_CALIBRATION_V2",
           answerDistributionModel: "anthropic/claude-sonnet-5",
           assignmentModel: "openai/gpt-5.6-luna",
           answerDistribution: [["68.0", "32.0"]],
@@ -115,6 +138,7 @@ describe("simulation contracts", () => {
           referenceTime: "2026-08-27",
           personaSetDigest: "sha256:persona-set",
           proxyEligiblePersonaCount: 4,
+          supplementedPersonaCount: 1,
           providerEvidence: {
             totalProviderCalls: 4,
             validatedProviderCalls: 4,
@@ -136,6 +160,7 @@ describe("simulation contracts", () => {
     });
 
     expect(result?.run.pricingFingerprint).toBe("pricing-policy-sha256");
+    expect(result?.engine.calibration.pipelineVersion).toBe("CALIBRATED_PERSONA_PIPELINE_V2");
   });
 
   it("rejects a tampered manual-panel count above the runtime limit", () => {

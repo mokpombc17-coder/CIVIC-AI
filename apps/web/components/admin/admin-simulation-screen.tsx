@@ -508,6 +508,8 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
 
   if (!simulationId) return <MissingContext>확인할 실행을 선택해 주세요.</MissingContext>;
 
+  const recoveryMessage = view ? simulationRecoveryMessage(view) : null;
+
   async function cancel() {
     setPending(true);
     try {
@@ -582,6 +584,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
               </>
             ) : null}
           </dl>
+          {recoveryMessage ? <StatusMessage>{recoveryMessage}</StatusMessage> : null}
           <div className="civic-simulation-actions">
             {["READY", "RUNNING", "WAITING_PROVIDER"].includes(view.state) ? (
               <button
@@ -603,14 +606,14 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
                 집계 결과 보기
               </Link>
             ) : null}
-            {view.state === "FAILED" ? (
+            {["FAILED", "FAILED_PROVIDER", "REVIEW_REQUIRED"].includes(view.state) ? (
               <Link
                 className="civic-primary-action"
                 href={
                   `/admin/simulations/retry?simulationId=${encodeURIComponent(view.simulationId)}` as Route
                 }
               >
-                실패 내용 확인
+                {view.state === "REVIEW_REQUIRED" ? "새 표본 시드로 실행" : "실패 내용 확인"}
               </Link>
             ) : null}
           </div>
@@ -623,6 +626,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
 
 function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | null }>) {
   const { message, view } = useSimulationView(simulationId);
+  const recoveryMessage = view ? simulationRecoveryMessage(view) : null;
   if (!simulationId) return <MissingContext>재실행할 실행을 선택해 주세요.</MissingContext>;
   return (
     <section className="civic-domain-action-panel civic-domain-danger-panel">
@@ -631,8 +635,8 @@ function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | nul
         <h2>실패 원인을 확인한 뒤 새 설정으로 실행</h2>
       </header>
       <p>
-        실행 요청은 자동으로 반복하지 않습니다. 모델 키·데이터 번들·worker 로그를 확인한 뒤 같은
-        과업의 설정 화면에서 새 실행을 요청하세요.
+        {recoveryMessage ??
+          "실행 요청은 자동으로 반복하지 않습니다. 실행 환경을 확인한 뒤 같은 과업에서 새 실행을 요청하세요."}
       </p>
       {view ? (
         <dl className="civic-domain-impact-list">
@@ -641,8 +645,8 @@ function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | nul
             <dd>{simulationStateLabel(view.state)}</dd>
           </div>
           <div>
-            <dt>오류 코드</dt>
-            <dd>{view.errorCode ?? "기록 없음"}</dd>
+            <dt>다음 조치</dt>
+            <dd>{recoveryMessage ?? "실행 환경 확인 후 다시 실행"}</dd>
           </div>
           <div>
             <dt>가상 패널</dt>
@@ -1216,15 +1220,35 @@ function taskStatusLabel(status: TaskSummary["status"]): string {
   return { DRAFT: "작성 중", SCHEDULED: "예약", OPEN: "진행 중", CLOSED: "종료" }[status];
 }
 
-function simulationStateLabel(state: SimulationState): string {
+export function simulationStateLabel(state: SimulationState): string {
   return {
     READY: "실행 대기",
     RUNNING: "실행 중",
     WAITING_PROVIDER: "공급자 응답 대기",
     COMPLETED: "완료",
     FAILED: "실패",
+    FAILED_PROVIDER: "외부 모델 호출 실패",
+    REVIEW_REQUIRED: "표본 재설정 필요",
     CANCELLED: "취소됨",
   }[state];
+}
+
+export function simulationRecoveryMessage(
+  view: Pick<SimulationView, "state" | "errorCode">,
+): string | null {
+  if (
+    view.state === "REVIEW_REQUIRED" ||
+    view.errorCode === "CALIBRATION_C_NETWORK_CAPACITY_INSUFFICIENT"
+  ) {
+    return "C형 네트워크 가능 인원이 부족합니다. 다른 표본 시드로 다시 실행하세요.";
+  }
+  if (view.state === "FAILED_PROVIDER" || view.errorCode === "CALIBRATION_ATTEMPTS_EXHAUSTED") {
+    return "외부 모델 호출이 누적 3회 실패했습니다. 모델 상태를 확인한 뒤 새 실행을 요청하세요.";
+  }
+  if (view.state === "FAILED") {
+    return "실행 중 오류가 발생했습니다. 실행 환경을 확인한 뒤 새 실행을 요청하세요.";
+  }
+  return null;
 }
 
 function providerWaitLabel(reason: string | null): string {

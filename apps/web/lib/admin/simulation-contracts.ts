@@ -6,6 +6,8 @@ export const simulationStates = [
   "WAITING_PROVIDER",
   "COMPLETED",
   "FAILED",
+  "FAILED_PROVIDER",
+  "REVIEW_REQUIRED",
   "CANCELLED",
 ] as const;
 export type SimulationState = (typeof simulationStates)[number];
@@ -135,8 +137,8 @@ const simulationResultSchema = z
         networkSha256: z.string().min(1),
         calibration: z
           .object({
-            pipelineVersion: z.string().min(1),
-            contractVersion: z.string().min(1),
+            pipelineVersion: z.literal("CALIBRATED_PERSONA_PIPELINE_V2"),
+            contractVersion: z.literal("PERSONA_CALIBRATION_V2"),
             answerDistributionModel: z.string().min(1),
             assignmentModel: z.string().min(1),
             answerDistribution: z.array(z.array(z.string().min(1))).min(1),
@@ -152,6 +154,7 @@ const simulationResultSchema = z
             referenceTime: z.string().min(1),
             personaSetDigest: z.string().min(1),
             proxyEligiblePersonaCount: z.number().int().nonnegative(),
+            supplementedPersonaCount: z.number().int().nonnegative(),
             providerEvidence: z
               .object({
                 totalProviderCalls: z.number().int().nonnegative(),
