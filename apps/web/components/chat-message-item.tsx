@@ -32,37 +32,48 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         data-index={virtualIndex}
         data-render-key={item.renderKey}
         data-room-sequence={item.roomSequence ?? undefined}
+        data-sender-group-start={item.startsSenderGroup ? "true" : "false"}
         ref={ref}
         style={style}
       >
         <div className="flex w-full max-w-[82%] flex-col">
-          <div className="mb-1 flex min-h-[29px] items-center justify-between gap-3">
-            {senderLabel || item.senderIsOwner ? (
-              <span className="inline-flex min-w-0 items-center gap-[3px]">
-                {senderLabel ? (
-                  <strong
-                    className={
-                      item.isMine || item.senderIsOwner
-                        ? "min-w-0 truncate text-[13px] font-bold leading-[19.5px] text-[var(--chat-publishing-color-muted)]"
-                        : "inline-flex h-[29px] max-w-full items-center truncate rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-[6px] text-[13px] font-bold leading-[16.25px] text-[var(--chat-publishing-color-primary-emphasis)]"
-                    }
-                  >
-                    {senderLabel}
-                  </strong>
-                ) : null}
-                {item.senderIsOwner ? (
-                  <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#9ed1fa] bg-[#edf7ff] px-[6px] text-xs font-bold leading-[18px] text-[#085985]">
-                    방장
-                  </span>
-                ) : null}
-              </span>
-            ) : (
-              <span />
-            )}
-            <time className="shrink-0 text-xs text-[var(--chat-publishing-color-muted)]">
-              {item.timeLabel}
-            </time>
-          </div>
+          {item.startsSenderGroup ? (
+            <div
+              className="mb-1 flex min-h-[29px] items-center justify-between gap-3"
+              data-message-metadata="visible"
+            >
+              {senderLabel || item.senderIsOwner ? (
+                <span className="inline-flex min-w-0 items-center gap-[3px]">
+                  {senderLabel ? (
+                    <strong
+                      className={
+                        item.isMine || item.senderIsOwner
+                          ? "min-w-0 truncate text-[13px] font-bold leading-[19.5px] text-[var(--chat-publishing-color-muted)]"
+                          : "inline-flex h-[29px] max-w-full items-center truncate rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-[6px] text-[13px] font-bold leading-[16.25px] text-[var(--chat-publishing-color-primary-emphasis)]"
+                      }
+                    >
+                      {senderLabel}
+                    </strong>
+                  ) : null}
+                  {item.senderIsOwner ? (
+                    <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#9ed1fa] bg-[#edf7ff] px-[6px] text-xs font-bold leading-[18px] text-[#085985]">
+                      방장
+                    </span>
+                  ) : null}
+                </span>
+              ) : (
+                <span />
+              )}
+              <time className="shrink-0 text-xs text-[var(--chat-publishing-color-muted)]">
+                {item.timeLabel}
+              </time>
+            </div>
+          ) : (
+            <span className="sr-only" data-message-metadata="accessible-only">
+              {senderLabel ?? "알 수 없는 참여자"}
+              {item.senderIsOwner ? ", 방장" : ""}, {item.timeLabel}
+            </span>
+          )}
           <div className="w-full">
             {item.canOpenActions && item.messageId ? (
               <button

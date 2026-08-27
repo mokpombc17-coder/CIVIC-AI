@@ -57,6 +57,7 @@ function createMessage(
     roomSequence: null,
     senderIsOwner: false,
     senderLabel: "local-user-1",
+    startsSenderGroup: true,
     timeLabel: "오후 3:00",
     ...overrides,
   };

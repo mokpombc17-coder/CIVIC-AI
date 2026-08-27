@@ -32,6 +32,20 @@ describe("chat room publishing view", () => {
     expect(html).toContain("rounded-bl-[4px]");
   });
 
+  it("연속 메시지는 시각적 작성자·시간을 숨기고 접근 가능한 정보만 유지한다", () => {
+    const html = renderMessage({
+      isMine: false,
+      senderLabel: "참여자 2",
+      startsSenderGroup: false,
+    });
+
+    expect(html).toContain('data-sender-group-start="false"');
+    expect(html).toContain('data-message-metadata="accessible-only"');
+    expect(html).toContain("참여자 2, 오전 10:14");
+    expect(html).not.toContain('data-message-metadata="visible"');
+    expect(html).not.toContain("<time");
+  });
+
   it("composer를 72px 입력창과 48px 전송 control로 조립한다", () => {
     const html = renderToStaticMarkup(
       createElement(ChatMessageComposer, {
@@ -110,6 +124,7 @@ function renderMessage(patch: Partial<ChatMessageItemViewModel>): string {
     roomSequence: 1,
     senderIsOwner: false,
     senderLabel: null,
+    startsSenderGroup: true,
     timeLabel: "오전 10:14",
     ...patch,
   };

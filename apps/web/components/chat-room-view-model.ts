@@ -54,6 +54,7 @@ export type ChatMessageItemViewModel = Readonly<{
   roomSequence: number | null;
   senderIsOwner: boolean;
   senderLabel: string | null;
+  startsSenderGroup: boolean;
   timeLabel: string;
 }>;
 
@@ -110,16 +111,23 @@ export function createChatMessageItemViewModels(
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
   ownerMembershipId: string | null = null,
 ): readonly ChatMessageItemViewModel[] {
-  return timeline.map((item) =>
-    createChatMessageItemViewModel(
+  let previousGroupKey: ChatMessageSenderGroupKey | null = null;
+
+  return timeline.map((item) => {
+    const groupKey = createChatMessageSenderGroupKey(item, selfMembershipId);
+    const startsSenderGroup = startsNewChatMessageSenderGroup(previousGroupKey, groupKey);
+    previousGroupKey = groupKey;
+
+    return createChatMessageItemViewModel(
       item,
       selfMembershipId,
       participantDisplayNames,
       ownerMembershipId,
       mutationStates,
       readReceiptSummaries,
-    ),
-  );
+      startsSenderGroup,
+    );
+  });
 }
 
 export function createChatMessageViewportItemViewModels(
@@ -130,8 +138,11 @@ export function createChatMessageViewportItemViewModels(
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
   ownerMembershipId: string | null = null,
 ): readonly ChatMessageViewportItemViewModel[] {
+  let previousGroupKey: ChatMessageSenderGroupKey | null = null;
+
   return rows.map((row) => {
     if (row.kind === "date-separator") {
+      previousGroupKey = null;
       return {
         date: row.date,
         kind: "date-separator",
@@ -140,6 +151,7 @@ export function createChatMessageViewportItemViewModels(
     }
 
     if (row.kind === "read-boundary") {
+      previousGroupKey = null;
       return {
         afterSequence: row.afterSequence,
         kind: "read-boundary",
@@ -147,6 +159,9 @@ export function createChatMessageViewportItemViewModels(
       };
     }
 
+    const groupKey = createChatMessageSenderGroupKey(row.item, selfMembershipId);
+    const startsSenderGroup = startsNewChatMessageSenderGroup(previousGroupKey, groupKey);
+    previousGroupKey = groupKey;
     const item = createChatMessageItemViewModel(
       row.item,
       selfMembershipId,
@@ -154,6 +169,7 @@ export function createChatMessageViewportItemViewModels(
       ownerMembershipId,
       mutationStates,
       readReceiptSummaries,
+      startsSenderGroup,
     );
     return {
       item,
@@ -170,6 +186,7 @@ function createChatMessageItemViewModel(
   ownerMembershipId: string | null,
   mutationStates: ChatMessageMutationStates,
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary>,
+  startsSenderGroup: boolean,
 ): ChatMessageItemViewModel {
   const selfDisplayName =
     selfMembershipId === null ? null : (participantDisplayNames.get(selfMembershipId) ?? null);
@@ -196,6 +213,7 @@ function createChatMessageItemViewModel(
       roomSequence: null,
       senderIsOwner: selfMembershipId !== null && selfMembershipId === ownerMembershipId,
       senderLabel: selfDisplayName,
+      startsSenderGroup,
       timeLabel: formatMessageTime(item.message.enqueuedAt),
     };
   }
@@ -225,8 +243,45 @@ function createChatMessageItemViewModel(
     senderLabel:
       participantDisplayNames.get(item.message.senderMembershipId) ??
       (isMine ? selfDisplayName : UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME),
+    startsSenderGroup,
     timeLabel: formatMessageTime(item.message.createdAt),
   };
+}
+
+type ChatMessageSenderGroupKey = Readonly<{
+  minute: number;
+  senderMembershipId: string;
+}>;
+
+function createChatMessageSenderGroupKey(
+  item: ChatMessageTimelineItem,
+  selfMembershipId: string | null,
+): ChatMessageSenderGroupKey | null {
+  const senderMembershipId =
+    item.kind === "confirmed" ? item.message.senderMembershipId : selfMembershipId;
+  const timestamp =
+    item.kind === "confirmed" ? Date.parse(item.message.createdAt) : item.message.enqueuedAt;
+
+  if (senderMembershipId === null || !Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  return {
+    minute: Math.floor(timestamp / 60_000),
+    senderMembershipId,
+  };
+}
+
+function startsNewChatMessageSenderGroup(
+  previous: ChatMessageSenderGroupKey | null,
+  current: ChatMessageSenderGroupKey | null,
+): boolean {
+  return (
+    previous === null ||
+    current === null ||
+    previous.senderMembershipId !== current.senderMembershipId ||
+    previous.minute !== current.minute
+  );
 }
 
 function createChatMessageRenderKey(clientMessageId: string): string {

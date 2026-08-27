@@ -109,6 +109,73 @@ describe("chat room view model", () => {
     expect(unknownParticipant?.senderLabel).toBe("알 수 없는 참여자");
   });
 
+  it("같은 참여자의 같은 분 연속 메시지만 하나의 sender group으로 묶는다", () => {
+    const confirmed = (
+      membershipId: string,
+      createdAt: string,
+      sequence: number,
+    ): ChatMessageTimelineItem => ({
+      kind: "confirmed",
+      message: {
+        clientMessageId: `550e8400-e29b-41d4-a716-${String(sequence).padStart(12, "0")}`,
+        content: `메시지 ${sequence}`,
+        countable: true,
+        createdAt,
+        deletedAt: null,
+        messageId: `message-${sequence}`,
+        messageVersion: 1,
+        roomId: "room-01",
+        roomSequence: sequence,
+        senderMembershipId: membershipId,
+        state: "ACTIVE",
+        updatedAt: createdAt,
+      },
+    });
+    const rows: readonly ChatMessageTimelineRow[] = [
+      {
+        date: { day: 27, key: "2026-08-27", month: 8, year: 2026 },
+        kind: "date-separator",
+        renderKey: "date-separator-2026-08-27",
+      },
+      { item: confirmed("membership-01", "2026-08-27T07:08:05Z", 1), kind: "message" },
+      { item: confirmed("membership-01", "2026-08-27T07:08:45Z", 2), kind: "message" },
+      { item: confirmed("membership-02", "2026-08-27T07:08:50Z", 3), kind: "message" },
+      { item: confirmed("membership-01", "2026-08-27T07:08:55Z", 4), kind: "message" },
+      { item: confirmed("membership-01", "2026-08-27T07:09:01Z", 5), kind: "message" },
+      { afterSequence: 5, kind: "read-boundary", renderKey: "read-boundary-5" },
+      { item: confirmed("membership-01", "2026-08-27T07:09:20Z", 6), kind: "message" },
+      {
+        item: {
+          kind: "outgoing",
+          message: {
+            attempt: 0,
+            clientMessageId: "550e8400-e29b-41d4-a716-000000000007",
+            content: "전송 대기 메시지",
+            enqueuedAt: Date.parse("2026-08-27T07:09:30Z"),
+            generation: 1,
+            message: null,
+            retryAt: null,
+            roomId: "room-01",
+            status: "queued",
+          },
+        },
+        kind: "message",
+      },
+    ];
+    const groupStarts = createChatMessageViewportItemViewModels(
+      rows,
+      "membership-01",
+      new Map(),
+      new Map(),
+      new Map([
+        ["membership-01", "같은 이름"],
+        ["membership-02", "같은 이름"],
+      ]),
+    ).flatMap((item) => (item.kind === "message" ? [item.item.startsSenderGroup] : []));
+
+    expect(groupStarts).toEqual([true, false, true, true, true, true, false]);
+  });
+
   it("날짜 구분선과 메시지 행을 viewport 전용 모델로 순서대로 변환한다", () => {
     const message: ChatMessageTimelineItem = {
       kind: "confirmed",
