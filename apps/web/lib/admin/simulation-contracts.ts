@@ -86,6 +86,7 @@ const simulationResultSchema = z
         modelType: z.string().min(1),
         sampleSeed: z.number().int().nullable(),
         filters: z.record(z.string(), z.array(z.string())),
+        pricingFingerprint: z.string().min(1),
       })
       .strict(),
     summary: z
