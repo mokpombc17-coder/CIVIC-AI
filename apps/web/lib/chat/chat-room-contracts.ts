@@ -93,6 +93,11 @@ export const roomVisibilitySchema = z.enum(["LISTED", "UNLISTED"]);
 export const joinPolicySchema = z.enum(["OPEN", "INVITE_ONLY"]);
 export const roomCategoryIdSchema = opaqueIdSchema;
 export const roomCategoryIdsSchema = z.array(roomCategoryIdSchema);
+export const roomCategorySummarySchema = z.object({
+  categoryId: roomCategoryIdSchema,
+  name: z.string().min(1),
+});
+export const roomCategorySummariesSchema = z.array(roomCategorySummarySchema).min(1).max(5);
 export const roomStatusSchema = z.enum(["ACTIVE", "CLOSED"]);
 export const membershipRoleSchema = z.enum(["OWNER", "MEMBER"]);
 export const membershipStatusSchema = z.enum(["ACTIVE", "LEFT", "BANNED"]);
@@ -148,7 +153,22 @@ export const roomSettingsSchema = z.object({
   joinPolicy: joinPolicySchema,
 });
 
-export const publicRoomListItemSchema = roomSettingsSchema.extend({
+const roomCategorySummaryMismatchIssue = {
+  path: ["categorySummaries"],
+  message: "categoryIds와 categorySummaries의 categoryId 집합은 같아야 합니다.",
+};
+
+function hasMatchingRoomCategoryIds(room: {
+  categoryIds: readonly string[];
+  categorySummaries: readonly { categoryId: string }[];
+}): boolean {
+  const categoryIds = new Set(room.categoryIds);
+  const summaryIds = new Set(room.categorySummaries.map(({ categoryId }) => categoryId));
+
+  return categoryIds.size === summaryIds.size && [...categoryIds].every((id) => summaryIds.has(id));
+}
+
+const roomListItemBaseSchema = roomSettingsSchema.extend({
   roomId: roomIdSchema,
   ownerMembershipId: opaqueIdSchema,
   status: roomStatusSchema,
@@ -157,13 +177,22 @@ export const publicRoomListItemSchema = roomSettingsSchema.extend({
   version: versionSchema,
 });
 
-export const roomDetailsSchema = publicRoomListItemSchema.extend({
-  closedAt: nullableInstantSchema,
-  participationStatus: roomParticipationStatusSchema,
-  myMembership: roomMembershipSchema.nullable(),
-});
+export const publicRoomListItemSchema = roomListItemBaseSchema
+  .extend({
+    categorySummaries: roomCategorySummariesSchema,
+  })
+  .refine(hasMatchingRoomCategoryIds, roomCategorySummaryMismatchIssue);
 
-export const myRoomListItemSchema = publicRoomListItemSchema.extend({
+export const roomDetailsSchema = roomListItemBaseSchema
+  .extend({
+    categorySummaries: roomCategorySummariesSchema,
+    closedAt: nullableInstantSchema,
+    participationStatus: roomParticipationStatusSchema,
+    myMembership: roomMembershipSchema.nullable(),
+  })
+  .refine(hasMatchingRoomCategoryIds, roomCategorySummaryMismatchIssue);
+
+export const myRoomListItemSchema = roomListItemBaseSchema.extend({
   membershipId: opaqueIdSchema,
   membershipRole: membershipRoleSchema,
   membershipStatus: membershipStatusSchema,
@@ -202,6 +231,7 @@ export const roomInboxLastMessageSchema = z.discriminatedUnion("state", [
 
 export const roomInboxListItemSchema = myRoomListItemSchema
   .extend({
+    categorySummaries: roomCategorySummariesSchema,
     readThroughSequence: nonnegativeSequenceSchema,
     unreadCount: z.number().int().nonnegative(),
     unreadCountCapped: z.boolean(),
@@ -209,6 +239,13 @@ export const roomInboxListItemSchema = myRoomListItemSchema
     lastActivityAt: instantSchema,
   })
   .superRefine((room, context) => {
+    if (!hasMatchingRoomCategoryIds(room)) {
+      context.addIssue({
+        code: "custom",
+        ...roomCategorySummaryMismatchIssue,
+      });
+    }
+
     if (
       room.lastMessage !== null &&
       Date.parse(room.lastMessage.createdAt) !== Date.parse(room.lastActivityAt)
@@ -754,6 +791,7 @@ export type RoomVisibility = z.infer<typeof roomVisibilitySchema>;
 export type JoinPolicy = z.infer<typeof joinPolicySchema>;
 export type RoomCategoryId = z.infer<typeof roomCategoryIdSchema>;
 export type RoomCategoryIds = readonly RoomCategoryId[];
+export type RoomCategorySummary = z.infer<typeof roomCategorySummarySchema>;
 export type RoomStatus = z.infer<typeof roomStatusSchema>;
 export type MembershipRole = z.infer<typeof membershipRoleSchema>;
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;

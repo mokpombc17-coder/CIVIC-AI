@@ -97,7 +97,7 @@ describe("chat room event cache projector", () => {
     });
   });
 
-  it("연속된 ROOM_SETTINGS_UPDATED의 전체 settings snapshot을 적용한다", () => {
+  it("ROOM_SETTINGS_UPDATED는 이름 없는 카테고리를 추론하지 않고 HTTP category snapshot을 유지한다", () => {
     const queryClient = createSeededQueryClient();
     const event = createSettingsUpdatedEvent({
       eventId: "event-settings",
@@ -121,7 +121,8 @@ describe("chat room event cache projector", () => {
     ).toMatchObject({
       name: "새 방 이름",
       description: "새 방 설명",
-      categoryIds: ["00000000-0000-4000-8000-000000000002"],
+      categoryIds: ["00000000-0000-4000-8000-000000000001"],
+      categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }],
       visibility: "UNLISTED",
       joinPolicy: "INVITE_ONLY",
       version: 2,
@@ -338,6 +339,7 @@ const ROOM_DETAILS = {
   name: "시민 AI 토론방",
   description: "",
   categoryIds: ["00000000-0000-4000-8000-000000000001"],
+  categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }],
   ownerMembershipId: "membership-01",
   status: "ACTIVE",
   visibility: "LISTED",

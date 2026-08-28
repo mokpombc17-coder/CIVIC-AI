@@ -205,6 +205,7 @@ function createRoomDetails(patch: Partial<RoomDetails> = {}): RoomDetails {
     name: "시민 토론방",
     description: "참여자 프로필 테스트",
     categoryIds: ["00000000-0000-4000-8000-000000000001"],
+    categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }],
     ownerMembershipId: "membership-owner",
     status: "ACTIVE",
     visibility: "LISTED",

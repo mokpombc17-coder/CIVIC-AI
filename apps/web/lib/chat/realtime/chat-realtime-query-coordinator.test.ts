@@ -519,6 +519,7 @@ describe("ChatRealtimeQueryCoordinator", () => {
       name: "테스트 방",
       description: "",
       categoryIds: ["00000000-0000-4000-8000-000000000001"],
+      categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }],
       ownerMembershipId: "membership-owner",
       status: "ACTIVE",
       visibility: "LISTED",

@@ -41,7 +41,7 @@ describe("chatRoomApi queries", () => {
     const publicRoomsAbortController = new AbortController();
     const creationRequestsAbortController = new AbortController();
 
-    await api.listPublicRooms(
+    const publicRooms = await api.listPublicRooms(
       {
         query: "  교통 & 환경  ",
         categoryId: "00000000-0000-4000-8000-000000000003",
@@ -64,11 +64,11 @@ describe("chatRoomApi queries", () => {
       creationRequestsAbortController.signal,
     );
     await api.cancelMyRoomCreationRequest("creation/request 01");
-    await api.listRoomInbox({
+    const roomInbox = await api.listRoomInbox({
       cursor: "inbox cursor",
       limit: 20,
     });
-    await api.getRoom("room-01");
+    const roomDetails = await api.getRoom("room-01");
     await api.getMyMembership("room-01");
     await api.listRoomMemberships("room-01", {
       status: "BANNED",
@@ -91,6 +91,9 @@ describe("chatRoomApi queries", () => {
     expect(calls[2]?.init?.signal).toBe(creationRequestsAbortController.signal);
     expect(calls[3]?.init?.signal).toBe(creationRequestsAbortController.signal);
     expect(calls[4]?.init).toEqual({ method: "POST" });
+    expect(publicRooms.items[0]?.categorySummaries).toEqual(CATEGORY_SUMMARIES);
+    expect(roomInbox.items[0]?.categorySummaries).toEqual(CATEGORY_SUMMARIES);
+    expect(roomDetails.categorySummaries).toEqual(CATEGORY_SUMMARIES);
   });
 
   it("응답이 계약과 다르면 endpoint 문맥을 가진 오류를 반환한다", async () => {
@@ -583,7 +586,7 @@ function createRoomReadReceiptStateResponse() {
   };
 }
 
-const PUBLIC_ROOM = {
+const ROOM_BASE = {
   roomId: "room-01",
   name: "시민 AI 토론방",
   description: "",
@@ -595,6 +598,13 @@ const PUBLIC_ROOM = {
   activeMemberCount: 2,
   createdAt: "2026-07-29T04:30:00Z",
   version: 2,
+};
+
+const CATEGORY_SUMMARIES = [{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }];
+
+const PUBLIC_ROOM = {
+  ...ROOM_BASE,
+  categorySummaries: CATEGORY_SUMMARIES,
 };
 
 const MEMBERSHIP = {
@@ -616,7 +626,7 @@ const ROOM_DETAILS = {
 };
 
 const MY_ROOM = {
-  ...PUBLIC_ROOM,
+  ...ROOM_BASE,
   membershipId: "membership-01",
   membershipRole: "OWNER",
   membershipStatus: "ACTIVE",
@@ -626,6 +636,7 @@ const MY_ROOM = {
 
 const ROOM_INBOX_ITEM = {
   ...MY_ROOM,
+  categorySummaries: CATEGORY_SUMMARIES,
   readThroughSequence: 123,
   unreadCount: 200,
   unreadCountCapped: false,

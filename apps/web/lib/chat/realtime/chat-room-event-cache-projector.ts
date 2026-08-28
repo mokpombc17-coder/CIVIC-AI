@@ -106,7 +106,8 @@ function projectRoomDetails(
       ? {
           name: event.payload.name,
           description: event.payload.description,
-          categoryIds: event.payload.categoryIds,
+          // The event does not include display names. Keep the last coherent HTTP category
+          // snapshot until refreshAuthoritativeRoomQueries replaces both category fields.
           visibility: event.payload.visibility,
           joinPolicy: event.payload.joinPolicy,
         }

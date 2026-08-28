@@ -5,6 +5,7 @@ import {
   useChatRoomSettingsControl,
   type ChatRoomSettingsControlController,
 } from "@/components/use-chat-room-settings-control";
+import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import type { RoomDetails } from "@/lib/chat/chat-room-contracts";
 
 const SETTINGS_PRIMARY_BUTTON_CLASS_NAME =
@@ -260,6 +261,12 @@ function ChatRoomInformationCard({ room }: { room: RoomDetails }) {
 function RoomInformationDetails({ room }: { room: RoomDetails }) {
   return (
     <dl className="mt-4 grid gap-4">
+      <div className="grid gap-1">
+        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">카테고리</dt>
+        <dd>
+          <ChatRoomCategoryBadges categories={room.categorySummaries} maxVisible={5} />
+        </dd>
+      </div>
       <div className="grid gap-1">
         <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">방 이름</dt>
         <dd className="break-words text-base font-bold leading-6 text-[var(--chat-publishing-color-text)]">

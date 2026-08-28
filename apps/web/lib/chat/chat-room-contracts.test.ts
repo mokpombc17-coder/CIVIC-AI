@@ -341,12 +341,15 @@ describe("chat room REST contracts", () => {
     ).toBe(true);
   });
 
-  it("Room category를 public, my rooms, inbox, detail 응답에서 공통 검증한다", () => {
+  it("Room category ID와 표시 정보를 응답별 계약에 맞게 검증한다", () => {
     const publicRoom = {
       roomId: "room-01",
       name: "시민 AI 토론방",
       description: "",
       categoryIds: ["00000000-0000-4000-8000-000000000003"] as const,
+      categorySummaries: [
+        { categoryId: "00000000-0000-4000-8000-000000000003", name: "지역 현안" },
+      ],
       ownerMembershipId: "membership-01",
       status: "ACTIVE" as const,
       visibility: "LISTED" as const,
@@ -368,8 +371,12 @@ describe("chat room REST contracts", () => {
         .items[0]?.categoryIds,
     ).toEqual(["00000000-0000-4000-8000-000000000003"]);
     expect(
+      publicRoomListResponseSchema.parse({ items: [publicRoom], nextCursor: null, hasNext: false })
+        .items[0]?.categorySummaries,
+    ).toEqual([{ categoryId: "00000000-0000-4000-8000-000000000003", name: "지역 현안" }]);
+    expect(
       myRoomListResponseSchema.parse({
-        items: [{ ...publicRoom, ...membershipFields }],
+        items: [{ ...publicRoom, categorySummaries: undefined, ...membershipFields }],
         nextCursor: null,
         hasNext: false,
       }).items[0]?.categoryIds,
@@ -377,6 +384,37 @@ describe("chat room REST contracts", () => {
     expect(roomInboxListResponseSchema.parse(createRoomInboxPage()).items[0]?.categoryIds).toEqual([
       "00000000-0000-4000-8000-000000000001",
     ]);
+    expect(
+      roomInboxListResponseSchema.parse(createRoomInboxPage()).items[0]?.categorySummaries,
+    ).toEqual([{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }]);
+    expect(
+      myRoomListResponseSchema.safeParse({
+        items: [{ ...publicRoom, categorySummaries: undefined, ...membershipFields }],
+        nextCursor: null,
+        hasNext: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      publicRoomListResponseSchema.safeParse({
+        items: [{ ...publicRoom, categorySummaries: undefined }],
+        nextCursor: null,
+        hasNext: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      publicRoomListResponseSchema.safeParse({
+        items: [
+          {
+            ...publicRoom,
+            categorySummaries: [
+              { categoryId: "00000000-0000-4000-8000-000000000004", name: "환경" },
+            ],
+          },
+        ],
+        nextCursor: null,
+        hasNext: false,
+      }).success,
+    ).toBe(false);
     expect(
       publicRoomListResponseSchema.safeParse({
         items: [{ ...publicRoom, categoryIds: undefined }],
@@ -399,6 +437,7 @@ describe("chat room REST contracts", () => {
       name: "시민 AI 토론방",
       description: "",
       categoryIds: ["00000000-0000-4000-8000-000000000002"],
+      categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000002", name: "환경" }],
       ownerMembershipId: "membership-01",
       status: "ACTIVE",
       visibility: "LISTED",
@@ -1104,6 +1143,7 @@ function createRoomInboxItem() {
     name: "시민 AI 토론방",
     description: "",
     categoryIds: ["00000000-0000-4000-8000-000000000001"] as const,
+    categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }],
     ownerMembershipId: "membership-01",
     status: "ACTIVE" as const,
     visibility: "LISTED" as const,

@@ -200,6 +200,7 @@ describe("chat room list cards", () => {
     expect(html).toContain('data-chat-room-list-detail-dialog="true"');
     expect(html).toContain("공개 채팅방 설명");
     expect(html).toContain("3 / 50명");
+    expect(html).toContain('aria-label="카테고리: 정책"');
     expect(html).toContain("참여하기");
     expect(html).toContain('aria-label="채팅방 상세 닫기"');
   });
@@ -214,6 +215,7 @@ describe("chat room list cards", () => {
 
     expect(html).toContain('href="/chat/room-01"');
     expect(html).toContain("채팅방 입장");
+    expect(html).toContain('aria-label="카테고리: 지역 현안"');
     expect(html).not.toContain("참여하기");
   });
 });
@@ -223,6 +225,7 @@ const PUBLIC_ROOM: PublicRoomListItem = {
   name: "공개 채팅방",
   description: "공개 채팅방 설명",
   categoryIds: ["00000000-0000-4000-8000-000000000001"],
+  categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000001", name: "정책" }],
   ownerMembershipId: "membership-owner",
   status: "ACTIVE",
   visibility: "LISTED",
@@ -300,6 +303,7 @@ function createRoomInboxItem(patch: Partial<RoomInboxListItem> = {}): RoomInboxL
     name: "프로젝트 회의방",
     description: "기존 설명",
     categoryIds: ["00000000-0000-4000-8000-000000000003"],
+    categorySummaries: [{ categoryId: "00000000-0000-4000-8000-000000000003", name: "지역 현안" }],
     ownerMembershipId: "membership-owner",
     status: "ACTIVE",
     visibility: "LISTED",
