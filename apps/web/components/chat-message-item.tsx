@@ -8,8 +8,6 @@ type ChatMessageItemProps = Readonly<{
   virtualIndex: number;
 }>;
 
-const CHAT_MESSAGE_READ_RECEIPT_PREVIEW_COUNT = 1;
-
 export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
   function ChatMessageItem({ item, onOpenActions, style, virtualIndex }, ref) {
     const failed = item.deliveryTone === "error";
@@ -23,17 +21,8 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
             : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
     }`;
     const senderLabel = item.senderLabel ?? (item.isMine ? "나" : null);
-    const previewReadCount =
-      process.env.NODE_ENV === "development" &&
-      item.isMine &&
-      item.messageId !== null &&
-      !item.isDeleted
-        ? CHAT_MESSAGE_READ_RECEIPT_PREVIEW_COUNT
-        : null;
-    const displayedReadCount = item.readCount ?? previewReadCount;
-    const displayedReadReceiptLabel =
-      item.readReceiptLabel ??
-      (displayedReadCount === null ? null : `${displayedReadCount}명 읽음`);
+    const displayedReadCount = item.readCount;
+    const displayedReadReceiptLabel = item.readReceiptLabel;
     const showsSideMetadata =
       item.endsSenderGroup || displayedReadReceiptLabel !== null || item.isEdited;
 

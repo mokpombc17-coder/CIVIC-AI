@@ -81,14 +81,14 @@ describe("chat room publishing view", () => {
     expect(html.indexOf('data-message-edited="true"')).toBeLessThan(html.indexOf("<time"));
   });
 
-  it("개발 환경의 확정된 내 메시지는 읽음 데이터가 없을 때 1을 미리보기로 표시한다", () => {
+  it("개발 환경에서도 읽음 데이터가 없으면 읽음 수를 표시하지 않는다", () => {
     vi.stubEnv("NODE_ENV", "development");
 
     try {
       const html = renderMessage({ isMine: true, readCount: null, readReceiptLabel: null });
 
-      expect(html).toContain('data-read-count="1"');
-      expect(html).toContain('aria-label="1명 읽음"');
+      expect(html).not.toContain("data-read-count");
+      expect(html).not.toContain("명 읽음");
     } finally {
       vi.unstubAllEnvs();
     }
