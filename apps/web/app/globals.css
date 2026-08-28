@@ -3711,6 +3711,41 @@ body:has(.civic-shell-participant) {
   width: auto;
 }
 
+[data-wireflow-shell="admin"] .civic-category-create,
+[data-wireflow-shell="admin"] .civic-category-room-lookup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-create > button,
+[data-wireflow-shell="admin"] .civic-category-room-lookup > button {
+  min-height: 2.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-table input {
+  min-width: 12rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.55rem;
+}
+
+[data-wireflow-shell="admin"] .civic-boundary-copy {
+  margin: 0;
+  color: var(--civic-text-muted);
+  line-height: 1.65;
+}
+
 [data-wireflow-shell="admin"] .civic-option-builder,
 [data-wireflow-shell="admin"] .civic-task-options-readonly,
 [data-wireflow-shell="admin"] .civic-domain-history ol,
@@ -4026,6 +4061,12 @@ body:has(.civic-shell-participant) {
 
 @media (max-width: 820px) {
   [data-wireflow-shell="admin"] .civic-domain-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  [data-wireflow-shell="admin"] .civic-category-create,
+  [data-wireflow-shell="admin"] .civic-category-room-lookup {
     grid-template-columns: 1fr;
     align-items: stretch;
   }

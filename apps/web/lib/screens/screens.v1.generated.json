@@ -465,7 +465,7 @@
       "canonical_title": "카테고리 관리",
       "audience": "ADMIN",
       "route": "/admin/chat/categories",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-007 카테고리 관리"
     },

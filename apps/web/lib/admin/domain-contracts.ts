@@ -6,6 +6,7 @@ export type ProblemViolation = Readonly<{
 export type AdminProblem = Readonly<{
   code: string;
   detail?: string;
+  referencedRoomCount?: number;
   retryAfter?: string;
   status: number;
   traceId?: string;
@@ -15,17 +16,20 @@ export type AdminProblem = Readonly<{
 export type RoomCreationStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELED";
 
 export type RoomCreationRequest = Readonly<{
-  categories: readonly string[];
+  categoryIds: readonly string[];
   creationRequestId: string;
   description: string;
   joinPolicy: string;
   name: string;
+  ownerMembershipId: string | null;
+  ownerMembershipVersion: number | null;
   rejectionReason: string | null;
   replayed: boolean;
   requestedAt: string;
   requesterUserId: string;
   resolvedAt: string | null;
   roomId: string | null;
+  roomVersion: number | null;
   status: RoomCreationStatus;
   visibility: string;
 }>;
@@ -135,11 +139,11 @@ export function readRoomCreationRequest(value: unknown): RoomCreationRequest | n
   const record = object(value);
   if (!record) return null;
   const status = string(record.status);
-  const categories = stringArray(record.categories);
+  const categoryIds = stringArray(record.categoryIds);
   if (
     !status ||
     !roomStatuses.has(status as RoomCreationStatus) ||
-    !categories ||
+    !categoryIds ||
     typeof record.replayed !== "boolean"
   ) {
     return null;
@@ -154,10 +158,12 @@ export function readRoomCreationRequest(value: unknown): RoomCreationRequest | n
   ] as const);
   if (!required || typeof record.description !== "string") return null;
   return {
-    categories,
+    categoryIds,
     creationRequestId: required.creationRequestId,
     description: record.description,
     joinPolicy: required.joinPolicy,
+    ownerMembershipId: nullableString(record.ownerMembershipId),
+    ownerMembershipVersion: nullableNonNegativeInteger(record.ownerMembershipVersion),
     name: required.name,
     rejectionReason: nullableString(record.rejectionReason),
     replayed: record.replayed,
@@ -165,6 +171,7 @@ export function readRoomCreationRequest(value: unknown): RoomCreationRequest | n
     requesterUserId: required.requesterUserId,
     resolvedAt: nullableString(record.resolvedAt),
     roomId: nullableString(record.roomId),
+    roomVersion: nullableNonNegativeInteger(record.roomVersion),
     status: status as RoomCreationStatus,
     visibility: required.visibility,
   };
@@ -270,6 +277,15 @@ export async function readAdminProblem(response: Response): Promise<AdminProblem
         return field && message ? [{ field, message }] : [];
       })
     : [];
+  const fieldErrors = object(body?.fieldErrors);
+  if (fieldErrors) {
+    for (const [field, value] of Object.entries(fieldErrors)) {
+      const messages = Array.isArray(value) ? value : [value];
+      for (const message of messages) {
+        if (typeof message === "string" && message.length > 0) violations.push({ field, message });
+      }
+    }
+  }
   const traceId =
     string(body?.traceId) ??
     string(body?.trace_id) ??
@@ -280,10 +296,14 @@ export async function readAdminProblem(response: Response): Promise<AdminProblem
     undefined;
   const detail = string(body?.detail) ?? string(body?.message);
   const retryAfter = response.headers.get("retry-after");
+  const referencedRoomCount = nonNegativeInteger(body?.referencedRoomCount)
+    ? (body?.referencedRoomCount as number)
+    : undefined;
   return {
     status: response.status,
     code: string(body?.code) ?? `HTTP_${response.status}`,
     ...(detail ? { detail } : {}),
+    ...(referencedRoomCount !== undefined ? { referencedRoomCount } : {}),
     ...(retryAfter ? { retryAfter } : {}),
     ...(traceId ? { traceId } : {}),
     violations,
@@ -293,6 +313,13 @@ export async function readAdminProblem(response: Response): Promise<AdminProblem
 export function formatAdminProblem(problem: AdminProblem): string {
   const codeMessages: Readonly<Record<string, string>> = {
     ROOM_CREATION_DECISION_CONFLICT: "다른 관리자가 이미 처리했습니다. 최신 상태를 확인했습니다.",
+    ROOM_CATEGORY_IN_USE: "다른 채팅방에서 사용 중인 카테고리는 삭제할 수 없습니다.",
+    ROOM_CATEGORY_NAME_CONFLICT: "같은 이름의 카테고리가 이미 있습니다.",
+    ROOM_CATEGORY_DEFAULT_PROTECTED: "기본 정책 카테고리는 삭제할 수 없습니다.",
+    ROOM_CATEGORY_VERSION_CONFLICT:
+      "다른 관리자가 카테고리를 변경했습니다. 최신 목록에서 다시 시도해 주세요.",
+    ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT:
+      "다른 관리자가 채팅방을 변경했습니다. 최신 설정에서 다시 시도해 주세요.",
     USER_ACTIVE_ROOM_LIMIT_EXCEEDED: "신청자가 만들 수 있는 활성 채팅방 수를 초과했습니다.",
     TASK_RESULT_SUMMARY_NOT_FOUND: "아직 확정된 정량 결과가 없습니다.",
     TASK_RESULT_VIEW_NOT_FOUND: "아직 다운로드할 상세 결과가 없습니다.",
@@ -481,6 +508,14 @@ function integer(value: unknown): boolean {
 
 function nonNegativeInteger(value: unknown): boolean {
   return integer(value) && (value as number) >= 0;
+}
+
+function nullableNonNegativeInteger(value: unknown): number | null {
+  return value === null || value === undefined
+    ? null
+    : nonNegativeInteger(value)
+      ? (value as number)
+      : null;
 }
 
 function requiredStrings<T extends readonly string[]>(

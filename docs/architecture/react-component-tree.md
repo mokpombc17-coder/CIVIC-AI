@@ -144,7 +144,9 @@ Browser /api/v1/admin/simulation-tasks/**|tasks/{taskId}/simulations|simulations
     ├── Access Token raw equality 검사
     └── Simulation upstream에 동일 Cookie + Bearer 전달
 
-Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/tasks/**
+Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/**
+        | /api/v1/admin/rooms/{roomId}/categories | /api/v1/rooms/{roomId}
+        | /api/v1/admin/tasks/**
 └── Admin Domain BFF
     ├── 화면별 path·method allowlist
     ├── same-origin 검사
@@ -164,8 +166,10 @@ Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지
 
 ## 현재 비활성 기능
 
-참여자 Chat·Vote와 Chat의 활성 방·카테고리·통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
-Chat 생성 신청, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를 사용한다.
+참여자 Chat·Vote와 Chat의 활성 방 전체 목록·통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
+Chat 생성 신청·카테고리 관리, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를
+사용한다. Chat 카테고리 화면의 기존 방 변경은 관리자용 전체 방 검색 API가 없으므로 이미 알고 있는
+`roomId`만 조회하여 처리한다.
 placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 
 ## App Router special UI
