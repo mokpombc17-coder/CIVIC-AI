@@ -77,7 +77,7 @@ describe("response framing headers", () => {
     expect(template).toContain("upstream simulation_resource");
     expect(template).toContain("server 127.0.0.1:8090;");
     expect(template).toContain("location ^~ /api/v1/rag/");
-    expect(template).toContain("/internal/v1/rag/$1");
+    expect(template).toContain("/internal/v1/rag/$rag_resource_suffix");
     expect(template).toContain('location ~ "^/stream/rag/queries/');
     expect(template).toContain("location /stream/rag/queries/");
     expect(template).not.toContain("location ^~ /stream/rag/queries/");
@@ -105,5 +105,16 @@ describe("response framing headers", () => {
     expect(template).toContain("proxy_hide_header Content-Security-Policy;");
     expect(template).toContain("~^/api/v1/rag/ DENY;");
     expect(template).toContain("~^/api/v1/rag/ \"frame-ancestors 'none'\";");
+  });
+
+  it("preserves escaped opaque RAG identifiers at the direct edge", async () => {
+    const template = await readFile(
+      path.join(process.cwd(), "deploy/nginx/next-webview.conf"),
+      "utf8",
+    );
+
+    expect(template).toContain("map $request_uri $rag_resource_request_uri");
+    expect(template).toContain("proxy_pass http://rag_resource$rag_resource_request_uri;");
+    expect(template).not.toContain("rewrite ^/api/v1/rag/(.*)$");
   });
 });
