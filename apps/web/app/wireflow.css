@@ -3781,6 +3781,12 @@ body:has([data-wireflow-shell]) {
   color: var(--wf-blue-dark);
 }
 
+.civic-file-tile[data-kind="hwp"] {
+  border-color: #b5dfe6;
+  background: #e9f7fa;
+  color: #0d6a7d;
+}
+
 .civic-doc-cell {
   display: flex;
   align-items: center;

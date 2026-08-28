@@ -1,4 +1,4 @@
-export type RagFileKind = "pdf" | "sheet" | "image" | "slide" | "doc" | "text" | "file";
+export type RagFileKind = "pdf" | "sheet" | "image" | "slide" | "doc" | "hwp" | "text" | "file";
 
 const MEDIA_TYPE_KINDS: Readonly<Record<string, RagFileKind>> = {
   "application/pdf": "pdf",
@@ -12,8 +12,8 @@ const MEDIA_TYPE_KINDS: Readonly<Record<string, RagFileKind>> = {
   "application/vnd.oasis.opendocument.spreadsheet": "sheet",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": "slide",
   "application/vnd.ms-powerpoint": "slide",
-  "application/x-hwp": "doc",
-  "application/hwp+zip": "doc",
+  "application/x-hwp": "hwp",
+  "application/hwp+zip": "hwp",
 };
 
 const EXTENSION_KINDS: Readonly<Record<string, RagFileKind>> = {
@@ -35,8 +35,8 @@ const EXTENSION_KINDS: Readonly<Record<string, RagFileKind>> = {
   ppt: "slide",
   docx: "doc",
   doc: "doc",
-  hwp: "doc",
-  hwpx: "doc",
+  hwp: "hwp",
+  hwpx: "hwp",
 };
 
 const KIND_LABELS: Readonly<Record<RagFileKind, string>> = {
@@ -45,6 +45,7 @@ const KIND_LABELS: Readonly<Record<RagFileKind, string>> = {
   image: "IMG",
   slide: "PPT",
   doc: "DOC",
+  hwp: "HWP",
   text: "TXT",
   file: "FILE",
 };
