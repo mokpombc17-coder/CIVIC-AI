@@ -43,7 +43,7 @@ export function createDevQuickLoginHandler(options: {
   loginProxy: LoginProxy;
 }) {
   return async function handleDevQuickLogin(request: NextRequest): Promise<NextResponse> {
-    if (!devQuickLoginAvailable(request.nextUrl.host, options.config)) {
+    if (!devQuickLoginAvailable(request.headers.get("host"), options.config)) {
       return problem(404, "NOT_FOUND");
     }
     const body = (await request.json().catch(() => null)) as { account?: unknown } | null;

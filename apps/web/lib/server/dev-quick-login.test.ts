@@ -69,9 +69,7 @@ describe("development quick login", () => {
       loginProxy: async () => new NextResponse(null, { status: 204 }),
     });
 
-    const response = await handler(
-      devRequest({ account: "USER" }, "https://other.example/api/dev/auth/login"),
-    );
+    const response = await handler(devRequest({ account: "USER" }, { host: "other.example" }));
 
     expect(response.status).toBe(404);
   });
@@ -89,14 +87,19 @@ describe("development quick login", () => {
   });
 });
 
-function devRequest(body: unknown, url = "https://140-238-17-223.sslip.io/api/dev/auth/login") {
-  const origin = new URL(url).origin;
+function devRequest(
+  body: unknown,
+  {
+    host = "140-238-17-223.sslip.io",
+    url = "http://web:3000/api/dev/auth/login",
+  }: Readonly<{ host?: string; url?: string }> = {},
+) {
   return new NextRequest(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      host: new URL(url).host,
-      origin,
+      host,
+      origin: "https://140-238-17-223.sslip.io",
       "sec-fetch-site": "same-origin",
     },
     body: JSON.stringify(body),
