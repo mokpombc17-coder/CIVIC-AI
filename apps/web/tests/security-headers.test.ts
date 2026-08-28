@@ -77,6 +77,8 @@ describe("response framing headers", () => {
     expect(template).toContain("upstream simulation_resource");
     expect(template).toContain("server 127.0.0.1:8090;");
     expect(template).toContain("location ^~ /api/v1/rag/");
+    expect(template).toContain("client_max_body_size 12m;");
+    expect(template).not.toContain("client_max_body_size 500m;");
     expect(template).toContain("/internal/v1/rag/$rag_resource_suffix");
     expect(template).toContain('location ~ "^/stream/rag/queries/');
     expect(template).toContain("location /stream/rag/queries/");
