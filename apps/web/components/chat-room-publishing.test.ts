@@ -23,7 +23,7 @@ describe("chat room publishing presentation", () => {
 
   it("확정한 목록 화면 문구를 한곳에서 제공한다", () => {
     expect(CHAT_ROOM_PUBLISHING_COPY).toEqual({
-      createRoom: "채팅방 생성 요청",
+      createRoom: "토론방 생성 요청",
       noAvailableRooms: "참여 가능한 방이 없습니다.",
     });
   });

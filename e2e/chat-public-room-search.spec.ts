@@ -70,7 +70,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect((await initialRequest).ok()).toBe(true);
 
       await observerPage
-        .getByRole("searchbox", { name: "채팅방 이름 검색" })
+        .getByRole("searchbox", { name: "토론방 이름 검색" })
         .fill(`  ${searchTerm}  `);
 
       const firstPageResponsePromise = observerPage.waitForResponse((response) => {
@@ -138,7 +138,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
     });
 
     await test.step("공백 검색어는 query와 categoryId를 생략한다", async () => {
-      await observerPage.getByRole("searchbox", { name: "채팅방 이름 검색" }).fill("   ");
+      await observerPage.getByRole("searchbox", { name: "토론방 이름 검색" }).fill("   ");
 
       const responsePromise = observerPage.waitForResponse((response) => {
         if (!isPublicRoomListResponse(response)) {

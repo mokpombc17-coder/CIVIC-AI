@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
+import type { ChatRoomListDetailSelection } from "./chat-room-list-detail";
 import { ChatRoomListDetailDialog } from "./chat-room-list-detail-dialog";
 import { ChatRoomListView, MyRoomCard, PublicRoomCard } from "./chat-room-list-view";
 
@@ -13,15 +14,23 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("chat room list publishing layout", () => {
-  it("모바일 토론방 header, 검색·생성 도구와 두 Room section을 조립한다", () => {
+  it("모바일 토론방 header와 참여·검색 영역을 Figma 순서로 조립한다", () => {
     const html = renderChatRoomListView("ALL");
+    const filterIndex = html.indexOf('aria-label="참여한 방 필터"');
+    const participatingRoomsIndex = html.indexOf(">참여한 방</h2>");
+    const publicRoomSearchIndex = html.indexOf('aria-label="공개 채팅방 검색"');
+    const availableRoomsIndex = html.indexOf(">참여 가능한 방</h2>");
 
     expect(html).toContain(">토론방</h1>");
-    expect(html).toContain('aria-label="채팅방 검색과 생성"');
+    expect(html).toContain('aria-label="참여한 방 필터와 토론방 생성"');
+    expect(html).toContain('aria-label="참여 가능한 토론방 검색과 목록"');
     expect(html).toContain('aria-label="참여한 방 필터"');
-    expect(html).toContain(">채팅방 생성 요청</button>");
+    expect(html).toContain(">토론방 생성 요청</button>");
     expect(html).toContain(">참여한 방</h2>");
     expect(html).toContain(">참여 가능한 방</h2>");
+    expect(filterIndex).toBeLessThan(participatingRoomsIndex);
+    expect(participatingRoomsIndex).toBeLessThan(publicRoomSearchIndex);
+    expect(publicRoomSearchIndex).toBeLessThan(availableRoomsIndex);
     expect(html).toContain("참여 가능한 방이 없습니다.");
     expect(html.match(/data-chat-room-list-state="empty"/g)).toHaveLength(2);
     expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
@@ -73,6 +82,21 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain('data-create-chat-room-sheet="form"');
     expect(html).toContain('inert=""');
     expect(html).toContain('aria-hidden="true"');
+  });
+
+  it("채팅방 상세도 PlatformShell overlay로 조립하고 본문을 비활성화한다", () => {
+    const html = renderChatRoomListView("ALL", false, "empty", {
+      kind: "available",
+      room: PUBLIC_ROOM,
+    });
+
+    expect(html).toContain('data-platform-shell-overlay="true"');
+    expect(html).toContain('data-chat-room-list-detail-dialog="true"');
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('inert=""');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).not.toContain("<dialog");
   });
 });
 
@@ -212,6 +236,7 @@ function renderChatRoomListView(
   filter: "ALL" | "UNREAD",
   isCreateRoomOpen = false,
   listStatus: "empty" | "error" | "loading" = "empty",
+  roomDetailSelection: ChatRoomListDetailSelection | null = null,
 ): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -239,7 +264,7 @@ function renderChatRoomListView(
         participatingRooms: emptyListState,
         publicRoomSearch: createPublicRoomSearchController(),
         publicRooms: emptyListState,
-        roomDetail: { close: vi.fn(), open: vi.fn(), selection: null },
+        roomDetail: { close: vi.fn(), open: vi.fn(), selection: roomDetailSelection },
         toggleCreateRoomForm: vi.fn(),
       }),
     ),

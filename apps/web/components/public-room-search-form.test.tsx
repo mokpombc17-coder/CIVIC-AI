@@ -10,7 +10,7 @@ describe("public Room search form", () => {
 
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-label="공개 채팅방 검색"');
-    expect(html).toContain("채팅방 이름 검색");
+    expect(html).toContain("토론방 이름 검색");
     expect(html).toContain("검색어 입력…");
     expect(html).toContain('type="submit"');
     expect(html).toContain("검색");

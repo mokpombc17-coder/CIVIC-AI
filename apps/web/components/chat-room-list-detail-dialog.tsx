@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, type KeyboardEvent, type ReactNode } from "react";
 import type { ChatRoomListDetailSelection } from "@/components/chat-room-list-detail";
 import { getChatRoomMemberCountPresentation } from "@/components/chat-room-publishing";
 import { JoinChatRoomControl } from "@/components/join-chat-room-control";
@@ -16,65 +16,60 @@ export function ChatRoomListDetailDialog({
   onClose: () => void;
   selection: ChatRoomListDetailSelection;
 }>) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const closeRequestedRef = useRef(false);
   const titleId = useId();
   const { room } = selection;
   const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
 
-  function closeDialog() {
-    const dialog = dialogRef.current;
-
-    if (dialog?.open) {
-      closeRequestedRef.current = true;
-      dialog.close();
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
       return;
     }
 
-    onClose();
+    if (event.key !== "Tab") {
+      return;
+    }
+
+    const focusableElements = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    const first = focusableElements[0];
+    const last = focusableElements.at(-1);
+
+    if (!first || !last) {
+      return;
+    }
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-
-    if (!dialog) {
-      return;
-    }
-
-    dialog.showModal();
-
-    return () => {
-      if (dialog.open) {
-        dialog.close();
-      }
-    };
-  }, []);
-
   return (
-    <dialog
-      aria-labelledby={titleId}
-      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-transparent p-0 text-[var(--chat-publishing-color-text)] backdrop:bg-[#121417]/[0.56]"
-      data-chat-room-list-detail-dialog="true"
-      id={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
-      onCancel={() => {
-        closeRequestedRef.current = true;
-      }}
-      onClose={() => {
-        if (!closeRequestedRef.current) {
-          return;
-        }
-
-        closeRequestedRef.current = false;
-        onClose();
-      }}
+    <div
+      className="relative flex size-full items-end justify-center bg-[#121417]/[0.56] text-[var(--chat-publishing-color-text)]"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          closeDialog();
+          onClose();
         }
       }}
-      ref={dialogRef}
     >
-      <section className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[393px] rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_16px_40px_rgba(18,20,23,0.2)]">
+      <section
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="w-full max-w-[393px] rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_16px_40px_rgba(18,20,23,0.2)]"
+        data-chat-room-list-detail-dialog="true"
+        id={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
+        onKeyDown={handleKeyDown}
+        role="dialog"
+      >
         <div className="flex min-h-11 items-start justify-between gap-4">
           <h2 className="min-w-0 pt-1 text-2xl font-bold leading-[32.4px]" id={titleId}>
             {room.name}
@@ -83,7 +78,7 @@ export function ChatRoomListDetailDialog({
             aria-label="채팅방 상세 닫기"
             autoFocus
             className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-            onClick={closeDialog}
+            onClick={onClose}
             type="button"
           >
             <Image alt="" aria-hidden="true" height={24} src="/assets/chat/close.png" width={24} />
@@ -112,7 +107,7 @@ export function ChatRoomListDetailDialog({
           )}
         </div>
       </section>
-    </dialog>
+    </div>
   );
 }
 

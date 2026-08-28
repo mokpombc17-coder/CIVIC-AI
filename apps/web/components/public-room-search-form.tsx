@@ -26,7 +26,7 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
       role="search"
     >
       <label className="grid min-w-0 gap-1.5 text-sm font-bold text-[var(--chat-publishing-color-text)]">
-        채팅방 이름 검색
+        토론방 이름 검색
         <span className="flex h-12 min-w-0 items-center overflow-hidden rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-muted)] bg-white transition focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]">
           <Image
             alt=""

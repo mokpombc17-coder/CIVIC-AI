@@ -26,7 +26,9 @@ import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
-  "grid max-h-[384px] scroll-p-1 gap-3 overflow-y-auto overscroll-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] [scrollbar-gutter:stable]";
+  "grid scroll-p-1 gap-3 overflow-y-auto overscroll-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] [scrollbar-gutter:stable]";
+const PARTICIPATING_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[252px]`;
+const PUBLIC_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[384px]`;
 
 type RoomListState<TItem> = Readonly<{
   error: unknown;
@@ -62,31 +64,38 @@ export function ChatRoomListView({
   roomDetail,
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
+  const isOverlayOpen = isCreateRoomOpen || roomDetail.selection !== null;
+  const overlay = isCreateRoomOpen ? (
+    <CreateChatRoomForm onCancel={closeCreateRoomForm} />
+  ) : roomDetail.selection ? (
+    <ChatRoomListDetailDialog onClose={roomDetail.close} selection={roomDetail.selection} />
+  ) : undefined;
+
   return (
     <PlatformShell
       bottomNavigation={<PlatformNavigationClient />}
       className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
-      contentInert={isCreateRoomOpen}
+      contentInert={isOverlayOpen}
       contentClassName="chat-room-list"
       header={<PlatformHeader title="토론방" />}
-      overlay={isCreateRoomOpen ? <CreateChatRoomForm onCancel={closeCreateRoomForm} /> : undefined}
+      overlay={overlay}
     >
-      <div className="grid gap-6 px-4 py-4">
-        <section aria-label="채팅방 검색과 생성" className="grid gap-3">
-          <PublicRoomSearchForm controller={publicRoomSearch} />
-          <div className="flex items-end justify-between gap-3">
-            <ChatRoomInboxFilterControl controller={participatingRoomFilter} />
-            <button
-              aria-controls={CREATE_CHAT_ROOM_FORM_ID}
-              aria-expanded={isCreateRoomOpen}
-              className="inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={toggleCreateRoomForm}
-              ref={createRoomTriggerRef}
-              type="button"
-            >
-              {CHAT_ROOM_PUBLISHING_COPY.createRoom}
-            </button>
-          </div>
+      <div className="grid gap-5 px-4 pb-4 pt-5">
+        <section
+          aria-label="참여한 방 필터와 토론방 생성"
+          className="flex items-center justify-between gap-3"
+        >
+          <ChatRoomInboxFilterControl controller={participatingRoomFilter} />
+          <button
+            aria-controls={CREATE_CHAT_ROOM_FORM_ID}
+            aria-expanded={isCreateRoomOpen}
+            className="inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={toggleCreateRoomForm}
+            ref={createRoomTriggerRef}
+            type="button"
+          >
+            {CHAT_ROOM_PUBLISHING_COPY.createRoom}
+          </button>
         </section>
 
         <RoomListSection title="참여한 방">
@@ -112,7 +121,7 @@ export function ChatRoomListView({
           ) : participatingRooms.rooms.length > 0 ? (
             <ul
               aria-label="참여 중인 채팅방"
-              className={SCROLLABLE_ROOM_LIST_CLASS_NAME}
+              className={PARTICIPATING_ROOM_LIST_CLASS_NAME}
               tabIndex={0}
             >
               {participatingRooms.rooms.map((room) => (
@@ -137,65 +146,62 @@ export function ChatRoomListView({
           />
         </RoomListSection>
 
-        <RoomListSection separated title="참여 가능한 방">
-          <QueryFailure
-            error={publicRooms.error}
-            errorMessage={getPublicRoomListErrorMessage(publicRooms.error)}
-            onRetry={publicRooms.retry}
-            title="공개 방을 불러오지 못했습니다."
-            visible={publicRooms.isError}
-          />
+        <section
+          aria-label="참여 가능한 토론방 검색과 목록"
+          className="grid gap-5 border-t border-[#8a949e] pt-5"
+        >
+          <PublicRoomSearchForm controller={publicRoomSearch} />
 
-          {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
-            <RoomListNotice kind="loading" message="공개 방을 불러오고 있습니다." />
-          ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
-            <RoomListNotice message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms} />
-          ) : publicRooms.rooms.length > 0 ? (
-            <ul aria-label="공개 채팅방" className={SCROLLABLE_ROOM_LIST_CLASS_NAME} tabIndex={0}>
-              {publicRooms.rooms.map((room) => (
-                <li key={room.roomId}>
-                  <PublicRoomCard
-                    isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
-                    onOpenDetails={(trigger) =>
-                      roomDetail.open({ kind: "available", room }, trigger)
-                    }
-                    room={room}
-                  />
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <RoomListSection title="참여 가능한 방">
+            <QueryFailure
+              error={publicRooms.error}
+              errorMessage={getPublicRoomListErrorMessage(publicRooms.error)}
+              onRetry={publicRooms.retry}
+              title="공개 방을 불러오지 못했습니다."
+              visible={publicRooms.isError}
+            />
 
-          <LoadMoreButton
-            hasNextPage={publicRooms.hasNextPage}
-            isFetching={publicRooms.isFetchingNextPage}
-            label="공개 방 더 보기"
-            onClick={publicRooms.loadMore}
-          />
-        </RoomListSection>
+            {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
+              <RoomListNotice kind="loading" message="공개 방을 불러오고 있습니다." />
+            ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
+              <RoomListNotice message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms} />
+            ) : publicRooms.rooms.length > 0 ? (
+              <ul aria-label="공개 채팅방" className={PUBLIC_ROOM_LIST_CLASS_NAME} tabIndex={0}>
+                {publicRooms.rooms.map((room) => (
+                  <li key={room.roomId}>
+                    <PublicRoomCard
+                      isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
+                      onOpenDetails={(trigger) =>
+                        roomDetail.open({ kind: "available", room }, trigger)
+                      }
+                      room={room}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <LoadMoreButton
+              hasNextPage={publicRooms.hasNextPage}
+              isFetching={publicRooms.isFetchingNextPage}
+              label="공개 방 더 보기"
+              onClick={publicRooms.loadMore}
+            />
+          </RoomListSection>
+        </section>
       </div>
-      {roomDetail.selection ? (
-        <ChatRoomListDetailDialog onClose={roomDetail.close} selection={roomDetail.selection} />
-      ) : null}
     </PlatformShell>
   );
 }
 
 type RoomListSectionProps = Readonly<{
   children: ReactNode;
-  separated?: boolean;
   title: string;
 }>;
 
-function RoomListSection({ children, separated = false, title }: RoomListSectionProps) {
+function RoomListSection({ children, title }: RoomListSectionProps) {
   return (
-    <section
-      className={
-        separated
-          ? "grid gap-3 border-t border-[var(--chat-publishing-color-border)] pt-5"
-          : "grid gap-3"
-      }
-    >
+    <section className="grid gap-3">
       <h2 className="text-lg font-bold leading-7 tracking-[-0.02em]">{title}</h2>
       {children}
     </section>

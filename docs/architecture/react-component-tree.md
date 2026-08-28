@@ -101,7 +101,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
                             │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
                             │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/create-chat-room-form.tsx)
-                            │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-list-detail-dialog.tsx)
+                            │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat-room-list-detail-dialog.tsx)
                             │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
                             │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
                             │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
@@ -179,12 +179,15 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 
 `ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외, 누적된 Room inbox의
 전체·안읽음 로컬 필터, 생성 요청 sheet disclosure와 Room 상세 selection·trigger focus 복원을 담당하는
-hook을 `ChatRoomListView`에 연결한다. `ChatRoomListView`는 생성 요청이 열리면
-`CreateChatRoomForm`을 `PlatformShell`의 overlay slot에 전달하고 기존 surface를 inert 처리한다.
+hook을 `ChatRoomListView`에 연결한다. `ChatRoomListView`는 생성 요청과 Room 상세 중 하나를
+`PlatformShell`의 overlay slot에 전달하고 overlay가 열린 동안 기존 surface를 inert 처리한다.
+목록 surface는 참여 Room 필터·생성 action, 참여 Room 목록, 공개 Room 검색, 참여 가능한 Room 목록
+순서로 조립하여 검색의 적용 범위가 공개 Room 목록임을 구조로 드러낸다.
 `PublicRoomSearchForm`은 검색어 draft를 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query
 조건은 container hook에 둔다.
-`ChatRoomListDetailDialog`는 목록 snapshot을 Figma 기반 bottom sheet로 표현하고 참여 중인 Room의
-입장 링크 또는 참여 가능한 Room의 `JoinChatRoomControl`을 조립한다. `CreateChatRoomForm`은 Figma
+`ChatRoomListDetailDialog`는 PlatformShell 내부의 ARIA dialog로 목록 snapshot을 Figma 기반 bottom
+sheet로 표현하고, 참여 중인 Room의 입장 링크 또는 참여 가능한 Room의 `JoinChatRoomControl`을 조립한다.
+브라우저 top layer를 사용하지 않아 backdrop과 sheet가 PlatformShell 경계를 벗어나지 않는다. `CreateChatRoomForm`은 Figma
 기반 생성 요청·접수 완료 bottom sheet를 표현하고 `useCreateChatRoomForm`의 validation, mutation,
 멱등성 key 재시도와 라우팅을 연결한다. `PENDING`은 접수 완료 sheet로 전환하고 `APPROVED`는 생성된
 Room으로 이동한다. 주제 입력은 노출하지 않고 category는 관리자 승인 과정에서 부여하므로 생성
@@ -379,7 +382,7 @@ flowchart TD
     PlatformNavigationClient["PlatformNavigationClient [Client] [View]<br/>apps/web/components/platform-navigation-client.tsx"]
     PlatformNavigation["PlatformNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-navigation.tsx"]
     PlatformBottomNavigation["PlatformBottomNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-bottom-navigation.tsx"]
-    ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
+    ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
     PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/public-room-search-form.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional, overlay]<br/>apps/web/components/create-chat-room-form.tsx"]
     JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
@@ -456,7 +459,7 @@ flowchart TD
     ChatListPlatformShell --> PlatformHeader
     ChatListPlatformShell --> PublicRoomSearchForm
     ChatListPlatformShell -->|"conditional overlay; surface inert"| CreateChatRoomForm
-    ChatListPlatformShell -->|"selected room detail"| ChatRoomListDetailDialog
+    ChatListPlatformShell -->|"conditional overlay; surface inert"| ChatRoomListDetailDialog
     ChatListPlatformShell --> PlatformNavigationClient
     PlatformNavigationClient --> PlatformNavigation
     PlatformNavigation --> PlatformBottomNavigation
