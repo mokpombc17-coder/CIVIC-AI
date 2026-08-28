@@ -20,7 +20,9 @@ public class LocalTaskBootstrapConfiguration {
             LocalTaskBootstrapService bootstrap,
             ObjectProvider<LocalTaskPersonaBootstrapService> personaBootstrap,
             ObjectProvider<LocalTaskParticipationBootstrapService>
-                    participationBootstrap
+                    participationBootstrap,
+            ObjectProvider<LocalCompletedTaskBootstrapService>
+                    completedTaskBootstrap
     ) {
         return arguments -> {
             bootstrap.initialize();
@@ -33,6 +35,11 @@ public class LocalTaskBootstrapConfiguration {
                     participationBootstrap.getIfAvailable();
             if (participation != null) {
                 participation.initialize();
+            }
+            LocalCompletedTaskBootstrapService completedTask =
+                    completedTaskBootstrap.getIfAvailable();
+            if (completedTask != null) {
+                completedTask.initialize();
             }
         };
     }

@@ -4,16 +4,20 @@ import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
+import com.hamcheeze.vote.task.application.bootstrap.LocalCompletedTaskFixture;
 import com.hamcheeze.vote.task.application.bootstrap.LocalTaskFixture;
 import com.hamcheeze.vote.task.application.bootstrap.LocalTaskParticipationFixture;
 import com.hamcheeze.vote.task.application.bootstrap.LocalTaskPersonaFixture;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
+import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
+import com.hamcheeze.vote.task.domain.task.TaskClosureType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +57,9 @@ class LocalTaskPersonaBootstrapIntegrationTest {
     private LocalTaskParticipationBootstrapService participationBootstrap;
 
     @Autowired
+    private LocalCompletedTaskBootstrapService completedTaskBootstrap;
+
+    @Autowired
     private CurrentPersonaQueryService currentPersonas;
 
     @Autowired
@@ -66,6 +73,12 @@ class LocalTaskPersonaBootstrapIntegrationTest {
 
     @Autowired
     private UserTaskQueryService userTasks;
+
+    @Autowired
+    private CompletedTaskQueryService completedTasks;
+
+    @Autowired
+    private MyTaskResultQueryService taskResults;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -84,7 +97,7 @@ class LocalTaskPersonaBootstrapIntegrationTest {
     }
 
     @Test
-    void preparesOneParticipatedAndOneAvailableOpenTask() {
+    void preparesOpenParticipationAndCompletedResultFixtures() {
         String subject = LocalTaskPersonaFixture.DEFAULT_USER_SUBJECT;
         var persona = currentPersonas.findCurrent(
                 new PersonaUserId(subject));
@@ -102,6 +115,10 @@ class LocalTaskPersonaBootstrapIntegrationTest {
         assertThat(participationBootstrap.initialize())
                 .isEqualTo(
                         LocalTaskParticipationBootstrapResult.ALREADY_PRESENT);
+        assertThat(completedTaskBootstrap.userSubject()).isEqualTo(subject);
+        assertThat(completedTaskBootstrap.initialize())
+                .isEqualTo(
+                        LocalCompletedTaskBootstrapResult.ALREADY_PRESENT);
 
         assertThat(count(
                 "SELECT count(*) FROM survey_responses WHERE user_id = ?",
@@ -121,13 +138,19 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 subject)).isZero();
         assertThat(count(
                 "SELECT count(*) FROM task_submissions WHERE user_id = ?",
-                subject)).isEqualTo(1);
+                subject)).isEqualTo(2);
+        assertThat(count(
+                "SELECT count(*) FROM task_result_manifests "
+                        + "WHERE task_id = ?",
+                LocalCompletedTaskFixture.TASK_ID.value())).isEqualTo(1);
 
         var userId = new TaskUserId(subject);
         var firstTask = tasks.findById(
                 LocalTaskFixture.TASK_ID).orElseThrow();
         var secondTask = tasks.findById(
                 LocalTaskFixture.SECOND_TASK_ID).orElseThrow();
+        var completedTask = tasks.findById(
+                LocalCompletedTaskFixture.TASK_ID).orElseThrow();
         var submission = submissions.findByUserAndTask(
                 userId, firstTask.id()).orElseThrow();
 
@@ -143,6 +166,8 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 firstTask.questions().getFirst().options().getFirst().id());
         assertThat(submissions.findByUserAndTask(
                 userId, secondTask.id())).isEmpty();
+        assertThat(LocalCompletedTaskFixture.matchesClosed(completedTask))
+                .isTrue();
 
         var openTasks = userTasks.findOpenTasks(userId);
         var firstSummary = openTasks.stream()
@@ -161,6 +186,35 @@ class LocalTaskPersonaBootstrapIntegrationTest {
         assertThat(secondSummary.submission().submitted()).isFalse();
         assertThat(secondSummary.submission().submissionId()).isNull();
         assertThat(secondSummary.submission().submittedAt()).isNull();
+
+        var completedPage = completedTasks.findByUser(userId, null, 20);
+        assertThat(completedPage.nextCursor()).isNull();
+        assertThat(completedPage.items()).singleElement()
+                .satisfies(summary -> {
+                    assertThat(summary.taskId())
+                            .isEqualTo(LocalCompletedTaskFixture.TASK_ID);
+                    assertThat(summary.closureType())
+                            .isEqualTo(TaskClosureType.EARLY_CLOSED);
+                    assertThat(summary.mySubmission().submissionId())
+                            .isEqualTo(submissions.findByUserAndTask(
+                                    userId, completedTask.id())
+                                    .orElseThrow().id());
+                });
+
+        var result = taskResults.findByTask(
+                userId, LocalCompletedTaskFixture.TASK_ID).orElseThrow();
+        assertThat(result.resultVersion()).isEqualTo(1);
+        assertThat(result.responseCount()).isEqualTo(1);
+        assertThat(result.closureType())
+                .isEqualTo(TaskClosureType.EARLY_CLOSED);
+        assertThat(result.options()).hasSize(3);
+        assertThat(result.options()).filteredOn(option -> option.selectedByMe())
+                .singleElement().satisfies(option ->
+                        assertThat(option.count()).isEqualTo(1));
+        assertThat(result.mySubmission().reasonSource())
+                .isEqualTo(TaskReasonSource.USER_WRITTEN);
+        assertThat(result.mySubmission().finalReason())
+                .isEqualTo(LocalCompletedTaskFixture.SUBMISSION_REASON);
 
         assertThat(predictions.findCurrent(
                 userId, firstTask.id()).state())
