@@ -74,9 +74,9 @@ class MigrationTest {
                     where u.normalized_email = 'o''connor@example.test'
                     """)) {
                 try (var rows = permissions.executeQuery()) {
-                    assertThat(rows.next()).isTrue();
-                    assertThat(rows.getString("code")).isEqualTo("RAG_ADMIN");
-                    assertThat(rows.next()).isFalse();
+                    var actual = new java.util.HashSet<String>();
+                    while (rows.next()) actual.add(rows.getString("code"));
+                    assertThat(actual).containsExactlyInAnyOrder("RAG_ADMIN", "CHAT_ADMIN");
                 }
             }
 
