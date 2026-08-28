@@ -1,7 +1,7 @@
 .stage {
   --platform-shell-max-width: 393px;
   --platform-shell-max-height: 852px;
-  --platform-shell-header-height: 69px;
+  --platform-shell-header-height: 64px;
   --platform-shell-navigation-height: 64px;
   --platform-shell-color-surface: #ffffff;
   --platform-shell-color-text: #121417;

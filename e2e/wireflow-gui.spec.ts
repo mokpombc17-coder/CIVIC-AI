@@ -434,7 +434,7 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 BFF 경계를
     x: [0, 1],
     y: [0, 1],
     width: [392, 394],
-    height: [68, 70],
+    height: [63, 65],
   });
 
   await page
