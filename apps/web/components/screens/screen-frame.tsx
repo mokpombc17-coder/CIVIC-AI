@@ -95,6 +95,7 @@ const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title:
     "A-CHAT-004": { title: "채팅방 생성 요청" },
     "A-CHAT-005": { backHref: "/admin/chat/requests" as Route, title: "생성 요청 상세" },
     "A-CHAT-006": { backHref: "/admin/chat/requests" as Route, title: "생성 요청 승인·반려" },
+    "A-CHAT-007": { title: "채팅방 카테고리 관리" },
     "A-TASK-001": { title: "과업 목록" },
     "A-TASK-002": { backHref: "/admin/tasks" as Route, title: "과업 생성" },
     "A-TASK-003": { backHref: "/admin/tasks" as Route, title: "과업 상세" },

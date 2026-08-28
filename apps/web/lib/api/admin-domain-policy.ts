@@ -2,6 +2,8 @@ export type AdminDomainRoute = Readonly<{
   path: string;
   scope:
     | "chat:rooms:approve"
+    | "chat:categories:manage"
+    | "chat:rooms:read"
     | "simulation:billing:read"
     | "simulation:billing:write"
     | "simulation:tasks:read"
@@ -32,6 +34,56 @@ export function matchChatAdminRoute(
     return allow(normalizedMethod, ["POST"], chatPath(segments), "chat:rooms:approve");
   }
   return { allowedMethods: [], status: 404 };
+}
+
+export function matchChatCategoryAdminRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  const normalizedMethod = method.toUpperCase();
+  if (segments.length === 0) {
+    return allow(
+      normalizedMethod,
+      ["GET", "POST"],
+      chatCategoryPath(segments),
+      "chat:categories:manage",
+    );
+  }
+  if (segments.length === 1 && chatId.test(segments[0] ?? "")) {
+    return allow(
+      normalizedMethod,
+      ["GET", "PATCH", "DELETE"],
+      chatCategoryPath(segments),
+      "chat:categories:manage",
+    );
+  }
+  return { allowedMethods: [], status: 404 };
+}
+
+export function matchChatRoomCategoryAssignmentRoute(
+  method: string,
+  roomId: string,
+): AdminDomainRoute | RouteFailure {
+  if (!chatId.test(roomId)) return { allowedMethods: [], status: 404 };
+  return allow(
+    method.toUpperCase(),
+    ["PUT"],
+    `/api/v1/admin/rooms/${encodeURIComponent(roomId)}/categories`,
+    "chat:categories:manage",
+  );
+}
+
+export function matchChatRoomDetailRoute(
+  method: string,
+  roomId: string,
+): AdminDomainRoute | RouteFailure {
+  if (!chatId.test(roomId)) return { allowedMethods: [], status: 404 };
+  return allow(
+    method.toUpperCase(),
+    ["GET"],
+    `/api/v1/rooms/${encodeURIComponent(roomId)}`,
+    "chat:rooms:read",
+  );
 }
 
 export function matchVoteTaskAdminRoute(
@@ -208,6 +260,10 @@ function allow(
 
 function chatPath(segments: readonly string[]): string {
   return path("/api/v1/admin/room-creation-requests", segments);
+}
+
+function chatCategoryPath(segments: readonly string[]): string {
+  return path("/api/v1/admin/room-categories", segments);
 }
 
 function taskPath(segments: readonly string[]): string {

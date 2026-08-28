@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   matchChatAdminRoute,
+  matchChatCategoryAdminRoute,
+  matchChatRoomCategoryAssignmentRoute,
+  matchChatRoomDetailRoute,
   matchSimulationAdminRoute,
   matchSimulationBillingRoute,
   matchSimulationCapacityRoute,
@@ -34,6 +37,41 @@ describe("admin domain route allowlist", () => {
     expect(matchChatAdminRoute("POST", ["request-1", "edit"])).toEqual({
       allowedMethods: [],
       status: 404,
+    });
+  });
+
+  it("allows only the documented Chat category administration methods", () => {
+    expect(matchChatCategoryAdminRoute("GET", [])).toEqual({
+      path: "/api/v1/admin/room-categories",
+      scope: "chat:categories:manage",
+    });
+    expect(matchChatCategoryAdminRoute("POST", [])).toEqual({
+      path: "/api/v1/admin/room-categories",
+      scope: "chat:categories:manage",
+    });
+    expect(matchChatCategoryAdminRoute("PATCH", ["category-1"])).toEqual({
+      path: "/api/v1/admin/room-categories/category-1",
+      scope: "chat:categories:manage",
+    });
+    expect(matchChatCategoryAdminRoute("DELETE", ["category-1"])).toEqual({
+      path: "/api/v1/admin/room-categories/category-1",
+      scope: "chat:categories:manage",
+    });
+    expect(matchChatCategoryAdminRoute("PUT", ["category-1"])).toEqual({
+      allowedMethods: ["GET", "PATCH", "DELETE"],
+      status: 405,
+    });
+    expect(matchChatRoomCategoryAssignmentRoute("PUT", "room-1")).toEqual({
+      path: "/api/v1/admin/rooms/room-1/categories",
+      scope: "chat:categories:manage",
+    });
+    expect(matchChatRoomCategoryAssignmentRoute("GET", "room-1")).toEqual({
+      allowedMethods: ["PUT"],
+      status: 405,
+    });
+    expect(matchChatRoomDetailRoute("GET", "room-1")).toEqual({
+      path: "/api/v1/rooms/room-1",
+      scope: "chat:rooms:read",
     });
   });
 

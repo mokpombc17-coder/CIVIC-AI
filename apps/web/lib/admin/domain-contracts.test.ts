@@ -9,7 +9,7 @@ import {
 } from "./domain-contracts";
 
 describe("admin domain response contracts", () => {
-  it("accepts an empty Chat description without exposing or coercing IDs", () => {
+  it("accepts the current Chat categoryIds and room version response contract", () => {
     const page = readRoomCreationRequestPage({
       items: [
         {
@@ -17,13 +17,16 @@ describe("admin domain response contracts", () => {
           requesterUserId: "user-id",
           name: "시민 토론방",
           description: "",
-          categories: ["POLICY"],
+          categoryIds: [],
           visibility: "LISTED",
           joinPolicy: "OPEN",
           status: "PENDING",
           requestedAt: "2026-08-26T03:00:00Z",
           resolvedAt: null,
           roomId: null,
+          ownerMembershipId: null,
+          roomVersion: null,
+          ownerMembershipVersion: null,
           rejectionReason: null,
           replayed: false,
         },
@@ -32,6 +35,8 @@ describe("admin domain response contracts", () => {
       hasNext: false,
     });
     expect(page?.items[0]?.creationRequestId).toBe("opaque-request-id");
+    expect(page?.items[0]?.categoryIds).toEqual([]);
+    expect(page?.items[0]?.roomVersion).toBeNull();
   });
 
   it("validates rejection reasons by Unicode code points and one-line text", () => {

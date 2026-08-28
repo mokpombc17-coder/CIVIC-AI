@@ -7,11 +7,11 @@ import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { getScreenByRoute, screenRegistry, type ScreenDefinition } from "@/lib/screens/registry";
 
 describe("canonical screen registry adapter", () => {
-  it("70개 route와 49/21 상태를 손실 없이 제공한다", () => {
+  it("70개 route와 50/20 상태를 손실 없이 제공한다", () => {
     expect(screenRegistry).toHaveLength(70);
     expect(new Set(screenRegistry.map((screen) => screen.route))).toHaveLength(70);
-    expect(screenRegistry.filter((screen) => screen.status === "FUNCTIONAL")).toHaveLength(49);
-    expect(screenRegistry.filter((screen) => screen.status === "PLACEHOLDER")).toHaveLength(21);
+    expect(screenRegistry.filter((screen) => screen.status === "FUNCTIONAL")).toHaveLength(50);
+    expect(screenRegistry.filter((screen) => screen.status === "PLACEHOLDER")).toHaveLength(20);
   });
 
   it("query나 trailing slash가 없는 pathname만 정규화해 정확한 화면을 찾는다", () => {

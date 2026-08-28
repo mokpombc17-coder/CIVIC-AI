@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { RoomCategorySelector } from "@/components/admin/room-category-selector";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import {
   adminFieldError,
@@ -16,6 +17,12 @@ import {
   type RoomCreationStatus,
   type AdminProblem,
 } from "@/lib/admin/domain-contracts";
+import {
+  readRoomCategoryPage,
+  sortRoomCategories,
+  validateCategorySelection,
+  type RoomCategory,
+} from "@/lib/admin/room-category-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 
@@ -36,6 +43,8 @@ export function AdminChatRequestScreen({
   const [items, setItems] = useState<readonly RoomCreationRequest[]>([]);
   const [selected, setSelected] = useState<RoomCreationRequest | null>(null);
   const [labels, setLabels] = useState<ReadonlyMap<string, string>>(new Map());
+  const [categories, setCategories] = useState<readonly RoomCategory[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<readonly string[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [query, setQuery] = useState("");
@@ -95,10 +104,13 @@ export function AdminChatRequestScreen({
     const currentGeneration = ++generation.current;
     setLoading(true);
     try {
-      const response = await authenticatedFetch(
-        `/api/v1/admin/room-creation-requests/${encodeURIComponent(requestId)}`,
-        { cache: "no-store" },
-      );
+      const [response, categoryResponse] = await Promise.all([
+        authenticatedFetch(
+          `/api/v1/admin/room-creation-requests/${encodeURIComponent(requestId)}`,
+          { cache: "no-store" },
+        ),
+        authenticatedFetch("/api/v1/admin/room-categories", { cache: "no-store" }),
+      ]);
       if (currentGeneration !== generation.current) return null;
       if (!response.ok) {
         setSelected(null);
@@ -113,7 +125,20 @@ export function AdminChatRequestScreen({
         return null;
       }
       setSelected(detail);
-      setMessage("");
+      setSelectedCategoryIds(detail.categoryIds);
+      if (!categoryResponse.ok) {
+        setCategories([]);
+        setMessage(formatAdminProblem(await readAdminProblem(categoryResponse)));
+      } else {
+        const page = readRoomCategoryPage(await categoryResponse.json());
+        if (!page) {
+          setCategories([]);
+          setMessage("서버의 카테고리 목록 응답 형식을 확인해야 합니다.");
+        } else {
+          setCategories(sortRoomCategories(page.items));
+          setMessage("");
+        }
+      }
       const nextLabels = await requestAdminUserLabels([detail.requesterUserId]);
       if (currentGeneration === generation.current && nextLabels) setLabels(nextLabels);
       return detail;
@@ -155,6 +180,10 @@ export function AdminChatRequestScreen({
       const validation = validateRejectionReason(reason ?? "");
       if (validation) return setMessage(validation);
     }
+    if (action === "approve") {
+      const validation = validateCategorySelection(selectedCategoryIds);
+      if (validation) return setMessage(validation);
+    }
     generation.current += 1;
     setPending(true);
     setMessage("");
@@ -168,7 +197,10 @@ export function AdminChatRequestScreen({
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ reason: reason?.trim() }),
             }
-          : {}),
+          : {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ categoryIds: selectedCategoryIds }),
+            }),
       });
       if (!response.ok) {
         const problem = await readAdminProblem(response);
@@ -180,6 +212,7 @@ export function AdminChatRequestScreen({
       const result = readRoomCreationRequest(await response.json());
       if (!result) return setMessage("서버의 처리 결과 응답 형식을 확인해야 합니다.");
       setSelected(result);
+      setSelectedCategoryIds(result.categoryIds);
       setMessage(
         result.replayed
           ? "이미 반영된 동일 결정을 확인했습니다. 방은 중복 생성되지 않았습니다."
@@ -251,12 +284,15 @@ export function AdminChatRequestScreen({
         ) : (
           <RequestDetail
             item={selected}
+            categories={categories}
             labels={labels}
             onApprove={() => void decide("approve")}
             onReject={(reason) => void decide("reject", reason)}
             pending={pending}
             problem={problem}
             rejectMode={rejectMode}
+            selectedCategoryIds={selectedCategoryIds}
+            setSelectedCategoryIds={setSelectedCategoryIds}
             setRejectMode={setRejectMode}
           />
         )}
@@ -331,6 +367,7 @@ function RequestTable({
 }
 
 function RequestDetail({
+  categories,
   item,
   labels,
   onApprove,
@@ -338,8 +375,11 @@ function RequestDetail({
   pending,
   problem,
   rejectMode,
+  selectedCategoryIds,
+  setSelectedCategoryIds,
   setRejectMode,
 }: Readonly<{
+  categories: readonly RoomCategory[];
   item: RoomCreationRequest | null;
   labels: ReadonlyMap<string, string>;
   onApprove: () => void;
@@ -347,6 +387,8 @@ function RequestDetail({
   pending: boolean;
   problem: AdminProblem | null;
   rejectMode: boolean;
+  selectedCategoryIds: readonly string[];
+  setSelectedCategoryIds: (value: readonly string[]) => void;
   setRejectMode: (value: boolean) => void;
 }>) {
   const [reason, setReason] = useState("");
@@ -370,7 +412,15 @@ function RequestDetail({
         <Detail label="상태" value={statusLabel(item.status)} />
         <Detail
           label="카테고리"
-          value={item.categories.map(roomCategoryLabel).join(", ") || "지정 없음"}
+          value={
+            item.categoryIds
+              .map(
+                (categoryId) =>
+                  categories.find((category) => category.categoryId === categoryId)?.name ??
+                  categoryId,
+              )
+              .join(", ") || "지정 없음"
+          }
         />
         <Detail label="공개·참여 방식" value={roomPolicyLabel(item.visibility, item.joinPolicy)} />
       </div>
@@ -438,7 +488,13 @@ function RequestDetail({
               <small>{[...reason.trim()].length} / 100자 · 한 줄 입력</small>
             </label>
           ) : (
-            <p>관리자는 신청 내용을 편집하지 않고 그대로 승인합니다.</p>
+            <RoomCategorySelector
+              categories={categories}
+              disabled={pending}
+              legend="승인 카테고리"
+              onChange={setSelectedCategoryIds}
+              selectedCategoryIds={selectedCategoryIds}
+            />
           )}
           <div className="civic-form-actions">
             <Link className="civic-secondary-action" href="/admin/chat/requests">
@@ -501,16 +557,6 @@ function roomPolicyLabel(visibility: string, joinPolicy: string): string {
   const joinLabel =
     joinPolicy === "OPEN" ? "바로 참여" : joinPolicy === "INVITE_ONLY" ? "초대 참여" : joinPolicy;
   return `${visibilityLabel} · ${joinLabel}`;
-}
-
-function roomCategoryLabel(category: string): string {
-  return (
-    {
-      POLICY: "정책",
-      ENVIRONMENT: "환경",
-      LOCAL_ISSUE: "지역 현안",
-    }[category] ?? category
-  );
 }
 
 function formatDate(value: string | null): string {
