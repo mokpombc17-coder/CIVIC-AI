@@ -72,9 +72,13 @@ describe("Room message search dialog", () => {
     });
 
     expect(html.match(/role="alert"/g)).toHaveLength(2);
+    expect(html).toContain('data-chat-form-feedback="validation-error"');
+    expect(html).toContain('data-chat-form-feedback="request-error"');
     expect(html).toContain("검색어에 제어 문자를 포함할 수 없습니다.");
     expect(html).toContain("네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
     expect(html).toContain("다시 시도");
+    expect(html).toContain("bg-[#fff7e8]");
+    expect(html).not.toContain("text-[#b42318]");
   });
 
   it("자동 반복하면 안 되는 서버 오류에는 다시 시도를 표시하지 않는다", () => {

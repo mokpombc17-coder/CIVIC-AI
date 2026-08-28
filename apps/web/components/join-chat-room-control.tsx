@@ -48,13 +48,16 @@ export function JoinChatRoomControl({
 
       {join.errorMessage ? (
         <div
-          className={isSheet ? "text-left text-xs text-red-700" : "text-right text-xs text-red-700"}
+          className={`rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-left text-xs leading-5 text-[#7a4b00] ${
+            isSheet ? "w-full" : "max-w-[140px]"
+          }`}
+          data-chat-form-feedback="request-error"
           role="alert"
         >
-          <p>{join.errorMessage}</p>
+          <p className="font-semibold">{join.errorMessage}</p>
           {join.canRetry ? (
             <button
-              className="mt-1 underline underline-offset-2"
+              className="mt-2 font-bold text-[var(--chat-publishing-color-primary-emphasis)] underline underline-offset-2"
               onClick={join.retry}
               type="button"
             >

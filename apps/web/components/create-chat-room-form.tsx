@@ -170,13 +170,14 @@ export function CreateChatRoomFormView({
 
             {validationError || errorMessage ? (
               <div
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[13px] leading-[19.5px] text-red-800"
+                className="rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-[13px] leading-[19.5px] text-[#7a4b00]"
+                data-chat-form-feedback={validationError ? "validation-error" : "request-error"}
                 role="alert"
               >
-                <p>{validationError ?? errorMessage}</p>
+                <p className="font-semibold">{validationError ?? errorMessage}</p>
                 {canRetry ? (
                   <button
-                    className="mt-2 font-bold underline underline-offset-2"
+                    className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
                     onClick={onRetry}
                     type="button"
                   >
@@ -198,6 +199,8 @@ export function CreateChatRoomFormView({
           <section
             aria-live="polite"
             className="mt-5 h-[262px] rounded-lg border border-[#9ed1fa] bg-[#edf7ff] p-4"
+            data-chat-form-feedback="success"
+            role="status"
           >
             <Image alt="" aria-hidden="true" height={24} src="/assets/chat/info.png" width={24} />
             <strong className="mt-3 block text-base font-bold leading-6 text-[#085985]">

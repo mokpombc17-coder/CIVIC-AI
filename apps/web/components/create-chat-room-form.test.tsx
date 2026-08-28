@@ -35,12 +35,34 @@ describe("create chat room request bottom sheet", () => {
     expect(html).toContain("검토가 끝나면 가입하신 이메일로 알려드립니다.");
     expect(html).toContain("생성이 완료되면 토론방 목록에서 확인할 수 있습니다.");
     expect(html).toContain("info.png");
+    expect(html).toContain('data-chat-form-feedback="success"');
+    expect(html).toContain('role="status"');
     expect(html).toContain(">토론방 목록으로</button>");
     expect(html).toContain(">새 요청 작성</button>");
   });
+
+  it("validation과 재시도 가능한 요청 오류를 동일한 주의 피드백으로 표시한다", () => {
+    const validationHtml = renderSheet("form", {
+      validationError: "제목을 입력해 주세요.",
+    });
+    const requestErrorHtml = renderSheet("form", {
+      canRetry: true,
+      errorMessage: "요청 결과를 확인하지 못했습니다.",
+    });
+
+    expect(validationHtml).toContain('data-chat-form-feedback="validation-error"');
+    expect(validationHtml).toContain('role="alert"');
+    expect(validationHtml).toContain("bg-[#fff7e8]");
+    expect(requestErrorHtml).toContain('data-chat-form-feedback="request-error"');
+    expect(requestErrorHtml).toContain("같은 요청으로 다시 시도");
+    expect(requestErrorHtml).not.toContain("bg-red-50");
+  });
 });
 
-function renderSheet(mode: CreateChatRoomFormMode): string {
+function renderSheet(
+  mode: CreateChatRoomFormMode,
+  overrides: Partial<Parameters<typeof CreateChatRoomFormView>[0]> = {},
+): string {
   return renderToStaticMarkup(
     createElement(CreateChatRoomFormView, {
       canRetry: false,
@@ -54,6 +76,7 @@ function renderSheet(mode: CreateChatRoomFormMode): string {
       onRequestSubmit: vi.fn(),
       onRetry: vi.fn(),
       validationError: null,
+      ...overrides,
     }),
   );
 }

@@ -223,7 +223,12 @@ export function ChatRoomMessageSearchDialog({
                 ) : null}
               </div>
               {controller.validationMessage ? (
-                <p className="text-sm font-medium text-[#b42318]" id={validationId} role="alert">
+                <p
+                  className="rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-sm font-semibold leading-5 text-[#7a4b00]"
+                  data-chat-form-feedback="validation-error"
+                  id={validationId}
+                  role="alert"
+                >
                   {controller.validationMessage}
                 </p>
               ) : null}
@@ -325,12 +330,11 @@ function SearchResults({
       {controller.isError ? (
         <div
           className="rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
+          data-chat-form-feedback="request-error"
           role="alert"
         >
           <p className="text-sm font-semibold">{errorPresentation?.title}</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
-            {errorPresentation?.detail}
-          </p>
+          <p className="mt-1 text-xs leading-5 text-[#7a4b00]">{errorPresentation?.detail}</p>
           {!retryScheduled && errorPresentation?.canRetry ? (
             <button
               className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
@@ -485,12 +489,11 @@ function ContextFailure({
   return (
     <div
       className="rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
+      data-chat-form-feedback="request-error"
       role="alert"
     >
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
-        {presentation.detail}
-      </p>
+      <p className="mt-1 text-xs leading-5 text-[#7a4b00]">{presentation.detail}</p>
       {presentation.canRetry ? (
         <button
           className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
