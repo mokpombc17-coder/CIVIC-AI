@@ -1,9 +1,19 @@
 import { Fragment, memo, type ReactNode } from "react";
 
+/** 답변 본문에 섞여 오는 내부 인용 마커([UUID])를 표시 전에 제거한다. 출처는 별도 카드로 안내된다. */
+export function stripCitationMarkers(answer: string): string {
+  return answer
+    .replace(/\s*\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/giu, "")
+    .replace(/[ \t]{2,}/gu, " ");
+}
+
 export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
   answer,
 }: Readonly<{ answer: string }>) {
-  const lines = answer.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n");
+  const lines = stripCitationMarkers(answer)
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\r", "\n")
+    .split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
 
