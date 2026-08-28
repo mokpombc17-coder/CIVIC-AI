@@ -33,6 +33,7 @@ vote:
       participation-enabled: ${VOTE_TASK_BOOTSTRAP_PARTICIPATION_ENABLED:true}
       submission-simulation-enabled: ${VOTE_TASK_BOOTSTRAP_SUBMISSION_SIMULATION_ENABLED:true}
       persona-subject: ${VOTE_TASK_BOOTSTRAP_PERSONA_SUBJECT:local-user-1}
+      persona-subjects: ${VOTE_TASK_BOOTSTRAP_PERSONA_SUBJECTS:}
       persona-ready-timeout: ${VOTE_TASK_BOOTSTRAP_PERSONA_READY_TIMEOUT:10s}
       persona-ready-poll-interval: ${VOTE_TASK_BOOTSTRAP_PERSONA_READY_POLL_INTERVAL:100ms}
     lifecycle:

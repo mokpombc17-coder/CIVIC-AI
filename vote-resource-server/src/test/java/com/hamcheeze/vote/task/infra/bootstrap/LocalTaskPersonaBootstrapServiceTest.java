@@ -28,6 +28,37 @@ import static org.mockito.Mockito.when;
 class LocalTaskPersonaBootstrapServiceTest {
 
     private static final String SUBJECT = "local-user-1";
+    private static final String FIRST_UUID =
+            "41000000-0000-0000-0000-000000000101";
+    private static final String SECOND_UUID =
+            "41000000-0000-0000-0000-000000000102";
+
+    @Test
+    void parsesCanonicalUuidSubjectsInConfiguredOrder() {
+        assertThat(LocalTaskPersonaBootstrapService.resolveUserSubjects(
+                SUBJECT, FIRST_UUID + ", " + SECOND_UUID))
+                .containsExactly(FIRST_UUID, SECOND_UUID);
+    }
+
+    @Test
+    void fallsBackToLegacySingleSubjectWhenListIsBlank() {
+        assertThat(LocalTaskPersonaBootstrapService.resolveUserSubjects(
+                SUBJECT, "  "))
+                .containsExactly(SUBJECT);
+    }
+
+    @Test
+    void rejectsInvalidOrDuplicateConfiguredUuidSubjects() {
+        assertThatThrownBy(() -> LocalTaskPersonaBootstrapService
+                .resolveUserSubjects(SUBJECT, "user01@dev.civic.test"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("canonical lowercase UUID");
+        assertThatThrownBy(() -> LocalTaskPersonaBootstrapService
+                .resolveUserSubjects(
+                        SUBJECT, FIRST_UUID + "," + FIRST_UUID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicates");
+    }
 
     @Test
     void waitsWhenAnotherWorkerIsProcessingAndObservesSuccess() {

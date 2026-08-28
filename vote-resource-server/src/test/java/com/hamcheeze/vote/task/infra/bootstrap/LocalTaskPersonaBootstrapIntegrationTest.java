@@ -7,7 +7,6 @@ import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.task.application.bootstrap.LocalCompletedTaskFixture;
 import com.hamcheeze.vote.task.application.bootstrap.LocalTaskFixture;
 import com.hamcheeze.vote.task.application.bootstrap.LocalTaskParticipationFixture;
-import com.hamcheeze.vote.task.application.bootstrap.LocalTaskPersonaFixture;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
@@ -33,7 +32,11 @@ import static org.assertj.core.api.Assertions.assertThat;
         "vote.task.bootstrap.enabled=true",
         "vote.task.bootstrap.persona-ready-enabled=true",
         "vote.task.bootstrap.participation-enabled=true",
-        "vote.task.bootstrap.persona-subject=local-user-1",
+        "vote.task.bootstrap.persona-subject="
+                + "41000000-0000-0000-0000-000000000101",
+        "vote.task.bootstrap.persona-subjects="
+                + "41000000-0000-0000-0000-000000000101,"
+                + "41000000-0000-0000-0000-000000000102",
         "vote.task.lifecycle.enabled=false",
         "vote.task.prediction.enabled=true",
         "vote.task.prediction.provider=fake",
@@ -49,6 +52,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 @ActiveProfiles({"local", "test"})
 class LocalTaskPersonaBootstrapIntegrationTest {
+
+    private static final String FIRST_SUBJECT =
+            "41000000-0000-0000-0000-000000000101";
+    private static final String SECOND_SUBJECT =
+            "41000000-0000-0000-0000-000000000102";
 
     @Autowired
     private LocalTaskPersonaBootstrapService bootstrap;
@@ -98,17 +106,27 @@ class LocalTaskPersonaBootstrapIntegrationTest {
 
     @Test
     void preparesOpenParticipationAndCompletedResultFixtures() {
-        String subject = LocalTaskPersonaFixture.DEFAULT_USER_SUBJECT;
+        String subject = FIRST_SUBJECT;
         var persona = currentPersonas.findCurrent(
                 new PersonaUserId(subject));
+        var secondPersona = currentPersonas.findCurrent(
+                new PersonaUserId(SECOND_SUBJECT));
 
         assertThat(bootstrap.userSubject()).isEqualTo(subject);
+        assertThat(bootstrap.userSubjects())
+                .containsExactly(FIRST_SUBJECT, SECOND_SUBJECT);
         assertThat(persona.status())
                 .isEqualTo(CurrentPersonaStatus.Status.SUCCEEDED);
         assertThat(persona.personaReady()).isTrue();
         assertThat(persona.generationId()).isPresent();
         assertThat(persona.personaVersionId()).isPresent();
         assertThat(persona.personaId()).isPresent();
+        assertThat(secondPersona.status())
+                .isEqualTo(CurrentPersonaStatus.Status.SUCCEEDED);
+        assertThat(secondPersona.personaReady()).isTrue();
+        assertThat(secondPersona.generationId()).isPresent();
+        assertThat(secondPersona.personaVersionId()).isPresent();
+        assertThat(secondPersona.personaId()).isPresent();
         assertThat(bootstrap.initialize())
                 .isEqualTo(LocalTaskPersonaBootstrapResult.ALREADY_PRESENT);
         assertThat(participationBootstrap.userSubject()).isEqualTo(subject);
@@ -123,6 +141,9 @@ class LocalTaskPersonaBootstrapIntegrationTest {
         assertThat(count(
                 "SELECT count(*) FROM survey_responses WHERE user_id = ?",
                 subject)).isEqualTo(1);
+        assertThat(count(
+                "SELECT count(*) FROM survey_responses WHERE user_id = ?",
+                SECOND_SUBJECT)).isEqualTo(1);
         assertThat(count(
                 "SELECT count(*) FROM persona_generations "
                         + "WHERE generation_id = ?",
