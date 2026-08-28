@@ -308,3 +308,10 @@ th {
     min-height: 15rem;
   }
 }
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding-right: 0;
+    padding-left: 0;
+  }
+}

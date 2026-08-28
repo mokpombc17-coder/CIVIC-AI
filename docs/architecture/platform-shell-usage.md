@@ -2,8 +2,9 @@
 
 ## 목적
 
-`PlatformShell`은 CIVIC.AI의 모든 사용자 화면이 공유하는 393px mobile-first 화면 틀이다.
-공통 header, content 영역, bottom navigation, safe area와 overlay 계층을 제공한다.
+`PlatformShell`은 CIVIC.AI의 모든 사용자 화면이 공유하는 mobile-first 화면 틀이다. 480px 이하의
+모바일 viewport에서는 가용 너비를 모두 사용하고, 그보다 넓은 viewport에서는 최대 393px surface가
+가운데 표시된다. 공통 header, content 영역, bottom navigation, safe area와 overlay 계층을 제공한다.
 
 핵심 규칙은 다음과 같다.
 
@@ -165,8 +166,12 @@ modal이나 bottom sheet는 `overlay` slot에 전달한다. overlay가 열릴 �
 일반 화면은 shell이 제공하는 `100dvh`와 safe area를 그대로 사용하고 별도의 `100dvh` wrapper를
 추가하지 않는다.
 
-데스크톱에서도 반응형 desktop layout으로 넓어지지 않고 393px surface가 가운데 표시된다.
-따라서 shell 내부 글자나 여백에 브라우저 전체 너비 기준의 큰 `vw` 값을 사용하지 않는다.
+데스크톱에서는 반응형 desktop layout으로 넓어지지 않고 최대 393px surface가 가운데 표시되며
+12px radius와 shadow로 모바일 프레임을 구분한다. shell 높이는 피그마 프레임의 852px로 제한하지
+않고 항상 실제 viewport의 `100dvh`를 사용한다. 480px 이하의 모바일 viewport에서는 최대 너비
+제한과 외부 app shell padding, radius, shadow를 제거해 가용 너비를 모두 사용한다. 실제 기기의 화면
+모서리와 safe area는 운영체제와 기존 safe-area padding이 담당한다. shell 내부 글자나 여백에
+브라우저 전체 너비 기준의 큰 `vw` 값을 사용하지 않는다.
 
 ## App Router 특수 화면
 

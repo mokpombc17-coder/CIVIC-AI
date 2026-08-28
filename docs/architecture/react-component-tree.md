@@ -143,8 +143,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 ```
 
 `AppShell`은 route별 시각 layout을 소유하지 않는다. `/chat` 목록과 `/chat/[roomId]` 상세의
-View는 공통 `PlatformShell`을 조립해 393px mobile-first surface, header와 하단 내비게이션을
-공유한다. 목록과 채팅방 모두 실제 route로 이동하는 `PlatformNavigationClient`를 하단 slot에
+View는 공통 `PlatformShell`을 조립해 480px 이하에서는 가용 너비를 사용하고 그 외에는 최대 393px로
+가운데 표시되는 mobile-first surface와 header, 하단 내비게이션을 공유한다. 목록과 채팅방 모두 실제 route로 이동하는 `PlatformNavigationClient`를 하단 slot에
 제공한다. 이 Client adapter는 Next.js의 현재
 pathname을 읽어 router-independent `PlatformNavigation`에 전달하며, 표준 5개 도메인 anchor 중
 현재 도메인에만 `aria-current="page"`를 설정한다. 목록은 `scroll="self"`로 Shell content가
