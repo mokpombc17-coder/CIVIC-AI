@@ -69,7 +69,6 @@ export function AdminSimulationScreen({
         className="civic-admin-workbench civic-domain-console civic-simulation-console"
         data-wireflow-layout={simulationLayout(screen.id)}
       >
-        <BoundaryNote />
         <SimulationSectionTabs active={section} />
         {screen.id === "A-SIM-001" && section === "run" ? <SimulationTargets /> : null}
         {screen.id === "A-SIM-001" ? <SimulationBillingSection section={section} /> : null}
@@ -83,18 +82,6 @@ export function AdminSimulationScreen({
         ) : null}
       </div>
     </ScreenFrame>
-  );
-}
-
-function BoundaryNote() {
-  return (
-    <aside className="civic-boundary-note">
-      <strong>과업 단위 가상 패널 시뮬레이션</strong>
-      <p>
-        관리자가 선택한 Vote 과업에 대해 SONA 표본의 집계 응답을 생성합니다. 개별 CIVIC 사용자의
-        Persona 생성이나 사용자별 예측에는 사용되지 않습니다.
-      </p>
-    </aside>
   );
 }
 
@@ -275,7 +262,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
         </header>
         <div className="civic-simulation-fields">
           <label className="civic-field">
-            <span>가상 패널 수</span>
+            <span>페르소나 수</span>
             <input
               disabled={pending}
               max={options?.maxPersonaCount ?? 1}
@@ -376,6 +363,8 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
     ? ([
         ["genders", "성별", options.filters.genders],
         ["age_groups", "연령대", options.filters.ageGroups],
+        ["regions", "거주 지역", options.filters.regions],
+        ["political_ideologies", "정치 성향", options.filters.politicalIdeologies],
       ] as const)
     : [];
 
@@ -403,7 +392,7 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
         </p>
         {options && !personaCountAllowed ? (
           <StatusMessage>
-            {`가상 패널 수는 현재 환경에서 ${options.minPersonaCount}명부터 ${options.maxPersonaCount}명까지 입력할 수 있습니다.`}
+            {`페르소나 수는 현재 환경에서 ${options.minPersonaCount}명부터 ${options.maxPersonaCount}명까지 입력할 수 있습니다.`}
           </StatusMessage>
         ) : null}
         <div className="civic-filter-grid">
@@ -1351,12 +1340,12 @@ function evidenceLabel(value: string): string {
 
 function capacityBlockMessage(capacity: SimulationCapacity): string {
   if (capacity.blockReason === "PERSONA_COUNT_BELOW_MINIMUM") {
-    return `가상 패널 수를 ${capacity.minPersonaCount.toLocaleString("ko-KR")}명 이상으로 입력해 주세요.`;
+    return `페르소나 수를 ${capacity.minPersonaCount.toLocaleString("ko-KR")}명 이상으로 입력해 주세요.`;
   }
   if (capacity.blockReason === "PERSONA_COUNT_ABOVE_MAXIMUM") {
-    return `가상 패널 수를 ${capacity.maxPersonaCount.toLocaleString("ko-KR")}명 이하로 입력해 주세요.`;
+    return `페르소나 수를 ${capacity.maxPersonaCount.toLocaleString("ko-KR")}명 이하로 입력해 주세요.`;
   }
-  return `현재 조건에서 사용할 수 있는 패널은 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대 조건이나 요청 수를 조정해 주세요.`;
+  return `현재 조건에서 사용할 수 있는 패널은 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대·거주 지역·정치 성향 조건이나 요청 수를 조정해 주세요.`;
 }
 
 function taskStatusLabel(status: TaskSummary["status"]): string {

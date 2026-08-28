@@ -179,16 +179,32 @@ describe("simulation contracts", () => {
     expect(result?.engine.calibration.pipelineVersion).toBe("CALIBRATED_PERSONA_PIPELINE_V2");
   });
 
-  it("accepts configured bounds and only the allowed gender/age filters", () => {
+  it("accepts configured bounds and Persona-main의 네 가지 표본 필터", () => {
     expect(
       readSimulationOptions({
         minPersonaCount: 100,
         maxPersonaCount: 1000,
         defaultModel: "anthropic/claude-sonnet-4.6",
         models: ["anthropic/claude-sonnet-4.6"],
-        filters: { genders: ["여성", "남성"], ageGroups: ["20대", "30대"] },
+        filters: {
+          genders: ["여성", "남성"],
+          ageGroups: ["20대", "30대"],
+          regions: ["서울", "부산"],
+          politicalIdeologies: ["진보", "중도", "보수"],
+        },
       }),
-    ).not.toBeNull();
+    ).toEqual({
+      minPersonaCount: 100,
+      maxPersonaCount: 1000,
+      defaultModel: "anthropic/claude-sonnet-4.6",
+      models: ["anthropic/claude-sonnet-4.6"],
+      filters: {
+        genders: ["여성", "남성"],
+        ageGroups: ["20대", "30대"],
+        regions: ["서울", "부산"],
+        politicalIdeologies: ["진보", "중도", "보수"],
+      },
+    });
     expect(
       readSimulationOptions({
         minPersonaCount: 100,
@@ -199,6 +215,8 @@ describe("simulation contracts", () => {
           genders: ["여성"],
           ageGroups: ["20대"],
           regions: ["서울"],
+          politicalIdeologies: ["중도"],
+          householdIncomes: ["300만원 미만"],
         },
       }),
     ).toBeNull();

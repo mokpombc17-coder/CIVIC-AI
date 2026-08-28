@@ -20,6 +20,8 @@ describe("simulation setup", () => {
       filters: {
         genders: ["여성", "남성"],
         ageGroups: ["30대"],
+        regions: ["서울"],
+        politicalIdeologies: ["중도"],
       },
     });
 
@@ -30,7 +32,7 @@ describe("simulation setup", () => {
     });
   });
 
-  it("관리자에게 패널 수만 받고 모델과 표본 시드는 서버 정책으로 적용한다", () => {
+  it("관리자에게 페르소나 수만 받고 불필요한 안내와 실행 정책 입력은 숨긴다", () => {
     const screen = screenRegistry.find((candidate) => candidate.id === "A-SIM-002");
     if (!screen) throw new Error("Missing simulation setup screen");
 
@@ -38,7 +40,12 @@ describe("simulation setup", () => {
       <AdminSimulationScreen screen={screen} query={{ taskId: "task-1" }} />,
     );
 
-    expect(html).toContain("가상 패널 수");
+    expect(html).toContain("페르소나 수");
+    expect(html).not.toContain("가상 패널 수");
+    expect(html).not.toContain("과업 단위 가상 패널 시뮬레이션");
+    expect(html).not.toContain(
+      "개별 CIVIC 사용자의 Persona 생성이나 사용자별 예측에는 사용되지 않습니다.",
+    );
     expect(html).not.toContain("실행 모델");
     expect(html).not.toContain("표본 시드");
   });
