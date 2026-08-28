@@ -3699,3 +3699,9 @@ body:has([data-wireflow-shell]) {
   );
   background-size: 200% 100%;
 }
+
+.civic-citation-chip-icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}

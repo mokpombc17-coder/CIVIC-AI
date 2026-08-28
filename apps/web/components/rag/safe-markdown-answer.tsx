@@ -100,6 +100,21 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
   return <div className="civic-rag-markdown">{blocks}</div>;
 });
 
+function CitationDocumentIcon() {
+  return (
+    <svg aria-hidden="true" className="civic-citation-chip-icon" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M4 1.75h5.1L12.75 5.4v8.85H4z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.3"
+      />
+      <path d="M9 1.75V5.5h3.75" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.3" />
+      <path d="M6 8.4h4.75M6 10.9h4.75" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
 function inlineMarkdown(
   source: string,
   keyPrefix: string,
@@ -133,7 +148,7 @@ function inlineMarkdown(
             title={label}
             type="button"
           >
-            <span aria-hidden="true">📄</span>
+            <CitationDocumentIcon />
             <span className="civic-citation-chip-title">{citation.title ?? "문서"}</span>
             <span>p.{citation.page_number}</span>
           </button>
