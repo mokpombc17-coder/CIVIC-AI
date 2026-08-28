@@ -2447,19 +2447,24 @@ body:has([data-wireflow-shell]) {
 }
 
 .civic-inline-upload {
-  margin-bottom: 20px;
-  border: 1px dashed #8aaee6;
-  border-radius: 10px;
-  background: #f4f8ff;
+  margin-bottom: 10px;
+  border: 1px solid var(--wf-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.civic-inline-upload[open] {
+  border-color: #8aaee6;
+  background: #f8fbff;
 }
 
 .civic-inline-upload > summary {
   display: flex;
-  min-height: 68px;
+  min-height: 46px;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 14px 16px;
+  gap: 14px;
+  padding: 6px 12px;
   cursor: pointer;
   list-style: none;
 }
@@ -2475,7 +2480,7 @@ body:has([data-wireflow-shell]) {
 
 .civic-inline-upload > summary strong {
   color: #173f78;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .civic-inline-upload > summary small {

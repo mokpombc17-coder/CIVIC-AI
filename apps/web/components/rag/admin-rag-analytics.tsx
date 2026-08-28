@@ -97,7 +97,6 @@ export function AdminRagAnalytics() {
       <summary>
         <span>
           <strong>RAG 운영 지표</strong>
-          <small>질의 품질·응답시간·모델 사용량을 개인정보 없이 집계합니다.</small>
         </span>
         <span aria-hidden="true" className="civic-inline-upload-toggle">
           통계 보기

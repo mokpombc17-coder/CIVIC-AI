@@ -273,7 +273,6 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
       <summary>
         <span>
           <strong>웹 문서 수집</strong>
-          <small>공개 웹 페이지를 지정 폴더의 검색 문서로 수집하고 변경분만 갱신합니다.</small>
         </span>
         <span aria-hidden="true" className="civic-inline-upload-toggle">
           수집 설정

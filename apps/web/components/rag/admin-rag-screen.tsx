@@ -325,7 +325,6 @@ export function AdminRagScreen({
             <summary>
               <span>
                 <strong>문서 업로드</strong>
-                <small>PDF·텍스트·이미지·Office·한글 문서를 이 폴더에 바로 등록합니다.</small>
               </span>
               <span aria-hidden="true" className="civic-inline-upload-toggle">
                 파일 등록
@@ -341,12 +340,6 @@ export function AdminRagScreen({
               />
             </div>
           </details>
-          {screen.id === "A-RAG-001" ? (
-            <>
-              <AdminRagAnalytics />
-              <AdminRagCrawler folders={folders} />
-            </>
-          ) : null}
           <DocumentWorkspace
             compact={screen.id !== "A-RAG-003"}
             creatorLabels={creatorLabels}
@@ -361,6 +354,12 @@ export function AdminRagScreen({
             onQueryChange={queryDocuments}
             pageState={pageState}
           />
+          {screen.id === "A-RAG-001" ? (
+            <>
+              <AdminRagAnalytics />
+              <AdminRagCrawler folders={folders} />
+            </>
+          ) : null}
           {message ? (
             <p aria-live="polite" className="civic-form-message">
               {message}
@@ -860,19 +859,14 @@ export function DocumentInspector({
 }
 
 function WorkspaceHeading({ folder }: Readonly<{ folder: Folder | undefined }>) {
-  const breadcrumb = (folder?.path ?? [folder?.name ?? "폴더 선택"]).join(" / ");
+  // 마지막 요소는 제목과 중복이므로 상위 경로만 표시한다.
+  const ancestors = (folder?.path ?? []).slice(0, -1);
   return (
     <header className="civic-rag-workspace-heading">
       <div>
-        <p className="civic-breadcrumb">{breadcrumb}</p>
+        {ancestors.length > 0 ? <p className="civic-breadcrumb">{ancestors.join(" / ")}</p> : null}
         <h2>{folder?.name ?? "문서 작업 공간"}</h2>
       </div>
-      <Link
-        className="civic-primary-action"
-        href={`/admin/rag/upload?folderId=${encodeURIComponent(folder?.folder_id ?? "")}&mode=NEW_DOCUMENT`}
-      >
-        이 폴더에 업로드
-      </Link>
     </header>
   );
 }

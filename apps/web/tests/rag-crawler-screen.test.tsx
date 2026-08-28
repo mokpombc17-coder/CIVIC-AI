@@ -30,7 +30,7 @@ describe("RAG 웹 수집 관리", () => {
     expect(html).toContain("쿠키");
     expect(html).toContain("Authorization 헤더");
     expect(html).toContain('type="password"');
-    expect(html).toContain("지정 폴더의 검색 문서로 수집");
+    expect(html).not.toContain("지정 폴더의 검색 문서로 수집");
     expect(html).not.toContain("canonical_url_sha256");
     expect(html).not.toContain("safe_error_code");
   });
