@@ -16,9 +16,9 @@
 
 ## 인증 코드
 
-- `apps/web/lib/auth/require-session.ts`: Server Component 사용자 확인
-- `apps/web/lib/auth/require-admin.ts`: role·permission 기반 관리자 확인
-- `apps/web/lib/auth/shell-session-client.ts`: Main/Auth `/me` 응답을 최소 Shell 모델로 변환
+- `apps/web/lib/auth/require-access.ts`: Server Component의 현재 사용자 조회와 참여자 접근 확인
+- `apps/web/lib/auth/require-admin.ts`: role·permission 기반 관리자 접근 확인
+- `apps/web/lib/auth/current-user-client.ts`: Main/Auth `/me` 응답을 최소 `CurrentUser` 모델로 변환
 - `apps/web/lib/auth/authenticated-fetch.ts`: `401 -> refresh -> 1회 재시도`
 - `apps/web/lib/api/main-auth-client.ts`: Main/Auth same-origin 프록시와 CSRF 처리
 - `apps/web/lib/server/civic-auth/production-credential-adapter.ts`: 동일 Access Token 전달 경계

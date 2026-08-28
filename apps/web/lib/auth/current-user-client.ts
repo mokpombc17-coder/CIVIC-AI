@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PLATFORM_AUTH_COOKIE_NAME } from "@/lib/server/auth/platform-auth-contract";
-import type { ShellSession } from "./shell-access";
+import type { CurrentUser } from "./shell-access";
 
 const accessTokenPattern = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u;
 const currentUserResponseSchema = z.object({
@@ -29,7 +29,7 @@ export async function fetchCurrentUser({
   baseUrl,
   accessToken,
   request = fetch,
-}: FetchCurrentUserInput): Promise<ShellSession | null> {
+}: FetchCurrentUserInput): Promise<CurrentUser | null> {
   if (!accessTokenPattern.test(accessToken)) return null;
 
   try {

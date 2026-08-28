@@ -197,9 +197,9 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
     if (!taskId) return;
     const timer = window.setTimeout(() => {
       void requestTaskDetail(taskId).then((detail) => {
-        if (!detail) return setMessage("수정할 Draft를 불러오지 못했습니다.");
+        if (!detail) return setMessage("수정할 초안을 불러오지 못했습니다.");
         if (detail.task.status !== "DRAFT") {
-          return setMessage("Draft 상태의 과업만 전체 수정할 수 있습니다.");
+          return setMessage("초안 상태의 과업만 전체 수정할 수 있습니다.");
         }
         const current = detail.task;
         setTask(current);
@@ -271,7 +271,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
     <form className="civic-domain-form" onSubmit={submit}>
       <section className="civic-domain-form-section">
         <header>
-          <span>{task ? "DRAFT 전체 수정" : "새 DRAFT"}</span>
+          <span>{task ? "초안 전체 수정" : "새 초안"}</span>
           <h2>과업 기본 정보</h2>
         </header>
         <label className="civic-field">
@@ -405,7 +405,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           취소
         </Link>
         <button className="civic-primary-action" disabled={pending} type="submit">
-          {pending ? "서버 확인 중…" : task ? "Draft 전체 저장" : "Draft 생성"}
+          {pending ? "서버 확인 중…" : task ? "초안 전체 저장" : "초안 생성"}
         </button>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
@@ -492,7 +492,7 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
       <div className="civic-detail-actions">
         {task.status === "DRAFT" ? (
           <Link href={`/admin/tasks/create?taskId=${encodeURIComponent(task.id)}` as Route}>
-            Draft 수정
+            초안 수정
           </Link>
         ) : null}
         {task.status === "OPEN" ? (

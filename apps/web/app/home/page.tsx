@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { CurrentUserGreeting } from "@/components/shell/current-user-greeting";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { ParticipantShell } from "@/components/shell/participant-shell";
-import { requireParticipantSession } from "@/lib/auth/require-session";
+import { hasAccessCredential } from "@/lib/auth/require-access";
 import { getScreenByRoute } from "@/lib/screens/registry";
 
 export const metadata: Metadata = {
@@ -10,14 +11,23 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  await requireParticipantSession("/home");
+  const requiresLoginForProtectedLinks = !(await hasAccessCredential());
   const screen = getScreenByRoute("/home");
   if (!screen) throw new TypeError("U-HOME-001 screen is missing");
   const heading = screenFrameHeading(screen);
 
   return (
-    <ParticipantShell activeRoute="/home" title={heading.title}>
-      <MainFunctionalScreen screen={screen} />
+    <ParticipantShell
+      activeRoute="/home"
+      {...(requiresLoginForProtectedLinks ? {} : { headerActions: <CurrentUserGreeting /> })}
+      headerTitle={<span className="civic-brand-title">CIVIC.AI</span>}
+      requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
+      title={heading.title}
+    >
+      <MainFunctionalScreen
+        requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
+        screen={screen}
+      />
     </ParticipantShell>
   );
 }

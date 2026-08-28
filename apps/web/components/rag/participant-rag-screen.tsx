@@ -34,8 +34,14 @@ type RagJob = Readonly<{
 type Message = Readonly<{
   id: string;
   question: string;
+  askedAt: string;
+  answeredAt?: string;
   job?: RagJob;
 }>;
+
+function clockLabel(date = new Date()): string {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
 
 export function ParticipantRagScreen({
   screen,
@@ -81,9 +87,7 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   const requestGeneration = useRef(0);
   const queryOperation = useRef(createQueryOperation());
   const currentSessionId = useRef<string | null>(null);
-  const [notice, setNotice] = useState(
-    "인용 문서를 열어도 현재 대화는 유지됩니다. 문서 업로드 기능은 관리자에게만 제공됩니다.",
-  );
+  const [notice, setNotice] = useState("");
 
   useEffect(
     () => () => {
@@ -125,13 +129,18 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
       }
       const accepted = submission.job;
       if (accepted.session_id) currentSessionId.current = accepted.session_id;
-      setMessages((current) => [...current, { id: accepted.job_id, question: submitted }]);
+      setMessages((current) => [
+        ...current,
+        { askedAt: clockLabel(), id: accepted.job_id, question: submitted },
+      ]);
       setQuestion("");
       const result = await waitForStreamedResult(accepted.job_id, { signal: controller.signal });
       if (requestGeneration.current !== generation) return;
       setMessages((current) =>
         current.map((message) =>
-          message.id === accepted.job_id ? { ...message, job: result } : message,
+          message.id === accepted.job_id
+            ? { ...message, answeredAt: clockLabel(), job: result }
+            : message,
         ),
       );
     } catch (error) {
@@ -150,9 +159,11 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
     <ScreenFrame screen={screen}>
       <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
         <header className="civic-rag-session-bar">
-          <div>
-            <span className="civic-ai-badge">AI 생성 · 문서 기반 답변</span>
-          </div>
+          <p className="civic-rag-intro">
+            궁금한 정보를 질문하세요.
+            <br />
+            AI가 실제 문서를 기반으로 답변해드립니다.
+          </p>
           <button
             className="civic-secondary-action"
             onClick={() => {
@@ -164,11 +175,11 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
               setMessages([]);
               setQuestion("");
               setBusy(false);
-              setNotice("새 대화를 시작했습니다.");
+              setNotice("새 질문을 시작했습니다.");
             }}
             type="button"
           >
-            새 대화
+            새 질문
           </button>
         </header>
         <div aria-label="현재 RAG 대화" className="civic-rag-messages">
@@ -179,10 +190,6 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
                 <strong>확인할 정책이나 자료를 질문하세요.</strong>
                 <p>답변은 관리자가 등록한 문서의 실제 페이지 근거와 함께 표시됩니다.</p>
               </div>
-              <aside className="civic-rag-source-guide">
-                <strong>근거 문서</strong>
-                <p>답변 아래의 인용 카드를 누르면 해당 PDF 페이지를 읽기 전용으로 엽니다.</p>
-              </aside>
             </div>
           ) : (
             messages.map((message) => (
@@ -201,7 +208,9 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
           </p>
         ) : null}
         <form className="civic-rag-composer" onSubmit={submit}>
-          <label htmlFor="rag-question">메시지 입력</label>
+          <label className="sr-only" htmlFor="rag-question">
+            메시지 입력
+          </label>
           <textarea
             id="rag-question"
             maxLength={8000}
@@ -309,14 +318,15 @@ function ConversationBackdrop() {
       data-wireflow-layout="rag-conversation"
     >
       <header className="civic-rag-session-bar">
-        <div>
-          <span className="civic-ai-badge">AI 생성 · 문서 기반 답변</span>
-        </div>
-        <span className="civic-secondary-action">새 대화</span>
+        <p className="civic-rag-intro">
+          궁금한 정보를 질문하세요.
+          <br />
+          AI가 실제 문서를 기반으로 답변해드립니다.
+        </p>
+        <span className="civic-secondary-action">새 질문</span>
       </header>
       <div className="civic-rag-messages" />
       <div className="civic-rag-composer">
-        <strong>메시지 입력</strong>
         <span>문서에 대해 질문하세요...</span>
         <span>전송</span>
       </div>
@@ -331,26 +341,51 @@ function RagMessage({
   const statusMessage = ragJobStatusMessage(message.job);
   return (
     <article className="civic-rag-exchange">
-      <p className="civic-rag-question">{message.question}</p>
-      <div className="civic-rag-answer">
-        <span className="civic-ai-badge">AI 생성</span>
-        {statusMessage ? (
-          <p role={message.job?.status === "FAILED" ? "alert" : undefined}>{statusMessage}</p>
-        ) : message.job?.answer ? (
-          <SafeMarkdownAnswer answer={message.job.answer} />
-        ) : null}
-        <div aria-label="근거 문서" className="civic-rag-citations">
-          {message.job?.citations?.length ? <strong>근거 문서</strong> : null}
-          {message.job?.citations?.map((citation) => (
-            <Link
-              href={citationHref(citation)}
-              key={`${citation.document_version_id}-${citation.page_number}-${citation.source_object_sha256}`}
-              onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
-            >
-              📄 {citation.title ?? "문서"} {citation.page_number}쪽
-            </Link>
-          ))}
+      <div className="civic-rag-question-row">
+        <time className="civic-rag-time">{message.askedAt}</time>
+        <p className="civic-rag-question">{message.question}</p>
+      </div>
+      <div className="civic-rag-answer-row">
+        <header className="civic-rag-answer-meta">
+          <strong>CIVIC.AI</strong>
+          {message.answeredAt ? <time className="civic-rag-time">{message.answeredAt}</time> : null}
+        </header>
+        <div className="civic-rag-answer">
+          {statusMessage ? (
+            <p role={message.job?.status === "FAILED" ? "alert" : undefined}>{statusMessage}</p>
+          ) : message.job?.answer ? (
+            <SafeMarkdownAnswer answer={message.job.answer} />
+          ) : null}
         </div>
+        {message.job?.citations?.length ? (
+          <div aria-label="출처" className="civic-rag-citations">
+            {message.job.citations.map((citation) => (
+              <div
+                className="civic-rag-citation-card"
+                key={`${citation.document_version_id}-${citation.page_number}-${citation.source_object_sha256}`}
+              >
+                <div className="civic-rag-citation-copy">
+                  <strong>
+                    <span aria-hidden="true" className="civic-rag-citation-icon">
+                      ⓘ
+                    </span>
+                    출처
+                  </strong>
+                  <p>
+                    {citation.title ?? "문서"} · {citation.page_number}페이지
+                  </p>
+                </div>
+                <Link
+                  className="wf-button wf-button-secondary"
+                  href={citationHref(citation)}
+                  onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
+                >
+                  원문 보기
+                </Link>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {message.job?.status === "SUCCEEDED" && message.job.answer ? (
           <RagFeedback
             jobId={message.job.job_id}

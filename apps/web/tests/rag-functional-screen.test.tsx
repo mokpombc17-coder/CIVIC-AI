@@ -13,6 +13,7 @@ import {
   firstQueryValue,
   jobPanelKey,
   loadRagJob,
+  loadRagJobFilename,
   loadRagDocumentVersions,
   mapSettledWithConcurrency,
   MAX_RAG_UPLOAD_BYTES,
@@ -41,7 +42,10 @@ import {
   readAcceptedJobId,
   requestRagJobRetry,
   rejectedInputs,
+  RagJobStatusCard,
+  ragJobDisplayProgress,
   ragJobFailureMessage,
+  readRagJobFilenameFromSummary,
   ragJobTimelineStates,
   ragUploadExclusionMessage,
   ragUploadFailureMessage,
@@ -72,9 +76,9 @@ const ragScreens = screenRegistry.filter(
 );
 
 const latestWireflowTitles = Object.freeze({
-  "U-RAG-001": "문서 질문",
-  "U-RAG-002": "문서 질문",
-  "U-RAG-003": "문서 질문",
+  "U-RAG-001": "AI",
+  "U-RAG-002": "AI",
+  "U-RAG-003": "AI",
   "A-RAG-001": "문서 관리",
   "A-RAG-002": "문서 관리",
   "A-RAG-003": "문서 관리",
@@ -777,6 +781,53 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("문서 준비 진행 상태");
   });
 
+  it("실패한 문서 처리 상태는 파일명·실패 단계·해결 행동을 한 화면에 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagJobStatusCard, {
+        filename: "정책자료.hwpx",
+        job: {
+          job_id: "640af5c5-d302-4c32-97ca-c9db40ed22e5",
+          status: "FAILED",
+          progress: 10,
+          failure_code: "DOCUMENT_READ_FAILED",
+        },
+        message: "최신 처리 상태를 반영했습니다.",
+        onRefresh: vi.fn(),
+        onRetry: vi.fn(),
+        retrying: false,
+        workspaceHref: ragWorkspaceHref("policy-folder"),
+      }),
+    );
+
+    expect(html).toContain("정책자료.hwpx");
+    expect(html).toContain("문서 읽기 실패");
+    expect(html).toContain("원본 파일을 확인한 뒤 다시 업로드하세요");
+    expect(html).toContain('class="civic-primary-action"');
+    expect(html).toContain("실패 파일 다시 처리");
+    expect(html).toContain('href="/admin/rag?folderId=policy-folder"');
+    expect(html).not.toContain("640af5c5-d302-4c32-97ca-c9db40ed22e5");
+  });
+
+  it("실패 진행률은 완료된 단계와 모순되지 않게 표시한다", () => {
+    expect(
+      ragJobDisplayProgress({
+        job_id: "job-1",
+        status: "FAILED",
+        progress: 10,
+        failure_code: "DOCUMENT_READ_FAILED",
+      }),
+    ).toBe(33);
+    expect(
+      ragJobDisplayProgress({
+        job_id: "job-2",
+        status: "FAILED",
+        progress: 10,
+        failure_code: "PROCESSING_FAILED",
+      }),
+    ).toBe(67);
+    expect(ragJobDisplayProgress({ job_id: "job-3", status: "SUCCEEDED", progress: 80 })).toBe(100);
+  });
+
   it("문서 상태 배지는 활성 버전이 아니라 사용자가 선택한 이력 버전을 표시한다", () => {
     const versions = [
       {
@@ -1019,6 +1070,33 @@ describe("9 functional RAG screens", () => {
     expect(await sha256Blob(new Blob(["abc"]), 1)).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
     );
+  });
+
+  it("기존 실패 URL은 작업 요약에서 현재 문서명을 복구한다", () => {
+    expect(
+      readRagJobFilenameFromSummary("job-2", {
+        recent_failures: [
+          { job_id: "job-1", filename: "이전문서.pdf" },
+          { job_id: "job-2", filename: "정책자료.hwpx" },
+        ],
+      }),
+    ).toBe("정책자료.hwpx");
+    expect(readRagJobFilenameFromSummary("job-3", { recent_failures: [] })).toBeNull();
+    expect(readRagJobFilenameFromSummary("job-2", { recent_failures: "invalid" })).toBeNull();
+  });
+
+  it("실패 작업 파일명 조회는 네트워크와 잘못된 응답에서 안전하게 비운다", async () => {
+    const success = vi.fn(async () =>
+      Response.json({ recent_failures: [{ job_id: "job-2", filename: "정책자료.hwpx" }] }),
+    );
+    const unavailable = vi.fn(async () => new Response(null, { status: 503 }));
+    const network = vi.fn(async () => Promise.reject(new Error("offline")));
+
+    await expect(loadRagJobFilename("job-2", success as typeof fetch)).resolves.toBe(
+      "정책자료.hwpx",
+    );
+    await expect(loadRagJobFilename("job-2", unavailable as typeof fetch)).resolves.toBeNull();
+    await expect(loadRagJobFilename("job-2", network as typeof fetch)).resolves.toBeNull();
   });
 
   it("multipart part의 일시 오류를 재시도하고 완료 작업 ID를 반환한다", async () => {
@@ -1328,7 +1406,7 @@ describe("9 functional RAG screens", () => {
         },
         "folder-1",
       ),
-    ).toBe("/admin/rag/jobs?jobId=job-1&folderId=folder-1");
+    ).toBe("/admin/rag/jobs?jobId=job-1&folderId=folder-1&filename=policy.pdf");
     expect(ragJobHref("replacement-job", "folder-1")).toBe(
       "/admin/rag/jobs?jobId=replacement-job&folderId=folder-1",
     );
@@ -1491,10 +1569,10 @@ describe("9 functional RAG screens", () => {
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
-    expect(participantHtml).toContain("AI 생성 · 문서 기반 답변");
+    expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
+    expect(participantHtml).toContain("새 질문");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
-    expect(participantHtml).toContain("근거 문서");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');
     expect(adminHtml).toContain("폴더 추가");
     expect(adminHtml).toContain("폴더 수정");
@@ -1560,8 +1638,10 @@ describe("9 functional RAG screens", () => {
     expect(uploadHtml).toContain('data-wireflow-layout="rag-upload"');
     expect(uploadHtml).not.toContain('data-wireflow-layout="rag-workspace"');
     expect(uploadHtml).toContain("파일 선택");
+    expect(uploadHtml).not.toContain("<main");
     expect(jobHtml).toContain('data-wireflow-layout="rag-job-status"');
     expect(jobHtml).not.toContain('data-wireflow-layout="rag-workspace"');
     expect(jobHtml).toContain("문서 준비 진행 상태");
+    expect(jobHtml).not.toContain("<main");
   });
 });

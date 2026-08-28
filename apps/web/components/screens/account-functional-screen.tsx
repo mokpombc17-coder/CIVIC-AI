@@ -412,31 +412,27 @@ function DeactivationDialog({
         role="alertdialog"
       >
         <header>
-          <h2 id="wf-deactivate-title">계정을 비활성화하시겠습니까?</h2>
+          <h2 id="wf-deactivate-title">계정을 비활성화할까요?</h2>
           <Link aria-label="닫기" className="wf-dialog-close" href={"/account" as Route}>
             ×
           </Link>
         </header>
-        <p>영향을 확인한 뒤 비밀번호를 입력하세요.</p>
+        <p>다음 내용을 확인한 뒤 비밀번호를 입력하세요.</p>
         <dl className="wf-impact-list">
           <div>
             <dt>비활성화 영향</dt>
-            <dd>CIVIC AI 데이터 활용·개인 AI 갱신 중단</dd>
+            <dd>AI·채팅·투표 정보가 개인 정보에 더 이상 반영되지 않습니다.</dd>
           </div>
           <div>
             <dt>보관 데이터</dt>
-            <dd>기간 없이 유지 · 재활성화 시 다시 연결</dd>
+            <dd>작성한 정보와 활동 기록은 계정을 다시 사용할 수 있도록 보관됩니다.</dd>
           </div>
           <div>
             <dt>로그인 상태</dt>
-            <dd>모든 기기에서 즉시 로그아웃</dd>
+            <dd>현재 기기를 포함한 모든 기기에서 로그아웃됩니다.</dd>
           </div>
         </dl>
-        <label className="civic-check-row wf-deactivate-confirmation">
-          <input name="confirmed" required type="checkbox" />
-          <span>현재 활성 기능 이용이 중단되고 모든 기기에서 로그아웃되는 것을 확인했습니다.</span>
-        </label>
-        <WireflowField label="현재 비밀번호 확인" name="password" required type="password" />
+        <WireflowField label="비밀번호 확인" name="password" required type="password" />
         {message ? (
           <p aria-live="polite" className="civic-form-message">
             {message}

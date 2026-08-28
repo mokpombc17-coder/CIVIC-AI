@@ -528,7 +528,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
   return (
     <section className="civic-domain-result civic-simulation-status-card">
       <header>
-        <span>SONA WORKER</span>
+        <span>SONA 워커</span>
         <h2>{view ? simulationStateLabel(view.state) : "실행 상태 확인 중"}</h2>
       </header>
       {view ? (
@@ -743,7 +743,7 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
   return (
     <section className="civic-domain-result">
       <header>
-        <span>SONA AGGREGATE</span>
+        <span>SONA 집계</span>
         <h2>{result?.task.title ?? "집계 결과 불러오는 중"}</h2>
       </header>
       {result ? (

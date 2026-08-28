@@ -50,25 +50,17 @@ const authHeadings: Readonly<
   Record<string, Readonly<{ backHref?: Route; subtitle?: string; title: string }>>
 > = Object.freeze({
   "AUTH-001": { title: "로그인" },
-  "AUTH-002": {
-    backHref: "/login" as Route,
-    subtitle: "로그인 이메일은 가입 후 변경할 수 없습니다.",
-    title: "계정 정보",
-  },
-  "AUTH-003": { title: "개인정보·설문 입력" },
-  "AUTH-004": { title: "필수 동의 및 가입 확인" },
-  "AUTH-005": {
-    backHref: "/signup/pending" as Route,
-    subtitle: "가장 최근에 받은 코드를 입력하세요.",
-    title: "이메일 인증",
-  },
+  "AUTH-002": { backHref: "/login" as Route, title: "회원가입" },
+  "AUTH-003": { title: "회원가입" },
+  "AUTH-004": { title: "회원가입" },
+  "AUTH-005": { backHref: "/signup/pending" as Route, title: "이메일 인증" },
   "AUTH-006": {
     backHref: "/signup/account" as Route,
     subtitle: "등록 이메일로 코드를 보냈습니다.",
     title: "이메일 인증",
   },
-  "AUTH-007": { title: "비밀번호 재설정 요청" },
-  "AUTH-008": { title: "새 비밀번호 설정" },
+  "AUTH-007": { backHref: "/login" as Route, title: "비밀번호 재설정" },
+  "AUTH-008": { title: "비밀번호 재설정" },
   "AUTH-009": { backHref: "/login" as Route, title: "계정 재활성화" },
   "AUTH-010": { backHref: "/login" as Route, title: "계정 재활성화" },
 });
@@ -80,9 +72,12 @@ const participantHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; 
     "U-ACCOUNT-002": { title: "개인정보·설문 응답" },
     "U-ACCOUNT-003": { backHref: "/account" as Route, title: "보안 설정" },
     "U-ACCOUNT-004": { title: "개인정보·설문 응답" },
-    "U-RAG-001": { title: "문서 질문" },
-    "U-RAG-002": { title: "문서 질문" },
-    "U-RAG-003": { title: "문서 질문" },
+    "U-RAG-001": { title: "AI" },
+    "U-RAG-002": { title: "AI" },
+    "U-RAG-003": { title: "AI" },
+    "COMMON-002": { subtitle: "다른 요청으로 상태가 변경되었습니다.", title: "과업 상태" },
+    "COMMON-003": { title: "처리 결과 확인" },
+    "COMMON-004": { title: "서비스 일시 오류" },
   });
 
 const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title: string }>>> =
@@ -108,11 +103,11 @@ const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title:
   });
 
 function SignupStepIndicator({ current }: Readonly<{ current: number }>) {
-  const steps = ["계정 정보", "프로필", "필수 동의"];
+  const steps = ["계정 정보", "개인정보·설문", "필수 동의·확인"];
   return (
     <nav aria-label="회원가입 단계" className="civic-step-indicator">
       <p>
-        <strong>{current} / 3</strong>
+        <strong>{current}/3</strong>
         <span>{steps[current - 1]}</span>
       </p>
       <ol>
@@ -124,8 +119,7 @@ function SignupStepIndicator({ current }: Readonly<{ current: number }>) {
               className={step < current ? "is-done" : step === current ? "is-current" : ""}
               key={label}
             >
-              <span>{step}</span>
-              <b>{label}</b>
+              <b className="sr-only">{label}</b>
             </li>
           );
         })}
