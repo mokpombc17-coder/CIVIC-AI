@@ -10,6 +10,20 @@ export type RoomCategory = Readonly<{
 
 export type RoomCategoryPage = Readonly<{ items: readonly RoomCategory[] }>;
 
+export type ListedRoom = Readonly<{
+  roomId: string;
+  name: string;
+  categoryIds: readonly string[];
+  activeMemberCount: number;
+  version: number;
+}>;
+
+export type ListedRoomPage = Readonly<{
+  items: readonly ListedRoom[];
+  nextCursor: string | null;
+  hasNext: boolean;
+}>;
+
 export type RoomDetailCategorySnapshot = Readonly<{
   roomId: string;
   categoryIds: readonly string[];
@@ -22,6 +36,30 @@ export type RoomCategoryAssignment = Readonly<{
   roomVersion: number;
   changed: boolean;
 }>;
+
+export function readListedRoomPage(value: unknown): ListedRoomPage | null {
+  const record = object(value);
+  if (!record || !Array.isArray(record.items) || typeof record.hasNext !== "boolean") return null;
+  const items = record.items.map(readListedRoom);
+  if (!items.every(Boolean)) return null;
+  const nextCursor = record.nextCursor === null ? null : nonEmptyString(record.nextCursor);
+  if (record.nextCursor !== null && nextCursor === null) return null;
+  if (record.hasNext && !nextCursor) return null;
+  return { items: items as ListedRoom[], nextCursor, hasNext: record.hasNext };
+}
+
+function readListedRoom(value: unknown): ListedRoom | null {
+  const record = object(value);
+  if (!record) return null;
+  const roomId = nonEmptyString(record.roomId);
+  const name = nonEmptyString(record.name);
+  const categoryIds = stringArray(record.categoryIds);
+  const activeMemberCount = nonNegativeInteger(record.activeMemberCount);
+  const version = nonNegativeInteger(record.version);
+  return roomId && name && categoryIds && activeMemberCount !== null && version !== null
+    ? { roomId, name, categoryIds, activeMemberCount, version }
+    : null;
+}
 
 export function readRoomCategoryPage(value: unknown): RoomCategoryPage | null {
   const record = object(value);

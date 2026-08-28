@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  readListedRoomPage,
   readRoomCategoryAssignment,
   readRoomCategoryPage,
   readRoomDetailCategorySnapshot,
@@ -8,6 +9,43 @@ import {
 } from "./room-category-contracts";
 
 describe("room category contracts", () => {
+  it("parses the participant listed-room page used by the admin selector", () => {
+    expect(
+      readListedRoomPage({
+        items: [
+          {
+            roomId: "room-1",
+            name: "시민 정책 토론방",
+            categoryIds: ["category-a"],
+            activeMemberCount: 4,
+            version: 7,
+          },
+        ],
+        nextCursor: "cursor-2",
+        hasNext: true,
+      }),
+    ).toEqual({
+      items: [
+        {
+          roomId: "room-1",
+          name: "시민 정책 토론방",
+          categoryIds: ["category-a"],
+          activeMemberCount: 4,
+          version: 7,
+        },
+      ],
+      nextCursor: "cursor-2",
+      hasNext: true,
+    });
+    expect(
+      readListedRoomPage({
+        items: [],
+        nextCursor: null,
+        hasNext: true,
+      }),
+    ).toBeNull();
+  });
+
   it("parses opaque category IDs and sorts a copied list by Korean name", () => {
     const page = readRoomCategoryPage({
       items: [

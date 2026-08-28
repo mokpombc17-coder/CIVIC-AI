@@ -4,6 +4,7 @@ import {
   matchChatCategoryAdminRoute,
   matchChatRoomCategoryAssignmentRoute,
   matchChatRoomDetailRoute,
+  matchChatRoomListRoute,
   matchVoteTaskAdminRoute,
 } from "./admin-domain-policy";
 
@@ -65,6 +66,14 @@ describe("admin domain route allowlist", () => {
     expect(matchChatRoomDetailRoute("GET", "room-1")).toEqual({
       path: "/api/v1/rooms/room-1",
       scope: "chat:rooms:read",
+    });
+    expect(matchChatRoomListRoute("GET")).toEqual({
+      path: "/api/v1/rooms",
+      scope: "chat:rooms:read",
+    });
+    expect(matchChatRoomListRoute("POST")).toEqual({
+      allowedMethods: ["GET"],
+      status: 405,
     });
   });
 

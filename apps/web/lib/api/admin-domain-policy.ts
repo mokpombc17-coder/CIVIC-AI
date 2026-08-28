@@ -78,6 +78,10 @@ export function matchChatRoomDetailRoute(
   );
 }
 
+export function matchChatRoomListRoute(method: string): AdminDomainRoute | RouteFailure {
+  return allow(method.toUpperCase(), ["GET"], "/api/v1/rooms", "chat:rooms:read");
+}
+
 export function matchVoteTaskAdminRoute(
   method: string,
   segments: readonly string[],

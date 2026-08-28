@@ -72,6 +72,9 @@ AdminCatchAllPage [Server Route]
     │       ├── AdminRagAnalytics
     │       └── AdminRagSynonyms
     ├── AdminChatRequestScreen [Chat 생성 신청 관리]
+    ├── AdminRoomCategoryScreen [Chat 카테고리 및 ACTIVE·LISTED 방 관리]
+    │   ├── ListedRoomTable [참여자 방 목록 API 검색·페이지네이션]
+    │   └── RoomCategorySelector [선택 방의 카테고리 교체]
     ├── AdminTaskScreen [Vote 과업 관리]
     ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
@@ -146,7 +149,7 @@ Browser /api/v1/admin/simulation-tasks/**|simulations/**|simulation-options|simu
         └── 정본 Simulation API 처리
 
 Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/**
-        | /api/v1/admin/rooms/{roomId}/categories | /api/v1/rooms/{roomId}
+        | /api/v1/admin/rooms/{roomId}/categories | /api/v1/rooms | /api/v1/rooms/{roomId}
         | /api/v1/admin/tasks/**
 └── Admin Domain BFF
     ├── 화면별 path·method allowlist
@@ -167,10 +170,10 @@ Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지
 
 ## 현재 비활성 기능
 
-참여자 Chat·Vote와 Chat의 활성 방 전체 목록·통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
+참여자 Chat·Vote와 Chat 통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
 Chat 생성 신청·카테고리 관리, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를
-사용한다. Chat 카테고리 화면의 기존 방 변경은 관리자용 전체 방 검색 API가 없으므로 이미 알고 있는
-`roomId`만 조회하여 처리한다.
+사용한다. Chat 카테고리 화면은 참여자용 `/api/v1/rooms`에서 조회되는 `ACTIVE + LISTED` 방을
+검색·선택하고, 비공개 또는 목록 비공개 방은 이미 알고 있는 `roomId` 조회를 보조 경로로 제공한다.
 placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 
 ## App Router special UI
