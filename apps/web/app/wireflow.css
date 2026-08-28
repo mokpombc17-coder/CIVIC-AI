@@ -508,7 +508,7 @@ body:has([data-wireflow-shell]) {
   display: grid;
   align-content: start;
   gap: 12px;
-  padding: 14px 16px 16px;
+  padding: 19px 16px 16px;
 }
 
 .wf-participant-home .wf-action-card {
@@ -532,6 +532,8 @@ body:has([data-wireflow-shell]) {
 
 .wf-participant-home .wf-action-control .wf-button {
   min-width: 94px;
+  min-height: 48px;
+  border-radius: 6px;
   white-space: nowrap;
 }
 
@@ -3211,7 +3213,7 @@ body:has([data-wireflow-shell]) {
 .wf-home-welcome {
   display: grid;
   gap: 8px;
-  margin: 16px 16px 0;
+  margin: 19px 16px 0;
 }
 
 .wf-home-welcome h2 {
