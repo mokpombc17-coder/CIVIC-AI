@@ -210,7 +210,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
   const { pending, start, startMessage } = useStartSimulation(taskId);
   const runInput = options ? buildDefaultSimulationRunInput(personaCount, options) : null;
   const capacityState = useSimulationCapacity(
-    options ? normalizeCapacityInput(personaCount, "") : null,
+    options ? normalizeCapacityInput(personaCount, "", { regions: options.filters.regions }) : null,
   );
   const previewState = useSimulationPreview(taskId, runInput);
 
@@ -270,6 +270,9 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           <span>SONA 집계 실행</span>
           <h2>기본 실행 설정</h2>
         </header>
+        <p className="civic-simulation-copy">
+          표본과 사용 가능 인원은 전남·광주 페르소나만 기준으로 계산합니다.
+        </p>
         <div className="civic-simulation-fields">
           <label className="civic-field">
             <span>페르소나 수</span>
@@ -357,6 +360,7 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           const value = readSimulationOptions(await response.json());
           if (!value) throw new Error("서버의 패널 조건 응답 형식을 확인해야 합니다.");
           setOptions(value);
+          setFilters({ regions: value.filters.regions });
         })
         .catch((error: unknown) =>
           setMessage(error instanceof Error ? error.message : "패널 조건을 불러오지 못했습니다."),
@@ -373,7 +377,6 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
     ? ([
         ["genders", "성별", options.filters.genders],
         ["age_groups", "연령대", options.filters.ageGroups],
-        ["regions", "거주 지역", options.filters.regions],
         ["political_ideologies", "정치 성향", options.filters.politicalIdeologies],
       ] as const)
     : [];
@@ -397,8 +400,8 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           <h2>집계 패널 표본 조건</h2>
         </header>
         <p className="civic-simulation-copy">
-          항목을 선택하지 않으면 해당 범주는 전체를 사용합니다. 여기에 표시되는 값은 현재 서버에
-          마운트된 프로필 번들에서 읽은 범주이며 개인 레코드는 노출하지 않습니다.
+          거주 지역은 전남·광주로 고정됩니다. 나머지 항목을 선택하지 않으면 해당 범주의 전남·광주
+          페르소나 전체를 사용하며 개인 레코드는 노출하지 않습니다.
         </p>
         {options && !personaCountAllowed ? (
           <StatusMessage>
@@ -1271,7 +1274,7 @@ export function buildDefaultSimulationRunInput(
     personaCount,
     modelType: options.defaultModel,
     sampleSeed: null,
-    ...(filters === undefined ? {} : { filters }),
+    filters: filters ?? { regions: options.filters.regions },
   };
 }
 

@@ -24,7 +24,7 @@ describe("simulation setup", () => {
       filters: {
         genders: ["여성", "남성"],
         ageGroups: ["30대"],
-        regions: ["서울"],
+        regions: ["전남", "광주"],
         politicalIdeologies: ["중도"],
       },
     });
@@ -39,14 +39,14 @@ describe("simulation setup", () => {
       modelType: "anthropic/claude-sonnet-4.6",
       personaCount: 10,
       sampleSeed: null,
-      filters: {},
+      filters: { regions: ["전남", "광주"] },
     });
     expect(buildAdminSimulationRequest("task-1", input, "pricing-v1")).toEqual({
       taskId: "task-1",
       modelType: "anthropic/claude-sonnet-4.6",
       personaCount: 10,
       sampleSeed: null,
-      filters: {},
+      filters: { regions: ["전남", "광주"] },
       pricingFingerprint: "pricing-v1",
     });
   });
@@ -60,7 +60,7 @@ describe("simulation setup", () => {
       filters: {
         genders: ["여성", "남성"],
         ageGroups: ["30대"],
-        regions: ["서울"],
+        regions: ["전남", "광주"],
         politicalIdeologies: ["중도"],
       },
     });
@@ -87,7 +87,7 @@ describe("simulation setup", () => {
       modelType: "anthropic/claude-sonnet-4.6",
       personaCount: 10,
       sampleSeed: null,
-      filters: {},
+      filters: { regions: ["전남", "광주"] },
       pricingFingerprint: "pricing-v1",
     });
   });
@@ -130,7 +130,7 @@ describe("simulation setup", () => {
       filters: {
         genders: ["여성", "남성"],
         ageGroups: ["30대"],
-        regions: ["서울"],
+        regions: ["전남", "광주"],
         politicalIdeologies: ["중도"],
       },
     });
@@ -139,6 +139,7 @@ describe("simulation setup", () => {
       modelType: "anthropic/claude-sonnet-4.6",
       personaCount: 10,
       sampleSeed: null,
+      filters: { regions: ["전남", "광주"] },
     });
   });
 
@@ -151,6 +152,7 @@ describe("simulation setup", () => {
     );
 
     expect(html).toContain("페르소나 수");
+    expect(html).toContain("전남·광주 페르소나만 기준으로 계산");
     expect(html).not.toContain("가상 패널 수");
     expect(html).not.toContain("과업 단위 가상 패널 시뮬레이션");
     expect(html).not.toContain(
