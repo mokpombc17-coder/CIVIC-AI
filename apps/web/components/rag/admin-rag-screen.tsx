@@ -11,8 +11,9 @@ import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels"
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import type { RagQuery } from "./rag-functional-screen";
 import { ragScreenPrimaryActions } from "./rag-screen-actions";
-import { AdminRagCrawler } from "./admin-rag-crawler";
 import { AdminRagAnalytics } from "./admin-rag-analytics";
+import { AdminRagSynonyms } from "./admin-rag-synonyms";
+import { AdminRagSpreadsheetPreview } from "./admin-rag-spreadsheet-preview";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
 import { AuthenticatedResourceFrame } from "@/components/auth/authenticated-resource-frame";
@@ -39,6 +40,11 @@ export type DocumentVersion = Readonly<{
   page_count?: number | null;
   created_at?: string;
   activated_at?: string | null;
+  processing?: Readonly<{
+    status?: string | null;
+    progress?: number | null;
+    failure_code?: string | null;
+  }> | null;
 }>;
 
 export const MAX_RAG_UPLOAD_BYTES = 500 * 1024 * 1024;
@@ -89,12 +95,35 @@ const RAG_MEDIA_TYPES: Readonly<Record<string, string>> = {
   hwpx: "application/hwp+zip",
 };
 
+const RAG_DOCUMENT_MEDIA_TYPE_OPTIONS = [
+  ["application/pdf", "PDF"],
+  ["text/plain", "텍스트"],
+  ["text/markdown", "Markdown"],
+  ["text/csv", "CSV"],
+  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Excel(XLSX)"],
+  ["application/vnd.ms-excel", "Excel(XLS)"],
+  ["application/vnd.oasis.opendocument.spreadsheet", "ODS"],
+  ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Word(DOCX)"],
+  ["application/msword", "Word(DOC)"],
+  ["application/vnd.openxmlformats-officedocument.presentationml.presentation", "PowerPoint"],
+  ["application/vnd.ms-powerpoint", "PowerPoint(PPT)"],
+  ["application/x-hwp", "한글(HWP)"],
+  ["application/hwp+zip", "한글(HWPX)"],
+  ["image/png", "PNG 이미지"],
+  ["image/jpeg", "JPEG 이미지"],
+  ["image/gif", "GIF 이미지"],
+  ["image/bmp", "BMP 이미지"],
+  ["image/tiff", "TIFF 이미지"],
+  ["image/webp", "WebP 이미지"],
+] as const;
+
 export type RagDocument = Readonly<{
   document_id: string;
   folder_id: string;
   filename: string;
   created_by?: string;
   created_at?: string;
+  updated_at?: string;
   deleted: boolean;
   search_enabled?: boolean;
   active_version: DocumentVersion | null;
@@ -113,6 +142,10 @@ export type RagDocumentListQuery = Readonly<{
   pageSize: 10 | 25 | 50;
   query: string;
   status: "" | "PENDING" | "PROCESSING" | "ACTIVE" | "FAILED";
+  mediaType?: string;
+  createdBy?: string;
+  createdFrom?: string;
+  createdTo?: string;
   includeSubfolders: boolean;
   sort: "created_at" | "filename" | "source_bytes" | "page_count" | "version_number" | "status";
   direction: "asc" | "desc";
@@ -163,6 +196,10 @@ export function buildRagDocumentListPath(folderId: string, query: RagDocumentLis
   });
   if (query.query) parameters.set("query", query.query);
   if (query.status) parameters.set("status", query.status);
+  if (query.mediaType) parameters.set("media_type", query.mediaType);
+  if (query.createdBy) parameters.set("created_by", query.createdBy);
+  if (query.createdFrom) parameters.set("created_from", `${query.createdFrom}T00:00:00.000Z`);
+  if (query.createdTo) parameters.set("created_to", `${query.createdTo}T23:59:59.999Z`);
   parameters.set("sort", query.sort);
   parameters.set("direction", query.direction);
   return `/api/v1/rag/documents?${parameters.toString()}`;
@@ -357,7 +394,7 @@ export function AdminRagScreen({
           {screen.id === "A-RAG-001" ? (
             <>
               <AdminRagAnalytics />
-              <AdminRagCrawler folders={folders} />
+              <AdminRagSynonyms />
             </>
           ) : null}
           {message ? (
@@ -811,6 +848,10 @@ export function DocumentInspector({
             <dd>{formatAdminDate(document.created_at)}</dd>
           </div>
           <div>
+            <dt>수정일</dt>
+            <dd>{formatAdminDate(document.updated_at)}</dd>
+          </div>
+          <div>
             <dt>페이지</dt>
             <dd>{formatPageCount(version?.page_count)}</dd>
           </div>
@@ -828,7 +869,17 @@ export function DocumentInspector({
               {version?.status === "ACTIVE" || version?.status === "READY" ? "사용 가능" : "—"}
             </dd>
           </div>
+          <div>
+            <dt>현재 처리</dt>
+            <dd>{formatProcessingState(version?.processing)}</dd>
+          </div>
         </dl>
+        {version && isSpreadsheetMediaType(version.media_type) ? (
+          <AdminRagSpreadsheetPreview
+            documentId={document.document_id}
+            versionId={version.document_version_id}
+          />
+        ) : null}
         <p>원본은 읽기 전용으로 관리되며 삭제는 별도 확인 화면에서 수행합니다.</p>
         <div className="wf-inspector-actions">
           <Link
@@ -897,6 +948,10 @@ export function DocumentWorkspace({
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocumentStatusFilter>("ALL");
+  const [mediaTypeFilter, setMediaTypeFilter] = useState("");
+  const [createdByFilter, setCreatedByFilter] = useState("");
+  const [createdFromFilter, setCreatedFromFilter] = useState("");
+  const [createdToFilter, setCreatedToFilter] = useState("");
   const [includeSubfolders, setIncludeSubfolders] = useState(false);
   const [selection, setSelection] = useState<
     Readonly<{
@@ -917,6 +972,10 @@ export function DocumentWorkspace({
     pageState.pageSize,
     searchQuery,
     statusFilter,
+    mediaTypeFilter,
+    createdByFilter,
+    createdFromFilter,
+    createdToFilter,
     includeSubfolders,
     visibleDocumentIdsKey,
   ].join("\u0001");
@@ -987,6 +1046,62 @@ export function DocumentWorkspace({
             <option value="PROCESSING">처리 중</option>
             <option value="FAILED">실패</option>
           </select>
+        </label>
+        <label>
+          <span>문서 형식</span>
+          <select
+            onChange={(event) => {
+              setMediaTypeFilter(event.target.value);
+              onQueryChange?.({ mediaType: event.target.value, page: 1 });
+            }}
+            value={mediaTypeFilter}
+          >
+            <option value="">전체</option>
+            {RAG_DOCUMENT_MEDIA_TYPE_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>등록자</span>
+          <select
+            onChange={(event) => {
+              setCreatedByFilter(event.target.value);
+              onQueryChange?.({ createdBy: event.target.value, page: 1 });
+            }}
+            value={createdByFilter}
+          >
+            <option value="">전체</option>
+            {Array.from(creatorLabels.entries()).map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>등록 시작일</span>
+          <input
+            onChange={(event) => {
+              setCreatedFromFilter(event.target.value);
+              onQueryChange?.({ createdFrom: event.target.value, page: 1 });
+            }}
+            type="date"
+            value={createdFromFilter}
+          />
+        </label>
+        <label>
+          <span>등록 종료일</span>
+          <input
+            onChange={(event) => {
+              setCreatedToFilter(event.target.value);
+              onQueryChange?.({ createdTo: event.target.value, page: 1 });
+            }}
+            type="date"
+            value={createdToFilter}
+          />
         </label>
         <label className="civic-check-row">
           <input
@@ -1378,6 +1493,24 @@ export function formatAdminDate(value?: string): string {
     dateStyle: "medium",
     timeZone: "Asia/Seoul",
   }).format(date);
+}
+
+export function formatProcessingState(processing: DocumentVersion["processing"]): string {
+  if (!processing?.status) return "처리 내역 없음";
+  const progress =
+    typeof processing.progress === "number" && Number.isFinite(processing.progress)
+      ? ` · ${Math.max(0, Math.min(100, Math.round(processing.progress)))}%`
+      : "";
+  return `${documentStatusLabel(processing.status)}${progress}`;
+}
+
+function isSpreadsheetMediaType(mediaType: string): boolean {
+  return [
+    "text/csv",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+    "application/vnd.oasis.opendocument.spreadsheet",
+  ].includes(mediaType);
 }
 
 function mediaTypeLabel(value?: string): string {

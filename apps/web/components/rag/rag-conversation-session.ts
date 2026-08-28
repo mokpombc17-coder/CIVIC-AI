@@ -18,6 +18,7 @@ export type RagJob = Readonly<{
   submitted_question?: string;
   answer?: string;
   citations?: Citation[];
+  suggestions?: string[];
   failure_code?: string;
   feedback?: RagFeedbackValue;
 }>;
@@ -135,6 +136,13 @@ function isStoredRagJob(value: unknown): value is RagJob {
     value.feedback !== undefined &&
     value.feedback !== "HELPFUL" &&
     value.feedback !== "UNHELPFUL"
+  ) {
+    return false;
+  }
+  if (
+    value.suggestions !== undefined &&
+    (!Array.isArray(value.suggestions) ||
+      !value.suggestions.every((suggestion) => typeof suggestion === "string"))
   ) {
     return false;
   }
