@@ -84,4 +84,26 @@ describe("response framing headers", () => {
     expect(template).toContain('location ~ "^/api/v1/admin/tasks/');
     expect(template).toContain("location ~ ^/api/v1/admin/(simulations");
   });
+
+  it("keeps wireflow RAG traffic and direct RAG frames on the resource path", async () => {
+    const wireflowConfig = await readFile(
+      path.join(process.cwd(), "playwright.wireflow.config.ts"),
+      "utf8",
+    );
+    const template = await readFile(
+      path.join(process.cwd(), "deploy/nginx/next-webview.conf"),
+      "utf8",
+    );
+
+    expect(wireflowConfig).toContain("CIVIC_E2E_RAG_UPSTREAM: MOCK_API_URL");
+    expect(wireflowConfig).not.toContain("RAG_INTERNAL_URL: MOCK_API_URL");
+    expect(template).toContain("map $request_uri $rag_frame_options");
+    expect(template).toContain("map $request_uri $rag_frame_ancestors");
+    expect(template).toContain("add_header X-Frame-Options $rag_frame_options always;");
+    expect(template).toContain("add_header Content-Security-Policy $rag_frame_ancestors always;");
+    expect(template).toContain("proxy_hide_header X-Frame-Options;");
+    expect(template).toContain("proxy_hide_header Content-Security-Policy;");
+    expect(template).toContain("~^/api/v1/rag/ DENY;");
+    expect(template).toContain("~^/api/v1/rag/ \"frame-ancestors 'none'\";");
+  });
 });

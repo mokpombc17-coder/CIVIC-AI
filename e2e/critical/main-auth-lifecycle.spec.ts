@@ -116,14 +116,14 @@ test("회원가입은 계정 생성 전 2문항·연령·두 필수 동의를 �
   await page.getByLabel("비밀번호", { exact: true }).fill("Civic!234");
   await page.getByLabel("비밀번호 확인").fill("Civic!234");
   await page.getByLabel("만 14세 이상입니다").check();
-  await page.getByRole("button", { name: "개인정보·설문 입력" }).click();
+  await page.getByRole("button", { name: "다음으로" }).click();
 
-  await expect(page.getByRole("heading", { name: "개인정보·설문 입력" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "응답 설정" })).toBeVisible();
   await page.getByLabel("선호 언어").selectOption("ko");
-  await page.getByLabel("RAG 답변 상세도").selectOption("detailed");
-  await page.getByRole("button", { name: "필수 동의 단계로" }).click();
+  await page.getByLabel("AI 답변 상세도").selectOption("detailed");
+  await page.getByRole("button", { name: "다음으로" }).click();
 
-  await expect(page.getByRole("heading", { name: "필수 동의 및 가입 확인" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "필수 동의 항목" })).toBeVisible();
   await expect(page.getByRole("link", { name: "서비스 이용약관 전문 보기" })).toHaveAttribute(
     "href",
     "/legal/terms/1",
@@ -154,8 +154,8 @@ test("회원가입은 계정 생성 전 2문항·연령·두 필수 동의를 �
   );
   await privacyPopup.close();
   await page.getByLabel("이용약관에 동의합니다").check();
-  await page.getByLabel("계정·RAG 개인정보 처리에 동의합니다").check();
-  await page.getByRole("button", { name: "필수 동의 후 가입" }).click();
+  await page.getByLabel("계정·RAG 개인정보 수집·이용에 동의합니다").check();
+  await page.getByRole("button", { name: "가입하기" }).click();
 
   await expect(page.getByRole("heading", { name: "이메일 인증" })).toBeVisible();
 
@@ -177,7 +177,7 @@ test("회원가입은 계정 생성 전 2문항·연령·두 필수 동의를 �
   await page.getByRole("button", { name: "가입 이메일 인증" }).click();
   await expect(page.getByRole("heading", { name: "이메일 인증" })).toBeVisible();
   await page.getByRole("textbox", { name: "인증 코드" }).fill("123456");
-  await page.getByRole("button", { name: "인증 완료" }).click();
+  await page.getByRole("button", { name: "인증하기" }).click();
   await expect(page).toHaveURL(/\/login$/u);
 });
 
@@ -191,7 +191,7 @@ test("2FA 로그인은 auth-flow cookie로 코드 확인 후 관리자 홈으로
   await page.reload();
   await expect(page.getByRole("heading", { name: "이메일 인증" })).toBeVisible();
   await page.getByRole("textbox", { name: "인증 코드" }).fill("654321");
-  await page.getByRole("button", { name: "인증 완료" }).click();
+  await page.getByRole("button", { name: "인증하기" }).click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
   await expectAuthCookies(page);
@@ -213,15 +213,15 @@ test("후속 가입 단계를 새로 열어 흐름 메타데이터가 없으면 
   await page.goto("/signup/consent");
 
   await expect(page).toHaveURL(/\/signup\/account$/);
-  await expect(page.getByRole("heading", { name: "계정 정보" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "필수 입력" })).toBeVisible();
 });
 
 test("비밀번호 재설정은 새 비밀번호 확인까지 일치해야 완료한다", async ({ page }) => {
   await page.goto("/password-reset");
-  await page.getByLabel("가입 이메일").fill("citizen@example.com");
+  await page.getByLabel("등록 이메일").fill("citizen@example.com");
   await page.getByRole("button", { name: "재설정 이메일 보내기" }).click();
 
-  await expect(page.getByRole("heading", { name: "새 비밀번호 설정" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "인증코드 입력" })).toBeVisible();
   await page.getByRole("textbox", { name: "인증 코드" }).fill("111222");
   await page.getByLabel("새 비밀번호", { exact: true }).fill("NewCivic!234");
   await page.getByLabel("새 비밀번호 확인").fill("NewCivic!234");
@@ -232,15 +232,15 @@ test("비밀번호 재설정은 새 비밀번호 확인까지 일치해야 완�
 test("재활성화는 비밀번호와 등록 이메일 코드를 모두 확인한다", async ({ page }) => {
   lastReactivationRequest = null;
   await page.goto("/reactivate");
-  await page.getByLabel("가입 이메일").fill("inactive@example.com");
-  await page.getByLabel("현재 비밀번호").fill("Civic!234");
+  await page.getByLabel("이메일").fill("inactive@example.com");
+  await page.getByLabel("비밀번호 확인").fill("Civic!234");
   await Promise.all([
     page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/v1/auth/reactivation/request",
     ),
-    page.getByRole("button", { name: "재활성화 계속" }).click(),
+    page.getByRole("button", { name: "인증 코드 받기" }).click(),
   ]);
 
   await expect(page.getByRole("heading", { name: "계정 재활성화" })).toBeVisible();

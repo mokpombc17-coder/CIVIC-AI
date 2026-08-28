@@ -123,6 +123,18 @@ type RagSessionApi = Readonly<{
 const ragSessionApi = participantRagSession as unknown as RagSessionApi;
 
 describe("9 functional RAG screens", () => {
+  it("참여자 RAG 대화 목록은 보조기기가 새 메시지 흐름으로 인식한다", () => {
+    const screen = ragScreens.find((candidate) => candidate.id === "U-RAG-001");
+    expect(screen).toBeDefined();
+
+    const html = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, { screen: screen!, userId: "participant-1" }),
+    );
+
+    expect(html).toContain('role="log"');
+    expect(html).toContain('aria-label="현재 RAG 대화"');
+  });
+
   it("같은 사용자의 탭 대화는 질문·답변·인용과 RAG 세션을 복원한다", () => {
     const storage = memoryStorage();
     const snapshot = {
