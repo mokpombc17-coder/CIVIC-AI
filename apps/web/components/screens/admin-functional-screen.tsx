@@ -480,10 +480,12 @@ export function readRagJobSummary(
   return { status: "ready", failed, active: record.active, counts, recentFailures };
 }
 
-function ragFailureLabel(code: string): string {
+export function ragFailureLabel(code: string): string {
   return (
     {
       PROCESSING_FAILED: "변환 또는 색인에 실패했습니다.",
+      DOCUMENT_READ_FAILED: "문서를 읽을 수 없습니다. 암호화 또는 손상 여부를 확인해 주세요.",
+      PAGE_INDEX_OUTLINE_FAILED: "문서 구조 분석에 실패했습니다. 다시 시도해 주세요.",
       OBJECT_CLEANUP_FAILED: "임시 파일 정리가 필요합니다.",
       DOCUMENT_DELETED: "삭제된 문서의 작업입니다.",
     }[code] ?? "처리 상태를 확인하고 다시 시도하세요."
