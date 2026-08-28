@@ -7,12 +7,14 @@ import com.hamcheeze.chat.room.query.model.ListedRoomView;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public record ListedRoomResponse(
         String roomId,
         String name,
         String description,
         List<String> categoryIds,
+        List<RoomCategorySummaryResponse> categorySummaries,
         String ownerMembershipId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -22,12 +24,19 @@ public record ListedRoomResponse(
         long version
 ) {
 
-    public static ListedRoomResponse from(ListedRoomView view) {
+    public static ListedRoomResponse from(
+            ListedRoomView view,
+            Map<String, RoomCategorySummaryResponse>
+                    categorySummariesById
+    ) {
         return new ListedRoomResponse(
                 view.roomId(),
                 view.name(),
                 view.description(),
                 view.categoryIds(),
+                RoomCategorySummaryResponse.resolve(
+                        view.categoryIds(),
+                        categorySummariesById),
                 view.ownerMembershipId(),
                 view.status(),
                 view.visibility(),

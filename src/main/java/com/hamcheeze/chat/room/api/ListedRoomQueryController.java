@@ -2,6 +2,8 @@ package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.api.dto.CursorPageResponse;
 import com.hamcheeze.chat.room.api.dto.ListedRoomResponse;
+import com.hamcheeze.chat.room.api.dto.RoomCategorySummaryResponse;
+import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.query.CursorPage;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCriteria;
 import com.hamcheeze.chat.room.query.ListedRoomQueryService;
@@ -20,13 +22,16 @@ public class ListedRoomQueryController {
 
     private final ListedRoomQueryService queryService;
     private final ListedRoomQueryCriteriaResolver criteriaResolver;
+    private final RoomCategoryService categoryService;
 
     public ListedRoomQueryController(
             ListedRoomQueryService queryService,
-            ListedRoomQueryCriteriaResolver criteriaResolver
+            ListedRoomQueryCriteriaResolver criteriaResolver,
+            RoomCategoryService categoryService
     ) {
         this.queryService = queryService;
         this.criteriaResolver = criteriaResolver;
+        this.categoryService = categoryService;
     }
 
     @GetMapping
@@ -43,11 +48,16 @@ public class ListedRoomQueryController {
                         criteria,
                         cursor,
                         RoomApiValidation.limit(limit));
+        var categorySummariesById =
+                RoomCategorySummaryResponse.index(
+                        categoryService.findAll());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(new CursorPageResponse<>(
                         page.items().stream()
-                                .map(ListedRoomResponse::from)
+                                .map(item -> ListedRoomResponse.from(
+                                        item,
+                                        categorySummariesById))
                                 .toList(),
                         page.nextCursor(),
                         page.hasNext()));

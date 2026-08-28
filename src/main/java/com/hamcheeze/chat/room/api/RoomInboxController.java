@@ -1,7 +1,9 @@
 package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.api.dto.CursorPageResponse;
+import com.hamcheeze.chat.room.api.dto.RoomCategorySummaryResponse;
 import com.hamcheeze.chat.room.api.dto.RoomInboxResponse;
+import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.inbox.RoomInboxService;
 import com.hamcheeze.chat.room.inbox.model.RoomInboxView;
 import com.hamcheeze.chat.room.query.CursorPage;
@@ -23,13 +25,16 @@ public class RoomInboxController {
 
     private final RoomInboxService service;
     private final AuthenticatedUserIdResolver userIdResolver;
+    private final RoomCategoryService categoryService;
 
     public RoomInboxController(
             RoomInboxService service,
-            AuthenticatedUserIdResolver userIdResolver
+            AuthenticatedUserIdResolver userIdResolver,
+            RoomCategoryService categoryService
     ) {
         this.service = service;
         this.userIdResolver = userIdResolver;
+        this.categoryService = categoryService;
     }
 
     @GetMapping("/room-inbox")
@@ -42,11 +47,16 @@ public class RoomInboxController {
                 userIdResolver.resolve(authentication),
                 cursor,
                 limit(limit));
+        var categorySummariesById =
+                RoomCategorySummaryResponse.index(
+                        categoryService.findAll());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(new CursorPageResponse<>(
                         page.items().stream()
-                                .map(RoomInboxResponse::from)
+                                .map(item -> RoomInboxResponse.from(
+                                        item,
+                                        categorySummariesById))
                                 .toList(),
                         page.nextCursor(),
                         page.hasNext()));

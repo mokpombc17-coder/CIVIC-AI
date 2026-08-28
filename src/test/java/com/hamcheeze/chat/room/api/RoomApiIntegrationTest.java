@@ -234,7 +234,12 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.myMembership.userId")
                         .doesNotExist())
                 .andExpect(jsonPath("$.categoryIds[0]")
-                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID));
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath(
+                        "$.categorySummaries[0].categoryId")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath("$.categorySummaries[0].name")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_NAME));
         mockMvc.perform(get("/api/v1/me/rooms")
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("owner-settings"))))
@@ -258,7 +263,13 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.items[0].ownerUserId")
                         .doesNotExist())
                 .andExpect(jsonPath("$.items[0].categoryIds[0]")
-                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID));
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].categoryId")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].name")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_NAME));
         MvcResult inboxBeforeUpdate = mockMvc.perform(
                         get("/api/v1/me/room-inbox")
                                 .with(jwt().jwt(jwt -> jwt.subject(
@@ -270,6 +281,12 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .doesNotExist())
                 .andExpect(jsonPath("$.items[0].categoryIds[0]")
                         .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].categoryId")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].name")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_NAME))
                 .andReturn();
         String lastActivityBeforeUpdate = jsonString(
                 inboxBeforeUpdate,

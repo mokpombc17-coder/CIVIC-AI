@@ -8,12 +8,14 @@ import com.hamcheeze.chat.room.query.model.RoomDetailView;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public record RoomDetailResponse(
         String roomId,
         String name,
         String description,
         List<String> categoryIds,
+        List<RoomCategorySummaryResponse> categorySummaries,
         String ownerMembershipId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -26,12 +28,19 @@ public record RoomDetailResponse(
         MembershipResponse myMembership
 ) {
 
-    public static RoomDetailResponse from(RoomDetailView view) {
+    public static RoomDetailResponse from(
+            RoomDetailView view,
+            Map<String, RoomCategorySummaryResponse>
+                    categorySummariesById
+    ) {
         return new RoomDetailResponse(
                 view.roomId(),
                 view.name(),
                 view.description(),
                 view.categoryIds(),
+                RoomCategorySummaryResponse.resolve(
+                        view.categoryIds(),
+                        categorySummariesById),
                 view.ownerMembershipId(),
                 view.status(),
                 view.visibility(),

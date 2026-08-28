@@ -11,6 +11,7 @@ import com.hamcheeze.chat.room.inbox.summary.RoomInboxLastMessage;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,6 +19,15 @@ class RoomInboxResponseTest {
 
     private static final Instant CREATED_AT =
             Instant.parse("2026-08-04T08:30:00Z");
+    private static final String POLICY_CATEGORY_ID =
+            com.hamcheeze.chat.room.category.RoomCategoryDefaults
+                    .POLICY_CATEGORY_ID;
+    private static final Map<String, RoomCategorySummaryResponse>
+            CATEGORY_SUMMARIES = Map.of(
+                    POLICY_CATEGORY_ID,
+                    new RoomCategorySummaryResponse(
+                            POLICY_CATEGORY_ID,
+                            "정책"));
 
     @Test
     void mapsActiveDeletedAndMissingLastMessageShapes() {
@@ -30,12 +40,15 @@ class RoomInboxResponseTest {
                 null, false, CREATED_AT);
 
         RoomInboxResponse activeResponse = RoomInboxResponse.from(
-                view(active, CREATED_AT));
+                view(active, CREATED_AT),
+                CATEGORY_SUMMARIES);
         RoomInboxResponse deletedResponse = RoomInboxResponse.from(
-                view(deleted, CREATED_AT));
+                view(deleted, CREATED_AT),
+                CATEGORY_SUMMARIES);
         Instant joinedAt = CREATED_AT.minusSeconds(10);
         RoomInboxResponse missingResponse = RoomInboxResponse.from(
-                view(null, joinedAt));
+                view(null, joinedAt),
+                CATEGORY_SUMMARIES);
 
         assertThat(activeResponse.lastMessage().state())
                 .isEqualTo(MessageState.ACTIVE);
@@ -44,8 +57,11 @@ class RoomInboxResponseTest {
         assertThat(activeResponse.lastMessage().messageVersion())
                 .isEqualTo(2);
         assertThat(activeResponse.categoryIds())
-                .containsExactly(com.hamcheeze.chat.room.category
-                        .RoomCategoryDefaults.POLICY_CATEGORY_ID);
+                .containsExactly(POLICY_CATEGORY_ID);
+        assertThat(activeResponse.categorySummaries())
+                .containsExactly(new RoomCategorySummaryResponse(
+                        POLICY_CATEGORY_ID,
+                        "정책"));
         assertThat(activeResponse.ownerMembershipId())
                 .isEqualTo("membership-owner");
         assertThat(deletedResponse.lastMessage().state())
@@ -65,8 +81,7 @@ class RoomInboxResponseTest {
                 "room-1",
                 "Room",
                 "description",
-                java.util.List.of(com.hamcheeze.chat.room.category
-                        .RoomCategoryDefaults.POLICY_CATEGORY_ID),
+                java.util.List.of(POLICY_CATEGORY_ID),
                 "membership-owner",
                 "owner-1",
                 RoomStatus.ACTIVE,

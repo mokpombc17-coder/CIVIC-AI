@@ -9,12 +9,14 @@ import com.hamcheeze.chat.room.inbox.model.RoomInboxView;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public record RoomInboxResponse(
         String roomId,
         String name,
         String description,
         List<String> categoryIds,
+        List<RoomCategorySummaryResponse> categorySummaries,
         String ownerMembershipId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -33,12 +35,19 @@ public record RoomInboxResponse(
         RoomInboxLastMessageResponse lastMessage,
         Instant lastActivityAt
 ) {
-    public static RoomInboxResponse from(RoomInboxView view) {
+    public static RoomInboxResponse from(
+            RoomInboxView view,
+            Map<String, RoomCategorySummaryResponse>
+                    categorySummariesById
+    ) {
         return new RoomInboxResponse(
                 view.roomId(),
                 view.name(),
                 view.description(),
                 view.categoryIds(),
+                RoomCategorySummaryResponse.resolve(
+                        view.categoryIds(),
+                        categorySummariesById),
                 view.ownerMembershipId(),
                 view.status(),
                 view.visibility(),

@@ -261,7 +261,9 @@ GET /api/v1/admin/room-categories
 ```
 
 목록 순서는 API 계약이 아니다. 프론트는 `name`을 기준으로 정렬해 표시한다.
-Room 응답의 `categoryIds`와 이 목록을 조인하여 최신 표시 이름을 구한다.
+공개 방 목록, Room inbox, 방 상세는 `categoryIds`와 함께 표시용
+`categorySummaries`를 제공한다. 이 목록 API는 카테고리 필터 선택지와 그 밖의
+ID-to-name 조인이 필요한 화면에서 사용한다.
 
 ### 카테고리 생성·수정·삭제
 
@@ -931,6 +933,12 @@ Room 계약에는 이를 노출하지 않는다.
       "name": "시민 AI 토론방",
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
       "categoryIds": ["00000000-0000-0000-0000-000000000001"],
+      "categorySummaries": [
+        {
+          "categoryId": "00000000-0000-0000-0000-000000000001",
+          "name": "정책"
+        }
+      ],
       "ownerMembershipId": "membership-01",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -944,6 +952,10 @@ Room 계약에는 이를 노출하지 않는다.
   "hasNext": false
 }
 ```
+
+`categorySummaries`는 `categoryIds`와 정확히 같은 ID 집합을 가지며 `name`은
+응답 생성 시점의 최신 카테고리 이름이다. 배열 순서는 표시 순서 계약이 아니므로
+필요하면 프론트에서 `name` 기준으로 정렬한다.
 
 `hasNext`가 `true`이면 동일한 검색·필터 조건과 함께 다음 요청의 `cursor`에
 `nextCursor`를 전달한다. 정렬은 검색 관련도가 아니라 기존 `roomId ASC`를
@@ -964,6 +976,12 @@ GET /api/v1/rooms/{roomId}
   "name": "시민 AI 토론방",
   "description": "AI 정책과 시민 참여 방식을 논의합니다.",
   "categoryIds": ["00000000-0000-0000-0000-000000000001"],
+  "categorySummaries": [
+    {
+      "categoryId": "00000000-0000-0000-0000-000000000001",
+      "name": "정책"
+    }
+  ],
   "ownerMembershipId": "membership-01",
   "status": "ACTIVE",
   "visibility": "LISTED",
@@ -2643,6 +2661,12 @@ Summary last message는
 ```json
 {
   "categoryIds": ["00000000-0000-0000-0000-000000000001"],
+  "categorySummaries": [
+    {
+      "categoryId": "00000000-0000-0000-0000-000000000001",
+      "name": "정책"
+    }
+  ],
   "ownerMembershipId": "membership-01",
   "readThroughSequence": 123,
   "unreadCount": 200,

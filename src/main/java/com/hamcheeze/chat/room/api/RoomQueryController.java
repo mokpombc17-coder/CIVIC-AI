@@ -4,8 +4,10 @@ import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.api.dto.ActiveRoomResponse;
 import com.hamcheeze.chat.room.api.dto.CursorPageResponse;
 import com.hamcheeze.chat.room.api.dto.MembershipResponse;
+import com.hamcheeze.chat.room.api.dto.RoomCategorySummaryResponse;
 import com.hamcheeze.chat.room.api.dto.RoomDetailResponse;
 import com.hamcheeze.chat.room.api.dto.RoomMemberResponse;
+import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.query.CursorPage;
 import com.hamcheeze.chat.room.query.RoomQueryService;
 import com.hamcheeze.chat.room.query.model.ActiveRoomView;
@@ -25,13 +27,16 @@ public class RoomQueryController {
 
     private final RoomQueryService queryService;
     private final AuthenticatedUserIdResolver userIdResolver;
+    private final RoomCategoryService categoryService;
 
     public RoomQueryController(
             RoomQueryService queryService,
-            AuthenticatedUserIdResolver userIdResolver
+            AuthenticatedUserIdResolver userIdResolver,
+            RoomCategoryService categoryService
     ) {
         this.queryService = queryService;
         this.userIdResolver = userIdResolver;
+        this.categoryService = categoryService;
     }
 
     @GetMapping("/rooms/{roomId}")
@@ -39,10 +44,15 @@ public class RoomQueryController {
             Authentication authentication,
             @PathVariable String roomId
     ) {
+        var view = queryService.roomDetail(
+                userIdResolver.resolve(authentication),
+                RoomApiValidation.roomId(roomId));
+        var categorySummariesById =
+                RoomCategorySummaryResponse.index(
+                        categoryService.findAll());
         return noStore(RoomDetailResponse.from(
-                queryService.roomDetail(
-                        userIdResolver.resolve(authentication),
-                        RoomApiValidation.roomId(roomId))));
+                view,
+                categorySummariesById));
     }
 
     @GetMapping("/rooms/{roomId}/memberships/me")

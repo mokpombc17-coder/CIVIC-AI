@@ -5,7 +5,9 @@ import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.LegacyRoomCategoryMapping;
 import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
+import com.hamcheeze.chat.room.category.persistence.RoomCategoryStore;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,8 @@ class ListedRoomApiIntegrationTest
     private MockMvc mockMvc;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private RoomCategoryStore categoryStore;
 
     @Test
     void listsOnlyActiveListedRoomsWithCursor()
@@ -101,6 +105,12 @@ class ListedRoomApiIntegrationTest
                         .value("Description room-a"))
                 .andExpect(jsonPath("$.items[0].categoryIds[0]")
                         .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].categoryId")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].name")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_NAME))
                 .andExpect(jsonPath("$.items[0].status")
                         .value("ACTIVE"))
                 .andExpect(jsonPath("$.items[0].visibility")
@@ -124,6 +134,39 @@ class ListedRoomApiIntegrationTest
                         .value("INVITE_ONLY"))
                 .andExpect(jsonPath("$.nextCursor").doesNotExist())
                 .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void returnsTheLatestCategoryNameWithTheStableCategoryId()
+            throws Exception {
+        String categoryId = "category-latest-name";
+        insertWithCategoryIds(
+                "room-latest-category-name",
+                "Latest category name",
+                List.of(categoryId),
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN);
+        var current = categoryStore.findById(categoryId)
+                .orElseThrow();
+        var renamed = current.rename(
+                "최신 카테고리 이름",
+                CREATED_AT.plusSeconds(1));
+        assertThat(categoryStore.replaceIfVersionMatches(
+                renamed,
+                current.version())).isTrue();
+
+        mockMvc.perform(get("/api/v1/rooms")
+                        .with(jwt(ChatScopes.ROOMS_READ)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].categoryIds[0]")
+                        .value(categoryId))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].categoryId")
+                        .value(categoryId))
+                .andExpect(jsonPath(
+                        "$.items[0].categorySummaries[0].name")
+                        .value("최신 카테고리 이름"));
     }
 
     @Test
@@ -453,6 +496,8 @@ class ListedRoomApiIntegrationTest
             RoomVisibility visibility,
             JoinPolicy joinPolicy
     ) {
+        ensureCategoryIds(LegacyRoomCategoryMapping.categoryIds(
+                List.of(category)));
         roomStore.insert(Room.restore(
                 roomId,
                 name,
@@ -480,6 +525,7 @@ class ListedRoomApiIntegrationTest
             RoomVisibility visibility,
             JoinPolicy joinPolicy
     ) {
+        ensureCategoryIds(categoryIds);
         roomStore.insert(Room.restoreWithCategoryIds(
                 roomId,
                 name,
@@ -499,6 +545,34 @@ class ListedRoomApiIntegrationTest
                         ? CREATED_AT.plusSeconds(60)
                         : null,
                 0));
+    }
+
+    private void ensureCategoryIds(List<String> categoryIds) {
+        for (String categoryId : categoryIds) {
+            if (categoryStore.findById(categoryId).isEmpty()) {
+                categoryStore.insert(
+                        com.hamcheeze.chat.room.category.RoomCategory
+                                .create(
+                                        categoryId,
+                                        categoryName(categoryId),
+                                        CREATED_AT));
+            }
+        }
+    }
+
+    private String categoryName(String categoryId) {
+        if (RoomCategoryDefaults.POLICY_CATEGORY_ID.equals(categoryId)) {
+            return RoomCategoryDefaults.POLICY_CATEGORY_NAME;
+        }
+        if (RoomCategoryDefaults.ENVIRONMENT_CATEGORY_ID.equals(
+                categoryId)) {
+            return RoomCategoryDefaults.ENVIRONMENT_CATEGORY_NAME;
+        }
+        if (RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID.equals(
+                categoryId)) {
+            return RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_NAME;
+        }
+        return "Category " + categoryId;
     }
 
     private JwtRequestPostProcessor jwt(String scope) {
