@@ -3729,3 +3729,98 @@ body:has([data-wireflow-shell]) {
 .civic-platform-participant-body > [data-wireflow-screen^="U-RAG"] {
   flex: 1;
 }
+
+/* ── RAG 관리자: 파일 타입 타일·폴더 아이콘 ─────────────────── */
+.civic-file-tile {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 1px solid #d4dae1;
+  border-radius: 8px;
+  background: #eef1f5;
+  color: #46525e;
+  place-items: center;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.civic-file-tile[data-kind="pdf"] {
+  border-color: #f2c4bd;
+  background: #fdedea;
+  color: #b3402e;
+}
+
+.civic-file-tile[data-kind="sheet"] {
+  border-color: #bfe3cd;
+  background: #e9f6ee;
+  color: #1e7a45;
+}
+
+.civic-file-tile[data-kind="image"] {
+  border-color: #dccbf5;
+  background: #f4eefd;
+  color: #6d3fc0;
+}
+
+.civic-file-tile[data-kind="slide"] {
+  border-color: #f2d5b8;
+  background: #fdf3e7;
+  color: #b05c1a;
+}
+
+.civic-file-tile[data-kind="doc"] {
+  border-color: #bcd6fb;
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+}
+
+.civic-doc-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.civic-doc-cell-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.civic-doc-cell-copy strong {
+  overflow-wrap: anywhere;
+}
+
+/* 폴더 트리 아이콘·chevron */
+.civic-folder-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--wf-blue-dark);
+}
+
+[data-wireflow-screen^="A-RAG"]
+  .civic-folder-tree
+  li
+  button[aria-current="true"]
+  .civic-folder-icon {
+  color: #fff;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree li button {
+  justify-content: flex-start;
+  gap: 9px;
+  text-align: left;
+}
+
+.civic-tree-chevron {
+  width: 15px;
+  height: 15px;
+  color: var(--wf-muted);
+  transition: transform 0.15s ease;
+}
+
+.civic-folder-expander[aria-expanded="true"] .civic-tree-chevron {
+  transform: rotate(90deg);
+}

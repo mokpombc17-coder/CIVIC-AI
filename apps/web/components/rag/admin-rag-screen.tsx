@@ -6,6 +6,7 @@ import { sha256 as createSha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { RagFileTile, RagFolderIcon, RagTreeChevron } from "./rag-file-icons";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import type { RagQuery } from "./rag-functional-screen";
@@ -684,7 +685,7 @@ export function FolderTree({
                 }
                 type="button"
               >
-                {collapsed.has(folder.folder_id) ? "›" : "⌄"}
+                <RagTreeChevron />
               </button>
             ) : (
               <span aria-hidden="true" className="civic-folder-expander-placeholder" />
@@ -694,7 +695,7 @@ export function FolderTree({
               onClick={() => onSelect(folder.folder_id)}
               type="button"
             >
-              <span aria-hidden="true">{folder.kind === "ROOT" ? "◆" : "◇"}</span>
+              <RagFolderIcon root={folder.kind === "ROOT"} />
               <span>
                 <strong>{folder.name}</strong>
                 <small>{(folder.path ?? [folder.name]).join(" / ")}</small>
@@ -1268,11 +1269,16 @@ function DocumentRow({
         />
       </td>
       <td>
-        <strong>{filename}</strong>
-        <small>
-          {mediaTypeLabel(selectedVersion?.media_type)} ·{" "}
-          {formatFileSize(selectedVersion?.source_bytes)}
-        </small>
+        <span className="civic-doc-cell">
+          <RagFileTile filename={filename} mediaType={selectedVersion?.media_type} />
+          <span className="civic-doc-cell-copy">
+            <strong>{filename}</strong>
+            <small>
+              {mediaTypeLabel(selectedVersion?.media_type)} ·{" "}
+              {formatFileSize(selectedVersion?.source_bytes)}
+            </small>
+          </span>
+        </span>
       </td>
       <td>{creatorLabel}</td>
       <td>{formatAdminDate(document.created_at)}</td>
@@ -1782,7 +1788,10 @@ function UploadPanel({
       <ul className="civic-upload-queue">
         {files.map((file) => (
           <li key={`${file.name}-${file.size}`}>
-            <strong>{file.name}</strong>
+            <span className="civic-doc-cell">
+              <RagFileTile filename={file.name} />
+              <strong>{file.name}</strong>
+            </span>
             <span>
               {formatFileSize(file.size)} · {uploadProgress.get(file) ?? "전송 대기"}
             </span>
@@ -1793,7 +1802,10 @@ function UploadPanel({
         <ul aria-label="접수된 문서 처리 작업" className="civic-upload-queue">
           {acceptedJobs.map((job) => (
             <li key={job.jobId}>
-              <strong>{job.filename}</strong>
+              <span className="civic-doc-cell">
+                <RagFileTile filename={job.filename} />
+                <strong>{job.filename}</strong>
+              </span>
               <Link
                 href={ragJobHref(
                   job.jobId,
