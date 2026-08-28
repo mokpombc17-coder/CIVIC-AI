@@ -43,8 +43,12 @@ CIVIC_BROWSER_ORIGIN=http://localhost:3000
 MAIN_AUTH_INTERNAL_URL=http://localhost:8080
 CHAT_INTERNAL_URL=http://localhost:8082
 VOTE_INTERNAL_URL=http://localhost:8083
+CIVIC_DEV_RAG_UPSTREAM=http://127.0.0.1:8000
+CIVIC_DEV_SIMULATION_UPSTREAM=http://127.0.0.1:8090
 ```
 
+`CIVIC_DEV_*_UPSTREAM`은 `pnpm dev:web`에서만 loopback 리소스 서버를 same-origin 경로로 연결한다.
+production Next.js에서는 무시되며, 운영 트래픽은 nginx가 각 Resource Server로 직접 전달한다.
 브라우저에는 내부 서비스 URL이나 비밀 키를 노출하지 않는다. 외부 OAuth 로그인은 사용하지 않는다.
 
 ## 실행과 검증

@@ -65,4 +65,23 @@ describe("response framing headers", () => {
     expect(template).not.toContain("includeSubDomains");
     expect(template).not.toContain("preload");
   });
+
+  it("routes RAG and Simulation paths directly at the HTTPS edge", async () => {
+    const template = await readFile(
+      path.join(process.cwd(), "deploy/nginx/next-webview.conf"),
+      "utf8",
+    );
+
+    expect(template).toContain("upstream rag_resource");
+    expect(template).toContain("server 127.0.0.1:8000;");
+    expect(template).toContain("upstream simulation_resource");
+    expect(template).toContain("server 127.0.0.1:8090;");
+    expect(template).toContain("location ^~ /api/v1/rag/");
+    expect(template).toContain("/internal/v1/rag/$1");
+    expect(template).toContain('location ~ "^/stream/rag/queries/');
+    expect(template).toContain("location /stream/rag/queries/");
+    expect(template).not.toContain("location ^~ /stream/rag/queries/");
+    expect(template).toContain('location ~ "^/api/v1/admin/tasks/');
+    expect(template).toContain("location ~ ^/api/v1/admin/(simulations");
+  });
 });

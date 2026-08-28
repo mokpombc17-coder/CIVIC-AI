@@ -5,6 +5,24 @@ import type { NextConfig } from "next";
 
 const appDirectory = fileURLToPath(new URL("./app", import.meta.url));
 
+function loopbackOrigin(rawValue: string | undefined, variableName: string): string | undefined {
+  const rawOrigin = rawValue?.trim();
+  if (!rawOrigin) return undefined;
+  const origin = new URL(rawOrigin);
+  if (
+    origin.protocol !== "http:" ||
+    !["127.0.0.1", "localhost", "::1"].includes(origin.hostname) ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash ||
+    origin.username ||
+    origin.password
+  ) {
+    throw new Error(`${variableName} must be a loopback HTTP origin`);
+  }
+  return origin.origin;
+}
+
 export function validateDirectResourceRouteOwnership(routePaths: readonly string[]): void {
   const forbidden = routePaths.filter(
     (routePath) =>
@@ -54,29 +72,49 @@ const nextConfig: NextConfig = {
   },
 
   async rewrites() {
-    const rawUpstream = process.env.CIVIC_E2E_RAG_UPSTREAM?.trim();
-    if (!rawUpstream) return [];
-    const upstream = new URL(rawUpstream);
-    if (
-      upstream.protocol !== "http:" ||
-      !["127.0.0.1", "localhost", "::1"].includes(upstream.hostname) ||
-      upstream.pathname !== "/" ||
-      upstream.search ||
-      upstream.hash ||
-      upstream.username ||
-      upstream.password
-    ) {
-      throw new Error("CIVIC_E2E_RAG_UPSTREAM must be a loopback HTTP origin");
-    }
+    const development = process.env.NODE_ENV !== "production";
+    const e2eRagOrigin = loopbackOrigin(
+      process.env.CIVIC_E2E_RAG_UPSTREAM,
+      "CIVIC_E2E_RAG_UPSTREAM",
+    );
+    const ragOrigin =
+      e2eRagOrigin ??
+      (development
+        ? loopbackOrigin(process.env.CIVIC_DEV_RAG_UPSTREAM, "CIVIC_DEV_RAG_UPSTREAM")
+        : undefined);
+    const simulationOrigin = development
+      ? loopbackOrigin(process.env.CIVIC_DEV_SIMULATION_UPSTREAM, "CIVIC_DEV_SIMULATION_UPSTREAM")
+      : undefined;
     return [
-      {
-        source: "/api/v1/rag/:path*",
-        destination: `${upstream.origin}/internal/v1/rag/:path*`,
-      },
-      {
-        source: "/stream/rag/queries/:jobId",
-        destination: `${upstream.origin}/internal/v1/rag/queries/:jobId/events`,
-      },
+      ...(ragOrigin
+        ? [
+            {
+              source: "/api/v1/rag/:path*",
+              destination: `${ragOrigin}/internal/v1/rag/:path*`,
+            },
+            {
+              source: "/stream/rag/queries/:jobId",
+              destination: `${ragOrigin}/internal/v1/rag/queries/:jobId/events`,
+            },
+          ]
+        : []),
+      ...(simulationOrigin
+        ? [
+            {
+              source: "/api/v1/admin/simulations/:path*",
+              destination: `${simulationOrigin}/api/v1/admin/simulations/:path*`,
+            },
+            ...[
+              "simulation-options",
+              "simulation-capacity",
+              "simulation-tasks/:path*",
+              "simulation-billing/:path*",
+            ].map((path) => ({
+              source: `/api/v1/admin/${path}`,
+              destination: `${simulationOrigin}/api/v1/admin/${path}`,
+            })),
+          ]
+        : []),
     ];
   },
 
