@@ -5,6 +5,7 @@ import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -98,8 +99,8 @@ class ListedRoomApiIntegrationTest
                         .doesNotExist())
                 .andExpect(jsonPath("$.items[0].description")
                         .value("Description room-a"))
-                .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("POLICY"))
+                .andExpect(jsonPath("$.items[0].categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
                 .andExpect(jsonPath("$.items[0].status")
                         .value("ACTIVE"))
                 .andExpect(jsonPath("$.items[0].visibility")
@@ -148,17 +149,18 @@ class ListedRoomApiIntegrationTest
     @Test
     void filtersByCanonicalNameCategoryAndJoinPolicy()
             throws Exception {
-        insert(
+        String customCategoryId = "custom-transit-category";
+        insertWithCategoryIds(
                 "filter-a",
                 "Policy Transit Forum",
-                RoomCategory.LOCAL_ISSUE,
+                List.of(customCategoryId),
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN);
-        insert(
+        insertWithCategoryIds(
                 "filter-b",
                 "Policy Transit Invite",
-                RoomCategory.LOCAL_ISSUE,
+                List.of(customCategoryId),
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
                 JoinPolicy.INVITE_ONLY);
@@ -169,10 +171,10 @@ class ListedRoomApiIntegrationTest
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN);
-        insert(
+        insertWithCategoryIds(
                 "filter-d",
                 "Transit Only",
-                RoomCategory.LOCAL_ISSUE,
+                List.of(customCategoryId),
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN);
@@ -180,7 +182,9 @@ class ListedRoomApiIntegrationTest
         mockMvc.perform(get("/api/v1/rooms")
                         .with(jwt(ChatScopes.ROOMS_READ))
                         .queryParam("query", "  POLICY  ")
-                        .queryParam("category", "LOCAL_ISSUE")
+                        .queryParam(
+                                "categoryId",
+                                customCategoryId)
                         .queryParam("joinPolicy", "OPEN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
@@ -226,26 +230,30 @@ class ListedRoomApiIntegrationTest
                 "query", "matrix needle");
         assertRooms(
                 List.of("matrix-a", "matrix-b", "matrix-d"),
-                "category", "LOCAL_ISSUE");
+                "categoryId",
+                RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID);
         assertRooms(
                 List.of("matrix-a", "matrix-c", "matrix-d"),
                 "joinPolicy", "OPEN");
         assertRooms(
                 List.of("matrix-a", "matrix-b"),
                 "query", "matrix needle",
-                "category", "LOCAL_ISSUE");
+                "categoryId",
+                RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID);
         assertRooms(
                 List.of("matrix-a", "matrix-c"),
                 "query", "matrix needle",
                 "joinPolicy", "OPEN");
         assertRooms(
                 List.of("matrix-a", "matrix-d"),
-                "category", "LOCAL_ISSUE",
+                "categoryId",
+                RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID,
                 "joinPolicy", "OPEN");
         assertRooms(
                 List.of("matrix-a"),
                 "query", "matrix needle",
-                "category", "LOCAL_ISSUE",
+                "categoryId",
+                RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID,
                 "joinPolicy", "OPEN");
     }
 
@@ -464,6 +472,35 @@ class ListedRoomApiIntegrationTest
                 0));
     }
 
+    private void insertWithCategoryIds(
+            String roomId,
+            String name,
+            List<String> categoryIds,
+            RoomStatus status,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy
+    ) {
+        roomStore.insert(Room.restoreWithCategoryIds(
+                roomId,
+                name,
+                "Description " + roomId,
+                categoryIds,
+                "membership-owner-" + roomId,
+                "owner-" + roomId,
+                status,
+                visibility,
+                joinPolicy,
+                status == RoomStatus.ACTIVE ? 1 : 0,
+                Math.max(
+                        2L,
+                        (long) (status == RoomStatus.ACTIVE ? 1 : 0) + 1L),
+                CREATED_AT,
+                status == RoomStatus.CLOSED
+                        ? CREATED_AT.plusSeconds(60)
+                        : null,
+                0));
+    }
+
     private JwtRequestPostProcessor jwt(String scope) {
         return SecurityMockMvcRequestPostProcessors.jwt()
                 .jwt(jwt -> jwt.subject("user-1"))
@@ -501,7 +538,9 @@ class ListedRoomApiIntegrationTest
                         .queryParam(
                                 "query",
                                 "  PAGINATION NEEDLE  ")
-                        .queryParam("category", "LOCAL_ISSUE")
+                        .queryParam(
+                                "categoryId",
+                                RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID)
                         .queryParam("joinPolicy", "OPEN")
                         .queryParam("limit", "20");
         if (cursor != null) {

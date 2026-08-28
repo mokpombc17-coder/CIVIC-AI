@@ -1,13 +1,18 @@
 package com.hamcheeze.chat.room.application.event;
 
+import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.event.RoomEventDeliveryPlan;
 import com.hamcheeze.chat.room.event.RoomEventEnvelope;
+import com.hamcheeze.chat.room.event.RoomEventType;
+import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.util.Objects;
+import java.util.Set;
 
 public final class RoomCommandEventPropagationCoordinator {
 
@@ -95,6 +100,34 @@ public final class RoomCommandEventPropagationCoordinator {
             for (String userId : plan.userRecipients()) {
                 publishUser(userId, plan.event());
             }
+        } catch (RuntimeException exception) {
+            logFailure(null, "mapping", exception);
+        }
+    }
+
+    public void afterRoomCategoriesChanged(Room room) {
+        Objects.requireNonNull(room, "room");
+        if (disabled || room.status() != RoomStatus.ACTIVE) {
+            return;
+        }
+        try {
+            RoomEventDeliveryPlan plan = new RoomEventDeliveryPlan(
+                    new RoomEventEnvelope(
+                            RoomEventEnvelope.CURRENT_VERSION,
+                            eventIdGenerator.newEventId(),
+                            RoomEventType.ROOM_SETTINGS_UPDATED,
+                            clock.instant(),
+                            new RoomSettingsUpdatedEventPayload(
+                                    room.roomId(),
+                                    room.version(),
+                                    room.status(),
+                                    room.name(),
+                                    room.description(),
+                                    room.categoryIds(),
+                                    room.visibility(),
+                                    room.joinPolicy())),
+                    Set.of());
+            publishRoom(plan);
         } catch (RuntimeException exception) {
             logFailure(null, "mapping", exception);
         }

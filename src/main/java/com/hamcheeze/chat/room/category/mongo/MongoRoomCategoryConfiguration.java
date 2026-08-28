@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.category.mongo;
 
 import com.hamcheeze.chat.room.category.RoomCategorySeedInitializer;
 import com.hamcheeze.chat.room.category.RoomCategoryService;
+import com.hamcheeze.chat.room.application.RoomCommandPostCommitCoordinator;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryStore;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryUsage;
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
@@ -47,6 +48,7 @@ public class MongoRoomCategoryConfiguration {
             RoomCategoryStore store,
             RoomStore roomStore,
             RoomCategoryUsage usage,
+            RoomCommandPostCommitCoordinator postCommitCoordinator,
             @Qualifier("mongoTransactionTemplate")
             TransactionOperations transactions
     ) {
@@ -56,7 +58,8 @@ public class MongoRoomCategoryConfiguration {
                 usage,
                 transactions,
                 Clock.systemUTC(),
-                () -> UUID.randomUUID().toString());
+                () -> UUID.randomUUID().toString(),
+                postCommitCoordinator);
     }
 
     @Bean(initMethod = "initialize")

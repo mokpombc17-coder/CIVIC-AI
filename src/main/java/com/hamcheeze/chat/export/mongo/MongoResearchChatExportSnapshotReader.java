@@ -73,7 +73,7 @@ public final class MongoResearchChatExportSnapshotReader
                 room.roomId(),
                 room.name(),
                 room.description(),
-                room.categories(),
+                room.categoryIds(),
                 room.status(),
                 room.visibility(),
                 room.joinPolicy(),

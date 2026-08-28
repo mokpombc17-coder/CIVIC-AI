@@ -123,7 +123,7 @@ public final class MongoChatExportSnapshotReader
                 room.roomId(),
                 room.name(),
                 room.description(),
-                room.categories(),
+                room.categoryIds(),
                 room.status(),
                 room.visibility(),
                 room.joinPolicy(),

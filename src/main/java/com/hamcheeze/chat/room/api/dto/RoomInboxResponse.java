@@ -4,7 +4,6 @@ import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomStatus;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.inbox.model.RoomInboxView;
 
@@ -15,7 +14,7 @@ public record RoomInboxResponse(
         String roomId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         String ownerMembershipId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -39,7 +38,7 @@ public record RoomInboxResponse(
                 view.roomId(),
                 view.name(),
                 view.description(),
-                view.categories(),
+                view.categoryIds(),
                 view.ownerMembershipId(),
                 view.status(),
                 view.visibility(),

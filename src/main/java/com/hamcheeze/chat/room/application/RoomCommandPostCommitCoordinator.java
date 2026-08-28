@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.application;
 
+import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
 import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
@@ -36,5 +37,9 @@ public final class RoomCommandPostCommitCoordinator {
     public void afterCommand(RoomCommandExecution execution) {
         eventPropagationCoordinator.afterCommand(execution);
         accessRevocationCoordinator.afterCommand(execution);
+    }
+
+    public void afterRoomCategoriesChanged(Room room) {
+        eventPropagationCoordinator.afterRoomCategoriesChanged(room);
     }
 }

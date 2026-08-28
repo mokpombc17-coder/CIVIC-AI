@@ -1,7 +1,7 @@
 package com.hamcheeze.chat.room.query;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCursor.Scope;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
@@ -23,7 +23,7 @@ class ListedRoomQueryCursorCodecTest {
         ListedRoomQueryCriteria criteria =
                 new ListedRoomQueryCriteria(
                         "Policy",
-                        RoomCategory.POLICY,
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID,
                         JoinPolicy.OPEN);
         ListedRoomQueryCursor cursor =
                 new ListedRoomQueryCursor(
@@ -85,7 +85,7 @@ class ListedRoomQueryCursorCodecTest {
         ListedRoomQueryCriteria issuedCriteria =
                 new ListedRoomQueryCriteria(
                         "policy",
-                        RoomCategory.POLICY,
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID,
                         JoinPolicy.OPEN);
         String token = codec.encode(new ListedRoomQueryCursor(
                 ListedRoomQueryCursor.CURRENT_VERSION,
@@ -95,15 +95,15 @@ class ListedRoomQueryCursorCodecTest {
 
         assertInvalid(token, new ListedRoomQueryCriteria(
                 "environment",
-                RoomCategory.POLICY,
+                RoomCategoryDefaults.POLICY_CATEGORY_ID,
                 JoinPolicy.OPEN));
         assertInvalid(token, new ListedRoomQueryCriteria(
                 "policy",
-                RoomCategory.ENVIRONMENT,
+                RoomCategoryDefaults.ENVIRONMENT_CATEGORY_ID,
                 JoinPolicy.OPEN));
         assertInvalid(token, new ListedRoomQueryCriteria(
                 "policy",
-                RoomCategory.POLICY,
+                RoomCategoryDefaults.POLICY_CATEGORY_ID,
                 JoinPolicy.INVITE_ONLY));
     }
 

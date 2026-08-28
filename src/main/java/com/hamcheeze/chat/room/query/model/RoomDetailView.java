@@ -2,7 +2,6 @@ package com.hamcheeze.chat.room.query.model;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomStatus;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.RoomParticipationStatus;
 
@@ -13,7 +12,7 @@ public record RoomDetailView(
         String roomId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         String ownerMembershipId,
         String ownerUserId,
         RoomStatus status,

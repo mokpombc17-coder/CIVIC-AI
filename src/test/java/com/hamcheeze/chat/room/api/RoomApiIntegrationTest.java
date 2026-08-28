@@ -12,6 +12,7 @@ import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
 import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.creation.mongo.MongoRoomCreationRequestDocument;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
@@ -231,8 +232,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.ownerUserId").doesNotExist())
                 .andExpect(jsonPath("$.myMembership.userId")
                         .doesNotExist())
-                .andExpect(jsonPath("$.categories[0]")
-                        .value("POLICY"));
+                .andExpect(jsonPath("$.categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID));
         mockMvc.perform(get("/api/v1/me/rooms")
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("owner-settings"))))
@@ -243,8 +244,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value(ownerMembershipId))
                 .andExpect(jsonPath("$.items[0].ownerUserId")
                         .doesNotExist())
-                .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("POLICY"));
+                .andExpect(jsonPath("$.items[0].categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID));
         mockMvc.perform(get("/api/v1/rooms")
                         .with(jwt().jwt(jwt ->
                                 jwt.subject("owner-settings"))))
@@ -255,8 +256,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value(ownerMembershipId))
                 .andExpect(jsonPath("$.items[0].ownerUserId")
                         .doesNotExist())
-                .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("POLICY"));
+                .andExpect(jsonPath("$.items[0].categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID));
         MvcResult inboxBeforeUpdate = mockMvc.perform(
                         get("/api/v1/me/room-inbox")
                                 .with(jwt().jwt(jwt -> jwt.subject(
@@ -266,8 +267,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .value(ownerMembershipId))
                 .andExpect(jsonPath("$.items[0].ownerUserId")
                         .doesNotExist())
-                .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("POLICY"))
+                .andExpect(jsonPath("$.items[0].categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
                 .andReturn();
         String lastActivityBeforeUpdate = jsonString(
                 inboxBeforeUpdate,
@@ -297,8 +298,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Updated room"))
                 .andExpect(jsonPath("$.description")
                         .value("Updated description"))
-                .andExpect(jsonPath("$.categories[0]")
-                        .value("POLICY"))
+                .andExpect(jsonPath("$.categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
                 .andExpect(jsonPath("$.visibility")
                         .value("UNLISTED"))
                 .andExpect(jsonPath("$.joinPolicy")
@@ -339,8 +340,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.name").value("Updated room"))
                 .andExpect(jsonPath("$.description")
                         .value("Updated description"))
-                .andExpect(jsonPath("$.categories[0]")
-                        .value("POLICY"))
+                .andExpect(jsonPath("$.categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
                 .andExpect(jsonPath("$.visibility")
                         .value("UNLISTED"))
                 .andExpect(jsonPath("$.joinPolicy")
@@ -350,8 +351,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .with(jwt().jwt(jwt -> jwt.subject(
                                 "owner-settings"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("POLICY"))
+                .andExpect(jsonPath("$.items[0].categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
                 .andExpect(jsonPath("$.items[0].lastActivityAt")
                         .value(lastActivityBeforeUpdate));
         mockMvc.perform(get("/api/v1/rooms")

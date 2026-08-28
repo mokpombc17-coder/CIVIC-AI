@@ -269,7 +269,7 @@ public record RoomCommandResult(
                 new RoomSettingsSnapshot(
                         room.name(),
                         room.description(),
-                        room.categories(),
+                        room.categoryIds(),
                         room.visibility(),
                         room.joinPolicy()));
     }

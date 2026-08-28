@@ -8,7 +8,6 @@ import com.hamcheeze.chat.message.audit.ChatMessageAuditReader;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -85,10 +84,17 @@ class ChatExportArtifactGeneratorTest {
                     .hasSize(4);
             JsonNode manifest = JsonMapper.builder().build()
                     .readTree(entry(zip, "manifest.json"));
+            assertThat(manifest.get("exportSchemaVersion").intValue())
+                    .isEqualTo(2);
             assertThat(manifest.get("fromChangeSequenceExclusive")
                     .longValue()).isZero();
             assertThat(manifest.get("toChangeSequenceInclusive")
                     .longValue()).isEqualTo(4);
+            JsonNode room = JsonMapper.builder().build()
+                    .readTree(entry(zip, "room.json"));
+            assertThat(room.get("categoryIds").get(0).stringValue())
+                    .isEqualTo("custom-category-id");
+            assertThat(room.get("categories")).isNull();
         }
     }
 
@@ -269,7 +275,7 @@ class ChatExportArtifactGeneratorTest {
                 "room-1",
                 "감사 <Room>",
                 "설명",
-                List.of(RoomCategory.POLICY),
+                List.of("custom-category-id"),
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,

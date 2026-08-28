@@ -2,10 +2,9 @@ package com.hamcheeze.chat.room.event;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Room;
-import com.hamcheeze.chat.room.RoomCategories;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.RoomCategoryIds;
 
 import java.util.List;
 import java.util.Objects;
@@ -16,7 +15,7 @@ public record RoomSettingsUpdatedEventPayload(
         RoomStatus roomStatus,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         RoomVisibility visibility,
         JoinPolicy joinPolicy
 ) implements RoomEventPayload {
@@ -34,7 +33,7 @@ public record RoomSettingsUpdatedEventPayload(
                     "Settings event name is not canonical");
         }
         requireCanonicalDescription(description);
-        categories = RoomCategories.requireValid(categories);
+        categoryIds = RoomCategoryIds.requireValid(categoryIds);
         Objects.requireNonNull(visibility, "visibility");
         Objects.requireNonNull(joinPolicy, "joinPolicy");
         if (roomStatus != RoomStatus.ACTIVE) {

@@ -1,7 +1,6 @@
 package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCriteria;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -17,10 +16,8 @@ public final class ListedRoomQueryCriteriaResolver {
                 request,
                 "request");
         String query = singleParameter(resolved, "query");
-        RoomCategory category = enumParameter(
-                resolved,
-                "category",
-                RoomCategory.class);
+        rejectLegacyCategoryParameter(resolved);
+        String categoryId = singleParameter(resolved, "categoryId");
         JoinPolicy joinPolicy = enumParameter(
                 resolved,
                 "joinPolicy",
@@ -28,11 +25,20 @@ public final class ListedRoomQueryCriteriaResolver {
         try {
             return new ListedRoomQueryCriteria(
                     query,
-                    category,
+                    categoryId,
                     joinPolicy);
         } catch (IllegalArgumentException exception) {
             throw invalidRequest(
                     "query has an invalid format");
+        }
+    }
+
+    private void rejectLegacyCategoryParameter(
+            HttpServletRequest request
+    ) {
+        if (request.getParameterMap().containsKey("category")) {
+            throw invalidRequest(
+                    "category is no longer supported; use categoryId");
         }
     }
 

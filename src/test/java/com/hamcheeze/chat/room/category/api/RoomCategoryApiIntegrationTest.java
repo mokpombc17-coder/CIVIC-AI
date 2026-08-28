@@ -3,6 +3,9 @@ package com.hamcheeze.chat.room.category.api;
 import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.category.RoomCategorySeedInitializer;
 import com.hamcheeze.chat.room.category.mongo.MongoRoomCategoryDocument;
+import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
+import com.hamcheeze.chat.room.event.RoomEventEnvelope;
+import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
@@ -17,6 +20,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.data.mongodb.core.query.Query;
@@ -26,6 +30,9 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -49,12 +56,16 @@ class RoomCategoryApiIntegrationTest
     @Autowired
     private RoomCategorySeedInitializer seedInitializer;
 
+    @MockitoSpyBean
+    private RoomEventDeliveryPort eventDeliveryPort;
+
     @BeforeEach
     void resetCategories() {
         mongoOperations.remove(
                 new Query(),
                 MongoRoomCategoryDocument.COLLECTION_NAME);
         seedInitializer.initialize();
+        clearInvocations(eventDeliveryPort);
     }
 
     @Test
@@ -272,6 +283,18 @@ class RoomCategoryApiIntegrationTest
                 .andExpect(jsonPath("$.categoryIds.length()").value(2))
                 .andExpect(jsonPath("$.roomVersion").value(1))
                 .andExpect(jsonPath("$.changed").value(true));
+        org.mockito.ArgumentCaptor<RoomEventEnvelope> event =
+                org.mockito.ArgumentCaptor.forClass(
+                        RoomEventEnvelope.class);
+        verify(eventDeliveryPort).publishToRoom(event.capture());
+        assertThat(event.getValue().payload())
+                .isInstanceOfSatisfying(
+                        RoomSettingsUpdatedEventPayload.class,
+                        payload -> assertThat(payload.categoryIds())
+                                .containsExactlyInAnyOrder(
+                                        RoomCategoryDefaults
+                                                .POLICY_CATEGORY_ID,
+                                        categoryId));
 
         mockMvc.perform(put(
                         "/api/v1/admin/rooms/{roomId}/categories",
@@ -285,6 +308,8 @@ class RoomCategoryApiIntegrationTest
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roomVersion").value(1))
                 .andExpect(jsonPath("$.changed").value(false));
+        verify(eventDeliveryPort, times(1)).publishToRoom(
+                org.mockito.ArgumentMatchers.any());
 
         mockMvc.perform(put(
                         "/api/v1/admin/rooms/{roomId}/categories",
@@ -309,6 +334,8 @@ class RoomCategoryApiIntegrationTest
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roomVersion").value(2))
                 .andExpect(jsonPath("$.changed").value(true));
+        verify(eventDeliveryPort, times(2)).publishToRoom(
+                org.mockito.ArgumentMatchers.any());
 
         mockMvc.perform(delete(
                         "/api/v1/admin/room-categories/{categoryId}",

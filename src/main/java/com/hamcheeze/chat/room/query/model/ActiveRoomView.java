@@ -4,7 +4,6 @@ import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomStatus;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 
 import java.time.Instant;
@@ -14,7 +13,7 @@ public record ActiveRoomView(
         String roomId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         String ownerMembershipId,
         String ownerUserId,
         RoomStatus status,

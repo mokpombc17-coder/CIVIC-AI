@@ -1,7 +1,7 @@
 package com.hamcheeze.chat.room.query;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,12 +16,12 @@ class ListedRoomQueryCriteriaTest {
         ListedRoomQueryCriteria criteria =
                 new ListedRoomQueryCriteria(
                         "\u2003PoLiCy\u2003",
-                        RoomCategory.POLICY,
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID,
                         JoinPolicy.OPEN);
 
         assertThat(criteria.nameContains()).isEqualTo("policy");
-        assertThat(criteria.category())
-                .isEqualTo(RoomCategory.POLICY);
+        assertThat(criteria.categoryId())
+                .isEqualTo(RoomCategoryDefaults.POLICY_CATEGORY_ID);
         assertThat(criteria.joinPolicy())
                 .isEqualTo(JoinPolicy.OPEN);
         assertThat(criteria.unfiltered()).isFalse();

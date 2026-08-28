@@ -1,7 +1,7 @@
 package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCriteria;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,14 +23,17 @@ class ListedRoomQueryCriteriaResolverTest {
     void resolvesCanonicalCriteria() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addParameter("query", "  POLICY  ");
-        request.addParameter("category", "LOCAL_ISSUE");
+        request.addParameter(
+                "categoryId",
+                RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID);
         request.addParameter("joinPolicy", "OPEN");
 
         ListedRoomQueryCriteria criteria = resolver.resolve(request);
 
         assertThat(criteria.nameContains()).isEqualTo("policy");
-        assertThat(criteria.category())
-                .isEqualTo(RoomCategory.LOCAL_ISSUE);
+        assertThat(criteria.categoryId())
+                .isEqualTo(
+                        RoomCategoryDefaults.LOCAL_ISSUE_CATEGORY_ID);
         assertThat(criteria.joinPolicy()).isEqualTo(JoinPolicy.OPEN);
     }
 
@@ -51,7 +54,7 @@ class ListedRoomQueryCriteriaResolverTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"query", "category", "joinPolicy"})
+    @ValueSource(strings = {"query", "categoryId", "joinPolicy"})
     void rejectsRepeatedParameters(String parameterName) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addParameter(parameterName, "first", "second");
@@ -59,17 +62,30 @@ class ListedRoomQueryCriteriaResolverTest {
         assertInvalidRequest(() -> resolver.resolve(request));
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"category", "joinPolicy"})
-    void rejectsBlankOrUnsupportedEnumValues(String parameterName) {
+    @Test
+    void rejectsBlankCategoryId() {
         MockHttpServletRequest blank = new MockHttpServletRequest();
-        blank.addParameter(parameterName, "");
+        blank.addParameter("categoryId", "");
         assertInvalidRequest(() -> resolver.resolve(blank));
+    }
 
+    @Test
+    void rejectsBlankOrUnsupportedJoinPolicy() {
+        MockHttpServletRequest blank = new MockHttpServletRequest();
+        blank.addParameter("joinPolicy", "");
+        assertInvalidRequest(() -> resolver.resolve(blank));
         MockHttpServletRequest unsupported =
                 new MockHttpServletRequest();
-        unsupported.addParameter(parameterName, "unsupported");
+        unsupported.addParameter("joinPolicy", "unsupported");
         assertInvalidRequest(() -> resolver.resolve(unsupported));
+    }
+
+    @Test
+    void rejectsLegacyCategoryParameter() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addParameter("category", "POLICY");
+
+        assertInvalidRequest(() -> resolver.resolve(request));
     }
 
     @Test

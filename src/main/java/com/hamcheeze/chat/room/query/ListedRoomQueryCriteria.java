@@ -1,13 +1,14 @@
 package com.hamcheeze.chat.room.query;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
+import com.hamcheeze.chat.room.category.RoomCategoryIds;
 
+import java.util.List;
 import java.util.Locale;
 
 public record ListedRoomQueryCriteria(
         String nameContains,
-        RoomCategory category,
+        String categoryId,
         JoinPolicy joinPolicy
 ) {
 
@@ -15,11 +16,15 @@ public record ListedRoomQueryCriteria(
 
     public ListedRoomQueryCriteria {
         nameContains = canonicalNameContains(nameContains);
+        if (categoryId != null) {
+            categoryId = RoomCategoryIds.requireValid(
+                    List.of(categoryId)).getFirst();
+        }
     }
 
     public boolean unfiltered() {
         return nameContains == null
-                && category == null
+                && categoryId == null
                 && joinPolicy == null;
     }
 

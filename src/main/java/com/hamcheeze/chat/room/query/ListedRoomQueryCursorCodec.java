@@ -1,7 +1,6 @@
 package com.hamcheeze.chat.room.query;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCursor.Scope;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
@@ -102,7 +101,7 @@ public final class ListedRoomQueryCursorCodec {
 
     private record CriteriaPayload(
             String query,
-            RoomCategory category,
+            String categoryId,
             JoinPolicy joinPolicy
     ) {
 
@@ -111,14 +110,14 @@ public final class ListedRoomQueryCursorCodec {
         ) {
             return new CriteriaPayload(
                     criteria.nameContains(),
-                    criteria.category(),
+                    criteria.categoryId(),
                     criteria.joinPolicy());
         }
 
         private ListedRoomQueryCriteria toCriteria() {
             return new ListedRoomQueryCriteria(
                     query,
-                    category,
+                    categoryId,
                     joinPolicy);
         }
     }

@@ -249,9 +249,9 @@ class RoomCommandEventIntegrationTest
         assertThat(payload.name()).isEqualTo("Updated room");
         assertThat(payload.description())
                 .isEqualTo("Updated description");
-        assertThat(payload.categories())
-                .containsExactly(
-                        com.hamcheeze.chat.room.RoomCategory.POLICY);
+        assertThat(payload.categoryIds())
+                .containsExactly(com.hamcheeze.chat.room.category
+                        .RoomCategoryDefaults.POLICY_CATEGORY_ID);
         verify(revocationPort, never())
                 .revokeUserRoomAccess(any(), any(), any());
     }

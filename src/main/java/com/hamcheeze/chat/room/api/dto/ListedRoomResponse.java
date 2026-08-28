@@ -2,7 +2,6 @@ package com.hamcheeze.chat.room.api.dto;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomStatus;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.model.ListedRoomView;
 
@@ -13,7 +12,7 @@ public record ListedRoomResponse(
         String roomId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         String ownerMembershipId,
         RoomStatus status,
         RoomVisibility visibility,
@@ -28,7 +27,7 @@ public record ListedRoomResponse(
                 view.roomId(),
                 view.name(),
                 view.description(),
-                view.categories(),
+                view.categoryIds(),
                 view.ownerMembershipId(),
                 view.status(),
                 view.visibility(),

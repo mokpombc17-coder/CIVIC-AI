@@ -1,7 +1,6 @@
 package com.hamcheeze.chat.room.api.dto;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 
@@ -14,7 +13,7 @@ public record RoomSettingsCommandResponse(
         String roomId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         RoomVisibility visibility,
         JoinPolicy joinPolicy,
         long roomVersion

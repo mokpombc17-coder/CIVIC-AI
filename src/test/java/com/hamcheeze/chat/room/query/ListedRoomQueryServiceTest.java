@@ -61,7 +61,7 @@ class ListedRoomQueryServiceTest {
                         first.nextCursor(),
                         UNFILTERED);
         assertThat(cursor.lastRoomId()).isEqualTo("room-b");
-        assertThat(cursor.version()).isEqualTo(2);
+        assertThat(cursor.version()).isEqualTo(3);
         verify(reader).findListedRooms(
                 UNFILTERED,
                 null,

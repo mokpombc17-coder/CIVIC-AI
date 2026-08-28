@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.category;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomSettingsUpdateOutcome;
 import com.hamcheeze.chat.room.RoomSettingsUpdateTransition;
+import com.hamcheeze.chat.room.application.RoomCommandPostCommitCoordinator;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryStore;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryUsage;
 import com.hamcheeze.chat.room.persistence.RoomStore;
@@ -22,6 +23,7 @@ public final class RoomCategoryService {
     private final TransactionOperations transactions;
     private final Clock clock;
     private final Supplier<String> categoryIdGenerator;
+    private final RoomCommandPostCommitCoordinator postCommitCoordinator;
 
     public RoomCategoryService(
             RoomCategoryStore store,
@@ -30,6 +32,25 @@ public final class RoomCategoryService {
             TransactionOperations transactions,
             Clock clock,
             Supplier<String> categoryIdGenerator
+    ) {
+        this(
+                store,
+                roomStore,
+                usage,
+                transactions,
+                clock,
+                categoryIdGenerator,
+                RoomCommandPostCommitCoordinator.disabled());
+    }
+
+    public RoomCategoryService(
+            RoomCategoryStore store,
+            RoomStore roomStore,
+            RoomCategoryUsage usage,
+            TransactionOperations transactions,
+            Clock clock,
+            Supplier<String> categoryIdGenerator,
+            RoomCommandPostCommitCoordinator postCommitCoordinator
     ) {
         this.store = Objects.requireNonNull(store, "store");
         this.roomStore = Objects.requireNonNull(
@@ -43,6 +64,9 @@ public final class RoomCategoryService {
         this.categoryIdGenerator = Objects.requireNonNull(
                 categoryIdGenerator,
                 "categoryIdGenerator");
+        this.postCommitCoordinator = Objects.requireNonNull(
+                postCommitCoordinator,
+                "postCommitCoordinator");
     }
 
     public List<RoomCategory> findAll() {
@@ -154,7 +178,8 @@ public final class RoomCategoryService {
         if (expectedVersion < 0) {
             throw assignmentVersionConflict();
         }
-        return Objects.requireNonNull(transactions.execute(status -> {
+        RoomCategoryAssignment assignment = Objects.requireNonNull(
+                transactions.execute(status -> {
             Room current = roomStore.findById(roomId)
                     .orElseThrow(RoomCategoryService::roomNotFound);
             if (current.version() != expectedVersion) {
@@ -176,7 +201,13 @@ public final class RoomCategoryService {
             return new RoomCategoryAssignment(
                     transition.room(),
                     true);
-        }), "room category assignment");
+                }),
+                "room category assignment");
+        if (assignment.changed()) {
+            postCommitCoordinator.afterRoomCategoriesChanged(
+                    assignment.room());
+        }
+        return assignment;
     }
 
     private static void requireExpectedVersion(

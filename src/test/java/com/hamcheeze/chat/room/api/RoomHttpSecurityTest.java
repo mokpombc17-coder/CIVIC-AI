@@ -6,6 +6,7 @@ import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import com.hamcheeze.chat.websocket.config.FixtureJwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -721,8 +722,8 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                 .andExpect(header().string(
                         HttpHeaders.CACHE_CONTROL, "no-store"))
                 .andExpect(jsonPath("$.items").isArray())
-                .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("POLICY"))
+                .andExpect(jsonPath("$.items[0].categoryIds[0]")
+                        .value(RoomCategoryDefaults.POLICY_CATEGORY_ID))
                 .andExpect(jsonPath("$.items[0]")
                         .value(hasKey("lastMessage")))
                 .andExpect(jsonPath("$.items[0].lastMessage")

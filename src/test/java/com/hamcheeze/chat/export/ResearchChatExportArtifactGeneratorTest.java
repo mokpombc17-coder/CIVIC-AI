@@ -6,7 +6,6 @@ import com.hamcheeze.chat.message.audit.ChatMessageAuditActorType;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditEvent;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditReader;
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -126,6 +125,10 @@ class ResearchChatExportArtifactGeneratorTest {
 
             JsonNode manifest = JsonMapper.builder().build()
                     .readTree(entry(zip, "manifest.json"));
+            assertThat(manifest.get("schemaVersion").intValue())
+                    .isEqualTo(2);
+            assertThat(manifest.get("roomCategoryIds").get(0)
+                    .stringValue()).isEqualTo("custom-category-id");
             assertThat(manifest.get("capturedChangeSequence").longValue())
                     .isEqualTo(6);
             assertThat(manifest.get("identityMode").stringValue())
@@ -316,7 +319,8 @@ class ResearchChatExportArtifactGeneratorTest {
     private ResearchChatExportSnapshot snapshot(long watermark) {
         ChatExportRoomSnapshot room = new ChatExportRoomSnapshot(
                 "room-1", "연구 <Room>", "설명 & discussion",
-                List.of(RoomCategory.POLICY), RoomStatus.ACTIVE,
+                List.of("custom-category-id"),
+                RoomStatus.ACTIVE,
                 RoomVisibility.LISTED, JoinPolicy.OPEN, "membership-owner",
                 1, CREATED_AT, null, CREATED_AT);
         return new ResearchChatExportSnapshot(room, watermark, CREATED_AT);

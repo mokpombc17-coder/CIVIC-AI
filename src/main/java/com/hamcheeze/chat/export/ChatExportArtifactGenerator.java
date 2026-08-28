@@ -173,7 +173,7 @@ public final class ChatExportArtifactGenerator {
                         workspace.htmlFile(),
                         deadline));
         Manifest manifest = new Manifest(
-                1,
+                2,
                 job.exportId(),
                 job.roomId(),
                 job.mode(),

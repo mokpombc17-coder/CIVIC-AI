@@ -205,7 +205,8 @@ class RoomSettingsUpdateTest {
         assertThatThrownBy(() -> new RoomSettingsSnapshot(
                 "Room",
                 "\u000bdescription",
-                java.util.List.of(RoomCategory.POLICY),
+                java.util.List.of(
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -216,7 +217,8 @@ class RoomSettingsUpdateTest {
                         RoomStatus.ACTIVE,
                         "Room",
                         "description\u000c",
-                        java.util.List.of(RoomCategory.POLICY),
+                        java.util.List.of(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID),
                         RoomVisibility.LISTED,
                         JoinPolicy.OPEN))
                 .isInstanceOf(IllegalArgumentException.class);

@@ -10,7 +10,7 @@ public record ListedRoomQueryCursor(
         String lastRoomId
 ) {
 
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 3;
     private static final Pattern ROOM_ID =
             Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
 

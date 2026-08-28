@@ -1,9 +1,15 @@
 package com.hamcheeze.chat.room.application.event;
 
+import com.hamcheeze.chat.room.JoinPolicy;
+import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
 import com.hamcheeze.chat.room.event.RoomEventEnvelope;
+import com.hamcheeze.chat.room.event.RoomEventType;
+import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +31,41 @@ class RoomCommandEventPropagationCoordinatorTest {
             "550e8400-e29b-41d4-a716-446655440000";
     private static final Instant EMITTED_AT =
             Instant.parse("2026-07-28T10:00:00Z");
+
+    @Test
+    void publishesDynamicCategoryIdsAfterAdminAssignment() {
+        RecordingPort port = new RecordingPort();
+        RoomCommandEventPropagationCoordinator coordinator =
+                coordinator(port, () -> EVENT_ID);
+        Room room = Room.restoreWithCategoryIds(
+                "room-1",
+                "Updated room",
+                "Updated description",
+                List.of("custom-category-id"),
+                "owner-membership",
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                2,
+                EMITTED_AT.minusSeconds(60),
+                null,
+                3);
+
+        coordinator.afterRoomCategoriesChanged(room);
+
+        assertThat(port.roomEvents).hasSize(1);
+        RoomEventEnvelope event = port.roomEvents.getFirst();
+        assertThat(event.eventType())
+                .isEqualTo(RoomEventType.ROOM_SETTINGS_UPDATED);
+        assertThat(event.payload())
+                .isInstanceOfSatisfying(
+                        RoomSettingsUpdatedEventPayload.class,
+                        payload -> assertThat(payload.categoryIds())
+                                .containsExactly("custom-category-id"));
+        assertThat(port.userDeliveries).isEmpty();
+    }
 
     @Test
     void publishesOneEnvelopeToRoomAndEveryDistinctRecipient() {
