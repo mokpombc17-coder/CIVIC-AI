@@ -52,6 +52,11 @@ type RunInput = Readonly<{
 }>;
 type CapacityInput = Pick<RunInput, "filters" | "personaCount" | "sampleSeed">;
 
+export const ADMIN_SIMULATION_PATHS = {
+  create: "/api/v1/admin/simulations",
+  preview: "/api/v1/admin/simulations/preview",
+} as const;
+
 export function AdminSimulationScreen({
   screen,
   query,
@@ -860,13 +865,7 @@ function useStartSimulation(taskId: string | null) {
   const start = useCallback(
     async (input: RunInput, pricingFingerprint: string) => {
       if (!taskId) return;
-      const body = {
-        personaCount: input.personaCount,
-        modelType: input.modelType,
-        sampleSeed: input.sampleSeed,
-        filters: input.filters ?? {},
-        pricingFingerprint,
-      };
+      const body = buildAdminSimulationRequest(taskId, input, pricingFingerprint);
       const signature = JSON.stringify(body);
       if (!requestRef.current || requestRef.current.signature !== signature) {
         requestRef.current = { key: window.crypto.randomUUID(), signature };
@@ -874,17 +873,14 @@ function useStartSimulation(taskId: string | null) {
       setPending(true);
       setMessage("");
       try {
-        const response = await authenticatedFetch(
-          `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/simulations`,
-          {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "idempotency-key": requestRef.current.key,
-            },
-            body: signature,
+        const response = await authenticatedFetch(ADMIN_SIMULATION_PATHS.create, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": requestRef.current.key,
           },
-        );
+          body: signature,
+        });
         if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
         const created = readSimulationView(await response.json());
         if (!created) return setMessage("서버의 실행 요청 응답 형식을 확인해야 합니다.");
@@ -962,14 +958,8 @@ function useSimulationCapacity(input: CapacityInput | null) {
 }
 
 function useSimulationPreview(taskId: string | null, input: RunInput | null) {
-  const signature = input
-    ? JSON.stringify({
-        personaCount: input.personaCount,
-        modelType: input.modelType,
-        sampleSeed: input.sampleSeed,
-        filters: input.filters ?? {},
-      })
-    : null;
+  const signature =
+    taskId && input ? JSON.stringify(buildAdminSimulationRequest(taskId, input)) : null;
   const [result, setResult] = useState<{
     preview: SimulationPreview;
     signature: string;
@@ -985,14 +975,11 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
     setMessage("");
     try {
       const [previewResponse, walletResponse] = await Promise.all([
-        authenticatedFetch(
-          `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/simulations/preview`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: signature,
-          },
-        ),
+        authenticatedFetch(ADMIN_SIMULATION_PATHS.preview, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: signature,
+        }),
         authenticatedFetch("/api/v1/admin/simulation-billing/wallet", {
           cache: "no-store",
         }),
@@ -1286,6 +1273,21 @@ export function buildDefaultSimulationRunInput(
     modelType: options.defaultModel,
     sampleSeed: null,
     ...(filters === undefined ? {} : { filters }),
+  };
+}
+
+export function buildAdminSimulationRequest(
+  taskId: string,
+  input: RunInput,
+  pricingFingerprint?: string,
+) {
+  return {
+    taskId,
+    personaCount: input.personaCount,
+    modelType: input.modelType,
+    sampleSeed: input.sampleSeed,
+    filters: input.filters ?? {},
+    ...(pricingFingerprint === undefined ? {} : { pricingFingerprint }),
   };
 }
 

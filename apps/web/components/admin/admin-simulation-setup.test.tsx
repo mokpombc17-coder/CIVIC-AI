@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   AdminSimulationScreen,
+  ADMIN_SIMULATION_PATHS,
+  buildAdminSimulationRequest,
   buildDefaultSimulationRunInput,
 } from "@/components/admin/admin-simulation-screen";
 import { screenRegistry } from "@/lib/screens/registry";
@@ -11,6 +13,42 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("simulation setup", () => {
+  it("정본 Simulation API에 taskId를 포함한 요청을 만든다", () => {
+    const input = buildDefaultSimulationRunInput(10, {
+      defaultModel: "anthropic/claude-sonnet-4.6",
+      models: ["anthropic/claude-sonnet-4.6"],
+      minPersonaCount: 10,
+      maxPersonaCount: 100,
+      filters: {
+        genders: ["여성", "남성"],
+        ageGroups: ["30대"],
+        regions: ["서울"],
+        politicalIdeologies: ["중도"],
+      },
+    });
+    if (!input) throw new Error("Expected a valid default simulation input");
+
+    expect(ADMIN_SIMULATION_PATHS).toEqual({
+      create: "/api/v1/admin/simulations",
+      preview: "/api/v1/admin/simulations/preview",
+    });
+    expect(buildAdminSimulationRequest("task-1", input)).toEqual({
+      taskId: "task-1",
+      modelType: "anthropic/claude-sonnet-4.6",
+      personaCount: 10,
+      sampleSeed: null,
+      filters: {},
+    });
+    expect(buildAdminSimulationRequest("task-1", input, "pricing-v1")).toEqual({
+      taskId: "task-1",
+      modelType: "anthropic/claude-sonnet-4.6",
+      personaCount: 10,
+      sampleSeed: null,
+      filters: {},
+      pricingFingerprint: "pricing-v1",
+    });
+  });
+
   it("서버가 승인한 기본 모델과 null 시드로 실행 입력을 만든다", () => {
     const input = buildDefaultSimulationRunInput(10, {
       defaultModel: "anthropic/claude-sonnet-4.6",

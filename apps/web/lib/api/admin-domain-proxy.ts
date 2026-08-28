@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { civicProductionServiceConfig } from "@/lib/server/civic-auth/production-service-config";
 import { createResourceServerProxy, unavailableResourceServer } from "./resource-server-client";
 
-export type AdminDomain = "chat" | "simulation" | "vote";
+export type AdminDomain = "chat" | "vote";
 
 export async function proxyAdminDomain(
   domain: AdminDomain,
@@ -12,8 +12,8 @@ export async function proxyAdminDomain(
   upstreamPath: string,
   requiredScope: string,
 ) {
-  const { browserOrigin, chatUrl, simulationUrl, voteUrl } = civicProductionServiceConfig;
-  const resourceUrl = domain === "chat" ? chatUrl : domain === "vote" ? voteUrl : simulationUrl;
+  const { browserOrigin, chatUrl, voteUrl } = civicProductionServiceConfig;
+  const resourceUrl = domain === "chat" ? chatUrl : voteUrl;
   if (!browserOrigin || !resourceUrl) return unavailableResourceServer(request);
   return createResourceServerProxy({
     browserOrigin,
