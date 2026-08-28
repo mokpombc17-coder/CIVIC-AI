@@ -35,7 +35,8 @@ describe("response framing headers", () => {
 
     expect(firstPolicy).toContain("default-src 'self'");
     expect(firstPolicy).toContain("script-src 'self' 'nonce-");
-    expect(firstPolicy).toContain("'strict-dynamic'");
+    // Turbopack 청크의 nonce 누락과 충돌하므로 strict-dynamic은 사용하지 않는다.
+    expect(firstPolicy).not.toContain("'strict-dynamic'");
     expect(firstPolicy).toContain("object-src 'none'");
     expect(firstPolicy).toContain("frame-ancestors 'none'");
     expect(firstPolicy).not.toContain("script-src 'self' 'unsafe-inline'");
