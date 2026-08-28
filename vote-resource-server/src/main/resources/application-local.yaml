@@ -23,7 +23,8 @@ vote:
     bootstrap:
       enabled: ${VOTE_TASK_BOOTSTRAP_ENABLED:true}
       persona-ready-enabled: ${VOTE_TASK_BOOTSTRAP_PERSONA_READY_ENABLED:true}
-      participation-enabled: ${VOTE_TASK_BOOTSTRAP_PARTICIPATION_ENABLED:true}
+      participation-enabled: ${VOTE_TASK_BOOTSTRAP_PARTICIPATION_ENABLED:false}
+      submission-simulation-enabled: ${VOTE_TASK_BOOTSTRAP_SUBMISSION_SIMULATION_ENABLED:true}
       persona-subject: ${VOTE_TASK_BOOTSTRAP_PERSONA_SUBJECT:local-user-1}
       persona-ready-timeout: ${VOTE_TASK_BOOTSTRAP_PERSONA_READY_TIMEOUT:10s}
       persona-ready-poll-interval: ${VOTE_TASK_BOOTSTRAP_PERSONA_READY_POLL_INTERVAL:100ms}

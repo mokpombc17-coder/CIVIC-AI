@@ -12,6 +12,7 @@ import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.result.TaskResultViewIntegrityException;
+import com.hamcheeze.vote.task.application.submission.TaskSubmissionExecutionService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -73,8 +74,8 @@ class TaskUserControllerTest {
             mock(TaskPredictionService.class);
     private final TaskPredictionQueryService predictionQueries =
             mock(TaskPredictionQueryService.class);
-    private final TaskSubmissionService submissions =
-            mock(TaskSubmissionService.class);
+    private final TaskSubmissionExecutionService submissions =
+            mock(TaskSubmissionExecutionService.class);
     private final MyTaskSubmissionQueryService submissionQueries =
             mock(MyTaskSubmissionQueryService.class);
     private final Authentication authentication = mock(Authentication.class);
@@ -456,8 +457,9 @@ class TaskUserControllerTest {
                 201, "TASK_SUBMISSION_CREATED", taskId(),
                 submissionId(), NOW.plusSeconds(30), List.of());
         when(submissions.submit(any(), eq("request-key"), any()))
-                .thenReturn(new TaskSubmissionService.SubmissionExecution(
-                        outcome, true));
+                .thenReturn(
+                        new TaskSubmissionExecutionService.SubmissionExecution(
+                                outcome, true, false));
 
         mockMvc.perform(post(
                         "/api/v1/me/tasks/{taskId}/submission",
@@ -478,6 +480,33 @@ class TaskUserControllerTest {
     }
 
     @Test
+    void simulatedLocalSubmissionKeepsCreatedContractAndSignalsSimulation()
+            throws Exception {
+        TaskSubmissionOutcome outcome = new TaskSubmissionOutcome(
+                201, "TASK_SUBMISSION_CREATED", taskId(),
+                submissionId(), NOW.plusSeconds(30), List.of());
+        when(submissions.submit(any(), eq("request-key"), any()))
+                .thenReturn(
+                        new TaskSubmissionExecutionService.SubmissionExecution(
+                                outcome, false, true));
+
+        mockMvc.perform(post(
+                        "/api/v1/me/tasks/{taskId}/submission",
+                        taskId().value()).principal(authentication)
+                        .header("Idempotency-Key", "request-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(submitBody()))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("X-Local-Simulated", "true"))
+                .andExpect(header().string("Location",
+                        "/api/v1/me/submissions/"
+                                + submissionId().value()))
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_SUBMISSION_CREATED"))
+                .andExpect(jsonPath("$.replayed").value(false));
+    }
+
+    @Test
     void rejectedCandidateKeepsStatusCodeViolationsAndTraceId()
             throws Exception {
         TaskSubmissionOutcome outcome = TaskSubmissionOutcome.rejected(
@@ -486,8 +515,9 @@ class TaskUserControllerTest {
                         "TASK_PREDICTION_CANDIDATE_INVALID",
                         "candidateId", "candidate is invalid")));
         when(submissions.submit(any(), any(), any()))
-                .thenReturn(new TaskSubmissionService.SubmissionExecution(
-                        outcome, false));
+                .thenReturn(
+                        new TaskSubmissionExecutionService.SubmissionExecution(
+                                outcome, false, false));
 
         mockMvc.perform(post(
                         "/api/v1/me/tasks/{taskId}/submission",

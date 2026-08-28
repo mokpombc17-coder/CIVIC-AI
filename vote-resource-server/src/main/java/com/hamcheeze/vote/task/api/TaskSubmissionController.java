@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
+import com.hamcheeze.vote.task.application.submission.TaskSubmissionExecutionService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -32,12 +33,12 @@ import java.util.UUID;
 final class TaskSubmissionController {
 
     private final AuthenticatedUserIdResolver userIds;
-    private final TaskSubmissionService submissions;
+    private final TaskSubmissionExecutionService submissions;
     private final MyTaskSubmissionQueryService submissionQueries;
 
     TaskSubmissionController(
             AuthenticatedUserIdResolver userIds,
-            TaskSubmissionService submissions,
+            TaskSubmissionExecutionService submissions,
             MyTaskSubmissionQueryService submissionQueries
     ) {
         this.userIds = userIds;
@@ -53,7 +54,7 @@ final class TaskSubmissionController {
             @Valid @RequestBody TaskApiModels.SubmitRequest request,
             HttpServletRequest httpRequest
     ) {
-        TaskSubmissionService.SubmissionExecution execution =
+        TaskSubmissionExecutionService.SubmissionExecution execution =
                 submissions.submit(
                         user(authentication), idempotencyKey,
                         new TaskSubmissionService.SubmitTaskCommand(
@@ -76,10 +77,14 @@ final class TaskSubmissionController {
         TaskApiModels.SubmissionResponse response =
                 TaskApiModels.SubmissionResponse.from(
                         outcome, execution.replayed());
-        return ResponseEntity.status(outcome.httpStatus())
+        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity
+                .status(outcome.httpStatus())
                 .location(URI.create("/api/v1/me/submissions/"
-                        + response.submissionId()))
-                .body(response);
+                        + response.submissionId()));
+        if (execution.simulated()) {
+            responseBuilder.header("X-Local-Simulated", "true");
+        }
+        return responseBuilder.body(response);
     }
 
     @GetMapping("/submissions")

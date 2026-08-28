@@ -13,6 +13,7 @@ vote:
   task:
     bootstrap:
       enabled: false
+      submission-simulation-enabled: false
     lifecycle:
       enabled: false
     prediction:
