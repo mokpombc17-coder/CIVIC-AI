@@ -354,7 +354,9 @@ function RequestDetail({
     return (
       <div className="civic-domain-empty">
         <p>신청 상세를 선택하지 않았거나 불러오지 못했습니다.</p>
-        <Link href="/admin/chat/requests">신청 목록으로</Link>
+        <Link className="civic-secondary-action" href="/admin/chat/requests">
+          신청 목록으로
+        </Link>
       </div>
     );
   }
@@ -433,13 +435,15 @@ function RequestDetail({
                 id="chat-rejection-reason-error"
                 message={adminFieldError(problem, "reason")}
               />
-              <small>{[...reason.trim()].length} / 100자 · 한 줄 plain text</small>
+              <small>{[...reason.trim()].length} / 100자 · 한 줄 입력</small>
             </label>
           ) : (
             <p>관리자는 신청 내용을 편집하지 않고 그대로 승인합니다.</p>
           )}
           <div className="civic-form-actions">
-            <Link href="/admin/chat/requests">목록으로</Link>
+            <Link className="civic-secondary-action" href="/admin/chat/requests">
+              목록으로
+            </Link>
             <button
               className={rejectMode ? "civic-danger-action" : "civic-primary-action"}
               disabled={pending}
@@ -487,8 +491,13 @@ function statusLabel(status: RoomCreationStatus): string {
 }
 
 function roomPolicyLabel(visibility: string, joinPolicy: string): string {
-  const visibilityLabel =
-    visibility === "LISTED" ? "목록 공개" : visibility === "UNLISTED" ? "링크 공개" : visibility;
+  const visibilityLabels: Readonly<Record<string, string>> = {
+    LISTED: "목록 공개",
+    UNLISTED: "링크 공개",
+    PUBLIC: "공개",
+    PRIVATE: "비공개",
+  };
+  const visibilityLabel = visibilityLabels[visibility] ?? visibility;
   const joinLabel =
     joinPolicy === "OPEN" ? "바로 참여" : joinPolicy === "INVITE_ONLY" ? "초대 참여" : joinPolicy;
   return `${visibilityLabel} · ${joinLabel}`;
