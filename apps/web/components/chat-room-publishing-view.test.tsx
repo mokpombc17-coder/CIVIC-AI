@@ -53,42 +53,46 @@ describe("chat room publishing view", () => {
     expect(other).toContain("flex w-full min-w-0 items-end gap-1.5 justify-start");
   });
 
-  it("전송 시각과 읽음 수를 말풍선 옆의 보조 정보로 표시한다", () => {
-    const html = renderMessage({ readCount: 1, readReceiptLabel: "1명 읽음" });
+  it("전송 시각과 안 읽은 수를 말풍선 옆의 보조 정보로 표시한다", () => {
+    const html = renderMessage({ unreadCount: 1, unreadReceiptLabel: "1명 안 읽음" });
 
     expect(html).toContain('data-message-side-metadata="true"');
-    expect(html).toContain('data-read-count="1"');
-    expect(html).toContain('aria-label="1명 읽음"');
+    expect(html).toContain('data-unread-count="1"');
+    expect(html).toContain('aria-label="1명 안 읽음"');
     expect(html).toContain(">1</span>");
     expect(html).toContain("<time");
-    expect(html).not.toContain(">1명 읽음</p>");
+    expect(html).not.toContain(">1명 안 읽음</p>");
   });
 
-  it("수정됨 상태를 괄호 없이 읽음 수와 시각 사이의 보조 정보로 표시한다", () => {
+  it("수정됨 상태를 괄호 없이 안 읽은 수와 시각 사이의 보조 정보로 표시한다", () => {
     const html = renderMessage({
       isEdited: true,
-      readCount: 1,
-      readReceiptLabel: "1명 읽음",
+      unreadCount: 1,
+      unreadReceiptLabel: "1명 안 읽음",
     });
 
     expect(html).toContain('data-message-side-metadata="true"');
     expect(html).toContain('data-message-edited="true"');
     expect(html).toContain("수정됨</span>");
     expect(html).not.toContain("(수정됨)");
-    expect(html.indexOf('data-read-count="1"')).toBeLessThan(
+    expect(html.indexOf('data-unread-count="1"')).toBeLessThan(
       html.indexOf('data-message-edited="true"'),
     );
     expect(html.indexOf('data-message-edited="true"')).toBeLessThan(html.indexOf("<time"));
   });
 
-  it("개발 환경에서도 읽음 데이터가 없으면 읽음 수를 표시하지 않는다", () => {
+  it("개발 환경에서도 안 읽은 데이터가 없으면 안 읽은 수를 표시하지 않는다", () => {
     vi.stubEnv("NODE_ENV", "development");
 
     try {
-      const html = renderMessage({ isMine: true, readCount: null, readReceiptLabel: null });
+      const html = renderMessage({
+        isMine: true,
+        unreadCount: null,
+        unreadReceiptLabel: null,
+      });
 
-      expect(html).not.toContain("data-read-count");
-      expect(html).not.toContain("명 읽음");
+      expect(html).not.toContain("data-unread-count");
+      expect(html).not.toContain("명 안 읽음");
     } finally {
       vi.unstubAllEnvs();
     }
@@ -227,8 +231,8 @@ function renderMessage(patch: Partial<ChatMessageItemViewModel>): string {
     isMine: true,
     messageId: "message-01",
     mutation: null,
-    readCount: null,
-    readReceiptLabel: null,
+    unreadCount: null,
+    unreadReceiptLabel: null,
     renderKey: "client-message-550e8400-e29b-41d4-a716-446655440000",
     roomSequence: 1,
     senderIsOwner: false,

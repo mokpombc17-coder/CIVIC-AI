@@ -212,7 +212,7 @@ STOMP `CONNECT`에 `Authorization`을 추가하지 않는다. WebSocket handshak
   적용과 realtime delivery ACK를 막지 않는다.
 - Read Receipt REST snapshot은 `roomId`와 실시간 `generation`별 query cache에 정규화해
   보관하고, read-receipt delta만 해당 cache에 병합한다.
-- 메시지별 `readCount`를 메시지 cache에 저장하지 않는다. Receipt 상태가 `ready`일 때 ViewModel
+- 메시지별 `unreadCount`를 메시지 cache에 저장하지 않는다. Receipt 상태가 `ready`일 때 ViewModel
   생성 직전 현재 메시지와 Membership position으로 순수 projection한다.
 - Read Receipt snapshot·event 오류는 Receipt 표시만 stale/error로 전환하며 메시지와 Room event
   cache 적용 및 delivery ACK를 막지 않는다.
@@ -1040,7 +1040,8 @@ GET /api/v1/rooms/{roomId}/read-receipts/state
 - `ROOM_SNAPSHOT_APPLIED`는 계속 core Message History snapshot 준비만 의미한다. Receipt가
   loading·refreshing·error여도 message/Room event merge와 ACK는 계속한다.
 - ACTIVE이며 서버가 확정한 non-deleted 메시지만 projection 대상이다. 삭제 tombstone과 optimistic
-  outgoing 메시지는 표시하지 않고, 제품 정책상 `readCount=0`도 표시하지 않는다.
+  outgoing 메시지는 표시하지 않는다. 카카오톡 방식으로 내가 보낸 메시지의 양수인 `unreadCount`만
+  표시하고, 모두 읽어 `unreadCount=0`이 되면 숫자를 숨긴다.
 
 다음 계약은 로컬 통합 과정에서 추가 확인이 필요하다.
 

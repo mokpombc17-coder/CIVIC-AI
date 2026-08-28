@@ -21,10 +21,10 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
             : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
     }`;
     const senderLabel = item.senderLabel ?? (item.isMine ? "나" : null);
-    const displayedReadCount = item.readCount;
-    const displayedReadReceiptLabel = item.readReceiptLabel;
+    const displayedUnreadCount = item.unreadCount;
+    const displayedUnreadReceiptLabel = item.unreadReceiptLabel;
     const showsSideMetadata =
-      item.endsSenderGroup || displayedReadReceiptLabel !== null || item.isEdited;
+      item.endsSenderGroup || displayedUnreadReceiptLabel !== null || item.isEdited;
 
     return (
       <li
@@ -108,13 +108,13 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
                 }`}
                 data-message-side-metadata="true"
               >
-                {displayedReadReceiptLabel ? (
+                {displayedUnreadReceiptLabel ? (
                   <span
-                    aria-label={displayedReadReceiptLabel}
+                    aria-label={displayedUnreadReceiptLabel}
                     className="font-bold text-[var(--chat-publishing-color-primary-emphasis)]"
-                    data-read-count={displayedReadCount ?? undefined}
+                    data-unread-count={displayedUnreadCount ?? undefined}
                   >
-                    {displayedReadCount ?? displayedReadReceiptLabel}
+                    {displayedUnreadCount ?? displayedUnreadReceiptLabel}
                   </span>
                 ) : null}
                 {item.isEdited ? (

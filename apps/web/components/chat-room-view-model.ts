@@ -49,8 +49,8 @@ export type ChatMessageItemViewModel = Readonly<{
   isMine: boolean;
   messageId: string | null;
   mutation: ChatMessageMutationViewState | null;
-  readCount: number | null;
-  readReceiptLabel: string | null;
+  unreadCount: number | null;
+  unreadReceiptLabel: string | null;
   renderKey: string;
   roomSequence: number | null;
   senderIsOwner: boolean;
@@ -221,8 +221,8 @@ function createChatMessageItemViewModel(
       isMine: true,
       messageId: null,
       mutation: null,
-      readCount: null,
-      readReceiptLabel: null,
+      unreadCount: null,
+      unreadReceiptLabel: null,
       renderKey: createChatMessageRenderKey(item.message.clientMessageId),
       roomSequence: null,
       senderIsOwner: selfMembershipId !== null && selfMembershipId === ownerMembershipId,
@@ -233,8 +233,9 @@ function createChatMessageItemViewModel(
   }
 
   const isMine = item.message.senderMembershipId === selfMembershipId;
-  const readCount = readReceiptSummaries.get(item.message.messageId)?.readCount ?? 0;
-  const visibleReadCount = item.message.state === "ACTIVE" && readCount > 0 ? readCount : null;
+  const unreadCount = readReceiptSummaries.get(item.message.messageId)?.unreadCount ?? 0;
+  const visibleUnreadCount =
+    isMine && item.message.state === "ACTIVE" && unreadCount > 0 ? unreadCount : null;
 
   return {
     canOpenActions: item.message.state === "ACTIVE" && item.message.content !== null,
@@ -250,8 +251,8 @@ function createChatMessageItemViewModel(
     isMine,
     messageId: item.message.messageId,
     mutation: mutationStates.get(item.message.messageId) ?? null,
-    readCount: visibleReadCount,
-    readReceiptLabel: visibleReadCount === null ? null : `${visibleReadCount}명 읽음`,
+    unreadCount: visibleUnreadCount,
+    unreadReceiptLabel: visibleUnreadCount === null ? null : `${visibleUnreadCount}명 안 읽음`,
     renderKey: createChatMessageRenderKey(item.message.clientMessageId),
     roomSequence: item.message.roomSequence,
     senderIsOwner: item.message.senderMembershipId === ownerMembershipId,

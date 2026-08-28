@@ -83,8 +83,8 @@ describe("chat room view model", () => {
       deliveryTone: null,
       isMine: false,
       messageId: "message-01",
-      readCount: null,
-      readReceiptLabel: null,
+      unreadCount: null,
+      unreadReceiptLabel: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440001",
       roomSequence: 1,
       senderIsOwner: false,
@@ -99,8 +99,8 @@ describe("chat room view model", () => {
       deliveryTone: "pending",
       isMine: true,
       messageId: null,
-      readCount: null,
-      readReceiptLabel: null,
+      unreadCount: null,
+      unreadReceiptLabel: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440002",
       roomSequence: null,
       senderIsOwner: true,
@@ -351,19 +351,19 @@ describe("chat room view model", () => {
       content: "삭제된 메시지입니다.",
       isDeleted: true,
       isMine: true,
-      readCount: null,
-      readReceiptLabel: null,
+      unreadCount: null,
+      unreadReceiptLabel: null,
       renderKey: "client-message-550e8400-e29b-41d4-a716-446655440005",
     });
   });
 
-  it("양수인 readCount만 확정 ACTIVE 메시지의 보조 문구로 변환한다", () => {
+  it("내가 보낸 ACTIVE 메시지의 양수인 unreadCount만 보조 문구로 변환한다", () => {
     const timeline: readonly ChatMessageTimelineItem[] = [
       {
         kind: "confirmed",
         message: {
           clientMessageId: "550e8400-e29b-41d4-a716-446655440030",
-          content: "한 명이 읽은 메시지",
+          content: "한 명이 아직 읽지 않은 메시지",
           countable: true,
           createdAt: "2026-08-10T03:00:00Z",
           deletedAt: null,
@@ -397,7 +397,7 @@ describe("chat room view model", () => {
         kind: "confirmed",
         message: {
           clientMessageId: "550e8400-e29b-41d4-a716-446655440032",
-          content: "다른 참여자가 작성한 읽은 메시지",
+          content: "모두 읽은 내 메시지",
           countable: true,
           createdAt: "2026-08-10T03:02:00Z",
           deletedAt: null,
@@ -405,7 +405,7 @@ describe("chat room view model", () => {
           messageVersion: 1,
           roomId: "room-01",
           roomSequence: 32,
-          senderMembershipId: "membership-02",
+          senderMembershipId: "membership-01",
           state: "ACTIVE",
           updatedAt: "2026-08-10T03:02:00Z",
         },
@@ -445,18 +445,18 @@ describe("chat room view model", () => {
 
     expect(items[0]).toMatchObject({
       isMine: true,
-      readCount: 1,
-      readReceiptLabel: "1명 읽음",
+      unreadCount: 1,
+      unreadReceiptLabel: "1명 안 읽음",
     });
     expect(items[1]).toMatchObject({
       isMine: false,
-      readCount: null,
-      readReceiptLabel: null,
+      unreadCount: null,
+      unreadReceiptLabel: null,
     });
     expect(items[2]).toMatchObject({
-      isMine: false,
-      readCount: 2,
-      readReceiptLabel: "2명 읽음",
+      isMine: true,
+      unreadCount: null,
+      unreadReceiptLabel: null,
     });
   });
 

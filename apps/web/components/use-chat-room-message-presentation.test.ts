@@ -43,15 +43,15 @@ describe("chat room message presentation", () => {
     ]);
     expect(presentation.messageItems[0]).toMatchObject({
       isMine: false,
-      readCount: 1,
-      readReceiptLabel: "1명 읽음",
+      unreadCount: null,
+      unreadReceiptLabel: null,
       senderIsOwner: false,
       senderLabel: "참여자 2",
     });
     expect(presentation.messageItems[1]).toMatchObject({
       deliveryStatus: "queued",
       isMine: true,
-      readReceiptLabel: null,
+      unreadReceiptLabel: null,
       senderIsOwner: true,
       senderLabel: "참여자 1",
     });
@@ -77,8 +77,8 @@ describe("chat room message presentation", () => {
     });
 
     expect(presentation.messageItems[0]).toMatchObject({
-      readCount: null,
-      readReceiptLabel: null,
+      unreadCount: null,
+      unreadReceiptLabel: null,
     });
   });
 });
