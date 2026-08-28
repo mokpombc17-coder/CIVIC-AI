@@ -42,6 +42,40 @@ public final class RoomMembershipTransitions {
                 ownerMembership);
     }
 
+    public static RoomCreationResult createRoomWithCategoryIds(
+            String roomId,
+            String name,
+            String description,
+            List<String> categoryIds,
+            String ownerMembershipId,
+            String ownerUserId,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            Instant createdAt
+    ) {
+        Instant creationTime =
+                RoomDomainValidation.requireTransitionTime(createdAt);
+        Room room = Room.createWithCategoryIds(
+                roomId,
+                name,
+                description,
+                categoryIds,
+                ownerMembershipId,
+                ownerUserId,
+                visibility,
+                joinPolicy,
+                creationTime);
+        Membership ownerMembership = Membership.createOwner(
+                ownerMembershipId,
+                room.roomId(),
+                room.ownerUserId(),
+                creationTime);
+        return new RoomCreationResult(
+                RoomCreationResult.Outcome.CREATED,
+                room,
+                ownerMembership);
+    }
+
     public static JoinRoomTransition joinRoom(
             Room room,
             Membership existingMembership,

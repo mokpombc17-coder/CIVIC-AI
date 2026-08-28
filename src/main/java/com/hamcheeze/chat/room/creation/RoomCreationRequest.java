@@ -2,10 +2,9 @@ package com.hamcheeze.chat.room.creation;
 
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Room;
-import com.hamcheeze.chat.room.RoomCategories;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.idempotency.RoomClientRequestId;
+import com.hamcheeze.chat.room.category.RoomCategoryIds;
 
 import java.time.Instant;
 import java.util.List;
@@ -25,7 +24,7 @@ public final class RoomCreationRequest {
     private final String requesterUserId;
     private final String name;
     private final String description;
-    private final List<RoomCategory> categories;
+    private final List<String> categoryIds;
     private final RoomVisibility visibility;
     private final JoinPolicy joinPolicy;
     private final RoomCreationRequestStatus status;
@@ -47,7 +46,7 @@ public final class RoomCreationRequest {
             String requesterUserId,
             String name,
             String description,
-            List<RoomCategory> categories,
+            List<String> categoryIds,
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
             RoomCreationRequestStatus status,
@@ -71,7 +70,7 @@ public final class RoomCreationRequest {
         this.requesterUserId = requireUserId(requesterUserId);
         this.name = requireRoomName(name);
         this.description = requireRoomDescription(description);
-        this.categories = RoomCategories.requireValid(categories);
+        this.categoryIds = canonicalCategoryIds(categoryIds);
         this.visibility = Objects.requireNonNull(
                 visibility,
                 "visibility");
@@ -103,7 +102,6 @@ public final class RoomCreationRequest {
             String requesterUserId,
             String name,
             String description,
-            List<RoomCategory> categories,
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
             Instant requestedAt
@@ -115,7 +113,7 @@ public final class RoomCreationRequest {
                 requesterUserId,
                 name,
                 description,
-                categories,
+                List.of(),
                 visibility,
                 joinPolicy,
                 RoomCreationRequestStatus.PENDING,
@@ -138,7 +136,7 @@ public final class RoomCreationRequest {
             String requesterUserId,
             String name,
             String description,
-            List<RoomCategory> categories,
+            List<String> categoryIds,
             RoomVisibility visibility,
             JoinPolicy joinPolicy,
             RoomCreationRequestStatus status,
@@ -160,7 +158,7 @@ public final class RoomCreationRequest {
                 requesterUserId,
                 name,
                 description,
-                categories,
+                categoryIds,
                 visibility,
                 joinPolicy,
                 status,
@@ -178,6 +176,7 @@ public final class RoomCreationRequest {
 
     public RoomCreationRequest approveByAdmin(
             String adminUserId,
+            List<String> categoryIds,
             String roomId,
             String membershipId,
             long approvedRoomVersion,
@@ -187,6 +186,7 @@ public final class RoomCreationRequest {
         return approve(
                 RoomCreationDecisionActorType.ADMIN,
                 requireUserId(adminUserId),
+                categoryIds,
                 roomId,
                 membershipId,
                 approvedRoomVersion,
@@ -195,6 +195,7 @@ public final class RoomCreationRequest {
     }
 
     public RoomCreationRequest approveAutomatically(
+            List<String> categoryIds,
             String roomId,
             String membershipId,
             long approvedRoomVersion,
@@ -204,6 +205,7 @@ public final class RoomCreationRequest {
         return approve(
                 RoomCreationDecisionActorType.SYSTEM_AUTO_APPROVAL,
                 null,
+                categoryIds,
                 roomId,
                 membershipId,
                 approvedRoomVersion,
@@ -218,6 +220,7 @@ public final class RoomCreationRequest {
     ) {
         requirePending();
         return copy(
+                List.of(),
                 RoomCreationRequestStatus.REJECTED,
                 requireTransitionTime(transitionTime),
                 RoomCreationDecisionActorType.ADMIN,
@@ -232,6 +235,7 @@ public final class RoomCreationRequest {
     public RoomCreationRequest cancel(Instant transitionTime) {
         requirePending();
         return copy(
+                List.of(),
                 RoomCreationRequestStatus.CANCELED,
                 requireTransitionTime(transitionTime),
                 RoomCreationDecisionActorType.REQUESTER,
@@ -246,6 +250,7 @@ public final class RoomCreationRequest {
     private RoomCreationRequest approve(
             RoomCreationDecisionActorType actorType,
             String adminUserId,
+            List<String> approvedCategoryIds,
             String roomId,
             String membershipId,
             long approvedRoomVersion,
@@ -254,6 +259,7 @@ public final class RoomCreationRequest {
     ) {
         requirePending();
         return copy(
+                RoomCategoryIds.requireValid(approvedCategoryIds),
                 RoomCreationRequestStatus.APPROVED,
                 requireTransitionTime(transitionTime),
                 actorType,
@@ -266,6 +272,7 @@ public final class RoomCreationRequest {
     }
 
     private RoomCreationRequest copy(
+            List<String> nextCategoryIds,
             RoomCreationRequestStatus nextStatus,
             Instant nextResolvedAt,
             RoomCreationDecisionActorType nextDecisionActorType,
@@ -283,7 +290,7 @@ public final class RoomCreationRequest {
                 requesterUserId,
                 name,
                 description,
-                categories,
+                nextCategoryIds,
                 visibility,
                 joinPolicy,
                 nextStatus,
@@ -341,7 +348,8 @@ public final class RoomCreationRequest {
     }
 
     private void requirePendingState() {
-        if (resolvedAt != null
+        if (!categoryIds.isEmpty()
+                || resolvedAt != null
                 || decisionActorType != null
                 || decidedByAdminId != null
                 || rejectionReason != null
@@ -352,7 +360,8 @@ public final class RoomCreationRequest {
     }
 
     private void requireApprovedState() {
-        if (resolvedAt == null
+        if (categoryIds.isEmpty()
+                || resolvedAt == null
                 || decisionActorType == null
                 || rejectionReason != null
                 || !hasCompleteApprovedRoom()
@@ -370,7 +379,8 @@ public final class RoomCreationRequest {
     }
 
     private void requireRejectedState() {
-        if (resolvedAt == null
+        if (!categoryIds.isEmpty()
+                || resolvedAt == null
                 || decisionActorType
                         != RoomCreationDecisionActorType.ADMIN
                 || decidedByAdminId == null
@@ -384,7 +394,8 @@ public final class RoomCreationRequest {
     }
 
     private void requireCanceledState() {
-        if (resolvedAt == null
+        if (!categoryIds.isEmpty()
+                || resolvedAt == null
                 || decisionActorType
                         != RoomCreationDecisionActorType.REQUESTER
                 || decidedByAdminId != null
@@ -486,6 +497,16 @@ public final class RoomCreationRequest {
         return value;
     }
 
+    private static List<String> canonicalCategoryIds(
+            List<String> categoryIds
+    ) {
+        List<String> values = List.copyOf(
+                Objects.requireNonNull(categoryIds, "categoryIds"));
+        return values.isEmpty()
+                ? values
+                : RoomCategoryIds.requireValid(values);
+    }
+
     private static long requireVersion(long value) {
         if (value < 0) {
             throw error(
@@ -530,8 +551,8 @@ public final class RoomCreationRequest {
         return description;
     }
 
-    public List<RoomCategory> categories() {
-        return categories;
+    public List<String> categoryIds() {
+        return categoryIds;
     }
 
     public RoomVisibility visibility() {

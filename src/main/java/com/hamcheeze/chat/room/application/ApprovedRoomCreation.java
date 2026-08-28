@@ -1,8 +1,8 @@
 package com.hamcheeze.chat.room.application;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.RoomCategoryIds;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,7 +14,7 @@ public record ApprovedRoomCreation(
         String ownerUserId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         RoomVisibility visibility,
         JoinPolicy joinPolicy,
         Instant createdAt,
@@ -31,8 +31,7 @@ public record ApprovedRoomCreation(
                 "ownerUserId");
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(description, "description");
-        categories = List.copyOf(
-                Objects.requireNonNull(categories, "categories"));
+        categoryIds = RoomCategoryIds.requireValid(categoryIds);
         Objects.requireNonNull(visibility, "visibility");
         Objects.requireNonNull(joinPolicy, "joinPolicy");
         Objects.requireNonNull(createdAt, "createdAt");

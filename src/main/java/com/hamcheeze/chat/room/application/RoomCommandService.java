@@ -25,6 +25,7 @@ import com.hamcheeze.chat.room.application.command.RoomCommand;
 import com.hamcheeze.chat.room.application.command.TransferOwnershipCommand;
 import com.hamcheeze.chat.room.application.command.UnbanMemberCommand;
 import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
+import com.hamcheeze.chat.room.category.LegacyRoomCategoryMapping;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.idempotency.PreparedRoomCommand;
 import com.hamcheeze.chat.room.application.idempotency.RoomCommandFingerprintFactory;
@@ -139,7 +140,8 @@ public final class RoomCommandService {
                                     command.requesterUserId(),
                                     command.name(),
                                     command.description(),
-                                    command.categories(),
+                                    LegacyRoomCategoryMapping.categoryIds(
+                                            command.categories()),
                                     command.visibility(),
                                     command.joinPolicy(),
                                     transitionTime,

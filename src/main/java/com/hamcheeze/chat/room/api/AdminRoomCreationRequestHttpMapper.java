@@ -50,7 +50,7 @@ public final class AdminRoomCreationRequestHttpMapper {
                 source.requesterUserId(),
                 source.name(),
                 source.description(),
-                source.categories(),
+                source.categoryIds(),
                 source.visibility(),
                 source.joinPolicy(),
                 source.status(),

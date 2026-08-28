@@ -585,15 +585,14 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         .content("""
                                 {
                                   "name":"Test room",
-                                  "visibility":"LISTED",
-                                  "joinPolicy":"OPEN"
+                                  "visibility":"LISTED"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code")
                         .value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.fieldErrors[0].field")
-                        .value("categories"));
+                        .value("joinPolicy"));
 
         assertThat(count(MongoRoomDocument.COLLECTION_NAME)).isZero();
         assertThat(count(MongoMembershipDocument.COLLECTION_NAME))

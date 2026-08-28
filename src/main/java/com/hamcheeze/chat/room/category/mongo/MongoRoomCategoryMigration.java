@@ -3,6 +3,8 @@ package com.hamcheeze.chat.room.category.mongo;
 import com.hamcheeze.chat.room.category.LegacyRoomCategoryMapping;
 import com.hamcheeze.chat.room.category.RoomCategoryIds;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryStore;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
+import com.hamcheeze.chat.room.creation.mongo.MongoRoomCreationRequestDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Filters;
@@ -39,6 +41,11 @@ public final class MongoRoomCategoryMigration {
     }
 
     public void initialize() {
+        migrateRooms();
+        migrateCreationRequests();
+    }
+
+    private void migrateRooms() {
         if (!mongoOperations.collectionExists(
                 MongoRoomDocument.COLLECTION_NAME)) {
             return;
@@ -84,13 +91,71 @@ public final class MongoRoomCategoryMigration {
         }
     }
 
+    private void migrateCreationRequests() {
+        if (!mongoOperations.collectionExists(
+                MongoRoomCreationRequestDocument.COLLECTION_NAME)) {
+            return;
+        }
+        MongoCollection<Document> requests = mongoOperations
+                .getCollection(
+                        MongoRoomCreationRequestDocument.COLLECTION_NAME);
+        List<Document> legacyRequests = requests.find(Filters.eq(
+                        "schemaVersion",
+                        MongoRoomCreationRequestDocument
+                                .LEGACY_CATEGORY_SCHEMA_VERSION))
+                .projection(Projections.include(
+                        "_id",
+                        "status",
+                        "categories"))
+                .into(new ArrayList<>());
+        Set<String> approvedLegacyNames = new LinkedHashSet<>();
+        for (Document request : legacyRequests) {
+            if (isApproved(request)) {
+                approvedLegacyNames.addAll(requireLegacyNames(request));
+            }
+        }
+        for (String legacyName : approvedLegacyNames) {
+            categoryStore.insertIfAbsent(
+                    LegacyRoomCategoryMapping.category(
+                            legacyName,
+                            clock.instant()));
+        }
+        for (Document request : legacyRequests) {
+            List<String> categoryIds = isApproved(request)
+                    ? RoomCategoryIds.requireValid(
+                            requireLegacyNames(request).stream()
+                                    .map(LegacyRoomCategoryMapping::categoryId)
+                                    .toList())
+                    : List.of();
+            requests.updateOne(
+                    Filters.and(
+                            Filters.eq("_id", request.get("_id")),
+                            Filters.eq(
+                                    "schemaVersion",
+                                    MongoRoomCreationRequestDocument
+                                            .LEGACY_CATEGORY_SCHEMA_VERSION)),
+                    Updates.combine(
+                            Updates.set("categoryIds", categoryIds),
+                            Updates.set(
+                                    "schemaVersion",
+                                    MongoRoomCreationRequestDocument
+                                            .CURRENT_SCHEMA_VERSION),
+                            Updates.unset("categories")));
+        }
+    }
+
+    private static boolean isApproved(Document request) {
+        return RoomCreationRequestStatus.APPROVED.name().equals(
+                request.getString("status"));
+    }
+
     private static List<String> requireLegacyNames(Document room) {
         List<String> categories = room.getList(
                 "categories",
                 String.class);
         if (categories == null || categories.isEmpty()) {
             throw new IllegalStateException(
-                    "Schema 6 Room must contain legacy categories: "
+                    "Legacy document must contain categories: "
                             + room.get("_id"));
         }
         for (String category : categories) {

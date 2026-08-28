@@ -81,7 +81,6 @@ class MongoRoomCreationRequestStoreTest
                 original.requesterUserId(),
                 "다른 이름",
                 "",
-                List.of(RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 REQUESTED_AT);
@@ -294,7 +293,6 @@ class MongoRoomCreationRequestStoreTest
                 userId,
                 "정책 토론 " + requestId,
                 "설명",
-                List.of(RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 REQUESTED_AT);

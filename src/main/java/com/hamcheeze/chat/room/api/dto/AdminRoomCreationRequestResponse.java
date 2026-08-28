@@ -1,7 +1,6 @@
 package com.hamcheeze.chat.room.api.dto;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
 
@@ -14,7 +13,7 @@ public record AdminRoomCreationRequestResponse(
         String requesterUserId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         RoomVisibility visibility,
         JoinPolicy joinPolicy,
         RoomCreationRequestStatus status,
@@ -37,8 +36,8 @@ public record AdminRoomCreationRequestResponse(
                 "requesterUserId");
         name = requireText(name, "name");
         Objects.requireNonNull(description, "description");
-        categories = List.copyOf(
-                Objects.requireNonNull(categories, "categories"));
+        categoryIds = List.copyOf(
+                Objects.requireNonNull(categoryIds, "categoryIds"));
         Objects.requireNonNull(visibility, "visibility");
         Objects.requireNonNull(joinPolicy, "joinPolicy");
         Objects.requireNonNull(status, "status");

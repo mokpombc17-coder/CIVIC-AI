@@ -165,6 +165,34 @@ public final class Room {
                 0);
     }
 
+    static Room createWithCategoryIds(
+            String roomId,
+            String name,
+            String description,
+            List<String> categoryIds,
+            String ownerMembershipId,
+            String ownerUserId,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            Instant createdAt
+    ) {
+        return new Room(
+                roomId,
+                name,
+                description,
+                categoryIds,
+                ownerMembershipId,
+                ownerUserId,
+                RoomStatus.ACTIVE,
+                visibility,
+                joinPolicy,
+                1,
+                2,
+                createdAt,
+                null,
+                0);
+    }
+
     Room memberJoined() {
         if (activeMemberCount == Integer.MAX_VALUE) {
             throw new RoomDomainException(

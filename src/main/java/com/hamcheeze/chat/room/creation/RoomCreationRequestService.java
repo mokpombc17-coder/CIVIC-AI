@@ -18,6 +18,8 @@ import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
+import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestInsertOutcome;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestInsertResult;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestSlice;
@@ -29,6 +31,7 @@ import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 public final class RoomCreationRequestService {
@@ -39,6 +42,7 @@ public final class RoomCreationRequestService {
     private final RoomCreationRequestIdGenerator requestIdGenerator;
     private final RoomCommandIdGenerator roomIdGenerator;
     private final RoomCommandFingerprintFactory fingerprintFactory;
+    private final RoomCategoryService categoryService;
     private final ApprovedRoomCreator approvedRoomCreator;
     private final RoomCommandPostCommitCoordinator postCommitCoordinator;
     private final ActiveRoomMembershipQuotaGuard quotaGuard;
@@ -57,6 +61,7 @@ public final class RoomCreationRequestService {
             RoomCreationRequestIdGenerator requestIdGenerator,
             RoomCommandIdGenerator roomIdGenerator,
             RoomCommandFingerprintFactory fingerprintFactory,
+            RoomCategoryService categoryService,
             ApprovedRoomCreator approvedRoomCreator,
             RoomCommandPostCommitCoordinator postCommitCoordinator,
             ActiveRoomMembershipQuotaGuard quotaGuard,
@@ -80,6 +85,9 @@ public final class RoomCreationRequestService {
         this.fingerprintFactory = Objects.requireNonNull(
                 fingerprintFactory,
                 "fingerprintFactory");
+        this.categoryService = Objects.requireNonNull(
+                categoryService,
+                "categoryService");
         this.approvedRoomCreator = Objects.requireNonNull(
                 approvedRoomCreator,
                 "approvedRoomCreator");
@@ -148,7 +156,6 @@ public final class RoomCreationRequestService {
                 request.requesterUserId(),
                 request.name(),
                 request.description(),
-                request.categories(),
                 request.visibility(),
                 request.joinPolicy(),
                 requestedAt);
@@ -302,9 +309,12 @@ public final class RoomCreationRequestService {
 
     public RoomCreationRequestExecution approveByAdmin(
             String adminUserId,
-            String creationRequestId
+            String creationRequestId,
+            List<String> categoryIds
     ) {
         String admin = requireUserId(adminUserId);
+        List<String> approvedCategoryIds =
+                categoryService.requireExistingCategoryIds(categoryIds);
         RuntimeException lastTransientFailure = null;
         for (int attempt = 0;
                 attempt < MAX_TRANSITION_ATTEMPTS;
@@ -317,6 +327,7 @@ public final class RoomCreationRequestService {
                         status -> approveByAdminInTransaction(
                                 admin,
                                 creationRequestId,
+                                approvedCategoryIds,
                                 roomId,
                                 membershipId,
                                 approvedAt));
@@ -348,7 +359,10 @@ public final class RoomCreationRequestService {
             RoomCreationRequest current = requireAny(creationRequestId);
             if (current.status()
                     == RoomCreationRequestStatus.APPROVED) {
-                return new RoomCreationRequestExecution(current, true);
+                if (current.categoryIds().equals(approvedCategoryIds)) {
+                    return new RoomCreationRequestExecution(current, true);
+                }
+                throw decisionConflict();
             }
             if (current.status() != RoomCreationRequestStatus.PENDING) {
                 throw decisionConflict();
@@ -503,7 +517,8 @@ public final class RoomCreationRequestService {
                         current.requesterUserId(),
                         current.name(),
                         current.description(),
-                        current.categories(),
+                        categoryService.requireExistingCategoryIds(List.of(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)),
                         current.visibility(),
                         current.joinPolicy(),
                         approvedAt,
@@ -515,6 +530,7 @@ public final class RoomCreationRequestService {
         }
         RoomCreationResult roomCreation = creation.creation();
         RoomCreationRequest approved = current.approveAutomatically(
+                roomCreation.room().categoryIds(),
                 roomCreation.room().roomId(),
                 roomCreation.ownerMembership().membershipId(),
                 roomCreation.room().version(),
@@ -540,6 +556,7 @@ public final class RoomCreationRequestService {
     private DirectApprovalResult approveByAdminInTransaction(
             String adminUserId,
             String creationRequestId,
+            List<String> categoryIds,
             String roomId,
             String membershipId,
             Instant approvedAt
@@ -547,7 +564,10 @@ public final class RoomCreationRequestService {
         RoomCreationRequest current = requireAny(creationRequestId);
         if (current.status()
                 == RoomCreationRequestStatus.APPROVED) {
-            return DirectApprovalResult.existing(current);
+            if (current.categoryIds().equals(categoryIds)) {
+                return DirectApprovalResult.existing(current);
+            }
+            throw decisionConflict();
         }
         if (current.status() != RoomCreationRequestStatus.PENDING) {
             throw decisionConflict();
@@ -559,7 +579,7 @@ public final class RoomCreationRequestService {
                         current.requesterUserId(),
                         current.name(),
                         current.description(),
-                        current.categories(),
+                        categoryIds,
                         current.visibility(),
                         current.joinPolicy(),
                         approvedAt,
@@ -572,6 +592,7 @@ public final class RoomCreationRequestService {
         RoomCreationResult roomCreation = creation.creation();
         RoomCreationRequest approved = current.approveByAdmin(
                 adminUserId,
+                categoryIds,
                 roomCreation.room().roomId(),
                 roomCreation.ownerMembership().membershipId(),
                 roomCreation.room().version(),

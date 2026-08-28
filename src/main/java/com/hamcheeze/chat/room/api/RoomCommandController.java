@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.api.dto.BanMemberRequest;
 import com.hamcheeze.chat.room.api.dto.CreateRoomRequest;
 import com.hamcheeze.chat.room.api.dto.TransferOwnershipRequest;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 import tools.jackson.databind.JsonNode;
 
 @RestController
@@ -85,7 +87,7 @@ public class RoomCommandController {
                                 requestId,
                                 request.name(),
                                 request.description(),
-                                request.categories(),
+                                List.of(RoomCategory.POLICY),
                                 request.visibility(),
                                 request.joinPolicy()),
                         membershipLimitModeResolver.resolve(

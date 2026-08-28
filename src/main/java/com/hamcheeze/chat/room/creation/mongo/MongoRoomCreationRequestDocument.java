@@ -1,7 +1,6 @@
 package com.hamcheeze.chat.room.creation.mongo;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.creation.RoomCreationDecisionActorType;
 import com.hamcheeze.chat.room.creation.RoomCreationRequest;
@@ -27,7 +26,7 @@ public record MongoRoomCreationRequestDocument(
         String requesterUserId,
         String name,
         String description,
-        List<RoomCategory> categories,
+        List<String> categoryIds,
         RoomVisibility visibility,
         JoinPolicy joinPolicy,
         RoomCreationRequestStatus status,
@@ -46,7 +45,8 @@ public record MongoRoomCreationRequestDocument(
 
     public static final String COLLECTION_NAME =
             "chat_room_creation_requests";
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int LEGACY_CATEGORY_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     @PersistenceCreator
     public MongoRoomCreationRequestDocument {
@@ -62,8 +62,8 @@ public record MongoRoomCreationRequestDocument(
                 "requesterUserId");
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(description, "description");
-        categories = List.copyOf(
-                Objects.requireNonNull(categories, "categories"));
+        categoryIds = List.copyOf(
+                Objects.requireNonNull(categoryIds, "categoryIds"));
         Objects.requireNonNull(visibility, "visibility");
         Objects.requireNonNull(joinPolicy, "joinPolicy");
         Objects.requireNonNull(status, "status");
@@ -93,7 +93,7 @@ public record MongoRoomCreationRequestDocument(
                 request.requesterUserId(),
                 request.name(),
                 request.description(),
-                request.categories(),
+                request.categoryIds(),
                 request.visibility(),
                 request.joinPolicy(),
                 request.status(),
@@ -124,7 +124,7 @@ public record MongoRoomCreationRequestDocument(
                 requesterUserId,
                 name,
                 description,
-                categories,
+                categoryIds,
                 visibility,
                 joinPolicy,
                 status,

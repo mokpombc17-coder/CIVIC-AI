@@ -45,6 +45,19 @@ public final class RoomCategoryService {
                 .orElseThrow(RoomCategoryService::notFound);
     }
 
+    public List<String> requireExistingCategoryIds(
+            List<String> categoryIds
+    ) {
+        List<String> canonical;
+        try {
+            canonical = RoomCategoryIds.requireValid(categoryIds);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw invalidCategory(exception);
+        }
+        canonical.forEach(this::findById);
+        return canonical;
+    }
+
     public RoomCategory create(String name) {
         RoomCategory category;
         try {

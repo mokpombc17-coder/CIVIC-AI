@@ -1,8 +1,8 @@
 package com.hamcheeze.chat.room.creation;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -37,6 +37,7 @@ class RoomCreationRequestTest {
     void approvesByAdminAndSystemWithAllocatedRoomIdentity() {
         RoomCreationRequest adminApproved = pending().approveByAdmin(
                 "admin-1",
+                List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID),
                 "room-1",
                 "membership-1",
                 0,
@@ -44,6 +45,7 @@ class RoomCreationRequestTest {
                 REQUESTED_AT.plusSeconds(10));
         RoomCreationRequest autoApproved = pending()
                 .approveAutomatically(
+                        List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID),
                         "room-2",
                         "membership-2",
                         0,
@@ -120,7 +122,7 @@ class RoomCreationRequestTest {
                 "user-1",
                 "정책 토론",
                 "",
-                List.of(RoomCategory.POLICY),
+                List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 RoomCreationRequestStatus.APPROVED,
@@ -152,7 +154,6 @@ class RoomCreationRequestTest {
                 "user-1",
                 "  정책 토론  ",
                 "  설명  ",
-                List.of(RoomCategory.POLICY),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 REQUESTED_AT);

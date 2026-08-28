@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room.creation.mongo;
 
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestStore;
+import com.hamcheeze.chat.room.category.mongo.MongoRoomCategoryMigration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.core.MongoOperations;
@@ -21,7 +22,8 @@ public class MongoRoomCreationRequestConfiguration {
     RoomCreationRequestStore roomCreationRequestStore(
             MongoOperations mongoOperations,
             MongoRoomCreationRequestSchemaInitializer
-                    schemaInitializer
+                    schemaInitializer,
+            MongoRoomCategoryMigration categoryMigration
     ) {
         return new MongoRoomCreationRequestStore(mongoOperations);
     }

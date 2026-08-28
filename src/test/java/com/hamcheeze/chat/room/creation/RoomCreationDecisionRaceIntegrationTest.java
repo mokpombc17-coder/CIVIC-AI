@@ -5,6 +5,7 @@ import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.ActiveRoomMembershipLimitMode;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
@@ -42,10 +43,12 @@ class RoomCreationDecisionRaceIntegrationTest
         List<DecisionAttempt> attempts = race(
                 () -> service.approveByAdmin(
                         "admin-1",
-                        requestId),
+                        requestId,
+                        List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID)),
                 () -> service.approveByAdmin(
                         "admin-2",
-                        requestId));
+                        requestId,
+                        List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID)));
 
         assertThat(attempts)
                 .allSatisfy(attempt -> {
@@ -69,7 +72,8 @@ class RoomCreationDecisionRaceIntegrationTest
         List<DecisionAttempt> attempts = race(
                 () -> service.approveByAdmin(
                         "admin-1",
-                        requestId),
+                        requestId,
+                        List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID)),
                 () -> service.rejectByAdmin(
                         "admin-2",
                         requestId,
@@ -97,7 +101,8 @@ class RoomCreationDecisionRaceIntegrationTest
         List<DecisionAttempt> attempts = race(
                 () -> service.approveByAdmin(
                         "admin-1",
-                        requestId),
+                        requestId,
+                        List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID)),
                 () -> service.cancelOwn(requester, requestId));
 
         assertOneSuccessAndOneConflict(attempts);

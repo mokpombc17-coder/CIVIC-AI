@@ -1,6 +1,8 @@
 package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.creation.RoomCreationDecisionActorType;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
+import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
 import com.hamcheeze.chat.room.creation.mongo.MongoRoomCreationRequestDocument;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
@@ -46,8 +48,11 @@ class AdminRoomCreationRequestApiIntegrationTest
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private RoomCategoryService categoryService;
+
     @Test
-    void adminListsInspectsAndApprovesWithoutChangingProposal()
+    void adminListsInspectsAndApprovesWithAssignedCategories()
             throws Exception {
         String requestId = submit(
                 "applicant-1",
@@ -71,8 +76,8 @@ class AdminRoomCreationRequestApiIntegrationTest
                         .value("정책 토론"))
                 .andExpect(jsonPath("$.items[0].description")
                         .value("검토할 설명"))
-                .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("POLICY"))
+                .andExpect(jsonPath("$.items[0].categoryIds")
+                        .isEmpty())
                 .andExpect(jsonPath("$.items[0].visibility")
                         .value("LISTED"))
                 .andExpect(jsonPath("$.items[0].joinPolicy")
@@ -86,7 +91,10 @@ class AdminRoomCreationRequestApiIntegrationTest
         mockMvc.perform(get(
                         "/api/v1/admin/room-creation-requests/{id}",
                         requestId)
-                        .with(admin("admin-1")))
+                        .with(admin("admin-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.creationRequestId")
                         .value(requestId))
@@ -95,7 +103,10 @@ class AdminRoomCreationRequestApiIntegrationTest
         MvcResult approved = mockMvc.perform(post(
                         "/api/v1/admin/room-creation-requests/{id}/approve",
                         requestId)
-                        .with(admin("admin-1")))
+                        .with(admin("admin-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
                 .andExpect(status().isCreated())
                 .andExpect(header().string(
                         "Location",
@@ -104,6 +115,8 @@ class AdminRoomCreationRequestApiIntegrationTest
                 .andExpect(jsonPath("$.status").value("APPROVED"))
                 .andExpect(jsonPath("$.roomId").isString())
                 .andExpect(jsonPath("$.ownerMembershipId").isString())
+                .andExpect(jsonPath("$.categoryIds[0]").value(
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID))
                 .andExpect(jsonPath("$.replayed").value(false))
                 .andReturn();
         String roomId = json(approved).get("roomId").asText();
@@ -125,7 +138,10 @@ class AdminRoomCreationRequestApiIntegrationTest
         mockMvc.perform(post(
                         "/api/v1/admin/room-creation-requests/{id}/approve",
                         requestId)
-                        .with(admin("admin-2")))
+                        .with(admin("admin-2"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roomId").value(roomId))
                 .andExpect(jsonPath("$.replayed").value(true));
@@ -188,7 +204,10 @@ class AdminRoomCreationRequestApiIntegrationTest
         mockMvc.perform(post(
                         "/api/v1/admin/room-creation-requests/{id}/approve",
                         requestId)
-                        .with(admin("admin-1")))
+                        .with(admin("admin-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code")
                         .value("ROOM_CREATION_DECISION_CONFLICT"));
@@ -211,7 +230,10 @@ class AdminRoomCreationRequestApiIntegrationTest
         mockMvc.perform(post(
                         "/api/v1/admin/room-creation-requests/{id}/approve",
                         requestId)
-                        .with(admin("admin-1")))
+                        .with(admin("admin-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code")
                         .value("USER_ACTIVE_ROOM_LIMIT_EXCEEDED"));
@@ -221,6 +243,77 @@ class AdminRoomCreationRequestApiIntegrationTest
                 .isEqualTo(RoomCreationRequestStatus.PENDING);
         assertThat(stored.approvedRoomId()).isNull();
         assertThat(stored.resolvedAt()).isNull();
+    }
+
+    @Test
+    void approvalRequiresOneToFiveExistingUniqueCategories()
+            throws Exception {
+        String requestId = submit(
+                "category-validation-applicant",
+                "카테고리 검증",
+                "설명");
+
+        for (String invalidBody : new String[]{
+                "{\"categoryIds\":[]}",
+                approvalBody("1", "2", "3", "4", "5", "6"),
+                approvalBody(
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID,
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID),
+                "{\"categoryIds\":[\"missing-category\"]}"
+        }) {
+            mockMvc.perform(post(
+                            "/api/v1/admin/room-creation-requests/{id}/approve",
+                            requestId)
+                            .with(admin("admin-1"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(invalidBody))
+                    .andExpect(status().is4xxClientError());
+        }
+        assertThat(request(requestId).status())
+                .isEqualTo(RoomCreationRequestStatus.PENDING);
+    }
+
+    @Test
+    void approvalReplayRequiresTheSameCategorySet()
+            throws Exception {
+        String requestId = submit(
+                "category-replay-applicant",
+                "카테고리 재시도",
+                "설명");
+        String additionalCategoryId = categoryService.create(
+                "환경-" + UUID.randomUUID()).categoryId();
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/room-creation-requests/{id}/approve",
+                        requestId)
+                        .with(admin("admin-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID,
+                                additionalCategoryId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/room-creation-requests/{id}/approve",
+                        requestId)
+                        .with(admin("admin-2"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                additionalCategoryId,
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.replayed").value(true));
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/room-creation-requests/{id}/approve",
+                        requestId)
+                        .with(admin("admin-2"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code")
+                        .value("ROOM_CREATION_DECISION_CONFLICT"));
     }
 
     @Test
@@ -262,7 +355,10 @@ class AdminRoomCreationRequestApiIntegrationTest
 
         mockMvc.perform(post(
                         "/api/v1/admin/room-creation-requests/missing/approve")
-                        .with(admin("admin-1")))
+                        .with(admin("admin-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(approvalBody(
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(
                         "ROOM_CREATION_REQUEST_NOT_FOUND"));
@@ -372,7 +468,6 @@ class AdminRoomCreationRequestApiIntegrationTest
                                 {
                                   "name":"%s",
                                   "description":"%s",
-                                  "categories":["POLICY"],
                                   "visibility":"LISTED",
                                   "joinPolicy":"OPEN"
                                 }
@@ -391,6 +486,12 @@ class AdminRoomCreationRequestApiIntegrationTest
 
     private static JwtRequestPostProcessor admin(String subject) {
         return jwt(subject, ChatScopes.ROOMS_APPROVE);
+    }
+
+    private static String approvalBody(String... categoryIds) {
+        return "{\"categoryIds\":[\""
+                + String.join("\",\"", categoryIds)
+                + "\"]}";
     }
 
     private static JwtRequestPostProcessor jwt(

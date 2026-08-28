@@ -15,6 +15,7 @@ import com.hamcheeze.chat.room.creation.AdminRoomCreationRequestCursorCodec;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestCursorCodec;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestIdGenerator;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestService;
+import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.creation.UuidRoomCreationRequestIdGenerator;
 import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestStore;
 import com.hamcheeze.chat.room.delivery.SimpleBrokerRoomEventDeliveryAdapter;
@@ -154,6 +155,7 @@ public class RoomCommandApplicationConfiguration {
             RoomCreationRequestIdGenerator requestIdGenerator,
             RoomCommandIdGenerator roomIdGenerator,
             RoomCommandFingerprintFactory fingerprintFactory,
+            RoomCategoryService categoryService,
             ApprovedRoomCreator approvedRoomCreator,
             RoomCommandPostCommitCoordinator postCommitCoordinator,
             ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
@@ -171,6 +173,7 @@ public class RoomCommandApplicationConfiguration {
                 requestIdGenerator,
                 roomIdGenerator,
                 fingerprintFactory,
+                categoryService,
                 approvedRoomCreator,
                 postCommitCoordinator,
                 membershipQuotaGuard,

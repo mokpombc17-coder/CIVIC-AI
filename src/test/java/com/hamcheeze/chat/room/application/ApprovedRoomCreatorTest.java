@@ -3,9 +3,9 @@ package com.hamcheeze.chat.room.application;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -156,7 +156,7 @@ class ApprovedRoomCreatorTest extends MongoRuntimeIntegrationTest {
                 userId,
                 "정책 토론",
                 "설명",
-                List.of(RoomCategory.POLICY),
+                List.of(RoomCategoryDefaults.POLICY_CATEGORY_ID),
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 CREATED_AT,

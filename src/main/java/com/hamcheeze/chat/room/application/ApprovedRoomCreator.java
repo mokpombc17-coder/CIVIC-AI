@@ -53,11 +53,11 @@ public final class ApprovedRoomCreator {
             return ApprovedRoomCreationResult.quotaExceeded();
         }
         RoomCreationResult result =
-                RoomMembershipTransitions.createRoom(
+                RoomMembershipTransitions.createRoomWithCategoryIds(
                         creation.roomId(),
                         creation.name(),
                         creation.description(),
-                        creation.categories(),
+                        creation.categoryIds(),
                         creation.ownerMembershipId(),
                         creation.ownerUserId(),
                         creation.visibility(),

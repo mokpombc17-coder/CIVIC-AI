@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.api.dto.AdminRoomCreationRequestResponse;
+import com.hamcheeze.chat.room.api.dto.ApproveRoomCreationRequest;
 import com.hamcheeze.chat.room.api.dto.CursorPageResponse;
 import com.hamcheeze.chat.room.api.dto.RejectRoomCreationRequest;
 import com.hamcheeze.chat.room.creation.RoomCreationRequest;
@@ -83,11 +84,13 @@ public class AdminRoomCreationRequestController {
     @PostMapping("/{creationRequestId}/approve")
     public ResponseEntity<AdminRoomCreationRequestResponse> approve(
             Authentication authentication,
-            @PathVariable String creationRequestId
+            @PathVariable String creationRequestId,
+            @Valid @RequestBody ApproveRoomCreationRequest request
     ) {
         return httpMapper.approved(service.approveByAdmin(
                 userIdResolver.resolve(authentication),
-                creationRequestId));
+                creationRequestId,
+                request.categoryIds()));
     }
 
     @PostMapping("/{creationRequestId}/reject")

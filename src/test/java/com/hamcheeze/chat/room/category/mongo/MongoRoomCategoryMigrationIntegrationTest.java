@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.category.mongo;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
+import com.hamcheeze.chat.room.creation.mongo.MongoRoomCreationRequestDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.mongo.MongoRoomStore;
@@ -72,6 +73,9 @@ class MongoRoomCategoryMigrationIntegrationTest {
         mongoTemplate.remove(
                 new Query(),
                 MongoRoomCategoryDocument.COLLECTION_NAME);
+        mongoTemplate.remove(
+                new Query(),
+                MongoRoomCreationRequestDocument.COLLECTION_NAME);
     }
 
     @AfterEach
@@ -132,6 +136,33 @@ class MongoRoomCategoryMigrationIntegrationTest {
         assertThat(categoryStore.findAll()).isEmpty();
     }
 
+    @Test
+    void migratesOnlyApprovedRequestCategoriesAsFinalAssignments() {
+        insertLegacyCreationRequest(
+                "request-approved",
+                "APPROVED",
+                "ENVIRONMENT");
+        insertLegacyCreationRequest(
+                "request-pending",
+                "PENDING",
+                "POLICY");
+
+        migration.initialize();
+        migration.initialize();
+
+        Document approved = creationRequest("request-approved");
+        assertThat(approved.getInteger("schemaVersion")).isEqualTo(2);
+        assertThat(approved.getList("categoryIds", String.class))
+                .containsExactly(
+                        RoomCategoryDefaults.ENVIRONMENT_CATEGORY_ID);
+        assertThat(approved.containsKey("categories")).isFalse();
+
+        Document pending = creationRequest("request-pending");
+        assertThat(pending.getInteger("schemaVersion")).isEqualTo(2);
+        assertThat(pending.getList("categoryIds", String.class)).isEmpty();
+        assertThat(pending.containsKey("categories")).isFalse();
+    }
+
     private void insertLegacyRoom(
             String roomId,
             String category
@@ -153,5 +184,27 @@ class MongoRoomCategoryMigrationIntegrationTest {
                         .append("createdAt", Date.from(CREATED_AT))
                         .append("closedAt", null)
                         .append("version", 0L));
+    }
+
+    private void insertLegacyCreationRequest(
+            String requestId,
+            String status,
+            String category
+    ) {
+        mongoTemplate.getCollection(
+                        MongoRoomCreationRequestDocument.COLLECTION_NAME)
+                .insertOne(new Document("_id", requestId)
+                        .append("schemaVersion", 1)
+                        .append("requesterUserId", requestId + "-user")
+                        .append("clientRequestId", requestId + "-client")
+                        .append("status", status)
+                        .append("categories", List.of(category)));
+    }
+
+    private Document creationRequest(String requestId) {
+        return mongoTemplate.getCollection(
+                        MongoRoomCreationRequestDocument.COLLECTION_NAME)
+                .find(new Document("_id", requestId))
+                .first();
     }
 }
