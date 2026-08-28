@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+const canonicalUuidSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu);
+
 export const simulationStates = [
   "READY",
   "RUNNING",
@@ -17,7 +21,7 @@ export type SimulationState = (typeof simulationStates)[number];
 const simulationViewSchema = z
   .object({
     simulationId: z.string().uuid(),
-    taskId: z.string().uuid(),
+    taskId: canonicalUuidSchema,
     state: z.enum(simulationStates),
     personaCount: z.number().int().positive(),
     progressPercent: z.number().int().min(0).max(100),
@@ -90,7 +94,7 @@ const simulationCapacitySchema = z
 
 const taskOptionSchema = z
   .object({
-    id: z.string().uuid(),
+    id: canonicalUuidSchema,
     displayOrder: z.number().int(),
     content: z.string().min(1),
   })
@@ -101,13 +105,13 @@ const simulationResultSchema = z
     schemaVersion: z.literal("CIVIC_TASK_SIMULATION_RESULT_V1"),
     task: z
       .object({
-        id: z.string().uuid(),
+        id: canonicalUuidSchema,
         title: z.string().min(1),
         description: z.string().nullable(),
         status: z.string().min(1),
         question: z
           .object({
-            id: z.string().uuid(),
+            id: canonicalUuidSchema,
             content: z.string().min(1),
             description: z.string().nullable(),
             options: z.array(taskOptionSchema).min(2),
@@ -132,7 +136,7 @@ const simulationResultSchema = z
         optionResults: z.array(
           z
             .object({
-              optionId: z.string().uuid(),
+              optionId: canonicalUuidSchema,
               displayOrder: z.number().int(),
               content: z.string().min(1),
               count: z.number().int().nonnegative(),
@@ -146,7 +150,7 @@ const simulationResultSchema = z
       z
         .object({
           panelMemberOrdinal: z.number().int().positive(),
-          selectedOptionId: z.string().uuid().nullable(),
+          selectedOptionId: canonicalUuidSchema.nullable(),
           reason: z.string().nullable(),
           demographics: z
             .object({

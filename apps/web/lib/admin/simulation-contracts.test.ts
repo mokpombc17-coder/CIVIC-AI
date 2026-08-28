@@ -9,6 +9,12 @@ import {
 
 const simulationId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
 const taskId = "eb6b5f2b-4969-4e6e-a3e2-d6826620b837";
+const fixtureTaskId = "13000000-0000-0000-0000-000000000001";
+const fixtureQuestionId = "13010000-0000-0000-0000-000000000001";
+const fixtureOptionIds = [
+  "13020001-0000-0000-0000-000000000001",
+  "13020001-0000-0000-0000-000000000002",
+] as const;
 
 describe("simulation contracts", () => {
   it("accepts the aggregate Task simulation status", () => {
@@ -32,6 +38,34 @@ describe("simulation contracts", () => {
         canCancel: false,
         estimatedKrw: 2700,
         holdKrw: 3240,
+        settledKrw: null,
+        absorbedKrw: null,
+        billingState: "HELD",
+      }),
+    ).not.toBeNull();
+  });
+
+  it("accepts canonical Vote fixture identifiers in a simulation status", () => {
+    expect(
+      readSimulationView({
+        simulationId,
+        taskId: fixtureTaskId,
+        state: "READY",
+        personaCount: 100,
+        progressPercent: 0,
+        cancelRequested: false,
+        errorCode: null,
+        resumeAt: null,
+        retryAvailableAt: null,
+        waitReason: null,
+        createdAt: "2026-08-28T08:16:36Z",
+        startedAt: null,
+        completedAt: null,
+        deadlineAt: "2026-08-28T08:46:36Z",
+        estimatedCompletionAt: "2026-08-28T08:22:10Z",
+        canCancel: true,
+        estimatedKrw: 12348,
+        holdKrw: 14818,
         settledKrw: null,
         absorbedKrw: null,
         billingState: "HELD",
@@ -95,26 +129,26 @@ describe("simulation contracts", () => {
     expect(readSimulationResult({ personaId: "user-persona", prediction: "A" })).toBeNull();
   });
 
-  it("accepts the pricing fingerprint returned by billed simulation results", () => {
+  it("accepts billed simulation results containing canonical Vote fixture identifiers", () => {
     const result = readSimulationResult({
       schemaVersion: "CIVIC_TASK_SIMULATION_RESULT_V1",
       task: {
-        id: taskId,
+        id: fixtureTaskId,
         title: "AI 투명성 의무",
         description: null,
         status: "DRAFT",
         question: {
-          id: "4adc6519-8a61-4724-af2a-21979688b2f4",
+          id: fixtureQuestionId,
           content: "의무 강화에 동의하십니까?",
           description: null,
           options: [
             {
-              id: "f8f5ca57-c1d3-4a28-949a-c48b6d508b6a",
+              id: fixtureOptionIds[0],
               displayOrder: 1,
               content: "동의한다",
             },
             {
-              id: "04e503a5-7655-4ce8-aa19-364d2e7426be",
+              id: fixtureOptionIds[1],
               displayOrder: 2,
               content: "동의하지 않는다",
             },
@@ -134,7 +168,20 @@ describe("simulation contracts", () => {
         unansweredPersonaCount: 0,
         optionResults: [],
       },
-      respondents: [],
+      respondents: [
+        {
+          panelMemberOrdinal: 1,
+          selectedOptionId: fixtureOptionIds[0],
+          reason: "생활 안전을 우선했습니다.",
+          demographics: {
+            gender: "여성",
+            ageGroup: "30대",
+            region: "서울",
+            politicalIdeology: "중도",
+            informationType: "A",
+          },
+        },
+      ],
       engine: {
         name: "SONA PersonaSim",
         sourceCommit: "source-commit",
