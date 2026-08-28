@@ -42,6 +42,11 @@ vote:
   task:
     bootstrap:
       enabled: false
+      persona-ready-enabled: false
+      participation-enabled: false
+      persona-subject: local-user-1
+      persona-ready-timeout: 10s
+      persona-ready-poll-interval: 100ms
     lifecycle:
       enabled: false
       scheduler-delay: 1s
