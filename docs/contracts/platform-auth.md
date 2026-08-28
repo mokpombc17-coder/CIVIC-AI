@@ -116,6 +116,9 @@ RAG·Chat·Vote·Simulation 관리자는 별도 role이 아니라 관리자 role
 | ------------------------ | ------------------------------------------ |
 | `CIVIC_BROWSER_ORIGIN`   | 브라우저에 공개된 Frontend의 정확한 origin |
 | `MAIN_AUTH_INTERNAL_URL` | Next.js 서버에서 접근하는 Main/Auth URL    |
-| `RAG_INTERNAL_URL`       | Next.js 서버에서 접근하는 RAG URL          |
+| `CHAT_INTERNAL_URL`      | Next.js BFF에서 접근하는 Chat URL           |
+| `VOTE_INTERNAL_URL`      | Next.js BFF에서 접근하는 Vote URL           |
+
+RAG와 Simulation은 nginx에서 각 Resource Server로 직결하므로 Web 런타임에 내부 URL을 두지 않는다.
 
 Frontend에는 Main/Auth 내부 client secret이나 provider API key가 필요하지 않다.

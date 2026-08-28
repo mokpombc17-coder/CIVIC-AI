@@ -28,8 +28,9 @@ UI, Main/Auth 연동, RAG 사용자 질의와 관리자 문서 관리 화면이 
 
 Access Token 만료로 API가 `401`을 반환하면 브라우저가 `POST /api/v1/auth/refresh`를 한 번 호출하고
 원래 요청을 한 번만 재시도한다. 동시에 여러 요청이 만료되어도 Refresh Token 회전은 하나의 요청으로
-직렬화한다. Next.js는 JWT를 발급·해석·저장하지 않는다. RAG BFF는 브라우저에서
-받은 동일한 Access Token 원문을 RAG 서버의 Cookie와 Bearer Authorization에 함께 전달한다.
+직렬화한다. Next.js는 JWT를 발급·해석·저장하지 않는다. RAG와 Simulation 요청은 공개 nginx가
+각 Resource Server로 직접 전달하며, Resource Server가 HttpOnly Access Token 쿠키 또는 Bearer를
+검증한다. Chat·Vote 관리자 API와 Main/Auth만 Next.js BFF 경계를 유지한다.
 
 세부 계약은 [`docs/contracts/platform-auth.md`](docs/contracts/platform-auth.md)에 있다.
 
@@ -40,10 +41,8 @@ Access Token 만료로 API가 `401`을 반환하면 브라우저가 `POST /api/v
 ```dotenv
 CIVIC_BROWSER_ORIGIN=http://localhost:3000
 MAIN_AUTH_INTERNAL_URL=http://localhost:8080
-RAG_INTERNAL_URL=http://localhost:8000
 CHAT_INTERNAL_URL=http://localhost:8082
 VOTE_INTERNAL_URL=http://localhost:8083
-SIMULATION_INTERNAL_URL=http://localhost:8084
 ```
 
 브라우저에는 내부 서비스 URL이나 비밀 키를 노출하지 않는다. 외부 OAuth 로그인은 사용하지 않는다.

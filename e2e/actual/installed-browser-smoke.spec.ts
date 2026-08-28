@@ -87,18 +87,18 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await expectNoOverflow(page);
 
   await page.goto("/rag");
-  await page.getByRole("button", { name: "새 대화" }).click();
-  await expect(page.getByText("새 대화를 시작했습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "새 질문" }).click();
+  await expect(page.getByText("새 질문을 시작했습니다.")).toBeVisible();
   await page
     .getByPlaceholder("문서에 대해 질문하세요...")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await page.getByRole("link", { name: "📄 2026 복지정책 기본계획 3쪽" }).click();
+  await page.getByRole("link", { name: "근거 페이지" }).click();
   await expect(page).toHaveURL(/\/rag$/);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
   await expect(page.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
-  await expect(page.getByText("이 화면은 읽기 전용입니다.")).toBeVisible();
+  await expect(page.getByText("3/12페이지 · 100%")).toBeVisible();
   await record(page, browser.version(), "chrome", testInfo.project.name);
 });
 

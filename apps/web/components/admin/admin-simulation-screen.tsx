@@ -44,7 +44,7 @@ import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 
 type AdminQuery = Readonly<Record<string, string | readonly string[] | undefined>>;
-type RunInput = Readonly<{
+export type RunInput = Readonly<{
   filters?: Readonly<Record<string, readonly string[]>>;
   modelType: string;
   personaCount: number;
@@ -873,14 +873,12 @@ function useStartSimulation(taskId: string | null) {
       setPending(true);
       setMessage("");
       try {
-        const response = await authenticatedFetch(ADMIN_SIMULATION_PATHS.create, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "idempotency-key": requestRef.current.key,
-          },
-          body: signature,
-        });
+        const response = await requestAdminSimulationStart(
+          taskId,
+          input,
+          pricingFingerprint,
+          requestRef.current.key,
+        );
         if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
         const created = readSimulationView(await response.json());
         if (!created) return setMessage("서버의 실행 요청 응답 형식을 확인해야 합니다.");
@@ -970,16 +968,12 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
   const current = result?.signature === signature ? result : null;
 
   const load = useCallback(async () => {
-    if (!taskId || !signature) return;
+    if (!taskId || !input || !signature) return;
     setPending(true);
     setMessage("");
     try {
       const [previewResponse, walletResponse] = await Promise.all([
-        authenticatedFetch(ADMIN_SIMULATION_PATHS.preview, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: signature,
-        }),
+        requestAdminSimulationPreview(taskId, input),
         authenticatedFetch("/api/v1/admin/simulation-billing/wallet", {
           cache: "no-store",
         }),
@@ -999,7 +993,7 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
     } finally {
       setPending(false);
     }
-  }, [signature, taskId]);
+  }, [input, signature, taskId]);
 
   return {
     load,
@@ -1289,6 +1283,35 @@ export function buildAdminSimulationRequest(
     filters: input.filters ?? {},
     ...(pricingFingerprint === undefined ? {} : { pricingFingerprint }),
   };
+}
+
+export function requestAdminSimulationStart(
+  taskId: string,
+  input: RunInput,
+  pricingFingerprint: string,
+  idempotencyKey: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<Response> {
+  return request(ADMIN_SIMULATION_PATHS.create, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": idempotencyKey,
+    },
+    body: JSON.stringify(buildAdminSimulationRequest(taskId, input, pricingFingerprint)),
+  });
+}
+
+export function requestAdminSimulationPreview(
+  taskId: string,
+  input: RunInput,
+  request: typeof fetch = authenticatedFetch,
+): Promise<Response> {
+  return request(ADMIN_SIMULATION_PATHS.preview, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(buildAdminSimulationRequest(taskId, input)),
+  });
 }
 
 function normalizeCapacityInput(

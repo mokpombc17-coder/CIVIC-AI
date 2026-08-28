@@ -25,8 +25,8 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       CIVIC_BROWSER_ORIGIN: WEB_BASE_URL,
+      CIVIC_E2E_RAG_UPSTREAM: MOCK_API_URL,
       MAIN_AUTH_INTERNAL_URL: MOCK_API_URL,
-      RAG_INTERNAL_URL: MOCK_API_URL,
     },
     ignoreHTTPSErrors: true,
     timeout: 120_000,

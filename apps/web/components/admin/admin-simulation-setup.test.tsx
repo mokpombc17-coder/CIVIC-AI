@@ -5,6 +5,8 @@ import {
   ADMIN_SIMULATION_PATHS,
   buildAdminSimulationRequest,
   buildDefaultSimulationRunInput,
+  requestAdminSimulationPreview,
+  requestAdminSimulationStart,
 } from "@/components/admin/admin-simulation-screen";
 import { screenRegistry } from "@/lib/screens/registry";
 
@@ -46,6 +48,76 @@ describe("simulation setup", () => {
       sampleSeed: null,
       filters: {},
       pricingFingerprint: "pricing-v1",
+    });
+  });
+
+  it("실행 요청은 정본 URL, taskId 본문과 멱등 키를 실제 fetch 경계에 전달한다", async () => {
+    const input = buildDefaultSimulationRunInput(10, {
+      defaultModel: "anthropic/claude-sonnet-4.6",
+      models: ["anthropic/claude-sonnet-4.6"],
+      minPersonaCount: 10,
+      maxPersonaCount: 100,
+      filters: {
+        genders: ["여성", "남성"],
+        ageGroups: ["30대"],
+        regions: ["서울"],
+        politicalIdeologies: ["중도"],
+      },
+    });
+    if (!input) throw new Error("Expected a valid default simulation input");
+    const calls: Array<[RequestInfo | URL, RequestInit | undefined]> = [];
+    const request: typeof fetch = async (url, init) => {
+      calls.push([url, init]);
+      return new Response("{}", { status: 200 });
+    };
+
+    await requestAdminSimulationStart("task-1", input, "pricing-v1", "idempotency-1", request);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).toBe("/api/v1/admin/simulations");
+    expect(calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "idempotency-1",
+      },
+    });
+    expect(JSON.parse(String(calls[0]?.[1]?.body))).toEqual({
+      taskId: "task-1",
+      modelType: "anthropic/claude-sonnet-4.6",
+      personaCount: 10,
+      sampleSeed: null,
+      filters: {},
+      pricingFingerprint: "pricing-v1",
+    });
+  });
+
+  it("미리보기 요청은 과업별 정본 URL과 taskId 본문을 실제 fetch 경계에 전달한다", async () => {
+    const input = {
+      modelType: "anthropic/claude-sonnet-4.6",
+      personaCount: 10,
+      sampleSeed: null,
+    } as const;
+    const calls: Array<[RequestInfo | URL, RequestInit | undefined]> = [];
+    const request: typeof fetch = async (url, init) => {
+      calls.push([url, init]);
+      return new Response("{}", { status: 200 });
+    };
+
+    await requestAdminSimulationPreview("task-2", input, request);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).toBe("/api/v1/admin/simulations/preview");
+    expect(calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    });
+    expect(JSON.parse(String(calls[0]?.[1]?.body))).toEqual({
+      taskId: "task-2",
+      modelType: "anthropic/claude-sonnet-4.6",
+      personaCount: 10,
+      sampleSeed: null,
+      filters: {},
     });
   });
 
