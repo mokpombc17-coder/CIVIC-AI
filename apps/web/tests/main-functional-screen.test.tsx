@@ -221,14 +221,16 @@ describe("25 functional Main/Auth screens", () => {
 
   it("로그아웃은 Main/Auth refresh family 종료 API를 POST로 호출한다", async () => {
     const request = vi.fn(async () => new Response(null, { status: 204 }));
+    const storage = { removeItem: vi.fn() };
 
-    await expect(requestLogout(request as typeof fetch)).resolves.toBe(true);
+    await expect(requestLogout(request as typeof fetch, storage)).resolves.toBe(true);
     expect(request).toHaveBeenCalledWith("/api/v1/auth/logout", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
       body: "{}",
     });
+    expect(storage.removeItem).toHaveBeenCalledWith("civic:rag-conversation:v1");
     await expect(
       requestLogout(vi.fn(async () => Promise.reject(new Error("offline"))) as typeof fetch),
     ).resolves.toBe(false);
@@ -592,6 +594,22 @@ describe("25 functional Main/Auth screens", () => {
       loginHtml.indexOf('data-wireflow-slot="auth-reset"'),
     );
     expect(loginHtml).toContain("계정 재활성화");
+  });
+
+  it("AUTH-001의 테스트 로그인 버튼은 개발 호스트에서만 렌더링한다", () => {
+    const login = mainScreens.find((screen) => screen.id === "AUTH-001");
+    if (!login) throw new Error("AUTH-001 wire flow screen missing");
+
+    const publicHtml = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: login }));
+    const devHtml = renderToStaticMarkup(
+      createElement(MainFunctionalScreen, { screen: login, devQuickLoginEnabled: true }),
+    );
+
+    expect(publicHtml).not.toContain("일반 사용자 테스트 로그인");
+    expect(publicHtml).not.toContain("관리자 테스트 로그인");
+    expect(devHtml).toContain("개발 테스트 로그인");
+    expect(devHtml).toContain("일반 사용자 테스트 로그인");
+    expect(devHtml).toContain("관리자 테스트 로그인");
   });
 
   it("인증 코드와 비밀번호 재설정은 최신 카드·안내 구조를 공유한다", () => {

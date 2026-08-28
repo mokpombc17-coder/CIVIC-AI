@@ -57,7 +57,12 @@ export function authStepAfterPopState(value: unknown, entryScreenId: string): st
 export function AuthFunctionalScreen({
   screen,
   initialSearch = "",
-}: Readonly<{ screen: ScreenDefinition; initialSearch?: string }>) {
+  devQuickLoginEnabled = false,
+}: Readonly<{
+  screen: ScreenDefinition;
+  initialSearch?: string;
+  devQuickLoginEnabled?: boolean;
+}>) {
   const entryRecovery = signupRecovery(screen.id, false);
   const recoveryPathname = entryRecovery?.pathname;
   const [activeId, setActiveId] = useState(screen.id);
@@ -87,6 +92,22 @@ export function AuthFunctionalScreen({
     return () => removeEventListener("popstate", restoreStep);
   }, [screen.id]);
 
+  async function completeLogin(response: Response) {
+    const returnTo = safeReturnTarget(location.search);
+    setPostLoginReturnTo(returnTo);
+    if (response.status === 202) {
+      setVerificationKind("TWO_FACTOR");
+      changeSignupStep(
+        "AUTH-005",
+        returnTo
+          ? `/signup/verify?kind=two-factor&returnTo=${encodeURIComponent(returnTo)}`
+          : "/signup/verify?kind=two-factor",
+      );
+      return;
+    }
+    await redirectToRoleHome(returnTo);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -99,19 +120,7 @@ export function AuthFunctionalScreen({
           email: data.get("email"),
           password: data.get("password"),
         });
-        const returnTo = safeReturnTarget(location.search);
-        setPostLoginReturnTo(returnTo);
-        if (response.status === 202) {
-          setVerificationKind("TWO_FACTOR");
-          changeSignupStep(
-            "AUTH-005",
-            returnTo
-              ? `/signup/verify?kind=two-factor&returnTo=${encodeURIComponent(returnTo)}`
-              : "/signup/verify?kind=two-factor",
-          );
-        } else {
-          await redirectToRoleHome(returnTo);
-        }
+        await completeLogin(response);
       } else if (activeId === "AUTH-002") {
         if (draft.password !== draft.passwordConfirmation) {
           throw new Error("비밀번호 확인이 일치하지 않습니다.");
@@ -184,6 +193,21 @@ export function AuthFunctionalScreen({
     } catch (error) {
       setMessageKind("error");
       setMessage(error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function quickLogin(account: "USER" | "ADMIN") {
+    setBusy(true);
+    setMessage("");
+    setMessageKind("info");
+    try {
+      const response = await api("/api/dev/auth/login", { account });
+      await completeLogin(response);
+    } catch (error) {
+      setMessageKind("error");
+      setMessage(error instanceof Error ? error.message : "테스트 계정으로 로그인하지 못했습니다.");
     } finally {
       setBusy(false);
     }
@@ -263,10 +287,45 @@ export function AuthFunctionalScreen({
           >
             {busy ? "처리 중…" : action}
           </WireflowButton>
+          {activeId === "AUTH-001" && devQuickLoginEnabled ? (
+            <DevQuickLoginActions busy={busy} onLogin={quickLogin} />
+          ) : null}
         </AuthFormCard>
         <AuthSupport activeId={activeId} busy={busy} onResend={resendVerification} />
       </div>
     </ScreenFrame>
+  );
+}
+
+function DevQuickLoginActions({
+  busy,
+  onLogin,
+}: Readonly<{
+  busy: boolean;
+  onLogin: (account: "USER" | "ADMIN") => void;
+}>) {
+  return (
+    <section aria-label="개발 테스트 로그인" className="civic-dev-quick-login">
+      <p>개발 테스트 로그인</p>
+      <div className="civic-dev-quick-login-actions">
+        <WireflowButton
+          disabled={busy}
+          onClick={() => onLogin("USER")}
+          type="button"
+          variant="secondary"
+        >
+          일반 사용자 테스트 로그인
+        </WireflowButton>
+        <WireflowButton
+          disabled={busy}
+          onClick={() => onLogin("ADMIN")}
+          type="button"
+          variant="secondary"
+        >
+          관리자 테스트 로그인
+        </WireflowButton>
+      </div>
+    </section>
   );
 }
 

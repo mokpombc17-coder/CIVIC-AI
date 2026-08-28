@@ -9,35 +9,30 @@ import { ragScreenPrimaryActions } from "./rag-screen-actions";
 import { ReadOnlyPdfViewer } from "./read-only-pdf-viewer";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { SafeMarkdownAnswer } from "./safe-markdown-answer";
-import { RagFeedback, type RagFeedbackValue } from "./rag-feedback";
+import { RagFeedback } from "./rag-feedback";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import {
+  clearRagConversationSnapshot,
+  latestPendingRagJobId,
+  readRagConversationSnapshot,
+  writeRagConversationSnapshot,
+  type Citation,
+  type Message,
+  type RagJob,
+} from "./rag-conversation-session";
 
-export type Citation = Readonly<{
-  document_version_id: string;
-  page_number: number;
-  page_count?: number;
-  source_object_sha256: string;
-  title?: string;
-}>;
-
-type RagJob = Readonly<{
-  job_id: string;
-  session_id?: string;
-  status: string;
-  submitted_question?: string;
-  answer?: string;
-  citations?: Citation[];
-  failure_code?: string;
-  feedback?: RagFeedbackValue;
-}>;
-
-type Message = Readonly<{
-  id: string;
-  question: string;
-  askedAt: string;
-  answeredAt?: string;
-  job?: RagJob;
-}>;
+export {
+  clearRagConversationSnapshot,
+  latestPendingRagJobId,
+  readRagConversationSnapshot,
+  writeRagConversationSnapshot,
+} from "./rag-conversation-session";
+export type {
+  Citation,
+  Message,
+  RagConversationSnapshot,
+  RagJob,
+} from "./rag-conversation-session";
 
 function clockLabel(date = new Date()): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
@@ -46,7 +41,8 @@ function clockLabel(date = new Date()): string {
 export function ParticipantRagScreen({
   screen,
   query,
-}: Readonly<{ screen: ScreenDefinition; query: RagQuery }>) {
+  userId,
+}: Readonly<{ screen: ScreenDefinition; query: RagQuery; userId?: string }>) {
   if (screen.id === "U-RAG-002" || screen.id === "U-RAG-003") {
     const versionId = one(query.versionId) || "citation-version";
     const page = positive(one(query.page), 1);
@@ -75,19 +71,94 @@ export function ParticipantRagScreen({
       </ScreenFrame>
     );
   }
-  return <RagConversation screen={screen} />;
+  return <RagConversation screen={screen} {...(userId ? { userId } : {})} />;
 }
 
-function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
+function RagConversation({
+  screen,
+  userId,
+}: Readonly<{ screen: ScreenDefinition; userId?: string }>) {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const [busy, setBusy] = useState(false);
+  const [restored, setRestored] = useState(!userId);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const activePoll = useRef<AbortController | null>(null);
   const requestGeneration = useRef(0);
+  const restoredQueryChecked = useRef(false);
   const queryOperation = useRef(createQueryOperation());
-  const currentSessionId = useRef<string | null>(null);
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (!userId) return;
+    const storage = browserRagConversationStorage();
+    const snapshot = storage ? readRagConversationSnapshot(storage, userId) : null;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (snapshot) {
+        setMessages(snapshot.messages);
+        setCurrentSessionId(snapshot.sessionId);
+      }
+      setRestored(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!restored || !userId) return;
+    const storage = browserRagConversationStorage();
+    if (!storage) return;
+    writeRagConversationSnapshot(storage, {
+      ownerUserId: userId,
+      sessionId: currentSessionId,
+      messages,
+    });
+  }, [currentSessionId, messages, restored, userId]);
+
+  useEffect(() => {
+    if (!restored || restoredQueryChecked.current) return;
+    restoredQueryChecked.current = true;
+    const pendingJobId = latestPendingRagJobId(messages);
+    if (!pendingJobId) return;
+    const generation = requestGeneration.current + 1;
+    requestGeneration.current = generation;
+    const controller = new AbortController();
+    activePoll.current?.abort();
+    activePoll.current = controller;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setBusy(true);
+    });
+    void waitForStreamedResult(pendingJobId, { signal: controller.signal })
+      .then((result) => {
+        if (requestGeneration.current !== generation) return;
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === pendingJobId
+              ? { ...message, answeredAt: clockLabel(), job: result }
+              : message,
+          ),
+        );
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setNotice("연결이 끊겼습니다. 진행 중인 질문은 다음 방문 때 다시 확인합니다.");
+      })
+      .finally(() => {
+        if (activePoll.current === controller) {
+          activePoll.current = null;
+          setBusy(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [messages, restored]);
 
   useEffect(
     () => () => {
@@ -116,7 +187,7 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
         headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
         body: JSON.stringify({
           question: submitted,
-          ...(currentSessionId.current ? { session_id: currentSessionId.current } : {}),
+          ...(currentSessionId ? { session_id: currentSessionId } : {}),
         }),
         signal: controller.signal,
       });
@@ -128,7 +199,7 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
         return;
       }
       const accepted = submission.job;
-      if (accepted.session_id) currentSessionId.current = accepted.session_id;
+      if (accepted.session_id) setCurrentSessionId(accepted.session_id);
       setMessages((current) => [
         ...current,
         { askedAt: clockLabel(), id: accepted.job_id, question: submitted },
@@ -171,7 +242,9 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
               activePoll.current?.abort();
               activePoll.current = null;
               queryOperation.current.clear();
-              currentSessionId.current = null;
+              setCurrentSessionId(null);
+              const storage = browserRagConversationStorage();
+              if (storage) clearRagConversationSnapshot(storage);
               setMessages([]);
               setQuestion("");
               setBusy(false);
@@ -221,7 +294,7 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
           />
           <button
             aria-label={ragScreenPrimaryActions[screen.id]}
-            disabled={busy || !question.trim()}
+            disabled={!restored || busy || !question.trim()}
             type="submit"
           >
             전송
@@ -251,6 +324,15 @@ function RagConversation({ screen }: Readonly<{ screen: ScreenDefinition }>) {
       ) : null}
     </ScreenFrame>
   );
+}
+
+function browserRagConversationStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
 }
 
 export function createQueryOperation(idFactory: () => string = () => crypto.randomUUID()) {

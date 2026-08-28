@@ -66,6 +66,7 @@ import {
   ragJobStatusMessage,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
+import * as participantRagSession from "@/components/rag/participant-rag-screen";
 import { ragReturnTarget } from "@/lib/auth/rag-return-target";
 import { ragScreenPrimaryActions } from "@/components/rag/rag-screen-actions";
 import { readFailedRagJobs } from "@/components/screens/admin-functional-screen";
@@ -94,7 +95,111 @@ function renderedText(html: string): string {
     .trim();
 }
 
+function memoryStorage(initial: Record<string, string> = {}) {
+  const values = new Map(Object.entries(initial));
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    removeItem: (key: string) => void values.delete(key),
+    setItem: (key: string, value: string) => void values.set(key, value),
+    size: () => values.size,
+  };
+}
+
+type RagSessionApi = Readonly<{
+  clearRagConversationSnapshot: (storage: ReturnType<typeof memoryStorage>) => void;
+  latestPendingRagJobId: (messages: ReadonlyArray<Record<string, unknown>>) => string | null;
+  readRagConversationSnapshot: (
+    storage: ReturnType<typeof memoryStorage>,
+    ownerUserId: string,
+  ) => Record<string, unknown> | null;
+  writeRagConversationSnapshot: (
+    storage: ReturnType<typeof memoryStorage>,
+    snapshot: Record<string, unknown>,
+  ) => void;
+}>;
+
+const ragSessionApi = participantRagSession as unknown as RagSessionApi;
+
 describe("9 functional RAG screens", () => {
+  it("같은 사용자의 탭 대화는 질문·답변·인용과 RAG 세션을 복원한다", () => {
+    const storage = memoryStorage();
+    const snapshot = {
+      ownerUserId: "00000000-0000-4000-8000-000000000001",
+      sessionId: "10000000-0000-4000-8000-000000000001",
+      messages: [
+        {
+          id: "20000000-0000-4000-8000-000000000001",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "20000000-0000-4000-8000-000000000001",
+            status: "SUCCEEDED",
+            answer: "문서 기반 답변입니다.",
+            citations: [
+              {
+                document_version_id: "30000000-0000-4000-8000-000000000001",
+                page_number: 1,
+                page_count: 4,
+                source_object_sha256: "a".repeat(64),
+                title: "정책 안내",
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    expect(ragSessionApi.writeRagConversationSnapshot).toBeTypeOf("function");
+    ragSessionApi.writeRagConversationSnapshot(storage, snapshot);
+
+    expect(ragSessionApi.readRagConversationSnapshot(storage, snapshot.ownerUserId)).toEqual(
+      snapshot,
+    );
+  });
+
+  it("다른 사용자의 탭 대화는 복원하지 않고 저장소에서 제거한다", () => {
+    const storage = memoryStorage();
+    const snapshot = {
+      ownerUserId: "00000000-0000-4000-8000-000000000001",
+      sessionId: null,
+      messages: [],
+    };
+
+    expect(ragSessionApi.writeRagConversationSnapshot).toBeTypeOf("function");
+    ragSessionApi.writeRagConversationSnapshot(storage, snapshot);
+
+    expect(
+      ragSessionApi.readRagConversationSnapshot(storage, "00000000-0000-4000-8000-000000000002"),
+    ).toBeNull();
+    expect(storage.size()).toBe(0);
+  });
+
+  it("복원한 대화에서 마지막 미완료 질의만 재개 대상으로 선택한다", () => {
+    expect(ragSessionApi.latestPendingRagJobId).toBeTypeOf("function");
+    expect(
+      ragSessionApi.latestPendingRagJobId([
+        {
+          id: "completed-job",
+          question: "완료 질문",
+          askedAt: "11:30",
+          job: { job_id: "completed-job", status: "SUCCEEDED", answer: "완료" },
+        },
+        { id: "pending-job", question: "진행 질문", askedAt: "11:31" },
+      ]),
+    ).toBe("pending-job");
+    expect(
+      ragSessionApi.latestPendingRagJobId([
+        {
+          id: "failed-job",
+          question: "실패 질문",
+          askedAt: "11:32",
+          job: { job_id: "failed-job", status: "FAILED", failure_code: "PROCESSING_FAILED" },
+        },
+      ]),
+    ).toBeNull();
+  });
+
   it("관리자 문서 목록 표현을 실제 데이터로 검증할 수 있는 경계를 제공한다", async () => {
     const adminRagModule = await import("@/components/rag/admin-rag-screen");
     expect(adminRagModule.DocumentWorkspace).toBeTypeOf("function");
