@@ -76,6 +76,8 @@ describe("chat room list cards", () => {
     expect(html).toContain('href="/chat/room-01"');
     expect(html).toContain("자세히 보기");
     expect(html).toContain('id="chat-room-list-detail-trigger-room-01"');
+    expect(html.match(/cursor-pointer/g)).toHaveLength(2);
+    expect(/<article class="([^"]+)"/.exec(html)?.[1]).not.toContain("hover:bg-");
   });
 
   it("마지막 메시지 상태와 관계없이 unread가 없으면 새 메시지 없음만 표시한다", () => {
@@ -135,6 +137,7 @@ describe("chat room list cards", () => {
     expect(html).toContain("자세히 보기");
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('id="chat-room-list-detail-trigger-room-public"');
+    expect(html.match(/cursor-pointer/g)).toHaveLength(1);
     expect(html).not.toContain("참여하기");
     expect(html).not.toContain("공개 채팅방 설명");
     expect(html).not.toContain("방 ID: room-public");

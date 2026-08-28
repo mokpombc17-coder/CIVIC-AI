@@ -220,12 +220,12 @@ export function MyRoomCard({
 
   return (
     <article
-      className="relative isolate grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)]"
+      className="relative isolate grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4"
       data-room-id={room.roomId}
     >
       <Link
         aria-label={`${room.name} 채팅방 입장`}
-        className="absolute inset-0 z-0 rounded-[var(--chat-publishing-radius-card)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="absolute -inset-px z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] border border-transparent transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         href={`/chat/${room.roomId}`}
       >
         <span className="sr-only">{room.name} 채팅방 입장</span>
@@ -250,7 +250,7 @@ export function MyRoomCard({
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
-        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
@@ -281,7 +281,7 @@ export function PublicRoomCard({
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
-        className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
