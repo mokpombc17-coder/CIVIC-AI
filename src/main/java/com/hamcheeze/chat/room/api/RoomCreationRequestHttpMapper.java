@@ -52,6 +52,7 @@ public final class RoomCreationRequestHttpMapper {
                 resultCode(source.status()),
                 replayed,
                 source.creationRequestId(),
+                source.name(),
                 source.status(),
                 source.requestedAt(),
                 source.resolvedAt(),

@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RoomCreationRequestResponseTest {
 
+    private static final String NAME = "지역 교통 정책 토론방";
     private static final Instant REQUESTED_AT =
             Instant.parse("2026-08-25T01:00:00Z");
     private static final Instant RESOLVED_AT =
@@ -35,6 +36,7 @@ class RoomCreationRequestResponseTest {
                         "code",
                         "replayed",
                         "creationRequestId",
+                        "name",
                         "status",
                         "requestedAt",
                         "resolvedAt",
@@ -45,6 +47,7 @@ class RoomCreationRequestResponseTest {
                         "rejectionReason"));
         assertThat(json.get("code").asText())
                 .isEqualTo("ROOM_CREATION_REQUESTED");
+        assertThat(json.get("name").asText()).isEqualTo(NAME);
         assertThat(json.get("status").asText()).isEqualTo("PENDING");
         assertThat(json.get("roomId").isNull()).isTrue();
         assertThat(json.get("resolvedAt").isNull()).isTrue();
@@ -58,6 +61,7 @@ class RoomCreationRequestResponseTest {
                         RoomCreationRequestResultCode.ROOM_CREATED,
                         false,
                         "request-1",
+                        NAME,
                         RoomCreationRequestStatus.APPROVED,
                         REQUESTED_AT,
                         RESOLVED_AT,
@@ -73,6 +77,7 @@ class RoomCreationRequestResponseTest {
                                 .ROOM_CREATION_REJECTED,
                         true,
                         "request-2",
+                        NAME,
                         RoomCreationRequestStatus.REJECTED,
                         REQUESTED_AT,
                         RESOLVED_AT,
@@ -88,6 +93,7 @@ class RoomCreationRequestResponseTest {
                                 .ROOM_CREATION_CANCELED,
                         false,
                         "request-3",
+                        NAME,
                         RoomCreationRequestStatus.CANCELED,
                         REQUESTED_AT,
                         RESOLVED_AT,
@@ -111,6 +117,7 @@ class RoomCreationRequestResponseTest {
                 RoomCreationRequestResultCode.ROOM_CREATED,
                 false,
                 "request-1",
+                NAME,
                 RoomCreationRequestStatus.PENDING,
                 REQUESTED_AT,
                 null,
@@ -127,6 +134,7 @@ class RoomCreationRequestResponseTest {
                 RoomCreationRequestResultCode.ROOM_CREATED,
                 false,
                 "request-1",
+                NAME,
                 RoomCreationRequestStatus.APPROVED,
                 REQUESTED_AT,
                 RESOLVED_AT,
@@ -137,6 +145,23 @@ class RoomCreationRequestResponseTest {
                 null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("roomId must not be blank");
+
+        assertThatThrownBy(() -> new RoomCreationRequestResponse(
+                "client-1",
+                RoomCreationRequestResultCode.ROOM_CREATION_REQUESTED,
+                false,
+                "request-1",
+                "  ",
+                RoomCreationRequestStatus.PENDING,
+                REQUESTED_AT,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("name must not be blank");
     }
 
     private static RoomCreationRequestResponse pending() {
@@ -146,6 +171,7 @@ class RoomCreationRequestResponseTest {
                         .ROOM_CREATION_REQUESTED,
                 false,
                 "request-1",
+                NAME,
                 RoomCreationRequestStatus.PENDING,
                 REQUESTED_AT,
                 null,

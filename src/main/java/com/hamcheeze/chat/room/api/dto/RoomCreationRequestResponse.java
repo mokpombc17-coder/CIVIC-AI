@@ -12,6 +12,7 @@ public record RoomCreationRequestResponse(
         RoomCreationRequestResultCode code,
         boolean replayed,
         String creationRequestId,
+        String name,
         RoomCreationRequestStatus status,
         Instant requestedAt,
         Instant resolvedAt,
@@ -29,6 +30,7 @@ public record RoomCreationRequestResponse(
         creationRequestId = requireText(
                 creationRequestId,
                 "creationRequestId");
+        name = requireText(name, "name");
         Objects.requireNonNull(code, "code");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(requestedAt, "requestedAt");
