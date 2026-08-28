@@ -58,8 +58,8 @@ Local development accounts are ready: admin@dev.civic.test and user01-user10@dev
 | 항목 | 기본값 |
 | --- | --- |
 | Main/Auth | `http://localhost:8080` |
-| PostgreSQL | `localhost:5432/civic_main` |
-| Redis | `localhost:6379` |
+| PostgreSQL | `localhost:15432/civic_main` |
+| Redis | `localhost:16379` |
 | Issuer | `http://localhost:8080` |
 | Browser origin | `http://localhost:8080` |
 | Secure Cookie | 비활성화, 로컬 HTTP 전용 |
@@ -211,14 +211,15 @@ Docker volume에 DB와 Redis 데이터가 남아 있으므로 migration과 계�
 
 ```bash
 CIVIC_LOCAL_SERVER_PORT=18080 \
-CIVIC_LOCAL_POSTGRES_PORT=15432 \
-CIVIC_LOCAL_REDIS_PORT=16379 \
+CIVIC_LOCAL_POSTGRES_PORT=25432 \
+CIVIC_LOCAL_REDIS_PORT=26379 \
 ./dev-local.sh
 ```
 
 스크립트는 변경된 서버 포트에 맞춰 issuer와 browser origin도 자동으로 설정합니다.
 
-기본 `8080` 연동이 필요하다면 기존 `8080` 프로세스를 종료한 뒤 환경변수 없이 실행합니다.
+기본 연동이 필요하다면 기존 `8080`, `15432`, `16379` 프로세스를 종료한 뒤 환경변수 없이
+실행합니다.
 
 ## 9. 프론트엔드 연동
 

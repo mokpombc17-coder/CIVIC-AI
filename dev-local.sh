@@ -8,7 +8,7 @@ docker_cli=(docker)
 usage() {
   printf '%s\n' \
     'Usage:' \
-    '  ./dev-local.sh          Start PostgreSQL, Redis, and Main/Auth on port 8080' \
+    '  ./dev-local.sh          Start Main/Auth 8080, PostgreSQL 15432, and Redis 16379' \
     '  ./dev-local.sh down     Stop local PostgreSQL and Redis containers' \
     '  ./dev-local.sh reset    Delete local PostgreSQL and Redis data' \
     '  ./dev-local.sh --help   Show this help'
@@ -81,8 +81,8 @@ compose=(
 )
 
 server_port="${CIVIC_LOCAL_SERVER_PORT:-8080}"
-postgres_port="${CIVIC_LOCAL_POSTGRES_PORT:-5432}"
-redis_port="${CIVIC_LOCAL_REDIS_PORT:-6379}"
+postgres_port="${CIVIC_LOCAL_POSTGRES_PORT:-15432}"
+redis_port="${CIVIC_LOCAL_REDIS_PORT:-16379}"
 database_name="${CIVIC_LOCAL_DB_NAME:-civic_main}"
 database_user="${CIVIC_LOCAL_DB_USER:-civic_main}"
 database_password="${CIVIC_LOCAL_DB_PASSWORD:-civic-main-local-only}"

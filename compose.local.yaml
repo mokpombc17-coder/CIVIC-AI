@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${CIVIC_LOCAL_DB_USER:-civic_main}
       POSTGRES_PASSWORD: ${CIVIC_LOCAL_DB_PASSWORD:-civic-main-local-only}
     ports:
-      - "127.0.0.1:${CIVIC_LOCAL_POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${CIVIC_LOCAL_POSTGRES_PORT:-15432}:5432"
     volumes:
       - civic-main-auth-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "127.0.0.1:${CIVIC_LOCAL_REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${CIVIC_LOCAL_REDIS_PORT:-16379}:6379"
     volumes:
       - civic-main-auth-redis-data:/data
     healthcheck:

@@ -2,6 +2,13 @@ server:
   port: ${SERVER_PORT:8080}
 
 spring:
+  datasource:
+    url: ${CIVIC_DB_URL:jdbc:postgresql://localhost:15432/civic_main}
+    username: ${CIVIC_DB_USER:civic_main}
+    password: ${CIVIC_DB_PASSWORD:civic-main-local-only}
+  data:
+    redis:
+      url: ${CIVIC_REDIS_URL:redis://localhost:16379}
   flyway:
     placeholders:
       bootstrap_admin_email: ${CIVIC_LOCAL_ADMIN_EMAIL:admin@dev.civic.test}

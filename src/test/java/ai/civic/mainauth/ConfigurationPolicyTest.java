@@ -55,6 +55,13 @@ class ConfigurationPolicyTest {
             var environment = context.getEnvironment();
 
             assertThat(environment.getProperty("server.port")).isEqualTo("8080");
+            assertThat(environment.getProperty("spring.datasource.url"))
+                    .isEqualTo("jdbc:postgresql://localhost:15432/civic_main");
+            assertThat(environment.getProperty("spring.datasource.username")).isEqualTo("civic_main");
+            assertThat(environment.getProperty("spring.datasource.password"))
+                    .isEqualTo("civic-main-local-only");
+            assertThat(environment.getProperty("spring.data.redis.url"))
+                    .isEqualTo("redis://localhost:16379");
             assertThat(environment.getProperty("civic.issuer")).isEqualTo("http://localhost:8080");
             assertThat(environment.getProperty("civic.browser.origin")).isEqualTo("http://localhost:8080");
             assertThat(environment.getProperty("civic.cookies.secure", Boolean.class)).isFalse();
