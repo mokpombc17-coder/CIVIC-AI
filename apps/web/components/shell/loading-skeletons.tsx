@@ -45,33 +45,13 @@ export function ParticipantScreenSkeleton() {
   );
 }
 
+/** 관리자 콘텐츠 영역 전용 스켈레톤 — 사이드바는 레이아웃(AdminShell)이 고정 렌더한다. */
 export function AdminScreenSkeleton() {
   return (
-    <div className="civic-shell civic-shell-admin" data-wireflow-shell="admin">
-      <aside className="civic-admin-sidebar">
-        <span className="civic-admin-brand">
-          <strong>CIVIC AI</strong>
-          <small>ADMIN</small>
-        </span>
-        <div aria-hidden="true" className="civic-skeleton-nav">
-          {Array.from({ length: 6 }, (_, index) => (
-            <SkeletonBlock className="civic-skeleton-nav-item" key={index} />
-          ))}
-        </div>
-      </aside>
-      <div className="civic-admin-stage">
-        <main
-          aria-busy="true"
-          aria-label="관리 화면을 불러오는 중"
-          className="civic-content civic-admin-content"
-        >
-          <div className="civic-skeleton-screen">
-            <SkeletonBlock className="civic-skeleton-header-title" />
-            <SkeletonCard lines={3} />
-            <SkeletonCard lines={4} />
-          </div>
-        </main>
-      </div>
+    <div aria-busy="true" aria-label="관리 화면을 불러오는 중" className="civic-skeleton-screen">
+      <SkeletonBlock className="civic-skeleton-header-title" />
+      <SkeletonCard lines={3} />
+      <SkeletonCard lines={4} />
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { AdminShell } from "@/components/shell/admin-shell";
 import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
 import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
 import { AdminSimulationScreen } from "@/components/admin/admin-simulation-screen";
@@ -32,76 +31,28 @@ export default async function AdminPlaceholderPage({
   );
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "MAIN_AUTH") {
-    return (
-      <AdminShell
-        activeRoute={pathname}
-        permissions={currentUser.permissions}
-        role={currentUser.role}
-      >
-        <MainFunctionalScreen adminCurrentUser={currentUser} screen={definition} />
-      </AdminShell>
-    );
+    return <MainFunctionalScreen adminCurrentUser={currentUser} screen={definition} />;
   }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "RAG") {
-    return (
-      <AdminShell
-        activeRoute={pathname}
-        permissions={currentUser.permissions}
-        role={currentUser.role}
-      >
-        <RagFunctionalScreen query={query} screen={definition} />
-      </AdminShell>
-    );
+    return <RagFunctionalScreen query={query} screen={definition} />;
   }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "CHAT") {
-    return (
-      <AdminShell
-        activeRoute={pathname}
-        permissions={currentUser.permissions}
-        role={currentUser.role}
-      >
-        <AdminChatRequestScreen query={query} screen={definition} />
-      </AdminShell>
-    );
+    return <AdminChatRequestScreen query={query} screen={definition} />;
   }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "DECISION") {
-    return (
-      <AdminShell
-        activeRoute={pathname}
-        permissions={currentUser.permissions}
-        role={currentUser.role}
-      >
-        <AdminTaskScreen query={query} screen={definition} />
-      </AdminShell>
-    );
+    return <AdminTaskScreen query={query} screen={definition} />;
   }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "SIMULATION") {
-    return (
-      <AdminShell
-        activeRoute={pathname}
-        permissions={currentUser.permissions}
-        role={currentUser.role}
-      >
-        <AdminSimulationScreen query={query} screen={definition} />
-      </AdminShell>
-    );
+    return <AdminSimulationScreen query={query} screen={definition} />;
   }
 
   if (definition.status !== "PLACEHOLDER") notFound();
 
-  return (
-    <AdminShell
-      activeRoute={pathname}
-      permissions={currentUser.permissions}
-      role={currentUser.role}
-    >
-      <ComingSoonScreen screen={definition} />
-    </AdminShell>
-  );
+  return <ComingSoonScreen screen={definition} />;
 }
 
 function adminAudience(owner: string, screenId: string): Exclude<ShellAudience, "PARTICIPANT"> {
