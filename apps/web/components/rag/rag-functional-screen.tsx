@@ -7,12 +7,13 @@ export type RagQuery = Readonly<Record<string, string | string[] | undefined>>;
 export function RagFunctionalScreen({
   screen,
   query = {},
-}: Readonly<{ screen: ScreenDefinition; query?: RagQuery }>) {
+  userId,
+}: Readonly<{ screen: ScreenDefinition; query?: RagQuery; userId?: string }>) {
   if (screen.owner !== "RAG" || screen.status !== "FUNCTIONAL") {
     throw new TypeError(`RagFunctionalScreen cannot render ${screen.id}.`);
   }
   return screen.id.startsWith("U-RAG") ? (
-    <ParticipantRagScreen query={query} screen={screen} />
+    <ParticipantRagScreen query={query} screen={screen} {...(userId ? { userId } : {})} />
   ) : (
     <AdminRagScreen query={query} screen={screen} />
   );

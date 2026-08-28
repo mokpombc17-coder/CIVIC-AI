@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
 
 export function LogoutButton() {
   const [busy, setBusy] = useState(false);
@@ -27,7 +28,12 @@ export function LogoutButton() {
   );
 }
 
-export async function requestLogout(request: typeof fetch = fetch): Promise<boolean> {
+type LogoutStorage = Pick<Storage, "removeItem">;
+
+export async function requestLogout(
+  request: typeof fetch = fetch,
+  storage: LogoutStorage | null = browserSessionStorage(),
+): Promise<boolean> {
   try {
     const response = await request("/api/v1/auth/logout", {
       method: "POST",
@@ -35,8 +41,19 @@ export async function requestLogout(request: typeof fetch = fetch): Promise<bool
       headers: { "content-type": "application/json" },
       body: "{}",
     });
-    return response.ok;
+    if (!response.ok) return false;
+    if (storage) clearRagConversationSnapshot(storage);
+    return true;
   } catch {
     return false;
+  }
+}
+
+function browserSessionStorage(): LogoutStorage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
   }
 }

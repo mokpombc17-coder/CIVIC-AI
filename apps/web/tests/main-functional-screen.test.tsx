@@ -221,14 +221,16 @@ describe("25 functional Main/Auth screens", () => {
 
   it("로그아웃은 Main/Auth refresh family 종료 API를 POST로 호출한다", async () => {
     const request = vi.fn(async () => new Response(null, { status: 204 }));
+    const storage = { removeItem: vi.fn() };
 
-    await expect(requestLogout(request as typeof fetch)).resolves.toBe(true);
+    await expect(requestLogout(request as typeof fetch, storage)).resolves.toBe(true);
     expect(request).toHaveBeenCalledWith("/api/v1/auth/logout", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
       body: "{}",
     });
+    expect(storage.removeItem).toHaveBeenCalledWith("civic:rag-conversation:v1");
     await expect(
       requestLogout(vi.fn(async () => Promise.reject(new Error("offline"))) as typeof fetch),
     ).resolves.toBe(false);

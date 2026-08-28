@@ -80,14 +80,14 @@ export default async function ParticipantPlaceholderPage({
   }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "RAG") {
-    await requireParticipantAccess(ragReturnTarget(pathname, query));
+    const currentUser = await requireParticipantAccess(ragReturnTarget(pathname, query));
     return (
       <ParticipantShell
         {...(heading.backHref ? { backHref: heading.backHref } : {})}
         activeRoute={pathname}
         title={heading.title}
       >
-        <RagFunctionalScreen query={query} screen={definition} />
+        <RagFunctionalScreen query={query} screen={definition} userId={currentUser.userId} />
       </ParticipantShell>
     );
   }
