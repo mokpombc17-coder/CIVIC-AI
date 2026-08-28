@@ -6,6 +6,9 @@ export type Citation = Readonly<{
   page_count?: number;
   source_object_sha256: string;
   title?: string;
+  source_kind?: string;
+  source_url?: string;
+  related_titles?: string[];
 }>;
 
 export type RagJob = Readonly<{
@@ -151,7 +154,14 @@ function isStoredCitation(value: unknown): value is Citation {
     return false;
   }
   if (value.page_count !== undefined && !Number.isSafeInteger(value.page_count)) return false;
-  return value.title === undefined || typeof value.title === "string";
+  for (const field of ["title", "source_kind", "source_url"] as const) {
+    if (value[field] !== undefined && typeof value[field] !== "string") return false;
+  }
+  return (
+    value.related_titles === undefined ||
+    (Array.isArray(value.related_titles) &&
+      value.related_titles.every((title) => typeof title === "string"))
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

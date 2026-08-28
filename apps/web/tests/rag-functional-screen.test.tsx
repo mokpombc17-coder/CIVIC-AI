@@ -64,6 +64,7 @@ import {
   pollResult,
   problemMessage,
   ragJobStatusMessage,
+  safeExternalSourceUrl,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
 import * as participantRagSession from "@/components/rag/participant-rag-screen";
@@ -143,6 +144,9 @@ describe("9 functional RAG screens", () => {
                 page_count: 4,
                 source_object_sha256: "a".repeat(64),
                 title: "정책 안내",
+                source_kind: "CRAWLER_ATTACHMENT",
+                source_url: "https://example.com/notices/1",
+                related_titles: ["정책 공고", "신청서 양식.hwp"],
               },
             ],
           },
@@ -1546,6 +1550,14 @@ describe("9 functional RAG screens", () => {
     ).toBe(
       "/rag/source?versionId=version%2F1&page=3&total=12&title=%EB%B3%B5%EC%A7%80%20%EC%A0%95%EC%B1%85.pdf",
     );
+  });
+
+  it("게시 원문 링크는 HTTP(S) 주소만 허용한다", () => {
+    expect(safeExternalSourceUrl("https://example.com/notices/1")).toBe(
+      "https://example.com/notices/1",
+    );
+    expect(safeExternalSourceUrl("javascript:alert(1)")).toBeNull();
+    expect(safeExternalSourceUrl("/api/v1/internal")).toBeNull();
   });
 
   it("이전 RAG 응답에 페이지 수가 없으면 인용 페이지를 전체 페이지로 사용한다", () => {

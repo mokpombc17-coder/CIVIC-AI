@@ -3446,6 +3446,49 @@ body:has([data-wireflow-shell]) {
   text-decoration: none;
 }
 
+.civic-rag-citation-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.civic-rag-related-documents {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--wf-line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.civic-rag-related-documents strong {
+  color: var(--wf-ink);
+  font-size: 12px;
+}
+
+.civic-rag-related-documents ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .civic-rag-citation-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .civic-rag-citation-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
 /* RAG 답변 평가 (A3: 무스타일 네이티브 버튼 정리) */
 .civic-rag-feedback {
   display: flex;

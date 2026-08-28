@@ -421,6 +421,10 @@ function RagMessage({
   onOpenCitation,
 }: Readonly<{ message: Message; onOpenCitation: (citation: Citation) => void }>) {
   const statusMessage = ragJobStatusMessage(message.job);
+  const citations = message.job?.citations ?? [];
+  const relatedTitles = Array.from(
+    new Set(citations.flatMap((citation) => citation.related_titles ?? [])),
+  );
   return (
     <article className="civic-rag-exchange">
       <div className="civic-rag-question-row">
@@ -438,38 +442,63 @@ function RagMessage({
           ) : message.job?.answer ? (
             <SafeMarkdownAnswer
               answer={message.job.answer}
-              citations={message.job.citations ?? []}
+              citations={citations}
               onOpenCitation={onOpenCitation}
             />
           ) : null}
         </div>
-        {message.job?.citations?.length ? (
+        {citations.length ? (
           <div aria-label="출처" className="civic-rag-citations">
-            {message.job.citations.map((citation) => (
-              <div
-                className="civic-rag-citation-card"
-                key={`${citation.document_version_id}-${citation.page_number}-${citation.source_object_sha256}`}
-              >
-                <div className="civic-rag-citation-copy">
-                  <strong>
-                    <span aria-hidden="true" className="civic-rag-citation-icon">
-                      ⓘ
-                    </span>
-                    출처
-                  </strong>
-                  <p>
-                    {citation.title ?? "문서"} · {citation.page_number}페이지
-                  </p>
-                </div>
-                <Link
-                  className="wf-button wf-button-secondary"
-                  href={citationHref(citation)}
-                  onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
+            {citations.map((citation) => {
+              const externalUrl = safeExternalSourceUrl(citation.source_url);
+              return (
+                <div
+                  className="civic-rag-citation-card"
+                  key={`${citation.document_version_id}-${citation.page_number}-${citation.source_object_sha256}`}
                 >
-                  원문 보기
-                </Link>
-              </div>
-            ))}
+                  <div className="civic-rag-citation-copy">
+                    <strong>
+                      <span aria-hidden="true" className="civic-rag-citation-icon">
+                        ⓘ
+                      </span>
+                      출처
+                    </strong>
+                    <p>
+                      {citation.title ?? "문서"} · {citation.page_number}페이지
+                    </p>
+                  </div>
+                  <div className="civic-rag-citation-actions">
+                    <Link
+                      className="wf-button wf-button-secondary"
+                      href={citationHref(citation)}
+                      onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
+                    >
+                      근거 페이지
+                    </Link>
+                    {externalUrl ? (
+                      <a
+                        className="wf-button wf-button-secondary"
+                        href={externalUrl}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        게시 원문
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+            {relatedTitles.length ? (
+              <aside className="civic-rag-related-documents">
+                <strong>관련 문서</strong>
+                <ul>
+                  {relatedTitles.map((title) => (
+                    <li key={title}>{title}</li>
+                  ))}
+                </ul>
+              </aside>
+            ) : null}
           </div>
         ) : null}
         {message.job?.status === "SUCCEEDED" && message.job.answer ? (
@@ -485,6 +514,16 @@ function RagMessage({
 
 export function citationHref(citation: Citation): Route {
   return `/rag/source?versionId=${encodeURIComponent(citation.document_version_id)}&page=${citation.page_number}&total=${citationTotalPages(citation)}&title=${encodeURIComponent(citation.title ?? "인용 문서")}` as Route;
+}
+
+export function safeExternalSourceUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+  } catch {
+    return null;
+  }
 }
 
 export function citationTotalPages(citation: Pick<Citation, "page_number" | "page_count">) {
