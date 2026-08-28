@@ -28,7 +28,7 @@ describe("ChatRoomSettingsControlView", () => {
     expect(html).not.toContain("<form");
     expect(html).not.toContain("<dialog");
     expect(html).toContain('aria-label="방 정보 수정하기"');
-    expect(html).toContain("border-[var(--chat-publishing-color-border)]");
+    expect(html).not.toContain("border-[var(--chat-publishing-color-border)]");
     expect(html).not.toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
   });
 

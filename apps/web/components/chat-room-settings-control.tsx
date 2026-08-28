@@ -79,10 +79,7 @@ export function ChatRoomSettingsControlView({
   const titleId = useId();
 
   return (
-    <section
-      aria-labelledby={titleId}
-      className="border-b border-[var(--chat-publishing-color-border)] py-5"
-    >
+    <section aria-labelledby={titleId} className="py-5">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
           방 정보
@@ -246,10 +243,7 @@ function ChatRoomInformationCard({ room }: { room: RoomDetails }) {
   const titleId = useId();
 
   return (
-    <section
-      aria-labelledby={titleId}
-      className="border-b border-[var(--chat-publishing-color-border)] py-5"
-    >
+    <section aria-labelledby={titleId} className="py-5">
       <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
         방 정보
       </h3>

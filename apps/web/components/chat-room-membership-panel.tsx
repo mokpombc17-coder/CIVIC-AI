@@ -82,39 +82,45 @@ export function ChatRoomMembershipPanelView({
 
       <ChatRoomInformationSection canEdit={isOwner} room={room} />
 
-      {isActiveMembershipListEnabled ? (
-        <ActiveMembershipList
-          errorMessage={activeMemberships.errorMessage}
-          hasNextPage={activeMemberships.hasNextPage}
-          isCommandPending={command.isPending}
-          isError={activeMemberships.isError}
-          isFetchingNextPage={activeMemberships.isFetchingNextPage}
-          isOwner={isOwner}
-          isPending={activeMemberships.isPending}
-          memberships={activeMemberships.memberships}
-          onFetchNextPage={activeMemberships.fetchNextPage}
-          onMemberCommand={command.startMember}
-          onRetry={activeMemberships.retry}
-          pendingCommand={command.pending}
-          selfMembershipId={selfMembership.membership?.membershipId ?? null}
-        />
-      ) : null}
+      {isActiveMembershipListEnabled || isOwner ? (
+        <div className="border-t border-[var(--chat-publishing-color-border)] py-5">
+          {isActiveMembershipListEnabled ? (
+            <ActiveMembershipList
+              errorMessage={activeMemberships.errorMessage}
+              hasNextPage={activeMemberships.hasNextPage}
+              isCommandPending={command.isPending}
+              isError={activeMemberships.isError}
+              isFetchingNextPage={activeMemberships.isFetchingNextPage}
+              isOwner={isOwner}
+              isPending={activeMemberships.isPending}
+              memberships={activeMemberships.memberships}
+              onFetchNextPage={activeMemberships.fetchNextPage}
+              onMemberCommand={command.startMember}
+              onRetry={activeMemberships.retry}
+              pendingCommand={command.pending}
+              selfMembershipId={selfMembership.membership?.membershipId ?? null}
+            />
+          ) : null}
 
-      {isOwner ? (
-        <BlockedMembershipManagement
-          errorMessage={ownerManagedMemberships.errorMessage}
-          hasNextPage={ownerManagedMemberships.hasNextPage}
-          isCommandPending={command.isPending}
-          isError={ownerManagedMemberships.isError}
-          isFetchingNextPage={ownerManagedMemberships.isFetchingNextPage}
-          isPending={ownerManagedMemberships.isPending}
-          memberships={ownerManagedMemberships.memberships}
-          onFetchNextPage={ownerManagedMemberships.fetchNextPage}
-          onMemberCommand={command.startMember}
-          onRetry={ownerManagedMemberships.retry}
-          pendingCommand={command.pending}
-          selfMembershipId={selfMembership.membership?.membershipId ?? null}
-        />
+          {isOwner ? (
+            <div className={isActiveMembershipListEnabled ? "mt-6" : undefined}>
+              <BlockedMembershipManagement
+                errorMessage={ownerManagedMemberships.errorMessage}
+                hasNextPage={ownerManagedMemberships.hasNextPage}
+                isCommandPending={command.isPending}
+                isError={ownerManagedMemberships.isError}
+                isFetchingNextPage={ownerManagedMemberships.isFetchingNextPage}
+                isPending={ownerManagedMemberships.isPending}
+                memberships={ownerManagedMemberships.memberships}
+                onFetchNextPage={ownerManagedMemberships.fetchNextPage}
+                onMemberCommand={command.startMember}
+                onRetry={ownerManagedMemberships.retry}
+                pendingCommand={command.pending}
+                selfMembershipId={selfMembership.membership?.membershipId ?? null}
+              />
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {command.error ? (
@@ -209,7 +215,7 @@ function ActiveMembershipList({
   selfMembershipId: string | null;
 }) {
   return (
-    <section className="border-b border-[var(--chat-publishing-color-border)] py-5">
+    <section>
       <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]">참여자 목록</h3>
 
       {isError ? (
@@ -285,7 +291,7 @@ function BlockedMembershipManagement({
   selfMembershipId: string | null;
 }) {
   return (
-    <section className="border-b border-[var(--chat-publishing-color-border)] py-5">
+    <section>
       <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]">
         차단된 사용자 관리
       </h3>
@@ -351,7 +357,7 @@ function MembershipRows({
   selfMembershipId: string | null;
 }) {
   return (
-    <ul className="mt-3 divide-y divide-[var(--chat-publishing-color-border)] border-y border-[var(--chat-publishing-color-border)]">
+    <ul className="mt-3 grid gap-1">
       {memberships.map((member) => (
         <li
           className="flex flex-wrap items-center justify-between gap-3 py-3"
