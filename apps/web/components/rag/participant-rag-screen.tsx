@@ -354,7 +354,11 @@ function RagMessage({
           {statusMessage ? (
             <p role={message.job?.status === "FAILED" ? "alert" : undefined}>{statusMessage}</p>
           ) : message.job?.answer ? (
-            <SafeMarkdownAnswer answer={message.job.answer} />
+            <SafeMarkdownAnswer
+              answer={message.job.answer}
+              citations={message.job.citations ?? []}
+              onOpenCitation={onOpenCitation}
+            />
           ) : null}
         </div>
         {message.job?.citations?.length ? (
