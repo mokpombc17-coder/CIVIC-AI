@@ -128,7 +128,7 @@ export function MainFunctionalScreen({
     <ScreenFrame screen={screen}>
       <WireflowCommonState
         action={action}
-        body="자격증명이나 임시 처리 결과를 표시하지 않고 서버의 최신 상태를 다시 확인합니다."
+        body="필요한 권한이 있는 계정으로 다시 로그인하거나, 홈에서 이용 가능한 메뉴를 확인해 주세요."
         href={(screen.id === "COMMON-001" ? "/home" : screen.route) as Route}
         title={stateMessage(screen.id)}
       />

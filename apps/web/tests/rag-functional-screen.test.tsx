@@ -1485,7 +1485,7 @@ describe("9 functional RAG screens", () => {
       "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
     );
     expect(problemMessage("PROVIDER_AUTH_FAILED")).toBe(
-      "AI 제공자 인증 설정을 확인해야 합니다. 관리자에게 문의해 주세요.",
+      "AI 답변 기능 설정에 문제가 있습니다. 관리자에게 문의해 주세요.",
     );
     expect(problemMessage("OUTPUT_POLICY_REJECTED")).toBe(
       "생성된 답변이 안전성 검사를 통과하지 못했습니다. 다시 시도해 주세요.",

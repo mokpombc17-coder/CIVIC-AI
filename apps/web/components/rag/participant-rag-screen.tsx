@@ -641,16 +641,16 @@ export function problemMessage(code?: string) {
     return "생성된 답변이 안전성 검사를 통과하지 못했습니다. 다시 시도해 주세요.";
   }
   if (code === "PROVIDER_AUTH_FAILED") {
-    return "AI 제공자 인증 설정을 확인해야 합니다. 관리자에게 문의해 주세요.";
+    return "AI 답변 기능 설정에 문제가 있습니다. 관리자에게 문의해 주세요.";
   }
   if (code === "PROVIDER_RATE_LIMITED") {
     return "AI 요청이 많습니다. 잠시 후 다시 시도해 주세요.";
   }
   if (code === "PROVIDER_TIMEOUT" || code === "PROVIDER_UNAVAILABLE") {
-    return "AI 제공자 연결이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.";
+    return "AI 답변 서비스 연결이 원활하지 않습니다. 잠시 후 다시 시도해 주세요.";
   }
   if (code === "PROVIDER_RESPONSE_INVALID") {
-    return "AI 답변 형식을 확인하지 못했습니다. 다시 시도해 주세요.";
+    return "답변을 만드는 중 문제가 발생했습니다. 다시 시도해 주세요.";
   }
   if (code === "NO_GROUNDED_ANSWER") {
     return "등록된 문서에서 질문에 맞는 근거를 찾지 못했습니다. 문서명이나 표현을 바꿔 다시 질문해 주세요.";

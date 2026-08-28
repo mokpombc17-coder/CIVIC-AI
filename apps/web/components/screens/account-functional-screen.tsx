@@ -77,7 +77,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         const updated = (await response.json()) as Profile;
         setProfile(updated);
         setProfileSettings(readProfileSettings(updated));
-        setMessage("새 응답 버전으로 저장했습니다.");
+        setMessage("변경사항을 저장했습니다.");
       } else if (screen.id === "U-ACCOUNT-003") {
         const intent = data.get("intent");
         if (intent === "password") {
@@ -372,7 +372,7 @@ function SecuritySurface({
             {intent === "2fa" && !profile?.two_factor_enabled ? (
               <WireflowField
                 inputMode="numeric"
-                label="인증 코드 (처음 요청할 때는 비워 두세요)"
+                label="인증 코드 (비워 두고 저장하면 이메일로 받습니다)"
                 name="code"
               />
             ) : null}
