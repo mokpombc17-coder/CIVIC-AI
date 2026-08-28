@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { forwardRef, useEffect, useId, useRef, type FormEvent, type KeyboardEvent } from "react";
+import { PlatformHeader } from "@/components/platform-shell";
 import type { RoomMessageContextDirection } from "@/components/use-room-message-context";
 import {
   ROOM_MESSAGE_SEARCH_RAW_QUERY_MAX_UTF16_CODE_UNITS,
@@ -12,6 +13,11 @@ import {
   createRoomMessageSearchErrorPresentation,
 } from "@/lib/chat/chat-room-message-search-error-presentation";
 import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
+
+const SEARCH_PRIMARY_BUTTON_CLASS_NAME =
+  "inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] px-4 text-sm font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+const SEARCH_SECONDARY_BUTTON_CLASS_NAME =
+  "inline-flex min-h-11 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
 
 export type ChatRoomMessageSearchDialogController = Readonly<{
   appliedQuery: string | undefined;
@@ -99,6 +105,7 @@ export function ChatRoomMessageSearchDialog({
   const searchErrorPresentation = controller.isError
     ? createRoomMessageSearchErrorPresentation(controller.error)
     : null;
+  const isContextOpen = context.selectedMessageId !== null;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,54 +145,43 @@ export function ChatRoomMessageSearchDialog({
   }
 
   return (
-    <div
-      className="relative flex size-full items-center justify-center p-3 sm:p-4"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
-    >
+    <div className="relative flex size-full bg-white">
       <section
         aria-labelledby={titleId}
         aria-modal="true"
-        className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white text-slate-950 shadow-2xl"
+        className="flex size-full min-h-0 flex-col overflow-hidden bg-white text-[var(--chat-publishing-color-text)]"
         data-chat-room-message-search-dialog="true"
+        data-presentation="full-height"
         onKeyDown={handleKeyDown}
         role="dialog"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
-          <div>
-            <p className="eyebrow">Room messages</p>
-            <h2 id={titleId}>메시지 검색</h2>
-          </div>
-          <button
-            aria-label="메시지 검색 닫기"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-100"
-            onClick={onClose}
-            type="button"
-          >
-            ×
-          </button>
-        </div>
+        <PlatformHeader
+          backAction={{
+            ariaLabel: isContextOpen ? "검색 결과로 돌아가기" : "메시지 검색 닫기",
+            onClick: isContextOpen ? context.closeContext : onClose,
+          }}
+          className="shrink-0"
+          title={<span id={titleId}>{isContextOpen ? "주변 대화" : "메시지 검색"}</span>}
+        />
 
-        {context.selectedMessageId === null ? (
+        {!isContextOpen ? (
           <>
             <form
               aria-label="채팅방 메시지 검색"
-              className="grid gap-3 border-b border-slate-200 p-4 sm:p-6"
+              className="grid shrink-0 gap-2 border-b border-[var(--chat-publishing-color-border)] px-4 py-3"
               onSubmit={handleSubmit}
               role="search"
             >
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <label className="grid min-w-0 gap-1.5 text-sm font-medium text-slate-700">
-                  메시지 내용
+              <div className="flex min-w-0 items-center gap-2">
+                <label className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 transition focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]">
+                  <span className="sr-only">메시지 내용</span>
+                  <Image alt="" aria-hidden height={20} src="/assets/chat/search.png" width={20} />
                   <input
                     aria-describedby={describedBy}
                     aria-invalid={controller.validationMessage ? true : undefined}
                     autoComplete="off"
                     autoFocus
-                    className="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="min-w-0 flex-1 bg-transparent text-base text-[var(--chat-publishing-color-text)] outline-none placeholder:text-[var(--chat-publishing-color-muted)]"
                     disabled={searchErrorPresentation?.terminal}
                     inputMode="search"
                     maxLength={ROOM_MESSAGE_SEARCH_RAW_QUERY_MAX_UTF16_CODE_UNITS}
@@ -198,7 +194,7 @@ export function ChatRoomMessageSearchDialog({
                   />
                 </label>
                 <button
-                  className="primary-button sm:min-w-24"
+                  className={`${SEARCH_PRIMARY_BUTTON_CLASS_NAME} w-[72px] shrink-0 px-3`}
                   disabled={
                     controller.isComposing ||
                     controller.isFetching ||
@@ -210,12 +206,15 @@ export function ChatRoomMessageSearchDialog({
                 </button>
               </div>
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="text-xs text-slate-500" id={helpId}>
+                <p
+                  className="text-xs leading-5 text-[var(--chat-publishing-color-muted)]"
+                  id={helpId}
+                >
                   검색 버튼을 누르면 현재 접근 가능한 메시지 본문에서 찾습니다.
                 </p>
                 {controller.appliedQuery !== undefined || controller.draftQuery ? (
                   <button
-                    className="text-xs font-semibold text-slate-600 underline"
+                    className="text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)] underline underline-offset-2"
                     onClick={controller.clearSearch}
                     type="button"
                   >
@@ -224,13 +223,13 @@ export function ChatRoomMessageSearchDialog({
                 ) : null}
               </div>
               {controller.validationMessage ? (
-                <p className="text-sm font-medium text-red-700" id={validationId} role="alert">
+                <p className="text-sm font-medium text-[#b42318]" id={validationId} role="alert">
                   {controller.validationMessage}
                 </p>
               ) : null}
             </form>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
               <SearchResults
                 controller={controller}
                 onSelectMessage={context.openContext}
@@ -275,8 +274,11 @@ function SearchResults({
 
   return (
     <div className="grid gap-4" aria-live="polite">
-      <p className="text-sm text-slate-600">
-        <span className="font-semibold text-slate-900">“{controller.appliedQuery}”</span> 검색 결과
+      <p className="text-sm text-[var(--chat-publishing-color-muted)]">
+        <span className="font-bold text-[var(--chat-publishing-color-text)]">
+          “{controller.appliedQuery}”
+        </span>{" "}
+        검색 결과
       </p>
 
       {hasResults ? (
@@ -284,15 +286,15 @@ function SearchResults({
           {controller.messages.map((message) => (
             <li key={message.messageId}>
               <button
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                className="w-full rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white p-4 text-left transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-60"
                 data-message-id={message.messageId}
                 data-room-sequence={message.roomSequence}
                 disabled={searchTerminated}
                 onClick={() => onSelectMessage(message.messageId)}
                 type="button"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--chat-publishing-color-muted)]">
+                  <span className="font-bold text-[var(--chat-publishing-color-text)]">
                     {participantDisplayNames.get(message.senderMembershipId) ??
                       UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME}
                   </span>
@@ -300,10 +302,10 @@ function SearchResults({
                     {formatSearchResultTime(message.createdAt)}
                   </time>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900">
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-publishing-color-text)]">
                   {message.content}
                 </p>
-                <span className="mt-3 block text-xs font-semibold text-blue-700">
+                <span className="mt-3 block text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)]">
                   주변 대화 보기
                 </span>
               </button>
@@ -321,12 +323,17 @@ function SearchResults({
       ) : null}
 
       {controller.isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-950" role="alert">
+        <div
+          className="rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
+          role="alert"
+        >
           <p className="text-sm font-semibold">{errorPresentation?.title}</p>
-          <p className="mt-1 text-xs opacity-80">{errorPresentation?.detail}</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
+            {errorPresentation?.detail}
+          </p>
           {!retryScheduled && errorPresentation?.canRetry ? (
             <button
-              className="secondary-button mt-3"
+              className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
               onClick={() => void controller.retry()}
               type="button"
             >
@@ -338,7 +345,7 @@ function SearchResults({
 
       {controller.hasNextPage && !controller.isError ? (
         <button
-          className="secondary-button justify-self-center"
+          className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} justify-self-center`}
           disabled={controller.isFetchingNextPage || retryScheduled}
           onClick={() => void controller.loadMore()}
           type="button"
@@ -374,19 +381,7 @@ function MessageContextWindow({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">검색 메시지 주변 대화</p>
-          {context.targetRoomSequence !== null ? (
-            <p className="text-xs text-slate-500">메시지 순서 {context.targetRoomSequence}</p>
-          ) : null}
-        </div>
-        <button className="secondary-button" onClick={context.closeContext} type="button">
-          검색 결과로 돌아가기
-        </button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         {context.isPending ? (
           <SearchNotice>주변 대화를 불러오고 있습니다.</SearchNotice>
         ) : context.isError && context.messages.length === 0 ? (
@@ -395,7 +390,7 @@ function MessageContextWindow({
           <div className="grid gap-3">
             {context.hasOlder ? (
               <button
-                className="secondary-button justify-self-center"
+                className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} justify-self-center`}
                 disabled={context.isLoadingOlder}
                 onClick={() => void context.loadOlder()}
                 type="button"
@@ -417,8 +412,8 @@ function MessageContextWindow({
                     aria-current={isTarget ? "true" : undefined}
                     className={
                       isTarget
-                        ? "rounded-xl border-2 border-blue-500 bg-blue-50 p-4 outline-none ring-4 ring-blue-100"
-                        : "rounded-xl border border-slate-200 bg-white p-4 outline-none"
+                        ? "rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] p-4 outline-none ring-2 ring-[var(--chat-publishing-color-accent-soft)]"
+                        : "rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white p-4 outline-none"
                     }
                     data-context-target={isTarget ? "true" : undefined}
                     data-message-id={message.messageId}
@@ -427,14 +422,14 @@ function MessageContextWindow({
                     ref={isTarget ? targetRef : undefined}
                     tabIndex={isTarget ? -1 : undefined}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                      <span className="font-semibold text-slate-700">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--chat-publishing-color-muted)]">
+                      <span className="font-bold text-[var(--chat-publishing-color-text)]">
                         {participantDisplayNames.get(message.senderMembershipId) ??
                           UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME}
                       </span>
                       <div className="flex items-center gap-2">
                         {isTarget ? (
-                          <span className="rounded-full bg-blue-600 px-2 py-0.5 font-semibold text-white">
+                          <span className="rounded-full bg-[var(--chat-publishing-color-primary)] px-2 py-0.5 font-bold text-white">
                             검색한 메시지
                           </span>
                         ) : null}
@@ -446,8 +441,8 @@ function MessageContextWindow({
                     <p
                       className={
                         message.state === "DELETED_BY_AUTHOR"
-                          ? "mt-2 text-sm italic text-slate-500"
-                          : "mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900"
+                          ? "mt-2 text-sm italic text-[var(--chat-publishing-color-muted)]"
+                          : "mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-publishing-color-text)]"
                       }
                     >
                       {message.content ?? "삭제된 메시지입니다."}
@@ -459,7 +454,7 @@ function MessageContextWindow({
 
             {context.hasNewer ? (
               <button
-                className="secondary-button justify-self-center"
+                className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} justify-self-center`}
                 disabled={context.isLoadingNewer}
                 onClick={() => void context.loadNewer()}
                 type="button"
@@ -488,12 +483,17 @@ function ContextFailure({
     presentation.title === "주변 대화를 불러오지 못했습니다." ? fallbackTitle : presentation.title;
 
   return (
-    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-950" role="alert">
+    <div
+      className="rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
+      role="alert"
+    >
       <p className="text-sm font-semibold">{title}</p>
-      <p className="mt-1 text-xs opacity-80">{presentation.detail}</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
+        {presentation.detail}
+      </p>
       {presentation.canRetry ? (
         <button
-          className="secondary-button mt-3"
+          className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
           onClick={() => void context.retry()}
           type="button"
         >
@@ -506,7 +506,7 @@ function ContextFailure({
 
 function SearchNotice({ children }: Readonly<{ children: string }>) {
   return (
-    <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600">
+    <p className="rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-neutral-soft)] p-5 text-center text-sm leading-6 text-[var(--chat-publishing-color-muted)]">
       {children}
     </p>
   );

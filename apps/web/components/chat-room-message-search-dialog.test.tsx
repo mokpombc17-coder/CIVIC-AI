@@ -15,11 +15,14 @@ describe("Room message search dialog", () => {
 
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('data-presentation="full-height"');
+    expect(html).toContain('aria-label="메시지 검색 닫기"');
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-label="채팅방 메시지 검색"');
     expect(html).toContain('maxLength="512"');
     expect(html).toContain("검색 버튼을 누르면");
     expect(html).toContain("검색어를 입력하고 검색 버튼을 눌러 주세요.");
+    expect(html).not.toContain("Room messages");
   });
 
   it("검색 결과에 참여자 프로필과 fallback을 표시한다", () => {
@@ -98,6 +101,7 @@ describe("Room message search dialog", () => {
     expect(html).toContain("메시지가 삭제되었거나 더 이상 접근할 수 없습니다.");
     expect(html).not.toContain(">다시 시도<");
     expect(html).toContain("검색 결과로 돌아가기");
+    expect(html).toContain(">주변 대화</span>");
   });
 
   it("검색 결과 Context를 별도 창에 ASC로 표시하고 target을 강조한다", () => {
