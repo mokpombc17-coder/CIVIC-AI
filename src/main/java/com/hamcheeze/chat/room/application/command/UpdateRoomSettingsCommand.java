@@ -1,12 +1,9 @@
 package com.hamcheeze.chat.room.application.command;
 
 import com.hamcheeze.chat.room.JoinPolicy;
-import com.hamcheeze.chat.room.RoomCategories;
-import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 
-import java.util.List;
 import java.util.Objects;
 
 public record UpdateRoomSettingsCommand(
@@ -17,8 +14,6 @@ public record UpdateRoomSettingsCommand(
         String name,
         boolean descriptionPresent,
         String description,
-        boolean categoriesPresent,
-        List<RoomCategory> categories,
         boolean visibilityPresent,
         RoomVisibility visibility,
         boolean joinPolicyPresent,
@@ -36,7 +31,6 @@ public record UpdateRoomSettingsCommand(
                 "roomId");
         if (!namePresent
                 && !descriptionPresent
-                && !categoriesPresent
                 && !visibilityPresent
                 && !joinPolicyPresent) {
             throw new IllegalArgumentException(
@@ -48,44 +42,12 @@ public record UpdateRoomSettingsCommand(
         description = descriptionPresent
                 ? RoomCommandValidation.roomDescription(description)
                 : requireAbsent(description, "description");
-        categories = categoriesPresent
-                ? RoomCategories.requireValid(categories)
-                : requireAbsent(categories, "categories");
         visibility = visibilityPresent
                 ? Objects.requireNonNull(visibility, "visibility")
                 : requireAbsent(visibility, "visibility");
         joinPolicy = joinPolicyPresent
                 ? Objects.requireNonNull(joinPolicy, "joinPolicy")
                 : requireAbsent(joinPolicy, "joinPolicy");
-    }
-
-    public UpdateRoomSettingsCommand(
-            String requesterUserId,
-            String clientRequestId,
-            String roomId,
-            boolean namePresent,
-            String name,
-            boolean descriptionPresent,
-            String description,
-            boolean visibilityPresent,
-            RoomVisibility visibility,
-            boolean joinPolicyPresent,
-            JoinPolicy joinPolicy
-    ) {
-        this(
-                requesterUserId,
-                clientRequestId,
-                roomId,
-                namePresent,
-                name,
-                descriptionPresent,
-                description,
-                false,
-                null,
-                visibilityPresent,
-                visibility,
-                joinPolicyPresent,
-                joinPolicy);
     }
 
     @Override

@@ -1,7 +1,11 @@
 package com.hamcheeze.chat.room.category;
 
+import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomSettingsUpdateOutcome;
+import com.hamcheeze.chat.room.RoomSettingsUpdateTransition;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryStore;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryUsage;
+import com.hamcheeze.chat.room.persistence.RoomStore;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -13,6 +17,7 @@ import java.util.function.Supplier;
 public final class RoomCategoryService {
 
     private final RoomCategoryStore store;
+    private final RoomStore roomStore;
     private final RoomCategoryUsage usage;
     private final TransactionOperations transactions;
     private final Clock clock;
@@ -20,12 +25,16 @@ public final class RoomCategoryService {
 
     public RoomCategoryService(
             RoomCategoryStore store,
+            RoomStore roomStore,
             RoomCategoryUsage usage,
             TransactionOperations transactions,
             Clock clock,
             Supplier<String> categoryIdGenerator
     ) {
         this.store = Objects.requireNonNull(store, "store");
+        this.roomStore = Objects.requireNonNull(
+                roomStore,
+                "roomStore");
         this.usage = Objects.requireNonNull(usage, "usage");
         this.transactions = Objects.requireNonNull(
                 transactions,
@@ -134,6 +143,42 @@ public final class RoomCategoryService {
         });
     }
 
+    public RoomCategoryAssignment replaceRoomCategories(
+            String roomId,
+            List<String> categoryIds,
+            long expectedVersion
+    ) {
+        if (roomId == null || roomId.isBlank()) {
+            throw roomNotFound();
+        }
+        if (expectedVersion < 0) {
+            throw assignmentVersionConflict();
+        }
+        return Objects.requireNonNull(transactions.execute(status -> {
+            Room current = roomStore.findById(roomId)
+                    .orElseThrow(RoomCategoryService::roomNotFound);
+            if (current.version() != expectedVersion) {
+                throw assignmentVersionConflict();
+            }
+            List<String> canonicalCategoryIds =
+                    requireExistingCategoryIds(categoryIds);
+            RoomSettingsUpdateTransition transition =
+                    current.replaceCategoryIds(canonicalCategoryIds);
+            if (transition.outcome()
+                    == RoomSettingsUpdateOutcome.UNCHANGED) {
+                return new RoomCategoryAssignment(current, false);
+            }
+            if (!roomStore.replaceIfVersionMatches(
+                    transition.room(),
+                    expectedVersion)) {
+                throw assignmentVersionConflict();
+            }
+            return new RoomCategoryAssignment(
+                    transition.room(),
+                    true);
+        }), "room category assignment");
+    }
+
     private static void requireExpectedVersion(
             RoomCategory category,
             long expectedVersion
@@ -157,6 +202,19 @@ public final class RoomCategoryService {
         return new RoomCategoryException(
                 RoomCategoryErrorCode.ROOM_CATEGORY_NOT_FOUND,
                 "The Room category was not found");
+    }
+
+    private static RoomCategoryException roomNotFound() {
+        return new RoomCategoryException(
+                RoomCategoryErrorCode.ROOM_NOT_FOUND,
+                "The Room was not found");
+    }
+
+    private static RoomCategoryException assignmentVersionConflict() {
+        return new RoomCategoryException(
+                RoomCategoryErrorCode
+                        .ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT,
+                "The Room was changed by another request");
     }
 
     private static RoomCategoryException nameConflict(

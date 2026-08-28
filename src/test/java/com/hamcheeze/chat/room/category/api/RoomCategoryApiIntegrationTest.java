@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -241,6 +242,140 @@ class RoomCategoryApiIntegrationTest
                         .value("ROOM_CATEGORY_VERSION_CONFLICT"));
     }
 
+    @Test
+    void adminAddsAndRemovesExistingRoomCategoriesWithVersionCheck()
+            throws Exception {
+        String roomId = "room-category-assignment";
+        seedActiveRoom(roomId, "owner-1");
+        MvcResult created = mockMvc.perform(post(
+                        "/api/v1/admin/room-categories")
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"환경\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String categoryId = json(created).get("categoryId").asText();
+
+        mockMvc.perform(put(
+                        "/api/v1/admin/rooms/{roomId}/categories",
+                        roomId)
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(assignmentBody(
+                                0,
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID,
+                                categoryId)))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Cache-Control",
+                        org.hamcrest.Matchers.containsString("no-store")))
+                .andExpect(jsonPath("$.categoryIds.length()").value(2))
+                .andExpect(jsonPath("$.roomVersion").value(1))
+                .andExpect(jsonPath("$.changed").value(true));
+
+        mockMvc.perform(put(
+                        "/api/v1/admin/rooms/{roomId}/categories",
+                        roomId)
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(assignmentBody(
+                                1,
+                                categoryId,
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomVersion").value(1))
+                .andExpect(jsonPath("$.changed").value(false));
+
+        mockMvc.perform(put(
+                        "/api/v1/admin/rooms/{roomId}/categories",
+                        roomId)
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(assignmentBody(
+                                0,
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(
+                        "ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT"));
+
+        mockMvc.perform(put(
+                        "/api/v1/admin/rooms/{roomId}/categories",
+                        roomId)
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(assignmentBody(
+                                1,
+                                RoomCategoryDefaults.POLICY_CATEGORY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomVersion").value(2))
+                .andExpect(jsonPath("$.changed").value(true));
+
+        mockMvc.perform(delete(
+                        "/api/v1/admin/room-categories/{categoryId}",
+                        categoryId)
+                        .queryParam("expectedVersion", "0")
+                        .with(admin()))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void roomCategoryAssignmentRequiresManageScopeAndExistingValues()
+            throws Exception {
+        String endpoint =
+                "/api/v1/admin/rooms/missing-room/categories";
+        String body = assignmentBody(
+                0,
+                RoomCategoryDefaults.POLICY_CATEGORY_ID);
+
+        mockMvc.perform(put(endpoint)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put(endpoint)
+                        .with(jwt("admin-1", ChatScopes.ROOMS_APPROVE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(endpoint)
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ROOM_NOT_FOUND"));
+
+        String roomId = "room-category-invalid-assignment";
+        seedActiveRoom(roomId, "owner-1");
+        for (String invalidBody : List.of(
+                "{\"categoryIds\":[],\"expectedVersion\":0}",
+                assignmentBody(
+                        0,
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID,
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID),
+                assignmentBody(0, "1", "2", "3", "4", "5", "6"),
+                "{\"categoryIds\":[\""
+                        + RoomCategoryDefaults.POLICY_CATEGORY_ID
+                        + "\"]}")) {
+            mockMvc.perform(put(
+                            "/api/v1/admin/rooms/{roomId}/categories",
+                            roomId)
+                            .with(admin())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(invalidBody))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code")
+                            .value("INVALID_REQUEST"));
+        }
+        mockMvc.perform(put(
+                        "/api/v1/admin/rooms/{roomId}/categories",
+                        roomId)
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(assignmentBody(0, "missing-category")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("ROOM_CATEGORY_NOT_FOUND"));
+    }
+
     private JwtRequestPostProcessor admin() {
         return jwt("admin-1", ChatScopes.CATEGORIES_MANAGE);
     }
@@ -258,5 +393,16 @@ class RoomCategoryApiIntegrationTest
     private JsonNode json(MvcResult result) throws Exception {
         return JSON.readTree(
                 result.getResponse().getContentAsByteArray());
+    }
+
+    private String assignmentBody(
+            long expectedVersion,
+            String... categoryIds
+    ) {
+        return "{\"categoryIds\":[\""
+                + String.join("\",\"", categoryIds)
+                + "\"],\"expectedVersion\":"
+                + expectedVersion
+                + "}";
     }
 }

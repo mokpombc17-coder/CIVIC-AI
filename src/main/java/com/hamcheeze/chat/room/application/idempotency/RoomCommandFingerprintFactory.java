@@ -72,13 +72,8 @@ public final class RoomCommandFingerprintFactory {
                     "description",
                     update.descriptionPresent(),
                     update.description());
-            appendPatch(
-                    canonical,
-                    "categories",
-                    update.categoriesPresent(),
-                    update.categories() == null
-                            ? null
-                            : categoryNames(update.categories()));
+            // Preserve fingerprints for pre-existing non-category patches.
+            appendPatch(canonical, "categories", false, null);
             appendPatch(
                     canonical,
                     "visibility",

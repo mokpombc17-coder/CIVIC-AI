@@ -13,6 +13,7 @@ import com.hamcheeze.chat.room.creation.RoomCreationRequestErrorCode;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestException;
 import com.hamcheeze.chat.room.category.RoomCategoryException;
 import com.hamcheeze.chat.room.category.api.AdminRoomCategoryController;
+import com.hamcheeze.chat.room.category.api.AdminRoomCategoryAssignmentController;
 import com.hamcheeze.chat.room.category.api.RoomCategoryController;
 import com.hamcheeze.chat.room.query.RoomQueryErrorCode;
 import com.hamcheeze.chat.room.query.RoomQueryException;
@@ -36,6 +37,7 @@ import java.util.List;
 
 @RestControllerAdvice(basePackageClasses = {
         AdminRoomCreationRequestController.class,
+        AdminRoomCategoryAssignmentController.class,
         AdminRoomCategoryController.class,
         RoomCommandController.class,
         RoomCategoryController.class,
@@ -95,9 +97,11 @@ public class RoomApiExceptionHandler {
     ) {
         HttpStatus status = switch (exception.code()) {
             case INVALID_ROOM_CATEGORY -> HttpStatus.BAD_REQUEST;
-            case ROOM_CATEGORY_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case ROOM_NOT_FOUND,
+                    ROOM_CATEGORY_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case ROOM_CATEGORY_NAME_CONFLICT,
                     ROOM_CATEGORY_VERSION_CONFLICT,
+                    ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT,
                     ROOM_CATEGORY_IN_USE,
                     ROOM_CATEGORY_DEFAULT_PROTECTED ->
                     HttpStatus.CONFLICT;
@@ -414,12 +418,16 @@ public class RoomApiExceptionHandler {
         return switch (exception.code()) {
             case INVALID_ROOM_CATEGORY ->
                     "The Room category is invalid.";
+            case ROOM_NOT_FOUND ->
+                    "The Room was not found.";
             case ROOM_CATEGORY_NOT_FOUND ->
                     "The Room category was not found.";
             case ROOM_CATEGORY_NAME_CONFLICT ->
                     "A Room category with the same name already exists.";
             case ROOM_CATEGORY_VERSION_CONFLICT ->
                     "The Room category was changed by another request.";
+            case ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT ->
+                    "The Room was changed by another request.";
             case ROOM_CATEGORY_IN_USE ->
                     "The Room category is assigned to one or more Rooms.";
             case ROOM_CATEGORY_DEFAULT_PROTECTED ->

@@ -278,7 +278,6 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 {
                   "name":"  Updated room  ",
                   "description":"Updated description",
-                  "categories":["ENVIRONMENT"],
                   "visibility":"UNLISTED",
                   "joinPolicy":"INVITE_ONLY"
                 }
@@ -299,7 +298,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.description")
                         .value("Updated description"))
                 .andExpect(jsonPath("$.categories[0]")
-                        .value("ENVIRONMENT"))
+                        .value("POLICY"))
                 .andExpect(jsonPath("$.visibility")
                         .value("UNLISTED"))
                 .andExpect(jsonPath("$.joinPolicy")
@@ -341,7 +340,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.description")
                         .value("Updated description"))
                 .andExpect(jsonPath("$.categories[0]")
-                        .value("ENVIRONMENT"))
+                        .value("POLICY"))
                 .andExpect(jsonPath("$.visibility")
                         .value("UNLISTED"))
                 .andExpect(jsonPath("$.joinPolicy")
@@ -352,7 +351,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 "owner-settings"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].categories[0]")
-                        .value("ENVIRONMENT"))
+                        .value("POLICY"))
                 .andExpect(jsonPath("$.items[0].lastActivityAt")
                         .value(lastActivityBeforeUpdate));
         mockMvc.perform(get("/api/v1/rooms")
@@ -394,6 +393,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 "{\"unknown\":\"value\"}",
                 "{\"name\":null}",
                 "{\"description\":null}",
+                "{\"categories\":[\"ENVIRONMENT\"]}",
                 "{\"visibility\":null}",
                 "{\"joinPolicy\":null}",
                 "{\"visibility\":\"INVALID\"}",

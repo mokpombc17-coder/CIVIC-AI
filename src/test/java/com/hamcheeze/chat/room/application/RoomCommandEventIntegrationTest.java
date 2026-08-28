@@ -205,10 +205,6 @@ class RoomCommandEventIntegrationTest
                         true,
                         "Updated description",
                         true,
-                        java.util.List.of(
-                                com.hamcheeze.chat.room.RoomCategory
-                                        .ENVIRONMENT),
-                        true,
                         RoomVisibility.UNLISTED,
                         true,
                         JoinPolicy.INVITE_ONLY);
@@ -228,10 +224,6 @@ class RoomCommandEventIntegrationTest
                                 "Updated room",
                                 true,
                                 "Updated description",
-                                true,
-                                java.util.List.of(
-                                        com.hamcheeze.chat.room.RoomCategory
-                                                .ENVIRONMENT),
                                 true,
                                 RoomVisibility.UNLISTED,
                                 true,
@@ -259,7 +251,7 @@ class RoomCommandEventIntegrationTest
                 .isEqualTo("Updated description");
         assertThat(payload.categories())
                 .containsExactly(
-                        com.hamcheeze.chat.room.RoomCategory.ENVIRONMENT);
+                        com.hamcheeze.chat.room.RoomCategory.POLICY);
         verify(revocationPort, never())
                 .revokeUserRoomAccess(any(), any(), any());
     }

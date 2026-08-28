@@ -225,8 +225,6 @@ public class RoomCommandController {
                     request.name(),
                     request.descriptionPresent(),
                     request.description(),
-                    request.categoriesPresent(),
-                    request.categories(),
                     request.visibilityPresent(),
                     request.visibility(),
                     request.joinPolicyPresent(),

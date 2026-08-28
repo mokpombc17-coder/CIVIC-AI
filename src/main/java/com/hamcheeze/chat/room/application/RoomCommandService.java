@@ -652,9 +652,6 @@ public final class RoomCommandService {
                         command.descriptionPresent()
                                 ? command.description()
                                 : room.description(),
-                        command.categoriesPresent()
-                                ? command.categories()
-                                : room.categories(),
                         command.visibilityPresent()
                                 ? command.visibility()
                                 : room.visibility(),

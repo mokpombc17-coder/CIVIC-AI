@@ -308,19 +308,12 @@ class RoomCommandInputAndFingerprintTest {
                         null,
                         false,
                         null);
-        UpdateRoomSettingsCommand policy = categoryUpdate(
-                com.hamcheeze.chat.room.RoomCategory.POLICY);
-        UpdateRoomSettingsCommand environment = categoryUpdate(
-                com.hamcheeze.chat.room.RoomCategory.ENVIRONMENT);
-
         assertThat(fingerprints.create(padded))
                 .isEqualTo(fingerprints.create(canonical));
         assertThat(List.of(
                 fingerprints.create(canonical),
                 fingerprints.create(removeDescription),
-                fingerprints.create(nameAndDescription),
-                fingerprints.create(policy),
-                fingerprints.create(environment)))
+                fingerprints.create(nameAndDescription)))
                 .doesNotHaveDuplicates();
     }
 
@@ -341,22 +334,6 @@ class RoomCommandInputAndFingerprintTest {
                 "unexpected",
                 true,
                 "")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new UpdateRoomSettingsCommand(
-                "user-1",
-                REQUEST_ID,
-                "room-1",
-                false,
-                null,
-                false,
-                null,
-                true,
-                java.util.List.of(
-                        com.hamcheeze.chat.room.RoomCategory.POLICY,
-                        com.hamcheeze.chat.room.RoomCategory.ENVIRONMENT),
-                false,
-                null,
-                false,
-                null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -498,25 +475,6 @@ class RoomCommandInputAndFingerprintTest {
                 name,
                 descriptionPresent,
                 description,
-                false,
-                null,
-                false,
-                null);
-    }
-
-    private UpdateRoomSettingsCommand categoryUpdate(
-            com.hamcheeze.chat.room.RoomCategory category
-    ) {
-        return new UpdateRoomSettingsCommand(
-                "user-1",
-                REQUEST_ID,
-                "room-1",
-                false,
-                null,
-                false,
-                null,
-                true,
-                java.util.List.of(category),
                 false,
                 null,
                 false,

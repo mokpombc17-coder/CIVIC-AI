@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room;
 
 import com.hamcheeze.chat.room.application.result.RoomSettingsSnapshot;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import org.junit.jupiter.api.Test;
 
@@ -77,12 +78,9 @@ class RoomSettingsUpdateTest {
     void categoryReplacementIncrementsVersionAndSameValueIsUnchanged() {
         Room original = room("", RoomStatus.ACTIVE, 7);
 
-        RoomSettingsUpdateTransition updated = original.updateSettings(
-                original.name(),
-                original.description(),
-                java.util.List.of(RoomCategory.ENVIRONMENT),
-                original.visibility(),
-                original.joinPolicy());
+        RoomSettingsUpdateTransition updated = original.replaceCategoryIds(
+                java.util.List.of(
+                        RoomCategoryDefaults.ENVIRONMENT_CATEGORY_ID));
 
         assertThat(updated.outcome())
                 .isEqualTo(RoomSettingsUpdateOutcome.UPDATED);
@@ -91,12 +89,8 @@ class RoomSettingsUpdateTest {
         assertThat(updated.room().version()).isEqualTo(8);
 
         RoomSettingsUpdateTransition unchanged =
-                updated.room().updateSettings(
-                        updated.room().name(),
-                        updated.room().description(),
-                        java.util.List.of(RoomCategory.ENVIRONMENT),
-                        updated.room().visibility(),
-                        updated.room().joinPolicy());
+                updated.room().replaceCategoryIds(java.util.List.of(
+                        RoomCategoryDefaults.ENVIRONMENT_CATEGORY_ID));
         assertThat(unchanged.outcome())
                 .isEqualTo(RoomSettingsUpdateOutcome.UNCHANGED);
         assertThat(unchanged.room()).isSameAs(updated.room());
@@ -244,6 +238,23 @@ class RoomSettingsUpdateTest {
                 .extracting(exception ->
                         ((RoomDomainException) exception).code())
                 .isEqualTo(RoomDomainErrorCode.ROOM_CLOSED);
+    }
+
+    @Test
+    void administratorCanReplaceCategoriesOfClosedRoom() {
+        Room closed = room("", RoomStatus.CLOSED, 7);
+
+        RoomSettingsUpdateTransition transition =
+                closed.replaceCategoryIds(java.util.List.of(
+                        RoomCategoryDefaults.ENVIRONMENT_CATEGORY_ID));
+
+        assertThat(transition.outcome())
+                .isEqualTo(RoomSettingsUpdateOutcome.UPDATED);
+        assertThat(transition.room().status())
+                .isEqualTo(RoomStatus.CLOSED);
+        assertThat(transition.room().categoryIds()).containsExactly(
+                RoomCategoryDefaults.ENVIRONMENT_CATEGORY_ID);
+        assertThat(transition.room().version()).isEqualTo(8);
     }
 
     @Test

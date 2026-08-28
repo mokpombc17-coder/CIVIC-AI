@@ -315,21 +315,6 @@ public final class Room {
     public RoomSettingsUpdateTransition updateSettings(
             String nextName,
             String nextDescription,
-            List<RoomCategory> nextCategories,
-            RoomVisibility nextVisibility,
-            JoinPolicy nextJoinPolicy
-    ) {
-        return updateSettingsWithCategoryIds(
-                nextName,
-                nextDescription,
-                LegacyRoomCategoryMapping.categoryIds(nextCategories),
-                nextVisibility,
-                nextJoinPolicy);
-    }
-
-    public RoomSettingsUpdateTransition updateSettings(
-            String nextName,
-            String nextDescription,
             RoomVisibility nextVisibility,
             JoinPolicy nextJoinPolicy
     ) {
@@ -339,6 +324,35 @@ public final class Room {
                 categoryIds,
                 nextVisibility,
                 nextJoinPolicy);
+    }
+
+    public RoomSettingsUpdateTransition replaceCategoryIds(
+            List<String> nextCategoryIds
+    ) {
+        List<String> canonicalCategoryIds =
+                RoomCategoryIds.requireValid(nextCategoryIds);
+        if (categoryIds.equals(canonicalCategoryIds)) {
+            return new RoomSettingsUpdateTransition(
+                    RoomSettingsUpdateOutcome.UNCHANGED,
+                    this);
+        }
+        return new RoomSettingsUpdateTransition(
+                RoomSettingsUpdateOutcome.UPDATED,
+                new Room(
+                        roomId,
+                        name,
+                        description,
+                        canonicalCategoryIds,
+                        ownerMembershipId,
+                        ownerUserId,
+                        status,
+                        visibility,
+                        joinPolicy,
+                        activeMemberCount,
+                        nextParticipantNumber,
+                        createdAt,
+                        closedAt,
+                        RoomDomainValidation.nextVersion(version)));
     }
 
     private RoomSettingsUpdateTransition updateSettingsWithCategoryIds(
