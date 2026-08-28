@@ -3214,3 +3214,11 @@ body:has([data-wireflow-shell]) {
   font-size: 16px;
   font-weight: 700;
 }
+
+/* 홈 헤더 인사말 (이메일 로컬파트 + 님) */
+.civic-header-greeting {
+  color: var(--wf-ink);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}

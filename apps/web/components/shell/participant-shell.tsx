@@ -7,6 +7,7 @@ type ParticipantShellProps = Readonly<{
   activeRoute: string;
   backHref?: Route;
   children: ReactNode;
+  headerActions?: ReactNode;
   headerTitle?: ReactNode;
   requiresLoginForProtectedLinks?: boolean;
   title?: string;
@@ -16,6 +17,7 @@ export function ParticipantShell({
   activeRoute,
   backHref,
   children,
+  headerActions,
   headerTitle,
   requiresLoginForProtectedLinks = false,
   title,
@@ -36,6 +38,7 @@ export function ParticipantShell({
         />
       }
       contentClassName="civic-platform-participant-content"
+      {...(headerActions !== undefined ? { headerActions } : {})}
       title={headerTitle ?? title ?? section.title}
     >
       <a className="civic-skip-link" href="#civic-content">
