@@ -8,18 +8,13 @@ import {
 } from "@/components/create-chat-room-form-model";
 import { isRetryableChatCommandError } from "@/lib/chat/chat-command-retry";
 import { getCreateRoomErrorMessage } from "@/lib/chat/chat-room-command-error-presentation";
-import type {
-  CreateRoomRequest,
-  CreateRoomResponse,
-  RoomCategory,
-} from "@/lib/chat/chat-room-contracts";
+import type { CreateRoomRequest, CreateRoomResponse } from "@/lib/chat/chat-room-contracts";
 import { useCreateRoomMutation } from "@/lib/chat/chat-room-mutations";
 import { createIdempotentCommand, type IdempotentCommand } from "@/lib/chat/idempotent-command";
 
 export function useCreateChatRoomForm() {
   const router = useRouter();
   const createRoom = useCreateRoomMutation();
-  const [selectedCategory, setSelectedCategory] = useState<RoomCategory | null>(null);
   const [creationRequestResult, setCreationRequestResult] = useState<Exclude<
     CreateRoomResponse,
     { status: "APPROVED" }
@@ -75,9 +70,16 @@ export function useCreateChatRoomForm() {
   const canRetry =
     retryCommand !== null && createRoom.isError && isRetryableChatCommandError(createRoom.error);
 
+  function startNewRequest() {
+    setCreationRequestResult(null);
+    setRetryCommand(null);
+    setValidationError(null);
+    createRoom.reset();
+  }
+
   return {
     canRetry,
-    canSubmit: selectedCategory !== null && !createRoom.isPending,
+    canSubmit: !createRoom.isPending,
     clearFailedAttempt,
     creationRequestResult,
     errorMessage: createRoom.isError ? getCreateRoomErrorMessage(createRoom.error) : null,
@@ -90,8 +92,7 @@ export function useCreateChatRoomForm() {
         );
       }
     },
-    selectedCategory,
-    selectCategory: setSelectedCategory,
+    startNewRequest,
     retry: () => {
       if (retryCommand) {
         execute(retryCommand);

@@ -27,8 +27,27 @@ describe("create chat room form model", () => {
     }
   });
 
-  it("category 미선택과 알 수 없는 enum을 거절한다", () => {
-    expect(parseCreateChatRoomFormData(createFormData()).success).toBe(false);
+  it("category와 공개·참여 정책을 표시하지 않은 폼에는 임시 기본값을 적용한다", () => {
+    const formData = new FormData();
+    formData.set("name", "시민 AI 토론방");
+    formData.set("description", "정책을 논의합니다.");
+
+    const result = parseCreateChatRoomFormData(formData);
+
+    expect(result.success).toBe(true);
+
+    if (result.success) {
+      expect(result.data).toEqual({
+        name: "시민 AI 토론방",
+        description: "정책을 논의합니다.",
+        categories: ["POLICY"],
+        visibility: "LISTED",
+        joinPolicy: "OPEN",
+      });
+    }
+  });
+
+  it("명시적으로 전달된 알 수 없는 category enum은 거절한다", () => {
     expect(parseCreateChatRoomFormData(createFormData({ category: "UNKNOWN" })).success).toBe(
       false,
     );

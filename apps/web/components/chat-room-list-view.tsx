@@ -68,8 +68,10 @@ export function ChatRoomListView({
     <PlatformShell
       bottomNavigation={<PlatformNavigationClient />}
       className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
+      contentInert={isCreateRoomOpen}
       contentClassName="chat-room-list"
       header={<PlatformHeader title="토론방" />}
+      overlay={isCreateRoomOpen ? <CreateChatRoomForm onCancel={closeCreateRoomForm} /> : undefined}
     >
       <div className="grid gap-6 px-4 py-4">
         <section aria-label="채팅방 검색과 생성" className="grid gap-3">
@@ -84,14 +86,9 @@ export function ChatRoomListView({
               ref={createRoomTriggerRef}
               type="button"
             >
-              {isCreateRoomOpen ? "작성 닫기" : CHAT_ROOM_PUBLISHING_COPY.createRoom}
+              {CHAT_ROOM_PUBLISHING_COPY.createRoom}
             </button>
           </div>
-          {isCreateRoomOpen ? (
-            <div className="rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] p-4">
-              <CreateChatRoomForm onCancel={closeCreateRoomForm} />
-            </div>
-          ) : null}
         </section>
 
         <ChatConnectionStatus />

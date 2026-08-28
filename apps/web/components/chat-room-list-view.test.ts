@@ -48,6 +48,15 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain("불러온 방 중 읽지 않은 메시지가 있는 방이 없습니다.");
     expect(html).toContain('aria-pressed="true"');
   });
+
+  it("생성 요청이 열리면 PlatformShell overlay로 sheet를 조립하고 본문을 비활성화한다", () => {
+    const html = renderChatRoomListView("ALL", true);
+
+    expect(html).toContain('data-platform-shell-overlay="true"');
+    expect(html).toContain('data-create-chat-room-sheet="form"');
+    expect(html).toContain('inert=""');
+    expect(html).toContain('aria-hidden="true"');
+  });
 });
 
 describe("chat room list cards", () => {
@@ -181,7 +190,10 @@ const PUBLIC_ROOM: PublicRoomListItem = {
   version: 1,
 };
 
-function renderChatRoomListView(filter: "ALL" | "UNREAD"): string {
+function renderChatRoomListView(filter: "ALL" | "UNREAD", isCreateRoomOpen = false): string {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const emptyListState = {
     error: null,
     hasNextPage: false,
@@ -194,17 +206,21 @@ function renderChatRoomListView(filter: "ALL" | "UNREAD"): string {
   };
 
   return renderToStaticMarkup(
-    createElement(ChatRoomListView, {
-      closeCreateRoomForm: vi.fn(),
-      createRoomTriggerRef: { current: null },
-      isCreateRoomOpen: false,
-      participatingRoomFilter: { select: vi.fn(), value: filter },
-      participatingRooms: emptyListState,
-      publicRoomSearch: createPublicRoomSearchController(),
-      publicRooms: emptyListState,
-      roomDetail: { close: vi.fn(), open: vi.fn(), selection: null },
-      toggleCreateRoomForm: vi.fn(),
-    }),
+    createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(ChatRoomListView, {
+        closeCreateRoomForm: vi.fn(),
+        createRoomTriggerRef: { current: null },
+        isCreateRoomOpen,
+        participatingRoomFilter: { select: vi.fn(), value: filter },
+        participatingRooms: emptyListState,
+        publicRoomSearch: createPublicRoomSearchController(),
+        publicRooms: emptyListState,
+        roomDetail: { close: vi.fn(), open: vi.fn(), selection: null },
+        toggleCreateRoomForm: vi.fn(),
+      }),
+    ),
   );
 }
 
