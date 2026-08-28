@@ -11,13 +11,6 @@ import { registerE2EWindow } from "./chat-e2e-window-layout";
 
 const AUTH_COOKIE_NAME = "civic_ai_access_token";
 const LOCAL_E2E_AUTH_SESSION_PATH = "/api/dev/auth/session";
-const ROOM_CATEGORY_LABEL = {
-  POLICY: "정책",
-  ENVIRONMENT: "환경",
-  LOCAL_ISSUE: "지역 현안",
-} as const;
-
-type E2ERoomCategory = keyof typeof ROOM_CATEGORY_LABEL;
 
 export async function authenticateLocalE2EUser(page: Page, context: BrowserContext): Promise<void> {
   await registerE2EWindow(page);
@@ -88,23 +81,29 @@ export function waitForLocalE2EAuthenticationSessionResponse(page: Page): Promis
 export async function createRoomAndEnter(
   page: Page,
   roomName: string,
-  { category = "POLICY", description }: { category?: E2ERoomCategory; description?: string } = {},
+  { description }: { description?: string } = {},
 ): Promise<string> {
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "채팅방 생성 요청", exact: true }).click();
-  await page.getByRole("textbox", { name: "방 이름" }).fill(roomName);
-
-  if (description !== undefined) {
-    await page.getByRole("textbox", { name: "방 설명" }).fill(description);
-  }
-
+  await page.getByRole("textbox", { name: "제목" }).fill(roomName);
   await page
-    .locator("#create-room-form")
-    .getByText(ROOM_CATEGORY_LABEL[category], { exact: true })
-    .click();
-  await page.getByRole("button", { name: "채팅방 만들기" }).click();
+    .getByRole("textbox", { name: "상세 설명" })
+    .fill(description ?? `${roomName} E2E 테스트용 설명입니다.`);
+
+  const createResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/v1/rooms",
+  );
+  await page.getByRole("button", { name: "요청하기", exact: true }).click();
+
+  const createResponse = await createResponsePromise;
+  expect(
+    createResponse.status(),
+    "createRoomAndEnter는 CHAT_ROOM_CREATION_MODE=DIRECT인 로컬 Backend가 필요합니다.",
+  ).toBe(201);
 
   await expect(page).toHaveURL(/\/chat\/[A-Za-z0-9_-]+$/);
   await expect(page.getByRole("heading", { name: roomName })).toBeVisible();

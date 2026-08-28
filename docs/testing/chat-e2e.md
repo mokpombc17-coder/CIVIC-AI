@@ -268,6 +268,16 @@ pnpm test:e2e:headed
 CHAT_E2E_TILE_WINDOWS=true pnpm test:e2e:headed
 ```
 
+세 사용자가 같은 채팅방에서 메시지를 주고받는 모습을 바로 확인하려면 전용 데모를 실행한다.
+세 Chromium 창을 나란히 배치하고 메시지 입력과 전송 사이에 짧은 표시 간격을 둔다.
+
+```bash
+pnpm test:e2e:chat-demo
+```
+
+이 시나리오는 다른 로컬 채팅 E2E와 마찬가지로 Chat Backend의 Room 생성 모드가 `DIRECT`일
+때 실행한다. 일반 headless 실행에서는 표시 간격 없이 동일한 실시간 송수신 계약을 검증한다.
+
 한 단계씩 멈추며 locator와 상태를 확인하려면 디버그 모드를 사용한다.
 
 ```bash

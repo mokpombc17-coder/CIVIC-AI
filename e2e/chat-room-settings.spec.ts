@@ -24,7 +24,6 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
     await test.step("방장이 설명이 있는 공개 채팅방을 만든다", async () => {
       await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-settings-owner-${uniqueId}`);
       await createRoomAndEnter(ownerPage, initialName, {
-        category: "LOCAL_ISSUE",
         description: initialDescription,
       });
 
@@ -34,7 +33,7 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
       const membershipDialog = ownerPage.getByRole("dialog", { name: "채팅방 메뉴" });
       await expect(membershipDialog).toBeVisible();
       await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
-      await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("지역 현안");
+      await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("정책");
       await expect(membershipDialog.getByRole("form", { name: "방 정보 수정" })).toBeVisible();
       await membershipDialog.getByRole("button", { name: "채팅방 메뉴 닫기", exact: true }).click();
       await expect(membershipDialog).toHaveCount(0);
@@ -55,7 +54,7 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
 
       const publicRoomCard = await findPublicRoomCard(memberPage, initialName);
 
-      await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("지역 현안");
+      await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("정책");
       await joinPublicRoomAndEnter(memberPage, roomId!, initialName, { navigate: false });
 
       await memberPage.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
