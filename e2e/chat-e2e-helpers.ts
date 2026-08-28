@@ -134,43 +134,35 @@ export async function joinPublicRoomAndEnter(
 }
 
 export async function findPublicRoomCard(page: Page, roomName: string): Promise<Locator> {
-  const roomCards = page.getByRole("article");
+  const searchForm = page.getByRole("search", {
+    name: "공개 채팅방 검색",
+  });
+  const searchInput = searchForm.getByRole("searchbox", {
+    name: "채팅방 이름 검색",
+  });
   const roomCard = page.getByRole("article").filter({
     hasText: roomName,
   });
-  const loadMoreButton = page.getByRole("button", {
-    name: "공개 방 더 보기",
-    exact: true,
+
+  await expect(searchForm).toBeVisible();
+  await searchInput.fill(roomName);
+
+  const searchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+
+    return (
+      response.request().method() === "GET" &&
+      url.pathname === "/api/v1/rooms" &&
+      url.searchParams.get("query") === roomName
+    );
   });
 
-  await expect.poll(() => roomCards.count()).toBeGreaterThan(0);
+  await searchForm.getByRole("button", { name: "검색", exact: true }).click();
 
-  for (let pageIndex = 0; pageIndex < 100 && (await roomCard.count()) === 0; pageIndex += 1) {
-    if ((await loadMoreButton.count()) === 0 || (await loadMoreButton.isDisabled())) {
-      break;
-    }
+  const response = await searchResponse;
+  expect(response.ok(), `공개 방 검색이 성공해야 합니다: ${response.status()}`).toBe(true);
 
-    const previousRoomCount = await roomCards.count();
-    const nextPageResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        new URL(response.url()).pathname === "/api/v1/rooms" &&
-        new URL(response.url()).searchParams.has("cursor"),
-    );
-
-    await loadMoreButton.click();
-
-    const response = await nextPageResponse;
-    expect(response.ok(), `공개 방 다음 페이지 조회가 성공해야 합니다: ${response.status()}`).toBe(
-      true,
-    );
-    await expect.poll(() => roomCards.count()).toBeGreaterThan(previousRoomCount);
-  }
-
-  await expect(
-    roomCard,
-    `${roomName} 공개 방을 cursor pagination 결과에서 찾아야 합니다.`,
-  ).toBeVisible();
+  await expect(roomCard, `${roomName} 공개 방을 검색 결과에서 찾아야 합니다.`).toBeVisible();
 
   return roomCard;
 }
