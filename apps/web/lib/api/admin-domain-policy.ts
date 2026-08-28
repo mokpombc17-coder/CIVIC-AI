@@ -11,7 +11,7 @@ export type AdminDomainRoute = Readonly<{
 
 type RouteFailure = Readonly<{ allowedMethods: readonly string[]; status: 404 | 405 }>;
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const chatId = /^(?!\.{1,2}$)[A-Za-z0-9._~-]{1,256}$/u;
 
 export function matchChatAdminRoute(
