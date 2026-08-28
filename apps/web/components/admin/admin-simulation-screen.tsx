@@ -18,9 +18,7 @@ import {
   formatAdminProblem,
   readAdminProblem,
   readTaskDetail,
-  readTaskSummaries,
   type TaskDetail,
-  type TaskSummary,
 } from "@/lib/admin/domain-contracts";
 import {
   readSimulationPreview,
@@ -33,11 +31,15 @@ import {
   readSimulationCapacity,
   readSimulationOptions,
   readSimulationResult,
+  readSimulationTaskSummaries,
   readSimulationView,
+  simulationTargetHref,
+  simulationTargetPresentation,
   type SimulationCapacity,
   type SimulationOptions,
   type SimulationResult,
   type SimulationState,
+  type SimulationTaskSummary,
   type SimulationView,
 } from "@/lib/admin/simulation-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
@@ -91,7 +93,7 @@ export function AdminSimulationScreen({
 }
 
 function SimulationTargets() {
-  const [items, setItems] = useState<readonly TaskSummary[]>([]);
+  const [items, setItems] = useState<readonly SimulationTaskSummary[]>([]);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -106,7 +108,7 @@ function SimulationTargets() {
         setMessage(formatAdminProblem(await readAdminProblem(response)));
         return;
       }
-      const tasks = readTaskSummaries(await response.json());
+      const tasks = readSimulationTaskSummaries(await response.json());
       if (!tasks) return setMessage("서버의 과업 목록 응답 형식을 확인해야 합니다.");
       setItems(tasks);
       setMessage("");
@@ -155,7 +157,7 @@ function SimulationTargets() {
           <thead>
             <tr>
               <th>과업 제목</th>
-              <th>상태</th>
+              <th>시뮬레이션 진행 상태</th>
               <th>최근 변경</th>
               <th>실행</th>
             </tr>
@@ -168,27 +170,30 @@ function SimulationTargets() {
                 </td>
               </tr>
             ) : null}
-            {filtered.map((task) => (
-              <tr key={task.taskId}>
-                <th scope="row">{task.title}</th>
-                <td>
-                  <span className={`civic-domain-status is-${task.status.toLowerCase()}`}>
-                    {taskStatusLabel(task.status)}
-                  </span>
-                </td>
-                <td>{formatDate(task.updatedAt)}</td>
-                <td>
-                  <Link
-                    className="civic-primary-action"
-                    href={
-                      `/admin/simulations/setup?taskId=${encodeURIComponent(task.taskId)}` as Route
-                    }
-                  >
-                    설정하기
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {filtered.map((task) => {
+              const presentation = simulationTargetPresentation(
+                task.latestSimulation?.state ?? null,
+              );
+              return (
+                <tr key={task.taskId}>
+                  <th scope="row">{task.title}</th>
+                  <td>
+                    <span className={`civic-domain-status is-${presentation.tone}`}>
+                      {presentation.label}
+                    </span>
+                  </td>
+                  <td>{formatDate(simulationTargetUpdatedAt(task))}</td>
+                  <td>
+                    <Link
+                      className="civic-primary-action"
+                      href={simulationTargetHref(task.taskId, task.latestSimulation) as Route}
+                    >
+                      {presentation.action}
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1373,8 +1378,9 @@ function capacityBlockMessage(capacity: SimulationCapacity): string {
   return `현재 조건에서 사용할 수 있는 패널은 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대·거주 지역·정치 성향 조건이나 요청 수를 조정해 주세요.`;
 }
 
-function taskStatusLabel(status: TaskSummary["status"]): string {
-  return { DRAFT: "작성 중", SCHEDULED: "예약", OPEN: "진행 중", CLOSED: "종료" }[status];
+function simulationTargetUpdatedAt(task: SimulationTaskSummary): string {
+  const latest = task.latestSimulation;
+  return latest?.completedAt ?? latest?.startedAt ?? latest?.createdAt ?? task.updatedAt;
 }
 
 export function simulationStateLabel(state: SimulationState): string {

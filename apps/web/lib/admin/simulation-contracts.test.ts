@@ -4,7 +4,11 @@ import {
   readSimulationCapacity,
   readSimulationOptions,
   readSimulationResult,
+  readSimulationTaskSummaries,
   readSimulationView,
+  simulationTargetHref,
+  simulationTargetPresentation,
+  type SimulationView,
 } from "./simulation-contracts";
 
 const simulationId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
@@ -17,6 +21,54 @@ const fixtureOptionIds = [
 ] as const;
 
 describe("simulation contracts", () => {
+  it("reads the latest simulation alongside each Vote task", () => {
+    const tasks = readSimulationTaskSummaries([
+      {
+        taskId,
+        title: "교통 정책 과업",
+        status: "OPEN",
+        schedule: null,
+        publishedAt: "2026-08-29T00:00:00Z",
+        openedAt: "2026-08-29T00:00:00Z",
+        closedAt: null,
+        closureType: null,
+        createdAt: "2026-08-29T00:00:00Z",
+        updatedAt: "2026-08-29T00:10:00Z",
+        latestSimulation: simulationView({ state: "RUNNING", progressPercent: 26 }),
+      },
+    ]);
+
+    expect(tasks?.[0]?.latestSimulation?.state).toBe("RUNNING");
+    expect(tasks?.[0]?.latestSimulation?.progressPercent).toBe(26);
+  });
+
+  it.each([
+    [null, "준비됨", "설정하기", "setup", "ready"],
+    ["READY", "진행 중", "진행 보기", "status", "running"],
+    ["RUNNING", "진행 중", "진행 보기", "status", "running"],
+    ["WAITING_PROVIDER", "진행 중", "진행 보기", "status", "running"],
+    ["PUBLISHING", "진행 중", "진행 보기", "status", "running"],
+    ["COMPLETED", "완료", "결과 보기", "results", "completed"],
+    ["FAILED", "확인 필요", "상태 확인", "status", "attention"],
+    ["REVIEW_REQUIRED", "확인 필요", "상태 확인", "status", "attention"],
+    ["CANCELLED", "확인 필요", "상태 확인", "status", "attention"],
+  ] as const)(
+    "maps latest state %s to the task-list destination",
+    (state, label, action, target, tone) => {
+      expect(simulationTargetPresentation(state)).toEqual({ label, action, target, tone });
+    },
+  );
+
+  it("routes ready, running, and completed tasks to setup, status, and results", () => {
+    expect(simulationTargetHref(taskId, null)).toBe(`/admin/simulations/setup?taskId=${taskId}`);
+    expect(simulationTargetHref(taskId, { simulationId, state: "RUNNING" })).toBe(
+      `/admin/simulations/status?simulationId=${simulationId}`,
+    );
+    expect(simulationTargetHref(taskId, { simulationId, state: "COMPLETED" })).toBe(
+      `/admin/simulations/results?simulationId=${simulationId}`,
+    );
+  });
+
   it("accepts the aggregate Task simulation status", () => {
     expect(
       readSimulationView({
@@ -295,3 +347,33 @@ describe("simulation contracts", () => {
     expect(isPersonaCountWithinLimit(1001, 100, 1000)).toBe(false);
   });
 });
+
+function simulationView(overrides: Partial<SimulationView> = {}): SimulationView {
+  return { ...baseSimulationView(), ...overrides };
+}
+
+function baseSimulationView(): SimulationView {
+  return {
+    simulationId,
+    taskId,
+    state: "READY" as const,
+    personaCount: 77,
+    progressPercent: 0,
+    cancelRequested: false,
+    errorCode: null,
+    resumeAt: null,
+    retryAvailableAt: null,
+    waitReason: null,
+    createdAt: "2026-08-29T00:00:00Z",
+    startedAt: null,
+    completedAt: null,
+    deadlineAt: "2026-08-29T00:30:00Z",
+    estimatedCompletionAt: "2026-08-29T00:05:00Z",
+    canCancel: true,
+    estimatedKrw: 10_000,
+    holdKrw: 12_000,
+    settledKrw: null,
+    absorbedKrw: null,
+    billingState: "HELD" as const,
+  };
+}
