@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.mongo;
 
 import com.hamcheeze.chat.room.application.ActiveRoomMembershipQuotaGuard;
 import com.hamcheeze.chat.room.application.RoomMembershipProperties;
+import com.hamcheeze.chat.room.category.mongo.MongoRoomCategoryMigration;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
@@ -28,7 +29,8 @@ public class MongoRoomPersistenceConfiguration {
     @Bean
     RoomStore roomStore(
             MongoOperations mongoOperations,
-            MongoRoomSchemaInitializer schemaInitializer
+            MongoRoomSchemaInitializer schemaInitializer,
+            MongoRoomCategoryMigration categoryMigration
     ) {
         return new MongoRoomStore(mongoOperations);
     }

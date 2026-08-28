@@ -7,6 +7,7 @@ import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceipt;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.StoredRoomCommandResult;
@@ -121,13 +122,15 @@ class MongoRoomStoresIntegrationTest {
                 .find(new Document("_id", active.roomId()))
                 .first();
         assertThat(raw).isNotNull();
-        assertThat(raw.getInteger("schemaVersion")).isEqualTo(6);
+        assertThat(raw.getInteger("schemaVersion")).isEqualTo(7);
         assertThat(raw.getLong("nextParticipantNumber"))
                 .isEqualTo(active.nextParticipantNumber());
         assertThat(raw.getString("ownerMembershipId"))
                 .isEqualTo(active.ownerMembershipId());
-        assertThat(raw.getList("categories", String.class))
-                .containsExactly("POLICY");
+        assertThat(raw.getList("categoryIds", String.class))
+                .containsExactly(
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID);
+        assertThat(raw.containsKey("categories")).isFalse();
     }
 
     @Test

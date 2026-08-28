@@ -8,6 +8,7 @@ import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomDomainException;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceipt;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.StoredRoomCommandResult;
@@ -46,15 +47,16 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(6);
+        assertThat(document.schemaVersion()).isEqualTo(7);
         assertThat(document.nextParticipantNumber()).isEqualTo(4);
         assertThat(document.ownerMembershipId())
                 .isEqualTo("membership-owner");
         assertThat(document.name()).isEqualTo("Active room");
         assertThat(document.description()).isEmpty();
-        assertThat(document.categories())
+        assertThat(document.categoryIds())
                 .containsExactly(
-                        com.hamcheeze.chat.room.RoomCategory.POLICY);
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID);
+        assertThat(document.categories()).isNull();
         assertThat(document.toDomain()).isEqualTo(room);
     }
 
@@ -80,12 +82,47 @@ class MongoRoomDocumentMappingTest {
         MongoRoomDocument document =
                 MongoRoomDocument.fromDomain(room);
 
-        assertThat(document.schemaVersion()).isEqualTo(6);
+        assertThat(document.schemaVersion()).isEqualTo(7);
         assertThat(document.nextParticipantNumber()).isEqualTo(2);
         assertThat(document.ownerMembershipId())
                 .isEqualTo("membership-owner");
         assertThat(document.name()).isEqualTo("Closed room");
         assertThat(document.description()).isEmpty();
+        assertThat(document.toDomain()).isEqualTo(room);
+    }
+
+    @Test
+    void dynamicCategoryIdsRoundTripAsAnOrderIndependentSet() {
+        Room room = Room.restoreWithCategoryIds(
+                "room-dynamic",
+                "Dynamic categories",
+                "",
+                List.of(
+                        "category-e",
+                        "category-c",
+                        "category-a",
+                        "category-d",
+                        "category-b"),
+                "membership-owner",
+                "owner-1",
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                2,
+                CREATED_AT,
+                null,
+                0);
+
+        MongoRoomDocument document =
+                MongoRoomDocument.fromDomain(room);
+
+        assertThat(document.categoryIds()).containsExactly(
+                "category-a",
+                "category-b",
+                "category-c",
+                "category-d",
+                "category-e");
         assertThat(document.toDomain()).isEqualTo(room);
     }
 
@@ -300,7 +337,7 @@ class MongoRoomDocumentMappingTest {
     void unsupportedSchemaVersionsFailExplicitly() {
         MongoRoomDocument roomDocument = new MongoRoomDocument(
                 "room-1",
-                7,
+                8,
                 "Test room",
                 "owner-1",
                 RoomStatus.ACTIVE,
@@ -342,7 +379,7 @@ class MongoRoomDocumentMappingTest {
         assertUnsupportedSchema(
                 roomDocument::toDomain,
                 MongoRoomDocument.COLLECTION_NAME,
-                7);
+                8);
         assertUnsupportedSchema(
                 membershipDocument::toDomain,
                 MongoMembershipDocument.COLLECTION_NAME,

@@ -4,6 +4,7 @@ import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.category.LegacyRoomCategoryMapping;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.CursorSlice;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCriteria;
@@ -139,8 +140,9 @@ public final class MongoRoomQueryReader
                     .is(listedCriteria.joinPolicy());
         }
         if (listedCriteria.category() != null) {
-            criteria = criteria.and("categories")
-                    .is(listedCriteria.category());
+            criteria = criteria.and("categoryIds")
+                    .is(LegacyRoomCategoryMapping.categoryId(
+                            listedCriteria.category()));
         }
         if (listedCriteria.nameContains() != null) {
             criteria = criteria.and("name").regex(Pattern.compile(

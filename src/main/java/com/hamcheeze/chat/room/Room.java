@@ -1,5 +1,8 @@
 package com.hamcheeze.chat.room;
 
+import com.hamcheeze.chat.room.category.LegacyRoomCategoryMapping;
+import com.hamcheeze.chat.room.category.RoomCategoryIds;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -12,7 +15,7 @@ public final class Room {
     private final String roomId;
     private final String name;
     private final String description;
-    private final List<RoomCategory> categories;
+    private final List<String> categoryIds;
     private final String ownerMembershipId;
     private final String ownerUserId;
     private final RoomStatus status;
@@ -28,7 +31,7 @@ public final class Room {
             String roomId,
             String name,
             String description,
-            List<RoomCategory> categories,
+            List<String> categoryIds,
             String ownerMembershipId,
             String ownerUserId,
             RoomStatus status,
@@ -44,7 +47,7 @@ public final class Room {
         this.name = RoomDomainValidation.requireRoomName(name);
         this.description =
                 RoomDomainValidation.requireRoomDescription(description);
-        this.categories = RoomCategories.requireValid(categories);
+        this.categoryIds = RoomCategoryIds.requireValid(categoryIds);
         this.ownerMembershipId =
                 RoomDomainValidation.requireMembershipId(ownerMembershipId);
         this.ownerUserId =
@@ -88,7 +91,40 @@ public final class Room {
                 roomId,
                 name,
                 description,
-                categories,
+                LegacyRoomCategoryMapping.categoryIds(categories),
+                ownerMembershipId,
+                ownerUserId,
+                status,
+                visibility,
+                joinPolicy,
+                activeMemberCount,
+                nextParticipantNumber,
+                createdAt,
+                closedAt,
+                version);
+    }
+
+    public static Room restoreWithCategoryIds(
+            String roomId,
+            String name,
+            String description,
+            List<String> categoryIds,
+            String ownerMembershipId,
+            String ownerUserId,
+            RoomStatus status,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            int activeMemberCount,
+            long nextParticipantNumber,
+            Instant createdAt,
+            Instant closedAt,
+            long version
+    ) {
+        return new Room(
+                roomId,
+                name,
+                description,
+                categoryIds,
                 ownerMembershipId,
                 ownerUserId,
                 status,
@@ -116,7 +152,7 @@ public final class Room {
                 roomId,
                 name,
                 description,
-                categories,
+                LegacyRoomCategoryMapping.categoryIds(categories),
                 ownerMembershipId,
                 ownerUserId,
                 RoomStatus.ACTIVE,
@@ -235,7 +271,7 @@ public final class Room {
                 roomId,
                 name,
                 description,
-                categories,
+                categoryIds,
                 nextOwnerMembershipId,
                 nextOwnerUserId,
                 nextStatus,
@@ -255,6 +291,35 @@ public final class Room {
             RoomVisibility nextVisibility,
             JoinPolicy nextJoinPolicy
     ) {
+        return updateSettingsWithCategoryIds(
+                nextName,
+                nextDescription,
+                LegacyRoomCategoryMapping.categoryIds(nextCategories),
+                nextVisibility,
+                nextJoinPolicy);
+    }
+
+    public RoomSettingsUpdateTransition updateSettings(
+            String nextName,
+            String nextDescription,
+            RoomVisibility nextVisibility,
+            JoinPolicy nextJoinPolicy
+    ) {
+        return updateSettingsWithCategoryIds(
+                nextName,
+                nextDescription,
+                categoryIds,
+                nextVisibility,
+                nextJoinPolicy);
+    }
+
+    private RoomSettingsUpdateTransition updateSettingsWithCategoryIds(
+            String nextName,
+            String nextDescription,
+            List<String> nextCategoryIds,
+            RoomVisibility nextVisibility,
+            JoinPolicy nextJoinPolicy
+    ) {
         if (status != RoomStatus.ACTIVE) {
             throw new RoomDomainException(
                     RoomDomainErrorCode.ROOM_CLOSED);
@@ -264,15 +329,15 @@ public final class Room {
         String canonicalDescription =
                 RoomDomainValidation.requireRoomDescription(
                         nextDescription);
-        List<RoomCategory> canonicalCategories =
-                RoomCategories.requireValid(nextCategories);
+        List<String> canonicalCategoryIds =
+                RoomCategoryIds.requireValid(nextCategoryIds);
         RoomVisibility canonicalVisibility =
                 RoomDomainValidation.requireStateValue(nextVisibility);
         JoinPolicy canonicalJoinPolicy =
                 RoomDomainValidation.requireStateValue(nextJoinPolicy);
         if (name.equals(canonicalName)
                 && description.equals(canonicalDescription)
-                && categories.equals(canonicalCategories)
+                && categoryIds.equals(canonicalCategoryIds)
                 && visibility == canonicalVisibility
                 && joinPolicy == canonicalJoinPolicy) {
             return new RoomSettingsUpdateTransition(
@@ -283,7 +348,7 @@ public final class Room {
                 roomId,
                 canonicalName,
                 canonicalDescription,
-                canonicalCategories,
+                canonicalCategoryIds,
                 ownerMembershipId,
                 ownerUserId,
                 status,
@@ -297,20 +362,6 @@ public final class Room {
         return new RoomSettingsUpdateTransition(
                 RoomSettingsUpdateOutcome.UPDATED,
                 updated);
-    }
-
-    public RoomSettingsUpdateTransition updateSettings(
-            String nextName,
-            String nextDescription,
-            RoomVisibility nextVisibility,
-            JoinPolicy nextJoinPolicy
-    ) {
-        return updateSettings(
-                nextName,
-                nextDescription,
-                categories,
-                nextVisibility,
-                nextJoinPolicy);
     }
 
     private static void validateState(
@@ -365,7 +416,11 @@ public final class Room {
     }
 
     public List<RoomCategory> categories() {
-        return categories;
+        return LegacyRoomCategoryMapping.legacyCategories(categoryIds);
+    }
+
+    public List<String> categoryIds() {
+        return categoryIds;
     }
 
     public String ownerUserId() {
@@ -422,7 +477,7 @@ public final class Room {
                 && roomId.equals(room.roomId)
                 && name.equals(room.name)
                 && description.equals(room.description)
-                && categories.equals(room.categories)
+                && categoryIds.equals(room.categoryIds)
                 && ownerMembershipId.equals(room.ownerMembershipId)
                 && ownerUserId.equals(room.ownerUserId)
                 && status == room.status
@@ -438,7 +493,7 @@ public final class Room {
                 roomId,
                 name,
                 description,
-                categories,
+                categoryIds,
                 ownerMembershipId,
                 ownerUserId,
                 status,
@@ -456,7 +511,7 @@ public final class Room {
         return "Room[roomId=" + roomId
                 + ", name=" + name
                 + ", description=" + description
-                + ", categories=" + categories
+                + ", categoryIds=" + categoryIds
                 + ", ownerMembershipId=" + ownerMembershipId
                 + ", ownerUserId=" + ownerUserId
                 + ", status=" + status

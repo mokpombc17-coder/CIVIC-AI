@@ -6,6 +6,8 @@ import com.hamcheeze.chat.room.RoomCategories;
 import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.category.LegacyRoomCategoryMapping;
+import com.hamcheeze.chat.room.category.RoomCategoryIds;
 import org.springframework.data.annotation.PersistenceCreator;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.FieldType;
@@ -22,6 +24,7 @@ public record MongoRoomDocument(
         int schemaVersion,
         String name,
         String description,
+        List<String> categoryIds,
         List<RoomCategory> categories,
         String ownerMembershipId,
         String ownerUserId,
@@ -36,7 +39,8 @@ public record MongoRoomDocument(
 ) {
 
     public static final String COLLECTION_NAME = "chat_rooms";
-    public static final int CURRENT_SCHEMA_VERSION = 6;
+    public static final int CURRENT_SCHEMA_VERSION = 7;
+    public static final int LEGACY_CATEGORY_SCHEMA_VERSION = 6;
     static final int LEGACY_SCHEMA_VERSION = 1;
     static final int PREVIOUS_SCHEMA_VERSION = 2;
 
@@ -60,6 +64,12 @@ public record MongoRoomDocument(
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(description, "description");
         if (schemaVersion == CURRENT_SCHEMA_VERSION) {
+            categoryIds = RoomCategoryIds.requireValid(categoryIds);
+            Objects.requireNonNull(
+                    ownerMembershipId,
+                    "ownerMembershipId");
+        }
+        if (schemaVersion == LEGACY_CATEGORY_SCHEMA_VERSION) {
             categories = RoomCategories.requireValid(categories);
             Objects.requireNonNull(
                     ownerMembershipId,
@@ -92,12 +102,49 @@ public record MongoRoomDocument(
                 null,
                 null,
                 null,
+                null,
                 ownerUserId,
                 status,
                 visibility,
                 joinPolicy,
                 activeMemberCount,
                 0,
+                createdAt,
+                closedAt,
+                version);
+    }
+
+    public MongoRoomDocument(
+            String roomId,
+            int schemaVersion,
+            String name,
+            String description,
+            List<RoomCategory> categories,
+            String ownerMembershipId,
+            String ownerUserId,
+            RoomStatus status,
+            RoomVisibility visibility,
+            JoinPolicy joinPolicy,
+            int activeMemberCount,
+            long nextParticipantNumber,
+            Instant createdAt,
+            Instant closedAt,
+            long version
+    ) {
+        this(
+                roomId,
+                schemaVersion,
+                name,
+                description,
+                null,
+                categories,
+                ownerMembershipId,
+                ownerUserId,
+                status,
+                visibility,
+                joinPolicy,
+                activeMemberCount,
+                nextParticipantNumber,
                 createdAt,
                 closedAt,
                 version);
@@ -110,7 +157,8 @@ public record MongoRoomDocument(
                 CURRENT_SCHEMA_VERSION,
                 room.name(),
                 room.description(),
-                room.categories(),
+                room.categoryIds(),
+                null,
                 room.ownerMembershipId(),
                 room.ownerUserId(),
                 room.status(),
@@ -125,11 +173,11 @@ public record MongoRoomDocument(
 
     public Room toDomain() {
         requireCurrentSchema();
-        return Room.restore(
+        return Room.restoreWithCategoryIds(
                 roomId,
                 name,
                 description,
-                categories,
+                resolvedCategoryIds(),
                 ownerMembershipId,
                 ownerUserId,
                 status,
@@ -143,12 +191,19 @@ public record MongoRoomDocument(
     }
 
     private void requireCurrentSchema() {
-        if (schemaVersion != CURRENT_SCHEMA_VERSION) {
+        if (schemaVersion != CURRENT_SCHEMA_VERSION
+                && schemaVersion != LEGACY_CATEGORY_SCHEMA_VERSION) {
             throw new IllegalStateException(
                     "Unsupported schemaVersion "
                             + schemaVersion
                             + " in "
                             + COLLECTION_NAME);
         }
+    }
+
+    private List<String> resolvedCategoryIds() {
+        return schemaVersion == CURRENT_SCHEMA_VERSION
+                ? categoryIds
+                : LegacyRoomCategoryMapping.categoryIds(categories);
     }
 }

@@ -4,6 +4,7 @@ import com.hamcheeze.chat.room.category.RoomCategorySeedInitializer;
 import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryStore;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryUsage;
+import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -60,6 +61,19 @@ public class MongoRoomCategoryConfiguration {
             RoomCategoryStore store
     ) {
         return new RoomCategorySeedInitializer(
+                store,
+                Clock.systemUTC());
+    }
+
+    @Bean(initMethod = "initialize")
+    MongoRoomCategoryMigration mongoRoomCategoryMigration(
+            MongoOperations mongoOperations,
+            RoomCategoryStore store,
+            MongoRoomSchemaInitializer roomSchemaInitializer,
+            RoomCategorySeedInitializer seedInitializer
+    ) {
+        return new MongoRoomCategoryMigration(
+                mongoOperations,
                 store,
                 Clock.systemUTC());
     }
