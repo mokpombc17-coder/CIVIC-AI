@@ -15,6 +15,10 @@ RootLayout [Server Route]
 참여자 레이아웃은 저장소에 원래 있던 `PlatformShell`이 소유하고, 관리자 레이아웃은 `AdminShell`이
 소유한다.
 
+`PlatformShell`은 480px 이하 viewport에서 가용 너비를 모두 사용하고, 그보다 넓은 viewport에서는
+최대 393px mobile-first surface를 가운데 표시한다. 높이는 고정된 Figma frame이 아니라 실제
+viewport의 `100dvh`를 따른다.
+
 ## 실제 제품 route
 
 화면 레지스트리는 `apps/web/lib/screens/screens.v1.generated.json`이다. optional catch-all page가
