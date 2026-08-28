@@ -76,6 +76,7 @@ class RoomCreationRequestApiIntegrationTest
         assertThat(stored).isNotNull();
         assertThat(stored.status())
                 .isEqualTo(RoomCreationRequestStatus.PENDING);
+        assertThat(stored.name()).isEqualTo("Room one");
         assertThat(stored.approvedRoomId()).isNull();
 
         submit("requester-1", key, "Room one")
@@ -94,6 +95,7 @@ class RoomCreationRequestApiIntegrationTest
                         org.hamcrest.Matchers.containsString("no-store")))
                 .andExpect(jsonPath("$.creationRequestId")
                         .value(creationRequestId))
+                .andExpect(jsonPath("$.name").value("Room one"))
                 .andExpect(jsonPath("$.replayed").value(false));
 
         mockMvc.perform(get(
@@ -181,6 +183,8 @@ class RoomCreationRequestApiIntegrationTest
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].creationRequestId")
                         .value(firstId))
+                .andExpect(jsonPath("$.items[0].name")
+                        .value("First room"))
                 .andExpect(jsonPath("$.hasNext").value(true))
                 .andExpect(jsonPath("$.nextCursor").isString())
                 .andReturn();
@@ -196,6 +200,8 @@ class RoomCreationRequestApiIntegrationTest
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].creationRequestId")
                         .value(secondId))
+                .andExpect(jsonPath("$.items[0].name")
+                        .value("Second room"))
                 .andExpect(jsonPath("$.hasNext").value(false));
 
         mockMvc.perform(get("/api/v1/me/room-creation-requests")
