@@ -12,6 +12,7 @@ import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
+import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
@@ -37,6 +38,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.util.List;
@@ -49,8 +51,8 @@ final class TaskApiModels {
     }
 
     record TaskWriteRequest(
-            @NotBlank String title,
-            String description,
+            @NotBlank @Size(max = TaskLimits.MAX_TITLE_LENGTH) String title,
+            @Size(max = TaskLimits.MAX_DESCRIPTION_LENGTH) String description,
             @Valid QuestionWriteRequest question
     ) {
         TaskQuestion toQuestion() {
@@ -60,9 +62,12 @@ final class TaskApiModels {
 
     record QuestionWriteRequest(
             UUID id,
-            @NotBlank String content,
+            @NotBlank @Size(max = TaskLimits.MAX_QUESTION_CONTENT_LENGTH)
+            String content,
+            @Size(max = TaskLimits.MAX_QUESTION_DESCRIPTION_LENGTH)
             String description,
-            @NotEmpty List<@Valid OptionWriteRequest> options
+            @NotEmpty @Size(max = TaskLimits.MAX_OPTIONS)
+            List<@Valid OptionWriteRequest> options
     ) {
         TaskQuestion toDomain() {
             return new TaskQuestion(
@@ -81,7 +86,8 @@ final class TaskApiModels {
 
     record OptionWriteRequest(
             UUID id,
-            @NotBlank String content
+            @NotBlank @Size(max = TaskLimits.MAX_OPTION_CONTENT_LENGTH)
+            String content
     ) {
         TaskOption toDomain(int displayOrder) {
             TaskOptionId optionId = new TaskOptionId(
@@ -93,7 +99,7 @@ final class TaskApiModels {
     record ScheduleRequest(
             @NotNull Instant opensAt,
             @NotNull Instant closesAt,
-            String reason
+            @Size(max = TaskLimits.MAX_REASON_LENGTH) String reason
     ) {
         TaskSchedule toDomain() {
             return new TaskSchedule(opensAt, closesAt);
@@ -102,17 +108,19 @@ final class TaskApiModels {
 
     record OpenNowRequest(
             @NotNull Instant closesAt,
-            String reason
+            @Size(max = TaskLimits.MAX_REASON_LENGTH) String reason
     ) {
     }
 
     record DeadlineRequest(
             @NotNull Instant closesAt,
-            String reason
+            @Size(max = TaskLimits.MAX_REASON_LENGTH) String reason
     ) {
     }
 
-    record ReasonRequest(String reason) {
+    record ReasonRequest(
+            @Size(max = TaskLimits.MAX_REASON_LENGTH) String reason
+    ) {
     }
 
     record SubmitRequest(

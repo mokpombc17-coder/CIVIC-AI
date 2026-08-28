@@ -1,8 +1,10 @@
 package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
+import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
 import com.hamcheeze.vote.task.application.query.AdminTaskQueryService;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
+import com.hamcheeze.vote.task.application.task.TaskAdministrationService.TaskCreationExecution;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import jakarta.validation.Valid;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,9 +27,14 @@ import java.util.UUID;
 @RequestMapping("/api/v1/admin/tasks")
 final class TaskAdminController {
 
+    private static final String IDEMPOTENCY_REPLAYED =
+            "Idempotency-Replayed";
+
     private final TaskAdministrationService administration;
     private final AdminTaskQueryService queries;
     private final AuthenticatedUserIdResolver userIds;
+    private final TaskAdminCreateRequestHashFactory requestHashes =
+            new TaskAdminCreateRequestHashFactory();
 
     TaskAdminController(
             TaskAdministrationService administration,
@@ -41,16 +49,22 @@ final class TaskAdminController {
     @PostMapping
     ResponseEntity<TaskApiModels.TaskResponse> create(
             Authentication authentication,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody TaskApiModels.TaskWriteRequest request
     ) {
-        TaskApiModels.TaskResponse response = TaskApiModels.TaskResponse.from(
-                administration.createDraft(
+        TaskCreationExecution execution = administration.createDraft(
                         new TaskAdministrationService.CreateDraftCommand(
                                 request.title(), request.description(),
                                 request.toQuestion()),
-                        actor(authentication)));
+                        actor(authentication),
+                        TaskIdempotencyKey.parse(idempotencyKey),
+                        requestHashes.hash(request));
+        TaskApiModels.TaskResponse response = TaskApiModels.TaskResponse.from(
+                execution.task());
         return ResponseEntity.created(URI.create(
                         "/api/v1/admin/tasks/" + response.id()))
+                .header(IDEMPOTENCY_REPLAYED,
+                        Boolean.toString(execution.replayed()))
                 .body(response);
     }
 
@@ -149,7 +163,7 @@ final class TaskAdminController {
             @PathVariable UUID taskId,
             @Valid @RequestBody TaskApiModels.ReasonRequest request
     ) {
-        return TaskApiModels.TaskResponse.from(administration.closeEarly(
+        return TaskApiModels.TaskResponse.from(administration.close(
                 id(taskId), request.reason(), actor(authentication)).task());
     }
 

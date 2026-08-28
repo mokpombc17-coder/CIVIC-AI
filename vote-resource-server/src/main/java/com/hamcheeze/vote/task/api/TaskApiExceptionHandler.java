@@ -138,7 +138,12 @@ final class TaskApiExceptionHandler {
         if (code.endsWith("_NOT_FOUND")) {
             return HttpStatus.NOT_FOUND;
         }
-        if (code.contains("ANSWER")
+        if (code.endsWith("_REQUIRED")
+                || code.endsWith("_TOO_LONG")
+                || code.equals("TASK_SCHEDULE_RANGE_INVALID")
+                || code.equals("TASK_SCHEDULE_OPEN_MUST_BE_FUTURE")
+                || code.equals("TASK_DEADLINE_MUST_BE_FUTURE")
+                || code.contains("ANSWER")
                 || code.contains("CANDIDATE")
                 || code.contains("QUESTION")
                 || code.contains("OPTION")

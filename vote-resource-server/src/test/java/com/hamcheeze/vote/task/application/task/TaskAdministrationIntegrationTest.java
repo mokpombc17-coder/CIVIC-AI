@@ -3,6 +3,9 @@ package com.hamcheeze.vote.task.application.task;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
+import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
+import com.hamcheeze.vote.task.application.idempotency.TaskRequestHash;
 import com.hamcheeze.vote.task.application.result.TaskResultViewDocumentQueryService;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
@@ -26,6 +29,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
@@ -102,7 +106,13 @@ class TaskAdministrationIntegrationTest {
                 .get()
                 .extracting(Task::status)
                 .isEqualTo(TaskStatus.DRAFT);
-        assertThat(tasks.findLifecycleHistory(emptyDraft.id())).isEmpty();
+        assertThat(tasks.findLifecycleHistory(emptyDraft.id()))
+                .singleElement()
+                .satisfies(history -> {
+                    assertThat(history.eventType())
+                            .isEqualTo(TaskLifecycleEventType.CREATED);
+                    assertThat(history.actorId()).isEqualTo(ADMIN);
+                });
     }
 
     @Test
@@ -141,6 +151,7 @@ class TaskAdministrationIntegrationTest {
         assertThat(tasks.findLifecycleHistory(draft.id()))
                 .extracting(history -> history.eventType())
                 .containsExactly(
+                        TaskLifecycleEventType.CREATED,
                         TaskLifecycleEventType.SCHEDULED,
                         TaskLifecycleEventType.RESCHEDULED,
                         TaskLifecycleEventType.OPENED,
@@ -200,6 +211,70 @@ class TaskAdministrationIntegrationTest {
                 .isEqualTo(false);
         assertThat(resultManifests.findByTaskId(immediateDraft.id()))
                 .isEmpty();
+    }
+
+    @Test
+    void taskCreationIsIdempotentAndRejectsKeyReuseWithDifferentBody() {
+        TaskIdempotencyKey key = TaskIdempotencyKey.parse(
+                UUID.randomUUID().toString());
+        TaskRequestHash firstHash = requestHash("first");
+        TaskAdministrationService.CreateDraftCommand command =
+                new TaskAdministrationService.CreateDraftCommand(
+                        "멱등 생성 과업", null, choiceQuestion());
+
+        var first = administration.createDraft(
+                command, ADMIN, key, firstHash);
+        var replay = administration.createDraft(
+                command, ADMIN, key, firstHash);
+
+        assertThat(first.replayed()).isFalse();
+        assertThat(replay.replayed()).isTrue();
+        assertThat(replay.task().id()).isEqualTo(first.task().id());
+        assertThat(tasks.findLifecycleHistory(first.task().id()))
+                .extracting(history -> history.eventType())
+                .containsExactly(TaskLifecycleEventType.CREATED);
+
+        assertThatThrownBy(() -> administration.createDraft(
+                command,
+                ADMIN,
+                key,
+                requestHash("different")))
+                .isInstanceOf(TaskIdempotencyException.class);
+    }
+
+    @Test
+    void concurrentTaskCreationWithSameKeyCreatesOneTask() throws Exception {
+        TaskIdempotencyKey key = TaskIdempotencyKey.parse(
+                UUID.randomUUID().toString());
+        TaskRequestHash hash = requestHash("concurrent");
+        TaskAdministrationService.CreateDraftCommand command =
+                new TaskAdministrationService.CreateDraftCommand(
+                        "동시 멱등 생성 과업", null, choiceQuestion());
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<TaskAdministrationService.TaskCreationExecution> first =
+                    executor.submit(() -> {
+                        start.await();
+                        return administration.createDraft(
+                                command, ADMIN, key, hash);
+                    });
+            Future<TaskAdministrationService.TaskCreationExecution> second =
+                    executor.submit(() -> {
+                        start.await();
+                        return administration.createDraft(
+                                command, ADMIN, key, hash);
+                    });
+            start.countDown();
+
+            var results = List.of(first.get(), second.get());
+            assertThat(results)
+                    .extracting(result -> result.task().id())
+                    .containsOnly(results.getFirst().task().id());
+            assertThat(results)
+                    .extracting(result -> result.replayed())
+                    .containsExactlyInAnyOrder(false, true);
+        }
     }
 
     @Test
@@ -317,6 +392,11 @@ class TaskAdministrationIntegrationTest {
     private static TaskSchedule futureSchedule() {
         Instant openAt = Instant.now().plus(1, ChronoUnit.HOURS);
         return new TaskSchedule(openAt, openAt.plus(1, ChronoUnit.HOURS));
+    }
+
+    private static TaskRequestHash requestHash(String value) {
+        return TaskRequestHash.sha256(
+                value.getBytes(StandardCharsets.UTF_8));
     }
 
     private static TaskQuestion choiceQuestion() {

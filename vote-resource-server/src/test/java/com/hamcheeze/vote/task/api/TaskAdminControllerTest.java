@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.api;
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.task.application.query.AdminTaskQueryService;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
+import com.hamcheeze.vote.task.application.task.TaskAdministrationService.TaskCreationExecution;
 import com.hamcheeze.vote.task.application.task.TaskLifecycleChange;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
@@ -68,10 +69,13 @@ class TaskAdminControllerTest {
     void createsDraftWithAuthenticatedActorAndSingleQuestionContent()
             throws Exception {
         Task task = draftTask();
-        when(administration.createDraft(any(), any())).thenReturn(task);
+        when(administration.createDraft(any(), any(), any(), any()))
+                .thenReturn(new TaskCreationExecution(task, false));
 
         mockMvc.perform(post("/api/v1/admin/tasks")
                         .principal(authentication)
+                        .header("Idempotency-Key",
+                                "6826ae4a-b810-4576-af25-127fafdcc620")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -89,6 +93,8 @@ class TaskAdminControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location",
                         "/api/v1/admin/tasks/" + task.id().value()))
+                .andExpect(header().string(
+                        "Idempotency-Replayed", "false"))
                 .andExpect(jsonPath("$.id")
                         .value(task.id().value().toString()))
                 .andExpect(jsonPath("$.question.content")
@@ -101,7 +107,8 @@ class TaskAdminControllerTest {
         ArgumentCaptor<TaskAdministrationService.CreateDraftCommand> command =
                 ArgumentCaptor.forClass(
                         TaskAdministrationService.CreateDraftCommand.class);
-        verify(administration).createDraft(command.capture(), eq(actorId()));
+        verify(administration).createDraft(
+                command.capture(), eq(actorId()), any(), any());
         assertThat(command.getValue().question().type())
                 .isEqualTo(TaskQuestionType.SINGLE_CHOICE);
         assertThat(command.getValue().question().displayOrder()).isEqualTo(1);
@@ -111,6 +118,38 @@ class TaskAdminControllerTest {
         assertThat(command.getValue().question().options())
                 .extracting(option -> option.displayOrder())
                 .containsExactly(1, 2);
+    }
+
+    @Test
+    void createRequiresCanonicalIdempotencyKey() throws Exception {
+        String body = """
+                {
+                  "title": "테스트 과업",
+                  "question": {
+                    "content": "하나를 선택하세요",
+                    "options": [
+                      {"content": "A"},
+                      {"content": "B"}
+                    ]
+                  }
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/admin/tasks")
+                        .principal(authentication)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        mockMvc.perform(post("/api/v1/admin/tasks")
+                        .principal(authentication)
+                        .header("Idempotency-Key", "not-a-uuid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_IDEMPOTENCY_KEY"));
     }
 
     @Test
@@ -128,7 +167,7 @@ class TaskAdminControllerTest {
 
     @Test
     void lifecycleConflictKeepsDomainErrorCode() throws Exception {
-        when(administration.closeEarly(
+        when(administration.close(
                 any(TaskId.class), any(), any(TaskActorId.class)))
                 .thenThrow(TaskDomainException.invariant(
                         "TASK_CLOSE_NOT_ALLOWED",
@@ -151,6 +190,8 @@ class TaskAdminControllerTest {
             throws Exception {
         mockMvc.perform(post("/api/v1/admin/tasks")
                         .principal(authentication)
+                        .header("Idempotency-Key",
+                                "7aa9cfda-2c6d-4970-b8f0-f46a96669a6d")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -190,6 +231,37 @@ class TaskAdminControllerTest {
                         .value(containsInAnyOrder(
                                 "opensAt",
                                 "closesAt")));
+
+        mockMvc.perform(post("/api/v1/admin/tasks")
+                        .principal(authentication)
+                        .header("Idempotency-Key",
+                                "85b19740-1d9b-42d8-902d-eb048f45ebc8")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"%s"
+                                }
+                                """.formatted("가".repeat(201))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.violations[0].path")
+                        .value("title"));
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/tasks/{taskId}/schedule",
+                        taskId().value())
+                        .principal(authentication)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "opensAt":"2026-02-02T00:00:00Z",
+                                  "closesAt":"2026-02-01T00:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_SCHEDULE_RANGE_INVALID"));
     }
 
     @Test
@@ -197,6 +269,8 @@ class TaskAdminControllerTest {
             throws Exception {
         mockMvc.perform(post("/api/v1/admin/tasks")
                         .principal(authentication)
+                        .header("Idempotency-Key",
+                                "92c827f6-d6d3-4ae2-910f-5ee3c685586f")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":"))
                 .andExpect(status().isBadRequest())
@@ -284,7 +358,7 @@ class TaskAdminControllerTest {
                 .thenReturn(change);
         when(administration.changeDeadline(any(), any(), any(), any()))
                 .thenReturn(change);
-        when(administration.closeEarly(any(), any(), any()))
+        when(administration.close(any(), any(), any()))
                 .thenReturn(change);
         when(administration.cancel(any(), any(), any()))
                 .thenReturn(change);
@@ -375,7 +449,7 @@ class TaskAdminControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"조기 종료\"}"))
                 .andExpect(status().isOk());
-        verify(administration).closeEarly(
+        verify(administration).close(
                 eq(taskId()), eq("조기 종료"), eq(actorId()));
 
         mockMvc.perform(post("/api/v1/admin/tasks/{taskId}/cancel",

@@ -1,5 +1,10 @@
 package com.hamcheeze.vote.task.application.task;
 
+import com.hamcheeze.vote.task.application.idempotency.TaskAdminCreationReceipt;
+import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
+import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
+import com.hamcheeze.vote.task.application.idempotency.TaskRequestHash;
+import com.hamcheeze.vote.task.application.port.out.TaskAdminCreationReceiptRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.result.TaskResultManifestFinalizer;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
@@ -29,23 +34,29 @@ import java.util.UUID;
 public class TaskAdministrationService {
 
     private final TaskRepository tasks;
+    private final TaskAdminCreationReceiptRepository creationReceipts;
     private final TaskResultManifestFinalizer resultManifestFinalizer;
     private final Clock clock;
 
     @Autowired
     public TaskAdministrationService(
             TaskRepository tasks,
+            TaskAdminCreationReceiptRepository creationReceipts,
             TaskResultManifestFinalizer resultManifestFinalizer
     ) {
-        this(tasks, resultManifestFinalizer, Clock.systemUTC());
+        this(tasks, creationReceipts, resultManifestFinalizer,
+                Clock.systemUTC());
     }
 
     TaskAdministrationService(
             TaskRepository tasks,
+            TaskAdminCreationReceiptRepository creationReceipts,
             TaskResultManifestFinalizer resultManifestFinalizer,
             Clock clock
     ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
+        this.creationReceipts = Objects.requireNonNull(
+                creationReceipts, "creationReceipts");
         this.resultManifestFinalizer = Objects.requireNonNull(
                 resultManifestFinalizer, "resultManifestFinalizer");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -58,13 +69,43 @@ public class TaskAdministrationService {
     ) {
         Objects.requireNonNull(command, "command");
         Objects.requireNonNull(actorId, "actorId");
-        return tasks.save(Task.draft(
-                new TaskId(UUID.randomUUID()),
-                command.title(),
-                command.description(),
-                command.question() == null
-                        ? List.of() : List.of(command.question()),
-                clock.instant()));
+        return createDraft(
+                new TaskId(UUID.randomUUID()), command, actorId,
+                clock.instant());
+    }
+
+    @Transactional
+    public TaskCreationExecution createDraft(
+            CreateDraftCommand command,
+            TaskActorId actorId,
+            TaskIdempotencyKey idempotencyKey,
+            TaskRequestHash requestHash
+    ) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(actorId, "actorId");
+        Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+        Objects.requireNonNull(requestHash, "requestHash");
+        Instant createdAt = clock.instant();
+        TaskId taskId = new TaskId(UUID.randomUUID());
+        TaskAdminCreationReceipt candidate =
+                new TaskAdminCreationReceipt(
+                        actorId, idempotencyKey, requestHash,
+                        taskId, createdAt);
+        if (creationReceipts.claim(candidate)) {
+            return new TaskCreationExecution(
+                    createDraft(taskId, command, actorId, createdAt), false);
+        }
+        TaskAdminCreationReceipt existing = creationReceipts
+                .findByRequest(actorId, idempotencyKey)
+                .orElseThrow(() -> new IllegalStateException(
+                        "conflicting Task admin creation receipt was not visible"));
+        if (!existing.requestHash().equals(requestHash)) {
+            throw TaskIdempotencyException.conflict();
+        }
+        Task replayed = tasks.findById(existing.taskId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Task admin creation receipt references a missing Task"));
+        return new TaskCreationExecution(replayed, true);
     }
 
     @Transactional
@@ -182,6 +223,21 @@ public class TaskAdministrationService {
     }
 
     @Transactional
+    public TaskLifecycleChange close(
+            TaskId taskId,
+            String reason,
+            TaskActorId actorId
+    ) {
+        Task task = lockTask(taskId);
+        TaskLifecycleHistory history = task.closeByAdmin(
+                nextHistoryId(),
+                actorId,
+                reason,
+                clock.instant());
+        return save(task, history);
+    }
+
+    @Transactional
     public TaskLifecycleChange closeEarly(
             TaskId taskId,
             String reason,
@@ -268,6 +324,25 @@ public class TaskAdministrationService {
         return new TaskLifecycleChange(saved, history);
     }
 
+    private Task createDraft(
+            TaskId taskId,
+            CreateDraftCommand command,
+            TaskActorId actorId,
+            Instant createdAt
+    ) {
+        Task task = Task.draft(
+                taskId,
+                command.title(),
+                command.description(),
+                command.question() == null
+                        ? List.of() : List.of(command.question()),
+                createdAt);
+        Task saved = tasks.save(task);
+        tasks.appendLifecycleHistory(List.of(saved.creationHistory(
+                nextHistoryId(), actorId)));
+        return saved;
+    }
+
     private void finalizeResultManifest(
             Task task,
             TaskLifecycleHistory history
@@ -295,5 +370,11 @@ public class TaskAdministrationService {
             String description,
             TaskQuestion question
     ) {
+    }
+
+    public record TaskCreationExecution(Task task, boolean replayed) {
+        public TaskCreationExecution {
+            Objects.requireNonNull(task, "task");
+        }
     }
 }

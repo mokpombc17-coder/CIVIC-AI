@@ -77,6 +77,25 @@ public final class Task {
                 createdAt, createdAt);
     }
 
+    public TaskLifecycleHistory creationHistory(
+            TaskLifecycleHistoryId historyId,
+            TaskActorId actorId
+    ) {
+        requireStatus(TaskStatus.DRAFT, "record creation");
+        return history(
+                historyId,
+                TaskLifecycleEventType.CREATED,
+                TaskStatus.DRAFT,
+                TaskStatus.DRAFT,
+                null,
+                null,
+                TaskLifecycleTrigger.ADMIN,
+                Objects.requireNonNull(actorId, "actorId"),
+                null,
+                null,
+                createdAt);
+    }
+
     public static Task restore(
             TaskId id,
             String title,
@@ -283,6 +302,27 @@ public final class Task {
         return close(
                 historyId,
                 TaskClosureType.EARLY_CLOSED,
+                TaskLifecycleTrigger.ADMIN,
+                actorId,
+                reason,
+                occurredAt);
+    }
+
+    public TaskLifecycleHistory closeByAdmin(
+            TaskLifecycleHistoryId historyId,
+            TaskActorId actorId,
+            String reason,
+            Instant occurredAt
+    ) {
+        requireStatus(TaskStatus.OPEN, "close");
+        requireMonotonic(occurredAt);
+        TaskClosureType type = occurredAt.isBefore(
+                schedule.scheduledCloseAt())
+                ? TaskClosureType.EARLY_CLOSED
+                : TaskClosureType.DEADLINE_REACHED;
+        return close(
+                historyId,
+                type,
                 TaskLifecycleTrigger.ADMIN,
                 actorId,
                 reason,

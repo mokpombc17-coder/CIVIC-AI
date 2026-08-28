@@ -167,6 +167,24 @@ class TaskTest {
     }
 
     @Test
+    void adminCloseUsesDeadlineClosureAtOrAfterDeadline() {
+        Task task = draftTask();
+        Instant deadline = NOW.plusSeconds(100);
+        task.openImmediately(
+                historyId(30), deadline, actorId(),
+                null, NOW.plusSeconds(10));
+
+        TaskLifecycleHistory closed = task.closeByAdmin(
+                historyId(31), actorId(), "관리자 종료", deadline);
+
+        assertThat(closed.closureType())
+                .isEqualTo(TaskClosureType.DEADLINE_REACHED);
+        assertThat(closed.trigger()).isEqualTo(TaskLifecycleTrigger.ADMIN);
+        assertThat(closed.actorId()).isEqualTo(actorId());
+        assertThat(task.status()).isEqualTo(TaskStatus.CLOSED);
+    }
+
+    @Test
     void restoreRejectsInconsistentCancelledShape() {
         assertThatThrownBy(() -> Task.restore(
                 taskId(), "과업", null, List.of(singleQuestion()),
