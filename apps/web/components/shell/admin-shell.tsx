@@ -1,11 +1,14 @@
+"use client";
+
 import type { Route } from "next";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import type { ShellPermission, ShellRole } from "@/lib/auth/shell-access";
 import { LogoutButton } from "@/components/auth/logout-button";
 
 type AdminShellProps = Readonly<{
-  activeRoute: string;
+  activeRoute?: string;
   children: ReactNode;
   role?: ShellRole;
   permissions?: readonly ShellPermission[];
@@ -26,6 +29,8 @@ export function AdminShell({
   role = "HIGHEST_ADMIN",
   permissions = [],
 }: AdminShellProps) {
+  const pathname = usePathname();
+  const currentRoute = activeRoute ?? pathname ?? "/admin";
   const navigation = adminNavigation.filter((item) => {
     if (item.access === "ADMIN") return role === "ADMIN" || role === "HIGHEST_ADMIN";
     if (item.access === "HIGHEST_ADMIN") return role === "HIGHEST_ADMIN";
@@ -45,7 +50,7 @@ export function AdminShell({
         <nav aria-label="관리자 주요 메뉴" className="civic-admin-nav">
           {navigation.map((item) => (
             <Link
-              aria-current={isActive(activeRoute, item.href) ? "page" : undefined}
+              aria-current={isActive(currentRoute, item.href) ? "page" : undefined}
               className="civic-admin-nav-link"
               href={item.href}
               key={item.href}

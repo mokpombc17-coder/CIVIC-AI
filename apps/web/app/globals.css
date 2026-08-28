@@ -2731,10 +2731,6 @@ body:has(.civic-shell-participant) {
 .civic-table-scroll td {
   vertical-align: top;
 }
-.civic-table-scroll td:first-child {
-  display: grid;
-  gap: 0.25rem;
-}
 .civic-table-scroll small {
   color: var(--civic-muted);
 }
