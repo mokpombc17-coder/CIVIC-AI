@@ -108,6 +108,7 @@ class SurveyApplicationUseCaseIntegrationTest {
                 TRUNCATE TABLE
                     integration_outbox,
                     persona_inbox,
+                    persona_generations,
                     survey_content_versions,
                     survey_round_control
                 CASCADE

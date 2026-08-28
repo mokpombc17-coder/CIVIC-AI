@@ -26,6 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -152,7 +154,7 @@ public class SurveyResponseSubmissionService {
                             content,
                             existing,
                             command.answers(),
-                            clock.instant());
+                            persistenceSafeInstant(clock.instant()));
             responses.insert(result.response());
             submittedEvents.publish(userId, result.event());
             return SurveySubmissionOutcome.submitted(result.event());
@@ -175,6 +177,11 @@ public class SurveyResponseSubmissionService {
                             violation.message(),
                             violation.details()));
         }
+    }
+
+    static Instant persistenceSafeInstant(Instant instant) {
+        return Objects.requireNonNull(instant, "instant")
+                .truncatedTo(ChronoUnit.MICROS);
     }
 
     private static SurveySubmissionOutcome rejection(
