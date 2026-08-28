@@ -9,6 +9,9 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.annotation.Configuration;
 
 class ConfigurationPolicyTest {
     private static final Path RESOURCES = Path.of("src/main/resources");
@@ -41,6 +44,34 @@ class ConfigurationPolicyTest {
     }
 
     @Test
+    void localProfileProvidesSafeRunnableDefaultsAndKnownDevelopmentAccounts() {
+        try (var context = new SpringApplicationBuilder(LocalProfileProbe.class)
+                .profiles("local")
+                .web(WebApplicationType.NONE)
+                .properties(
+                        "spring.main.banner-mode=off",
+                        "spring.main.log-startup-info=false")
+                .run()) {
+            var environment = context.getEnvironment();
+
+            assertThat(environment.getProperty("server.port")).isEqualTo("8080");
+            assertThat(environment.getProperty("civic.issuer")).isEqualTo("http://localhost:8080");
+            assertThat(environment.getProperty("civic.browser.origin")).isEqualTo("http://localhost:8080");
+            assertThat(environment.getProperty("civic.cookies.secure", Boolean.class)).isFalse();
+            assertThat(environment.getProperty("management.health.mail.enabled", Boolean.class)).isFalse();
+            assertThat(environment.getProperty("civic.local-seed.enabled", Boolean.class)).isTrue();
+            assertThat(environment.getProperty("civic.local-seed.admin-email"))
+                    .isEqualTo("admin@dev.civic.test");
+            assertThat(environment.getProperty("civic.local-seed.admin-password"))
+                    .isEqualTo("CivicDevAdmin!2026");
+            assertThat(environment.getProperty("civic.local-seed.user-password"))
+                    .isEqualTo("CivicDevUser!2026");
+            assertThat(environment.getProperty("spring.flyway.placeholders.bootstrap_admin_email"))
+                    .isEqualTo("admin@dev.civic.test");
+        }
+    }
+
+    @Test
     void migrationsContainOnlyPlaceholdersForBootstrapSecrets() throws Exception {
         var migrations = List.of(
                 RESOURCES.resolve("db/migration/V1__main_auth_core.sql"),
@@ -60,4 +91,7 @@ class ConfigurationPolicyTest {
 
         assertThat(digest).isEqualTo("ed1b0a6d24cb939698e297c056d8c09855e73841083d2d9d1326aed442be2c61");
     }
+
+    @Configuration(proxyBeanMethods = false)
+    static class LocalProfileProbe {}
 }
