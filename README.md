@@ -8,6 +8,18 @@ Frontend, Chat, Vote, RAG 구현 담당자에게 전달할 전체 계약과 현�
 [`docs/CIVIC-MAIN-AUTH-LOGIN-CONTEXT.md`](docs/CIVIC-MAIN-AUTH-LOGIN-CONTEXT.md)를
 참조하세요.
 
+## 로컬 실행
+
+JDK 21 이상과 Docker Desktop 또는 Docker Engine을 실행한 뒤 다음 한 명령으로 PostgreSQL,
+Redis, migration, 로컬 테스트 계정과 Main/Auth 서버를 준비할 수 있습니다.
+
+```bash
+./dev-local.sh
+```
+
+서버는 기본적으로 `http://localhost:8080`에서 실행됩니다. 자동 생성 계정과 상세한 확인
+방법은 [`docs/LOCAL-DEVELOPMENT.md`](docs/LOCAL-DEVELOPMENT.md)를 참조하세요.
+
 ## 인증 모델
 
 - Access Token: RS256 JWT, 15분

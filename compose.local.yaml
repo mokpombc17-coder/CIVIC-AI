@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_DB: ${CIVIC_LOCAL_DB_NAME:-civic_main}
+      POSTGRES_USER: ${CIVIC_LOCAL_DB_USER:-civic_main}
+      POSTGRES_PASSWORD: ${CIVIC_LOCAL_DB_PASSWORD:-civic-main-local-only}
+    ports:
+      - "127.0.0.1:${CIVIC_LOCAL_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - civic-main-auth-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${CIVIC_LOCAL_DB_USER:-civic_main} -d ${CIVIC_LOCAL_DB_NAME:-civic_main}
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${CIVIC_LOCAL_REDIS_PORT:-6379}:6379"
+    volumes:
+      - civic-main-auth-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  civic-main-auth-postgres-data:
+  civic-main-auth-redis-data:
