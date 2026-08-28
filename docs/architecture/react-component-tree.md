@@ -99,7 +99,6 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
                             │           └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
                             │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
-                            │               ├── ChatConnectionStatus [Client] [Feature] (apps/web/components/chat-connection-status.tsx)
                             │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
                             │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/create-chat-room-form.tsx)
                             │               ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
@@ -344,7 +343,6 @@ flowchart TD
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional, overlay]<br/>apps/web/components/create-chat-room-form.tsx"]
     ChatRoomCategoryBadges["ChatRoomCategoryBadges [Server-compatible] [View]<br/>apps/web/components/chat-room-category-badges.tsx"]
     JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
-    ChatConnectionStatus["ChatConnectionStatus [Client] [Feature]<br/>apps/web/components/chat-connection-status.tsx"]
     RoomCreationRequestsPage["RoomCreationRequestsPage [Server] [Route]<br/>apps/web/app/chat/creation-requests/page.tsx"]
     RoomCreationRequestListScreen["RoomCreationRequestListScreen [Client] [Container]<br/>apps/web/components/room-creation-request-list-screen.tsx"]
     RoomCreationRequestListView["RoomCreationRequestListView [Client] [View]<br/>apps/web/components/room-creation-request-list-view.tsx"]
@@ -406,7 +404,6 @@ flowchart TD
     ChatRoomListScreen --> ChatRoomListView
     ChatRoomListView -->|"self scroll"| ChatListPlatformShell
     ChatListPlatformShell --> PlatformHeader
-    ChatListPlatformShell --> ChatConnectionStatus
     ChatListPlatformShell --> PublicRoomSearchForm
     ChatListPlatformShell -->|"conditional overlay; surface inert"| CreateChatRoomForm
     ChatListPlatformShell -->|"room cards"| ChatRoomCategoryBadges
@@ -452,7 +449,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,ChatConnectionStatus,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
 ```

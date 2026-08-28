@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { type ReactNode, type Ref } from "react";
-import { ChatConnectionStatus } from "@/components/chat-connection-status";
 import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomInboxFilterControl } from "@/components/chat-room-inbox-filter-control";
 import type { ChatRoomInboxFilterController } from "@/components/chat-room-inbox-filter";
@@ -90,8 +89,6 @@ export function ChatRoomListView({
             </button>
           </div>
         </section>
-
-        <ChatConnectionStatus />
 
         <RoomListSection title="참여한 방">
           <QueryFailure

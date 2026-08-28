@@ -12,10 +12,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-vi.mock("@/components/chat-connection-status", () => ({
-  ChatConnectionStatus: () => null,
-}));
-
 describe("chat room list publishing layout", () => {
   it("모바일 토론방 header, 검색·생성 도구와 두 Room section을 조립한다", () => {
     const html = renderChatRoomListView("ALL");
