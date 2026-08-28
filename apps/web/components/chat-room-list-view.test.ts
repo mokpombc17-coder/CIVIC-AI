@@ -55,6 +55,8 @@ describe("chat room list publishing layout", () => {
     expect(errorHtml).not.toContain("bg-red-50");
     expect(loadingHtml.match(/data-chat-room-list-state="loading"/g)).toHaveLength(2);
     expect(loadingHtml.match(/role="status"/g)).toHaveLength(2);
+    expect(loadingHtml).toContain("bg-transparent");
+    expect(loadingHtml).not.toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
   });
 
   it("안읽음 filter 결과가 비면 현재 누적 목록 기준임을 안내한다", () => {

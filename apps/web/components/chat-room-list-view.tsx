@@ -366,7 +366,9 @@ function RoomListNotice({
   return (
     <div
       aria-live={kind === "loading" ? "polite" : undefined}
-      className="flex min-h-28 flex-col items-center justify-center rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-5 py-6 text-center"
+      className={`flex min-h-28 flex-col items-center justify-center rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] px-5 py-6 text-center ${
+        kind === "loading" ? "bg-transparent" : "bg-[var(--chat-publishing-color-neutral-soft)]"
+      }`}
       data-chat-room-list-state={kind}
       role={kind === "loading" ? "status" : undefined}
     >
