@@ -1,1 +1,2 @@
 rootProject.name = 'vote-resource-server'
+include 'civic-auth-resource-server-adapter'

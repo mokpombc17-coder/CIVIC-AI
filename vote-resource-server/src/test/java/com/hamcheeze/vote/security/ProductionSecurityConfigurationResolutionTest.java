@@ -12,7 +12,12 @@ class ProductionSecurityConfigurationResolutionTest {
             new ApplicationContextRunner()
                     .withInitializer(
                             new ConfigDataApplicationContextInitializer())
-                    .withPropertyValues("spring.profiles.active=prod");
+                    .withPropertyValues(
+                            "spring.profiles.active=prod",
+                            "VOTE_JWT_ISSUER_URI=https://issuer.example",
+                            "VOTE_JWT_JWKS_URI=https://issuer.example/"
+                                    + ".well-known/jwks.json",
+                            "VOTE_BROWSER_ORIGIN=https://app.example");
 
     @Test
     void productionUsesContainerAndPausedPersonaDefaults() {
@@ -25,8 +30,15 @@ class ProductionSecurityConfigurationResolutionTest {
                     "spring.datasource.url"))
                     .isEqualTo("jdbc:postgresql://vote-db:5432/vote");
             assertThat(context.getEnvironment().getProperty(
-                    "spring.security.oauth2.resourceserver.jwt.audiences[0]"))
-                    .isEqualTo("civic-ai-api");
+                    "civic.auth.issuer"))
+                    .isEqualTo("https://issuer.example");
+            assertThat(context.getEnvironment().getProperty(
+                    "civic.auth.jwks-uri"))
+                    .isEqualTo(
+                            "https://issuer.example/.well-known/jwks.json");
+            assertThat(context.getEnvironment().getProperty(
+                    "civic.auth.browser-origin"))
+                    .isEqualTo("https://app.example");
             assertThat(context.getEnvironment().getProperty(
                     "vote.security.cookie-authentication-enabled",
                     Boolean.class))
@@ -46,7 +58,9 @@ class ProductionSecurityConfigurationResolutionTest {
         runner.withPropertyValues(
                         "SERVER_PORT=9083",
                         "VOTE_DB_URL=jdbc:postgresql://custom-db:5432/custom-vote",
-                        "VOTE_JWT_AUDIENCE=dedicated-vote-api",
+                        "VOTE_JWT_ISSUER_URI=https://custom-issuer.example",
+                        "VOTE_JWT_JWKS_URI=https://keys.example/jwks.json",
+                        "VOTE_BROWSER_ORIGIN=https://custom-app.example",
                         "VOTE_SECURITY_COOKIE_AUTHENTICATION_ENABLED=false",
                         "VOTE_INTEGRATION_OUTBOX_DISPATCHER_ENABLED=true",
                         "VOTE_PERSONA_ENABLED=true")
@@ -60,8 +74,14 @@ class ProductionSecurityConfigurationResolutionTest {
                             .isEqualTo(
                                     "jdbc:postgresql://custom-db:5432/custom-vote");
                     assertThat(context.getEnvironment().getProperty(
-                            "spring.security.oauth2.resourceserver.jwt.audiences[0]"))
-                            .isEqualTo("dedicated-vote-api");
+                            "civic.auth.issuer"))
+                            .isEqualTo("https://custom-issuer.example");
+                    assertThat(context.getEnvironment().getProperty(
+                            "civic.auth.jwks-uri"))
+                            .isEqualTo("https://keys.example/jwks.json");
+                    assertThat(context.getEnvironment().getProperty(
+                            "civic.auth.browser-origin"))
+                            .isEqualTo("https://custom-app.example");
                     assertThat(context.getEnvironment().getProperty(
                             "vote.security.cookie-authentication-enabled",
                             Boolean.class))

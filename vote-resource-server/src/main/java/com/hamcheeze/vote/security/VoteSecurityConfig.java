@@ -1,8 +1,11 @@
 package com.hamcheeze.vote.security;
 
+import com.hamcheeze.civic.auth.CivicCookieMutationSameOriginFilter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
@@ -10,6 +13,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import tools.jackson.databind.ObjectMapper;
 
@@ -21,11 +25,13 @@ public class VoteSecurityConfig {
             HttpSecurity http,
             VoteApiSecurityProblemWriter problemWriter,
             BearerTokenResolver bearerTokenResolver,
+            ObjectProvider<CivicCookieMutationSameOriginFilter>
+                    sameOriginFilterProvider,
             Environment environment,
             @Value("${vote.security.local-admin-api-enabled:false}")
             boolean localAdminApiEnabled
     ) throws Exception {
-        return http
+        http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.ignoringRequestMatchers(
                         "/api/v1/**"))
@@ -62,7 +68,8 @@ public class VoteSecurityConfig {
                                         .AuthorizationDecision(
                                         localAdminApiEnabled
                                                 && environment.acceptsProfiles(
-                                                Profiles.of("local"))
+                                                Profiles.of(
+                                                        "local & !auth-main"))
                                                 && authentication.get()
                                                 .isAuthenticated()))
                         .requestMatchers(
@@ -120,11 +127,16 @@ public class VoteSecurityConfig {
                                         bearerTokenResolver)
                                 .jwt(Customizer.withDefaults())
                                 .authenticationEntryPoint(
-                                        problemWriter))
-                .build();
+                                        problemWriter));
+        sameOriginFilterProvider.ifAvailable(filter ->
+                http.addFilterBefore(
+                        filter,
+                        BearerTokenAuthenticationFilter.class));
+        return http.build();
     }
 
     @Bean
+    @Profile("!auth-main")
     BearerTokenResolver voteBearerTokenResolver(
             @Value("${vote.security.cookie-authentication-enabled:false}")
             boolean cookieAuthenticationEnabled

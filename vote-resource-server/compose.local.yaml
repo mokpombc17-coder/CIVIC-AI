@@ -24,7 +24,7 @@ services:
       dockerfile: Dockerfile
     init: true
     environment:
-      SPRING_PROFILES_ACTIVE: local
+      SPRING_PROFILES_ACTIVE: local,auth-fixture
       SERVER_PORT: 8083
       VOTE_DB_URL: jdbc:postgresql://vote-db:5432/vote
       VOTE_DB_USERNAME: vote

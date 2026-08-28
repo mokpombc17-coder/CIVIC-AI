@@ -3,13 +3,12 @@ spring:
     url: ${VOTE_DB_URL:jdbc:postgresql://vote-db:5432/vote}
     username: ${VOTE_DB_USERNAME}
     password: ${VOTE_DB_PASSWORD}
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${VOTE_JWT_ISSUER_URI}
-          audiences:
-            - ${VOTE_JWT_AUDIENCE:civic-ai-api}
+
+civic:
+  auth:
+    issuer: ${VOTE_JWT_ISSUER_URI}
+    jwks-uri: ${VOTE_JWT_JWKS_URI}
+    browser-origin: ${VOTE_BROWSER_ORIGIN}
 
 vote:
   integration:

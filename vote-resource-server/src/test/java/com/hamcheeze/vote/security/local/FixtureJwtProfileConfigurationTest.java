@@ -9,14 +9,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FixtureJwtProfileConfigurationTest {
 
     @Test
-    void localCreatesNamedFixtureDecoder() {
+    void localFixtureModeCreatesNamedFixtureDecoder() {
         new ApplicationContextRunner()
-                .withPropertyValues("spring.profiles.active=local")
+                .withPropertyValues(
+                        "spring.profiles.active=local,auth-fixture")
                 .withUserConfiguration(FixtureJwtConfiguration.class)
                 .run(context -> assertThat(context)
                         .hasSingleBean(FixtureJwtProperties.class)
                         .hasSingleBean(JwtDecoder.class)
                         .hasBean("fixtureJwtDecoder"));
+    }
+
+    @Test
+    void localMainAuthModeDoesNotCreateFixtureDecoder() {
+        new ApplicationContextRunner()
+                .withPropertyValues(
+                        "spring.profiles.active=local,auth-main")
+                .withUserConfiguration(FixtureJwtConfiguration.class)
+                .run(context -> {
+                    assertThat(context.getBeansOfType(
+                            FixtureJwtProperties.class)).isEmpty();
+                    assertThat(context.getBeansOfType(
+                            JwtDecoder.class)).isEmpty();
+                });
     }
 
     @Test

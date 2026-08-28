@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("local")
+@Profile("local & !auth-main")
 @EnableConfigurationProperties(FixtureJwtProperties.class)
 public class FixtureJwtConfiguration {
 

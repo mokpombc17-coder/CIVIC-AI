@@ -4,6 +4,13 @@ spring:
     username: ${VOTE_DB_USERNAME:vote}
     password: ${VOTE_DB_PASSWORD:vote}
 
+civic:
+  auth:
+    issuer: ${VOTE_JWT_ISSUER_URI:http://localhost:8080}
+    jwks-uri: ${VOTE_JWT_JWKS_URI:http://localhost:8080/.well-known/jwks.json}
+    browser-origin: ${VOTE_BROWSER_ORIGIN:http://localhost:8080}
+    allow-insecure-loopback: true
+
 vote:
   integration:
     outbox:
