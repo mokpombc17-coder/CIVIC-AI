@@ -1,19 +1,46 @@
 import { Fragment, memo, type ReactNode } from "react";
+import type { Citation } from "./participant-rag-screen";
 
-/** 답변 본문에 섞여 오는 내부 인용 마커([UUID])를 표시 전에 제거한다. 출처는 별도 카드로 안내된다. */
+const CITATION_MARKER_PATTERN =
+  /\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/giu;
+
+/** 답변 본문에 섞여 오는 내부 인용 마커([UUID])를 제거한다. 칩으로 치환하지 못한 잔여분 정리에 사용한다. */
 export function stripCitationMarkers(answer: string): string {
-  return answer
-    .replace(/\s*\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/giu, "")
-    .replace(/[ \t]{2,}/gu, " ");
+  return answer.replace(CITATION_MARKER_PATTERN, "").replace(/[ \t]{2,}/gu, " ");
 }
+
+/** 마커의 UUID(document_version_id)로 인용 정보를 찾는다. */
+export function citationForMarker(citations: readonly Citation[], marker: string): Citation | null {
+  const versionId = marker.slice(1, -1).toLowerCase();
+  return (
+    citations.find((citation) => citation.document_version_id.toLowerCase() === versionId) ?? null
+  );
+}
+
+/** iKMS 인용 칩과 같은 축약 표기: 문서명은 CSS 말줄임, 페이지는 p.N. */
+export function citationChipLabel(citation: Citation): string {
+  return `${citation.title ?? "문서"} p.${citation.page_number}`;
+}
+
+type SafeMarkdownAnswerProps = Readonly<{
+  answer: string;
+  citations?: readonly Citation[];
+  onOpenCitation?: (citation: Citation) => void;
+}>;
 
 export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
   answer,
-}: Readonly<{ answer: string }>) {
-  const lines = stripCitationMarkers(answer)
-    .replaceAll("\r\n", "\n")
-    .replaceAll("\r", "\n")
-    .split("\n");
+  citations = [],
+  onOpenCitation,
+}: SafeMarkdownAnswerProps) {
+  const renderInline = (source: string, keyPrefix: string) =>
+    inlineMarkdown(source, keyPrefix, citations, onOpenCitation);
+  // 인용 목록에 없는 마커는 앞 공백까지 제거해 문장 부호가 어색하게 남지 않게 한다.
+  const cleaned = answer.replace(
+    /[ \t]*(\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\])/giu,
+    (_, marker: string) => (citationForMarker(citations, marker) ? ` ${marker}` : ""),
+  );
+  const lines = cleaned.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
 
@@ -25,7 +52,7 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
     }
     const heading = /^(#{2,4})\s+(.+)$/.exec(line);
     if (heading) {
-      const content = inlineMarkdown(heading[2] ?? "");
+      const content = renderInline(heading[2] ?? "", `heading-${index}`);
       blocks.push(
         heading[1]?.length === 2 ? (
           <h2 key={`heading-${index}`}>{content}</h2>
@@ -40,7 +67,7 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
       const items: ReactNode[] = [];
       while (index < lines.length && /^[-*]\s+/.test(lines[index]?.trim() ?? "")) {
         const item = (lines[index]?.trim() ?? "").replace(/^[-*]\s+/, "");
-        items.push(<li key={`unordered-${index}`}>{inlineMarkdown(item)}</li>);
+        items.push(<li key={`unordered-${index}`}>{renderInline(item, `unordered-${index}`)}</li>);
         index += 1;
       }
       blocks.push(<ul key={`unordered-list-${index}`}>{items}</ul>);
@@ -50,7 +77,7 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
       const items: ReactNode[] = [];
       while (index < lines.length && /^\d+[.)]\s+/.test(lines[index]?.trim() ?? "")) {
         const item = (lines[index]?.trim() ?? "").replace(/^\d+[.)]\s+/, "");
-        items.push(<li key={`ordered-${index}`}>{inlineMarkdown(item)}</li>);
+        items.push(<li key={`ordered-${index}`}>{renderInline(item, `ordered-${index}`)}</li>);
         index += 1;
       }
       blocks.push(<ol key={`ordered-list-${index}`}>{items}</ol>);
@@ -65,23 +92,53 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
       paragraph.push(next);
       index += 1;
     }
-    blocks.push(<p key={`paragraph-${index}`}>{inlineMarkdown(paragraph.join(" "))}</p>);
+    blocks.push(
+      <p key={`paragraph-${index}`}>{renderInline(paragraph.join(" "), `paragraph-${index}`)}</p>,
+    );
   }
 
   return <div className="civic-rag-markdown">{blocks}</div>;
 });
 
-function inlineMarkdown(source: string): ReactNode[] {
+function inlineMarkdown(
+  source: string,
+  keyPrefix: string,
+  citations: readonly Citation[],
+  onOpenCitation: ((citation: Citation) => void) | undefined,
+): ReactNode[] {
   return source
-    .split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+    .split(
+      /(\*\*[^*]+\*\*|`[^`]+`|\[[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\])/giu,
+    )
     .filter(Boolean)
     .map((part, index) => {
+      const key = `${keyPrefix}-${index}`;
       if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={`strong-${index}`}>{part.slice(2, -2)}</strong>;
+        return <strong key={key}>{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={`code-${index}`}>{part.slice(1, -1)}</code>;
+        return <code key={key}>{part.slice(1, -1)}</code>;
       }
-      return <Fragment key={`text-${index}`}>{part}</Fragment>;
+      if (new RegExp(`^${CITATION_MARKER_PATTERN.source}$`, "iu").test(part)) {
+        const citation = citationForMarker(citations, part);
+        // 인용 목록에서 찾지 못한 마커는 본문에 노출하지 않는다.
+        if (!citation) return <Fragment key={key} />;
+        const label = citationChipLabel(citation);
+        return (
+          <button
+            aria-label={`출처 ${label} 열기`}
+            className="civic-citation-chip"
+            key={key}
+            onClick={onOpenCitation ? () => onOpenCitation(citation) : undefined}
+            title={label}
+            type="button"
+          >
+            <span aria-hidden="true">📄</span>
+            <span className="civic-citation-chip-title">{citation.title ?? "문서"}</span>
+            <span>p.{citation.page_number}</span>
+          </button>
+        );
+      }
+      return <Fragment key={key}>{part}</Fragment>;
     });
 }

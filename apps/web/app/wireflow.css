@@ -3571,3 +3571,131 @@ body:has([data-wireflow-shell]) {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* 본문 인용 칩 — iKMS 인용 칩 형태 (연파랑 필 + 문서명 축약 + p.N) */
+.civic-citation-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  border: 1px solid #83c9ff;
+  border-radius: 999px;
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+  padding: 1px 10px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.civic-citation-chip:hover {
+  background: #dbe9ff;
+}
+
+.civic-citation-chip-title {
+  overflow: hidden;
+  max-width: 9em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 스켈레톤 UI (로그인·이동 직후 로딩) ─────────────────────── */
+.civic-skeleton {
+  display: block;
+  overflow: hidden;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e8ebef 25%, #f4f6f8 45%, #e8ebef 65%);
+  background-size: 200% 100%;
+  animation: civic-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .civic-skeleton {
+    animation: none;
+  }
+}
+
+@keyframes civic-skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.civic-skeleton-screen {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.civic-skeleton-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  padding: 16px;
+}
+
+.civic-skeleton-badge {
+  width: 56px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.civic-skeleton-title {
+  width: 45%;
+  height: 20px;
+}
+
+.civic-skeleton-line {
+  width: 82%;
+  height: 14px;
+}
+
+.civic-skeleton-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.civic-skeleton-row .civic-skeleton-line {
+  width: 55%;
+}
+
+.civic-skeleton-action {
+  width: 88px;
+  height: 44px;
+  border-radius: 7px;
+}
+
+.civic-skeleton-header-title {
+  width: 96px;
+  height: 22px;
+}
+
+.civic-skeleton-nav {
+  display: grid;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.civic-skeleton-nav-item {
+  height: 38px;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 12%) 25%,
+    rgb(255 255 255 / 24%) 45%,
+    rgb(255 255 255 / 12%) 65%
+  );
+  background-size: 200% 100%;
+}
