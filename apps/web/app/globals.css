@@ -1679,6 +1679,37 @@ body:has(.civic-shell-participant) {
   font: inherit;
 }
 
+.civic-rag-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.civic-rag-table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.civic-rag-table-scroll th,
+.civic-rag-table-scroll td {
+  border: 1px solid var(--civic-line);
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.civic-rag-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--color-surface-muted, #f3f5f8);
+  padding: 0.75rem;
+}
+
+.civic-rag-markdown pre code {
+  padding: 0;
+}
+
 .civic-rag-citations {
   display: grid;
   gap: 0.4rem;
