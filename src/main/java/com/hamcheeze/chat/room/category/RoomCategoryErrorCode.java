@@ -1,0 +1,10 @@
+package com.hamcheeze.chat.room.category;
+
+public enum RoomCategoryErrorCode {
+    INVALID_ROOM_CATEGORY,
+    ROOM_CATEGORY_NOT_FOUND,
+    ROOM_CATEGORY_NAME_CONFLICT,
+    ROOM_CATEGORY_VERSION_CONFLICT,
+    ROOM_CATEGORY_IN_USE,
+    ROOM_CATEGORY_DEFAULT_PROTECTED
+}

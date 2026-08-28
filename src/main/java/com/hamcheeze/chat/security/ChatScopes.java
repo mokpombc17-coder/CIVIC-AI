@@ -7,6 +7,8 @@ public final class ChatScopes {
     public static final String ROOMS_WRITE = "chat:rooms:write";
     public static final String ROOMS_APPROVE =
             "chat:rooms:approve";
+    public static final String CATEGORIES_MANAGE =
+            "chat:categories:manage";
     public static final String ROOM_MEMBERSHIP_LIMIT_EXEMPT =
             "chat:rooms:membership-limit:exempt";
     public static final String MESSAGES_WRITE = "chat:messages:write";

@@ -1,12 +1,17 @@
 package com.hamcheeze.chat.room.category.mongo;
 
 import com.hamcheeze.chat.room.category.RoomCategorySeedInitializer;
+import com.hamcheeze.chat.room.category.RoomCategoryService;
 import com.hamcheeze.chat.room.category.persistence.RoomCategoryStore;
+import com.hamcheeze.chat.room.category.persistence.RoomCategoryUsage;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Clock;
+import java.util.UUID;
 
 @Configuration(proxyBeanMethods = false)
 public class MongoRoomCategoryConfiguration {
@@ -26,6 +31,28 @@ public class MongoRoomCategoryConfiguration {
             MongoRoomCategorySchemaInitializer schemaInitializer
     ) {
         return new MongoRoomCategoryStore(mongoOperations);
+    }
+
+    @Bean
+    RoomCategoryUsage roomCategoryUsage(
+            MongoOperations mongoOperations
+    ) {
+        return new MongoRoomCategoryUsage(mongoOperations);
+    }
+
+    @Bean
+    RoomCategoryService roomCategoryService(
+            RoomCategoryStore store,
+            RoomCategoryUsage usage,
+            @Qualifier("mongoTransactionTemplate")
+            TransactionOperations transactions
+    ) {
+        return new RoomCategoryService(
+                store,
+                usage,
+                transactions,
+                Clock.systemUTC(),
+                () -> UUID.randomUUID().toString());
     }
 
     @Bean(initMethod = "initialize")

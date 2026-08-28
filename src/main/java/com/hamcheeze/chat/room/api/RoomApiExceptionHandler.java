@@ -11,6 +11,9 @@ import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionExcep
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestErrorCode;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestException;
+import com.hamcheeze.chat.room.category.RoomCategoryException;
+import com.hamcheeze.chat.room.category.api.AdminRoomCategoryController;
+import com.hamcheeze.chat.room.category.api.RoomCategoryController;
 import com.hamcheeze.chat.room.query.RoomQueryErrorCode;
 import com.hamcheeze.chat.room.query.RoomQueryException;
 import com.hamcheeze.chat.room.inbox.RoomInboxErrorCode;
@@ -33,7 +36,9 @@ import java.util.List;
 
 @RestControllerAdvice(basePackageClasses = {
         AdminRoomCreationRequestController.class,
+        AdminRoomCategoryController.class,
         RoomCommandController.class,
+        RoomCategoryController.class,
         RoomCreationRequestController.class,
         RoomQueryController.class,
         ChatMessageQueryController.class
@@ -81,6 +86,37 @@ public class RoomApiExceptionHandler {
                 request,
                 false,
                 null);
+    }
+
+    @ExceptionHandler(RoomCategoryException.class)
+    ResponseEntity<ProblemDetail> category(
+            RoomCategoryException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = switch (exception.code()) {
+            case INVALID_ROOM_CATEGORY -> HttpStatus.BAD_REQUEST;
+            case ROOM_CATEGORY_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case ROOM_CATEGORY_NAME_CONFLICT,
+                    ROOM_CATEGORY_VERSION_CONFLICT,
+                    ROOM_CATEGORY_IN_USE,
+                    ROOM_CATEGORY_DEFAULT_PROTECTED ->
+                    HttpStatus.CONFLICT;
+        };
+        ResponseEntity<ProblemDetail> response = problem(
+                status,
+                exception.code().name(),
+                "Room category operation failed",
+                categoryDetail(exception),
+                request,
+                false,
+                null);
+        if (exception.referencedRoomCount() != null
+                && response.getBody() != null) {
+            response.getBody().setProperty(
+                    "referencedRoomCount",
+                    exception.referencedRoomCount());
+        }
+        return response;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -371,6 +407,23 @@ public class RoomApiExceptionHandler {
                             + "different Room creation request.";
             case INVALID_CURSOR ->
                     "The Room creation request cursor is invalid.";
+        };
+    }
+
+    private String categoryDetail(RoomCategoryException exception) {
+        return switch (exception.code()) {
+            case INVALID_ROOM_CATEGORY ->
+                    "The Room category is invalid.";
+            case ROOM_CATEGORY_NOT_FOUND ->
+                    "The Room category was not found.";
+            case ROOM_CATEGORY_NAME_CONFLICT ->
+                    "A Room category with the same name already exists.";
+            case ROOM_CATEGORY_VERSION_CONFLICT ->
+                    "The Room category was changed by another request.";
+            case ROOM_CATEGORY_IN_USE ->
+                    "The Room category is assigned to one or more Rooms.";
+            case ROOM_CATEGORY_DEFAULT_PROTECTED ->
+                    "The default Room category cannot be deleted.";
         };
     }
 
