@@ -1,17 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
 import {
   DEFAULT_ROOM_CATEGORY_ID,
+  readListedRoomPage,
   readRoomCategory,
   readRoomCategoryAssignment,
   readRoomCategoryPage,
   readRoomDetailCategorySnapshot,
   sortRoomCategories,
   validateCategorySelection,
+  type ListedRoom,
   type RoomCategory,
   type RoomDetailCategorySnapshot,
 } from "@/lib/admin/room-category-contracts";
@@ -20,13 +22,26 @@ import type { ScreenDefinition } from "@/lib/screens/registry";
 
 export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   const [categories, setCategories] = useState<readonly RoomCategory[]>([]);
+  const [listedRooms, setListedRooms] = useState<readonly ListedRoom[]>([]);
   const [newName, setNewName] = useState("");
+  const [roomQuery, setRoomQuery] = useState("");
+  const [activeRoomQuery, setActiveRoomQuery] = useState("");
+  const [roomNextCursor, setRoomNextCursor] = useState<string | null>(null);
+  const [roomHasNext, setRoomHasNext] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [room, setRoom] = useState<RoomDetailCategorySnapshot | null>(null);
+  const [selectedRoomName, setSelectedRoomName] = useState("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<readonly string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [roomsLoading, setRoomsLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [roomListMessage, setRoomListMessage] = useState("");
+
+  const categoryNamesById = useMemo(
+    () => new Map(categories.map((category) => [category.categoryId, category.name])),
+    [categories],
+  );
 
   const loadCategories = useCallback(async () => {
     setLoading(true);
@@ -55,10 +70,53 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
     }
   }, []);
 
+  const loadListedRooms = useCallback(
+    async (query = "", cursor: string | null = null, append = false) => {
+      setRoomsLoading(true);
+      setRoomListMessage("");
+      if (!append) {
+        setRoomNextCursor(null);
+        setRoomHasNext(false);
+      }
+      const parameters = new URLSearchParams({ limit: "50" });
+      const normalizedQuery = query.trim();
+      if (normalizedQuery) parameters.set("query", normalizedQuery);
+      if (cursor) parameters.set("cursor", cursor);
+      try {
+        const response = await authenticatedFetch(`/api/v1/rooms?${parameters.toString()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          if (!append) setListedRooms([]);
+          setRoomListMessage(formatAdminProblem(await readAdminProblem(response)));
+          return;
+        }
+        const page = readListedRoomPage(await response.json());
+        if (!page) {
+          if (!append) setListedRooms([]);
+          setRoomListMessage("서버의 채팅방 목록 응답 형식을 확인해야 합니다.");
+          return;
+        }
+        setListedRooms((current) => (append ? mergeListedRooms(current, page.items) : page.items));
+        setRoomNextCursor(page.nextCursor);
+        setRoomHasNext(page.hasNext);
+      } catch {
+        if (!append) setListedRooms([]);
+        setRoomListMessage("네트워크 오류로 채팅방 목록을 불러오지 못했습니다.");
+      } finally {
+        setRoomsLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadCategories(), 0);
+    const timer = window.setTimeout(
+      () => void Promise.all([loadCategories(), loadListedRooms()]),
+      0,
+    );
     return () => window.clearTimeout(timer);
-  }, [loadCategories]);
+  }, [loadCategories, loadListedRooms]);
 
   async function createCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -160,6 +218,26 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
     }
   }
 
+  function searchRooms(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (roomsLoading) return;
+    const query = roomQuery.trim();
+    setActiveRoomQuery(query);
+    void loadListedRooms(query);
+  }
+
+  function selectListedRoom(selected: ListedRoom) {
+    setRoomId(selected.roomId);
+    setRoom({
+      roomId: selected.roomId,
+      categoryIds: selected.categoryIds,
+      version: selected.version,
+    });
+    setSelectedRoomName(selected.name);
+    setSelectedCategoryIds(selected.categoryIds);
+    setMessage("채팅방을 선택했습니다. 카테고리를 확인한 뒤 저장해 주세요.");
+  }
+
   async function loadRoom(force = false) {
     const normalizedRoomId = roomId.trim();
     if (!normalizedRoomId || (pending && !force)) return;
@@ -174,6 +252,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       );
       if (!response.ok) {
         setRoom(null);
+        setSelectedRoomName("");
         setSelectedCategoryIds([]);
         setMessage(formatAdminProblem(await readAdminProblem(response)));
         return;
@@ -181,16 +260,21 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       const snapshot = readRoomDetailCategorySnapshot(await response.json());
       if (!snapshot) {
         setRoom(null);
+        setSelectedRoomName("");
         setSelectedCategoryIds([]);
         setMessage("서버의 채팅방 응답 형식을 확인해야 합니다.");
         return;
       }
       setRoom(snapshot);
       setRoomId(snapshot.roomId);
+      setSelectedRoomName(
+        listedRooms.find((listedRoom) => listedRoom.roomId === snapshot.roomId)?.name ?? "",
+      );
       setSelectedCategoryIds(snapshot.categoryIds);
       setMessage("현재 카테고리 설정을 불러왔습니다.");
     } catch {
       setRoom(null);
+      setSelectedRoomName("");
       setSelectedCategoryIds([]);
       setMessage("네트워크 오류로 채팅방 설정을 불러오지 못했습니다.");
     } finally {
@@ -227,6 +311,17 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         categoryIds: assignment.categoryIds,
         version: assignment.roomVersion,
       });
+      setListedRooms((current) =>
+        current.map((listedRoom) =>
+          listedRoom.roomId === assignment.roomId
+            ? {
+                ...listedRoom,
+                categoryIds: assignment.categoryIds,
+                version: assignment.roomVersion,
+              }
+            : listedRoom,
+        ),
+      );
       setSelectedCategoryIds(assignment.categoryIds);
       setMessage(
         assignment.changed
@@ -281,36 +376,92 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
         <section className="civic-domain-form-section">
           <header>
-            <span>KNOWN ROOM ID ONLY</span>
+            <span>ACTIVE · LISTED ROOMS</span>
             <h2>기존 채팅방 카테고리 교체</h2>
           </header>
           <p className="civic-boundary-copy">
-            관리자용 전체 채팅방 검색 API가 없어, 이미 알고 있는 채팅방 ID만 조회하고 변경할 수
-            있습니다.
+            일반 채팅방 목록에서 현재 공개 중인 방을 검색하고 카테고리를 변경할 수 있습니다.
           </p>
-          <div className="civic-category-room-lookup">
+          <form className="civic-category-room-search" onSubmit={searchRooms}>
             <label className="civic-field">
-              <span>채팅방 ID</span>
+              <span>채팅방 이름 검색</span>
               <input
-                disabled={pending}
-                onChange={(event) => {
-                  setRoomId(event.currentTarget.value);
-                  if (event.currentTarget.value !== room?.roomId) setRoom(null);
-                }}
-                value={roomId}
+                disabled={roomsLoading || pending}
+                maxLength={100}
+                onChange={(event) => setRoomQuery(event.currentTarget.value)}
+                placeholder="검색어 입력…"
+                type="search"
+                value={roomQuery}
               />
             </label>
             <button
-              className="civic-secondary-action"
-              disabled={pending || !roomId.trim()}
-              onClick={() => void loadRoom()}
+              className="civic-primary-action"
+              disabled={roomsLoading || pending}
+              type="submit"
+            >
+              검색
+            </button>
+          </form>
+          <ListedRoomTable
+            categoryNamesById={categoryNamesById}
+            items={listedRooms}
+            disabled={pending}
+            loading={roomsLoading}
+            onSelect={selectListedRoom}
+            selectedRoomId={room?.roomId ?? null}
+          />
+          {roomHasNext && roomNextCursor ? (
+            <button
+              className="wf-button wf-button-secondary civic-load-more"
+              disabled={roomsLoading || pending}
+              onClick={() => void loadListedRooms(activeRoomQuery, roomNextCursor, true)}
               type="button"
             >
-              현재 설정 불러오기
+              다음 채팅방 불러오기
             </button>
-          </div>
+          ) : null}
+          {roomsLoading ? <p aria-live="polite">채팅방 목록을 불러오는 중입니다.</p> : null}
+          {roomListMessage ? (
+            <p aria-live="polite" className="civic-form-message" role="status">
+              {roomListMessage}
+            </p>
+          ) : null}
+          <details className="civic-category-room-fallback">
+            <summary>목록에 없는 방 ID로 찾기</summary>
+            <p className="civic-boundary-copy">
+              비공개 또는 목록 비공개 방은 이미 알고 있는 채팅방 ID로 조회할 수 있습니다.
+            </p>
+            <div className="civic-category-room-lookup">
+              <label className="civic-field">
+                <span>채팅방 ID</span>
+                <input
+                  disabled={pending}
+                  onChange={(event) => {
+                    setRoomId(event.currentTarget.value);
+                    if (event.currentTarget.value !== room?.roomId) {
+                      setRoom(null);
+                      setSelectedRoomName("");
+                    }
+                  }}
+                  value={roomId}
+                />
+              </label>
+              <button
+                className="civic-secondary-action"
+                disabled={pending || !roomId.trim()}
+                onClick={() => void loadRoom()}
+                type="button"
+              >
+                현재 설정 불러오기
+              </button>
+            </div>
+          </details>
           {room ? (
             <form className="civic-domain-action-panel" onSubmit={replaceRoomCategories}>
+              <p className="civic-selected-room">
+                <strong>선택한 채팅방</strong>
+                <span>{selectedRoomName || "ID로 조회한 채팅방"}</span>
+              </p>
               <RoomCategorySelector
                 categories={categories}
                 disabled={pending}
@@ -318,7 +469,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 onChange={setSelectedCategoryIds}
                 selectedCategoryIds={selectedCategoryIds}
               />
-              <small>현재 Room version: {room.version}</small>
+              <small>현재 버전: {room.version}</small>
               <div className="civic-form-actions">
                 <button className="civic-primary-action" disabled={pending} type="submit">
                   카테고리 교체
@@ -336,6 +487,74 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         ) : null}
       </div>
     </ScreenFrame>
+  );
+}
+
+function ListedRoomTable({
+  categoryNamesById,
+  disabled,
+  items,
+  loading,
+  onSelect,
+  selectedRoomId,
+}: Readonly<{
+  categoryNamesById: ReadonlyMap<string, string>;
+  disabled: boolean;
+  items: readonly ListedRoom[];
+  loading: boolean;
+  onSelect: (room: ListedRoom) => void;
+  selectedRoomId: string | null;
+}>) {
+  return (
+    <div aria-label="공개 채팅방 표" className="civic-table-scroll" role="region" tabIndex={0}>
+      <table className="civic-admin-table civic-listed-room-table">
+        <thead>
+          <tr>
+            <th>채팅방 이름</th>
+            <th>현재 카테고리</th>
+            <th>참여자</th>
+            <th>버전</th>
+            <th>작업</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 ? (
+            <tr>
+              <td colSpan={5}>{loading ? "불러오는 중입니다." : "검색된 채팅방이 없습니다."}</td>
+            </tr>
+          ) : null}
+          {items.map((listedRoom) => {
+            const selected = listedRoom.roomId === selectedRoomId;
+            return (
+              <tr className={selected ? "is-selected" : undefined} key={listedRoom.roomId}>
+                <th scope="row">{listedRoom.name}</th>
+                <td>
+                  <div className="civic-listed-room-categories">
+                    {listedRoom.categoryIds.map((categoryId) => (
+                      <span key={categoryId}>
+                        {categoryNamesById.get(categoryId) ?? "알 수 없는 카테고리"}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+                <td>{listedRoom.activeMemberCount}명</td>
+                <td>{listedRoom.version}</td>
+                <td>
+                  <button
+                    className="civic-secondary-action"
+                    disabled={disabled || loading || selected}
+                    onClick={() => onSelect(listedRoom)}
+                    type="button"
+                  >
+                    {selected ? "선택됨" : "선택"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -379,6 +598,15 @@ function CategoryTable({
       </table>
     </div>
   );
+}
+
+function mergeListedRooms(
+  current: readonly ListedRoom[],
+  incoming: readonly ListedRoom[],
+): readonly ListedRoom[] {
+  const merged = new Map(current.map((room) => [room.roomId, room]));
+  for (const room of incoming) merged.set(room.roomId, room);
+  return [...merged.values()];
 }
 
 function CategoryRow({

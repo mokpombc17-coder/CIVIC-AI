@@ -22,6 +22,7 @@ describe("direct resource route boundary", () => {
     expect(() =>
       validateDirectResourceRouteOwnership([
         "api/v1/[...path]/route.ts",
+        "api/v1/rooms/route.ts",
         "api/v1/admin/room-creation-requests/[[...path]]/route.ts",
         "api/v1/admin/tasks/[[...path]]/route.ts",
       ]),
@@ -29,6 +30,7 @@ describe("direct resource route boundary", () => {
     expect(() =>
       validateDirectResourceRouteOwnership([
         "api/v1/[...path]/route.ts",
+        "api/v1/rooms/route.ts",
         "api/v1/rag/folders/route.ts",
         "api/v1/admin/room-creation-requests/[[...path]]/route.ts",
         "api/v1/admin/tasks/[[...path]]/route.ts",
@@ -37,6 +39,7 @@ describe("direct resource route boundary", () => {
     expect(() =>
       validateDirectResourceRouteOwnership([
         "api/v1/[...path]/route.ts",
+        "api/v1/rooms/route.ts",
         "api/v1/admin/simulations/[[...path]]/route.ts",
         "api/v1/admin/room-creation-requests/[[...path]]/route.ts",
         "api/v1/admin/tasks/[[...path]]/route.ts",

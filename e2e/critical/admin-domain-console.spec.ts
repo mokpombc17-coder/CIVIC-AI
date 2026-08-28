@@ -16,6 +16,7 @@ let approvedCategoryIds: string[] = [];
 let roomCategories = categoryFixtures();
 let replacedRoomBody: Record<string, unknown> | null = null;
 let removeCategoryOnNextPatch = false;
+let listedRoomQueries: string[] = [];
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -79,6 +80,22 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/admin/room-creation-requests/request-1") {
       return json(response, chatRequest(chatStatus));
     }
+    if (url.pathname === "/api/v1/rooms" && request.method === "GET") {
+      listedRoomQueries.push(url.searchParams.get("query") ?? "");
+      return json(response, {
+        items: [
+          {
+            roomId: "room-1",
+            name: "시민 정책 토론방",
+            categoryIds: [policyCategoryId],
+            activeMemberCount: 4,
+            version: 7,
+          },
+        ],
+        nextCursor: null,
+        hasNext: false,
+      });
+    }
     if (
       url.pathname === "/api/v1/admin/room-creation-requests/request-1/approve" &&
       request.method === "POST"
@@ -135,6 +152,7 @@ test.beforeEach(() => {
   roomCategories = categoryFixtures();
   replacedRoomBody = null;
   removeCategoryOnNextPatch = false;
+  listedRoomQueries = [];
 });
 
 test.afterAll(async () => close(server));
@@ -219,7 +237,7 @@ test("다른 관리자가 삭제한 카테고리의 수정 404에서 최신 목�
   await expect(page.getByRole("row", { name: /대중교통/ })).toHaveCount(0);
 });
 
-test("채팅 관리자는 알고 있는 roomId의 현재 version으로 카테고리를 교체한다", async ({
+test("채팅 관리자는 일반 방 목록에서 선택해 현재 version으로 카테고리를 교체한다", async ({
   context,
   page,
 }) => {
@@ -227,8 +245,13 @@ test("채팅 관리자는 알고 있는 roomId의 현재 version으로 카테고
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/chat/categories");
 
-  await page.getByLabel("채팅방 ID").fill("room-1");
-  await page.getByRole("button", { name: "현재 설정 불러오기" }).click();
+  await page.getByLabel("채팅방 이름 검색").fill("시민");
+  await page.getByRole("button", { name: "검색" }).click();
+  await expect.poll(() => listedRoomQueries).toContain("시민");
+
+  const roomRow = page.getByRole("row", { name: /시민 정책 토론방/ });
+  await expect(roomRow).toContainText("정책");
+  await roomRow.getByRole("button", { name: "선택" }).click();
   const categoryGroup = page.getByRole("group", { name: "교체할 카테고리" });
   await expect(categoryGroup.getByLabel("정책")).toBeChecked();
   await categoryGroup.getByLabel("지역 현안").check();
@@ -239,6 +262,19 @@ test("채팅 관리자는 알고 있는 roomId의 현재 version으로 카테고
     categoryIds: [policyCategoryId, "category-local"],
     expectedVersion: 7,
   });
+});
+
+test("채팅 관리자는 목록에 없는 방을 알고 있는 roomId로 조회한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.goto("/admin/chat/categories");
+
+  await page.getByText("목록에 없는 방 ID로 찾기").click();
+  await page.getByLabel("채팅방 ID").fill("room-1");
+  await page.getByRole("button", { name: "현재 설정 불러오기" }).click();
+
+  await expect(
+    page.getByRole("group", { name: "교체할 카테고리" }).getByLabel("정책"),
+  ).toBeChecked();
 });
 
 test("Vote 관리자는 Draft를 만들고 즉시 발행한다", async ({ context, page }) => {
