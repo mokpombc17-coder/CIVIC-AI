@@ -275,17 +275,20 @@ View는 native Dialog의 focus·Escape·backdrop 동작과 form 표현만 담당
 `VoteLayout`은 `VoteQueryProvider`를 `/vote` 하위 route 전체에 제공한다. Provider는 Vote 전용
 `QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
 `PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
-`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중 목록은 Vote Query를 API 기반
-카드 view model로 변환하고 완료 목록은 후속 연동 전까지 publishing fixture를 사용한다.
+`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중·완료 목록 Vote Query를 API 기반
+카드 view model로 변환한다. 완료 목록은 cursor 기반 다음 페이지 로드를 소유하고, 개발 환경에서는 실제
+완료 API 카드와 구분되는 publishing 디자인 샘플 카드 하나를 함께 제공한다.
 
 `VoteTaskScreen`은 Task 상세 Query로 실제 질문·선택지를 조립하고, 1/4 과업 확인부터 4/4 참여 완료까지의
 local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
-mutation, 종료 bottom sheet를 소유한다. 이미 제출한 열린 Task로 재진입하면 Task 기준 내 제출 Query를
-활성화하고, 참여 폼 대신 4/4 읽기 전용 응답 확인 화면을 조립한다. Prediction의 Persona
-generation/version과 prediction ID는 제출 identity로 사용하고, 선택한 option에 해당하는 예상 이유는
-`AI_ACCEPTED`, 직접 입력은 `USER_WRITTEN`으로 분기한다. `VoteTaskResultScreen`은 예정 결과 계약을 반영한
-fixture의 count를 percentage로 변환하고 내 선택과 이유를 표시한다. Vote API client와 query hook은
-Provider가 제공하는 client cache를 공유한다.
+mutation, 종료 bottom sheet를 소유한다. Prediction 조회·생성 실패에는 사용자 주도의 재시도를 제공하고,
+session storage에 남은 미확정 제출은 자동 전송하지 않고 동일 key·body 재제출 또는 새 작성 선택을 받는다.
+이미 제출한 열린 Task로 재진입하면 Task 기준 내 제출 Query를 활성화하고, 참여 폼 대신 4/4 읽기 전용
+응답 확인 화면을 조립한다. Prediction의 Persona generation/version과 prediction ID는 제출 identity로
+사용하고, 선택한 option에 해당하는 예상 이유는 `AI_ACCEPTED`, 직접 입력은 `USER_WRITTEN`으로 분기한다.
+`VoteTaskResultScreen`은 완료 결과 Query를 조회해 option count를 percentage로 변환한다. 개발 전용
+`source=mock` 진입은 실제 API를 호출하지 않고 publishing 결과 샘플을 같은 view model로 변환해 그래프
+시각 검수에 사용한다. Vote API client와 query hook은 Provider가 제공하는 client cache를 공유한다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)

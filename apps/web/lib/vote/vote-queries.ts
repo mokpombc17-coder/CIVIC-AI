@@ -114,7 +114,7 @@ export function useSubmitTaskMutation(taskId: string) {
   });
 }
 
-export function useCompletedTasksQuery(size = 20) {
+export function useCompletedTasksQuery(size = 20, enabled = true) {
   return useInfiniteQuery({
     queryKey: voteQueryKeys.completedTasks(),
     queryFn: ({ pageParam, signal }) =>
@@ -124,6 +124,7 @@ export function useCompletedTasksQuery(size = 20) {
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled,
     refetchOnWindowFocus: true,
   });
 }

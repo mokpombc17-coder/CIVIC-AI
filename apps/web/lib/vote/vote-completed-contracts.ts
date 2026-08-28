@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-const uuidSchema = z.string().uuid();
+// Local result bootstrap fixtures currently use canonical UUID-shaped identifiers
+// whose version/variant bits are not RFC-compliant. Keep this compatibility
+// limited to the completed-task/result contracts until Backend fixtures are fixed.
+const uuidSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
 const timestampSchema = z.string().min(1);
 const closureTypeSchema = z.enum(["DEADLINE_REACHED", "EARLY_CLOSED"]);
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import {
   PlatformHeader,
@@ -14,6 +14,8 @@ import { formatVoteDateTime } from "@/lib/vote/vote-format";
 import {
   clearPendingTaskSubmission,
   getOrCreatePendingTaskSubmission,
+  readPendingTaskSubmission,
+  type PendingTaskSubmission,
 } from "@/lib/vote/vote-idempotent-submission";
 import {
   useOpenTaskQuery,
@@ -47,6 +49,8 @@ type TaskOption = UserTaskDetail["task"]["question"]["options"][number];
 
 const DIRECT_REASON_MAX_LENGTH = 500;
 const COMPLETION_BURST_DOTS = [0, 1, 2, 3, 4, 5] as const;
+const SUBMISSION_LOADING_DELAY_MS = 150;
+const SUBMISSION_LOADING_MIN_VISIBLE_MS = 300;
 
 export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const queryClient = useQueryClient();
@@ -62,10 +66,21 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const [directReason, setDirectReason] = useState("");
   const [directReasonError, setDirectReasonError] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [recoverableSubmission, setRecoverableSubmission] = useState<PendingTaskSubmission | null>(
+    () => (typeof window === "undefined" ? null : readPendingTaskSubmission(taskId)),
+  );
   const [cancelOpen, setCancelOpen] = useState(false);
   const taskDetail = taskQuery.data;
   const isViewingSubmittedResponse = Boolean(taskDetail?.submission.submitted && step === 1);
+  const isRecoveringSubmission = Boolean(
+    taskDetail && !taskDetail.submission.submitted && recoverableSubmission && step === 1,
+  );
   const taskSubmissionQuery = useTaskSubmissionQuery(taskId, isViewingSubmittedResponse);
+  const showSubmissionLoading = useDelayedLoadingIndicator(
+    isViewingSubmittedResponse && taskSubmissionQuery.isPending,
+    SUBMISSION_LOADING_DELAY_MS,
+    SUBMISSION_LOADING_MIN_VISIBLE_MS,
+  );
   const options = useMemo(
     () => sortTaskOptions(taskDetail?.task.question.options ?? []),
     [taskDetail?.task.question.options],
@@ -87,10 +102,18 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
     ensurePending: ensureMutation.isPending,
   });
   const trimmedDirectReason = directReason.trim();
+  const directReasonLength = Array.from(trimmedDirectReason).length;
   const reasonReady = Boolean(
-    selectedPredictedReason || (reasonChoice?.kind === "USER_WRITTEN" && trimmedDirectReason),
+    selectedPredictedReason ||
+    (reasonChoice?.kind === "USER_WRITTEN" &&
+      trimmedDirectReason &&
+      directReasonLength <= DIRECT_REASON_MAX_LENGTH),
   );
   const confirmationReason = selectedPredictedReason?.reason ?? trimmedDirectReason;
+
+  useEffect(() => {
+    if (taskDetail?.submission.submitted) clearPendingTaskSubmission(taskId);
+  }, [taskDetail?.submission.submitted, taskId]);
 
   const backAction = useMemo<PlatformHeaderBackAction>(() => {
     if (step === 1) return { href: "/vote", ariaLabel: "투표 목록으로" };
@@ -124,6 +147,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
 
   function resetSubmissionAttempt() {
     clearPendingTaskSubmission(taskId);
+    setRecoverableSubmission(null);
     submissionMutation.reset();
     setSubmissionError(null);
   }
@@ -135,7 +159,6 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       return;
     }
 
-    setSubmissionError(null);
     try {
       const selection: VoteReasonSelection =
         reasonChoice.kind === "AI_ACCEPTED"
@@ -148,12 +171,23 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         selection,
       });
       const pending = getOrCreatePendingTaskSubmission(taskId, command);
+      await submitPendingTask(pending);
+    } catch (error) {
+      setSubmissionError(getTaskSubmissionErrorMessage(error));
+    }
+  }
+
+  async function submitPendingTask(pending: PendingTaskSubmission) {
+    setSubmissionError(null);
+    try {
       await submissionMutation.mutateAsync(pending);
       clearPendingTaskSubmission(taskId);
+      setRecoverableSubmission(null);
       setStep(4);
     } catch (error) {
       if (error instanceof VoteApiError) {
         clearPendingTaskSubmission(taskId);
+        setRecoverableSubmission(null);
         if (error.code === "TASK_ALREADY_SUBMITTED") {
           void queryClient.invalidateQueries({ queryKey: voteQueryKeys.tasks() });
           setStep(4);
@@ -171,9 +205,19 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         ) {
           void predictionQuery.refetch();
         }
+      } else {
+        setRecoverableSubmission(pending);
       }
       setSubmissionError(getTaskSubmissionErrorMessage(error));
     }
+  }
+
+  function retryPredictionPreparation() {
+    if (predictionQuery.isError) {
+      void predictionQuery.refetch();
+      return;
+    }
+    ensureMutation.mutate();
   }
 
   return (
@@ -204,23 +248,42 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             step={isViewingSubmittedResponse ? 4 : step}
           />
         ) : null}
-        {taskDetail && isViewingSubmittedResponse && taskSubmissionQuery.isPending ? (
-          <TaskFeedback message="제출한 응답을 불러오는 중입니다." />
+        {taskDetail && isViewingSubmittedResponse && showSubmissionLoading ? (
+          <TaskFeedback loading message="제출한 응답을 불러오는 중입니다." />
         ) : null}
-        {taskDetail && isViewingSubmittedResponse && taskSubmissionQuery.isError ? (
+        {taskDetail &&
+        isViewingSubmittedResponse &&
+        !showSubmissionLoading &&
+        taskSubmissionQuery.isError ? (
           <TaskFeedback
             message={getTaskSubmissionViewErrorMessage(taskSubmissionQuery.error)}
             onRetry={() => void taskSubmissionQuery.refetch()}
           />
         ) : null}
-        {taskDetail && isViewingSubmittedResponse && taskSubmissionQuery.data ? (
+        {taskDetail &&
+        isViewingSubmittedResponse &&
+        !showSubmissionLoading &&
+        taskSubmissionQuery.data ? (
           <SubmittedTaskResponse detail={taskDetail} submission={taskSubmissionQuery.data} />
         ) : null}
-        {taskDetail && !isViewingSubmittedResponse && step === 1 ? (
+        {taskDetail && isRecoveringSubmission && recoverableSubmission ? (
+          <PendingSubmissionRecovery
+            detail={taskDetail}
+            errorMessage={submissionError}
+            isSubmitting={submissionMutation.isPending}
+            onDiscard={resetSubmissionAttempt}
+            onRetry={() => void submitPendingTask(recoverableSubmission)}
+            pending={recoverableSubmission}
+            predictionView={predictionView}
+          />
+        ) : null}
+        {taskDetail && !isViewingSubmittedResponse && !isRecoveringSubmission && step === 1 ? (
           <TaskOverview
             canContinue={participationReady}
+            canRetryPreparation={predictionQuery.isError || ensureMutation.isError}
             detail={taskDetail}
             onContinue={() => setStep(2)}
+            onRetryPreparation={retryPredictionPreparation}
             preparationMessage={preparationMessage}
           />
         ) : null}
@@ -229,6 +292,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             allowDirectReason={directReasonAllowed}
             directReason={directReason}
             directReasonError={directReasonError}
+            directReasonLength={directReasonLength}
             onCancel={() => setCancelOpen(true)}
             onChooseOption={chooseOption}
             onChooseReason={(choice) => {
@@ -241,7 +305,12 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             onDirectReasonChange={(value) => {
               resetSubmissionAttempt();
               setDirectReason(value);
-              if (value.trim()) setDirectReasonError(null);
+              const length = Array.from(value.trim()).length;
+              setDirectReasonError(
+                length > DIRECT_REASON_MAX_LENGTH
+                  ? "응답 이유는 500자 이하로 입력해 주세요."
+                  : null,
+              );
             }}
             onSubmit={moveToConfirmation}
             options={options}
@@ -266,9 +335,63 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   );
 }
 
-function TaskFeedback({ message, onRetry }: { message: string; onRetry?: () => void }) {
+function useDelayedLoadingIndicator(
+  pending: boolean,
+  delayMs: number,
+  minimumVisibleMs: number,
+): boolean {
+  const [visible, setVisible] = useState(false);
+  const visibleSinceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (pending) {
+      if (visible) return;
+
+      const showTimer = window.setTimeout(() => {
+        visibleSinceRef.current = Date.now();
+        setVisible(true);
+      }, delayMs);
+
+      return () => window.clearTimeout(showTimer);
+    }
+
+    if (!visible) {
+      visibleSinceRef.current = null;
+      return;
+    }
+
+    const elapsed = Date.now() - (visibleSinceRef.current ?? Date.now());
+    const hideTimer = window.setTimeout(
+      () => {
+        visibleSinceRef.current = null;
+        setVisible(false);
+      },
+      Math.max(0, minimumVisibleMs - elapsed),
+    );
+
+    return () => window.clearTimeout(hideTimer);
+  }, [delayMs, minimumVisibleMs, pending, visible]);
+
+  return visible;
+}
+
+function TaskFeedback({
+  loading = false,
+  message,
+  onRetry,
+}: {
+  loading?: boolean;
+  message: string;
+  onRetry?: () => void;
+}) {
   return (
-    <div aria-live="polite" className={styles.listFeedback} role={onRetry ? "alert" : "status"}>
+    <div
+      aria-busy={loading || undefined}
+      aria-live="polite"
+      className={styles.listFeedback}
+      role={onRetry ? "alert" : "status"}
+    >
+      {loading ? <span aria-hidden="true" className={styles.loadingSpinner} /> : null}
       <p>{message}</p>
       {onRetry ? (
         <button className={styles.listRetryButton} onClick={onRetry} type="button">
@@ -398,13 +521,17 @@ function VoteProgress({ step, label }: { step: VoteStep; label?: string | undefi
 
 function TaskOverview({
   canContinue,
+  canRetryPreparation,
   detail,
   onContinue,
+  onRetryPreparation,
   preparationMessage,
 }: {
   canContinue: boolean;
+  canRetryPreparation: boolean;
   detail: UserTaskDetail;
   onContinue: () => void;
+  onRetryPreparation: () => void;
   preparationMessage: string | null;
 }) {
   const options = sortTaskOptions(detail.task.question.options);
@@ -436,12 +563,86 @@ function TaskOverview({
       ) : null}
       <button
         className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
-        disabled={!canContinue}
-        onClick={onContinue}
+        disabled={!canContinue && !canRetryPreparation}
+        onClick={canRetryPreparation ? onRetryPreparation : onContinue}
         type="button"
       >
-        {canContinue ? "참여하기" : "준비 중…"}
+        {canRetryPreparation ? "다시 시도" : canContinue ? "참여하기" : "준비 중…"}
       </button>
+    </div>
+  );
+}
+
+function PendingSubmissionRecovery({
+  detail,
+  errorMessage,
+  isSubmitting,
+  onDiscard,
+  onRetry,
+  pending,
+  predictionView,
+}: {
+  detail: UserTaskDetail;
+  errorMessage: string | null;
+  isSubmitting: boolean;
+  onDiscard: () => void;
+  onRetry: () => void;
+  pending: PendingTaskSubmission;
+  predictionView: TaskPredictionView | undefined;
+}) {
+  const selectedOption = sortTaskOptions(detail.task.question.options).find(
+    (option) => option.id === pending.command.selectedOptionId,
+  );
+  let reason: string;
+  if (pending.command.reasonSource === "USER_WRITTEN") {
+    reason = pending.command.reason;
+  } else {
+    const acceptedReasonId = pending.command.acceptedPredictedReasonId;
+    reason =
+      predictionView?.predictedReasons.find((item) => item.id === acceptedReasonId)?.reason ??
+      "AI 예상 이유를 선택한 응답입니다.";
+  }
+
+  return (
+    <div className={styles.flowBody}>
+      <section className={styles.recoveryPanel}>
+        <h2>제출 확인이 필요합니다.</h2>
+        <p>
+          이전 제출의 처리 결과를 확인하지 못했습니다. 자동으로 다시 보내지 않으니 아래 내용을
+          확인해 주세요.
+        </p>
+      </section>
+      <dl className={styles.infoCard}>
+        <InfoRow
+          label="선택한 선택지"
+          value={selectedOption?.content ?? "선택한 응답을 확인할 수 없습니다."}
+        />
+        <InfoRow label="제출할 이유" value={reason} />
+      </dl>
+      {errorMessage ? (
+        <p aria-live="polite" className={styles.submissionError} role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+      <div className={styles.fullActions}>
+        <button
+          aria-busy={isSubmitting}
+          className={styles.fullPrimaryButton}
+          disabled={isSubmitting}
+          onClick={onRetry}
+          type="button"
+        >
+          {isSubmitting ? "다시 제출 중…" : "같은 응답 다시 제출"}
+        </button>
+        <button
+          className={styles.fullSecondaryButton}
+          disabled={isSubmitting}
+          onClick={onDiscard}
+          type="button"
+        >
+          새로 작성
+        </button>
+      </div>
     </div>
   );
 }
@@ -501,6 +702,7 @@ type ComposerProps = Readonly<{
   allowDirectReason: boolean;
   directReason: string;
   directReasonError: string | null;
+  directReasonLength: number;
   onCancel: () => void;
   onChooseOption: (optionId: string) => void;
   onChooseReason: (choice: NonNullable<ReasonChoice>) => void;
@@ -603,7 +805,9 @@ function ResponseComposer(props: ComposerProps) {
                           value={props.directReason}
                         />
                         <div className={styles.directFieldMeta}>
-                          <span className={styles.directFieldHint}>1~500자</span>
+                          <span className={styles.directFieldHint}>
+                            {props.directReasonLength}/{DIRECT_REASON_MAX_LENGTH}자
+                          </span>
                           {props.directReasonError ? (
                             <span className={styles.fieldError}>{props.directReasonError}</span>
                           ) : null}
@@ -620,7 +824,7 @@ function ResponseComposer(props: ComposerProps) {
       <div className={styles.fullActions}>
         <button
           className={styles.fullPrimaryButton}
-          disabled={!props.reasonChoice}
+          disabled={!props.reasonReady}
           onClick={props.onSubmit}
           type="button"
         >

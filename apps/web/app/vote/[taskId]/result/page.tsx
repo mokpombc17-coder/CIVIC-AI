@@ -7,10 +7,17 @@ export const metadata: Metadata = { title: "투표 결과" };
 
 export default async function VoteTaskResultPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ taskId: string }>;
+  searchParams: Promise<{ source?: string | string[] }>;
 }) {
   const parsed = voteTaskIdSchema.safeParse((await params).taskId);
   if (!parsed.success) notFound();
-  return <VoteTaskResultScreen taskId={parsed.data} />;
+  const requestedSource = (await searchParams).source;
+  const useDesignSample =
+    process.env.NODE_ENV !== "production" &&
+    (Array.isArray(requestedSource) ? requestedSource[0] : requestedSource) === "mock";
+
+  return <VoteTaskResultScreen source={useDesignSample ? "mock" : "api"} taskId={parsed.data} />;
 }

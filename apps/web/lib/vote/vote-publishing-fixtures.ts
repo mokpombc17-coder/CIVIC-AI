@@ -25,7 +25,7 @@ export const votePublishingActiveList: readonly VotePublishingListItem[] = [
     title: "지역 교통 개선안",
     supportingText: "결과 확인 가능",
     actionLabel: "결과보기",
-    actionHref: `/vote/${PUBLISHING_COMPLETED_TASK_ID}/result`,
+    actionHref: `/vote/${PUBLISHING_COMPLETED_TASK_ID}/result?source=mock`,
   },
 ] as const;
 

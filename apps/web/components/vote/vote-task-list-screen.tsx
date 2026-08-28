@@ -6,26 +6,49 @@ import { PlatformNavigationClient } from "@/components/platform-navigation-clien
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingCompletedList } from "@/lib/vote/vote-publishing-fixtures";
-import { useOpenTasksQuery } from "@/lib/vote/vote-queries";
 import {
+  flattenCompletedTaskPages,
+  useCompletedTasksQuery,
+  useOpenTasksQuery,
+} from "@/lib/vote/vote-queries";
+import {
+  presentCompletedTask,
   presentOpenTask,
   type VoteTaskListItemPresentation,
 } from "@/lib/vote/vote-task-list-presentation";
 import styles from "./vote.module.css";
 
 type VoteTab = "active" | "completed";
+const SHOW_COMPLETED_DESIGN_SAMPLE = process.env.NODE_ENV !== "production";
 
 export function VoteTaskListScreen() {
   const [tab, setTab] = useState<VoteTab>("active");
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const openTasksQuery = useOpenTasksQuery();
+  const completedTasksQuery = useCompletedTasksQuery(20, tab === "completed");
   const activeTasks = useMemo(
     () => openTasksQuery.data?.map(presentOpenTask) ?? [],
     [openTasksQuery.data],
   );
+  const actualCompletedTasks = useMemo(
+    () => flattenCompletedTaskPages(completedTasksQuery.data?.pages).map(presentCompletedTask),
+    [completedTasksQuery.data?.pages],
+  );
+  const completedTasks = useMemo(
+    () => [
+      ...(SHOW_COMPLETED_DESIGN_SAMPLE
+        ? votePublishingCompletedList.map((task) => ({
+            ...task,
+            sourceLabel: "디자인 샘플" as const,
+          }))
+        : []),
+      ...actualCompletedTasks,
+    ],
+    [actualCompletedTasks],
+  );
   const source: readonly VoteTaskListItemPresentation[] =
-    tab === "active" ? activeTasks : votePublishingCompletedList;
+    tab === "active" ? activeTasks : completedTasks;
   const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
   const tasks = useMemo(
     () =>
@@ -45,6 +68,12 @@ export function VoteTaskListScreen() {
 
   const showingActiveLoading = tab === "active" && openTasksQuery.isPending;
   const showingActiveError = tab === "active" && openTasksQuery.isError;
+  const showingCompletedLoading = tab === "completed" && completedTasksQuery.isPending;
+  const showingCompletedError = tab === "completed" && completedTasksQuery.isError;
+  const showingBlockingLoading =
+    showingActiveLoading || (showingCompletedLoading && completedTasks.length === 0);
+  const showingBlockingError =
+    showingActiveError || (showingCompletedError && completedTasks.length === 0);
 
   return (
     <PlatformShell
@@ -93,22 +122,32 @@ export function VoteTaskListScreen() {
           </div>
         </form>
 
-        {showingActiveLoading ? (
-          <p className={styles.emptyState}>과업 목록을 불러오는 중입니다.</p>
+        {showingBlockingLoading ? (
+          <p className={styles.emptyState}>
+            {tab === "active"
+              ? "과업 목록을 불러오는 중입니다."
+              : "완료한 과업을 불러오는 중입니다."}
+          </p>
         ) : null}
-        {showingActiveError ? (
+        {showingBlockingError ? (
           <div className={styles.listFeedback} role="alert">
-            <p>{getOpenTaskErrorMessage(openTasksQuery.error)}</p>
+            <p>
+              {tab === "active"
+                ? getOpenTaskErrorMessage(openTasksQuery.error)
+                : getCompletedTaskErrorMessage(completedTasksQuery.error)}
+            </p>
             <button
               className={styles.listRetryButton}
-              onClick={() => void openTasksQuery.refetch()}
+              onClick={() =>
+                void (tab === "active" ? openTasksQuery.refetch() : completedTasksQuery.refetch())
+              }
               type="button"
             >
               다시 시도
             </button>
           </div>
         ) : null}
-        {!showingActiveLoading && !showingActiveError ? (
+        {!showingBlockingLoading && !showingBlockingError ? (
           <>
             <ul className={styles.taskList}>
               {tasks.map((task) => (
@@ -124,6 +163,33 @@ export function VoteTaskListScreen() {
                   : "검색 결과가 없습니다."}
               </p>
             ) : null}
+            {showingCompletedLoading ? (
+              <p className={styles.listInlineStatus}>실제 완료 과업을 불러오는 중입니다.</p>
+            ) : null}
+            {showingCompletedError ? (
+              <div className={styles.listInlineFeedback} role="alert">
+                <p>{getCompletedTaskErrorMessage(completedTasksQuery.error)}</p>
+                <button
+                  className={styles.listRetryButton}
+                  onClick={() => void completedTasksQuery.refetch()}
+                  type="button"
+                >
+                  다시 시도
+                </button>
+              </div>
+            ) : null}
+            {tab === "completed" && completedTasksQuery.hasNextPage ? (
+              <div className={styles.completedListActions}>
+                <button
+                  className={styles.listRetryButton}
+                  disabled={completedTasksQuery.isFetchingNextPage}
+                  onClick={() => void completedTasksQuery.fetchNextPage()}
+                  type="button"
+                >
+                  {completedTasksQuery.isFetchingNextPage ? "불러오는 중…" : "더 보기"}
+                </button>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -135,7 +201,10 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
   return (
     <li className={styles.taskCard}>
       <div className={styles.taskCardCopy}>
-        <span className={styles.taskStatus}>{task.statusLabel}</span>
+        <div className={styles.taskBadges}>
+          <span className={styles.taskStatus}>{task.statusLabel}</span>
+          {task.sourceLabel ? <span className={styles.taskSource}>{task.sourceLabel}</span> : null}
+        </div>
         <h2 className={styles.taskTitle}>{task.title}</h2>
         <p className={styles.taskSupporting}>{task.supportingText}</p>
       </div>
@@ -152,4 +221,12 @@ function getOpenTaskErrorMessage(error: unknown): string {
     if (error.status === 403) return "과업 목록을 조회할 권한이 없습니다.";
   }
   return "과업 목록을 불러오지 못했습니다.";
+}
+
+function getCompletedTaskErrorMessage(error: unknown): string {
+  if (error instanceof VoteApiError) {
+    if (error.status === 401) return "로그인 후 완료한 과업을 확인할 수 있습니다.";
+    if (error.status === 403) return "완료한 과업을 조회할 권한이 없습니다.";
+  }
+  return "완료한 과업을 불러오지 못했습니다.";
 }

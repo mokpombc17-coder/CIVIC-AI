@@ -44,7 +44,7 @@ export function createReadyVoteCompletedApi(request: VoteFetch = voteFetch): Vot
 }
 
 export function getVoteCompletedApiMode(): VoteCompletedApiMode {
-  return process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE === "ready" ? "ready" : "mock";
+  return process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE === "mock" ? "mock" : "ready";
 }
 
 export function createVoteCompletedApi(mode = getVoteCompletedApiMode()): VoteCompletedApi {

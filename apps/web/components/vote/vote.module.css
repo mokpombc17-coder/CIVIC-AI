@@ -148,6 +148,13 @@
   min-width: 0;
 }
 
+.taskBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .taskStatus {
   display: inline-flex;
   height: 22px;
@@ -159,6 +166,20 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 18px;
+}
+
+.taskSource {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  border: 1px solid var(--vote-border);
+  border-radius: 4px;
+  background: #fff;
+  padding: 0 7px;
+  color: var(--vote-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
 }
 
 .taskTitle {
@@ -213,6 +234,21 @@
   margin: 0;
 }
 
+.loadingSpinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #d9e6f5;
+  border-top-color: var(--vote-primary);
+  border-radius: 50%;
+  animation: voteLoadingSpin 700ms linear infinite;
+}
+
+@keyframes voteLoadingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .listRetryButton {
   min-width: 88px;
   height: 40px;
@@ -222,6 +258,38 @@
   color: var(--vote-primary-emphasis);
   cursor: pointer;
   font-weight: 700;
+}
+
+.listRetryButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.listInlineStatus {
+  margin: 16px 0 0;
+  color: var(--vote-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.listInlineFeedback {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: var(--vote-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.listInlineFeedback p {
+  margin: 0;
+}
+
+.completedListActions {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
 }
 
 .flowSurface {
@@ -474,6 +542,31 @@
   line-height: 20px;
 }
 
+.recoveryPanel {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #b7cdfd;
+  border-radius: 8px;
+  background: var(--vote-soft);
+  padding: 16px;
+}
+
+.recoveryPanel h2,
+.recoveryPanel p {
+  margin: 0;
+}
+
+.recoveryPanel h2 {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.recoveryPanel p {
+  color: var(--vote-muted);
+  font-size: 14px;
+  line-height: 21px;
+}
+
 .choiceGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -709,9 +802,13 @@
     transition: none;
   }
 
+  .loadingSpinner,
+  .successBurstDot {
+    animation: none;
+  }
+
   .successBurstDot {
     display: none;
-    animation: none;
   }
 }
 
@@ -736,6 +833,11 @@
 .fullSecondaryButton {
   background: #fff;
   color: var(--vote-primary-emphasis);
+}
+
+.fullSecondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .confirmCard {
