@@ -1652,8 +1652,8 @@ describe("9 functional RAG screens", () => {
   it("Wire Flow의 첫 번째 RAG 행동 문구를 그대로 사용한다", () => {
     expect(ragScreenPrimaryActions).toEqual({
       "U-RAG-001": "질문 전송",
-      "U-RAG-002": "다음 페이지",
-      "U-RAG-003": "다른 페이지 보기",
+      "U-RAG-002": "연속 스크롤",
+      "U-RAG-003": "인용 페이지 위치 보기",
       "A-RAG-001": "폴더 추가·수정",
       "A-RAG-002": "폴더 저장",
       "A-RAG-003": "이 폴더에 업로드",

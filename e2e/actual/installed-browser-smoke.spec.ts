@@ -52,7 +52,7 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/queries/actual-query") {
       return json(response, queryResult);
     }
-    if (url.pathname === "/internal/v1/rag/sources/version-1/pages/3") {
+    if (url.pathname === "/internal/v1/rag/sources/version-1/pages/3/document") {
       response.writeHead(200, { "content-type": "application/pdf" });
       response.end("%PDF-1.4\n%%EOF\n");
       return;
@@ -98,7 +98,10 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await expect(page).toHaveURL(/\/rag$/);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
   await expect(page.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
-  await expect(page.getByText("3/12페이지 · 100%")).toBeVisible();
+  await expect(page.locator('[data-pdf-scroll-mode="continuous"]')).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "이전 페이지" })).toHaveCount(0);
+  await expect(page.getByText("전체 12페이지 · 인용 3페이지 · 연속 스크롤")).toBeVisible();
   await record(page, browser.version(), "chrome", testInfo.project.name);
 });
 

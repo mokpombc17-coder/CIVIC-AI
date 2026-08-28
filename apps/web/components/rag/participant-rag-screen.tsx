@@ -320,7 +320,6 @@ function RagConversation({
               currentPage={activeCitation.page_number}
               documentTitle={activeCitation.title ?? "인용 문서"}
               onClose={() => setActiveCitation(null)}
-              onPageChange={(page) => setActiveCitation({ ...activeCitation, page_number: page })}
               sourceUrl={`/api/v1/rag/sources/${encodeURIComponent(activeCitation.document_version_id)}/pages/${activeCitation.page_number}`}
               totalPages={citationTotalPages(activeCitation)}
             />
