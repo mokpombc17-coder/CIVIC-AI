@@ -596,6 +596,22 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml).toContain("계정 재활성화");
   });
 
+  it("AUTH-001의 테스트 로그인 버튼은 개발 호스트에서만 렌더링한다", () => {
+    const login = mainScreens.find((screen) => screen.id === "AUTH-001");
+    if (!login) throw new Error("AUTH-001 wire flow screen missing");
+
+    const publicHtml = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: login }));
+    const devHtml = renderToStaticMarkup(
+      createElement(MainFunctionalScreen, { screen: login, devQuickLoginEnabled: true }),
+    );
+
+    expect(publicHtml).not.toContain("일반 사용자 테스트 로그인");
+    expect(publicHtml).not.toContain("관리자 테스트 로그인");
+    expect(devHtml).toContain("개발 테스트 로그인");
+    expect(devHtml).toContain("일반 사용자 테스트 로그인");
+    expect(devHtml).toContain("관리자 테스트 로그인");
+  });
+
   it("인증 코드와 비밀번호 재설정은 최신 카드·안내 구조를 공유한다", () => {
     for (const id of ["AUTH-005", "AUTH-006", "AUTH-008"]) {
       const screen = mainScreens.find((item) => item.id === id);

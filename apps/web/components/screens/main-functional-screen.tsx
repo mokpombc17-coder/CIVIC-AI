@@ -21,17 +21,25 @@ export function MainFunctionalScreen({
   initialSearch = "",
   adminCurrentUser,
   requiresLoginForProtectedLinks = false,
+  devQuickLoginEnabled = false,
 }: Readonly<{
   screen: ScreenDefinition;
   initialSearch?: string;
   adminCurrentUser?: Pick<CurrentUser, "role" | "permissions">;
   requiresLoginForProtectedLinks?: boolean;
+  devQuickLoginEnabled?: boolean;
 }>) {
   if (screen.owner !== "MAIN_AUTH" || screen.status !== "FUNCTIONAL") {
     throw new TypeError(`MainFunctionalScreen cannot render ${screen.id}.`);
   }
   if (screen.id.startsWith("AUTH-")) {
-    return <AuthFunctionalScreen initialSearch={initialSearch} screen={screen} />;
+    return (
+      <AuthFunctionalScreen
+        devQuickLoginEnabled={devQuickLoginEnabled}
+        initialSearch={initialSearch}
+        screen={screen}
+      />
+    );
   }
   if (screen.id.startsWith("U-ACCOUNT-")) return <AccountFunctionalScreen screen={screen} />;
   if (screen.id.startsWith("A-")) {

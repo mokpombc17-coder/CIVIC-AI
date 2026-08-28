@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
@@ -9,6 +10,7 @@ import { RagFunctionalScreen, type RagQuery } from "@/components/rag/rag-functio
 import { ragReturnTarget } from "@/lib/auth/rag-return-target";
 import { PlatformPageShell } from "@/components/platform-page-shell";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
+import { devQuickLoginAvailable, readDevQuickLoginConfig } from "@/lib/server/dev-quick-login";
 
 type ParticipantPlaceholderPageProps = Readonly<{
   params: Promise<{ feature: string; screen?: string[] }>;
@@ -29,6 +31,10 @@ export default async function ParticipantPlaceholderPage({
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "MAIN_AUTH") {
     if (definition.audience === "PUBLIC") {
+      const requestHeaders = await headers();
+      const devQuickLoginEnabled =
+        definition.id === "AUTH-001" &&
+        devQuickLoginAvailable(requestHeaders.get("host"), readDevQuickLoginConfig(process.env));
       const backHref =
         definition.id === "AUTH-005" && query.kind === "two-factor"
           ? ("/login" as const)
@@ -41,7 +47,11 @@ export default async function ParticipantPlaceholderPage({
           bottomNavigation={null}
           title={heading.title}
         >
-          <MainFunctionalScreen initialSearch={serializeSearchParams(query)} screen={definition} />
+          <MainFunctionalScreen
+            devQuickLoginEnabled={devQuickLoginEnabled}
+            initialSearch={serializeSearchParams(query)}
+            screen={definition}
+          />
         </PlatformPageShell>
       );
     }
