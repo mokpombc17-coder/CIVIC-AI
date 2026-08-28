@@ -23,6 +23,10 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain(">참여한 방</h2>");
     expect(html).toContain(">참여 가능한 방</h2>");
     expect(html).toContain("참여 가능한 방이 없습니다.");
+    expect(html.match(/data-chat-room-list-state="empty"/g)).toHaveLength(2);
+    expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+    expect(html).not.toContain("border-dashed");
+    expect(html).not.toContain("border-slate-300");
     expect(html).toContain('data-platform-shell="true"');
     expect(html.match(/data-scroll="self"/g)).toHaveLength(2);
     expect(html).toContain('aria-label="참여자 주요 메뉴"');
@@ -36,6 +40,21 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain(">계정</span>");
     expect(html).not.toContain("채팅방 생성 신청 내역");
     expect(html).not.toContain("Chat Resource Server");
+  });
+
+  it("목록 조회 오류와 로딩 상태를 publishing token 기반 상태 카드로 표시한다", () => {
+    const errorHtml = renderChatRoomListView("ALL", false, "error");
+    const loadingHtml = renderChatRoomListView("ALL", false, "loading");
+
+    expect(errorHtml.match(/data-chat-room-list-state="error"/g)).toHaveLength(2);
+    expect(errorHtml).toContain("참여 중인 방을 불러오지 못했습니다.");
+    expect(errorHtml).toContain("공개 방을 불러오지 못했습니다.");
+    expect(errorHtml.match(/>다시 불러오기<\/button>/g)).toHaveLength(2);
+    expect(errorHtml).toContain("bg-[#fff7e8]");
+    expect(errorHtml).not.toContain("secondary-button");
+    expect(errorHtml).not.toContain("bg-red-50");
+    expect(loadingHtml.match(/data-chat-room-list-state="loading"/g)).toHaveLength(2);
+    expect(loadingHtml.match(/role="status"/g)).toHaveLength(2);
   });
 
   it("안읽음 filter 결과가 비면 현재 누적 목록 기준임을 안내한다", () => {
@@ -189,16 +208,20 @@ const PUBLIC_ROOM: PublicRoomListItem = {
   version: 1,
 };
 
-function renderChatRoomListView(filter: "ALL" | "UNREAD", isCreateRoomOpen = false): string {
+function renderChatRoomListView(
+  filter: "ALL" | "UNREAD",
+  isCreateRoomOpen = false,
+  listStatus: "empty" | "error" | "loading" = "empty",
+): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const emptyListState = {
-    error: null,
+    error: listStatus === "error" ? new Error("목록 조회 실패") : null,
     hasNextPage: false,
-    isError: false,
+    isError: listStatus === "error",
     isFetchingNextPage: false,
-    isPending: false,
+    isPending: listStatus === "loading",
     loadMore: vi.fn(),
     retry: vi.fn(),
     rooms: [],

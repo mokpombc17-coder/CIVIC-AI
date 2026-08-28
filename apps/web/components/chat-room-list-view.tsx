@@ -99,7 +99,7 @@ export function ChatRoomListView({
           />
 
           {participatingRooms.isPending && participatingRooms.rooms.length === 0 ? (
-            <RoomListNotice message="참여 중인 방을 불러오고 있습니다." />
+            <RoomListNotice kind="loading" message="참여 중인 방을 불러오고 있습니다." />
           ) : participatingRoomFilter.value === "UNREAD" &&
             participatingRooms.rooms.length === 0 &&
             !participatingRooms.isError ? (
@@ -148,7 +148,7 @@ export function ChatRoomListView({
           />
 
           {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
-            <RoomListNotice message="공개 방을 불러오고 있습니다." />
+            <RoomListNotice kind="loading" message="공개 방을 불러오고 있습니다." />
           ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
             <RoomListNotice message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms} />
           ) : publicRooms.rooms.length > 0 ? (
@@ -193,7 +193,7 @@ function RoomListSection({ children, separated = false, title }: RoomListSection
     <section
       className={
         separated
-          ? "grid gap-3 border-t border-[var(--chat-publishing-color-muted)] pt-5"
+          ? "grid gap-3 border-t border-[var(--chat-publishing-color-border)] pt-5"
           : "grid gap-3"
       }
     >
@@ -326,20 +326,63 @@ function QueryFailure({
   }
 
   return (
-    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950" role="alert">
-      <p className="text-sm font-semibold">{title}</p>
-      <p className="mt-1 text-xs opacity-80">{errorMessage ?? toErrorMessage(error)}</p>
-      <button className="secondary-button mt-3" onClick={onRetry} type="button">
+    <div
+      className="rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-4 text-[var(--chat-publishing-color-text)]"
+      data-chat-room-list-state="error"
+      role="alert"
+    >
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-base font-bold text-[#8a5700]"
+        >
+          !
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold leading-6">{title}</p>
+          <p className="mt-1 break-words text-sm leading-5 text-[#7a4b00]">
+            {errorMessage ?? toErrorMessage(error)}
+          </p>
+        </div>
+      </div>
+      <button
+        className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        onClick={onRetry}
+        type="button"
+      >
         다시 불러오기
       </button>
     </div>
   );
 }
 
-function RoomListNotice({ message }: { message: string }) {
+function RoomListNotice({
+  kind = "empty",
+  message,
+}: {
+  kind?: "empty" | "loading";
+  message: string;
+}) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
-      <p className="text-sm text-slate-500">{message}</p>
+    <div
+      aria-live={kind === "loading" ? "polite" : undefined}
+      className="flex min-h-28 flex-col items-center justify-center rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-5 py-6 text-center"
+      data-chat-room-list-state={kind}
+      role={kind === "loading" ? "status" : undefined}
+    >
+      <span
+        aria-hidden="true"
+        className={`mb-3 flex size-9 items-center justify-center rounded-full border-2 ${
+          kind === "loading"
+            ? "animate-spin border-[var(--chat-publishing-color-border)] border-t-[var(--chat-publishing-color-primary)]"
+            : "border-[var(--chat-publishing-color-border)] bg-white text-[var(--chat-publishing-color-muted)]"
+        }`}
+      >
+        {kind === "empty" ? "−" : null}
+      </span>
+      <p className="text-sm font-medium leading-5 text-[var(--chat-publishing-color-muted)]">
+        {message}
+      </p>
     </div>
   );
 }
@@ -361,7 +404,12 @@ function LoadMoreButton({
 
   return (
     <div className="mt-4 text-center">
-      <button className="secondary-button" disabled={isFetching} onClick={onClick} type="button">
+      <button
+        className="inline-flex min-h-11 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-5 text-sm font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={isFetching}
+        onClick={onClick}
+        type="button"
+      >
         {isFetching ? "불러오는 중…" : label}
       </button>
     </div>
