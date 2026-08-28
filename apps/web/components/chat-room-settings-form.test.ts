@@ -36,7 +36,6 @@ describe("room settings form patch", () => {
       createRoomSettingsPatch(CURRENT_SETTINGS, {
         name: " 시민 AI 토론방 ",
         description: "\tAI 정책을 논의합니다.\n",
-        categories: ["POLICY"],
         visibility: "LISTED",
         joinPolicy: "OPEN",
       }),
@@ -51,7 +50,6 @@ describe("room settings form patch", () => {
       createRoomSettingsPatch(CURRENT_SETTINGS, {
         name: CURRENT_SETTINGS.name,
         description: " 새 설명 ",
-        categories: CURRENT_SETTINGS.categories,
         visibility: "UNLISTED",
         joinPolicy: CURRENT_SETTINGS.joinPolicy,
       }),
@@ -64,39 +62,10 @@ describe("room settings form patch", () => {
     });
   });
 
-  it("카테고리가 바뀌면 선택한 하나를 전체 replacement 배열로 포함한다", () => {
-    expect(
-      createRoomSettingsPatch(CURRENT_SETTINGS, {
-        ...CURRENT_SETTINGS,
-        categories: ["ENVIRONMENT"],
-      }),
-    ).toEqual({
-      success: true,
-      patch: {
-        categories: ["ENVIRONMENT"],
-      },
-    });
-  });
-
-  it("카테고리가 없거나 두 개 이상이면 validation에서 거절한다", () => {
-    expect(
-      createRoomSettingsPatch(CURRENT_SETTINGS, {
-        ...CURRENT_SETTINGS,
-        categories: [],
-      }),
-    ).toMatchObject({ success: false });
-    expect(
-      createRoomSettingsPatch(CURRENT_SETTINGS, {
-        ...CURRENT_SETTINGS,
-        categories: ["POLICY", "ENVIRONMENT"],
-      }),
-    ).toMatchObject({ success: false });
-  });
-
   it("공백뿐인 description은 빈 문자열로 정규화해 설명 제거 patch를 만든다", () => {
     expect(
       createRoomSettingsPatch(CURRENT_SETTINGS, {
-        ...CURRENT_SETTINGS,
+        ...CURRENT_DRAFT,
         description: " \t\n ",
       }),
     ).toEqual({
@@ -110,11 +79,11 @@ describe("room settings form patch", () => {
   it("description은 JavaScript string.length가 아니라 Unicode code point 기준으로 검증한다", () => {
     const maxLengthDescription = "😀".repeat(500);
     const valid = createRoomSettingsPatch(CURRENT_SETTINGS, {
-      ...CURRENT_SETTINGS,
+      ...CURRENT_DRAFT,
       description: maxLengthDescription,
     });
     const tooLong = createRoomSettingsPatch(CURRENT_SETTINGS, {
-      ...CURRENT_SETTINGS,
+      ...CURRENT_DRAFT,
       description: `${maxLengthDescription}😀`,
     });
 
@@ -132,7 +101,7 @@ describe("room settings form patch", () => {
   it("TAB/LF/CR 외의 C0 제어문자가 있거나 필드가 null이면 validation에서 거절한다", () => {
     expect(
       createRoomSettingsPatch(CURRENT_SETTINGS, {
-        ...CURRENT_SETTINGS,
+        ...CURRENT_DRAFT,
         description: "허용되지 않는\u0000설명",
       }),
     ).toMatchObject({
@@ -140,7 +109,7 @@ describe("room settings form patch", () => {
     });
     expect(
       createRoomSettingsPatch(CURRENT_SETTINGS, {
-        ...CURRENT_SETTINGS,
+        ...CURRENT_DRAFT,
         name: null,
       }),
     ).toMatchObject({
@@ -152,7 +121,7 @@ describe("room settings form patch", () => {
 describe("room settings form to mutation integration", () => {
   it("변경 필드만 같은 멱등 command에 담아 API로 전달하고 설정 관련 cache만 무효화한다", async () => {
     const result = createRoomSettingsPatch(CURRENT_SETTINGS, {
-      ...CURRENT_SETTINGS,
+      ...CURRENT_DRAFT,
       description: " 변경된 설명 ",
       visibility: "UNLISTED",
     });
@@ -171,7 +140,7 @@ describe("room settings form to mutation integration", () => {
       roomId: "room-01",
       name: CURRENT_SETTINGS.name,
       description: "변경된 설명",
-      categories: CURRENT_SETTINGS.categories,
+      categoryIds: CURRENT_SETTINGS.categoryIds,
       visibility: "UNLISTED" as const,
       joinPolicy: CURRENT_SETTINGS.joinPolicy,
       roomVersion: 2,
@@ -233,7 +202,14 @@ function isInvalidated(queryClient: QueryClient, queryKey: readonly unknown[]): 
 const CURRENT_SETTINGS = {
   name: "시민 AI 토론방",
   description: "AI 정책을 논의합니다.",
-  categories: ["POLICY"],
+  categoryIds: ["00000000-0000-4000-8000-000000000001"],
   visibility: "LISTED",
   joinPolicy: "OPEN",
 } satisfies RoomSettings;
+
+const CURRENT_DRAFT = {
+  name: CURRENT_SETTINGS.name,
+  description: CURRENT_SETTINGS.description,
+  visibility: CURRENT_SETTINGS.visibility,
+  joinPolicy: CURRENT_SETTINGS.joinPolicy,
+};

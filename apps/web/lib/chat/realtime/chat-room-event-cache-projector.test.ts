@@ -104,7 +104,7 @@ describe("chat room event cache projector", () => {
       roomVersion: 2,
       name: "새 방 이름",
       description: "새 방 설명",
-      categories: ["ENVIRONMENT"],
+      categoryIds: ["00000000-0000-4000-8000-000000000002"],
       visibility: "UNLISTED",
       joinPolicy: "INVITE_ONLY",
     });
@@ -121,7 +121,7 @@ describe("chat room event cache projector", () => {
     ).toMatchObject({
       name: "새 방 이름",
       description: "새 방 설명",
-      categories: ["ENVIRONMENT"],
+      categoryIds: ["00000000-0000-4000-8000-000000000002"],
       visibility: "UNLISTED",
       joinPolicy: "INVITE_ONLY",
       version: 2,
@@ -288,7 +288,7 @@ function createSettingsUpdatedEvent({
   roomVersion,
   name = "시민 AI 토론방",
   description = "",
-  categories = ["POLICY"],
+  categoryIds = ["00000000-0000-4000-8000-000000000001"],
   visibility = "LISTED",
   joinPolicy = "OPEN",
 }: {
@@ -296,7 +296,11 @@ function createSettingsUpdatedEvent({
   roomVersion: number;
   name?: string;
   description?: string;
-  categories?: ("POLICY" | "ENVIRONMENT" | "LOCAL_ISSUE")[];
+  categoryIds?: (
+    | "00000000-0000-4000-8000-000000000001"
+    | "00000000-0000-4000-8000-000000000002"
+    | "00000000-0000-4000-8000-000000000003"
+  )[];
   visibility?: "LISTED" | "UNLISTED";
   joinPolicy?: "OPEN" | "INVITE_ONLY";
 }): ChatRoomEventEnvelope {
@@ -311,7 +315,7 @@ function createSettingsUpdatedEvent({
       roomStatus: "ACTIVE",
       name,
       description,
-      categories,
+      categoryIds,
       visibility,
       joinPolicy,
     },
@@ -333,7 +337,7 @@ const ROOM_DETAILS = {
   roomId: "room-01",
   name: "시민 AI 토론방",
   description: "",
-  categories: ["POLICY"],
+  categoryIds: ["00000000-0000-4000-8000-000000000001"],
   ownerMembershipId: "membership-01",
   status: "ACTIVE",
   visibility: "LISTED",

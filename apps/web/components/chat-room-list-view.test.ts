@@ -77,11 +77,10 @@ describe("chat room list publishing layout", () => {
 });
 
 describe("chat room list cards", () => {
-  it("참여 Room card에 category, 제목, 정원·unread 상태와 분리된 입장·상세 action을 표시한다", () => {
+  it("참여 Room card에 제목, 정원·unread 상태와 분리된 입장·상세 action을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem());
 
     expect(html).toContain("프로젝트 회의방");
-    expect(html).toContain("지역 현안");
     expect(html).not.toContain("다음 회의는 월요일입니다.");
     expect(html).toContain("읽지 않음 4");
     expect(html).toContain('aria-hidden="true">·</span>');
@@ -138,7 +137,7 @@ describe("chat room list cards", () => {
     expect(html).toContain("새 메시지 없음");
   });
 
-  it("참여 가능 Room card는 category, 제목, 정원과 상세 action만 표시한다", () => {
+  it("참여 가능 Room card는 제목, 정원과 상세 action만 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(PublicRoomCard, {
         isDetailOpen: false,
@@ -147,7 +146,6 @@ describe("chat room list cards", () => {
       }),
     );
 
-    expect(html).toContain("정책");
     expect(html).toContain("공개 채팅방");
     expect(html).toContain("3 / 50명");
     expect(html).toContain('aria-label="현재 참여 인원 3명, 최대 50명"');
@@ -200,7 +198,7 @@ const PUBLIC_ROOM: PublicRoomListItem = {
   roomId: "room-public",
   name: "공개 채팅방",
   description: "공개 채팅방 설명",
-  categories: ["POLICY"],
+  categoryIds: ["00000000-0000-4000-8000-000000000001"],
   ownerMembershipId: "membership-owner",
   status: "ACTIVE",
   visibility: "LISTED",
@@ -252,11 +250,9 @@ function createPublicRoomSearchController(): PublicRoomSearchController {
   return {
     appliedQuery: undefined,
     applySearch: vi.fn(),
-    category: undefined,
     draftQuery: "",
     endComposition: vi.fn(),
     isComposing: false,
-    setCategory: vi.fn(),
     setDraftQuery: vi.fn(),
     startComposition: vi.fn(),
     validationMessage: undefined,
@@ -278,7 +274,7 @@ function createRoomInboxItem(patch: Partial<RoomInboxListItem> = {}): RoomInboxL
     roomId: "room-01",
     name: "프로젝트 회의방",
     description: "기존 설명",
-    categories: ["LOCAL_ISSUE"],
+    categoryIds: ["00000000-0000-4000-8000-000000000003"],
     ownerMembershipId: "membership-owner",
     status: "ACTIVE",
     visibility: "LISTED",

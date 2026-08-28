@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { type ReactNode, type Ref } from "react";
-import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import { ChatRoomInboxFilterControl } from "@/components/chat-room-inbox-filter-control";
 import type { ChatRoomInboxFilterController } from "@/components/chat-room-inbox-filter";
 import {
@@ -228,8 +227,7 @@ export function MyRoomCard({
         <span className="sr-only">{room.name} 채팅방 입장</span>
       </Link>
       <span className="pointer-events-none relative z-[1] min-w-0 flex-1">
-        <ChatRoomCategoryBadges categories={room.categories} />
-        <strong className="mt-1.5 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+        <strong className="block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
           {room.name}
         </strong>
         <span className="mt-1 flex min-w-0 items-center gap-1 text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
@@ -294,8 +292,7 @@ function RoomSummary({ room }: { room: PublicRoomListItem }) {
 
   return (
     <span className="min-w-0 flex-1">
-      <ChatRoomCategoryBadges categories={room.categories} />
-      <strong className="mt-1.5 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+      <strong className="block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
         {room.name}
       </strong>
       <span

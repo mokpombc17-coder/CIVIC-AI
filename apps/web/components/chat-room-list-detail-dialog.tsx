@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { getChatRoomCategoryLabel } from "@/components/chat-room-category";
 import type { ChatRoomListDetailSelection } from "@/components/chat-room-list-detail";
 import { getChatRoomMemberCountPresentation } from "@/components/chat-room-publishing";
 import { JoinChatRoomControl } from "@/components/join-chat-room-control";
@@ -92,9 +91,6 @@ export function ChatRoomListDetailDialog({
         </div>
 
         <dl className="mt-2 grid gap-1.5">
-          <RoomDetailRow label="카테고리">
-            {room.categories.map(getChatRoomCategoryLabel).join(", ")}
-          </RoomDetailRow>
           <RoomDetailRow label="참여 인원">
             <span aria-label={memberCount.ariaLabel}>{memberCount.text}</span>
           </RoomDetailRow>

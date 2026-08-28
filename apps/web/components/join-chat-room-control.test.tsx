@@ -35,7 +35,7 @@ describe("JoinChatRoomControl", () => {
 
 const ROOM = {
   activeMemberCount: 3,
-  categories: ["POLICY"],
+  categoryIds: ["00000000-0000-4000-8000-000000000001"],
   createdAt: "2026-08-28T00:00:00Z",
   description: "공개 채팅방 설명",
   joinPolicy: "OPEN",

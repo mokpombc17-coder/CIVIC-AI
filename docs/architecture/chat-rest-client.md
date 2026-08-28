@@ -52,25 +52,19 @@ TanStack Query hook
 
 ### Room category 계약
 
-Room metadata의 `categories`는 배열을 유지하지만 현재 계약에서는 정확히 하나가 필수다.
+Room metadata는 관리자가 승인 과정에서 부여한 카테고리를 `categoryIds: string[]`로 반환한다.
+각 값은 비어 있지 않은 opaque 문자열로 검증하며, 프론트엔드는 ID의 내부 형식을 해석하지 않는다.
 
-| API 값        | 사용자 표시 |
-| ------------- | ----------- |
-| `POLICY`      | 정책        |
-| `ENVIRONMENT` | 환경        |
-| `LOCAL_ISSUE` | 지역 현안   |
-
-- Room 생성 요청은 `categories: [selectedCategory]`를 반드시 전송한다.
-- 설정 변경에서 `categories`를 생략하면 기존 값을 유지하고, 포함하면 배열 전체를 교체한다.
-- 공개 목록, 내 방 목록, Room inbox, 방 상세와 설정 변경 snapshot은 `categories`를 필수로
+- Room 생성 요청에는 category 필드를 전송하지 않는다.
+- Room 설정 변경 요청에도 category 필드를 전송하지 않는다.
+- 공개 목록 필터는 enum `category`가 아니라 opaque 문자열 `categoryId`를 사용한다.
+- 공개 목록, 내 방 목록, Room inbox, 방 상세와 설정 변경 snapshot은 `categoryIds`를 필수로
   검증한다.
-- 생성·설정 UI는 현재 radio 방식의 단일 선택만 제공한다. Backend 계약이 확장되기 전에는 다중
-  선택을 열지 않는다.
-- card와 방 상세는 공용 label map과 `ChatRoomCategoryBadges`를 사용하며 API enum을 직접 노출하지
-  않는다.
+- category catalog와 사용자 표시명 계약이 확정되기 전까지 card와 방 상세에서는 category를
+  표시하지 않는다.
 
-카테고리 변경은 Room metadata 변경일 뿐 메시지 activity, unread, read-state 또는 Room inbox
-정렬 위치를 바꾸지 않는다.
+관리자에 의한 카테고리 변경은 Room metadata 변경일 뿐 메시지 activity, unread, read-state 또는
+Room inbox 정렬 위치를 바꾸지 않는다.
 
 ### 사용자별 ACTIVE 참여 Room quota
 
@@ -127,17 +121,17 @@ message-history/{roomId}
 ```
 
 목록과 메시지 이력의 `limit`, 멤버 목록의 `status`는 결과 집합을 바꾸므로 query key에
-포함한다. 공개 방 목록은 정규화한 `query`, `category`, 고정 `joinPolicy=OPEN`도 query key에
+포함한다. 공개 방 목록은 정규화한 `query`, `categoryId`, 고정 `joinPolicy=OPEN`도 query key에
 포함한다. cursor와 `beforeSequence`는 동일한 목록의 다음 page를 가리키므로 query key에 넣지
 않고 infinite query의 `pageParam`으로 관리한다.
 
 ### Query
 
 - 공개 방 목록, 내 방 목록과 멤버 목록은 `useInfiniteQuery`를 사용한다.
-- 공개 방 제목 검색은 검색 버튼을 눌러 적용하며, 카테고리는 선택 즉시 적용한다. 검색 입력의
-  debounce 상수와 적용 경계는 준비되어 있지만 초기 정책에서는 timer를 실행하지 않는다.
-- 공개 방 탐색 요청은 `joinPolicy=OPEN`을 항상 포함한다. 공백 검색어와 전체 카테고리는 각각
-  `query`, `category` parameter를 생략한다.
+- 공개 방 제목 검색은 검색 버튼을 눌러 적용한다. 검색 입력의 debounce 상수와 적용 경계는
+  준비되어 있지만 초기 정책에서는 timer를 실행하지 않는다.
+- 공개 방 탐색 요청은 `joinPolicy=OPEN`을 항상 포함한다. 공백 검색어와 선택하지 않은 category는
+  각각 `query`, `categoryId` parameter를 생략한다.
 - 공개 방 검색 조건이 바뀌면 새 query key의 첫 page부터 조회하고, 다음 page에는 서버 cursor와
   동일한 검색 조건을 전달한다. cursor는 해석하거나 저장하지 않는다.
 - 다음 page의 `INVALID_CURSOR`는 같은 조건의 page chain을 한 번만 reset해 첫 page부터 복구한다.

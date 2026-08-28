@@ -43,11 +43,9 @@ function renderSearchForm(patch: Partial<PublicRoomSearchController> = {}): stri
       controller: {
         appliedQuery: undefined,
         applySearch: vi.fn(),
-        category: undefined,
         draftQuery: "",
         endComposition: vi.fn(),
         isComposing: false,
-        setCategory: vi.fn(),
         setDraftQuery: vi.fn(),
         startComposition: vi.fn(),
         validationMessage: undefined,

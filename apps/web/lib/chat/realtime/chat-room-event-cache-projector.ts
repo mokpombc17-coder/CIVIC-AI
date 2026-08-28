@@ -106,7 +106,7 @@ function projectRoomDetails(
       ? {
           name: event.payload.name,
           description: event.payload.description,
-          categories: event.payload.categories,
+          categoryIds: event.payload.categoryIds,
           visibility: event.payload.visibility,
           joinPolicy: event.payload.joinPolicy,
         }

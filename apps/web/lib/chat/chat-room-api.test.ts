@@ -44,7 +44,7 @@ describe("chatRoomApi queries", () => {
     await api.listPublicRooms(
       {
         query: "  교통 & 환경  ",
-        category: "LOCAL_ISSUE",
+        categoryId: "00000000-0000-4000-8000-000000000003",
         joinPolicy: "OPEN",
         cursor: "public cursor",
         limit: 20,
@@ -77,7 +77,7 @@ describe("chatRoomApi queries", () => {
     });
 
     expect(calls.map(({ path }) => path)).toEqual([
-      "/rooms?joinPolicy=OPEN&query=%EA%B5%90%ED%86%B5+%26+%ED%99%98%EA%B2%BD&category=LOCAL_ISSUE&cursor=public+cursor&limit=20",
+      "/rooms?joinPolicy=OPEN&query=%EA%B5%90%ED%86%B5+%26+%ED%99%98%EA%B2%BD&categoryId=00000000-0000-4000-8000-000000000003&cursor=public+cursor&limit=20",
       "/me/rooms?limit=100",
       "/me/room-creation-requests?cursor=request+cursor&limit=20",
       "/me/room-creation-requests/creation%2Frequest%2001",
@@ -116,7 +116,7 @@ describe("chatRoomApi queries", () => {
     await expect(api.listPublicRooms({ limit: 101 })).rejects.toThrow();
     await expect(api.listPublicRooms({ query: "😀".repeat(101) })).rejects.toThrow();
     await expect(api.listPublicRooms({ query: "교통\n정책" })).rejects.toThrow();
-    await expect(api.listPublicRooms({ category: "UNKNOWN" as never })).rejects.toThrow();
+    await expect(api.listPublicRooms({ categoryId: "" })).rejects.toThrow();
     await expect(api.listRoomInbox({ limit: 21 })).rejects.toThrow();
     await expect(api.listMyRoomCreationRequests({ limit: 101 })).rejects.toThrow();
     await expect(api.getMyRoomCreationRequest("")).rejects.toThrow();
@@ -457,7 +457,6 @@ describe("chatRoomApi commands", () => {
       idempotencyKey: IDEMPOTENCY_KEY,
       body: {
         name: "  시민 AI 토론방  ",
-        categories: ["POLICY"],
         visibility: "LISTED",
         joinPolicy: "OPEN",
       },
@@ -505,7 +504,6 @@ describe("chatRoomApi commands", () => {
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       name: "시민 AI 토론방",
       description: "",
-      categories: ["POLICY"],
       visibility: "LISTED",
       joinPolicy: "OPEN",
     });
@@ -589,7 +587,7 @@ const PUBLIC_ROOM = {
   roomId: "room-01",
   name: "시민 AI 토론방",
   description: "",
-  categories: ["POLICY"],
+  categoryIds: ["00000000-0000-4000-8000-000000000001"],
   ownerMembershipId: "membership-01",
   status: "ACTIVE",
   visibility: "LISTED",
@@ -700,7 +698,7 @@ const UPDATE_ROOM_SETTINGS_RESPONSE = {
   roomId: "room-01",
   name: "새로운 방 이름",
   description: "새로운 설명\n두 번째 줄",
-  categories: ["ENVIRONMENT"],
+  categoryIds: ["00000000-0000-4000-8000-000000000002"],
   visibility: "UNLISTED",
   joinPolicy: "OPEN",
   roomVersion: 8,

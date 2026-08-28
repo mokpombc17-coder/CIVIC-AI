@@ -188,7 +188,7 @@ async function createRoomViaApi(
     data: {
       name,
       description: "사용자별 ACTIVE Room quota E2E fixture",
-      categories: ["POLICY"],
+      categoryIds: ["00000000-0000-4000-8000-000000000001"],
       visibility: "LISTED",
       joinPolicy: "OPEN",
     },

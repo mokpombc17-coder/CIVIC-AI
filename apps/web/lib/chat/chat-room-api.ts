@@ -52,7 +52,7 @@ import {
   type JoinPolicy,
   type PublicRoomListResponse,
   type PublicRoomListParams,
-  type RoomCategory,
+  type RoomCategoryId,
   type RoomDetails,
   type RoomInboxListParams,
   type RoomInboxListResponse,
@@ -500,7 +500,7 @@ function createListPath(
   path: string,
   params: {
     cursor?: string | undefined;
-    category?: RoomCategory | undefined;
+    categoryId?: RoomCategoryId | undefined;
     joinPolicy?: JoinPolicy | undefined;
     limit?: number | undefined;
     query?: string | undefined;
@@ -517,8 +517,8 @@ function createListPath(
     searchParams.set("query", params.query);
   }
 
-  if (params.category !== undefined) {
-    searchParams.set("category", params.category);
+  if (params.categoryId !== undefined) {
+    searchParams.set("categoryId", params.categoryId);
   }
 
   if (params.status !== undefined) {

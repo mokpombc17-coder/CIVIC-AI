@@ -96,7 +96,7 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
         description: updatedDescription,
         name: updatedName,
       });
-      expect(requestBody).not.toHaveProperty("categories");
+      expect(requestBody).not.toHaveProperty("categoryIds");
       expect(requestBody).not.toHaveProperty("visibility");
       expect(requestBody).not.toHaveProperty("joinPolicy");
       await expect(form).toBeVisible();

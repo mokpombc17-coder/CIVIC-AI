@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type FormEvent, type Ref } from "react";
-import { ChatRoomCategoryBadges } from "@/components/chat-room-category-badges";
 import {
   useChatRoomSettingsControl,
   type ChatRoomSettingsControlController,
@@ -271,12 +270,6 @@ function RoomInformationDetails({ room }: { room: RoomDetails }) {
         <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">방 설명</dt>
         <dd className="whitespace-pre-wrap text-sm leading-6 text-[var(--chat-publishing-color-text)]">
           {room.description || "채팅방 소개가 없습니다."}
-        </dd>
-      </div>
-      <div className="grid gap-1.5">
-        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">카테고리</dt>
-        <dd>
-          <ChatRoomCategoryBadges categories={room.categories} />
         </dd>
       </div>
     </dl>

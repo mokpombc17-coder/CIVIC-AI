@@ -418,7 +418,7 @@ async function closeActors(actors: Actors): Promise<void> {
 async function createRoom(page: Page, roomName: string): Promise<RoomFixture> {
   const response = await page.request.post(chatApiUrl("/rooms"), {
     data: {
-      categories: ["POLICY"],
+      categoryIds: ["00000000-0000-4000-8000-000000000001"],
       description: `latest-first E2E fixture ${roomName}`,
       joinPolicy: "OPEN",
       name: roomName,

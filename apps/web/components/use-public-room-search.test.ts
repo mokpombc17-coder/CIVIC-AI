@@ -58,17 +58,6 @@ describe("public Room search state", () => {
     expect(submitted.isComposing).toBe(false);
   });
 
-  it("카테고리는 applied query와 독립적으로 즉시 변경한다", () => {
-    const state = reduce([
-      { type: "draft-changed", value: "기후" },
-      { type: "submitted" },
-      { type: "category-changed", value: "ENVIRONMENT" },
-    ]);
-
-    expect(state.appliedQuery).toBe("기후");
-    expect(state.category).toBe("ENVIRONMENT");
-  });
-
   it("잘못된 검색어는 기존 적용 조건을 유지하고 validation을 반환한다", () => {
     const valid = reduce([{ type: "draft-changed", value: "환경" }, { type: "submitted" }]);
     const invalid = reduce(

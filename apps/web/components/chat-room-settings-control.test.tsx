@@ -78,7 +78,7 @@ function createRoomDetails(): RoomDetails {
     roomId: "room-01",
     name: "시민 토론방",
     description: "방 설정 View 테스트",
-    categories: ["POLICY"],
+    categoryIds: ["00000000-0000-4000-8000-000000000001"],
     ownerMembershipId: "membership-owner",
     status: "ACTIVE",
     visibility: "LISTED",

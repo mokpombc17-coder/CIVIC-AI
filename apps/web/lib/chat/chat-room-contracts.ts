@@ -91,10 +91,8 @@ export function normalizeRoomDescription(description: string): string {
 
 export const roomVisibilitySchema = z.enum(["LISTED", "UNLISTED"]);
 export const joinPolicySchema = z.enum(["OPEN", "INVITE_ONLY"]);
-export const roomCategorySchema = z.enum(["POLICY", "ENVIRONMENT", "LOCAL_ISSUE"]);
-export const roomCategoriesSchema = z
-  .array(roomCategorySchema)
-  .length(1, "방 카테고리는 정확히 하나를 선택해야 합니다.");
+export const roomCategoryIdSchema = opaqueIdSchema;
+export const roomCategoryIdsSchema = z.array(roomCategoryIdSchema);
 export const roomStatusSchema = z.enum(["ACTIVE", "CLOSED"]);
 export const membershipRoleSchema = z.enum(["OWNER", "MEMBER"]);
 export const membershipStatusSchema = z.enum(["ACTIVE", "LEFT", "BANNED"]);
@@ -145,7 +143,7 @@ export const roomMembershipSchema = z.object({
 export const roomSettingsSchema = z.object({
   name: roomNameSchema,
   description: roomDescriptionSchema,
-  categories: roomCategoriesSchema,
+  categoryIds: roomCategoryIdsSchema,
   visibility: roomVisibilitySchema,
   joinPolicy: joinPolicySchema,
 });
@@ -246,7 +244,6 @@ export const roomMembershipListResponseSchema = createCursorPageSchema(
 export const createRoomRequestSchema = z.object({
   name: roomNameSchema,
   description: roomDescriptionInputSchema.nullish().transform((description) => description ?? ""),
-  categories: roomCategoriesSchema,
   visibility: roomVisibilitySchema,
   joinPolicy: joinPolicySchema,
 });
@@ -255,7 +252,6 @@ export const updateRoomSettingsRequestSchema = z
   .object({
     name: roomNameSchema.optional(),
     description: roomDescriptionInputSchema.optional(),
-    categories: roomCategoriesSchema.optional(),
     visibility: roomVisibilitySchema.optional(),
     joinPolicy: joinPolicySchema.optional(),
   })
@@ -264,7 +260,6 @@ export const updateRoomSettingsRequestSchema = z
     (settings) =>
       settings.name !== undefined ||
       settings.description !== undefined ||
-      settings.categories !== undefined ||
       settings.visibility !== undefined ||
       settings.joinPolicy !== undefined,
     "변경할 방 설정을 하나 이상 입력해야 합니다.",
@@ -682,7 +677,7 @@ export const cursorPaginationParamsSchema = z.object({
 
 export const publicRoomListParamsSchema = cursorPaginationParamsSchema.extend({
   query: publicRoomSearchQuerySchema.optional(),
-  category: roomCategorySchema.optional(),
+  categoryId: roomCategoryIdSchema.optional(),
   joinPolicy: joinPolicySchema.optional(),
 });
 
@@ -757,8 +752,8 @@ export const roomMembershipListParamsSchema = cursorPaginationParamsSchema.exten
 
 export type RoomVisibility = z.infer<typeof roomVisibilitySchema>;
 export type JoinPolicy = z.infer<typeof joinPolicySchema>;
-export type RoomCategory = z.infer<typeof roomCategorySchema>;
-export type RoomCategories = readonly RoomCategory[];
+export type RoomCategoryId = z.infer<typeof roomCategoryIdSchema>;
+export type RoomCategoryIds = readonly RoomCategoryId[];
 export type RoomStatus = z.infer<typeof roomStatusSchema>;
 export type MembershipRole = z.infer<typeof membershipRoleSchema>;
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;

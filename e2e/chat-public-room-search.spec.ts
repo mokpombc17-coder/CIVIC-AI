@@ -11,8 +11,6 @@ import { authenticateLocalE2EUserAs } from "./chat-e2e-helpers";
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
 
-type RoomCategory = "POLICY" | "ENVIRONMENT" | "LOCAL_ISSUE";
-
 type PublicRoomPage = Readonly<{
   items: readonly Readonly<{ roomId: string }>[];
   nextCursor?: string | null;
@@ -59,14 +57,11 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
           await createPublicRoom(
             primaryOwnerContext.request,
             `${searchTerm}-room-${index.toString().padStart(2, "0")}`,
-            index < 5 ? "ENVIRONMENT" : "POLICY",
           ),
         );
       }
 
-      fixtures.push(
-        await createPublicRoom(secondaryOwnerContext.request, `${searchTerm}-room-20`, "POLICY"),
-      );
+      fixtures.push(await createPublicRoom(secondaryOwnerContext.request, `${searchTerm}-room-20`));
     });
 
     await test.step("검색 버튼으로 OPEN 첫 페이지 조건을 적용한다", async () => {
@@ -93,7 +88,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect(firstPageResponse.ok()).toBe(true);
       expectPublicRoomCriteria(firstPageResponse, {
         query: searchTerm,
-        category: null,
+        categoryId: null,
         cursor: null,
       });
 
@@ -122,7 +117,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect(nextPageResponse.ok()).toBe(true);
       expectPublicRoomCriteria(nextPageResponse, {
         query: searchTerm,
-        category: null,
+        categoryId: null,
         cursor: firstPage.nextCursor as string,
       });
 
@@ -142,7 +137,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect(new Set(renderedRoomIds).size).toBe(21);
     });
 
-    await test.step("공백 검색어는 query와 category를 생략한다", async () => {
+    await test.step("공백 검색어는 query와 categoryId를 생략한다", async () => {
       await observerPage.getByRole("searchbox", { name: "채팅방 이름 검색" }).fill("   ");
 
       const responsePromise = observerPage.waitForResponse((response) => {
@@ -152,7 +147,9 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
 
         const searchParams = new URL(response.url()).searchParams;
         return (
-          !searchParams.has("query") && !searchParams.has("category") && !searchParams.has("cursor")
+          !searchParams.has("query") &&
+          !searchParams.has("categoryId") &&
+          !searchParams.has("cursor")
         );
       });
 
@@ -162,7 +159,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect(response.ok()).toBe(true);
       expectPublicRoomCriteria(response, {
         query: null,
-        category: null,
+        categoryId: null,
         cursor: null,
       });
     });
@@ -178,13 +175,11 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
 async function createPublicRoom(
   request: APIRequestContext,
   name: string,
-  category: RoomCategory,
 ): Promise<{ roomId: string }> {
   const response = await request.post(`${CHAT_RESOURCE_SERVER_URL}/api/v1/rooms`, {
     data: {
       name,
       description: "공개 방 검색·필터 E2E fixture",
-      categories: [category],
       visibility: "LISTED",
       joinPolicy: "OPEN",
     },
@@ -210,7 +205,7 @@ function expectPublicRoomCriteria(
   response: Response,
   expected: Readonly<{
     query: string | null;
-    category: RoomCategory | null;
+    categoryId: string | null;
     cursor: string | null;
   }>,
 ): void {
@@ -219,7 +214,7 @@ function expectPublicRoomCriteria(
   expect(searchParams.get("joinPolicy")).toBe("OPEN");
   expect(searchParams.get("limit")).toBe("20");
   expect(searchParams.get("query")).toBe(expected.query);
-  expect(searchParams.get("category")).toBe(expected.category);
+  expect(searchParams.get("categoryId")).toBe(expected.categoryId);
   expect(searchParams.get("cursor")).toBe(expected.cursor);
 }
 

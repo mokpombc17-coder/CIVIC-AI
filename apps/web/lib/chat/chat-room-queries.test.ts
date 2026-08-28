@@ -35,7 +35,7 @@ describe("chat room query options", () => {
     const options = publicRoomsInfiniteQueryOptions(
       {
         query: "  교통  ",
-        category: "LOCAL_ISSUE",
+        categoryId: "00000000-0000-4000-8000-000000000003",
         limit: 30,
       },
       { listPublicRooms },
@@ -47,7 +47,7 @@ describe("chat room query options", () => {
     expect(options.queryKey).toEqual(
       chatRoomQueryKeys.publicList({
         query: "교통",
-        category: "LOCAL_ISSUE",
+        categoryId: "00000000-0000-4000-8000-000000000003",
         joinPolicy: "OPEN",
         limit: 30,
       }),
@@ -55,7 +55,7 @@ describe("chat room query options", () => {
     expect(listPublicRooms).toHaveBeenCalledWith(
       {
         query: "교통",
-        category: "LOCAL_ISSUE",
+        categoryId: "00000000-0000-4000-8000-000000000003",
         joinPolicy: "OPEN",
         limit: 30,
       },
@@ -80,7 +80,7 @@ describe("chat room query options", () => {
     const padded = publicRoomsInfiniteQueryOptions({ query: "  환경  " });
     const categorized = publicRoomsInfiniteQueryOptions({
       query: "환경",
-      category: "ENVIRONMENT",
+      categoryId: "00000000-0000-4000-8000-000000000002",
     });
 
     expect(trimmed.queryKey).toEqual(padded.queryKey);
@@ -99,7 +99,7 @@ describe("chat room query options", () => {
     const options = publicRoomsInfiniteQueryOptions(
       {
         query: "정책",
-        category: "POLICY",
+        categoryId: "00000000-0000-4000-8000-000000000001",
       },
       { listPublicRooms },
     );
@@ -113,7 +113,7 @@ describe("chat room query options", () => {
       2,
       {
         query: "정책",
-        category: "POLICY",
+        categoryId: "00000000-0000-4000-8000-000000000001",
         joinPolicy: "OPEN",
         limit: 20,
         cursor: "opaque cursor",
@@ -766,7 +766,7 @@ const PUBLIC_ROOM_ITEM = {
   roomId: "room-01",
   name: "공개 채팅방",
   description: "설명",
-  categories: ["POLICY" as const],
+  categoryIds: ["00000000-0000-4000-8000-000000000001" as const],
   ownerMembershipId: "membership-owner",
   status: "ACTIVE" as const,
   visibility: "LISTED" as const,
@@ -812,7 +812,7 @@ const ROOM_DETAILS = {
   roomId: "room-01",
   name: "시민 AI 토론방",
   description: "",
-  categories: ["POLICY" as const],
+  categoryIds: ["00000000-0000-4000-8000-000000000001" as const],
   ownerMembershipId: "membership-01",
   status: "ACTIVE" as const,
   visibility: "LISTED" as const,

@@ -24,7 +24,7 @@ import type {
   MessageHistoryResponse,
   MyRoomListItem,
   PublicRoomListItem,
-  RoomCategory,
+  RoomCategoryId,
   RoomInboxListItem,
   RoomInboxListResponse,
   RoomMembershipListItem,
@@ -49,13 +49,13 @@ export type ChatRoomListQueryParams = Readonly<{
 
 export type PublicRoomListQueryParams = Readonly<{
   query?: string;
-  category?: RoomCategory;
+  categoryId?: RoomCategoryId;
   limit?: number;
 }>;
 
 export type PublicRoomListCriteria = Readonly<{
   query?: string;
-  category?: RoomCategory;
+  categoryId?: RoomCategoryId;
   joinPolicy: "OPEN";
   limit: number;
 }>;
@@ -190,19 +190,19 @@ export function publicRoomsInfiniteQueryOptions(
 
 export function normalizePublicRoomListCriteria({
   query,
-  category,
+  categoryId,
   limit = DEFAULT_LIST_LIMIT,
 }: PublicRoomListQueryParams = {}): PublicRoomListCriteria {
   const parsed = publicRoomListParamsSchema.parse({
     query,
-    category,
+    categoryId,
     joinPolicy: "OPEN",
     limit,
   });
 
   return {
     ...(parsed.query === undefined ? {} : { query: parsed.query }),
-    ...(parsed.category === undefined ? {} : { category: parsed.category }),
+    ...(parsed.categoryId === undefined ? {} : { categoryId: parsed.categoryId }),
     joinPolicy: "OPEN",
     limit: parsed.limit ?? DEFAULT_LIST_LIMIT,
   };

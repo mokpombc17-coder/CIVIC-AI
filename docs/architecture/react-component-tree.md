@@ -101,7 +101,6 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                             │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
                             │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
                             │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/create-chat-room-form.tsx)
-                            │               ├── ChatRoomCategoryBadges [Server-compatible] [View] [repeated] (apps/web/components/chat-room-category-badges.tsx)
                             │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-list-detail-dialog.tsx)
                             │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
                             │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
@@ -136,7 +135,6 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                             └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
                                                 └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
                                                     └── ChatRoomInformationSection [Client] [Feature] (apps/web/components/chat-room-settings-control.tsx)
-                                                        ├── ChatRoomCategoryBadges [Server-compatible] [View] (apps/web/components/chat-room-category-badges.tsx)
                                                         └── ChatRoomSettingsControl [Client] [Container] [conditional, OWNER] (apps/web/components/chat-room-settings-control.tsx)
                                                             └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-control.tsx)
                         ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
@@ -183,17 +181,16 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 전체·안읽음 로컬 필터, 생성 요청 sheet disclosure와 Room 상세 selection·trigger focus 복원을 담당하는
 hook을 `ChatRoomListView`에 연결한다. `ChatRoomListView`는 생성 요청이 열리면
 `CreateChatRoomForm`을 `PlatformShell`의 overlay slot에 전달하고 기존 surface를 inert 처리한다.
-`PublicRoomSearchForm`은 검색어 draft와 카테고리
-선택을 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query 조건은 container hook에 둔다.
+`PublicRoomSearchForm`은 검색어 draft를 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query
+조건은 container hook에 둔다.
 `ChatRoomListDetailDialog`는 목록 snapshot을 Figma 기반 bottom sheet로 표현하고 참여 중인 Room의
 입장 링크 또는 참여 가능한 Room의 `JoinChatRoomControl`을 조립한다. `CreateChatRoomForm`은 Figma
 기반 생성 요청·접수 완료 bottom sheet를 표현하고 `useCreateChatRoomForm`의 validation, mutation,
 멱등성 key 재시도와 라우팅을 연결한다. `PENDING`은 접수 완료 sheet로 전환하고 `APPROVED`는 생성된
-Room으로 이동한다. 주제 입력은 노출하지 않으며, 관리자 category 지정 계약이 확정될 때까지 form
-model이 `POLICY`, `LISTED`, `OPEN`을 임시 요청 기본값으로 보완한다. 참여 control의 validation,
+Room으로 이동한다. 주제 입력은 노출하지 않고 category는 관리자 승인 과정에서 부여하므로 생성
+요청에도 포함하지 않는다. form model은 `LISTED`, `OPEN`을 요청 기본값으로 보완한다. 참여 control의 validation,
 mutation, 멱등성 key 재시도와 라우팅 구현도 JSX 밖에 둔다. 방 card, unread badge, avatar, notice와
 pagination button은 이 책임 경계를 바꾸지 않는 순수 표현 요소라 생략한다.
-`ChatRoomCategoryBadges`는 공개·참여 Room card와 채팅방 메뉴에서 같은 category label 표현을 공유한다.
 
 `RoomCreationRequestListScreen`은 사용자의 신청 이력 infinite Query와 opaque cursor
 pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationRequestListView`는
@@ -276,7 +273,7 @@ experience hook이 `.tsx` 표현 컴포넌트의 구현 타입을 역으로 참�
 관리 mutation, 멱등성 key·재시도, 완료 라우팅을 소유하며 View에는 정규화된 목록 상태,
 사용자 문구와 callback만 제공한다. View는 `ChatRoomInformationSection`과 모든 ACTIVE membership의
 profile 목록을 제공하고, BANNED 조회와 차단 해제 control은 활성 OWNER에게만 표시한다. LEFT membership은
-조회하거나 렌더링하지 않는다. `ChatRoomInformationSection`은 모든 사용자에게 이름·설명·카테고리 요약을
+조회하거나 렌더링하지 않는다. `ChatRoomInformationSection`은 모든 사용자에게 이름·설명 요약을
 제공하고 활성 OWNER일 때만 같은 카드 안의 수정 disclosure를 조립한다.
 `ChatRoomSettingsControl`은 `useChatRoomSettingsControl`의 controller를 설정 View에 전달하는 container다.
 controller hook은 이름·설명만 허용하는 draft, 부분 patch 계산, update-settings mutation과 멱등성 key 재시도를
@@ -385,7 +382,6 @@ flowchart TD
     ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
     PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/public-room-search-form.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional, overlay]<br/>apps/web/components/create-chat-room-form.tsx"]
-    ChatRoomCategoryBadges["ChatRoomCategoryBadges [Server-compatible] [View]<br/>apps/web/components/chat-room-category-badges.tsx"]
     JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
     RoomCreationRequestsPage["RoomCreationRequestsPage [Server] [Route]<br/>apps/web/app/chat/creation-requests/page.tsx"]
     RoomCreationRequestListScreen["RoomCreationRequestListScreen [Client] [Container]<br/>apps/web/components/room-creation-request-list-screen.tsx"]
@@ -460,7 +456,6 @@ flowchart TD
     ChatListPlatformShell --> PlatformHeader
     ChatListPlatformShell --> PublicRoomSearchForm
     ChatListPlatformShell -->|"conditional overlay; surface inert"| CreateChatRoomForm
-    ChatListPlatformShell -->|"room cards"| ChatRoomCategoryBadges
     ChatListPlatformShell -->|"selected room detail"| ChatRoomListDetailDialog
     ChatListPlatformShell --> PlatformNavigationClient
     PlatformNavigationClient --> PlatformNavigation
@@ -490,7 +485,6 @@ flowchart TD
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel --> ChatRoomMembershipPanelView
     ChatRoomMembershipPanelView --> ChatRoomInformationSection
-    ChatRoomInformationSection --> ChatRoomCategoryBadges
     ChatRoomInformationSection -->|"active OWNER only"| ChatRoomSettingsControl
     ChatRoomSettingsControl --> ChatRoomSettingsControlView
 

@@ -29,7 +29,6 @@ export function useChatRoomListScreen() {
     ...(publicRoomSearch.appliedQuery === undefined
       ? {}
       : { query: publicRoomSearch.appliedQuery }),
-    ...(publicRoomSearch.category === undefined ? {} : { category: publicRoomSearch.category }),
   });
   const participatingRoomIds = useMemo(
     () => new Set(roomInbox.rooms.map((room) => room.roomId)),

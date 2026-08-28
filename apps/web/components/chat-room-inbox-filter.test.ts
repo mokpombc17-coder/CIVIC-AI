@@ -21,7 +21,7 @@ function createRoom(roomId: string, unreadCount: number): RoomInboxListItem {
     roomId,
     name: roomId,
     description: "",
-    categories: ["POLICY"],
+    categoryIds: ["00000000-0000-4000-8000-000000000001"],
     ownerMembershipId: "membership-owner",
     status: "ACTIVE",
     visibility: "LISTED",
