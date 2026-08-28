@@ -84,9 +84,10 @@ transcript는 `messages.jsonl`과 같은 순서와 최종 내용을 Asia/Seoul �
 이름, 설명, userId와 content는 HTML escape하고 외부 resource 및 JavaScript를
 CSP로 차단한다.
 
-manifest는 Room 메타데이터, capture/generation 시각, watermark, 식별·내용 표현
-정책, count와 세 데이터 파일의 byte size/SHA-256을 기록한다. 요청 연구자 ID나
-참여자 목록은 기록하지 않는다. 전체 ZIP SHA-256은 응답 헤더로만 제공한다.
+manifest schema v2는 Room 이름·설명과 순서 의미 없는 `roomCategoryIds`,
+capture/generation 시각, watermark, 식별·내용 표현 정책, count와 세 데이터
+파일의 byte size/SHA-256을 기록한다. 요청 연구자 ID나 참여자 목록은 기록하지
+않는다. 전체 ZIP SHA-256은 응답 헤더로만 제공한다.
 
 ## 생명주기와 자원 제한
 

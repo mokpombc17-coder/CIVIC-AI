@@ -151,7 +151,9 @@ join policy, BANNED 상태와 owner 전용 권한을 우회하지 않는다. 플
 
 `POST /api/v1/rooms`와 기존 Room command `POST` API에는 다음 헤더가
 필요하다. 생성 신청 취소·승인·반려는 신청 리소스의 terminal 상태를 기준으로
-중복 결정을 판별하므로 별도 `Idempotency-Key`를 받지 않는다.
+중복 결정을 판별하므로 별도 `Idempotency-Key`를 받지 않는다. 카테고리
+CRUD와 방 카테고리 교체도 `Idempotency-Key`를 받지 않고
+`expectedVersion` 기반 optimistic concurrency를 사용한다.
 
 ```http
 Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
@@ -172,13 +174,16 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | --- | --- |
 | `RoomVisibility` | `LISTED`, `UNLISTED` |
 | `JoinPolicy` | `OPEN`, `INVITE_ONLY` |
-| `RoomCategory` | `POLICY`, `ENVIRONMENT`, `LOCAL_ISSUE` |
 | `RoomStatus` | `ACTIVE`, `CLOSED` |
 | `MembershipRole` | `OWNER`, `MEMBER` |
 | `MembershipStatus` | `ACTIVE`, `LEFT`, `BANNED` |
 | `RoomParticipationStatus` | `ACTIVE`, `LEFT`, `BANNED`, `NOT_JOINED`, `ROOM_CLOSED` |
 
 `Instant` 타입은 ISO-8601 UTC 문자열로 전달된다.
+
+Room 카테고리는 enum이 아니다. 관리자가 생성한 카테고리 리소스의 불변
+`categoryId`를 사용하며 Room에는 `categoryIds`가 1~5개 저장된다. 카테고리
+배열에는 표시 순서 의미가 없으므로 프론트가 카테고리 이름 기준으로 정렬한다.
 
 ```text
 2026-07-29T04:30:00Z
@@ -196,6 +201,13 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 | `GET` | `/api/v1/admin/room-creation-requests/{creationRequestId}` | 방 생성 신청 관리 상세 | `200` |
 | `POST` | `/api/v1/admin/room-creation-requests/{creationRequestId}/approve` | 방 생성 승인 | `201` 또는 `200` |
 | `POST` | `/api/v1/admin/room-creation-requests/{creationRequestId}/reject` | 방 생성 반려 | `200` |
+| `GET` | `/api/v1/room-categories` | 사용자용 카테고리 목록 | `200` |
+| `GET` | `/api/v1/admin/room-categories` | 관리자 카테고리 목록 | `200` |
+| `GET` | `/api/v1/admin/room-categories/{categoryId}` | 관리자 카테고리 상세 | `200` |
+| `POST` | `/api/v1/admin/room-categories` | 카테고리 생성 | `201` |
+| `PATCH` | `/api/v1/admin/room-categories/{categoryId}` | 카테고리 이름 변경 | `200` |
+| `DELETE` | `/api/v1/admin/room-categories/{categoryId}` | 카테고리 삭제 | `204` |
+| `PUT` | `/api/v1/admin/rooms/{roomId}/categories` | 기존 방 카테고리 전체 교체 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/update-settings` | 방 설정 부분 변경 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/join` | 방 참여 | `201` 또는 `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/leave` | 방 나가기 | `200` |
@@ -214,6 +226,131 @@ Idempotency-Key: 07af9111-3e20-43e5-ae80-78d1bf547647
 
 `roomId`는 영문자, 숫자, `_`, `-`로 구성된 1~64자 문자열이다.
 
+## Room 카테고리 API
+
+기본 카테고리는 다음 하나이며 서버 시작 시 없으면 생성한다.
+
+```text
+categoryId: 00000000-0000-0000-0000-000000000001
+name: 정책
+```
+
+사용자 화면의 카테고리 목록은 `chat:rooms:read`, 모든 관리자 카테고리 API와
+기존 방 카테고리 교체는 `chat:categories:manage` scope를 요구한다. 모든 응답은
+`Cache-Control: no-store`를 사용한다.
+
+### 카테고리 목록
+
+```http
+GET /api/v1/room-categories
+GET /api/v1/admin/room-categories
+```
+
+```json
+{
+  "items": [
+    {
+      "categoryId": "00000000-0000-0000-0000-000000000001",
+      "name": "정책",
+      "createdAt": "2026-08-28T01:00:00Z",
+      "updatedAt": "2026-08-28T01:00:00Z",
+      "version": 0
+    }
+  ]
+}
+```
+
+목록 순서는 API 계약이 아니다. 프론트는 `name`을 기준으로 정렬해 표시한다.
+Room 응답의 `categoryIds`와 이 목록을 조인하여 최신 표시 이름을 구한다.
+
+### 카테고리 생성·수정·삭제
+
+```http
+POST /api/v1/admin/room-categories
+Content-Type: application/json
+
+{"name":"지역 현안"}
+```
+
+이름은 NFKC 정규화와 앞뒤 공백 제거 후 1~50 Unicode code point인 한 줄
+plain text여야 한다. 정규화 후 대소문자를 구분하지 않고 중복될 수 없다. 생성
+성공은 `201 Created`이며 `Location`은 생성된 카테고리 상세를 가리킨다.
+
+```http
+PATCH /api/v1/admin/room-categories/{categoryId}
+Content-Type: application/json
+
+{
+  "name": "지역 의제",
+  "expectedVersion": 0
+}
+```
+
+```http
+DELETE /api/v1/admin/room-categories/{categoryId}?expectedVersion=1
+```
+
+수정·삭제의 `expectedVersion`은 카테고리의 현재 `version`과 정확히 일치해야
+한다. 기본 `정책` 카테고리와 ACTIVE/CLOSED 여부와 관계없이 하나 이상의 Room이
+참조하는 카테고리는 삭제할 수 없다. 이름 변경은 ID를 바꾸지 않으므로 기존
+Room 연결은 유지된다.
+
+### 기존 방 카테고리 교체
+
+방 카테고리는 방장이 변경할 수 없으며 관리자 책임이다. 방장용
+`update-settings` 요청에 `categories` 또는 `categoryIds`를 보내면
+`400 INVALID_REQUEST`다.
+
+```http
+PUT /api/v1/admin/rooms/{roomId}/categories
+Content-Type: application/json
+
+{
+  "categoryIds": [
+    "00000000-0000-0000-0000-000000000001",
+    "11111111-1111-1111-1111-111111111111"
+  ],
+  "expectedVersion": 7
+}
+```
+
+`categoryIds`는 존재하는 카테고리 ID 1~5개의 중복 없는 집합이다. 순서 의미는
+없다. `expectedVersion`은 카테고리 version이 아니라 Room의 현재 version이다.
+ACTIVE와 CLOSED Room 모두 교체할 수 있다.
+
+```json
+{
+  "roomId": "room-01",
+  "categoryIds": [
+    "00000000-0000-0000-0000-000000000001",
+    "11111111-1111-1111-1111-111111111111"
+  ],
+  "roomVersion": 8,
+  "changed": true
+}
+```
+
+현재 version과 같은 `expectedVersion`으로 동일 집합을 보내면 version을 올리지
+않고 `changed=false`다. 변경 성공 후 예전 `expectedVersion`으로 같은 body를
+재전송하면 `409 ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT`이므로 최신 Room을
+조회한 뒤 다시 판단해야 한다. ACTIVE Room의 실제 변경은 해당 Room 구독자에게
+`ROOM_SETTINGS_UPDATED` 이벤트로 전파되며 관리자 페이지가 WebSocket을 연결할
+필요는 없다.
+
+주요 카테고리 오류는 다음과 같다.
+
+```text
+400 INVALID_REQUEST
+400 INVALID_ROOM_CATEGORY
+404 ROOM_NOT_FOUND
+404 ROOM_CATEGORY_NOT_FOUND
+409 ROOM_CATEGORY_NAME_CONFLICT
+409 ROOM_CATEGORY_VERSION_CONFLICT
+409 ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT
+409 ROOM_CATEGORY_IN_USE
+409 ROOM_CATEGORY_DEFAULT_PROTECTED
+```
+
 ## 방 Command API
 
 ### 방 생성
@@ -230,13 +367,12 @@ Idempotency-Key: <uuid>
 {
   "name": "시민 AI 토론방",
   "description": "AI 정책과 시민 참여 방식을 논의합니다.",
-  "categories": ["POLICY"],
   "visibility": "LISTED",
   "joinPolicy": "OPEN"
 }
 ```
 
-`name`, `categories`, `visibility`, `joinPolicy`는 필수다. `description`은 선택
+`name`, `visibility`, `joinPolicy`는 필수다. `description`은 선택
 사항이며 누락하거나 `null` 또는 빈 문자열로 보내면 `""`로 저장된다.
 `name`은 앞뒤 공백을 제거한 뒤 빈 문자열일 수 없으며 최대 100자까지
 허용한다.
@@ -246,10 +382,9 @@ Idempotency-Key: <uuid>
 C0 제어문자는 허용하지 않는다. Markdown 또는 HTML 렌더링 의미는 제공하지
 않는다.
 
-`categories`는 중복 없는 `RoomCategory` 배열이다. 현재 계약에서는 정확히
-1개를 요구한다. 배열 형태를 사용해 향후 최대 3개까지 확장할 수 있도록 하되,
-현재 2개 이상을 보내면 `400 INVALID_REQUEST`다. 표시 문구는 프론트에서
-`POLICY=정책`, `ENVIRONMENT=환경`, `LOCAL_ISSUE=지역 현안`으로 현지화한다.
+사용자는 카테고리를 제안하지 않는다. 요청에 `categories` 또는 `categoryIds`를
+포함하면 `400 INVALID_REQUEST`다. `APPROVAL_REQUIRED`에서는 관리자가 승인할 때
+1~5개를 지정하고, `DIRECT`에서는 서버가 기본 `정책` 카테고리를 지정한다.
 
 방 생성 정책은 `chat.room.creation.mode` 설정으로 선택한다.
 
@@ -374,7 +509,7 @@ creationRequestId
 requesterUserId
 name
 description
-categories
+categoryIds
 visibility
 joinPolicy
 status
@@ -389,15 +524,27 @@ replayed
 ```
 
 신청자의 `clientRequestId`와 결정한 관리자 ID는 관리자 응답에 노출하지 않는다.
-관리자는 위 신청 내용을 수정할 수 없으며 승인 또는 반려만 수행한다.
+`PENDING`, `REJECTED`, `CANCELED` 신청의 `categoryIds`는 빈 배열이며,
+`APPROVED` 응답에는 승인 시 확정된 ID가 들어간다. 관리자는 이름·설명·공개
+설정 등 신청 내용은 수정할 수 없지만 승인 요청에서 카테고리를 확정한다.
 
 ```http
 POST /api/v1/admin/room-creation-requests/{creationRequestId}/approve
+Content-Type: application/json
+
+{
+  "categoryIds": [
+    "00000000-0000-0000-0000-000000000001"
+  ]
+}
 ```
 
 승인 시 Room과 OWNER Membership을 생성한다. 최초 성공은 `201 Created`와
 `Location: /api/v1/rooms/{roomId}`를 반환한다. 동일 승인 재시도는 Room을
-중복 생성하지 않고 `200 OK`, `replayed=true`로 현재 결과를 반환한다.
+중복 생성하지 않고 같은 `categoryIds`일 때만 `200 OK`, `replayed=true`로 현재
+결과를 반환한다. 이미 승인된 신청에 다른 집합을 보내면
+`409 ROOM_CREATION_DECISION_CONFLICT`다. `categoryIds`는 존재하는 ID 1~5개의
+중복 없는 집합이어야 한다.
 승인 시 신청자의 ACTIVE Room quota를 다시 검사한다. quota를 초과하면
 `409 USER_ACTIVE_ROOM_LIMIT_EXCEEDED`이며 신청은 `PENDING`으로 유지된다.
 
@@ -434,7 +581,6 @@ Idempotency-Key: <uuid>
 {
   "name": "지역 교통 정책 토론방",
   "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
-  "categories": ["LOCAL_ISSUE"],
   "visibility": "UNLISTED",
   "joinPolicy": "OPEN"
 }
@@ -444,7 +590,7 @@ Idempotency-Key: <uuid>
 - 명시적인 `null`은 `400 INVALID_REQUEST`다.
 - 빈 object `{}`도 `400 INVALID_REQUEST`다.
 - 설명을 제거하려면 `"description": ""`을 보낸다.
-- 카테고리는 `categories` 전체 배열 교체 방식이며 현재 정확히 1개여야 한다.
+- 카테고리 관련 필드는 허용하지 않는다. 관리자 카테고리 교체 API를 사용한다.
 - 정규화된 요청값 전체가 현재 설정과 같으면 version을 올리지 않는다.
 - 한 요청에서 여러 필드가 바뀌어도 `roomVersion`은 정확히 1 증가한다.
 
@@ -458,7 +604,7 @@ Idempotency-Key: <uuid>
   "roomId": "room-01",
   "name": "지역 교통 정책 토론방",
   "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
-  "categories": ["LOCAL_ISSUE"],
+  "categoryIds": ["11111111-1111-1111-1111-111111111111"],
   "visibility": "UNLISTED",
   "joinPolicy": "OPEN",
   "roomVersion": 8
@@ -728,7 +874,7 @@ Cache-Control: no-store
 ### 공개 방 목록
 
 ```http
-GET /api/v1/rooms?query=교통&category=LOCAL_ISSUE&joinPolicy=OPEN&cursor={cursor}&limit=20
+GET /api/v1/rooms?query=교통&categoryId=11111111-1111-1111-1111-111111111111&joinPolicy=OPEN&cursor={cursor}&limit=20
 ```
 
 - 요청과 관계없이 `status=ACTIVE`, `visibility=LISTED`인 방만 반환한다.
@@ -739,15 +885,16 @@ GET /api/v1/rooms?query=교통&category=LOCAL_ISSUE&joinPolicy=OPEN&cursor={curs
   공백만 있는 값은 검색 조건을 적용하지 않는다. 1~100 Unicode code point를
   허용하며 제어문자가 있거나 100자를 초과하면 `400 INVALID_REQUEST`다.
   정규식 metacharacter도 일반 문자로 처리한다.
-- `category`: 선택 사항. `POLICY`, `ENVIRONMENT`, `LOCAL_ISSUE` 중 하나이며
-  `Room.categories`에 해당 값이 포함된 방만 반환한다.
+- `categoryId`: 선택 사항. `Room.categoryIds`에 해당 ID가 포함된 방만 반환한다.
+  존재하지 않는 ID는 빈 목록을 반환한다. 예전 `category` enum 파라미터는
+  `400 INVALID_REQUEST`다.
 - `joinPolicy`: 선택 사항. `OPEN` 또는 `INVITE_ONLY`인 방만 반환한다.
 - `cursor`: 선택 사항. 서버가 반환한 `nextCursor`를 그대로 사용한다.
-  현재 공개 방 목록 cursor는 검색 조건을 포함하는 v2 token만 지원한다.
+  현재 공개 방 목록 cursor는 검색 조건을 포함하는 v3 token만 지원한다.
   검색·필터 조건을 변경한 요청에 이전 cursor를 사용하면
-  `400 INVALID_CURSOR`다. 예전 v1 cursor도 지원하지 않는다.
+  `400 INVALID_CURSOR`다. 예전 v1/v2 cursor도 지원하지 않는다.
 - `limit`: 선택 사항. 기본값 `20`, 허용 범위 `1~100`.
-- 동일한 `query`, `category`, `joinPolicy` 파라미터를 반복하면
+- 동일한 `query`, `categoryId`, `joinPolicy` 파라미터를 반복하면
   `400 INVALID_REQUEST`다.
 - `chat:rooms:read` scope가 필요하며, 목록 조회 자체에는 방 멤버십이 필요하지 않다.
 - 모든 선택 조건은 AND로 결합하고 Mongo 조회와 pagination 전에 적용한다.
@@ -761,13 +908,13 @@ GET /api/v1/rooms?query=교통&category=LOCAL_ISSUE&joinPolicy=OPEN&cursor={curs
 ```http
 GET /api/v1/rooms?joinPolicy=OPEN
 GET /api/v1/rooms?joinPolicy=OPEN&query=법
-GET /api/v1/rooms?joinPolicy=OPEN&category=POLICY
-GET /api/v1/rooms?joinPolicy=OPEN&query=교통&category=LOCAL_ISSUE
+GET /api/v1/rooms?joinPolicy=OPEN&categoryId=00000000-0000-0000-0000-000000000001
+GET /api/v1/rooms?joinPolicy=OPEN&query=교통&categoryId=11111111-1111-1111-1111-111111111111
 ```
 
 프론트는 한글 IME composition 완료 후 250~300ms debounce하여 요청하고,
 새 검색 요청을 시작하면 진행 중인 이전 요청을 취소하는 방식을 권장한다.
-`query`, `category`, `joinPolicy` 중 하나라도 바뀌면 `cursor`를 제거하고 첫
+`query`, `categoryId`, `joinPolicy` 중 하나라도 바뀌면 `cursor`를 제거하고 첫
 페이지부터 조회한다. cursor 내부 payload를 해석하거나 생성하지 않는다.
 
 Room 조회 응답은 Room 범위 식별자인 `ownerMembershipId`만 owner 식별자로
@@ -783,7 +930,7 @@ Room 계약에는 이를 노출하지 않는다.
       "roomId": "room-01",
       "name": "시민 AI 토론방",
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
-      "categories": ["POLICY"],
+      "categoryIds": ["00000000-0000-0000-0000-000000000001"],
       "ownerMembershipId": "membership-01",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -816,7 +963,7 @@ GET /api/v1/rooms/{roomId}
   "roomId": "room-01",
   "name": "시민 AI 토론방",
   "description": "AI 정책과 시민 참여 방식을 논의합니다.",
-  "categories": ["POLICY"],
+  "categoryIds": ["00000000-0000-0000-0000-000000000001"],
   "ownerMembershipId": "membership-01",
   "status": "ACTIVE",
   "visibility": "LISTED",
@@ -882,7 +1029,7 @@ GET /api/v1/me/rooms?cursor={cursor}&limit=20
       "roomId": "room-01",
       "name": "시민 AI 토론방",
       "description": "AI 정책과 시민 참여 방식을 논의합니다.",
-      "categories": ["POLICY"],
+      "categoryIds": ["00000000-0000-0000-0000-000000000001"],
       "ownerMembershipId": "membership-01",
       "status": "ACTIVE",
       "visibility": "LISTED",
@@ -1945,7 +2092,7 @@ payload 형태:
 | `ROOM_MEMBER_JOINED`, `ROOM_MEMBER_REJOINED`, `ROOM_MEMBER_LEFT`, `ROOM_MEMBER_BANNED`, `ROOM_MEMBER_UNBANNED` | `member` |
 | `ROOM_OWNERSHIP_TRANSFERRED` | `previousOwner`, `newOwner` |
 | `ROOM_CLOSED` | `owner` |
-| `ROOM_SETTINGS_UPDATED` | `name`, `description`, `categories`, `visibility`, `joinPolicy` 전체 settings snapshot |
+| `ROOM_SETTINGS_UPDATED` | `name`, `description`, `categoryIds`, `visibility`, `joinPolicy` 전체 settings snapshot |
 
 모든 `member`, `owner`, `previousOwner`, `newOwner` 상태 객체는 Room 범위
 참여자 식별자인 필수 `membershipId`만 노출하며 `userId`는 포함하지 않는다.
@@ -1965,7 +2112,7 @@ payload 형태:
     "roomStatus": "ACTIVE",
     "name": "지역 교통 정책 토론방",
     "description": "지역 대중교통 정책과 개선 방안을 논의합니다.",
-    "categories": ["LOCAL_ISSUE"],
+    "categoryIds": ["11111111-1111-1111-1111-111111111111"],
     "visibility": "UNLISTED",
     "joinPolicy": "OPEN"
   }
@@ -2022,11 +2169,11 @@ ROOM_AUTHORIZATION_UNAVAILABLE
 
 Docker Compose로 서버와 MongoDB를 실행한 뒤 프론트 연동 계약 전체를 한 번에 확인할 수 있다.
 
-Room category 도입 후 `chat_rooms`의 현재 schema는 v4이며 `categories`가
-필수다. v1~v3 문서에 임의 기본 카테고리를 부여하지 않고 fail-closed로
-거절한다. 이번 로컬 개발 전환에서는 기존 데이터를 보존하지 않으므로 서버를
-기동하기 전에 전용 로컬 chat MongoDB database/volume 전체를 초기화한다.
-운영 데이터에는 별도 migration 정책 없이 이 초기화 절차를 적용하지 않는다.
+동적 Room category 도입 후 `chat_rooms`의 현재 schema는 v7이며
+`categoryIds`가 필수다. v6의 enum `categories`는 대응하는 불변 ID로
+migration한다. v6보다 오래된 지원 대상 밖 문서는 fail-closed로 거절한다.
+로컬 데이터를 초기화할 때도 운영 데이터에는 별도 검토 없이 같은 초기화 절차를
+적용하지 않는다.
 
 Membership는 `schemaVersion=2`와 `messageVisibleAfterSequence`를
 요구한다. Membership schema v1 또는 경계 필드가 누락된 문서는 경계를
@@ -2048,8 +2195,8 @@ python3 scripts/frontend-local-smoke.py
    동일한 `AUTHENTICATION_REQUIRED` ERROR를 반환하고, 유효한 쿠키로 명시적
    재연결하면 `CONNECTED`가 반환되는지 확인
 4. `civic_ai_access_token` 쿠키 JWT로 내 방 목록과 공개 방 목록 조회
-5. description과 categories를 포함한 `LISTED`, `OPEN` 방 생성
-6. 방 상세와 cursor 기반 전체 공개 목록에서 description/categories 반영 확인
+5. 카테고리 없이 `LISTED`, `OPEN` 방 생성 신청 후 관리자 승인에서 1~5개 지정
+6. 방 상세와 cursor 기반 전체 공개 목록에서 description/categoryIds 반영 확인
 7. 구독 유지 상태의 설정 변경, `ROOM_SETTINGS_UPDATED`, replay/no-op 확인
 8. `UNLISTED` 공개 목록 제외와 `INVITE_ONLY` join 차단 확인
 9. 메시지 CREATE/UPDATE/DELETE event와 command result 확인
@@ -2495,7 +2642,7 @@ Summary last message는
 
 ```json
 {
-  "categories": ["POLICY"],
+  "categoryIds": ["00000000-0000-0000-0000-000000000001"],
   "ownerMembershipId": "membership-01",
   "readThroughSequence": 123,
   "unreadCount": 200,
@@ -2844,6 +2991,9 @@ actor identity를 포함한다. `participants.jsonl`은 ACTIVE/LEFT/BANNED Membe
 Room 이름이나 displayName을 의미하지 않는다. 각 payload file의 크기와 SHA-256은
 manifest에 기록하고 전체 ZIP SHA-256은 응답 헤더에 기록한다.
 
+현재 일반 관리자 Export의 `exportSchemaVersion`은 `2`다. `room.json`은
+enum `categories`가 아니라 `categoryIds`를 제공한다.
+
 Artifact는 응답 전 임시 private workspace에서 완성·검증되며 영구 저장하거나
 재다운로드하지 않는다. 전체 body write와 flush 이후 Job이 SUCCEEDED가 된 경우만
 다음 INCREMENTAL base로 사용한다. 전달 또는 성공 상태 저장이 실패하면 이전
@@ -2900,6 +3050,9 @@ ZIP entry는 `manifest.json`, `messages.jsonl`, `message_changes.jsonl`,
 `messageSequence` 순서로, `message_changes.jsonl`은 모든 CREATE/UPDATE/DELETE를
 `changeSequence` 순서로 제공한다. 삭제 메시지는 삭제 직전 content와
 `deleted=true`를 제공한다.
+
+현재 연구용 `manifest.json`의 `schemaVersion`은 `2`이며 Room 메타데이터에
+`roomCategoryIds`를 포함한다. 이 배열에도 표시 순서 의미는 없다.
 
 연구용 Export는 `chat_message_audit_events`만 canonical source로 사용하며
 `chat_messages` fallback을 수행하지 않는다. 메시지 감사 원장 도입 전에 생성된
