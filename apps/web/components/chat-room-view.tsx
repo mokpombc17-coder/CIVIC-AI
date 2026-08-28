@@ -20,6 +20,7 @@ export type ChatRoomViewProps = Readonly<{
   header: ChatRoomHeaderViewModel;
   headerAction: ReactNode;
   messageHistory: ChatMessageHistoryViewModel;
+  messageSearchPanel: ReactNode;
   overlay: ReactNode;
   roomError: ChatRoomEntryErrorViewModel | null;
   sessionIndicator: ReactNode;
@@ -32,6 +33,7 @@ export function ChatRoomView({
   header,
   headerAction,
   messageHistory,
+  messageSearchPanel,
   overlay,
   roomError,
   sessionIndicator,
@@ -74,6 +76,8 @@ export function ChatRoomView({
                 {sessionNotice}
                 {syncStatus}
               </div>
+
+              {messageSearchPanel}
 
               <ChatMessageViewport
                 history={{

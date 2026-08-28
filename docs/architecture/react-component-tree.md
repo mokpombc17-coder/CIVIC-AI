@@ -127,10 +127,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
                                     │   └── ChatMessageComposer [Client] [Feature] (apps/web/components/chat-message-composer.tsx)
                                     ├── ChatRoomScreenHeaderActions [Client] [View] (apps/web/components/chat-room-screen-overlays.tsx)
+                                    ├── ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline] (apps/web/components/chat-room-screen-overlays.tsx)
+                                    │   └── ChatRoomMessageSearchPanel [Client] [Feature] (apps/web/components/chat-room-message-search-dialog.tsx)
                                     └── ChatRoomScreenOverlay [Client] [View] [conditional, single] (apps/web/components/chat-room-screen-overlays.tsx)
                                         ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
-                                        ├── ChatRoomMessageSearchDialog [Client] [Feature] [conditional, full-height overlay] (apps/web/components/chat-room-message-search-dialog.tsx)
-                                        │   └── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
                                         └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
                                             └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
                                                 └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
@@ -158,10 +158,12 @@ z-index만 책임진다. modal overlay가 열리면 `contentInert`가 header·co
 뒤로 갈 수 있는지는 추론하지 않고 화면이 `backAction`으로 목적지나 동작을 제공한다. 도메인은 route,
 active anchor, 동작과 overlay 상태를 계속 소유한다.
 
-`ChatRoomMessageSearchDialog`는 route를 추가하지 않고 채팅방 overlay slot 전체를 채우는 모바일
-검색 화면이다. 검색 결과와 선택한 메시지의 주변 대화는 같은 dialog 안에서 전환하며,
-`PlatformHeader`의 button형 `backAction`이 검색 닫기 또는 검색 결과 복귀를 수행한다. overlay가
-열린 동안 기존 채팅방 header·composer·bottom navigation은 inert surface 뒤에 유지된다.
+`ChatRoomMessageSearchPanel`은 route나 `PlatformShell` overlay를 추가하지 않고 채팅방 content 안에서
+메시지 viewport 위에 조건부로 조립된다. 검색 결과와 선택한 메시지의 주변 대화는 최대
+`min(240px, 38dvh)` 높이의 내부 스크롤 영역에서 전환한다. 검색 중에도 기존 채팅방 header,
+message viewport, composer와 bottom navigation을 유지하며 read-state를 멈추지 않는다. 멤버십과
+메시지 작업처럼 배경 상호작용을 막아야 하는 기능만 `ChatRoomScreenOverlay`의 blocking overlay로
+남는다.
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
 제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
@@ -398,9 +400,10 @@ flowchart TD
     ChatRoomEntryError["ChatRoomEntryError [Server-compatible] [View] [conditional]<br/>apps/web/components/chat-room-entry-error.tsx"]
     ChatMessageViewport["ChatMessageViewport [Client] [Feature]<br/>apps/web/components/chat-message-viewport.tsx"]
     ChatRoomScreenHeaderActions["ChatRoomScreenHeaderActions [Client] [View]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
+    ChatRoomScreenMessageSearchPanel["ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
     ChatRoomScreenOverlay["ChatRoomScreenOverlay [Client] [View] [conditional, single]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
     ChatMessageActionsBottomSheet["ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single]<br/>apps/web/components/chat-message-actions-bottom-sheet.tsx"]
-    ChatRoomMessageSearchDialog["ChatRoomMessageSearchDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-message-search-dialog.tsx"]
+    ChatRoomMessageSearchPanel["ChatRoomMessageSearchPanel [Client] [Feature] [conditional, inline]<br/>apps/web/components/chat-room-message-search-dialog.tsx"]
     ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
     ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat-room-membership-panel.tsx"]
     ChatRoomMembershipPanelView["ChatRoomMembershipPanelView [Client] [View]<br/>apps/web/components/chat-room-membership-panel.tsx"]
@@ -480,10 +483,10 @@ flowchart TD
     ChatRoomScreen -->|"message draft and send"| ChatRoomSessionControls
     ChatRoomSessionControls --> ChatMessageComposer
     ChatRoomScreen -->|"header controls"| ChatRoomScreenHeaderActions
-    ChatRoomScreen -->|"single overlay priority"| ChatRoomScreenOverlay
+    ChatRoomScreen -->|"conditional inline search"| ChatRoomScreenMessageSearchPanel
+    ChatRoomScreenMessageSearchPanel --> ChatRoomMessageSearchPanel
+    ChatRoomScreen -->|"blocking overlay priority"| ChatRoomScreenOverlay
     ChatRoomScreenOverlay -->|"one selected message"| ChatMessageActionsBottomSheet
-    ChatRoomScreenOverlay -->|"isolated Room message search and context windows"| ChatRoomMessageSearchDialog
-    ChatRoomMessageSearchDialog --> PlatformHeader
     ChatRoomScreenOverlay -->|"room menu disclosure"| ChatRoomMembershipDialog
     ChatRoomMembershipDialog --> ChatRoomMembershipPanel
     ChatRoomMembershipPanel --> ChatRoomMembershipPanelView
@@ -517,7 +520,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SpecialBoundary framework;
 ```

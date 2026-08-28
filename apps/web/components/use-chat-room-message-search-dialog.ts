@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 
-export function useChatRoomMessageSearchDialog(roomId: string) {
+export function useChatRoomMessageSearchPanel(roomId: string) {
   const [openRoomId, setOpenRoomId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const isOpen = openRoomId === roomId;

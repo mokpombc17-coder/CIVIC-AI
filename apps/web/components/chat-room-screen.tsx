@@ -2,6 +2,7 @@
 
 import {
   ChatRoomScreenHeaderActions,
+  ChatRoomScreenMessageSearchPanel,
   ChatRoomScreenOverlay,
 } from "@/components/chat-room-screen-overlays";
 import { ChatRoomSessionControls } from "@/components/chat-room-session-controls";
@@ -31,14 +32,20 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       header={content.header}
       headerAction={<ChatRoomScreenHeaderActions {...overlays.headerActions} />}
       messageHistory={content.messageHistory}
+      messageSearchPanel={
+        overlays.messageSearchPanel.visible ? (
+          <ChatRoomScreenMessageSearchPanel
+            messageSearchPanel={overlays.messageSearchPanel}
+            participantDisplayNames={content.participantDisplayNames}
+          />
+        ) : null
+      }
       overlay={
         overlays.kind ? (
           <ChatRoomScreenOverlay
             kind={overlays.kind}
             membershipDialog={overlays.membershipDialog}
             messageActionsSheet={content.messageActions.sheet}
-            messageSearchDialog={overlays.messageSearchDialog}
-            participantDisplayNames={content.participantDisplayNames}
             room={content.room}
             roomId={roomId}
           />

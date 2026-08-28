@@ -18,6 +18,7 @@ type ChatRoomOverlayExperienceState = Readonly<{
   kind: ChatRoomScreenOverlayKind | null;
   roomAvailable: boolean;
   searchDisabled: boolean;
+  searchPanelVisible: boolean;
 }>;
 
 export function useChatRoomOverlayExperience(
@@ -25,14 +26,14 @@ export function useChatRoomOverlayExperience(
   { generation, hasMessageActions, roomActive, roomAvailable }: ChatRoomOverlayExperienceOptions,
 ) {
   const membershipDialog = useChatRoomMembershipDialog(roomId);
-  const messageSearchDialog = useChatRoomMessageSearchExperience(roomId, {
+  const messageSearchPanel = useChatRoomMessageSearchExperience(roomId, {
     generation,
     roomActive,
   });
   const state = createChatRoomOverlayExperienceState({
     hasMessageActions,
     isMembershipDialogOpen: membershipDialog.isOpen,
-    isMessageSearchDialogOpen: messageSearchDialog.isOpen,
+    isMessageSearchPanelOpen: messageSearchPanel.isOpen,
     roomActive,
     roomAvailable,
   });
@@ -40,11 +41,11 @@ export function useChatRoomOverlayExperience(
   return {
     headerActions: {
       isMembershipDialogOpen: membershipDialog.isOpen,
-      isMessageSearchDialogOpen: messageSearchDialog.isOpen,
+      isMessageSearchPanelOpen: messageSearchPanel.isOpen,
       membershipDialogTriggerRef: membershipDialog.triggerRef,
-      messageSearchDialogTriggerRef: messageSearchDialog.triggerRef,
+      messageSearchPanelTriggerRef: messageSearchPanel.triggerRef,
       onOpenMembershipDialog: membershipDialog.open,
-      onOpenMessageSearchDialog: messageSearchDialog.open,
+      onOpenMessageSearchPanel: messageSearchPanel.open,
       roomAvailable: state.roomAvailable,
       searchDisabled: state.searchDisabled,
     },
@@ -52,10 +53,11 @@ export function useChatRoomOverlayExperience(
     membershipDialog: {
       onClose: membershipDialog.close,
     },
-    messageSearchDialog: {
-      context: messageSearchDialog.context,
-      controller: messageSearchDialog.controller,
-      onClose: messageSearchDialog.close,
+    messageSearchPanel: {
+      context: messageSearchPanel.context,
+      controller: messageSearchPanel.controller,
+      onClose: messageSearchPanel.close,
+      visible: state.searchPanelVisible,
     },
   };
 }
@@ -65,13 +67,13 @@ export type ChatRoomOverlayExperience = ReturnType<typeof useChatRoomOverlayExpe
 export function createChatRoomOverlayExperienceState({
   hasMessageActions,
   isMembershipDialogOpen,
-  isMessageSearchDialogOpen,
+  isMessageSearchPanelOpen,
   roomActive,
   roomAvailable,
 }: Readonly<{
   hasMessageActions: boolean;
   isMembershipDialogOpen: boolean;
-  isMessageSearchDialogOpen: boolean;
+  isMessageSearchPanelOpen: boolean;
   roomActive: boolean;
   roomAvailable: boolean;
 }>): ChatRoomOverlayExperienceState {
@@ -79,10 +81,10 @@ export function createChatRoomOverlayExperienceState({
     kind: resolveChatRoomScreenOverlayKind({
       hasMessageActions,
       isMembershipDialogOpen,
-      isMessageSearchDialogOpen,
       roomAvailable,
     }),
     roomAvailable,
     searchDisabled: !roomActive,
+    searchPanelVisible: roomAvailable && isMessageSearchPanelOpen,
   };
 }

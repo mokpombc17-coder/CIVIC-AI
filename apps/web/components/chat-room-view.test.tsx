@@ -35,17 +35,32 @@ describe("ChatRoomView platform shell integration", () => {
   });
 
   it("overlay가 열리면 shell surface와 read-state를 함께 멈춘다", () => {
-    const markup = renderChatRoomView(<div role="dialog">검색 대화상자</div>);
+    const markup = renderChatRoomView(<div role="dialog">멤버십 대화상자</div>);
 
     expect(markup).toContain('data-platform-shell-overlay="true"');
     expect(markup).toContain('data-read-state-paused="true"');
     expect(markup).toContain('aria-hidden="true"');
     expect(markup).toContain('inert=""');
-    expect(markup).toContain("검색 대화상자");
+    expect(markup).toContain("멤버십 대화상자");
+  });
+
+  it("검색 panel은 메시지 viewport와 하단 내비게이션을 유지하고 read-state를 멈추지 않는다", () => {
+    const markup = renderChatRoomView(null, <section>메시지 검색 패널</section>);
+
+    expect(markup).toContain("메시지 검색 패널");
+    expect(markup).toContain('data-message-viewport="true"');
+    expect(markup).toContain('data-read-state-paused="false"');
+    expect(markup).toContain("메시지 입력");
+    expect(markup).toContain('aria-label="참여자 주요 메뉴"');
+    expect(markup).not.toContain('data-platform-shell-overlay="true"');
+    expect(markup).not.toContain('inert=""');
   });
 });
 
-function renderChatRoomView(overlay: ReactNode = null): string {
+function renderChatRoomView(
+  overlay: ReactNode = null,
+  messageSearchPanel: ReactNode = null,
+): string {
   return renderToStaticMarkup(
     <ChatRoomView
       header={{
@@ -55,6 +70,7 @@ function renderChatRoomView(overlay: ReactNode = null): string {
       }}
       headerAction={<button type="button">방 정보</button>}
       messageHistory={{} as ChatMessageHistoryViewModel}
+      messageSearchPanel={messageSearchPanel}
       overlay={overlay}
       roomError={null}
       sessionControls={<div>메시지 입력</div>}

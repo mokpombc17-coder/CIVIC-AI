@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { useChatRoomMessageSearchDialog } from "@/components/use-chat-room-message-search-dialog";
+import { useChatRoomMessageSearchPanel } from "@/components/use-chat-room-message-search-dialog";
 import { useRoomMessageContext } from "@/components/use-room-message-context";
 import { useRoomMessageSearch } from "@/components/use-room-message-search";
 
@@ -20,19 +20,19 @@ export function useChatRoomMessageSearchExperience(
   roomId: string,
   { generation, roomActive }: ChatRoomMessageSearchExperienceOptions,
 ) {
-  const dialog = useChatRoomMessageSearchDialog(roomId);
+  const panel = useChatRoomMessageSearchPanel(roomId);
   const controller = useRoomMessageSearch(roomId, {
-    enabled: roomActive && dialog.isOpen,
+    enabled: roomActive && panel.isOpen,
     generation,
   });
   const context = useRoomMessageContext(roomId, {
-    enabled: roomActive && dialog.isOpen,
+    enabled: roomActive && panel.isOpen,
     generation,
     searchSessionGeneration: controller.sessionGeneration,
   });
   const { clearSearch } = controller;
   const { closeContext } = context;
-  const { close: closeDialog } = dialog;
+  const { close: closeDialog } = panel;
   const close = useCallback(() => {
     closeChatRoomMessageSearchExperience({
       clearSearch,
@@ -42,18 +42,18 @@ export function useChatRoomMessageSearchExperience(
   }, [clearSearch, closeContext, closeDialog]);
 
   useEffect(() => {
-    if (shouldCloseChatRoomMessageSearchExperience(dialog.isOpen, roomActive)) {
+    if (shouldCloseChatRoomMessageSearchExperience(panel.isOpen, roomActive)) {
       close();
     }
-  }, [close, dialog.isOpen, roomActive]);
+  }, [close, panel.isOpen, roomActive]);
 
   return {
     close,
     context,
     controller,
-    isOpen: dialog.isOpen,
-    open: dialog.open,
-    triggerRef: dialog.triggerRef,
+    isOpen: panel.isOpen,
+    open: panel.open,
+    triggerRef: panel.triggerRef,
   };
 }
 

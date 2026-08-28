@@ -2,25 +2,26 @@ import { describe, expect, it } from "vitest";
 import { createChatRoomOverlayExperienceState } from "./use-chat-room-overlay-experience";
 
 describe("chat room overlay experience", () => {
-  it("검색, 멤버십, 메시지 액션 순서로 단일 overlay를 선택한다", () => {
+  it("검색 panel은 별도로 노출하고 멤버십과 메시지 액션만 overlay로 선택한다", () => {
     expect(
       createChatRoomOverlayExperienceState({
         hasMessageActions: true,
         isMembershipDialogOpen: true,
-        isMessageSearchDialogOpen: true,
+        isMessageSearchPanelOpen: true,
         roomActive: true,
         roomAvailable: true,
       }),
     ).toMatchObject({
-      kind: "message-search",
+      kind: "membership",
       searchDisabled: false,
+      searchPanelVisible: true,
     });
 
     expect(
       createChatRoomOverlayExperienceState({
         hasMessageActions: true,
         isMembershipDialogOpen: true,
-        isMessageSearchDialogOpen: false,
+        isMessageSearchPanelOpen: false,
         roomActive: true,
         roomAvailable: true,
       }).kind,
@@ -30,7 +31,7 @@ describe("chat room overlay experience", () => {
       createChatRoomOverlayExperienceState({
         hasMessageActions: true,
         isMembershipDialogOpen: false,
-        isMessageSearchDialogOpen: false,
+        isMessageSearchPanelOpen: false,
         roomActive: true,
         roomAvailable: true,
       }).kind,
@@ -42,7 +43,7 @@ describe("chat room overlay experience", () => {
       createChatRoomOverlayExperienceState({
         hasMessageActions: false,
         isMembershipDialogOpen: true,
-        isMessageSearchDialogOpen: true,
+        isMessageSearchPanelOpen: true,
         roomActive: false,
         roomAvailable: false,
       }),
@@ -50,6 +51,7 @@ describe("chat room overlay experience", () => {
       kind: null,
       roomAvailable: false,
       searchDisabled: true,
+      searchPanelVisible: false,
     });
   });
 });

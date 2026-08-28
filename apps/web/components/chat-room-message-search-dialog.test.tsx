@@ -2,26 +2,31 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
-  ChatRoomMessageSearchDialog,
-  type ChatRoomMessageContextDialogController,
-  type ChatRoomMessageSearchDialogController,
+  ChatRoomMessageSearchPanel,
+  type ChatRoomMessageContextPanelController,
+  type ChatRoomMessageSearchPanelController,
 } from "@/components/chat-room-message-search-dialog";
 import { ChatApiError } from "@/lib/chat/chat-fetch";
 import type { ChatMessage } from "@/lib/chat/chat-room-contracts";
 
-describe("Room message search dialog", () => {
-  it("버튼 검색과 UTF-16 512자 입력 경계를 접근 가능한 dialog로 표시한다", () => {
+describe("Room message search panel", () => {
+  it("검색 입력과 취소 action을 채팅 안의 접근 가능한 inline panel로 표시한다", () => {
     const html = renderDialog();
 
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="true"');
-    expect(html).toContain('data-presentation="full-height"');
+    expect(html).toContain('data-chat-room-message-search-panel="true"');
+    expect(html).toContain('data-presentation="inline"');
+    expect(html).toContain('id="chat-room-message-search-panel"');
+    expect(html).not.toContain('role="dialog"');
+    expect(html).not.toContain('aria-modal="true"');
     expect(html).toContain('aria-label="메시지 검색 닫기"');
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-label="채팅방 메시지 검색"');
+    expect(html).toContain('placeholder="메시지 검색"');
+    expect(html).toContain(">취소</button>");
     expect(html).toContain('maxLength="512"');
-    expect(html).toContain("검색 버튼을 누르면");
-    expect(html).toContain("검색어를 입력하고 검색 버튼을 눌러 주세요.");
+    expect(html).toContain("키보드의 검색 또는 Enter");
+    expect(html).not.toContain("검색어를 입력한 뒤 검색을 실행해 주세요.");
+    expect(html).not.toContain("두 글자 이상 입력해 주세요");
     expect(html).not.toContain("Room messages");
   });
 
@@ -43,6 +48,7 @@ describe("Room message search dialog", () => {
     expect(html).toContain("참여자 2");
     expect(html).toContain("알 수 없는 참여자");
     expect(html).toContain("환경 정책입니다.");
+    expect(html).toContain("max-h-[min(240px,38dvh)]");
   });
 
   it("빈 중간 페이지를 최종 검색 결과 없음과 구분한다", () => {
@@ -105,7 +111,8 @@ describe("Room message search dialog", () => {
     expect(html).toContain("메시지가 삭제되었거나 더 이상 접근할 수 없습니다.");
     expect(html).not.toContain(">다시 시도<");
     expect(html).toContain("검색 결과로 돌아가기");
-    expect(html).toContain(">주변 대화</span>");
+    expect(html).toContain(">주변 대화</h2>");
+    expect(html).toContain(">닫기</button>");
   });
 
   it("검색 결과 Context를 별도 창에 ASC로 표시하고 target을 강조한다", () => {
@@ -134,12 +141,12 @@ describe("Room message search dialog", () => {
 });
 
 function renderDialog(
-  patch: Partial<ChatRoomMessageSearchDialogController> = {},
+  patch: Partial<ChatRoomMessageSearchPanelController> = {},
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
-  contextPatch: Partial<ChatRoomMessageContextDialogController> = {},
+  contextPatch: Partial<ChatRoomMessageContextPanelController> = {},
 ): string {
   return renderToStaticMarkup(
-    createElement(ChatRoomMessageSearchDialog, {
+    createElement(ChatRoomMessageSearchPanel, {
       context: createContextController(contextPatch),
       controller: {
         appliedQuery: undefined,
@@ -170,8 +177,8 @@ function renderDialog(
 }
 
 function createContextController(
-  patch: Partial<ChatRoomMessageContextDialogController> = {},
-): ChatRoomMessageContextDialogController {
+  patch: Partial<ChatRoomMessageContextPanelController> = {},
+): ChatRoomMessageContextPanelController {
   return {
     closeContext: vi.fn(),
     error: null,
