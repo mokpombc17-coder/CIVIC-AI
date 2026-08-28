@@ -3705,3 +3705,13 @@ body:has([data-wireflow-shell]) {
   height: 13px;
   flex: none;
 }
+
+/* AI 대화: 빈 대화에서도 입력창을 화면 하단에 고정 (Figma 배치) */
+.civic-platform-participant-body:has([data-wireflow-screen^="U-RAG"]) {
+  display: flex;
+  flex-direction: column;
+}
+
+.civic-platform-participant-body > [data-wireflow-screen^="U-RAG"] {
+  flex: 1;
+}
