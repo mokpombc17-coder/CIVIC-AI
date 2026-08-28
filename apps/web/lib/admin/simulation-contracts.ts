@@ -44,6 +44,8 @@ const filterOptionsSchema = z
   .object({
     genders: z.array(z.string().min(1)),
     ageGroups: z.array(z.string().min(1)),
+    regions: z.array(z.string().min(1)),
+    politicalIdeologies: z.array(z.string().min(1)),
   })
   .strict();
 
