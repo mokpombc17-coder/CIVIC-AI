@@ -1,0 +1,13 @@
+server:
+  port: ${SERVER_PORT:8082}
+
+civic:
+  auth:
+    issuer: ${VOTE_JWT_ISSUER_URI:https://140-238-17-223.sslip.io}
+    jwks-uri: ${VOTE_JWT_JWKS_URI:https://140-238-17-223.sslip.io/.well-known/jwks.json}
+    browser-origin: ${VOTE_BROWSER_ORIGIN:https://140-238-17-223.sslip.io}
+    allow-insecure-loopback: false
+
+vote:
+  security:
+    local-admin-api-enabled: ${VOTE_SECURITY_LOCAL_ADMIN_API_ENABLED:false}
