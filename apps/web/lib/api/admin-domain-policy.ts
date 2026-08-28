@@ -1,10 +1,6 @@
 export type AdminDomainRoute = Readonly<{
   path: string;
-  scope:
-    | "chat:rooms:approve"
-    | "chat:categories:manage"
-    | "chat:rooms:read"
-    | "vote:tasks:admin";
+  scope: "chat:rooms:approve" | "chat:categories:manage" | "chat:rooms:read" | "vote:tasks:admin";
 }>;
 
 type RouteFailure = Readonly<{ allowedMethods: readonly string[]; status: 404 | 405 }>;
