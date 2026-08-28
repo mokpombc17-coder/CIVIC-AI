@@ -10,7 +10,6 @@ type ReadOnlyPdfViewerProps = Readonly<{
   totalPages: number;
   sourceUrl: string;
   onClose?: () => void;
-  onPageChange?: (page: number) => void;
 }>;
 
 export function ReadOnlyPdfViewer({
@@ -19,13 +18,18 @@ export function ReadOnlyPdfViewer({
   totalPages,
   sourceUrl,
   onClose,
-  onPageChange,
 }: ReadOnlyPdfViewerProps) {
-  const safePage = Math.max(1, Math.min(currentPage, totalPages));
-  const viewerSource = `${sourceUrl}#page=${safePage}&toolbar=0&navpanes=0&scrollbar=1`;
+  const safeTotalPages = Math.max(1, totalPages);
+  const safePage = Math.max(1, Math.min(currentPage, safeTotalPages));
+  const documentSource = sourceUrl.endsWith("/document") ? sourceUrl : `${sourceUrl}/document`;
+  const viewerSource = `${documentSource}#page=${safePage}&toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
 
   return (
-    <section aria-label={`${documentTitle} 읽기 전용 PDF`} className="civic-pdf-viewer">
+    <section
+      aria-label={`${documentTitle} 읽기 전용 PDF`}
+      className="civic-pdf-viewer"
+      data-pdf-scroll-mode="continuous"
+    >
       <header className="civic-pdf-toolbar">
         <h2>참조 문서</h2>
         {onClose ? (
@@ -47,81 +51,19 @@ export function ReadOnlyPdfViewer({
         <header className="wf-rag-document-meta">
           <h3>{documentTitle}</h3>
           <p>
-            {safePage}/{totalPages}페이지 · 100%
+            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지 · 연속 스크롤
           </p>
         </header>
         <div className="civic-pdf-canvas">
           <AuthenticatedResourceFrame
             src={viewerSource}
-            title={`${documentTitle} ${safePage}페이지`}
+            title={`${documentTitle} 전체 문서, ${safePage}페이지 인용 위치`}
           />
         </div>
         <strong aria-live="polite" className="sr-only">
-          {safePage} / {totalPages}페이지
+          인용 {safePage} / {safeTotalPages}페이지, 연속 스크롤
         </strong>
-        <div aria-label="PDF 페이지 도구" className="civic-pdf-controls" role="toolbar">
-          {onPageChange ? (
-            <button
-              className="wf-button wf-button-secondary"
-              data-page-target={safePage - 1}
-              disabled={safePage <= 1}
-              onClick={() => onPageChange(safePage - 1)}
-              type="button"
-            >
-              이전 페이지
-            </button>
-          ) : (
-            <Link
-              aria-disabled={safePage <= 1}
-              className="wf-button wf-button-secondary"
-              href={
-                (safePage <= 1
-                  ? "#"
-                  : pageHref(sourceUrl, safePage - 1, documentTitle, totalPages)) as Route
-              }
-            >
-              이전 페이지
-            </Link>
-          )}
-          {onPageChange ? (
-            <button
-              className="wf-button wf-button-primary"
-              data-page-target={safePage + 1}
-              disabled={safePage >= totalPages}
-              onClick={() => onPageChange(safePage + 1)}
-              type="button"
-            >
-              다음 페이지
-            </button>
-          ) : (
-            <Link
-              aria-disabled={safePage >= totalPages}
-              className="wf-button wf-button-primary"
-              href={
-                (safePage >= totalPages
-                  ? "#"
-                  : pageHref(sourceUrl, safePage + 1, documentTitle, totalPages)) as Route
-              }
-            >
-              다음 페이지
-            </Link>
-          )}
-        </div>
       </div>
     </section>
   );
-}
-
-export function pageHref(sourceUrl: string, page: number, title: string, totalPages: number) {
-  const match = sourceUrl.match(/\/sources\/([^/]+)\/pages\/\d+/);
-  const versionId = decodePathSegment(match?.[1] ?? "");
-  return `/rag/source/page?versionId=${encodeURIComponent(versionId)}&page=${page}&title=${encodeURIComponent(title)}&total=${totalPages}`;
-}
-
-function decodePathSegment(value: string) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }

@@ -81,7 +81,7 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/queries/query-job-1") {
       return json(response, queryResultFixture);
     }
-    if (url.pathname === "/internal/v1/rag/sources/version-1/pages/3") {
+    if (url.pathname === "/internal/v1/rag/sources/version-1/pages/3/document") {
       response.writeHead(200, { "content-type": "application/pdf" });
       response.end("%PDF-1.4\n%%EOF\n");
       return;
@@ -474,8 +474,13 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계
   ).toBeVisible();
   await expect(page.locator("a[download], [target='_blank']")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /다운로드|저장/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "다음 페이지" }).click();
-  await expect(page.locator("iframe")).toHaveAttribute("src", /\/pages\/4#page=4/);
+  await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "이전 페이지" })).toHaveCount(0);
+  await expect(page.locator('[data-pdf-scroll-mode="continuous"]')).toHaveCount(1);
+  await expect(page.locator("iframe")).toHaveAttribute(
+    "src",
+    /\/pages\/3\/document#page=3.*scrollbar=1/,
+  );
   await expect(page).toHaveURL(/\/rag$/);
   await page.getByRole("button", { name: "참조 문서 닫기" }).click();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
