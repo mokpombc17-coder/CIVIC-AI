@@ -24,8 +24,14 @@ describe("ChatMessageViewport presentation", () => {
 
     expect(loadingMarkup).toContain('role="status"');
     expect(loadingMarkup).toContain("이전 메시지를 불러오는 중…");
+    expect(loadingMarkup).toContain('data-chat-message-history-state="older-loading"');
+    expect(loadingMarkup).toContain("border-t-[var(--chat-publishing-color-primary)]");
     expect(errorMarkup).toContain('role="alert"');
     expect(errorMarkup).toContain("이전 메시지 다시 불러오기");
+    expect(errorMarkup).toContain('data-chat-message-history-state="older-error"');
+    expect(errorMarkup).toContain("bg-[#fff7e8]");
+    expect(errorMarkup).not.toContain("secondary-button");
+    expect(errorMarkup).not.toContain("bg-red-50");
   });
 
   it("메시지 이력 notice와 error의 접근성 상태를 유지한다", () => {
@@ -41,8 +47,13 @@ describe("ChatMessageViewport presentation", () => {
     );
 
     expect(noticeMarkup).toContain("아직 작성된 메시지가 없습니다.");
+    expect(noticeMarkup).toContain('data-chat-message-history-state="notice"');
+    expect(noticeMarkup).toContain('role="status"');
     expect(errorMarkup).toContain('role="alert"');
     expect(errorMarkup).toContain("다시 불러오기");
+    expect(errorMarkup).toContain('data-chat-message-history-state="error"');
+    expect(errorMarkup).toContain("border-[#ffc95c]");
+    expect(errorMarkup).not.toContain("secondary-button");
   });
 
   it("새 메시지 수와 도착 안내를 별도 표현 요소로 렌더링한다", () => {
@@ -57,6 +68,8 @@ describe("ChatMessageViewport presentation", () => {
 
     expect(buttonMarkup).toContain("새 메시지 3개");
     expect(buttonMarkup).toContain("최신 메시지로 이동");
+    expect(buttonMarkup).toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(buttonMarkup).not.toContain("bg-slate-950");
     expect(announcementMarkup).toContain('aria-live="polite"');
     expect(announcementMarkup).toContain("새 메시지가 도착했습니다.");
   });

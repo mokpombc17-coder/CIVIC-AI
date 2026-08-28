@@ -23,24 +23,33 @@ export function ChatRealtimeSyncStatus({ error, onRetry, visible }: ChatRealtime
 
   return (
     <div
-      className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-red-950"
+      className="mt-3 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-4 text-[var(--chat-publishing-color-text)]"
+      data-chat-message-history-state="sync-error"
       role="alert"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{presentation.title}</p>
-          <p className="mt-0.5 text-xs opacity-75">{presentation.description}</p>
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-base font-bold text-[#8a5700]"
+        >
+          !
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold leading-6">{presentation.title}</p>
+          <p className="mt-1 break-words text-sm leading-5 text-[#7a4b00]">
+            {presentation.description}
+          </p>
         </div>
-        {handleAction && presentation.actionLabel ? (
-          <button
-            className="shrink-0 rounded-lg border border-current px-3 py-1.5 text-xs font-semibold"
-            onClick={handleAction}
-            type="button"
-          >
-            {presentation.actionLabel}
-          </button>
-        ) : null}
       </div>
+      {handleAction && presentation.actionLabel ? (
+        <button
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+          onClick={handleAction}
+          type="button"
+        >
+          {presentation.actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
