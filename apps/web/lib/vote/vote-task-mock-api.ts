@@ -190,7 +190,7 @@ export function createMockVoteTaskApi(delayMs = 80): VoteTaskApi {
         taskDescription: detailFixture.task.description,
         personaGenerationId: command.personaGenerationId,
         personaVersionId: command.personaVersionId,
-        predictionId: command.predictionId ?? null,
+        predictionId: command.predictionId,
         submittedAt: "2026-08-27T04:00:00Z",
         questionId: QUESTION_ID,
         question: detailFixture.task.question,

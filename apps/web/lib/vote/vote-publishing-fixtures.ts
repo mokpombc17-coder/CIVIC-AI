@@ -72,7 +72,7 @@ export const votePublishingTask = Object.freeze({
     },
   ] satisfies readonly VotePublishingReason[],
   confirmationReason: "효과와 재정 부담을 확인하며 지원 대상을 넓히는 편이 안정적입니다.",
-  reasonMaxLength: 1_000,
+  reasonMaxLength: 500,
 });
 
 export const votePublishingResult = Object.freeze({

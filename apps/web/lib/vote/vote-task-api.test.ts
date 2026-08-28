@@ -27,11 +27,10 @@ describe("VoteTaskApi", () => {
         {
           personaGenerationId: "a64feaf8-fcb8-4780-8977-01c9094821ca",
           personaVersionId: "ec85b168-a766-46a6-a64a-60ed76c66dfa",
-          predictionId: null,
+          predictionId: "7ae32cd0-68d8-458c-afbd-d8c657697479",
           questionId: "05ecfe73-6bee-4e98-8d3d-ed49262958ef",
           selectedOptionId: "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db",
           reasonSource: "USER_WRITTEN",
-          acceptedPredictedReasonId: null,
           reason: "  직접 작성  ",
         },
         key,
@@ -40,7 +39,15 @@ describe("VoteTaskApi", () => {
 
     expect(calls[0]?.path).toBe(`/me/tasks/${TASK_ID}/submission`);
     expect(new Headers(calls[0]?.init?.headers).get("Idempotency-Key")).toBe(key);
-    expect(JSON.parse(String(calls[0]?.init?.body))).toMatchObject({ reason: "직접 작성" });
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      personaGenerationId: "a64feaf8-fcb8-4780-8977-01c9094821ca",
+      personaVersionId: "ec85b168-a766-46a6-a64a-60ed76c66dfa",
+      predictionId: "7ae32cd0-68d8-458c-afbd-d8c657697479",
+      questionId: "05ecfe73-6bee-4e98-8d3d-ed49262958ef",
+      selectedOptionId: "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db",
+      reasonSource: "USER_WRITTEN",
+      reason: "직접 작성",
+    });
   });
 
   it("유효하지 않은 Task ID는 HTTP 요청 전에 거절한다", async () => {

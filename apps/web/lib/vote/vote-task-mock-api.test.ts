@@ -14,11 +14,10 @@ describe("Persona-ready Task mock adapter", () => {
       {
         personaGenerationId: prediction.personaGenerationId!,
         personaVersionId: prediction.personaVersionId!,
-        predictionId: null,
+        predictionId: prediction.predictionId!,
         questionId: "05ecfe73-6bee-4e98-8d3d-ed49262958ef",
         selectedOptionId: "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db",
         reasonSource: "USER_WRITTEN",
-        acceptedPredictedReasonId: null,
         reason: "직접 작성한 이유",
       },
       "6f219f29-8598-49f0-9b28-cb7be5720258",

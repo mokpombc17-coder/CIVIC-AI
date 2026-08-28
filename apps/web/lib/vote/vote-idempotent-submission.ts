@@ -26,6 +26,27 @@ export function savePendingTaskSubmission(
   storage.setItem(`${STORAGE_PREFIX}${pending.taskId}`, JSON.stringify(pending));
 }
 
+export function getOrCreatePendingTaskSubmission(
+  taskId: string,
+  command: SubmitTaskRequest,
+  storage: Pick<Storage, "getItem" | "setItem"> = sessionStorage,
+  createKey: () => string = () => crypto.randomUUID(),
+): PendingTaskSubmission {
+  const parsedCommand = submitTaskRequestSchema.parse(command);
+  const existing = readPendingTaskSubmission(taskId, storage);
+  if (existing && JSON.stringify(existing.command) === JSON.stringify(parsedCommand)) {
+    return existing;
+  }
+
+  const pending = {
+    taskId,
+    idempotencyKey: createKey(),
+    command: parsedCommand,
+  } satisfies PendingTaskSubmission;
+  savePendingTaskSubmission(pending, storage);
+  return pending;
+}
+
 export function readPendingTaskSubmission(
   taskId: string,
   storage: Pick<Storage, "getItem"> = sessionStorage,

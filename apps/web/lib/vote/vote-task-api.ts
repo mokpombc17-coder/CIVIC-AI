@@ -1,6 +1,5 @@
 "use client";
 
-import { z } from "zod";
 import {
   ensurePredictionResponseSchema,
   myTaskSubmissionSchema,
@@ -9,6 +8,7 @@ import {
   taskPredictionViewSchema,
   taskSubmissionResponseSchema,
   userTaskDetailSchema,
+  voteTaskIdSchema,
   type EnsurePredictionResponse,
   type MyTaskSubmission,
   type SubmitTaskRequest,
@@ -18,8 +18,6 @@ import {
   type UserTaskSummary,
 } from "./vote-task-contracts";
 import { voteFetch, type VoteFetch } from "./vote-fetch";
-
-const uuidSchema = z.string().uuid();
 
 export type VoteTaskApi = Readonly<{
   getOpenTasks(signal?: AbortSignal): Promise<UserTaskSummary[]>;
@@ -91,5 +89,5 @@ export function createVoteTaskApi(request: VoteFetch = voteFetch): VoteTaskApi {
 export const voteTaskApi = createVoteTaskApi();
 
 function parseUuid(value: string): string {
-  return uuidSchema.parse(value);
+  return voteTaskIdSchema.parse(value);
 }

@@ -135,25 +135,30 @@ export const ensurePredictionResponseSchema = z.object({
   failureCode: z.string().nullable(),
 });
 
-const submissionIdentitySchema = z.object({
-  personaGenerationId: uuidSchema,
-  personaVersionId: uuidSchema,
+const submissionSelectionSchema = z.object({
   questionId: uuidSchema,
   selectedOptionId: uuidSchema,
 });
 
-export const aiAcceptedTaskSubmissionSchema = submissionIdentitySchema.extend({
+export const aiAcceptedTaskSubmissionSchema = submissionSelectionSchema.extend({
+  personaGenerationId: uuidSchema,
+  personaVersionId: uuidSchema,
   predictionId: uuidSchema,
   reasonSource: z.literal("AI_ACCEPTED"),
   acceptedPredictedReasonId: uuidSchema,
   reason: z.null().optional(),
 });
 
-export const userWrittenTaskSubmissionSchema = submissionIdentitySchema.extend({
-  predictionId: uuidSchema.nullable().optional(),
+export const userWrittenTaskSubmissionSchema = submissionSelectionSchema.extend({
+  personaGenerationId: uuidSchema,
+  personaVersionId: uuidSchema,
+  predictionId: uuidSchema,
   reasonSource: z.literal("USER_WRITTEN"),
-  acceptedPredictedReasonId: z.null().optional(),
-  reason: z.string().trim().min(1).max(500),
+  reason: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((value) => Array.from(value).length <= 500, "500자 이하여야 합니다."),
 });
 
 export const submitTaskRequestSchema = z.discriminatedUnion("reasonSource", [

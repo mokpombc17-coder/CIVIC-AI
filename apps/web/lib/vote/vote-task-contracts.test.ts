@@ -90,29 +90,48 @@ describe("Vote Task contracts", () => {
         reasonSource: "USER_WRITTEN",
         acceptedPredictedReasonId: IDS.reasonId,
         reason: "직접 작성",
-      }).success,
-    ).toBe(false);
+      }).data,
+    ).toEqual({
+      personaGenerationId: IDS.personaGenerationId,
+      personaVersionId: IDS.personaVersionId,
+      predictionId: IDS.predictionId,
+      questionId: IDS.questionId,
+      selectedOptionId: IDS.selectedOptionId,
+      reasonSource: "USER_WRITTEN",
+      reason: "직접 작성",
+    });
   });
 
-  it("직접 작성 이유를 trim 후 1~500자로 제한한다", () => {
+  it("직접 작성도 Persona·Prediction identity를 요구하고 이유를 Unicode 1~500자로 제한한다", () => {
     expect(
       submitTaskRequestSchema.parse({
         ...IDS,
-        predictionId: null,
         reasonSource: "USER_WRITTEN",
-        acceptedPredictedReasonId: null,
         reason: "  내 생각  ",
-      }).reason,
-    ).toBe("내 생각");
+      }),
+    ).toEqual({
+      personaGenerationId: IDS.personaGenerationId,
+      personaVersionId: IDS.personaVersionId,
+      predictionId: IDS.predictionId,
+      questionId: IDS.questionId,
+      selectedOptionId: IDS.selectedOptionId,
+      reasonSource: "USER_WRITTEN",
+      reason: "내 생각",
+    });
     expect(
       submitTaskRequestSchema.safeParse({
         ...IDS,
-        predictionId: null,
         reasonSource: "USER_WRITTEN",
-        acceptedPredictedReasonId: null,
         reason: "가".repeat(501),
       }).success,
     ).toBe(false);
+    expect(
+      submitTaskRequestSchema.safeParse({
+        ...IDS,
+        reasonSource: "USER_WRITTEN",
+        reason: "😀".repeat(500),
+      }).success,
+    ).toBe(true);
   });
 
   it("모든 PredictionView state와 capability boolean을 보존한다", () => {

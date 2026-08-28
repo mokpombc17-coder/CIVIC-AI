@@ -456,8 +456,22 @@
   color: #fff;
 }
 
+.compactPrimaryButton:disabled {
+  border-color: var(--vote-disabled);
+  background: var(--vote-disabled);
+  color: #8a949e;
+  cursor: not-allowed;
+}
+
 .overviewContinueButton {
   justify-self: end;
+}
+
+.predictionNotice {
+  margin: 0;
+  color: var(--vote-muted);
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .choiceGrid {
@@ -725,6 +739,13 @@
 .confirmNotice {
   margin: 0;
   color: var(--vote-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.submissionError {
+  margin: 0;
+  color: #ba1c1c;
   font-size: 13px;
   line-height: 20px;
 }
