@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CurrentUserGreeting } from "@/components/shell/current-user-greeting";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { ParticipantShell } from "@/components/shell/participant-shell";
@@ -18,6 +19,7 @@ export default async function HomePage() {
   return (
     <ParticipantShell
       activeRoute="/home"
+      {...(requiresLoginForProtectedLinks ? {} : { headerActions: <CurrentUserGreeting /> })}
       headerTitle={<span className="civic-brand-title">CIVIC.AI</span>}
       requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
       title={heading.title}
