@@ -42,6 +42,6 @@ describe("Vote task list presentation", () => {
       actionLabel: "응답 보기",
       actionHref: `/vote/${TASK_ID}`,
     });
-    expect(item.supportingText).toMatch(/참여 완료$/);
+    expect(item.supportingText).toMatch(/마감$/);
   });
 });

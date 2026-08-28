@@ -16,7 +16,7 @@ export function presentOpenTask(task: UserTaskSummary): VoteTaskListItemPresenta
       taskId: task.taskId,
       statusLabel: "참여 완료",
       title: task.title,
-      supportingText: `${formatVoteDateTime(task.submission.submittedAt)} 참여 완료`,
+      supportingText: `${formatVoteDateTime(task.closesAt)} 마감`,
       actionLabel: "응답 보기",
       actionHref: `/vote/${task.taskId}`,
     };

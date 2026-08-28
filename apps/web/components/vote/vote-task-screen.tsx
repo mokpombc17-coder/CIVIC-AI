@@ -19,6 +19,7 @@ import {
   useOpenTaskQuery,
   useSubmitTaskMutation,
   useTaskPredictionCoordinator,
+  useTaskSubmissionQuery,
   voteQueryKeys,
 } from "@/lib/vote/vote-queries";
 import {
@@ -33,6 +34,7 @@ import {
   type PredictedReason,
   type TaskPredictionView,
   type UserTaskDetail,
+  type MyTaskSubmission,
 } from "@/lib/vote/vote-task-contracts";
 import styles from "./vote.module.css";
 
@@ -44,6 +46,7 @@ type ReasonChoice =
 type TaskOption = UserTaskDetail["task"]["question"]["options"][number];
 
 const DIRECT_REASON_MAX_LENGTH = 500;
+const COMPLETION_BURST_DOTS = [0, 1, 2, 3, 4, 5] as const;
 
 export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const queryClient = useQueryClient();
@@ -61,6 +64,8 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const taskDetail = taskQuery.data;
+  const isViewingSubmittedResponse = Boolean(taskDetail?.submission.submitted && step === 1);
+  const taskSubmissionQuery = useTaskSubmissionQuery(taskId, isViewingSubmittedResponse);
   const options = useMemo(
     () => sortTaskOptions(taskDetail?.task.question.options ?? []),
     [taskDetail?.task.question.options],
@@ -180,7 +185,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         <PlatformHeader
           backAction={backAction}
           className={styles.voteHeader!}
-          title="투표 참여하기"
+          title={isViewingSubmittedResponse ? "응답 보기" : "투표 참여하기"}
         />
       }
       overlay={cancelOpen ? <CancelSheet onClose={() => setCancelOpen(false)} /> : null}
@@ -193,8 +198,25 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             onRetry={() => void taskQuery.refetch()}
           />
         ) : null}
-        {taskDetail ? <VoteProgress step={step} /> : null}
-        {taskDetail && step === 1 ? (
+        {taskDetail ? (
+          <VoteProgress
+            label={isViewingSubmittedResponse ? "응답 확인" : undefined}
+            step={isViewingSubmittedResponse ? 4 : step}
+          />
+        ) : null}
+        {taskDetail && isViewingSubmittedResponse && taskSubmissionQuery.isPending ? (
+          <TaskFeedback message="제출한 응답을 불러오는 중입니다." />
+        ) : null}
+        {taskDetail && isViewingSubmittedResponse && taskSubmissionQuery.isError ? (
+          <TaskFeedback
+            message={getTaskSubmissionViewErrorMessage(taskSubmissionQuery.error)}
+            onRetry={() => void taskSubmissionQuery.refetch()}
+          />
+        ) : null}
+        {taskDetail && isViewingSubmittedResponse && taskSubmissionQuery.data ? (
+          <SubmittedTaskResponse detail={taskDetail} submission={taskSubmissionQuery.data} />
+        ) : null}
+        {taskDetail && !isViewingSubmittedResponse && step === 1 ? (
           <TaskOverview
             canContinue={participationReady}
             detail={taskDetail}
@@ -267,6 +289,15 @@ function getTaskDetailErrorMessage(error: unknown): string {
   return "과업을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
+function getTaskSubmissionViewErrorMessage(error: unknown): string {
+  if (error instanceof VoteApiError) {
+    if (error.status === 401) return "로그인 후 제출한 응답을 확인할 수 있습니다.";
+    if (error.status === 403) return "제출한 응답을 조회할 권한이 없습니다.";
+    if (error.code === "TASK_SUBMISSION_NOT_FOUND") return "제출한 응답을 찾을 수 없습니다.";
+  }
+  return "제출한 응답을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
 function getTaskSubmissionErrorMessage(error: unknown): string {
   if (error instanceof VoteApiError) {
     if (error.status === 401) return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
@@ -335,7 +366,7 @@ function getPredictionPreparationMessage({
   return null;
 }
 
-function VoteProgress({ step }: { step: VoteStep }) {
+function VoteProgress({ step, label }: { step: VoteStep; label?: string | undefined }) {
   const labels: Record<VoteStep, string> = {
     1: "과업 확인",
     2: "응답 작성",
@@ -346,7 +377,7 @@ function VoteProgress({ step }: { step: VoteStep }) {
     <div className={styles.progressBlock}>
       <p className={styles.progressLabel}>
         <span>{step}/4</span>
-        <strong>{labels[step]}</strong>
+        <strong>{label ?? labels[step]}</strong>
       </p>
       <div aria-label={`진행 단계 ${step}/4`} className={styles.progressBars}>
         {[1, 2, 3, 4].map((segment) => {
@@ -411,6 +442,48 @@ function TaskOverview({
       >
         {canContinue ? "참여하기" : "준비 중…"}
       </button>
+    </div>
+  );
+}
+
+function SubmittedTaskResponse({
+  detail,
+  submission,
+}: {
+  detail: UserTaskDetail;
+  submission: MyTaskSubmission;
+}) {
+  const selectedOption = sortTaskOptions(submission.question.options).find(
+    (option) => option.id === submission.selectedOptionId,
+  );
+
+  return (
+    <div className={styles.flowBody}>
+      <section className={styles.flowSection}>
+        <h2 className={styles.sectionTitle}>과업</h2>
+        <dl className={styles.infoCard}>
+          <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
+          <InfoRow label="질의" value={detail.task.question.content} />
+          <InfoRow label="마감" value={formatVoteDateTime(detail.closesAt)} />
+        </dl>
+      </section>
+      <section className={styles.flowSection}>
+        <h2 className={styles.sectionTitle}>내 응답</h2>
+        <dl className={styles.infoCard}>
+          <InfoRow
+            label="내가 선택한 선택지"
+            value={selectedOption?.content ?? "선택한 응답을 확인할 수 없습니다."}
+          />
+          <InfoRow label="내가 제출한 이유" value={submission.finalReason} />
+          <InfoRow label="제출 시각" value={formatVoteDateTime(submission.submittedAt)} />
+        </dl>
+      </section>
+      <Link
+        className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
+        href="/vote"
+      >
+        과업 목록으로
+      </Link>
     </div>
   );
 }
@@ -609,7 +682,12 @@ function VoteCompleted({ detail }: { detail: UserTaskDetail }) {
   return (
     <div className={styles.flowBody}>
       <div className={styles.successPanel}>
-        <span aria-hidden="true" className={styles.successIcon} />
+        <span aria-hidden="true" className={styles.successCelebration}>
+          <span className={styles.successIcon} />
+          {COMPLETION_BURST_DOTS.map((dot) => (
+            <span className={styles.successBurstDot} key={dot} />
+          ))}
+        </span>
         <strong>투표 참여가 완료되었습니다.</strong>
       </div>
       <dl className={styles.infoCard}>

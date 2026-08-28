@@ -280,10 +280,12 @@ View는 native Dialog의 focus·Escape·backdrop 동작과 form 표현만 담당
 
 `VoteTaskScreen`은 Task 상세 Query로 실제 질문·선택지를 조립하고, 1/4 과업 확인부터 4/4 참여 완료까지의
 local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
-mutation, 종료 bottom sheet를 소유한다. Prediction의 Persona generation/version과 prediction ID는 제출
-identity로 사용하고, 선택한 option에 해당하는 예상 이유는 `AI_ACCEPTED`, 직접 입력은 `USER_WRITTEN`으로
-분기한다. `VoteTaskResultScreen`은 예정 결과 계약을 반영한 fixture의 count를 percentage로 변환하고 내
-선택과 이유를 표시한다. Vote API client와 query hook은 Provider가 제공하는 client cache를 공유한다.
+mutation, 종료 bottom sheet를 소유한다. 이미 제출한 열린 Task로 재진입하면 Task 기준 내 제출 Query를
+활성화하고, 참여 폼 대신 4/4 읽기 전용 응답 확인 화면을 조립한다. Prediction의 Persona
+generation/version과 prediction ID는 제출 identity로 사용하고, 선택한 option에 해당하는 예상 이유는
+`AI_ACCEPTED`, 직접 입력은 `USER_WRITTEN`으로 분기한다. `VoteTaskResultScreen`은 예정 결과 계약을 반영한
+fixture의 count를 percentage로 변환하고 내 선택과 이유를 표시한다. Vote API client와 query hook은
+Provider가 제공하는 client cache를 공유한다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
