@@ -209,19 +209,11 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [options, setOptions] = useState<SimulationOptions | null>(null);
   const [personaCount, setPersonaCount] = useState(30);
-  const [modelType, setModelType] = useState("");
-  const [sampleSeed, setSampleSeed] = useState("");
   const [message, setMessage] = useState("");
   const { pending, start, startMessage } = useStartSimulation(taskId);
-  const runInput = normalizeRunInput(
-    personaCount,
-    modelType,
-    sampleSeed,
-    options?.minPersonaCount,
-    options?.maxPersonaCount,
-  );
+  const runInput = options ? buildDefaultSimulationRunInput(personaCount, options) : null;
   const capacityState = useSimulationCapacity(
-    options ? normalizeCapacityInput(personaCount, sampleSeed) : null,
+    options ? normalizeCapacityInput(personaCount, "") : null,
   );
   const previewState = useSimulationPreview(taskId, runInput);
 
@@ -244,7 +236,6 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           if (!nextTask || !nextOptions) throw new Error("서버 응답 형식을 확인해야 합니다.");
           setTask(nextTask);
           setOptions(nextOptions);
-          setModelType(nextOptions.defaultModel);
           setPersonaCount(nextOptions.minPersonaCount);
           setMessage("");
         })
@@ -299,30 +290,6 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
               이하
             </small>
           </label>
-          <label className="civic-field">
-            <span>실행 모델</span>
-            <select
-              disabled={pending || !options}
-              onChange={(event) => setModelType(event.currentTarget.value)}
-              required
-              value={modelType}
-            >
-              {options?.models.map((model) => (
-                <option key={model}>{model}</option>
-              ))}
-            </select>
-          </label>
-          <label className="civic-field">
-            <span>표본 시드 (선택)</span>
-            <input
-              disabled={pending}
-              inputMode="numeric"
-              onChange={(event) => setSampleSeed(event.currentTarget.value)}
-              placeholder="같은 표본을 재현할 때 입력"
-              type="number"
-              value={sampleSeed}
-            />
-          </label>
         </div>
       </section>
       <SimulationCapacityCard capacity={capacityState.capacity} message={capacityState.message} />
@@ -355,7 +322,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
                   : "예상 비용 먼저 확인"}
         </button>
         {runInput ? (
-          <Link className="civic-secondary-action" href={manualPanelHref(taskId, runInput)}>
+          <Link className="civic-secondary-action" href={manualPanelHref(taskId, personaCount)}>
             수동 패널 조건 설정
           </Link>
         ) : null}
@@ -371,22 +338,18 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
   const [message, setMessage] = useState("");
   const { pending, start, startMessage } = useStartSimulation(taskId);
   const personaCount = positiveInteger(first(query.personaCount));
-  const modelType = first(query.modelType);
-  const sampleSeedValue = first(query.sampleSeed);
-  const sampleSeed =
-    sampleSeedValue === null || sampleSeedValue === "" ? null : integer(sampleSeedValue);
   const personaCountAllowed = Boolean(
     options &&
     personaCount &&
     isPersonaCountWithinLimit(personaCount, options.minPersonaCount, options.maxPersonaCount),
   );
   const runInput: RunInput | null =
-    taskId && personaCount && modelType && sampleSeed !== undefined && personaCountAllowed
-      ? { personaCount, modelType, sampleSeed, filters }
+    taskId && personaCount && options && personaCountAllowed
+      ? buildDefaultSimulationRunInput(personaCount, options, filters)
       : null;
   const previewState = useSimulationPreview(taskId, runInput);
   const capacityState = useSimulationCapacity(
-    options ? normalizeCapacityInput(personaCount, sampleSeedValue ?? "", filters) : null,
+    options ? normalizeCapacityInput(personaCount, "", filters) : null,
   );
 
   useEffect(() => {
@@ -405,7 +368,7 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (!taskId || !personaCount || !modelType || sampleSeed === undefined) {
+  if (!taskId || !personaCount) {
     return <MissingContext>기본 실행 설정부터 입력해 주세요.</MissingContext>;
   }
 
@@ -1311,32 +1274,30 @@ function MissingContext({ children }: Readonly<{ children: string }>) {
   );
 }
 
-function manualPanelHref(taskId: string, input: RunInput): Route {
+function manualPanelHref(taskId: string, personaCount: number): Route {
   const params = new URLSearchParams({
     taskId,
-    personaCount: String(input.personaCount),
-    modelType: input.modelType,
+    personaCount: String(personaCount),
   });
-  if (input.sampleSeed !== null) params.set("sampleSeed", String(input.sampleSeed));
   return `/admin/simulations/panel?${params.toString()}` as Route;
 }
 
-function normalizeRunInput(
+export function buildDefaultSimulationRunInput(
   personaCount: number,
-  modelType: string,
-  seed: string,
-  minPersonaCount?: number,
-  maxPersonaCount?: number,
+  options: SimulationOptions,
+  filters?: Readonly<Record<string, readonly string[]>>,
 ): RunInput | null {
   if (
-    minPersonaCount === undefined ||
-    maxPersonaCount === undefined ||
-    !isPersonaCountWithinLimit(personaCount, minPersonaCount, maxPersonaCount) ||
-    !modelType
+    !isPersonaCountWithinLimit(personaCount, options.minPersonaCount, options.maxPersonaCount) ||
+    !options.defaultModel
   )
     return null;
-  const parsedSeed = seed.trim() === "" ? null : integer(seed);
-  return parsedSeed === undefined ? null : { personaCount, modelType, sampleSeed: parsedSeed };
+  return {
+    personaCount,
+    modelType: options.defaultModel,
+    sampleSeed: null,
+    ...(filters === undefined ? {} : { filters }),
+  };
 }
 
 function normalizeCapacityInput(
