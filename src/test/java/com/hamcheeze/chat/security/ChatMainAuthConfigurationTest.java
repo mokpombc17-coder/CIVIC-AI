@@ -33,7 +33,7 @@ class ChatMainAuthConfigurationTest {
     void stageMainAuthModeProvidesSharedAdapterBeans() {
         contextRunner
                 .withPropertyValues(
-                        "spring.profiles.active=local,stage,auth-main")
+                        "spring.profiles.active=prod,stage,auth-main")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(JwtDecoder.class);
@@ -54,7 +54,7 @@ class ChatMainAuthConfigurationTest {
         contextRunner
                 .withPropertyValues(
                         "spring.profiles.active="
-                                + "local,stage,auth-fixture,auth-main")
+                                + "prod,stage,auth-fixture,auth-main")
                 .run(context -> {
                     assertThat(context.getBeansOfType(JwtDecoder.class))
                             .isEmpty();

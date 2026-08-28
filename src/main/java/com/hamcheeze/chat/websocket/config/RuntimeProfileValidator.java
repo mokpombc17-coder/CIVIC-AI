@@ -11,6 +11,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 @Component
@@ -36,20 +37,17 @@ public final class RuntimeProfileValidator
         String[] activeProfiles = environment == null
                 ? new String[0]
                 : environment.getActiveProfiles();
-        if (activeProfiles.length != 1) {
+        List<String> activeRuntimeProfiles = Arrays.stream(activeProfiles)
+                .filter(SUPPORTED_RUNTIME_PROFILES::contains)
+                .toList();
+        if (activeRuntimeProfiles.size() != 1) {
             throw new IllegalStateException(
                     "Exactly one runtime Spring profile must be active: "
                             + SUPPORTED_RUNTIME_PROFILES
+                            + ", runtime="
+                            + activeRuntimeProfiles
                             + ", active="
                             + Arrays.toString(activeProfiles));
-        }
-        String activeProfile = activeProfiles[0];
-        if (!SUPPORTED_RUNTIME_PROFILES.contains(activeProfile)) {
-            throw new IllegalStateException(
-                    "Unsupported runtime Spring profile: "
-                            + activeProfile
-                            + ", supported="
-                            + SUPPORTED_RUNTIME_PROFILES);
         }
     }
 

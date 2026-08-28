@@ -15,7 +15,7 @@ civic:
 chat:
   room:
     creation:
-      mode: DIRECT
+      mode: APPROVAL_REQUIRED
 
   websocket:
     allowed-origins:

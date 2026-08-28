@@ -45,7 +45,7 @@ class ChatServerApplicationTests
 	@Test
 	void contextLoads() {
 		assertThat(roomCreationProperties.mode())
-				.isEqualTo(RoomCreationMode.DIRECT);
+				.isEqualTo(RoomCreationMode.APPROVAL_REQUIRED);
 		assertThat(roomCreationProperties.maxPendingRequestsPerUser())
 				.isEqualTo(3);
 		assertThat(transportProperties.getTimeToFirstMessageMs())

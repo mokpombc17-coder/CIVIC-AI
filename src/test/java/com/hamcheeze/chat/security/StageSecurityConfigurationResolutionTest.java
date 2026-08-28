@@ -13,14 +13,16 @@ class StageSecurityConfigurationResolutionTest {
                     .withInitializer(
                             new ConfigDataApplicationContextInitializer())
                     .withPropertyValues(
-                            "spring.profiles.active=local,stage,auth-main");
+                            "spring.profiles.active=prod,stage,auth-main",
+                            "CHAT_MONGODB_URI=mongodb://mongodb:27017/"
+                                    + "chat_local?replicaSet=rs0");
 
     @Test
-    void stageUsesMainAuthAndKeepsLocalChatDefaults() {
+    void stageUsesMainAuthAndProductionChatBehavior() {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getEnvironment().getActiveProfiles())
-                    .containsExactly("local", "stage", "auth-main");
+                    .containsExactly("prod", "stage", "auth-main");
             assertThat(context.getEnvironment().getProperty(
                     "server.port", Integer.class))
                     .isEqualTo(8081);
@@ -49,7 +51,7 @@ class StageSecurityConfigurationResolutionTest {
                     .isTrue();
             assertThat(context.getEnvironment().getProperty(
                     "chat.room.creation.mode"))
-                    .isEqualTo("DIRECT");
+                    .isEqualTo("APPROVAL_REQUIRED");
         });
     }
 }

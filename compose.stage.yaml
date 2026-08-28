@@ -48,7 +48,7 @@ services:
       dockerfile: Dockerfile
     init: true
     environment:
-      SPRING_PROFILES_ACTIVE: local,stage,auth-main
+      SPRING_PROFILES_ACTIVE: prod,stage,auth-main
       SERVER_PORT: 8081
       CHAT_MONGODB_URI: >-
         mongodb://mongodb:27017/chat_local?replicaSet=rs0&retryWrites=true&w=majority

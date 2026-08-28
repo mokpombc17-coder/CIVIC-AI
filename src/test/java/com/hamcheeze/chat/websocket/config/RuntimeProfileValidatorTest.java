@@ -15,6 +15,13 @@ class RuntimeProfileValidatorTest {
     }
 
     @Test
+    void acceptsOneRuntimeProfileWithAuxiliaryProfiles() {
+        assertAccepted("local", "auth-fixture");
+        assertAccepted("local", "auth-main");
+        assertAccepted("prod", "stage", "auth-main");
+    }
+
+    @Test
     void rejectsMissingRuntimeProfile() {
         RuntimeProfileValidator validator = validator();
 
@@ -27,21 +34,21 @@ class RuntimeProfileValidatorTest {
     }
 
     @Test
-    void rejectsMultipleProfilesEvenWhenOneIsSupported() {
+    void rejectsMultipleRuntimeProfiles() {
         assertProfileCountRejected("local", "prod");
-        assertProfileCountRejected("local", "unknown");
-        assertProfileCountRejected("prod", "unknown");
+        assertProfileCountRejected(
+                "local", "prod", "stage", "auth-main");
     }
 
     @Test
-    void rejectsUnsupportedSingleProfile() {
-        assertUnsupported("dev");
-        assertUnsupported("test");
-        assertUnsupported("unknown");
+    void rejectsProfilesWithoutRuntimeProfile() {
+        assertProfileCountRejected("dev");
+        assertProfileCountRejected("test", "auth-fixture");
+        assertProfileCountRejected("stage", "auth-main");
     }
 
-    private static void assertAccepted(String profile) {
-        RuntimeProfileValidator validator = validator(profile);
+    private static void assertAccepted(String... profiles) {
+        RuntimeProfileValidator validator = validator(profiles);
 
         assertThatCode(() ->
                 validator.postProcessBeanDefinitionRegistry(null))
@@ -59,19 +66,6 @@ class RuntimeProfileValidatorTest {
                 .hasMessageContaining(
                         "Exactly one runtime Spring profile")
                 .hasMessageContaining("active=");
-    }
-
-    private static void assertUnsupported(String profile) {
-        RuntimeProfileValidator validator = validator(profile);
-
-        assertThatThrownBy(() ->
-                validator.postProcessBeanDefinitionRegistry(null))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(
-                        "Unsupported runtime Spring profile: "
-                                + profile)
-                .hasMessageContaining("local")
-                .hasMessageContaining("prod");
     }
 
     private static RuntimeProfileValidator validator(
