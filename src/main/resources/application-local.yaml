@@ -5,6 +5,13 @@ spring:
 server:
   port: 8082
 
+civic:
+  auth:
+    issuer: ${CHAT_JWT_ISSUER_URI:http://localhost:8080}
+    jwks-uri: ${CHAT_JWT_JWKS_URI:http://localhost:8080/.well-known/jwks.json}
+    browser-origin: ${CHAT_BROWSER_ORIGIN:http://localhost:8080}
+    allow-insecure-loopback: true
+
 chat:
   room:
     creation:

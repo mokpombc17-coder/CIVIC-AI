@@ -3,14 +3,18 @@ package com.hamcheeze.chat.websocket.config;
 import com.hamcheeze.chat.room.api.RoomApiSecurityProblemWriter;
 import com.hamcheeze.chat.security.ChatScopes;
 import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
+import com.hamcheeze.civic.auth.CivicCookieMutationSameOriginFilter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -21,10 +25,12 @@ public class WebSocketSecurityConfig {
     @Order(1)
     SecurityFilterChain webSocketHandshakeSecurityFilterChain(
             HttpSecurity http,
-            WebSocketEndpointProperties properties
+            WebSocketEndpointProperties properties,
+            ObjectProvider<CivicCookieMutationSameOriginFilter>
+                    sameOriginFilterProvider
     ) throws Exception {
         String endpoint = properties.getEndpoint();
-        return http
+        http
                 .securityMatcher(endpoint, endpoint + "/**")
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
@@ -33,8 +39,9 @@ public class WebSocketSecurityConfig {
                                 SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .anyRequest()
-                        .permitAll())
-                .build();
+                        .permitAll());
+        addSameOriginFilter(http, sameOriginFilterProvider);
+        return http.build();
     }
 
     @Bean
@@ -42,9 +49,11 @@ public class WebSocketSecurityConfig {
     SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http,
             RoomApiSecurityProblemWriter problemWriter,
-            BearerTokenResolver bearerTokenResolver
+            BearerTokenResolver bearerTokenResolver,
+            ObjectProvider<CivicCookieMutationSameOriginFilter>
+                    sameOriginFilterProvider
     ) throws Exception {
-        return http
+        http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.ignoringRequestMatchers(
                         "/api/v1/**"))
@@ -131,16 +140,29 @@ public class WebSocketSecurityConfig {
                                 .bearerTokenResolver(bearerTokenResolver)
                                 .jwt(Customizer.withDefaults())
                                 .authenticationEntryPoint(
-                                        problemWriter))
-                .build();
+                                        problemWriter));
+        addSameOriginFilter(http, sameOriginFilterProvider);
+        return http.build();
     }
 
     @Bean
+    @Profile("!auth-main")
     BearerTokenResolver chatBearerTokenResolver(
             @Value("${chat.security.cookie-authentication-enabled:false}")
             boolean cookieAuthenticationEnabled
     ) {
         return new CookieOrHeaderBearerTokenResolver(
                 cookieAuthenticationEnabled);
+    }
+
+    private static void addSameOriginFilter(
+            HttpSecurity http,
+            ObjectProvider<CivicCookieMutationSameOriginFilter>
+                    sameOriginFilterProvider
+    ) {
+        sameOriginFilterProvider.ifAvailable(filter ->
+                http.addFilterBefore(
+                        filter,
+                        BearerTokenAuthenticationFilter.class));
     }
 }

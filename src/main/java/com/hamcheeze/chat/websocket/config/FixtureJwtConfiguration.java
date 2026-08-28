@@ -18,7 +18,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
 @Configuration(proxyBeanMethods = false)
-@Profile("local")
+@Profile("local & !auth-main")
 @EnableConfigurationProperties(FixtureJwtProperties.class)
 public class FixtureJwtConfiguration {
 

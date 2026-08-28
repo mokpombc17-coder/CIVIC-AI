@@ -1,0 +1,74 @@
+services:
+  mongodb:
+    image: mongo:7.0.14
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval "
+          try {
+            const expectedHost = 'mongodb:27017';
+            const config = rs.conf();
+            if (config.members.length !== 1
+                || config.members[0].host !== expectedHost) {
+              config.members = [{ _id: 0, host: expectedHost }];
+              rs.reconfig(config, { force: true });
+              quit(1);
+            }
+            const status = rs.status();
+            quit(status.myState === 1 ? 0 : 1);
+          } catch (error) {
+            if (error.code === 94
+                || error.codeName === 'NotYetInitialized') {
+              try {
+                rs.initiate({
+                  _id: 'rs0',
+                  members: [{ _id: 0, host: 'mongodb:27017' }]
+                });
+              } catch (ignored) {
+              }
+            }
+            quit(1);
+          }"
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  chat-resource-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    environment:
+      SPRING_PROFILES_ACTIVE: local,stage,auth-main
+      SERVER_PORT: 8081
+      CHAT_MONGODB_URI: >-
+        mongodb://mongodb:27017/chat_local?replicaSet=rs0&retryWrites=true&w=majority
+      CHAT_JWT_ISSUER_URI: ${CHAT_JWT_ISSUER_URI:-https://140-238-17-223.sslip.io}
+      CHAT_JWT_JWKS_URI: ${CHAT_JWT_JWKS_URI:-https://140-238-17-223.sslip.io/.well-known/jwks.json}
+      CHAT_BROWSER_ORIGIN: ${CHAT_BROWSER_ORIGIN:-https://140-238-17-223.sslip.io}
+      CHAT_WEBSOCKET_ALLOWED_ORIGIN: ${CHAT_WEBSOCKET_ALLOWED_ORIGIN:-https://140-238-17-223.sslip.io}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8081"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent --show-error http://localhost:8081/actuator/health
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+
+volumes:
+  mongodb-data:

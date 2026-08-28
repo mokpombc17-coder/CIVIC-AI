@@ -1,1 +1,2 @@
 rootProject.name = 'chat-server'
+include 'civic-auth-resource-server-adapter'

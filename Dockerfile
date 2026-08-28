@@ -4,9 +4,13 @@ WORKDIR /workspace
 
 COPY gradlew build.gradle settings.gradle ./
 COPY gradle ./gradle
+COPY civic-auth-resource-server-adapter/build.gradle \
+    ./civic-auth-resource-server-adapter/build.gradle
 
 RUN ./gradlew --no-daemon dependencies
 
+COPY civic-auth-resource-server-adapter/src \
+    ./civic-auth-resource-server-adapter/src
 COPY src ./src
 
 RUN ./gradlew --no-daemon clean bootJar

@@ -42,8 +42,9 @@ class ProductionProfileStartupTest {
                 "--spring.main.banner-mode=off",
                 "--spring.mongodb.uri="
                         + MongoRuntimeTestContainer.replicaSetUrl(),
-                "--spring.security.oauth2.resourceserver.jwt.issuer-uri="
-                        + "https://issuer.example",
+                "--CHAT_JWT_ISSUER_URI=https://issuer.example",
+                "--CHAT_JWT_JWKS_URI=https://issuer.example/.well-known/jwks.json",
+                "--CHAT_BROWSER_ORIGIN=https://app.example",
                 "--chat.websocket.allowed-origins[0]="
                         + "https://app.example")) {
             assertThat(context.getBeansOfType(
@@ -85,8 +86,15 @@ class ProductionProfileStartupTest {
                     .resolve(request))
                     .isEqualTo("prod-cookie-token");
             assertThat(context.getEnvironment().getProperty(
-                    "spring.security.oauth2.resourceserver.jwt.audiences[0]"))
-                    .isEqualTo("civic-ai-api");
+                    "civic.auth.issuer"))
+                    .isEqualTo("https://issuer.example");
+            assertThat(context.getEnvironment().getProperty(
+                    "civic.auth.jwks-uri"))
+                    .isEqualTo(
+                            "https://issuer.example/.well-known/jwks.json");
+            assertThat(context.getEnvironment().getProperty(
+                    "civic.auth.browser-origin"))
+                    .isEqualTo("https://app.example");
 
             CorsConfiguration cors = context.getBean(
                             "corsConfigurationSource",

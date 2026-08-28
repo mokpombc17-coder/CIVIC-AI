@@ -48,6 +48,20 @@ class ProfileScopedConfigurationTest {
     }
 
     @Test
+    void localMainAuthDoesNotCreateFixtureDecoder() {
+        new ApplicationContextRunner()
+                .withPropertyValues(
+                        "spring.profiles.active=local,auth-main")
+                .withUserConfiguration(FixtureJwtConfiguration.class)
+                .run(context -> {
+                    assertThat(context.getBeansOfType(
+                            FixtureJwtProperties.class)).isEmpty();
+                    assertThat(context.getBeansOfType(
+                            JwtDecoder.class)).isEmpty();
+                });
+    }
+
+    @Test
     void prodJwtPropertiesCreateBootManagedJwtDecoder() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
