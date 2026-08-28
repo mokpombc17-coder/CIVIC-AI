@@ -14,6 +14,7 @@ import {
   loadChatRequestSummary,
   loadRagJobSummary,
   loadTaskDeadlineSummary,
+  ragFailureLabel,
   requestAdminUsers,
   requestAdminAudit,
   roleFormKey,
@@ -420,6 +421,16 @@ describe("25 functional Main/Auth screens", () => {
       counts: { QUEUED: 1, RUNNING: 1, RETRY_WAIT: 0, FAILED: 0 },
       recentFailures: [],
     });
+  });
+
+  it("RAG 실패 요약은 문서 읽기와 구조 분석 실패의 조치 방법을 구분한다", () => {
+    expect(ragFailureLabel("DOCUMENT_READ_FAILED")).toBe(
+      "문서를 읽을 수 없습니다. 암호화 또는 손상 여부를 확인해 주세요.",
+    );
+    expect(ragFailureLabel("PAGE_INDEX_OUTLINE_FAILED")).toBe(
+      "문서 구조 분석에 실패했습니다. 다시 시도해 주세요.",
+    );
+    expect(ragFailureLabel("UNKNOWN_FAILURE")).toBe("처리 상태를 확인하고 다시 시도하세요.");
   });
 
   it("관리 홈은 Chat 승인 대기와 24시간 내 과업 마감을 실제 응답에서 계산한다", async () => {
