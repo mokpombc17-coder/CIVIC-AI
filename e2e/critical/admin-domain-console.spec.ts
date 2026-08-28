@@ -15,6 +15,7 @@ let createdTaskBody: Record<string, unknown> | null = null;
 let approvedCategoryIds: string[] = [];
 let roomCategories = categoryFixtures();
 let replacedRoomBody: Record<string, unknown> | null = null;
+let removeCategoryOnNextPatch = false;
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -36,6 +37,11 @@ test.beforeAll(async () => {
     }
     if (url.pathname.startsWith("/api/v1/admin/room-categories/") && request.method === "PATCH") {
       const categoryId = url.pathname.split("/").at(-1) ?? "";
+      if (removeCategoryOnNextPatch) {
+        removeCategoryOnNextPatch = false;
+        roomCategories = roomCategories.filter((item) => item.categoryId !== categoryId);
+        return json(response, { code: "ROOM_CATEGORY_NOT_FOUND", status: 404 }, 404);
+      }
       const body = await readBody(request);
       const current = roomCategories.find((item) => item.categoryId === categoryId);
       if (!current) return json(response, { code: "ROOM_CATEGORY_NOT_FOUND" }, 404);
@@ -128,6 +134,7 @@ test.beforeEach(() => {
   approvedCategoryIds = [];
   roomCategories = categoryFixtures();
   replacedRoomBody = null;
+  removeCategoryOnNextPatch = false;
 });
 
 test.afterAll(async () => close(server));
@@ -172,11 +179,44 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
   await createdRow.getByRole("button", { name: "이름 저장" }).click();
   const updatedRow = page.getByRole("row", { name: /생활 복지/ });
   await expect(updatedRow).toBeVisible();
+  const confirmation = page.waitForEvent("dialog").then(async (dialog) => {
+    expect(dialog.message()).toContain("생활 복지");
+    await dialog.accept();
+  });
   await updatedRow.getByRole("button", { name: "삭제" }).click();
+  await confirmation;
   await expect(page.getByRole("row", { name: /생활 복지/ })).toHaveCount(0);
 
+  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("row", { name: /환경/ }).getByRole("button", { name: "삭제" }).click();
   await expect(page.getByRole("status")).toContainText("3개 채팅방에서 사용 중");
+});
+
+test("카테고리 목록 요청이 끊겨도 신청 상세와 반려 작업을 유지한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.route("**/api/v1/admin/room-categories", (route) => route.abort("failed"));
+  await page.goto("/admin/chat/requests/detail?requestId=request-1");
+
+  await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("사유를 입력해 반려")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("카테고리 목록");
+});
+
+test("다른 관리자가 삭제한 카테고리의 수정 404에서 최신 목록을 다시 불러온다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.goto("/admin/chat/categories");
+  await page.getByLabel("새 카테고리 이름").fill("교통");
+  await page.getByRole("button", { name: "카테고리 추가" }).click();
+
+  removeCategoryOnNextPatch = true;
+  const row = page.getByRole("row", { name: /교통/ });
+  await row.getByLabel("카테고리 이름").fill("대중교통");
+  await row.getByRole("button", { name: "이름 저장" }).click();
+
+  await expect(page.getByRole("row", { name: /대중교통/ })).toHaveCount(0);
 });
 
 test("채팅 관리자는 알고 있는 roomId의 현재 version으로 카테고리를 교체한다", async ({

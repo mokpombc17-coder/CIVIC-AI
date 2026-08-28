@@ -109,7 +109,9 @@ export function AdminChatRequestScreen({
           `/api/v1/admin/room-creation-requests/${encodeURIComponent(requestId)}`,
           { cache: "no-store" },
         ),
-        authenticatedFetch("/api/v1/admin/room-categories", { cache: "no-store" }),
+        authenticatedFetch("/api/v1/admin/room-categories", { cache: "no-store" }).catch(
+          () => null,
+        ),
       ]);
       if (currentGeneration !== generation.current) return null;
       if (!response.ok) {
@@ -126,7 +128,10 @@ export function AdminChatRequestScreen({
       }
       setSelected(detail);
       setSelectedCategoryIds(detail.categoryIds);
-      if (!categoryResponse.ok) {
+      if (!categoryResponse) {
+        setCategories([]);
+        setMessage("네트워크 오류로 카테고리 목록을 불러오지 못했습니다.");
+      } else if (!categoryResponse.ok) {
         setCategories([]);
         setMessage(formatAdminProblem(await readAdminProblem(categoryResponse)));
       } else {

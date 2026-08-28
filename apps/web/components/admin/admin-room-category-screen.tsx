@@ -101,7 +101,12 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       );
       if (!response.ok) {
         const problem = await readAdminProblem(response);
-        if (problem.code === "ROOM_CATEGORY_VERSION_CONFLICT") await loadCategories();
+        if (
+          problem.code === "ROOM_CATEGORY_VERSION_CONFLICT" ||
+          problem.code === "ROOM_CATEGORY_NOT_FOUND"
+        ) {
+          await loadCategories();
+        }
         setMessage(formatAdminProblem(problem));
         return;
       }
@@ -122,6 +127,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
   async function deleteCategory(category: RoomCategory) {
     if (pending || category.categoryId === DEFAULT_ROOM_CATEGORY_ID) return;
+    if (!window.confirm(`‘${category.name}’ 카테고리를 삭제하시겠습니까?`)) return;
     setPending(true);
     setMessage("");
     try {
@@ -131,7 +137,12 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       );
       if (!response.ok) {
         const problem = await readAdminProblem(response);
-        if (problem.code === "ROOM_CATEGORY_VERSION_CONFLICT") await loadCategories();
+        if (
+          problem.code === "ROOM_CATEGORY_VERSION_CONFLICT" ||
+          problem.code === "ROOM_CATEGORY_NOT_FOUND"
+        ) {
+          await loadCategories();
+        }
         setMessage(
           problem.code === "ROOM_CATEGORY_IN_USE" && problem.referencedRoomCount !== undefined
             ? `${problem.referencedRoomCount}개 채팅방에서 사용 중이라 삭제할 수 없습니다.`
