@@ -193,11 +193,12 @@ export async function requestRagBulkAction(
   return body;
 }
 
-type RagJob = Readonly<{
+export type RagJob = Readonly<{
   job_id: string;
   status: string;
   progress?: number;
   failure_code?: string;
+  filename?: string;
 }>;
 
 const TERMINAL_RAG_JOB_STATES = new Set(["SUCCEEDED", "FAILED", "CANCELLED"]);
@@ -267,7 +268,7 @@ export function AdminRagScreen({
           selectedFolder ? `${selectedFolder.name} 폴더에 문서 업로드` : "선택 폴더에 문서 업로드"
         }
       >
-        <main className="wf-rag-task-page" data-wireflow-layout="rag-upload">
+        <div className="wf-rag-task-page" data-wireflow-layout="rag-upload">
           <p className="civic-breadcrumb">
             문서 /{" "}
             {ragFolderAncestorPath(folders, selectedFolder)
@@ -287,7 +288,7 @@ export function AdminRagScreen({
             </p>
           ) : null}
           <span className="civic-screen-action-label">{action}</span>
-        </main>
+        </div>
       </ScreenFrame>
     );
   }
@@ -295,7 +296,7 @@ export function AdminRagScreen({
   if (screen.id === "A-RAG-005") {
     return (
       <ScreenFrame screen={screen}>
-        <main className="wf-rag-task-page" data-wireflow-layout="rag-job-status">
+        <div className="wf-rag-task-page" data-wireflow-layout="rag-job-status">
           <section className="wf-rag-task-card">
             <header className="wf-rag-task-heading">
               <h2>업로드한 문서</h2>
@@ -304,7 +305,7 @@ export function AdminRagScreen({
             <JobPanel key={jobPanelKey(firstQueryValue(query.jobId))} query={query} />
           </section>
           <span className="civic-screen-action-label">{action}</span>
-        </main>
+        </div>
       </ScreenFrame>
     );
   }
@@ -1794,7 +1795,11 @@ function UploadPanel({
             <li key={job.jobId}>
               <strong>{job.filename}</strong>
               <Link
-                href={ragJobHref(job.jobId, folder?.folder_id ?? firstQueryValue(query.folderId))}
+                href={ragJobHref(
+                  job.jobId,
+                  folder?.folder_id ?? firstQueryValue(query.folderId),
+                  job.filename,
+                )}
               >
                 처리 상태 보기
               </Link>
@@ -1916,6 +1921,144 @@ export function ragJobTimelineStates(
   ];
 }
 
+export function ragJobDisplayProgress(job: RagJob | null): number {
+  if (!job) return 0;
+  if (job.status === "SUCCEEDED") return 100;
+  if (job.status === "FAILED") {
+    const completed = ragJobTimelineStates(job).filter(([, state]) => state === "완료").length;
+    return Math.round((completed / 3) * 100);
+  }
+  const progress =
+    typeof job.progress === "number" && Number.isFinite(job.progress) ? job.progress : 0;
+  return Math.min(100, Math.max(0, Math.round(progress)));
+}
+
+function ragJobStepClass(state: string): string {
+  if (state === "완료") return "is-done";
+  if (state === "실패") return "is-failed";
+  if (state === "처리 중" || state === "확인 중") return "is-active";
+  return "is-waiting";
+}
+
+function ragJobStepMarker(state: string): string {
+  if (state === "완료") return "✓";
+  if (state === "실패") return "!";
+  if (state === "처리 중" || state === "확인 중") return "•";
+  return "–";
+}
+
+export function RagJobStatusCard({
+  filename,
+  job,
+  message,
+  onRefresh,
+  onRetry,
+  replacementHref,
+  retrying,
+  workspaceHref = ragWorkspaceHref(undefined),
+}: Readonly<{
+  filename?: string;
+  job: RagJob | null;
+  message: string;
+  onRefresh: () => void;
+  onRetry: () => void;
+  replacementHref?: Route;
+  retrying: boolean;
+  workspaceHref?: Route;
+}>) {
+  const stages = ragJobTimelineStates(job);
+  const displayProgress = ragJobDisplayProgress(job);
+  const failedStage = stages.find(([, state]) => state === "실패")?.[0];
+  const failureMessage = ragJobFailureMessage(job?.failure_code);
+  const statusLabel = documentStatusLabel(job?.status ?? "");
+  const displayFilename =
+    (filename ?? job?.filename)?.trim() || (job ? "업로드한 문서" : "문서 정보 확인 중");
+
+  return (
+    <section
+      aria-labelledby="civic-job-status-title"
+      className={`civic-job-panel${job?.status === "FAILED" ? " is-failed" : ""}`}
+    >
+      <div className="civic-job-summary">
+        <header className="civic-job-document">
+          <span aria-hidden="true" className="civic-job-file-mark">
+            문서
+          </span>
+          <div>
+            <span>처리 문서</span>
+            <strong id="civic-job-status-title">{displayFilename}</strong>
+          </div>
+          <b
+            className={`civic-job-status-badge is-${job?.status?.toLocaleLowerCase() || "loading"}`}
+          >
+            {statusLabel}
+          </b>
+        </header>
+
+        <div className="civic-job-progress">
+          <header>
+            <strong>문서 준비 진행 상태</strong>
+            <b>{displayProgress}%</b>
+          </header>
+          <progress aria-label="문서 준비 진행률" max={100} value={displayProgress} />
+        </div>
+
+        <ol aria-label="문서 처리 단계" className="civic-job-timeline">
+          {stages.map(([label, state]) => (
+            <li className={ragJobStepClass(state)} key={label}>
+              <span aria-hidden="true" className="civic-job-step-marker">
+                {ragJobStepMarker(state)}
+              </span>
+              <div>
+                <strong>{label}</strong>
+                <small>{state}</small>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        {failureMessage ? (
+          <section aria-labelledby="civic-job-failure-title" className="civic-job-failure">
+            <span aria-hidden="true">!</span>
+            <div>
+              <strong id="civic-job-failure-title">{failedStage ?? "문서 처리"} 실패</strong>
+              <p>{failureMessage}</p>
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      <p aria-live="polite" className="civic-job-live-message">
+        {message}
+      </p>
+
+      <div className="civic-form-actions civic-job-actions">
+        <Link className="civic-secondary-action" href={workspaceHref}>
+          문서 목록
+        </Link>
+        <button className="civic-secondary-action" onClick={onRefresh} type="button">
+          상태 새로고침
+        </button>
+        {job?.status === "FAILED" ? (
+          <button
+            className="civic-primary-action"
+            disabled={retrying || Boolean(replacementHref)}
+            onClick={onRetry}
+            type="button"
+          >
+            {retrying ? "재처리 요청 중…" : "실패 파일 다시 처리"}
+          </button>
+        ) : null}
+        {replacementHref ? (
+          <Link className="civic-primary-action" href={replacementHref}>
+            새 작업 상태 보기
+          </Link>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
   const jobId = firstQueryValue(query.jobId);
   const folderId = firstQueryValue(query.folderId);
@@ -1923,15 +2066,20 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
   const [replacementJobId, setReplacementJobId] = useState<string | null>(null);
   const retryOperation = useRef(createRetryOperation());
   const [retrying, setRetrying] = useState(false);
-  const [message, setMessage] = useState(jobId ? "상태를 확인하세요." : "작업 ID가 필요합니다.");
+  const filename = firstQueryValue(query.filename);
+  const [message, setMessage] = useState(
+    jobId ? "문서 처리 상태를 불러오는 중입니다…" : "작업 ID가 필요합니다.",
+  );
 
   const refresh = useCallback(async () => {
     if (!jobId) return;
     const latest = await loadRagJob(jobId);
     if (!latest) return setMessage("처리 상태를 불러오지 못했습니다. 다시 시도해 주세요.");
-    setJob(latest);
+    const recoveredFilename =
+      !filename && latest.status === "FAILED" ? await loadRagJobFilename(jobId) : null;
+    setJob(recoveredFilename ? { ...latest, filename: recoveredFilename } : latest);
     setMessage("최신 처리 상태를 반영했습니다.");
-  }, [jobId]);
+  }, [filename, jobId]);
 
   useEffect(() => {
     if (!jobId || !shouldPollRagJob(job?.status, document.hidden)) return;
@@ -1981,54 +2129,18 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
   }
 
   return (
-    <section className="civic-job-panel">
-      <div className="civic-job-summary">
-        <header>
-          <strong>문서 준비 진행 상태</strong>
-          <b>{job?.progress ?? 0}%</b>
-        </header>
-        <progress max={100} value={job?.progress ?? 0} />
-        <div className="civic-job-timeline" aria-label="문서 처리 단계">
-          {ragJobTimelineStates(job).map(([label, state]) => (
-            <div
-              data-state={state === "완료" ? "done" : state === "실패" ? "failed" : "pending"}
-              key={label}
-            >
-              <span aria-hidden="true" className="civic-job-step-icon" />
-              <strong>{label}</strong>
-              <small>{state}</small>
-            </div>
-          ))}
-        </div>
-        {ragJobFailureMessage(job?.failure_code) ? (
-          <p>{ragJobFailureMessage(job?.failure_code)}</p>
-        ) : null}
-      </div>
-      <p aria-live="polite" className="civic-form-message">
-        {message}
-      </p>
-      {replacementJobId ? (
-        <Link href={ragJobHref(replacementJobId, folderId)}>새 작업 상태 보기</Link>
-      ) : null}
-      <div className="civic-form-actions">
-        <Link className="civic-secondary-action" href={ragWorkspaceHref(folderId)}>
-          문서 목록
-        </Link>
-        {job?.status === "FAILED" ? (
-          <button
-            className="civic-secondary-action"
-            disabled={retrying || replacementJobId !== null}
-            onClick={() => void retry()}
-            type="button"
-          >
-            실패 파일 재시도
-          </button>
-        ) : null}
-        <button className="civic-primary-action" onClick={() => void refresh()} type="button">
-          상태 새로고침
-        </button>
-      </div>
-    </section>
+    <RagJobStatusCard
+      job={job}
+      message={message}
+      onRefresh={() => void refresh()}
+      onRetry={() => void retry()}
+      retrying={retrying}
+      workspaceHref={ragWorkspaceHref(folderId)}
+      {...(filename ? { filename } : {})}
+      {...(replacementJobId
+        ? { replacementHref: ragJobHref(replacementJobId, folderId, filename) }
+        : {})}
+    />
   );
 }
 
@@ -2045,6 +2157,37 @@ export async function loadRagJob(
     return typeof value.job_id === "string" && typeof value.status === "string"
       ? (value as RagJob)
       : null;
+  } catch {
+    return null;
+  }
+}
+
+export function readRagJobFilenameFromSummary(jobId: string, value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const recentFailures = (value as { recent_failures?: unknown }).recent_failures;
+  if (!Array.isArray(recentFailures)) return null;
+  for (const item of recentFailures) {
+    if (!item || typeof item !== "object") continue;
+    const failure = item as { job_id?: unknown; filename?: unknown };
+    if (
+      failure.job_id === jobId &&
+      typeof failure.filename === "string" &&
+      failure.filename.trim()
+    ) {
+      return failure.filename;
+    }
+  }
+  return null;
+}
+
+export async function loadRagJobFilename(
+  jobId: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<string | null> {
+  try {
+    const response = await request("/api/v1/rag/jobs/summary", { cache: "no-store" });
+    if (!response.ok) return null;
+    return readRagJobFilenameFromSummary(jobId, await response.json());
   } catch {
     return null;
   }
@@ -2177,13 +2320,14 @@ export function processingJobHref(
   version: DocumentVersion | null | undefined,
   folderId?: string,
 ): Route {
-  return ragJobHref(version?.job_id, folderId);
+  return ragJobHref(version?.job_id, folderId, version?.filename);
 }
 
-export function ragJobHref(jobId?: string, folderId?: string): Route {
+export function ragJobHref(jobId?: string, folderId?: string, filename?: string): Route {
   const query = [
     jobId ? `jobId=${encodeURIComponent(jobId)}` : "",
     folderId ? `folderId=${encodeURIComponent(folderId)}` : "",
+    filename ? `filename=${encodeURIComponent(filename)}` : "",
   ]
     .filter(Boolean)
     .join("&");

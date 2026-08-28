@@ -45,6 +45,28 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/documents") {
       return json(response, { items: [documentFixture] });
     }
+    if (url.pathname === "/internal/v1/rag/jobs/job-1") {
+      return json(response, {
+        job_id: "job-1",
+        status: "FAILED",
+        progress: 10,
+        failure_code: "DOCUMENT_READ_FAILED",
+      });
+    }
+    if (url.pathname === "/internal/v1/rag/jobs/summary") {
+      return json(response, {
+        active: 0,
+        failed: 1,
+        counts: { FAILED: 1 },
+        recent_failures: [
+          {
+            job_id: "job-1",
+            filename: "policy.pdf",
+            failure_code: "DOCUMENT_READ_FAILED",
+          },
+        ],
+      });
+    }
     if (url.pathname === "/internal/v1/rag/documents/document-1/versions/version-1/original") {
       response.writeHead(200, {
         "content-type": "application/pdf",
@@ -366,6 +388,27 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(page.getByRole("heading", { name: "문서 준비 상태" })).toBeVisible();
   await expect(page.locator('[data-wireflow-layout="rag-job-status"]')).toBeVisible();
   await expect(page.getByText("문서 준비 진행 상태", { exact: true })).toBeVisible();
+  await expect(page.getByText("policy.pdf", { exact: true })).toBeVisible();
+  await expect(page.getByText("문서 읽기 실패", { exact: true })).toBeVisible();
+  const jobSteps = page.locator(".civic-job-timeline > li");
+  await expect(jobSteps).toHaveCount(3);
+  const firstStepBox = await jobSteps.nth(0).boundingBox();
+  const secondStepBox = await jobSteps.nth(1).boundingBox();
+  expect(firstStepBox).not.toBeNull();
+  expect(secondStepBox).not.toBeNull();
+  expect(secondStepBox!.y).toBeGreaterThan(firstStepBox!.y + firstStepBox!.height - 1);
+  const firstMarkerColor = await jobSteps
+    .nth(0)
+    .locator(".civic-job-step-marker")
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  const failedMarkerColor = await jobSteps
+    .nth(1)
+    .locator(".civic-job-step-marker")
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(firstMarkerColor).not.toBe(failedMarkerColor);
+  await expect(page.getByRole("button", { name: "실패 파일 다시 처리" })).toHaveClass(
+    /civic-primary-action/,
+  );
 
   await page.goto("/admin/rag/delete?folderId=general&documentId=document-1");
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toBeVisible();
