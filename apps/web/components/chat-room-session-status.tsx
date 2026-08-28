@@ -47,39 +47,59 @@ export function ChatRoomSessionNotice({
     return null;
   }
 
+  const isInformational = view.kind === "replaced";
+
   return (
     <div
-      className={`mt-3 rounded-xl border px-3 py-2.5 ${
-        view.kind === "replaced"
-          ? "border-amber-200 bg-amber-50 text-amber-950"
-          : "border-red-200 bg-red-50 text-red-950"
+      className={`mx-4 mt-3 rounded-[var(--chat-publishing-radius-card)] border px-4 py-4 text-[var(--chat-publishing-color-text)] ${
+        isInformational
+          ? "border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)]"
+          : "border-[#ffc95c] bg-[#fff7e8]"
       }`}
+      data-chat-session-notice={view.kind}
       role="alert"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{view.title}</p>
-          <p className="mt-0.5 text-xs opacity-75">{view.description}</p>
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className={`flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-base font-bold ${
+            isInformational
+              ? "text-[var(--chat-publishing-color-primary-emphasis)]"
+              : "text-[#8a5700]"
+          }`}
+        >
+          {isInformational ? "i" : "!"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold leading-6">{view.title}</p>
+          <p
+            className={`mt-1 break-words text-sm leading-5 ${
+              isInformational
+                ? "text-[var(--chat-publishing-color-primary-emphasis)]"
+                : "text-[#7a4b00]"
+            }`}
+          >
+            {view.description}
+          </p>
         </div>
-
-        {view.canReactivate ? (
-          <button
-            className="shrink-0 rounded-lg border border-current px-3 py-1.5 text-xs font-semibold"
-            onClick={onReactivate}
-            type="button"
-          >
-            이 탭에서 다시 활성화
-          </button>
-        ) : view.canReconnect ? (
-          <button
-            className="shrink-0 rounded-lg border border-current px-3 py-1.5 text-xs font-semibold"
-            onClick={onReconnect}
-            type="button"
-          >
-            다시 연결
-          </button>
-        ) : null}
       </div>
+      {view.canReactivate ? (
+        <button
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+          onClick={onReactivate}
+          type="button"
+        >
+          이 탭에서 다시 활성화
+        </button>
+      ) : view.canReconnect ? (
+        <button
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+          onClick={onReconnect}
+          type="button"
+        >
+          다시 연결
+        </button>
+      ) : null}
     </div>
   );
 }

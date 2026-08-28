@@ -1,0 +1,74 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import type { ChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
+import { ChatRoomSessionNotice } from "./chat-room-session-status";
+
+describe("ChatRoomSessionNotice", () => {
+  it("다른 탭 사용 상태를 정보성 안내와 재활성화 action으로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <ChatRoomSessionNotice onReactivate={vi.fn()} onReconnect={vi.fn()} view={REPLACED_VIEW} />,
+    );
+
+    expect(html).toContain('data-chat-session-notice="replaced"');
+    expect(html).toContain("다른 탭에서 채팅방을 사용 중입니다.");
+    expect(html).toContain("이 탭에서 다시 활성화");
+    expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
+    expect(html).not.toContain("bg-red-50");
+  });
+
+  it("연결 오류를 주의 안내와 재연결 action으로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <ChatRoomSessionNotice onReactivate={vi.fn()} onReconnect={vi.fn()} view={ERROR_VIEW} />,
+    );
+
+    expect(html).toContain('data-chat-session-notice="error"');
+    expect(html).toContain("실시간 채팅 연결을 사용할 수 없습니다.");
+    expect(html).toContain(">다시 연결</button>");
+    expect(html).toContain("bg-[#fff7e8]");
+    expect(html).not.toContain("border-red-200");
+  });
+
+  it("안내가 필요 없는 활성 상태에서는 렌더링하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      <ChatRoomSessionNotice onReactivate={vi.fn()} onReconnect={vi.fn()} view={ACTIVE_VIEW} />,
+    );
+
+    expect(html).toBe("");
+  });
+});
+
+const REPLACED_VIEW = {
+  canDraft: false,
+  canReactivate: true,
+  canReconnect: false,
+  description: "작성 중인 내용은 유지됩니다.",
+  indicatorLabel: "다른 탭 사용 중",
+  indicatorTone: "pending",
+  kind: "replaced",
+  showNotice: true,
+  title: "다른 탭에서 채팅방을 사용 중입니다.",
+} satisfies ChatRoomSessionView;
+
+const ERROR_VIEW = {
+  canDraft: false,
+  canReactivate: false,
+  canReconnect: true,
+  description: "다시 연결해 채팅을 복구해 주세요.",
+  indicatorLabel: "채팅 불가",
+  indicatorTone: "negative",
+  kind: "error",
+  showNotice: true,
+  title: "실시간 채팅 연결을 사용할 수 없습니다.",
+} satisfies ChatRoomSessionView;
+
+const ACTIVE_VIEW = {
+  canDraft: true,
+  canReactivate: false,
+  canReconnect: false,
+  description: "실시간 채팅을 사용 중입니다.",
+  indicatorLabel: "채팅 가능",
+  indicatorTone: "positive",
+  kind: "active",
+  showNotice: false,
+  title: "이 탭에서 실시간 채팅을 사용 중입니다.",
+} satisfies ChatRoomSessionView;

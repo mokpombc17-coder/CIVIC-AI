@@ -29,6 +29,7 @@ export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControl
     <ChatMessageComposer
       canSend={composer.canSend}
       disabled={!canDraft}
+      disabledMessage={!canDraft && view.kind === "pending" ? placeholder : null}
       draft={composer.draft}
       inputId={`chat-message-${roomId}`}
       onDraftChange={composer.setDraft}

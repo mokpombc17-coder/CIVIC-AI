@@ -23,7 +23,7 @@ export function ChatRealtimeSyncStatus({ error, onRetry, visible }: ChatRealtime
 
   return (
     <div
-      className="mt-3 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-4 text-[var(--chat-publishing-color-text)]"
+      className="mx-4 mt-3 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-4 text-[var(--chat-publishing-color-text)]"
       data-chat-message-history-state="sync-error"
       role="alert"
     >

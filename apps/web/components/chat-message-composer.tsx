@@ -5,6 +5,7 @@ import { useChatMessageComposerTextarea } from "./use-chat-message-composer-text
 export type ChatMessageComposerProps = Readonly<{
   canSend: boolean;
   disabled: boolean;
+  disabledMessage?: string | null;
   draft: string;
   inputId: string;
   onDraftChange: (value: string) => void;
@@ -16,6 +17,7 @@ export type ChatMessageComposerProps = Readonly<{
 export function ChatMessageComposer({
   canSend,
   disabled,
+  disabledMessage = null,
   draft,
   inputId,
   onDraftChange,
@@ -33,15 +35,32 @@ export function ChatMessageComposer({
     <>
       {validationError ? (
         <div
-          className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-950"
+          className="mx-4 mt-2 rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-3 text-[#7a4b00]"
+          data-chat-message-composer-state="validation-error"
           role="alert"
         >
-          <p className="text-sm">{validationError}</p>
+          <p className="text-sm font-semibold leading-5">{validationError}</p>
         </div>
       ) : null}
 
+      {disabledMessage ? (
+        <p
+          aria-live="polite"
+          className="mx-4 mt-2 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-2.5 text-sm font-medium leading-5 text-[var(--chat-publishing-color-muted)]"
+          data-chat-message-composer-state="disabled"
+          role="status"
+        >
+          {disabledMessage}
+        </p>
+      ) : null}
+
       <form
-        className="m-4 mt-2 flex items-end gap-2 rounded-xl border border-[var(--chat-publishing-color-border)] bg-white p-3"
+        className={`m-4 mt-2 flex items-end gap-2 rounded-[var(--chat-publishing-radius-card)] border p-3 transition ${
+          disabled
+            ? "border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)]"
+            : "border-[var(--chat-publishing-color-border)] bg-white focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]"
+        }`}
+        data-chat-message-composer-state={disabled ? "disabled-form" : "ready"}
         onSubmit={(event) => {
           event.preventDefault();
           onSubmit();
@@ -52,10 +71,10 @@ export function ChatMessageComposer({
         </label>
         <textarea
           {...textareaBehaviorProps}
-          className={`max-h-32 min-h-[72px] min-w-0 flex-1 resize-none overflow-y-auto rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-muted)] px-3 py-2.5 text-[15px] leading-[1.5] ${
+          className={`max-h-32 min-h-[72px] min-w-0 flex-1 resize-none overflow-y-auto rounded-[var(--chat-publishing-radius-control)] border px-3 py-2.5 text-[15px] leading-[1.5] outline-none ${
             disabled
-              ? "cursor-not-allowed bg-[var(--chat-publishing-color-neutral-soft)] text-[var(--chat-publishing-color-muted)]"
-              : "bg-white text-[var(--chat-publishing-color-text)]"
+              ? "cursor-not-allowed border-transparent bg-transparent text-[var(--chat-publishing-color-muted)]"
+              : "border-[var(--chat-publishing-color-border)] bg-white text-[var(--chat-publishing-color-text)]"
           }`}
           disabled={disabled}
           enterKeyHint="send"
@@ -66,7 +85,11 @@ export function ChatMessageComposer({
           value={draft}
         />
         <button
-          className={`inline-flex h-12 w-16 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] text-[15px] font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] ${canSend ? "" : "cursor-not-allowed opacity-50"}`}
+          className={`inline-flex h-12 w-16 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] text-[15px] font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] ${
+            canSend
+              ? "bg-[var(--chat-publishing-color-primary)] text-white hover:bg-[var(--chat-publishing-color-primary-emphasis)]"
+              : "cursor-not-allowed border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[var(--chat-publishing-color-muted)]"
+          }`}
           disabled={!canSend}
           type="submit"
         >
