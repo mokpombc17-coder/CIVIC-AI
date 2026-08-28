@@ -12,10 +12,10 @@
 - Simulation `A-SIM-001..007`: Vote 과업 선택, SONA 집계 패널 설정·실행, 상태·취소,
   수동 재설정, 집계 결과와 익명 패널 응답 상세
 
-브라우저는 same-origin `/api/v1/admin/**`만 호출한다. Next.js BFF는 허용한 path와 method만 각각
-`CHAT_INTERNAL_URL`, `VOTE_INTERNAL_URL`, `SIMULATION_INTERNAL_URL`로 전달한다. Access Token은 해석하지 않고 같은 원문을
-`civic_ai_access_token` Cookie와 Bearer Authorization에 넣는다. 각 Resource Server가 최종 scope와
-JWT를 검증한다.
+브라우저는 same-origin `/api/v1/admin/**`만 호출한다. Next.js BFF는 허용한 Chat·Vote path와 method만
+각각 `CHAT_INTERNAL_URL`, `VOTE_INTERNAL_URL`로 전달한다. Simulation path는 공개 nginx가 Simulation
+Resource Server로 직접 전달한다. 각 Resource Server가 HttpOnly Access Token 쿠키 또는 Bearer와
+최종 scope, JWT, Origin/CSRF를 검증한다.
 
 | 영역                                | 서버 business scope        |
 | ----------------------------------- | -------------------------- |
@@ -45,7 +45,7 @@ mutation은 자동 재전송하지 않는다. 응답이 불명확하거나 `409`
 
 Simulation은 `Persona-main/main`에서 이관한 SONA 실행기를 사용하지만 과업 단위 가상 패널의
 집계 실행만 소유한다. CIVIC 개별 사용자의 Persona 생성, 사용자별 Task 예측, 해당 데이터 조회는
-Simulation BFF allowlist와 화면 계약에 포함하지 않는다.
+Simulation Resource Server와 화면 계약에 포함하지 않는다.
 
 ## Chat 카테고리 운영 제한
 

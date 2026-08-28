@@ -418,7 +418,7 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(deleteDialog.getByRole("button", { name: "문서 삭제" })).toBeDisabled();
 });
 
-test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 BFF 경계를 유지한다", async ({
+test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계를 유지한다", async ({
   context,
   page,
 }) => {
@@ -444,13 +444,13 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 BFF 경계를
 
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const citation = page.getByRole("link", { name: "원문 보기" });
+  const citation = page.getByRole("link", { name: "근거 페이지" });
   await expect(citation).toBeVisible();
 
   await page.reload();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "원문 보기" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "근거 페이지" })).toBeVisible();
 
   await page.getByRole("button", { name: "새 질문" }).click();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
@@ -462,7 +462,7 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 BFF 경계를
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const restoredCitation = page.getByRole("link", { name: "원문 보기" });
+  const restoredCitation = page.getByRole("link", { name: "근거 페이지" });
   await expect(restoredCitation).toBeVisible();
   await restoredCitation.click();
 

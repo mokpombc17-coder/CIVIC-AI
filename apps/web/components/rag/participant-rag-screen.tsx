@@ -255,7 +255,7 @@ function RagConversation({
             새 질문
           </button>
         </header>
-        <div aria-label="현재 RAG 대화" className="civic-rag-messages">
+        <div aria-label="현재 RAG 대화" className="civic-rag-messages" role="log">
           {messages.length === 0 ? (
             <div className="civic-rag-empty">
               <span aria-hidden="true">✦</span>

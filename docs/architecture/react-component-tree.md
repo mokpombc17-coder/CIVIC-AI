@@ -132,17 +132,18 @@ Browser /api/v1/auth|account|admin/**
     └── Auth cookie Set-Cookie 검증
 
 Browser /api/v1/rag/**
-└── RAG BFF
-    ├── same-origin 검사
-    ├── Access Token raw equality 검사
-    └── RAG upstream에 동일 Cookie + Bearer 전달
+└── nginx direct ingress
+    └── RAG Resource Server
+        ├── Cookie/Bearer raw equality 검사
+        ├── Origin/CSRF와 JWT scope 검사
+        └── /internal/v1/rag/** 정본 경로 처리
 
-Browser /api/v1/admin/simulation-tasks/**|tasks/{taskId}/simulations|simulations/**|simulation-options|simulation-billing/**
-└── Simulation BFF
-    ├── route/method allowlist
-    ├── same-origin 검사
-    ├── Access Token raw equality 검사
-    └── Simulation upstream에 동일 Cookie + Bearer 전달
+Browser /api/v1/admin/simulation-tasks/**|simulations/**|simulation-options|simulation-billing/**
+└── nginx direct ingress
+    └── Simulation Resource Server
+        ├── Cookie/Bearer raw equality 검사
+        ├── Origin/CSRF와 JWT scope 검사
+        └── 정본 Simulation API 처리
 
 Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/**
         | /api/v1/admin/rooms/{roomId}/categories | /api/v1/rooms/{roomId}
@@ -153,14 +154,14 @@ Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/
     └── Chat 또는 Vote upstream에 동일 Cookie + Bearer 전달
 ```
 
-실행 요청은 먼저 `/api/v1/admin/tasks/{taskId}/simulations/preview`에서 예상 원화 비용·20% 보류액·
+실행 요청은 먼저 `/api/v1/admin/simulations/preview`에 `taskId`를 포함해 예상 원화 비용·20% 보류액·
 예상 시간·가격 정책 fingerprint를 받는다. 관리자가 화면에서 이를 확인한 다음 동일 fingerprint를
-실행 요청에 넣는다. 지갑·정책·사용량·이관 화면은 내부 UUID 대신 금액, 버전, 이메일, 상태처럼
-운영자가 판단할 수 있는 값만 표시한다. 쿠폰 원문은 발급 응답 직후의 Client state에만 존재하며
-URL, 브라우저 저장소, 로그에는 기록하지 않는다.
+`POST /api/v1/admin/simulations`에 넣는다. 지갑·정책·사용량·이관 화면은 내부 UUID 대신 금액, 버전,
+이메일, 상태처럼 운영자가 판단할 수 있는 값만 표시한다. 쿠폰 원문은 발급 응답 직후의 Client state에만
+존재하며 URL, 브라우저 저장소, 로그에는 기록하지 않는다.
 
-RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 Next.js SSE 프록시를
-통해 연결하며 provider API key나 JWT를 Client Component에 전달하지 않는다. 참여자 RAG 화면은
+RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 nginx에서 RAG Resource
+Server로 직접 연결하며 provider API key나 JWT payload를 Client Component에 전달하지 않는다. 참여자 RAG 화면은
 같은 탭의 질문·답변·인용·후속 질문 제안을 `sessionStorage`에서 복원하고 `새 질문`에서 삭제한다.
 Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지 않는다.
 

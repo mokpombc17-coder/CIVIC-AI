@@ -8,11 +8,11 @@
 - `apps/web/app/(participant)/[feature]/[[...screen]]/page.tsx`: 공개·참여자 Main/Auth와 RAG 화면
 - `apps/web/app/(admin)/admin/[feature]/[[...screen]]/page.tsx`: 관리자 Main/Auth, RAG, Chat 승인, Vote 과업 화면
 - `apps/web/app/api/v1/[...path]/route.ts`: 허용 목록 기반 Main/Auth BFF
-- `apps/web/app/api/v1/rag/**`: RAG BFF
+- 공개 nginx `/api/v1/rag/**`: RAG Resource Server 직결 경로
 - `apps/web/app/api/v1/admin/room-creation-requests/**`: Chat 관리자 allowlist BFF
 - `apps/web/app/api/v1/admin/tasks/**`: Vote 관리자 allowlist BFF
 - `apps/web/app/auth/refresh/page.tsx`: path-scoped Refresh Token을 이용하는 갱신 화면
-- `apps/web/app/stream/rag/queries/[jobId]/route.ts`: RAG SSE 프록시
+- 공개 nginx `/stream/rag/queries/[jobId]`: RAG Resource Server 직결 SSE 경로
 
 ## 인증 코드
 
@@ -37,7 +37,8 @@
 - `apps/web/components/admin/admin-chat-request-screen.tsx`: 채팅방 생성 신청 조회·승인·반려
 - `apps/web/components/admin/admin-task-screen.tsx`: Vote 과업 작성·수명주기·결과 관리
 
-참여자 Chat·Vote와 Simulation은 현재 placeholder다. Chat 관리자 중 현재 서버 계약이 있는 생성 신청
-관리와 Vote 관리자 과업 관리는 실제 API를 사용한다. 세부 경계는
+참여자 Chat·Vote는 현재 placeholder다. Chat 관리자 중 현재 서버 계약이 있는 생성 신청 관리와 Vote
+관리자 과업 관리, Simulation 관리자 실행 화면은 실제 API를 사용한다. RAG와 Simulation 요청은 Web
+BFF를 거치지 않고 공개 nginx에서 각 Resource Server로 전달된다. 세부 경계는
 [`../contracts/admin-domain-integration.md`](../contracts/admin-domain-integration.md)를 따른다.
 참여자·공개 사용자 화면은 기능과 관계없이 정확히 하나의 `PlatformShell` 안에서 렌더링한다.

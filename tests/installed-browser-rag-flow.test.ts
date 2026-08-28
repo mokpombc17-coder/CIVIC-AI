@@ -11,8 +11,8 @@ describe("installed browser RAG flow", () => {
     );
 
     expect(source).toContain('data-wireflow-screen="U-RAG-001"');
-    expect(source).toContain('getByRole("button", { name: "새 대화" })');
-    expect(source).toContain('getByText("새 대화를 시작했습니다.")');
+    expect(source).toContain('getByRole("button", { name: "새 질문" })');
+    expect(source).toContain('getByText("새 질문을 시작했습니다.")');
     expect(source).toContain('getByRole("dialog", { name: "참조 문서" })');
     expect(source).toContain("toHaveURL(/\\/rag$/)");
     expect(source).not.toContain('data-wireflow-screen="U-RAG-002"');

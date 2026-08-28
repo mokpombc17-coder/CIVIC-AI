@@ -94,8 +94,8 @@ const web = spawn(
     env: {
       ...process.env,
       CIVIC_BROWSER_ORIGIN: webOrigin,
+      CIVIC_E2E_RAG_UPSTREAM: apiOrigin,
       MAIN_AUTH_INTERNAL_URL: apiOrigin,
-      RAG_INTERNAL_URL: apiOrigin,
     },
     stdio: ["ignore", "pipe", "pipe"],
   },

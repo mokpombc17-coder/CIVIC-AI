@@ -643,10 +643,13 @@ function Field({
   help?: string;
   onChange?: (value: string) => void;
 }) {
+  const helpId = help ? `civic-auth-${name}-help` : undefined;
   return (
     <label className="civic-field">
       <span>{label}</span>
       <input
+        aria-describedby={helpId}
+        aria-label={label}
         autoComplete={
           type === "password" ? "current-password" : name === "email" ? "email" : "one-time-code"
         }
@@ -659,7 +662,11 @@ function Field({
         type={type}
         value={onChange ? value : undefined}
       />
-      {help ? <small className="civic-field-help">{help}</small> : null}
+      {help ? (
+        <small className="civic-field-help" id={helpId}>
+          {help}
+        </small>
+      ) : null}
     </label>
   );
 }
@@ -734,7 +741,12 @@ function ConsentDocumentLink({
   return (
     <p className="civic-help">
       {hint ? <span>{hint} </span> : null}
-      <a href={document.path} rel="noopener noreferrer" target="_blank">
+      <a
+        aria-label={`${label} 전문 보기`}
+        href={document.path}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
         전문 보기
       </a>{" "}
       <span>버전 {document.document_version}</span>

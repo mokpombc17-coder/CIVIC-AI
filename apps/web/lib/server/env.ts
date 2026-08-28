@@ -22,10 +22,8 @@ const optionalPositiveInteger = z.preprocess((value) => {
 
 const serverEnvSchema = z.object({
   MAIN_AUTH_INTERNAL_URL: optionalUrl,
-  RAG_INTERNAL_URL: optionalUrl,
   CHAT_INTERNAL_URL: optionalUrl,
   VOTE_INTERNAL_URL: optionalUrl,
-  SIMULATION_INTERNAL_URL: optionalUrl,
   CIVIC_BROWSER_ORIGIN: optionalUrl,
   IOS_APP_STORE_URL: optionalUrl,
   ANDROID_PLAY_STORE_URL: optionalUrl,
@@ -44,10 +42,8 @@ const serverEnvSchema = z.object({
 
 const parsedServerEnv = serverEnvSchema.parse({
   MAIN_AUTH_INTERNAL_URL: process.env.MAIN_AUTH_INTERNAL_URL,
-  RAG_INTERNAL_URL: process.env.RAG_INTERNAL_URL,
   CHAT_INTERNAL_URL: process.env.CHAT_INTERNAL_URL,
   VOTE_INTERNAL_URL: process.env.VOTE_INTERNAL_URL,
-  SIMULATION_INTERNAL_URL: process.env.SIMULATION_INTERNAL_URL,
   CIVIC_BROWSER_ORIGIN: process.env.CIVIC_BROWSER_ORIGIN,
   IOS_APP_STORE_URL: process.env.IOS_APP_STORE_URL,
   ANDROID_PLAY_STORE_URL: process.env.ANDROID_PLAY_STORE_URL,

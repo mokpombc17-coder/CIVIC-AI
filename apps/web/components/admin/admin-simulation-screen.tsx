@@ -44,13 +44,18 @@ import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 
 type AdminQuery = Readonly<Record<string, string | readonly string[] | undefined>>;
-type RunInput = Readonly<{
+export type RunInput = Readonly<{
   filters?: Readonly<Record<string, readonly string[]>>;
   modelType: string;
   personaCount: number;
   sampleSeed: number | null;
 }>;
 type CapacityInput = Pick<RunInput, "filters" | "personaCount" | "sampleSeed">;
+
+export const ADMIN_SIMULATION_PATHS = {
+  create: "/api/v1/admin/simulations",
+  preview: "/api/v1/admin/simulations/preview",
+} as const;
 
 export function AdminSimulationScreen({
   screen,
@@ -860,13 +865,7 @@ function useStartSimulation(taskId: string | null) {
   const start = useCallback(
     async (input: RunInput, pricingFingerprint: string) => {
       if (!taskId) return;
-      const body = {
-        personaCount: input.personaCount,
-        modelType: input.modelType,
-        sampleSeed: input.sampleSeed,
-        filters: input.filters ?? {},
-        pricingFingerprint,
-      };
+      const body = buildAdminSimulationRequest(taskId, input, pricingFingerprint);
       const signature = JSON.stringify(body);
       if (!requestRef.current || requestRef.current.signature !== signature) {
         requestRef.current = { key: window.crypto.randomUUID(), signature };
@@ -874,16 +873,11 @@ function useStartSimulation(taskId: string | null) {
       setPending(true);
       setMessage("");
       try {
-        const response = await authenticatedFetch(
-          `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/simulations`,
-          {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "idempotency-key": requestRef.current.key,
-            },
-            body: signature,
-          },
+        const response = await requestAdminSimulationStart(
+          taskId,
+          input,
+          pricingFingerprint,
+          requestRef.current.key,
         );
         if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
         const created = readSimulationView(await response.json());
@@ -962,14 +956,8 @@ function useSimulationCapacity(input: CapacityInput | null) {
 }
 
 function useSimulationPreview(taskId: string | null, input: RunInput | null) {
-  const signature = input
-    ? JSON.stringify({
-        personaCount: input.personaCount,
-        modelType: input.modelType,
-        sampleSeed: input.sampleSeed,
-        filters: input.filters ?? {},
-      })
-    : null;
+  const signature =
+    taskId && input ? JSON.stringify(buildAdminSimulationRequest(taskId, input)) : null;
   const [result, setResult] = useState<{
     preview: SimulationPreview;
     signature: string;
@@ -980,19 +968,12 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
   const current = result?.signature === signature ? result : null;
 
   const load = useCallback(async () => {
-    if (!taskId || !signature) return;
+    if (!taskId || !input || !signature) return;
     setPending(true);
     setMessage("");
     try {
       const [previewResponse, walletResponse] = await Promise.all([
-        authenticatedFetch(
-          `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/simulations/preview`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: signature,
-          },
-        ),
+        requestAdminSimulationPreview(taskId, input),
         authenticatedFetch("/api/v1/admin/simulation-billing/wallet", {
           cache: "no-store",
         }),
@@ -1012,7 +993,7 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
     } finally {
       setPending(false);
     }
-  }, [signature, taskId]);
+  }, [input, signature, taskId]);
 
   return {
     load,
@@ -1287,6 +1268,50 @@ export function buildDefaultSimulationRunInput(
     sampleSeed: null,
     ...(filters === undefined ? {} : { filters }),
   };
+}
+
+export function buildAdminSimulationRequest(
+  taskId: string,
+  input: RunInput,
+  pricingFingerprint?: string,
+) {
+  return {
+    taskId,
+    personaCount: input.personaCount,
+    modelType: input.modelType,
+    sampleSeed: input.sampleSeed,
+    filters: input.filters ?? {},
+    ...(pricingFingerprint === undefined ? {} : { pricingFingerprint }),
+  };
+}
+
+export function requestAdminSimulationStart(
+  taskId: string,
+  input: RunInput,
+  pricingFingerprint: string,
+  idempotencyKey: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<Response> {
+  return request(ADMIN_SIMULATION_PATHS.create, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": idempotencyKey,
+    },
+    body: JSON.stringify(buildAdminSimulationRequest(taskId, input, pricingFingerprint)),
+  });
+}
+
+export function requestAdminSimulationPreview(
+  taskId: string,
+  input: RunInput,
+  request: typeof fetch = authenticatedFetch,
+): Promise<Response> {
+  return request(ADMIN_SIMULATION_PATHS.preview, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(buildAdminSimulationRequest(taskId, input)),
+  });
 }
 
 function normalizeCapacityInput(
