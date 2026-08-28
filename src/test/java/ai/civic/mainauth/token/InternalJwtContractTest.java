@@ -38,6 +38,7 @@ class InternalJwtContractTest {
                         "rag:jobs:read")
                 .doesNotContain(
                         "chat:rooms:approve",
+                        "chat:categories:manage",
                         "chat:rooms:membership-limit:exempt",
                         "chat:audit:exports",
                         "chat:research:exports",
@@ -64,6 +65,7 @@ class InternalJwtContractTest {
                 .contains(
                         "rag:documents:write",
                         "chat:rooms:approve",
+                        "chat:categories:manage",
                         "chat:rooms:membership-limit:exempt",
                         "chat:audit:exports",
                         "chat:research:exports",
@@ -74,6 +76,31 @@ class InternalJwtContractTest {
                         "simulation:tasks:run",
                         "simulation:billing:read",
                         "simulation:billing:write");
+    }
+
+    @Test
+    void chatAdminReceivesEveryChatAdministratorScopeWithoutElevatingParticipants() {
+        assertThat(chatScopes(AccessTokenService.scopesForPermissions(Set.of())))
+                .containsExactly(
+                        "chat:connect",
+                        "chat:rooms:read",
+                        "chat:rooms:write",
+                        "chat:messages:write",
+                        "chat:read-state:write");
+        assertThat(chatScopes(AccessTokenService.scopesForPermissions(Set.of("CHAT_ADMIN"))))
+                .containsExactly(
+                        "chat:connect",
+                        "chat:rooms:read",
+                        "chat:rooms:write",
+                        "chat:messages:write",
+                        "chat:read-state:write",
+                        "chat:rooms:approve",
+                        "chat:categories:manage",
+                        "chat:rooms:membership-limit:exempt",
+                        "chat:audit:exports",
+                        "chat:research:exports");
+        assertThat(AccessTokenService.scopesForPermissions(Set.of("RAG_ADMIN")))
+                .doesNotContain("chat:categories:manage", "chat:rooms:approve");
     }
 
     @Test
@@ -180,5 +207,9 @@ class InternalJwtContractTest {
 
     private static java.util.List<String> voteScopes(java.util.List<String> scopes) {
         return scopes.stream().filter(scope -> scope.startsWith("vote:")).toList();
+    }
+
+    private static java.util.List<String> chatScopes(java.util.List<String> scopes) {
+        return scopes.stream().filter(scope -> scope.startsWith("chat:")).toList();
     }
 }
