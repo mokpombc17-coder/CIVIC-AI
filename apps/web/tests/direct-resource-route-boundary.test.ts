@@ -83,6 +83,20 @@ describe("direct resource route boundary", () => {
     });
   });
 
+  it("IPv6 loopback 리소스 origin을 로컬 개발 rewrite로 허용한다", async () => {
+    delete process.env.CIVIC_E2E_RAG_UPSTREAM;
+    Reflect.set(process.env, "NODE_ENV", "development");
+    process.env.CIVIC_DEV_RAG_UPSTREAM = "http://[::1]:8000";
+    delete process.env.CIVIC_DEV_SIMULATION_UPSTREAM;
+
+    const rewrites = await nextConfig.rewrites?.();
+
+    expect(rewrites).toContainEqual({
+      source: "/api/v1/rag/:path*",
+      destination: "http://[::1]:8000/internal/v1/rag/:path*",
+    });
+  });
+
   it("production Next.js는 개발용 resource rewrite를 활성화하지 않는다", async () => {
     delete process.env.CIVIC_E2E_RAG_UPSTREAM;
     Reflect.set(process.env, "NODE_ENV", "production");

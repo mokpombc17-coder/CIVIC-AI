@@ -11,7 +11,7 @@ function loopbackOrigin(rawValue: string | undefined, variableName: string): str
   const origin = new URL(rawOrigin);
   if (
     origin.protocol !== "http:" ||
-    !["127.0.0.1", "localhost", "::1"].includes(origin.hostname) ||
+    !["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname) ||
     origin.pathname !== "/" ||
     origin.search ||
     origin.hash ||
