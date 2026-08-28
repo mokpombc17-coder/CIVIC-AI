@@ -283,6 +283,44 @@ controller hook은 이름·설명만 허용하는 draft, 부분 patch 계산, up
 소유한다. container는 조회·편집 전환과 완료 후 trigger focus 복원을 소유하며, View는 별도 modal 없이 같은
 방 정보 카드 안에서 조회 요약 또는 인라인 form 중 하나만 표시한다.
 
+## Route `/vote`, `/vote/[taskId]`, `/vote/[taskId]/result`
+
+`VoteLayout`은 `VoteQueryProvider`를 `/vote` 하위 route 전체에 제공한다. Provider는 Vote 전용
+`QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
+`PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
+`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중·완료 목록 Vote Query를 API 기반
+카드 view model로 변환한다. 완료 목록은 cursor 기반 다음 페이지 로드를 소유하고, 개발 환경에서는 실제
+완료 API 카드와 구분되는 publishing 디자인 샘플 카드 하나를 함께 제공한다.
+
+`VoteTaskScreen`은 Task 상세 Query로 실제 질문·선택지를 조립하고, 1/4 과업 확인부터 4/4 참여 완료까지의
+local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
+mutation, 종료 bottom sheet를 소유한다. Prediction 조회·생성 실패에는 사용자 주도의 재시도를 제공하고,
+session storage에 남은 미확정 제출은 자동 전송하지 않고 동일 key·body 재제출 또는 새 작성 선택을 받는다.
+이미 제출한 열린 Task로 재진입하면 Task 기준 내 제출 Query를 활성화하고, 참여 폼 대신 4/4 읽기 전용
+응답 확인 화면을 조립한다. Prediction의 Persona generation/version과 prediction ID는 제출 identity로
+사용하고, 선택한 option에 해당하는 예상 이유는 `AI_ACCEPTED`, 직접 입력은 `USER_WRITTEN`으로 분기한다.
+`VoteTaskResultScreen`은 완료 결과 Query를 조회해 option count를 percentage로 변환한다. 개발 전용
+`source=mock` 진입은 실제 API를 호출하지 않고 publishing 결과 샘플을 같은 view model로 변환해 그래프
+시각 검수에 사용한다. Vote API client와 query hook은 Provider가 제공하는 client cache를 공유한다.
+
+```text
+RootLayout [Server] [Route] (apps/web/app/layout.tsx)
+└── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
+    └── children [slot: App Router가 route child를 제공]
+        └── VoteLayout [Server] [Route] (apps/web/app/vote/layout.tsx)
+            └── VoteQueryProvider [Client] [Provider] (apps/web/components/vote/vote-query-provider.tsx)
+                └── children [slot: nested page를 제공]
+                    ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
+                    │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
+                    │       └── PlatformShell [Client graph] [View]
+                    ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
+                    │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
+                    │       └── PlatformShell [Client graph] [View] [conditional bottom sheet]
+                    └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)
+                        └── VoteTaskResultScreen [Client] [Container] (apps/web/components/vote/vote-task-result-screen.tsx)
+                            └── PlatformShell [Client graph] [View]
+```
+
 ## App Router special UI
 
 다음 파일은 일반 route page가 아니라 root app segment에 연결된 App Router special file이다. 어떤 boundary와 runtime 상태에서 실제로 선택되는지는 Next.js가 관리하며, 프로젝트 소스에는 이들을 `RootLayout`이나 `AppShell`이 직접 JSX 자식으로 호출하는 관계가 없다. 따라서 아래 항목은 직접 부모를 추정하지 않고 독립된 framework-managed branch로 표시한다.
@@ -375,6 +413,16 @@ flowchart TD
     ChatRoomSessionNotice["ChatRoomSessionNotice [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-session-status.tsx"]
     ChatMessageComposer["ChatMessageComposer [Client] [Feature]<br/>apps/web/components/chat-message-composer.tsx"]
 
+    VoteLayout["VoteLayout [Server] [Route]<br/>apps/web/app/vote/layout.tsx"]
+    VoteQueryProvider["VoteQueryProvider [Client] [Provider]<br/>apps/web/components/vote/vote-query-provider.tsx"]
+    VoteChildrenSlot["vote children slot<br/>nested page를 제공"]
+    VotePage["VotePage [Server] [Route]<br/>apps/web/app/vote/page.tsx"]
+    VoteTaskListScreen["VoteTaskListScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-list-screen.tsx"]
+    VoteTaskPage["VoteTaskPage [Server] [Route]<br/>apps/web/app/vote/[taskId]/page.tsx"]
+    VoteTaskScreen["VoteTaskScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-screen.tsx"]
+    VoteTaskResultPage["VoteTaskResultPage [Server] [Route]<br/>apps/web/app/vote/[taskId]/result/page.tsx"]
+    VoteTaskResultScreen["VoteTaskResultScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-result-screen.tsx"]
+
     SpecialBoundary["App Router root-segment special UI<br/>framework-managed; direct JSX parent 미확정"]
     Loading["Loading [Server] [Route] [conditional]<br/>apps/web/app/loading.tsx"]
     ErrorPage["ErrorPage [Client] [Route] [conditional]<br/>apps/web/app/error.tsx"]
@@ -446,6 +494,22 @@ flowchart TD
     ChatRoomInformationSection -->|"active OWNER only"| ChatRoomSettingsControl
     ChatRoomSettingsControl --> ChatRoomSettingsControlView
 
+    ChildrenSlot -. "route /vote" .-> VoteLayout
+    VoteLayout --> VoteQueryProvider
+    VoteQueryProvider --> VoteChildrenSlot
+    VoteChildrenSlot -. "route /vote" .-> VotePage
+    VotePage --> VoteTaskListScreen
+    VoteTaskListScreen --> PlatformShell
+    VoteTaskListScreen --> PlatformNavigationClient
+    VoteChildrenSlot -. "route /vote/[taskId]" .-> VoteTaskPage
+    VoteTaskPage --> VoteTaskScreen
+    VoteTaskScreen --> PlatformShell
+    VoteTaskScreen --> PlatformNavigationClient
+    VoteChildrenSlot -. "route /vote/[taskId]/result" .-> VoteTaskResultPage
+    VoteTaskResultPage --> VoteTaskResultScreen
+    VoteTaskResultScreen --> PlatformShell
+    VoteTaskResultScreen --> PlatformNavigationClient
+
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage
     SpecialBoundary -. "not-found state" .-> NotFound
@@ -455,8 +519,8 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,ErrorPage client;
+    class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,Loading,NotFound server;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchDialog,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,ErrorPage client;
     class ChatRoomEntryError server;
-    class ChildrenSlot,ChatChildrenSlot,SpecialBoundary framework;
+    class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SpecialBoundary framework;
 ```

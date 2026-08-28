@@ -20,6 +20,7 @@ export const VOTE_AUTH_SCOPES = [
   "vote:surveys:read",
   "vote:survey-responses:write",
   "vote:tasks:read",
+  "vote:predictions:write",
   "vote:submissions:read",
   "vote:submissions:write",
 ] as const;
