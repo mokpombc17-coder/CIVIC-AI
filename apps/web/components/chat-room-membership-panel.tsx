@@ -21,6 +21,12 @@ const MEMBERSHIP_STATUS_LABEL: Record<MembershipStatus, string> = {
   BANNED: "차단됨",
 };
 
+const PANEL_SECONDARY_BUTTON_CLASS_NAME =
+  "inline-flex min-h-11 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+const MEMBER_ACTION_BUTTON_CLASS_NAME =
+  "inline-flex min-h-9 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 text-xs font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+const MEMBER_DANGER_ACTION_BUTTON_CLASS_NAME = `${MEMBER_ACTION_BUTTON_CLASS_NAME} border-[#f2b8b5] text-[#b42318] hover:bg-[#fff1f0]`;
+
 export function ChatRoomMembershipPanel({
   headerAction,
   headingId,
@@ -66,9 +72,11 @@ export function ChatRoomMembershipPanelView({
   } = controller;
 
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <h2 id={headingId}>채팅방 메뉴</h2>
+    <section className="px-6 pt-5 pb-6">
+      <div className="flex min-h-11 items-start justify-between gap-4">
+        <h2 className="min-w-0 pt-1 text-2xl font-bold leading-[32.4px]" id={headingId}>
+          채팅방 메뉴
+        </h2>
         <div className="flex flex-wrap items-center justify-end gap-2">{headerAction}</div>
       </div>
 
@@ -111,14 +119,16 @@ export function ChatRoomMembershipPanelView({
 
       {command.error ? (
         <div
-          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
+          className="mt-4 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
           role="alert"
         >
           <p className="text-sm font-semibold">{command.error.title}</p>
-          <p className="mt-1 text-xs opacity-80">{command.error.message}</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
+            {command.error.message}
+          </p>
           {command.error.canRetry ? (
             <button
-              className="secondary-button mt-3"
+              className={`${PANEL_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
               disabled={command.isPending}
               onClick={command.retry}
               type="button"
@@ -131,7 +141,7 @@ export function ChatRoomMembershipPanelView({
 
       {command.successMessage ? (
         <p
-          className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
+          className="mt-4 rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-accent-soft)] p-4 text-sm leading-6 text-[var(--chat-publishing-color-primary-emphasis)]"
           role="status"
         >
           {command.successMessage}
@@ -139,10 +149,10 @@ export function ChatRoomMembershipPanelView({
       ) : null}
 
       {roomActionKind ? (
-        <div className="mt-6 border-t border-slate-200 pt-5">
+        <div className="mt-5 border-t border-[var(--chat-publishing-color-border)] pt-5">
           {roomActionKind === "leave" ? (
             <button
-              className="secondary-button w-full"
+              className={`${PANEL_SECONDARY_BUTTON_CLASS_NAME} w-full`}
               disabled={command.isPending}
               onClick={() => command.startRoom("leave")}
               type="button"
@@ -151,7 +161,7 @@ export function ChatRoomMembershipPanelView({
             </button>
           ) : (
             <button
-              className="secondary-button w-full border-red-300 text-red-700"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[#f2b8b5] bg-white px-4 text-base font-bold text-[#b42318] transition hover:bg-[#fff1f0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b42318] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={command.isPending}
               onClick={() => command.startRoom("close")}
               type="button"
@@ -199,17 +209,23 @@ function ActiveMembershipList({
   selfMembershipId: string | null;
 }) {
   return (
-    <div className="mt-6 border-t border-slate-200 pt-5">
-      <h3 className="text-lg font-bold text-slate-950">참여자 목록</h3>
+    <section className="border-b border-[var(--chat-publishing-color-border)] py-5">
+      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]">참여자 목록</h3>
 
       {isError ? (
         <div
-          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
+          className="mt-3 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
           role="alert"
         >
           <p className="text-sm font-semibold">참여자 목록을 불러오지 못했습니다.</p>
-          <p className="mt-1 text-xs opacity-80">{errorMessage}</p>
-          <button className="secondary-button mt-3" onClick={onRetry} type="button">
+          <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
+            {errorMessage}
+          </p>
+          <button
+            className={`${PANEL_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
+            onClick={onRetry}
+            type="button"
+          >
             참여자 목록 다시 불러오기
           </button>
         </div>
@@ -233,7 +249,7 @@ function ActiveMembershipList({
         isFetchingNextPage={isFetchingNextPage}
         onFetchNextPage={onFetchNextPage}
       />
-    </div>
+    </section>
   );
 }
 
@@ -269,17 +285,25 @@ function BlockedMembershipManagement({
   selfMembershipId: string | null;
 }) {
   return (
-    <div className="mt-6 border-t border-slate-200 pt-5">
-      <h3 className="text-lg font-bold text-slate-950">차단된 사용자 관리</h3>
+    <section className="border-b border-[var(--chat-publishing-color-border)] py-5">
+      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]">
+        차단된 사용자 관리
+      </h3>
 
       {isError ? (
         <div
-          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-950"
+          className="mt-3 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
           role="alert"
         >
           <p className="text-sm font-semibold">차단된 사용자 목록을 불러오지 못했습니다.</p>
-          <p className="mt-1 text-xs opacity-80">{errorMessage}</p>
-          <button className="secondary-button mt-3" onClick={onRetry} type="button">
+          <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
+            {errorMessage}
+          </p>
+          <button
+            className={`${PANEL_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
+            onClick={onRetry}
+            type="button"
+          >
             차단된 사용자 목록 다시 불러오기
           </button>
         </div>
@@ -303,7 +327,7 @@ function BlockedMembershipManagement({
         isFetchingNextPage={isFetchingNextPage}
         onFetchNextPage={onFetchNextPage}
       />
-    </div>
+    </section>
   );
 }
 
@@ -327,10 +351,10 @@ function MembershipRows({
   selfMembershipId: string | null;
 }) {
   return (
-    <ul className="mt-4 grid gap-3">
+    <ul className="mt-3 divide-y divide-[var(--chat-publishing-color-border)] border-y border-[var(--chat-publishing-color-border)]">
       {memberships.map((member) => (
         <li
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
+          className="flex flex-wrap items-center justify-between gap-3 py-3"
           key={member.membershipId}
         >
           <ChatRoomParticipantProfile
@@ -343,7 +367,7 @@ function MembershipRows({
           {actionMode === "active-owner" && member.role === "MEMBER" ? (
             <div className="flex flex-wrap gap-2">
               <button
-                className="secondary-button"
+                className={MEMBER_ACTION_BUTTON_CLASS_NAME}
                 disabled={isCommandPending}
                 onClick={() => onMemberCommand("transfer", member.membershipId, member.displayName)}
                 type="button"
@@ -353,7 +377,7 @@ function MembershipRows({
                   : "방장 위임"}
               </button>
               <button
-                className="secondary-button border-red-300 text-red-700"
+                className={MEMBER_DANGER_ACTION_BUTTON_CLASS_NAME}
                 disabled={isCommandPending}
                 onClick={() => onMemberCommand("ban", member.membershipId, member.displayName)}
                 type="button"
@@ -365,7 +389,7 @@ function MembershipRows({
             </div>
           ) : actionMode === "banned-owner" ? (
             <button
-              className="secondary-button"
+              className={MEMBER_ACTION_BUTTON_CLASS_NAME}
               disabled={isCommandPending}
               onClick={() => onMemberCommand("unban", member.membershipId, member.displayName)}
               type="button"
@@ -393,7 +417,7 @@ function MembershipPagination({
   return hasNextPage ? (
     <div className="mt-4 text-center">
       <button
-        className="secondary-button"
+        className={PANEL_SECONDARY_BUTTON_CLASS_NAME}
         disabled={isFetchingNextPage}
         onClick={onFetchNextPage}
         type="button"
@@ -406,8 +430,8 @@ function MembershipPagination({
 
 function MembershipNotice({ message }: { message: string }) {
   return (
-    <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
-      <p className="text-sm text-slate-500">{message}</p>
+    <div className="mt-3 rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-neutral-soft)] px-5 py-6 text-center">
+      <p className="text-sm leading-6 text-[var(--chat-publishing-color-muted)]">{message}</p>
     </div>
   );
 }

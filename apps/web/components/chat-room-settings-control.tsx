@@ -8,6 +8,11 @@ import {
 } from "@/components/use-chat-room-settings-control";
 import type { RoomDetails } from "@/lib/chat/chat-room-contracts";
 
+const SETTINGS_PRIMARY_BUTTON_CLASS_NAME =
+  "inline-flex min-h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] px-4 text-base font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+const SETTINGS_SECONDARY_BUTTON_CLASS_NAME =
+  "inline-flex min-h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+
 export function ChatRoomInformationSection({
   canEdit,
   room,
@@ -76,15 +81,16 @@ export function ChatRoomSettingsControlView({
   return (
     <section
       aria-labelledby={titleId}
-      className="mt-4 rounded-xl bg-[var(--chat-publishing-color-neutral-soft)] p-4"
+      className="border-b border-[var(--chat-publishing-color-border)] py-5"
     >
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <h3 className="text-lg font-bold text-slate-950" id={titleId}>
+        <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
           방 정보
         </h3>
         {!isEditing ? (
           <button
-            className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 text-sm font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+            aria-label="방 정보 수정하기"
+            className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-2 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
             onClick={onEdit}
             ref={editButtonRef}
             type="button"
@@ -96,7 +102,7 @@ export function ChatRoomSettingsControlView({
 
       {controller.completionMessage ? (
         <p
-          className="mt-3 rounded-[var(--chat-publishing-radius-control)] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+          className="mt-3 rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] p-3 text-sm leading-6 text-[var(--chat-publishing-color-primary-emphasis)]"
           role="status"
         >
           {controller.completionMessage}
@@ -187,7 +193,7 @@ export function ChatRoomSettingsInlineForm({
 
       {controller.validationMessage ? (
         <p
-          className="rounded-[var(--chat-publishing-radius-control)] border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+          className="rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] p-3 text-sm text-[#b42318]"
           role="alert"
         >
           {controller.validationMessage}
@@ -196,14 +202,16 @@ export function ChatRoomSettingsInlineForm({
 
       {controller.errorMessage ? (
         <div
-          className="rounded-[var(--chat-publishing-radius-control)] border border-red-200 bg-red-50 p-3 text-red-950"
+          className="rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] p-3 text-[var(--chat-publishing-color-text)]"
           role="alert"
         >
           <p className="text-sm font-semibold">방 정보를 수정하지 못했습니다.</p>
-          <p className="mt-1 text-xs opacity-80">{controller.errorMessage}</p>
+          <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
+            {controller.errorMessage}
+          </p>
           {controller.canRetry ? (
             <button
-              className="secondary-button mt-3"
+              className={`${SETTINGS_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
               disabled={controller.isPending}
               onClick={controller.retry}
               type="button"
@@ -215,10 +223,18 @@ export function ChatRoomSettingsInlineForm({
       ) : null}
 
       <div className="mt-1 grid grid-cols-2 gap-2">
-        <button className="secondary-button" disabled={controller.isPending} type="reset">
+        <button
+          className={SETTINGS_SECONDARY_BUTTON_CLASS_NAME}
+          disabled={controller.isPending}
+          type="reset"
+        >
           취소
         </button>
-        <button className="primary-button" disabled={controller.isPending} type="submit">
+        <button
+          className={SETTINGS_PRIMARY_BUTTON_CLASS_NAME}
+          disabled={controller.isPending}
+          type="submit"
+        >
           {controller.isPending ? "저장 중…" : "저장"}
         </button>
       </div>
@@ -232,9 +248,9 @@ function ChatRoomInformationCard({ room }: { room: RoomDetails }) {
   return (
     <section
       aria-labelledby={titleId}
-      className="mt-4 rounded-xl bg-[var(--chat-publishing-color-neutral-soft)] p-4"
+      className="border-b border-[var(--chat-publishing-color-border)] py-5"
     >
-      <h3 className="text-lg font-bold text-slate-950" id={titleId}>
+      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
         방 정보
       </h3>
       <RoomInformationDetails room={room} />
@@ -244,14 +260,25 @@ function ChatRoomInformationCard({ room }: { room: RoomDetails }) {
 
 function RoomInformationDetails({ room }: { room: RoomDetails }) {
   return (
-    <div className="mt-4 grid gap-3">
-      <p className="break-words text-base font-bold leading-6 text-[var(--chat-publishing-color-text)]">
-        {room.name}
-      </p>
-      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-        {room.description || "채팅방 소개가 없습니다."}
-      </p>
-      <ChatRoomCategoryBadges categories={room.categories} />
-    </div>
+    <dl className="mt-4 grid gap-4">
+      <div className="grid gap-1">
+        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">방 이름</dt>
+        <dd className="break-words text-base font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+          {room.name}
+        </dd>
+      </div>
+      <div className="grid gap-1">
+        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">방 설명</dt>
+        <dd className="whitespace-pre-wrap text-sm leading-6 text-[var(--chat-publishing-color-text)]">
+          {room.description || "채팅방 소개가 없습니다."}
+        </dd>
+      </div>
+      <div className="grid gap-1.5">
+        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">카테고리</dt>
+        <dd>
+          <ChatRoomCategoryBadges categories={room.categories} />
+        </dd>
+      </div>
+    </dl>
   );
 }

@@ -162,6 +162,8 @@ describe("ChatRoomMembershipPanel", () => {
 
     expect(html).toContain("참여자 목록");
     expect(html).toContain("참여자 2");
+    expect(html).not.toContain('class="panel"');
+    expect(html).toContain("border-[var(--chat-publishing-color-border)]");
     expect(mocks.useMyRoomMembershipQuery).not.toHaveBeenCalled();
     expect(mocks.useRoomMembershipsQuery).not.toHaveBeenCalled();
     expect(mocks.mutateAsync).not.toHaveBeenCalled();

@@ -93,7 +93,7 @@ export function ChatRoomMembershipDialog({
       <section
         aria-labelledby={titleId}
         aria-modal="true"
-        className="max-h-[92%] w-full overflow-y-auto overscroll-contain rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white pb-[env(safe-area-inset-bottom)] text-slate-950 shadow-[0_16px_40px_rgba(18,20,23,0.2)] [&>.panel]:rounded-none [&>.panel]:border-0 [&>.panel]:shadow-none"
+        className="max-h-[92%] w-full overflow-y-auto overscroll-contain rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white pb-[env(safe-area-inset-bottom)] text-[var(--chat-publishing-color-text)] shadow-[0_16px_40px_rgba(18,20,23,0.2)]"
         data-chat-room-membership-bottom-sheet="true"
         data-chat-room-membership-dialog="true"
         onKeyDown={handleKeyDown}

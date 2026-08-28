@@ -27,7 +27,9 @@ describe("ChatRoomSettingsControlView", () => {
     expect(html).toContain(">수정하기</button>");
     expect(html).not.toContain("<form");
     expect(html).not.toContain("<dialog");
-    expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+    expect(html).toContain('aria-label="방 정보 수정하기"');
+    expect(html).toContain("border-[var(--chat-publishing-color-border)]");
+    expect(html).not.toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
   });
 
   it("편집 상태에서 이름·설명 form과 취소·저장 action을 인라인으로 렌더링한다", () => {
