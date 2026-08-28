@@ -46,6 +46,7 @@ function createMessage(
     deliveryLabel: null,
     deliveryStatus: null,
     deliveryTone: null,
+    endsSenderGroup: true,
     isDeleted: false,
     isEdited: false,
     isMine: false,

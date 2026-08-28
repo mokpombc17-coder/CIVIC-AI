@@ -7,17 +7,25 @@ import { ChatRoomEntryError } from "./chat-room-entry-error";
 import type { ChatMessageItemViewModel } from "./chat-room-view-model";
 
 describe("chat room publishing view", () => {
-  it("방장 메시지를 Figma blue bubble과 참여자 displayName·방장 badge로 표시한다", () => {
+  it("내 메시지를 Figma blue bubble과 우측 정렬된 displayName으로 표시하고 방장 badge는 숨긴다", () => {
     const html = renderMessage({ isMine: true, senderIsOwner: true, senderLabel: "noah111" });
 
     expect(html).toContain(">noah111</strong>");
+    expect(html).not.toContain(">방장</span>");
+    expect(html).toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(html).toContain("rounded-br-[4px]");
+    expect(html).toContain("flex items-center mb-0.5 min-h-5 justify-end");
+    expect(html).toContain("오전 10:14");
+  });
+
+  it("다른 참여자가 방장이면 displayName 옆에 방장 badge를 표시한다", () => {
+    const html = renderMessage({ isMine: false, senderIsOwner: true, senderLabel: "참여자 2" });
+
+    expect(html).toContain(">참여자 2</strong>");
     expect(html).toContain(">방장</span>");
     expect(html).toContain("border-[#9ed1fa]");
     expect(html).toContain("bg-[#edf7ff]");
     expect(html).toContain("text-[#085985]");
-    expect(html).toContain("bg-[var(--chat-publishing-color-primary)]");
-    expect(html).toContain("rounded-br-[4px]");
-    expect(html).toContain("오전 10:14");
   });
 
   it("다른 참여자는 profile label과 neutral bubble로 표시한다", () => {
@@ -30,22 +38,65 @@ describe("chat room publishing view", () => {
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
     expect(html).toContain("rounded-bl-[4px]");
+    expect(html).toContain("flex items-center mb-1 min-h-[29px] justify-start");
   });
 
-  it("말풍선은 내용과 metadata 중 넓은 너비를 따르되 메시지 영역의 82%를 넘지 않는다", () => {
+  it("말풍선은 metadata 너비와 무관하게 내용 너비를 따르되 메시지 영역의 82%를 넘지 않는다", () => {
     const mine = renderMessage({ content: "네", isMine: true });
     const other = renderMessage({ content: "확인했습니다", isMine: false });
 
     expect(mine).toContain('data-message-bubble-container="true"');
     expect(mine).toContain("w-fit min-w-0 max-w-[82%]");
-    expect(mine).toContain("w-full min-w-0 max-w-full");
-    expect(mine).toContain("inline-flex min-w-0 flex-1");
-    expect(mine).toContain("flex w-full min-w-0 justify-end");
-    expect(other).toContain("flex w-full min-w-0 justify-start");
+    expect(mine).toContain("w-fit min-w-0 max-w-full");
+    expect(mine).toContain("inline-flex min-w-0 max-w-full");
+    expect(mine).toContain("flex w-full min-w-0 items-end gap-1.5 flex-row-reverse justify-end");
+    expect(other).toContain("flex w-full min-w-0 items-end gap-1.5 justify-start");
   });
 
-  it("연속 메시지는 시각적 작성자·시간을 숨기고 접근 가능한 정보만 유지한다", () => {
+  it("전송 시각과 읽음 수를 말풍선 옆의 보조 정보로 표시한다", () => {
+    const html = renderMessage({ readCount: 1, readReceiptLabel: "1명 읽음" });
+
+    expect(html).toContain('data-message-side-metadata="true"');
+    expect(html).toContain('data-read-count="1"');
+    expect(html).toContain('aria-label="1명 읽음"');
+    expect(html).toContain(">1</span>");
+    expect(html).toContain("<time");
+    expect(html).not.toContain(">1명 읽음</p>");
+  });
+
+  it("수정됨 상태를 괄호 없이 읽음 수와 시각 사이의 보조 정보로 표시한다", () => {
     const html = renderMessage({
+      isEdited: true,
+      readCount: 1,
+      readReceiptLabel: "1명 읽음",
+    });
+
+    expect(html).toContain('data-message-side-metadata="true"');
+    expect(html).toContain('data-message-edited="true"');
+    expect(html).toContain("수정됨</span>");
+    expect(html).not.toContain("(수정됨)");
+    expect(html.indexOf('data-read-count="1"')).toBeLessThan(
+      html.indexOf('data-message-edited="true"'),
+    );
+    expect(html.indexOf('data-message-edited="true"')).toBeLessThan(html.indexOf("<time"));
+  });
+
+  it("개발 환경의 확정된 내 메시지는 읽음 데이터가 없을 때 1을 미리보기로 표시한다", () => {
+    vi.stubEnv("NODE_ENV", "development");
+
+    try {
+      const html = renderMessage({ isMine: true, readCount: null, readReceiptLabel: null });
+
+      expect(html).toContain('data-read-count="1"');
+      expect(html).toContain('aria-label="1명 읽음"');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("그룹 중간 메시지는 시각적 작성자·시간을 숨기고 접근 가능한 정보만 유지한다", () => {
+    const html = renderMessage({
+      endsSenderGroup: false,
       isMine: false,
       senderLabel: "참여자 2",
       startsSenderGroup: false,
@@ -56,6 +107,17 @@ describe("chat room publishing view", () => {
     expect(html).toContain("참여자 2, 오전 10:14");
     expect(html).not.toContain('data-message-metadata="visible"');
     expect(html).not.toContain("<time");
+  });
+
+  it("그룹의 마지막 메시지에만 전송 시각을 표시한다", () => {
+    const middle = renderMessage({ endsSenderGroup: false, startsSenderGroup: false });
+    const end = renderMessage({ endsSenderGroup: true, startsSenderGroup: false });
+
+    expect(middle).toContain('data-sender-group-end="false"');
+    expect(middle).not.toContain("<time");
+    expect(end).toContain('data-sender-group-end="true"');
+    expect(end).toContain("<time");
+    expect(end).toContain("오전 10:14");
   });
 
   it("전송 중 상태를 확정 bubble 스타일과 동일하게 유지하고 지연 indicator로 표시한다", () => {
@@ -159,6 +221,7 @@ function renderMessage(patch: Partial<ChatMessageItemViewModel>): string {
     deliveryLabel: null,
     deliveryStatus: null,
     deliveryTone: null,
+    endsSenderGroup: true,
     isDeleted: false,
     isEdited: false,
     isMine: true,

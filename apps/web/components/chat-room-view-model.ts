@@ -43,6 +43,7 @@ export type ChatMessageItemViewModel = Readonly<{
   deliveryLabel: string | null;
   deliveryStatus: ChatMessageDeliveryViewStatus | null;
   deliveryTone: "pending" | "error" | null;
+  endsSenderGroup: boolean;
   isDeleted: boolean;
   isEdited: boolean;
   isMine: boolean;
@@ -111,12 +112,15 @@ export function createChatMessageItemViewModels(
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
   ownerMembershipId: string | null = null,
 ): readonly ChatMessageItemViewModel[] {
-  let previousGroupKey: ChatMessageSenderGroupKey | null = null;
+  const groupKeys = timeline.map((item) => createChatMessageSenderGroupKey(item, selfMembershipId));
 
-  return timeline.map((item) => {
-    const groupKey = createChatMessageSenderGroupKey(item, selfMembershipId);
-    const startsSenderGroup = startsNewChatMessageSenderGroup(previousGroupKey, groupKey);
-    previousGroupKey = groupKey;
+  return timeline.map((item, index) => {
+    const groupKey = groupKeys[index] ?? null;
+    const startsSenderGroup = startsNewChatMessageSenderGroup(
+      groupKeys[index - 1] ?? null,
+      groupKey,
+    );
+    const endsSenderGroup = startsNewChatMessageSenderGroup(groupKey, groupKeys[index + 1] ?? null);
 
     return createChatMessageItemViewModel(
       item,
@@ -126,6 +130,7 @@ export function createChatMessageItemViewModels(
       mutationStates,
       readReceiptSummaries,
       startsSenderGroup,
+      endsSenderGroup,
     );
   });
 }
@@ -140,7 +145,7 @@ export function createChatMessageViewportItemViewModels(
 ): readonly ChatMessageViewportItemViewModel[] {
   let previousGroupKey: ChatMessageSenderGroupKey | null = null;
 
-  return rows.map((row) => {
+  return rows.map((row, index) => {
     if (row.kind === "date-separator") {
       previousGroupKey = null;
       return {
@@ -161,6 +166,12 @@ export function createChatMessageViewportItemViewModels(
 
     const groupKey = createChatMessageSenderGroupKey(row.item, selfMembershipId);
     const startsSenderGroup = startsNewChatMessageSenderGroup(previousGroupKey, groupKey);
+    const nextRow = rows[index + 1];
+    const nextGroupKey =
+      nextRow?.kind === "message"
+        ? createChatMessageSenderGroupKey(nextRow.item, selfMembershipId)
+        : null;
+    const endsSenderGroup = startsNewChatMessageSenderGroup(groupKey, nextGroupKey);
     previousGroupKey = groupKey;
     const item = createChatMessageItemViewModel(
       row.item,
@@ -170,6 +181,7 @@ export function createChatMessageViewportItemViewModels(
       mutationStates,
       readReceiptSummaries,
       startsSenderGroup,
+      endsSenderGroup,
     );
     return {
       item,
@@ -187,6 +199,7 @@ function createChatMessageItemViewModel(
   mutationStates: ChatMessageMutationStates,
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary>,
   startsSenderGroup: boolean,
+  endsSenderGroup: boolean,
 ): ChatMessageItemViewModel {
   const selfDisplayName =
     selfMembershipId === null ? null : (participantDisplayNames.get(selfMembershipId) ?? null);
@@ -202,6 +215,7 @@ function createChatMessageItemViewModel(
       deliveryLabel: getOutgoingMessageStatusLabel(item.message),
       deliveryStatus: item.message.status,
       deliveryTone: failed ? "error" : "pending",
+      endsSenderGroup,
       isDeleted: false,
       isEdited: false,
       isMine: true,
@@ -230,6 +244,7 @@ function createChatMessageItemViewModel(
     deliveryLabel: null,
     deliveryStatus: null,
     deliveryTone: null,
+    endsSenderGroup,
     isDeleted: item.message.state === "DELETED_BY_AUTHOR",
     isEdited: item.message.state === "ACTIVE" && item.message.messageVersion > 1,
     isMine,

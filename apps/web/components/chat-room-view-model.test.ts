@@ -162,7 +162,7 @@ describe("chat room view model", () => {
         kind: "message",
       },
     ];
-    const groupStarts = createChatMessageViewportItemViewModels(
+    const groups = createChatMessageViewportItemViewModels(
       rows,
       "membership-01",
       new Map(),
@@ -171,9 +171,21 @@ describe("chat room view model", () => {
         ["membership-01", "같은 이름"],
         ["membership-02", "같은 이름"],
       ]),
-    ).flatMap((item) => (item.kind === "message" ? [item.item.startsSenderGroup] : []));
+    ).flatMap((item) =>
+      item.kind === "message"
+        ? [{ ends: item.item.endsSenderGroup, starts: item.item.startsSenderGroup }]
+        : [],
+    );
 
-    expect(groupStarts).toEqual([true, false, true, true, true, true, false]);
+    expect(groups).toEqual([
+      { ends: false, starts: true },
+      { ends: true, starts: false },
+      { ends: true, starts: true },
+      { ends: true, starts: true },
+      { ends: true, starts: true },
+      { ends: false, starts: true },
+      { ends: true, starts: false },
+    ]);
   });
 
   it("날짜 구분선과 메시지 행을 viewport 전용 모델로 순서대로 변환한다", () => {

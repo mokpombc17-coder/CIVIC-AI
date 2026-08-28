@@ -8,10 +8,12 @@ type ChatMessageItemProps = Readonly<{
   virtualIndex: number;
 }>;
 
+const CHAT_MESSAGE_READ_RECEIPT_PREVIEW_COUNT = 1;
+
 export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
   function ChatMessageItem({ item, onOpenActions, style, virtualIndex }, ref) {
     const failed = item.deliveryTone === "error";
-    const bubbleClassName = `w-full min-w-0 max-w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
+    const bubbleClassName = `w-fit min-w-0 max-w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
       item.isDeleted
         ? "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] italic text-[var(--chat-publishing-color-muted)]"
         : failed
@@ -21,6 +23,19 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
             : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
     }`;
     const senderLabel = item.senderLabel ?? (item.isMine ? "나" : null);
+    const previewReadCount =
+      process.env.NODE_ENV === "development" &&
+      item.isMine &&
+      item.messageId !== null &&
+      !item.isDeleted
+        ? CHAT_MESSAGE_READ_RECEIPT_PREVIEW_COUNT
+        : null;
+    const displayedReadCount = item.readCount ?? previewReadCount;
+    const displayedReadReceiptLabel =
+      item.readReceiptLabel ??
+      (displayedReadCount === null ? null : `${displayedReadCount}명 읽음`);
+    const showsSideMetadata =
+      item.endsSenderGroup || displayedReadReceiptLabel !== null || item.isEdited;
 
     return (
       <li
@@ -30,6 +45,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         data-index={virtualIndex}
         data-render-key={item.renderKey}
         data-room-sequence={item.roomSequence ?? undefined}
+        data-sender-group-end={item.endsSenderGroup ? "true" : "false"}
         data-sender-group-start={item.startsSenderGroup ? "true" : "false"}
         ref={ref}
         style={style}
@@ -40,11 +56,13 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
         >
           {item.startsSenderGroup ? (
             <div
-              className="mb-1 flex min-h-[29px] items-center justify-between gap-3"
+              className={`flex items-center ${
+                item.isMine ? "mb-0.5 min-h-5 justify-end" : "mb-1 min-h-[29px] justify-start"
+              }`}
               data-message-metadata="visible"
             >
               {senderLabel || item.senderIsOwner ? (
-                <span className="inline-flex min-w-0 flex-1 items-center gap-[3px]">
+                <span className="inline-flex min-w-0 max-w-full items-center gap-[3px]">
                   {senderLabel ? (
                     <strong
                       className={
@@ -56,7 +74,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
                       {senderLabel}
                     </strong>
                   ) : null}
-                  {item.senderIsOwner ? (
+                  {item.senderIsOwner && !item.isMine ? (
                     <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#9ed1fa] bg-[#edf7ff] px-[6px] text-xs font-bold leading-[18px] text-[#085985]">
                       방장
                     </span>
@@ -65,17 +83,20 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
               ) : (
                 <span />
               )}
-              <time className="shrink-0 text-xs text-[var(--chat-publishing-color-muted)]">
-                {item.timeLabel}
-              </time>
+              {!item.endsSenderGroup ? <span className="sr-only">, {item.timeLabel}</span> : null}
             </div>
           ) : (
             <span className="sr-only" data-message-metadata="accessible-only">
               {senderLabel ?? "알 수 없는 참여자"}
-              {item.senderIsOwner ? ", 방장" : ""}, {item.timeLabel}
+              {item.senderIsOwner && !item.isMine ? ", 방장" : ""}
+              {!item.endsSenderGroup ? `, ${item.timeLabel}` : ""}
             </span>
           )}
-          <div className={`flex w-full min-w-0 ${item.isMine ? "justify-end" : "justify-start"}`}>
+          <div
+            className={`flex w-full min-w-0 items-end gap-1.5 ${
+              item.isMine ? "flex-row-reverse justify-end" : "justify-start"
+            }`}
+          >
             {item.canOpenActions && item.messageId ? (
               <button
                 aria-haspopup="dialog"
@@ -91,20 +112,38 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
                 {item.content}
               </p>
             )}
+            {showsSideMetadata ? (
+              <span
+                className={`flex shrink-0 flex-col pb-0.5 text-xs leading-4 ${
+                  item.isMine ? "items-end" : "items-start"
+                }`}
+                data-message-side-metadata="true"
+              >
+                {displayedReadReceiptLabel ? (
+                  <span
+                    aria-label={displayedReadReceiptLabel}
+                    className="font-bold text-[var(--chat-publishing-color-primary-emphasis)]"
+                    data-read-count={displayedReadCount ?? undefined}
+                  >
+                    {displayedReadCount ?? displayedReadReceiptLabel}
+                  </span>
+                ) : null}
+                {item.isEdited ? (
+                  <span
+                    className="whitespace-nowrap text-[var(--chat-publishing-color-muted)]"
+                    data-message-edited="true"
+                  >
+                    수정됨
+                  </span>
+                ) : null}
+                {item.endsSenderGroup ? (
+                  <time className="whitespace-nowrap text-[var(--chat-publishing-color-muted)]">
+                    {item.timeLabel}
+                  </time>
+                ) : null}
+              </span>
+            ) : null}
           </div>
-          {item.isEdited ? (
-            <p className="mt-1 px-1 text-[0.7rem] text-[var(--chat-publishing-color-muted)]">
-              (수정됨)
-            </p>
-          ) : null}
-          {item.readReceiptLabel ? (
-            <p
-              className="mt-1 px-1 text-[0.7rem] text-[var(--chat-publishing-color-muted)]"
-              data-read-count={item.readCount ?? undefined}
-            >
-              {item.readReceiptLabel}
-            </p>
-          ) : null}
           {item.deliveryLabel ? (
             <p
               className={
