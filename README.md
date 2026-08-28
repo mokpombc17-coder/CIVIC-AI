@@ -95,12 +95,16 @@ rag:jobs:read
 | permission | 추가 scope |
 | --- | --- |
 | `RAG_ADMIN` | `rag:documents:write` |
-| `CHAT_ADMIN` | `chat:rooms:approve`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
+| `CHAT_ADMIN` | `chat:rooms:approve`, `chat:categories:manage`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
 | `VOTE_ADMIN` | `vote:tasks:admin`, `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
 | `SIMULATION_ADMIN` | `simulation:tasks:read`, `simulation:tasks:run`, `simulation:billing:read`, `simulation:billing:write` |
 
 따라서 위 관리 scope는 일반 사용자에게 발급되지 않습니다. 강제 비밀번호 변경 대상은
 완료 전까지 `account:password:write`만 받습니다.
+
+`chat:rooms:read`는 자기 방·공개 방·멤버십 조회에 필요한 일반 사용자 기본 scope이므로
+`CHAT_ADMIN` 전용 scope로 중복 분류하지 않습니다. `CHAT_ADMIN`이 있는 사용자는 기본
+scope와 위 관리자 추가 scope를 모두 받습니다.
 
 Vote 과업을 기반으로 시뮬레이션을 실행하는 관리자는 `VOTE_ADMIN`과
 `SIMULATION_ADMIN`을 함께 부여받습니다. 두 permission은 독립적으로 유지되고 access

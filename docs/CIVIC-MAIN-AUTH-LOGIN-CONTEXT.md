@@ -81,12 +81,16 @@ rag:jobs:read
 | permission | 추가 scope |
 | --- | --- |
 | `RAG_ADMIN` | `rag:documents:write` |
-| `CHAT_ADMIN` | `chat:rooms:approve`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
+| `CHAT_ADMIN` | `chat:rooms:approve`, `chat:categories:manage`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
 | `VOTE_ADMIN` | `vote:tasks:admin`, `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
 | `SIMULATION_ADMIN` | `simulation:tasks:read`, `simulation:tasks:run`, `simulation:billing:read`, `simulation:billing:write` |
 
 `/me`의 역할 값은 `PARTICIPANT`, `ADMIN`, `HIGHEST_ADMIN`이며 Resource Server의 API
 권한 판정은 `scope`로 한다.
+
+`chat:rooms:read`는 자기 방·공개 방·멤버십 조회에 쓰는 일반 사용자 기본 scope다.
+`CHAT_ADMIN` 사용자는 이 기본 scope에 더해 위 Chat 관리자 scope를 받으며,
+`chat:categories:manage`와 `chat:rooms:approve`는 일반 사용자에게 발급되지 않는다.
 
 Vote 과업 기반 시뮬레이션 관리자는 `VOTE_ADMIN`과 `SIMULATION_ADMIN`을 함께
 부여받는다. permission 자체는 분리하며 access token은 두 permission의 scope 합집합을

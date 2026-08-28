@@ -42,6 +42,7 @@ public final class AccessTokenService {
             "rag:jobs:read");
     private static final List<String> CHAT_ADMIN_SCOPES = List.of(
             "chat:rooms:approve",
+            "chat:categories:manage",
             "chat:rooms:membership-limit:exempt",
             "chat:audit:exports",
             "chat:research:exports");
