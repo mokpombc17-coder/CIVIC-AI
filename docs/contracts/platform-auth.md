@@ -50,9 +50,9 @@ Content-Type: application/json
 로그아웃은 `POST /api/v1/auth/logout`으로 현재 Refresh Token family를 폐기하고 두 쿠키를 즉시
 만료한다. 모든 기기 로그아웃은 Access Token과 CSRF가 필요한 `/api/v1/auth/logout-all`을 사용한다.
 
-## same-origin BFF
+## same-origin 인증 경계
 
-브라우저는 같은 origin의 `/api/v1/**`만 호출한다. BFF는 다음을 보장한다.
+브라우저는 같은 origin의 `/api/v1/**`만 호출한다. Main/Auth BFF는 다음을 보장한다.
 
 - 허용한 Main/Auth 경로와 HTTP method만 프록시한다.
 - mutation은 정확한 `Origin`과 `Sec-Fetch-Site: same-origin`을 요구한다.
@@ -69,10 +69,12 @@ Content-Type: application/json
 Next.js 3000 포트는 외부에 공개하지 않고 Nginx만 접근하게 한다. 이 경계가 지켜져야 외부 요청자가
 `X-Real-IP`를 위조해 로그인·가입 rate limit을 우회할 수 없다.
 
-## RAG 전달 경계
+## RAG Resource Server 경계
 
-RAG BFF는 브라우저의 Access Token을 opaque 문자열로 취급한다. Cookie와 Authorization이 함께 들어온
-경우 두 원문이 동일해야 한다. RAG upstream에는 같은 원문을 다음처럼 전달한다.
+공개 nginx는 `/api/v1/rag/**`와 `/stream/rag/queries/**`를 RAG Resource Server의 내부 경로로
+rewrite한다. Web BFF를 거치지 않으며 브라우저가 보낸 Access Token Cookie 또는 Authorization,
+`Origin`, `Sec-Fetch-Site`를 그대로 전달한다. Cookie와 Authorization이 함께 들어온 경우 RAG
+Resource Server가 두 원문이 동일한지 검사한다.
 
 ```http
 Cookie: civic_ai_access_token=<access-token>
@@ -82,8 +84,8 @@ Sec-Fetch-Site: same-origin
 ```
 
 Frontend는 RAG scope를 타입으로 문서화하지만 JWT를 파싱하여 권한을 판정하지 않는다. 실제 서명,
-issuer, audience, 만료, scope 검증은 RAG 서버의 책임이다. RAG가 `401`을 반환하면 브라우저 refresh
-흐름이 실행된다.
+issuer, audience, 만료, scope, Origin/CSRF 검증은 RAG 서버의 책임이다. RAG가 `401`을 반환하면
+브라우저 refresh 흐름이 실행된다.
 
 ## Access Token 규격
 
@@ -116,8 +118,8 @@ RAG·Chat·Vote·Simulation 관리자는 별도 role이 아니라 관리자 role
 | ------------------------ | ------------------------------------------ |
 | `CIVIC_BROWSER_ORIGIN`   | 브라우저에 공개된 Frontend의 정확한 origin |
 | `MAIN_AUTH_INTERNAL_URL` | Next.js 서버에서 접근하는 Main/Auth URL    |
-| `CHAT_INTERNAL_URL`      | Next.js BFF에서 접근하는 Chat URL           |
-| `VOTE_INTERNAL_URL`      | Next.js BFF에서 접근하는 Vote URL           |
+| `CHAT_INTERNAL_URL`      | Next.js BFF에서 접근하는 Chat URL          |
+| `VOTE_INTERNAL_URL`      | Next.js BFF에서 접근하는 Vote URL          |
 
 RAG와 Simulation은 nginx에서 각 Resource Server로 직결하므로 Web 런타임에 내부 URL을 두지 않는다.
 

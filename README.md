@@ -84,7 +84,7 @@ apps/web/components/admin/            Chat 승인·Vote 과업·Simulation 관�
 apps/web/components/shell/            Platform Shell participant adapter·관리자 Shell
 apps/web/components/wireflow/         Wire Flow 공용 UI
 apps/web/lib/auth/                     로그인 상태·권한·자동 refresh
-apps/web/lib/api/                      Main/Auth·RAG·Chat·Vote allowlist BFF
+apps/web/lib/api/                      Main/Auth·Chat·Vote allowlist BFF
 apps/mobile/                           Expo WebView native shell
 packages/bridge/                       web/native bridge 계약
 ```
