@@ -64,6 +64,7 @@ import {
   pollResult,
   problemMessage,
   ragJobStatusMessage,
+  RagSuggestionChips,
   safeExternalSourceUrl,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
@@ -137,6 +138,7 @@ describe("9 functional RAG screens", () => {
             job_id: "20000000-0000-4000-8000-000000000001",
             status: "SUCCEEDED",
             answer: "문서 기반 답변입니다.",
+            suggestions: ["신청 대상과 자격 조건을 알려줘"],
             citations: [
               {
                 document_version_id: "30000000-0000-4000-8000-000000000001",
@@ -177,6 +179,19 @@ describe("9 functional RAG screens", () => {
       ragSessionApi.readRagConversationSnapshot(storage, "00000000-0000-4000-8000-000000000002"),
     ).toBeNull();
     expect(storage.size()).toBe(0);
+  });
+
+  it("모호한 질문에는 답변 아래에 다시 물을 수 있는 제안을 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagSuggestionChips, {
+        suggestions: ["신청 대상과 자격 조건을 알려줘", "신청 기간과 제출 서류를 알려줘"],
+        onSelect: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain("이렇게 질문해 보세요");
+    expect(html).toContain("신청 대상과 자격 조건을 알려줘");
+    expect(html).toContain("신청 기간과 제출 서류를 알려줘");
   });
 
   it("복원한 대화에서 마지막 미완료 질의만 재개 대상으로 선택한다", () => {
@@ -226,6 +241,7 @@ describe("9 functional RAG screens", () => {
           filename: "시민참여 정책.pdf",
           created_by: "11111111-1111-4111-8111-111111111111",
           created_at: "2026-08-21T01:02:03Z",
+          updated_at: "2026-08-22T02:03:04Z",
           deleted: false,
           active_version: null,
         },
@@ -242,6 +258,7 @@ describe("9 functional RAG screens", () => {
           created_at: "2026-08-21T01:02:03Z",
           activated_at: "2026-08-21T01:05:00Z",
           status: "ACTIVE",
+          processing: { status: "RUNNING", progress: 70, failure_code: null },
         },
       }),
     );
@@ -252,6 +269,8 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain("disposition=inline");
     expect(html).toContain("civic-admin@post-ai.com");
     expect(html).toContain("2026. 8. 21.");
+    expect(html).toContain("2026. 8. 22.");
+    expect(html).toContain("70%");
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");
     expect(html).toContain("검색 사용 중");
@@ -333,12 +352,16 @@ describe("9 functional RAG screens", () => {
         pageSize: 50,
         query: "장학금 안내",
         status: "ACTIVE",
+        mediaType: "application/pdf",
+        createdBy: "11111111-1111-4111-8111-111111111111",
+        createdFrom: "2026-08-01",
+        createdTo: "2026-08-21",
         includeSubfolders: true,
         sort: "filename",
         direction: "asc",
       }),
     ).toBe(
-      "/api/v1/rag/documents?folder_id=folder%2F%EC%A0%95%EC%B1%85&include_subfolders=true&page=2&page_size=50&query=%EC%9E%A5%ED%95%99%EA%B8%88+%EC%95%88%EB%82%B4&status=ACTIVE&sort=filename&direction=asc",
+      "/api/v1/rag/documents?folder_id=folder%2F%EC%A0%95%EC%B1%85&include_subfolders=true&page=2&page_size=50&query=%EC%9E%A5%ED%95%99%EA%B8%88+%EC%95%88%EB%82%B4&status=ACTIVE&media_type=application%2Fpdf&created_by=11111111-1111-4111-8111-111111111111&created_from=2026-08-01T00%3A00%3A00.000Z&created_to=2026-08-21T23%3A59%3A59.999Z&sort=filename&direction=asc",
     );
   });
 

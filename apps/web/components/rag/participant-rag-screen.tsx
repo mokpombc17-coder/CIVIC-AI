@@ -266,7 +266,12 @@ function RagConversation({
             </div>
           ) : (
             messages.map((message) => (
-              <RagMessage key={message.id} message={message} onOpenCitation={setActiveCitation} />
+              <RagMessage
+                key={message.id}
+                message={message}
+                onOpenCitation={setActiveCitation}
+                onUseSuggestion={setQuestion}
+              />
             ))
           )}
           {busy ? (
@@ -419,7 +424,12 @@ function ConversationBackdrop() {
 function RagMessage({
   message,
   onOpenCitation,
-}: Readonly<{ message: Message; onOpenCitation: (citation: Citation) => void }>) {
+  onUseSuggestion,
+}: Readonly<{
+  message: Message;
+  onOpenCitation: (citation: Citation) => void;
+  onUseSuggestion: (suggestion: string) => void;
+}>) {
   const statusMessage = ragJobStatusMessage(message.job);
   const citations = message.job?.citations ?? [];
   const relatedTitles = Array.from(
@@ -501,6 +511,9 @@ function RagMessage({
             ) : null}
           </div>
         ) : null}
+        {message.job?.suggestions?.length ? (
+          <RagSuggestionChips onSelect={onUseSuggestion} suggestions={message.job.suggestions} />
+        ) : null}
         {message.job?.status === "SUCCEEDED" && message.job.answer ? (
           <RagFeedback
             jobId={message.job.job_id}
@@ -509,6 +522,28 @@ function RagMessage({
         ) : null}
       </div>
     </article>
+  );
+}
+
+export function RagSuggestionChips({
+  onSelect,
+  suggestions,
+}: Readonly<{ onSelect: (suggestion: string) => void; suggestions: readonly string[] }>) {
+  const uniqueSuggestions = Array.from(
+    new Set(suggestions.map((value) => value.trim()).filter(Boolean)),
+  );
+  if (!uniqueSuggestions.length) return null;
+  return (
+    <section aria-label="질문 제안" className="civic-rag-suggestions">
+      <strong>이렇게 질문해 보세요</strong>
+      <div>
+        {uniqueSuggestions.map((suggestion) => (
+          <button key={suggestion} onClick={() => onSelect(suggestion)} type="button">
+            {suggestion}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

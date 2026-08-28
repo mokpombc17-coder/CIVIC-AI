@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   AdminRagAnalytics,
-  downloadRagConversationJsonl,
+  downloadRagConversationCsv,
   ragConversationExportHref,
   uniqueRagConversationExportId,
 } from "@/components/rag/admin-rag-analytics";
@@ -29,7 +29,7 @@ describe("RAG 평가와 운영 분석", () => {
     );
   });
 
-  it("관리자 화면은 집계와 실제 RAG 대화 JSONL 내보내기를 분리해 제공한다", () => {
+  it("관리자 화면은 집계와 실제 RAG 대화 CSV 내보내기를 분리해 제공한다", () => {
     const html = renderToStaticMarkup(createElement(AdminRagAnalytics));
 
     expect(html).toContain("RAG 운영 지표");
@@ -37,8 +37,8 @@ describe("RAG 평가와 운영 분석", () => {
     expect(html).toContain("평균 응답시간");
     expect(html).toContain("도움됨");
     expect(html).toContain("3건 미만");
-    expect(html).toContain("조회 기간 대화 JSONL");
-    expect(html).toContain("전체 대화 JSONL");
+    expect(html).toContain("조회 기간 대화 CSV");
+    expect(html).toContain("전체 대화 CSV");
     expect(html).toContain("실제 사용자 질문·AI 답변");
     expect(html).not.toContain("사용자 ID");
     expect(html).not.toContain("UUID");
@@ -59,10 +59,10 @@ describe("RAG 평가와 운영 분석", () => {
     expect(ragConversationExportHref({})).toBe("/api/v1/rag/conversations/export");
   });
 
-  it("대화 JSONL은 웹과 네이티브가 공유하는 다운로드 경계를 사용한다", async () => {
+  it("대화 CSV는 웹과 네이티브가 공유하는 다운로드 경계를 사용한다", async () => {
     const download = vi.fn(async () => undefined);
 
-    await downloadRagConversationJsonl(
+    await downloadRagConversationCsv(
       { subject: "22222222-2222-4222-8222-222222222222" },
       download,
       "https://civic.example",
@@ -72,8 +72,8 @@ describe("RAG 평가와 운영 분석", () => {
     expect(download).toHaveBeenCalledWith(
       expect.objectContaining({
         url: "https://civic.example/api/v1/rag/conversations/export?subject=22222222-2222-4222-8222-222222222222",
-        mimeType: "application/x-ndjson",
-        fileName: expect.stringMatching(/-export-1\.jsonl$/u),
+        mimeType: "text/csv",
+        fileName: expect.stringMatching(/-export-1\.csv$/u),
         requiresAuthentication: true,
       }),
     );

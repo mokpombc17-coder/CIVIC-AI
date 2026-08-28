@@ -67,22 +67,22 @@ export function AdminRagAnalytics() {
     return () => window.clearTimeout(timer);
   }, [refresh]);
 
-  const downloadJsonl = useCallback(
+  const downloadCsv = useCallback(
     async (filters: Readonly<{ from?: string; subject?: string; to?: string }>) => {
       if (exportInFlight.current) {
         return;
       }
       exportInFlight.current = true;
       setExporting(true);
-      setExportMessage("대화 JSONL 다운로드를 준비하고 있습니다.");
+      setExportMessage("대화 CSV 다운로드를 준비하고 있습니다.");
       try {
-        await downloadRagConversationJsonl(filters);
-        setExportMessage("대화 JSONL 다운로드 요청을 완료했습니다.");
+        await downloadRagConversationCsv(filters);
+        setExportMessage("대화 CSV 다운로드 요청을 완료했습니다.");
       } catch (error) {
         setExportMessage(
           error instanceof Error && error.message === AUTHENTICATED_DOWNLOAD_UNSUPPORTED
             ? "인증 파일 다운로드를 지원하는 최신 앱으로 업데이트해 주세요."
-            : "대화 JSONL을 내려받지 못했습니다.",
+            : "대화 CSV를 내려받지 못했습니다.",
         );
       } finally {
         exportInFlight.current = false;
@@ -153,18 +153,18 @@ export function AdminRagAnalytics() {
           <button
             className="civic-secondary-action"
             disabled={exporting}
-            onClick={() => void downloadJsonl({ from, to })}
+            onClick={() => void downloadCsv({ from, to })}
             type="button"
           >
-            조회 기간 대화 JSONL
+            조회 기간 대화 CSV
           </button>
           <button
             className="civic-secondary-action"
             disabled={exporting}
-            onClick={() => void downloadJsonl({})}
+            onClick={() => void downloadCsv({})}
             type="button"
           >
-            전체 대화 JSONL
+            전체 대화 CSV
           </button>
           <small>
             실제 사용자 질문·AI 답변·인용 문서·평가가 포함됩니다. 권한이 있는 운영자만 내려받으세요.
@@ -223,7 +223,7 @@ export function ragConversationExportHref({
   return `/api/v1/rag/conversations/export${suffix ? `?${suffix}` : ""}`;
 }
 
-export async function downloadRagConversationJsonl(
+export async function downloadRagConversationCsv(
   filters: Readonly<{ from?: string; subject?: string; to?: string }>,
   download: typeof downloadFile = downloadFile,
   origin: string = window.location.origin,
@@ -231,8 +231,8 @@ export async function downloadRagConversationJsonl(
 ): Promise<void> {
   await download({
     url: new URL(ragConversationExportHref(filters), origin).toString(),
-    fileName: `civic-rag-conversations-${new Date().toISOString().slice(0, 10)}-${exportId}.jsonl`,
-    mimeType: "application/x-ndjson",
+    fileName: `civic-rag-conversations-${new Date().toISOString().slice(0, 10)}-${exportId}.csv`,
+    mimeType: "text/csv",
     requiresAuthentication: true,
   });
 }

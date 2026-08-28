@@ -68,8 +68,9 @@ AdminCatchAllPage [Server Route]
     │       ├── FolderTree
     │       ├── DocumentLedger / Upload / Job panel
     │       ├── DocumentInspector
+    │       │   └── AdminRagSpreadsheetPreview [Excel/CSV 읽기 전용]
     │       ├── AdminRagAnalytics
-    │       └── AdminRagCrawler
+    │       └── AdminRagSynonyms
     ├── AdminChatRequestScreen [Chat 생성 신청 관리]
     ├── AdminTaskScreen [Vote 과업 관리]
     ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
@@ -157,7 +158,9 @@ Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/tasks/**
 URL, 브라우저 저장소, 로그에는 기록하지 않는다.
 
 RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 Next.js SSE 프록시를
-통해 연결하며 provider API key나 JWT를 Client Component에 전달하지 않는다.
+통해 연결하며 provider API key나 JWT를 Client Component에 전달하지 않는다. 참여자 RAG 화면은
+같은 탭의 질문·답변·인용·후속 질문 제안을 `sessionStorage`에서 복원하고 `새 질문`에서 삭제한다.
+Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지 않는다.
 
 ## 현재 비활성 기능
 
