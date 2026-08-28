@@ -41,6 +41,7 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
             aria-invalid={controller.validationMessage ? true : undefined}
             autoComplete="off"
             className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-[15px] text-[var(--chat-publishing-color-text)] outline-none placeholder:text-[#757575]"
+            data-focus-outline="container"
             inputMode="search"
             onChange={(event) => controller.setDraftQuery(event.currentTarget.value)}
             onCompositionEnd={controller.endComposition}

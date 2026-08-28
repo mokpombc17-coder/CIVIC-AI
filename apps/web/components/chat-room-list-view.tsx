@@ -26,7 +26,7 @@ import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
-  "grid max-h-[60dvh] scroll-p-1 gap-3 overflow-y-auto overscroll-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] sm:max-h-[32rem] [scrollbar-gutter:stable]";
+  "grid max-h-[384px] scroll-p-1 gap-3 overflow-y-auto overscroll-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] [scrollbar-gutter:stable]";
 
 type RoomListState<TItem> = Readonly<{
   error: unknown;

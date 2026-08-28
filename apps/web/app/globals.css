@@ -214,6 +214,11 @@ pre {
   outline-offset: 3px;
 }
 
+.chat-room-list input[data-focus-outline="container"]:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
 /*
  * Figma CIVIC.AI Wire Flow의 채팅 화면에서만 사용하는 publishing tokens.
  * 화면별 퍼블리싱에서는 이 class를 가장 가까운 채팅 surface에 적용한다.
