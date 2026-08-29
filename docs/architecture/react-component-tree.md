@@ -137,7 +137,10 @@ Protected Client request
 
 Refresh Token은 `/api/v1/auth` path로 제한되므로 일반 Server Component가 읽지 않는다. Access Token이
 없거나 만료된 Server Route는 `/auth/refresh`를 거쳐 브라우저가 갱신한다. Frontend는 JWT payload를
-해석하지 않고 `/me` 응답을 화면 접근 판정에 사용한다.
+해석하지 않고 `/me` 응답을 화면 접근 판정에 사용한다. `/auth/refresh`와 root `loading.tsx`는 갱신이
+끝나기 전에 참여자·관리자 목적지를 확정할 수 없으므로 어느 제품 shell에도 들어가지 않고
+`FullscreenStatus`만 렌더링한다. 이 경계는 관리자 갱신과 `/` redirect 중 참가자 mobile shell이 먼저
+노출되는 것을 막는다.
 
 ## BFF 책임
 
@@ -193,5 +196,7 @@ placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않
 
 ## App Router special UI
 
-`loading.tsx`, `error.tsx`, `not-found.tsx`도 기존 `PlatformPageShell`을 사용한다. 일반 제품 화면의
-상태와 데이터 요청은 소유하지 않는다.
+root `loading.tsx`는 route-neutral `FullscreenStatus`를 사용한다. 참여자·관리자 route 내부의
+`loading.tsx`는 각 목적지 shell에 맞는 skeleton을 사용하고, `error.tsx`와 `not-found.tsx`는 기존
+`PlatformPageShell`을 사용한다. 이 special UI들은 일반 제품 화면의 상태와 데이터 요청을 소유하지
+않는다.
