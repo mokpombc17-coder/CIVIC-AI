@@ -96,6 +96,15 @@ body:has([data-wireflow-shell]) {
   border-radius: 0;
 }
 
+/* Figma AUTH-002 header (node 74:43): controls in a 68px row, divider at 91.84px. */
+.civic-signup-account-shell {
+  --platform-shell-header-height: 91.84px;
+}
+
+.civic-signup-account-shell > [data-platform-shell-surface="true"] > header > div {
+  min-height: 68px;
+}
+
 .wf-screen-heading p {
   margin: 0;
   color: var(--wf-muted);

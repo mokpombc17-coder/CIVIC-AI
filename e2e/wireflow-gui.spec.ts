@@ -124,6 +124,21 @@ test("AUTH-001은 frontend2 Platform Shell 안에서 실제 로그인 UI를 유�
   await expectBox(signup, { x: [16, 18], width: [359, 362], height: [118, 122] });
 });
 
+test("AUTH-002 헤더는 Figma node 74:43의 좌표를 유지한다", async ({ page }) => {
+  await page.goto("/signup/account");
+
+  const shell = page.locator(".civic-signup-account-shell");
+  const header = shell.locator(':scope > [data-platform-shell-surface="true"] > header');
+  const back = header.getByRole("link", { name: "이전 화면으로 돌아가기" });
+  const title = header.getByRole("heading", { exact: true, name: "회원가입" });
+
+  await expect(shell).toHaveCount(1);
+  await expect(back).toBeVisible();
+  await expectBox(header, { x: [0, 1], y: [0, 1], width: [392, 394], height: [91, 93] });
+  await expectBox(back, { x: [15, 17], y: [11, 13], width: [43, 45], height: [43, 45] });
+  await expectBox(title, { x: [71, 73], y: [20, 22], height: [26, 28] });
+});
+
 test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 하단 메뉴를 유지한다", async ({
   context,
   page,
