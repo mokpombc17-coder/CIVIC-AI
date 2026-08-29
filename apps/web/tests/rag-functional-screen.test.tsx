@@ -70,7 +70,6 @@ import {
 import {
   citationHref,
   createQueryOperation,
-  formatRagRemaining,
   parseQuerySubmissionResponse,
   openCitationInline,
   isRetryableRagStatus,
@@ -596,6 +595,7 @@ describe("9 functional RAG screens", () => {
       onProgress,
       onAnswerStart,
       onAnswerDelta: (delta) => streamedParts.push(delta),
+      onAnswerReset: () => streamedParts.splice(0),
     });
     await vi.waitFor(() => expect(listeners.has("query.succeeded")).toBe(true));
     listeners.get("query.progress")?.({
@@ -610,6 +610,8 @@ describe("9 functional RAG screens", () => {
       }),
     });
     listeners.get("query.answer.started")?.({});
+    listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "폐기할 답변" }) });
+    listeners.get("query.answer.reset")?.({});
     listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "문서 " }) });
     listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "답변" }) });
     listeners.get("query.succeeded")?.({});
@@ -622,7 +624,7 @@ describe("9 functional RAG screens", () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
-  it("사용자용 진행 카드는 현재 단계와 예상 잔여시간만 안전하게 보여준다", () => {
+  it("답변이 시작되기 전에는 단계 목록 없이 단일 로딩 상태만 보여준다", () => {
     const now = Date.now();
     const html = renderToStaticMarkup(
       createElement(RagLiveProgress, {
@@ -643,11 +645,13 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html).toContain("실시간 처리");
-    expect(html).toContain("약 4초 남음");
-    expect(html).toContain("답변 작성");
+    expect(html).toContain("답변 준비 중");
+    expect(html).toContain("문서를 확인하고 답변을 준비하고 있어요");
+    expect(html).toContain("생성되는 내용부터 바로 표시합니다");
+    expect(html).not.toContain("질문 이해");
+    expect(html).not.toContain("자료 검색");
+    expect(html).not.toContain("최종 확인");
     expect(html).not.toContain("COMPOSING");
-    expect(formatRagRemaining(61, "VERIFYING")).toBe("약 2분 남음");
   });
 
   it("진행 이벤트는 정해진 공개 단계와 제한된 숫자만 허용한다", () => {
