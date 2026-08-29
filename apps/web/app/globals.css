@@ -3631,6 +3631,26 @@ body:has(.civic-shell-participant) {
   color: #17408b;
 }
 
+[data-wireflow-shell="admin"] .civic-domain-status.is-ready {
+  background: #e0ecff;
+  color: #17408b;
+}
+
+[data-wireflow-shell="admin"] .civic-domain-status.is-running {
+  background: #dcfce7;
+  color: #166534;
+}
+
+[data-wireflow-shell="admin"] .civic-domain-status.is-completed {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+[data-wireflow-shell="admin"] .civic-domain-status.is-attention {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
 [data-wireflow-shell="admin"] .civic-domain-console :is(input, select, textarea) {
   width: 100%;
   border: 1px solid var(--civic-line-strong);

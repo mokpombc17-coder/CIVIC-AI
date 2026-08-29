@@ -72,6 +72,10 @@ export function AuthFunctionalScreen({
   const [draft, setDraft] = useState<SignupDraft>(initialDraft);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"error" | "info">("info");
+  const [duplicateEmailState, setDuplicateEmailState] = useState<DuplicateEmailAccountState | null>(
+    null,
+  );
+  const [loginDeactivated, setLoginDeactivated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [postLoginReturnTo, setPostLoginReturnTo] = useState<string | null>(() =>
     safeReturnTarget(initialSearch),
@@ -113,6 +117,8 @@ export function AuthFunctionalScreen({
     setBusy(true);
     setMessage("");
     setMessageKind("info");
+    setDuplicateEmailState(null);
+    setLoginDeactivated(false);
     try {
       if (activeId === "AUTH-001") {
         const data = new FormData(event.currentTarget);
@@ -191,8 +197,15 @@ export function AuthFunctionalScreen({
         location.assign(authCompletionDestination(activeId, verificationKind) ?? "/login");
       }
     } catch (error) {
-      setMessageKind("error");
-      setMessage(error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
+      const duplicateState = activeId === "AUTH-002" ? duplicateEmailAccountState(error) : null;
+      if (duplicateState) {
+        setDuplicateEmailState(duplicateState);
+      } else if (activeId === "AUTH-001" && isDeactivatedAccountError(error)) {
+        setLoginDeactivated(true);
+      } else {
+        setMessageKind("error");
+        setMessage(error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
+      }
     } finally {
       setBusy(false);
     }
@@ -257,7 +270,11 @@ export function AuthFunctionalScreen({
           subtitle={authCardSubtitle(activeId, draft.email)}
           title={authCardTitle(activeId)}
         >
-          {renderFields(activeId, draft, setDraft)}
+          {renderFields(activeId, draft, setDraft, () => setDuplicateEmailState(null))}
+          {activeId === "AUTH-002" && duplicateEmailState ? (
+            <SignupDuplicateEmailNotice accountState={duplicateEmailState} />
+          ) : null}
+          {activeId === "AUTH-001" && loginDeactivated ? <LoginDeactivatedNotice /> : null}
           {message ? (
             messageKind === "error" ? (
               <div aria-live="polite" className="civic-form-alert" role="status">
@@ -333,6 +350,7 @@ function renderFields(
   id: string,
   draft: SignupDraft,
   setDraft: React.Dispatch<React.SetStateAction<SignupDraft>>,
+  onEmailEdit?: () => void,
 ) {
   if (id === "AUTH-001") {
     return (
@@ -352,7 +370,10 @@ function renderFields(
           placeholder="name@example.com"
           type="email"
           value={draft.email}
-          onChange={(value) => setDraft((v) => ({ ...v, email: value }))}
+          onChange={(value) => {
+            onEmailEdit?.();
+            setDraft((v) => ({ ...v, email: value }));
+          }}
         />
         <Field
           help="8자 이상 · 영문·숫자·특수문자 포함"
@@ -542,6 +563,59 @@ function AuthSupport({
         계정 재활성화
       </Link>
     </aside>
+  );
+}
+
+export type DuplicateEmailAccountState = "ACTIVE" | "INACTIVE";
+
+export function SignupDuplicateEmailNotice({
+  accountState,
+}: Readonly<{ accountState: DuplicateEmailAccountState }>) {
+  return (
+    <div aria-live="polite" className="civic-form-alert civic-signup-duplicate" role="status">
+      <strong>이미 가입된 이메일</strong>
+      {accountState === "INACTIVE" ? (
+        <>
+          <p>
+            대소문자를 무시한 동일 이메일이 있습니다. 비활성화된 계정이니 재활성화 후 이용해 주세요.
+          </p>
+          <Link
+            className="civic-auth-reactivate"
+            data-wireflow-slot="signup-reactivate"
+            href={"/reactivate" as Route}
+          >
+            계정 재활성화
+          </Link>
+        </>
+      ) : (
+        <>
+          <p>대소문자를 무시한 동일 이메일이 있습니다. 사용 중인 계정으로 로그인해 주세요.</p>
+          <Link
+            className="wf-button wf-button-secondary"
+            data-wireflow-slot="signup-login"
+            href={"/login" as Route}
+          >
+            로그인으로 이동
+          </Link>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function LoginDeactivatedNotice() {
+  return (
+    <div aria-live="polite" className="civic-form-alert civic-login-deactivated" role="status">
+      <strong>비활성화된 계정</strong>
+      <p>이 계정은 비활성화 상태입니다. 재활성화를 완료하면 다시 로그인할 수 있습니다.</p>
+      <Link
+        className="civic-auth-reactivate"
+        data-wireflow-slot="login-deactivated-reactivate"
+        href={"/reactivate" as Route}
+      >
+        계정 재활성화
+      </Link>
+    </div>
   );
 }
 
@@ -789,6 +863,17 @@ function requiredDocument(
   return document;
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly problem: Readonly<Record<string, unknown>>,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function api(path: string, body: unknown): Promise<Response> {
   const response = await fetch(path, {
     method: "POST",
@@ -796,10 +881,23 @@ async function api(path: string, body: unknown): Promise<Response> {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const problem = (await response.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(problem.detail ?? "요청을 처리하지 못했습니다.");
+    const problem = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new ApiRequestError(
+      response.status,
+      problem,
+      typeof problem.detail === "string" ? problem.detail : "요청을 처리하지 못했습니다.",
+    );
   }
   return response;
+}
+
+export function duplicateEmailAccountState(error: unknown): DuplicateEmailAccountState | null {
+  if (!(error instanceof ApiRequestError) || error.status !== 409) return null;
+  return error.problem.account_state === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+}
+
+export function isDeactivatedAccountError(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.problem.account_state === "INACTIVE";
 }
 
 export function safeReturnTarget(search: string): string | null {

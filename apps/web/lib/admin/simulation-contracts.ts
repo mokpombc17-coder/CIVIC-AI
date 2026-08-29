@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readTaskSummaries, type TaskSummary } from "./domain-contracts";
 
 const canonicalUuidSchema = z
   .string()
@@ -235,6 +236,8 @@ const simulationResultSchema = z
   .strict();
 
 export type SimulationView = z.infer<typeof simulationViewSchema>;
+export type SimulationTaskSummary = TaskSummary &
+  Readonly<{ latestSimulation: SimulationView | null }>;
 export type SimulationOptions = z.infer<typeof simulationOptionsSchema>;
 export type SimulationCapacity = z.infer<typeof simulationCapacitySchema>;
 export type SimulationResult = z.infer<typeof simulationResultSchema>;
@@ -247,6 +250,61 @@ export function readSimulationView(value: unknown): SimulationView | null {
 export function readSimulationViews(value: unknown): readonly SimulationView[] | null {
   const parsed = z.array(simulationViewSchema).safeParse(value);
   return parsed.success ? parsed.data : null;
+}
+
+export function readSimulationTaskSummaries(
+  value: unknown,
+): readonly SimulationTaskSummary[] | null {
+  const tasks = readTaskSummaries(value);
+  if (!tasks || !Array.isArray(value)) return null;
+  const parsed = z
+    .array(z.object({ latestSimulation: simulationViewSchema.nullable() }).passthrough())
+    .safeParse(value);
+  if (!parsed.success) return null;
+  return tasks.map((task, index) => ({
+    ...task,
+    latestSimulation: parsed.data[index]?.latestSimulation ?? null,
+  }));
+}
+
+export type SimulationTargetPresentation = Readonly<{
+  action: "설정하기" | "진행 보기" | "결과 보기" | "상태 확인";
+  label: "준비됨" | "진행 중" | "완료" | "확인 필요";
+  target: "setup" | "status" | "results";
+  tone: "ready" | "running" | "completed" | "attention";
+}>;
+
+const activeSimulationStates = new Set<SimulationState>([
+  "READY",
+  "RUNNING",
+  "WAITING_PROVIDER",
+  "PUBLISHING",
+]);
+
+export function simulationTargetPresentation(
+  state: SimulationState | null,
+): SimulationTargetPresentation {
+  if (state === null) {
+    return { label: "준비됨", action: "설정하기", target: "setup", tone: "ready" };
+  }
+  if (state === "COMPLETED") {
+    return { label: "완료", action: "결과 보기", target: "results", tone: "completed" };
+  }
+  if (activeSimulationStates.has(state)) {
+    return { label: "진행 중", action: "진행 보기", target: "status", tone: "running" };
+  }
+  return { label: "확인 필요", action: "상태 확인", target: "status", tone: "attention" };
+}
+
+export function simulationTargetHref(
+  taskId: string,
+  latest: Pick<SimulationView, "simulationId" | "state"> | null,
+): string {
+  const presentation = simulationTargetPresentation(latest?.state ?? null);
+  if (!latest || presentation.target === "setup") {
+    return `/admin/simulations/setup?taskId=${encodeURIComponent(taskId)}`;
+  }
+  return `/admin/simulations/${presentation.target}?simulationId=${encodeURIComponent(latest.simulationId)}`;
 }
 
 export function readSimulationOptions(value: unknown): SimulationOptions | null {

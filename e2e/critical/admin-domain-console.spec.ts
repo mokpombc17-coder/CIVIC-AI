@@ -6,6 +6,7 @@ const MOCK_API_HOST = "127.0.0.1";
 const MOCK_API_PORT = 4791;
 const ACCESS_COOKIE = "civic_ai_access_token";
 const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
+const simulationId = "0fa0d1cc-182f-4270-b9aa-66195b3ed8f4";
 const policyCategoryId = "00000000-0000-0000-0000-000000000001";
 
 let server: Server;
@@ -18,6 +19,7 @@ let replacedRoomBody: Record<string, unknown> | null = null;
 let removeCategoryOnNextPatch = false;
 let listedRoomQueries: string[] = [];
 let createdTaskIdempotencyKey: string | null = null;
+let latestSimulationState: "RUNNING" | "COMPLETED" | null = null;
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -121,6 +123,14 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/admin/tasks" && request.method === "GET") {
       return json(response, [taskSummary(task)]);
     }
+    if (url.pathname === "/api/v1/admin/simulation-tasks" && request.method === "GET") {
+      return json(response, [
+        {
+          ...taskSummary(task),
+          latestSimulation: latestSimulationState ? simulationFixture(latestSimulationState) : null,
+        },
+      ]);
+    }
     if (url.pathname === "/api/v1/admin/tasks" && request.method === "POST") {
       createdTaskIdempotencyKey = request.headers["idempotency-key"] ?? null;
       if (!createdTaskIdempotencyKey) {
@@ -159,6 +169,7 @@ test.beforeEach(() => {
   removeCategoryOnNextPatch = false;
   listedRoomQueries = [];
   createdTaskIdempotencyKey = null;
+  latestSimulationState = null;
 });
 
 test.afterAll(async () => close(server));
@@ -311,6 +322,41 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행�
   await expect(page.getByText(taskId, { exact: true })).toHaveCount(0);
 });
 
+test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 화면으로 연결한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  task = taskFixture("OPEN", "교통 정책 과업");
+
+  latestSimulationState = null;
+  await page.goto("/admin/simulations");
+  let row = page.getByRole("row", { name: /교통 정책 과업/ });
+  await expect(row).toContainText("준비됨");
+  await expect(row.getByRole("link", { name: "설정하기" })).toHaveAttribute(
+    "href",
+    `/admin/simulations/setup?taskId=${taskId}`,
+  );
+
+  latestSimulationState = "RUNNING";
+  await page.reload();
+  row = page.getByRole("row", { name: /교통 정책 과업/ });
+  await expect(row).toContainText("진행 중");
+  await expect(row.getByRole("link", { name: "진행 보기" })).toHaveAttribute(
+    "href",
+    `/admin/simulations/status?simulationId=${simulationId}`,
+  );
+
+  latestSimulationState = "COMPLETED";
+  await page.reload();
+  row = page.getByRole("row", { name: /교통 정책 과업/ });
+  await expect(row).toContainText("완료");
+  await expect(row.getByRole("link", { name: "결과 보기" })).toHaveAttribute(
+    "href",
+    `/admin/simulations/results?simulationId=${simulationId}`,
+  );
+});
+
 test("관리자 Chat·Vote 화면은 200% 확대 대응 폭에서도 본문이 잘리지 않는다", async ({
   context,
   page,
@@ -427,6 +473,32 @@ function taskSummary(current: ReturnType<typeof taskFixture>) {
     closureType: current.closureType,
     createdAt: current.createdAt,
     updatedAt: current.updatedAt,
+  };
+}
+
+function simulationFixture(state: "RUNNING" | "COMPLETED") {
+  return {
+    simulationId,
+    taskId,
+    state,
+    personaCount: 77,
+    progressPercent: state === "COMPLETED" ? 100 : 26,
+    cancelRequested: false,
+    errorCode: null,
+    resumeAt: null,
+    retryAvailableAt: null,
+    waitReason: null,
+    createdAt: "2026-08-29T02:23:06Z",
+    startedAt: "2026-08-29T02:23:07Z",
+    completedAt: state === "COMPLETED" ? "2026-08-29T02:28:00Z" : null,
+    deadlineAt: "2026-08-29T02:53:06Z",
+    estimatedCompletionAt: state === "COMPLETED" ? null : "2026-08-29T02:29:00Z",
+    canCancel: state === "RUNNING",
+    estimatedKrw: 9500,
+    holdKrw: 11400,
+    settledKrw: state === "COMPLETED" ? 9200 : null,
+    absorbedKrw: 0,
+    billingState: state === "COMPLETED" ? "SETTLED" : "HELD",
   };
 }
 
