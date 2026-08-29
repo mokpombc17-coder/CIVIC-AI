@@ -255,6 +255,11 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
     capacityState.capacity?.canSimulate &&
     previewState.wallet.availableKrw >= previewState.preview.holdKrw,
   );
+  const capacityMessage =
+    capacityState.message ||
+    (capacityState.capacity && !capacityState.capacity.canSimulate
+      ? capacityBlockMessage(capacityState.capacity)
+      : "");
 
   return (
     <form
@@ -295,7 +300,6 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           </label>
         </div>
       </section>
-      <SimulationCapacityCard capacity={capacityState.capacity} message={capacityState.message} />
       <SimulationPreviewCard
         message={previewState.message}
         preview={previewState.preview}
@@ -330,7 +334,9 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           </Link>
         ) : null}
       </div>
-      {message || startMessage ? <StatusMessage>{message || startMessage}</StatusMessage> : null}
+      {message || startMessage || capacityMessage ? (
+        <StatusMessage>{message || startMessage || capacityMessage}</StatusMessage>
+      ) : null}
     </form>
   );
 }
@@ -383,6 +389,11 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
         ["political_ideologies", "정치 성향", options.filters.politicalIdeologies],
       ] as const)
     : [];
+  const capacityMessage =
+    capacityState.message ||
+    (capacityState.capacity && !capacityState.capacity.canSimulate
+      ? capacityBlockMessage(capacityState.capacity)
+      : "");
 
   return (
     <form
@@ -425,7 +436,6 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           ))}
         </div>
       </section>
-      <SimulationCapacityCard capacity={capacityState.capacity} message={capacityState.message} />
       <SimulationPreviewCard
         message={previewState.message}
         preview={previewState.preview}
@@ -457,7 +467,9 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
                 : "예상 비용 먼저 확인"}
         </button>
       </div>
-      {message || startMessage ? <StatusMessage>{message || startMessage}</StatusMessage> : null}
+      {message || startMessage || capacityMessage ? (
+        <StatusMessage>{message || startMessage || capacityMessage}</StatusMessage>
+      ) : null}
     </form>
   );
 }
@@ -1012,48 +1024,7 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
   };
 }
 
-function SimulationCapacityCard({
-  capacity,
-  message,
-}: Readonly<{
-  capacity: SimulationCapacity | null;
-  message: string;
-}>) {
-  if (!capacity && !message) return null;
-  return (
-    <section className="civic-domain-form-section civic-simulation-capacity-card">
-      <header>
-        <span>실행 가능 표본</span>
-        <h2>패널 수용량 확인</h2>
-      </header>
-      {capacity ? (
-        <dl className="civic-domain-impact-list">
-          <div>
-            <dt>요청 패널</dt>
-            <dd>{capacity.requestedPersonaCount.toLocaleString("ko-KR")}명</dd>
-          </div>
-          <div>
-            <dt>사용 가능 패널</dt>
-            <dd>{capacity.availablePersonaCount.toLocaleString("ko-KR")}명</dd>
-          </div>
-          <div>
-            <dt>허용 범위</dt>
-            <dd>
-              {capacity.minPersonaCount.toLocaleString("ko-KR")}–
-              {capacity.maxPersonaCount.toLocaleString("ko-KR")}명
-            </dd>
-          </div>
-        </dl>
-      ) : null}
-      {capacity && !capacity.canSimulate ? (
-        <StatusMessage>{capacityBlockMessage(capacity)}</StatusMessage>
-      ) : null}
-      {message ? <StatusMessage>{message}</StatusMessage> : null}
-    </section>
-  );
-}
-
-function SimulationPreviewCard({
+export function SimulationPreviewCard({
   message,
   preview,
   wallet,
@@ -1090,14 +1061,6 @@ function SimulationPreviewCard({
           <div>
             <dt>사용 가능액</dt>
             <dd>{formatKrw(wallet?.availableKrw)}</dd>
-          </div>
-          <div>
-            <dt>비용 근거</dt>
-            <dd>{evidenceLabel(preview.evidenceSource)}</dd>
-          </div>
-          <div>
-            <dt>완료 표본</dt>
-            <dd>{preview.sampleCount.toLocaleString("ko-KR")}건</dd>
           </div>
         </dl>
       ) : null}
@@ -1430,10 +1393,6 @@ function formatDate(value: string | null): string {
 
 function formatKrw(value: number | undefined): string {
   return value === undefined ? "-" : `${value.toLocaleString("ko-KR")}원`;
-}
-
-function evidenceLabel(value: string): string {
-  return value === "rolling_provider_cost" ? "완료 실행 이동 평균" : "초기 모델 평균";
 }
 
 function capacityBlockMessage(capacity: SimulationCapacity): string {

@@ -108,11 +108,8 @@ const dailyUsageSchema = z
     day: z.string().min(1),
     taskTitle: z.string().min(1),
     actorEmail: z.string().email(),
-    model: z.string().min(1),
     personaCount: z.number().int().positive(),
-    providerCostUsd: nonnegativeDecimalText,
     chargedKrw: safeKrw,
-    absorbedKrw: safeKrw,
   })
   .strict();
 

@@ -163,10 +163,9 @@ function UsagePanel() {
   const totals = rows.reduce(
     (sum, row) => ({
       charged: sum.charged + row.chargedKrw,
-      absorbed: sum.absorbed + row.absorbedKrw,
       personas: sum.personas + row.personaCount,
     }),
-    { charged: 0, absorbed: 0, personas: 0 },
+    { charged: 0, personas: 0 },
   );
   const exportHref =
     `/api/v1/admin/simulation-billing/reports/daily.csv?${new URLSearchParams({ start, end }).toString()}` as Route;
@@ -199,7 +198,6 @@ function UsagePanel() {
       </div>
       <section className="civic-simulation-summary-grid" aria-label="사용량 합계">
         <Metric label="과금액" value={formatKrw(totals.charged)} emphasis />
-        <Metric label="서비스 부담액" value={formatKrw(totals.absorbed)} />
         <Metric label="처리한 가상 패널" value={`${totals.personas.toLocaleString("ko-KR")}명`} />
         <Metric label="정산 행" value={`${rows.length.toLocaleString("ko-KR")}건`} />
       </section>
@@ -210,11 +208,8 @@ function UsagePanel() {
               <th>일자</th>
               <th>과업</th>
               <th>실행 관리자</th>
-              <th>모델</th>
               <th>패널</th>
-              <th>공급자 비용</th>
               <th>과금액</th>
-              <th>부담액</th>
             </tr>
           </thead>
           <tbody>
@@ -223,11 +218,8 @@ function UsagePanel() {
                 <td>{row.day}</td>
                 <th scope="row">{row.taskTitle}</th>
                 <td>{row.actorEmail}</td>
-                <td>{row.model}</td>
                 <td>{row.personaCount.toLocaleString("ko-KR")}명</td>
-                <td>${Number(row.providerCostUsd).toFixed(4)}</td>
                 <td>{formatKrw(row.chargedKrw)}</td>
-                <td>{formatKrw(row.absorbedKrw)}</td>
               </tr>
             ))}
           </tbody>

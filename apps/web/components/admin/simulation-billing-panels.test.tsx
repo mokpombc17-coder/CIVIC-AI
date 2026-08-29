@@ -33,4 +33,16 @@ describe("simulation billing navigation", () => {
     expect(html).not.toContain("원화 쿠폰 만들기");
     expect(html).not.toContain("쿠폰 발급");
   });
+
+  it("사용량에는 과금에 필요한 공개 정보만 표시한다", () => {
+    const html = renderToStaticMarkup(<SimulationBillingSection section="usage" />);
+
+    expect(html).toContain("과금액");
+    expect(html).toContain("처리한 가상 패널");
+    expect(html).toContain("CSV 내려받기");
+    expect(html).not.toContain("서비스 부담액");
+    expect(html).not.toContain("공급자 비용");
+    expect(html).not.toContain(">모델<");
+    expect(html).not.toContain(">부담액<");
+  });
 });

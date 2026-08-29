@@ -7,6 +7,7 @@ import {
   buildDefaultSimulationRunInput,
   requestAdminSimulationPreview,
   requestAdminSimulationStart,
+  SimulationPreviewCard,
 } from "@/components/admin/admin-simulation-screen";
 import { screenRegistry } from "@/lib/screens/registry";
 
@@ -160,5 +161,38 @@ describe("simulation setup", () => {
     );
     expect(html).not.toContain("실행 모델");
     expect(html).not.toContain("표본 시드");
+  });
+
+  it("예상 비용에는 실행 결정에 필요한 값만 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <SimulationPreviewCard
+        message=""
+        preview={{
+          taskTitle: "교통 정책",
+          modelType: "claude-sonnet-4-6",
+          personaCount: 20,
+          estimatedKrw: 4_904,
+          holdKrw: 5_885,
+          estimatedSeconds: 334,
+          sampleCount: 21,
+          evidenceSource: "rolling_provider_cost",
+          policyFingerprint: "a".repeat(64),
+        }}
+        wallet={{
+          balanceKrw: 1_000_000,
+          heldKrw: 10_000,
+          availableKrw: 990_000,
+          spentTodayKrw: 0,
+          updatedAt: "2026-08-29T00:00:00Z",
+        }}
+      />,
+    );
+
+    expect(html).toContain("예상 과금액");
+    expect(html).toContain("보류 예정액");
+    expect(html).toContain("예상 시간");
+    expect(html).toContain("사용 가능액");
+    expect(html).not.toContain("비용 근거");
+    expect(html).not.toContain("완료 표본");
   });
 });
