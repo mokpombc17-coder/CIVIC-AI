@@ -38,7 +38,9 @@ type AuditEvent = {
 type UserStatusFilter = "all" | "active" | "inactive" | "admin";
 export type AdminLoadMessages = Readonly<{ user: string; audit: string }>;
 type RagJobCounts = Readonly<Record<string, number>>;
-type RecentRagFailure = Readonly<{
+export type RecentRagFailure = Readonly<{
+  jobId: string;
+  documentId: string;
   filename: string;
   failureCode: string;
   updatedAt?: string;
@@ -434,13 +436,13 @@ export function RagFailureSummary({
       </header>
       <ul>
         {failures.map((failure) => (
-          <li key={`${failure.filename}:${failure.updatedAt ?? failure.failureCode}`}>
+          <li key={failure.jobId}>
             <strong>{failure.filename}</strong>
             <span>{ragFailureLabel(failure.failureCode)}</span>
             <Link
               aria-label={`${failure.filename} 업로드 화면에서 재시도`}
               className="wf-button wf-button-secondary civic-rag-failure-retry"
-              href="/admin/rag/upload"
+              href={ragFailureRetryHref(failure)}
             >
               재시도
             </Link>
@@ -482,9 +484,18 @@ export function readRagJobSummary(
   const recentFailures = record.recent_failures.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const failure = item as Record<string, unknown>;
-    if (typeof failure.filename !== "string" || typeof failure.failure_code !== "string") return [];
+    if (
+      typeof failure.job_id !== "string" ||
+      typeof failure.document_id !== "string" ||
+      typeof failure.filename !== "string" ||
+      typeof failure.failure_code !== "string"
+    ) {
+      return [];
+    }
     return [
       {
+        jobId: failure.job_id,
+        documentId: failure.document_id,
         filename: failure.filename,
         failureCode: failure.failure_code,
         ...(typeof failure.updated_at === "string" ? { updatedAt: failure.updated_at } : {}),
@@ -492,6 +503,15 @@ export function readRagJobSummary(
     ];
   });
   return { status: "ready", failed, active: record.active, counts, recentFailures };
+}
+
+export function ragFailureRetryHref(failure: RecentRagFailure): Route {
+  const parameters = new URLSearchParams({
+    retryJobId: failure.jobId,
+    documentId: failure.documentId,
+    filename: failure.filename,
+  });
+  return `/admin/rag/upload?${parameters.toString()}` as Route;
 }
 
 export function ragFailureLabel(code: string): string {

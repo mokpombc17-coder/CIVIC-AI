@@ -15,6 +15,7 @@ import {
   loadRagJobSummary,
   loadTaskDeadlineSummary,
   RagFailureSummary,
+  ragFailureRetryHref,
   ragFailureLabel,
   requestAdminUsers,
   requestAdminAudit,
@@ -442,20 +443,64 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("RAG 실패 요약은 공통 문서 관리 링크 대신 문서별 업로드 재시도를 제공한다", () => {
+    const sampleFailure = {
+      jobId: "job-1",
+      documentId: "document-1",
+      filename: "sample 정책.pdf",
+      failureCode: "PAGE_INDEX_OUTLINE_FAILED",
+    };
     const html = renderToStaticMarkup(
       createElement(RagFailureSummary, {
         failures: [
-          { filename: "sample.pdf", failureCode: "PAGE_INDEX_OUTLINE_FAILED" },
-          { filename: "civic-encrypted.pdf", failureCode: "DOCUMENT_READ_FAILED" },
+          sampleFailure,
+          {
+            jobId: "job-2",
+            documentId: "document-2",
+            filename: "civic-encrypted.pdf",
+            failureCode: "DOCUMENT_READ_FAILED",
+          },
         ],
       }),
     );
 
     expect(html).not.toContain("문서 관리에서 조치");
-    expect(html.match(/href="\/admin\/rag\/upload"/gu)).toHaveLength(2);
-    expect(html).toContain('aria-label="sample.pdf 업로드 화면에서 재시도"');
+    expect(ragFailureRetryHref(sampleFailure)).toBe(
+      "/admin/rag/upload?retryJobId=job-1&documentId=document-1&filename=sample+%EC%A0%95%EC%B1%85.pdf",
+    );
+    expect(html.match(/href="\/admin\/rag\/upload\?retryJobId=/gu)).toHaveLength(2);
+    expect(html).toContain('aria-label="sample 정책.pdf 업로드 화면에서 재시도"');
     expect(html).toContain('aria-label="civic-encrypted.pdf 업로드 화면에서 재시도"');
     expect(html.match(/>재시도<\/a>/gu)).toHaveLength(2);
+  });
+
+  it("RAG 실패 요약 응답의 작업·문서 ID를 자동 재시도 링크까지 보존한다", async () => {
+    const response = vi.fn(async () =>
+      Response.json({
+        failed: 1,
+        active: 0,
+        counts: { FAILED: 1 },
+        recent_failures: [
+          {
+            job_id: "job-1",
+            document_id: "document-1",
+            filename: "sample.pdf",
+            failure_code: "PAGE_INDEX_OUTLINE_FAILED",
+            updated_at: "2026-08-29T10:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    await expect(loadRagJobSummary(response as typeof fetch)).resolves.toMatchObject({
+      status: "ready",
+      recentFailures: [
+        {
+          jobId: "job-1",
+          documentId: "document-1",
+          filename: "sample.pdf",
+        },
+      ],
+    });
   });
 
   it("관리 홈은 Chat 승인 대기와 24시간 내 과업 마감을 실제 응답에서 계산한다", async () => {
