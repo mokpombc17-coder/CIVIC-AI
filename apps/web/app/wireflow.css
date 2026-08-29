@@ -1313,15 +1313,200 @@ body {
   line-height: 1;
 }
 
+[data-wireflow-shell="admin"] .civic-current-operations {
+  overflow: hidden;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations > header {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--wf-line);
+  background: #f7faff;
+  padding: 16px 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations > header div {
+  display: grid;
+  gap: 3px;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations > header small {
+  color: var(--wf-blue-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations h2 {
+  margin: 0;
+  color: var(--wf-ink);
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations > header > strong {
+  border-radius: 999px;
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations li {
+  display: grid;
+  grid-template-columns: 88px minmax(180px, 1fr) minmax(160px, 220px) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 82px;
+  padding: 14px 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations li + li {
+  border-top: 1px solid var(--wf-line);
+}
+
+[data-wireflow-shell="admin"] .civic-operation-kind {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-kind.is-simulation {
+  background: #e6efff;
+  color: #174da8;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-kind.is-document {
+  background: #e5f6f2;
+  color: #146252;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-copy,
+[data-wireflow-shell="admin"] .civic-operation-progress {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-copy > strong {
+  overflow: hidden;
+  color: var(--wf-ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-copy > span,
+[data-wireflow-shell="admin"] .civic-operation-progress > span {
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-progress progress {
+  width: 100%;
+  height: 7px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e8edf4;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-progress progress::-webkit-progress-bar {
+  background: #e8edf4;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-progress progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-operation-progress progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations li > .wf-button {
+  min-height: 38px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations-empty,
+[data-wireflow-shell="admin"] .civic-current-operations-warning {
+  margin: 0;
+  color: var(--wf-muted);
+  padding: 22px 20px;
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-current-operations-warning {
+  border-top: 1px solid #f0d9a7;
+  background: #fffbeb;
+  color: #7a5412;
+  padding-block: 10px;
+}
+
 @media (max-width: 980px) {
   [data-wireflow-shell="admin"] .civic-admin-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-wireflow-shell="admin"] .civic-current-operations li {
+    grid-template-columns: 88px minmax(0, 1fr) auto;
+  }
+
+  [data-wireflow-shell="admin"] .civic-operation-progress {
+    grid-column: 2;
+  }
+
+  [data-wireflow-shell="admin"] .civic-current-operations li > .wf-button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 }
 
 @media (max-width: 560px) {
   [data-wireflow-shell="admin"] .civic-admin-metrics {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-wireflow-shell="admin"] .civic-current-operations > header,
+  [data-wireflow-shell="admin"] .civic-current-operations li {
+    padding-inline: 16px;
+  }
+
+  [data-wireflow-shell="admin"] .civic-current-operations li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  [data-wireflow-shell="admin"] .civic-operation-kind {
+    grid-column: 1;
+  }
+
+  [data-wireflow-shell="admin"] .civic-operation-copy,
+  [data-wireflow-shell="admin"] .civic-operation-progress {
+    grid-column: 1 / -1;
+  }
+
+  [data-wireflow-shell="admin"] .civic-current-operations li > .wf-button {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 

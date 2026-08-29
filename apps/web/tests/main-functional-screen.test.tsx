@@ -978,6 +978,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("24시간 내 마감");
     expect(html).toContain("시뮬레이션 사용 잔액");
     expect(html).toContain("공용 지갑 잔액 확인 중");
+    expect(html).toContain("현재 처리 중");
+    expect(html).toContain("처리 현황을 확인하고 있습니다.");
     expect(html).not.toContain('class="wf-card wf-action-card"');
     expect(html).not.toContain("사용자 관리 열기");
     expect(html).not.toContain("문서 관리 열기");

@@ -11,6 +11,8 @@
   정량 결과와 JSONL 다운로드
 - Simulation `A-SIM-001..007`: Vote 과업 선택, SONA 집계 패널 설정·실행, 상태·취소,
   수동 재설정, 집계 결과와 익명 패널 응답 상세
+- Main/Auth `A-HOME-001`: 권한별 승인·실패·마감·공용 지갑 요약과 RAG 문서·Simulation의
+  대기/실행 중 작업을 한 목록으로 표시
 
 브라우저는 same-origin `/api/v1/admin/**`만 호출한다. Next.js BFF는 허용한 Chat·Vote path와 method만
 각각 `CHAT_INTERNAL_URL`, `VOTE_INTERNAL_URL`로 전달한다. Simulation path는 공개 nginx가 Simulation
@@ -38,6 +40,12 @@ BFF에 직접 전달하지 않는다. Vote 저장소의 API와 권한 정책은 
 `chat:categories:manage`·`chat:rooms:read` 발급 계약은 아직 확정 전이므로 Frontend2는 해당 scope를
 요구하는 BFF 경계를 표시만 하고 토큰 자체를 해석하거나 임시로 발급하지 않는다. 운영 인증 연동은
 Main/Auth 계약 수신 후 마무리한다.
+
+관리 홈의 진행 목록은 `RAG_ADMIN`일 때 RAG 루트 폴더 하위의 `PENDING`·`PROCESSING` 문서를,
+`SIMULATION_ADMIN`일 때 `/api/v1/admin/simulation-tasks`의 과업별 최신 실행 중 상태를 읽는다.
+브라우저 탭이 보일 때만 10초 간격으로 갱신하며 두 Resource Server를 병렬 조회한다. 한쪽 조회가
+실패해도 다른 쪽의 확인된 항목은 유지하고, 내부 ID 대신 과업 제목·파일명·처리 단계·진행률만
+목록에 표시한다.
 
 mutation은 자동 재전송하지 않는다. 응답이 불명확하거나 `409`이면 상세를 먼저 다시 조회한다. `429`의
 `Retry-After`, Problem Details의 `code`, `violations`, `traceId`를 보존한다. Vote 상세 결과는 JSON으로

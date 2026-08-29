@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import Link from "next/link";
+import { AdminCurrentOperations } from "@/components/admin/admin-current-operations";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import { readWalletSummary, type WalletSummary } from "@/lib/admin/simulation-billing-contracts";
@@ -244,6 +245,8 @@ export function AdminFunctionalScreen({
     >
       {screen.id === "A-HOME-001" ? (
         <AdminHome
+          canManageSimulation={canManageSimulation}
+          canReadRag={canReadRag}
           chatRequestSummary={chatRequestSummary}
           ragJobSummary={ragJobSummary}
           simulationWalletSummary={simulationWalletSummary}
@@ -351,11 +354,15 @@ export function filterAdminUsers(users: AdminUser[], filter: UserStatusFilter) {
 }
 
 function AdminHome({
+  canManageSimulation,
+  canReadRag,
   ragJobSummary,
   chatRequestSummary,
   simulationWalletSummary,
   taskDeadlineSummary,
 }: {
+  canManageSimulation: boolean;
+  canReadRag: boolean;
   ragJobSummary: RagJobSummaryState;
   chatRequestSummary: AdminDomainMetricState;
   simulationWalletSummary: SimulationWalletMetricState;
@@ -397,6 +404,7 @@ function AdminHome({
           <span>{simulationWalletDescription(simulationWalletSummary)}</span>
         </li>
       </ul>
+      <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
       {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
         <RagFailureSummary failures={ragJobSummary.recentFailures} />
       ) : null}
