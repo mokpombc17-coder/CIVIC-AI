@@ -213,6 +213,7 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
   await expect(page.getByRole("heading", { name: "채팅방 카테고리 관리" })).toBeVisible();
   await expect(page.getByText("ACTIVE · LISTED ROOMS", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "공개 채팅방 표" })).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "버전" })).toHaveCount(0);
   await page.getByLabel("새 카테고리 이름").fill("복지");
   await page.getByRole("button", { name: "카테고리 추가" }).click();
 
@@ -278,11 +279,13 @@ test("채팅 관리자는 일반 방 목록에서 선택해 현재 version으로
   const roomRow = page.getByRole("row", { name: /시민 정책 토론방/ });
   await expect(roomRow).toContainText("정책");
   await roomRow.getByRole("button", { name: "선택" }).click();
-  const categoryGroup = page.getByRole("group", { name: "교체할 카테고리" });
+  const editor = page.getByRole("dialog", { name: "시민 정책 토론방" });
+  await expect(editor).toBeVisible();
+  const categoryGroup = editor.getByRole("group", { name: "적용할 카테고리" });
   await expect(categoryGroup.getByLabel("정책")).toBeChecked();
   await expect(page.getByText(/현재 버전:/u)).toHaveCount(0);
   await categoryGroup.getByLabel("지역 현안").check();
-  await page.getByRole("button", { name: "카테고리 교체" }).click();
+  await editor.getByRole("button", { name: "변경사항 저장" }).click();
 
   await expect(page.getByRole("status")).toContainText("카테고리를 교체했습니다");
   expect(replacedRoomBody).toEqual({
