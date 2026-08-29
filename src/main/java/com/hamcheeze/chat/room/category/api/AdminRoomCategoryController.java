@@ -3,10 +3,10 @@ package com.hamcheeze.chat.room.category.api;
 import com.hamcheeze.chat.room.api.AuthenticatedUserIdResolver;
 import com.hamcheeze.chat.room.category.RoomCategory;
 import com.hamcheeze.chat.room.category.RoomCategoryService;
+import com.hamcheeze.chat.room.category.api.dto.AdminRoomCategoryListResponse;
+import com.hamcheeze.chat.room.category.api.dto.AdminRoomCategoryResponse;
 import com.hamcheeze.chat.room.category.api.dto.CreateRoomCategoryRequest;
 import com.hamcheeze.chat.room.category.api.dto.RenameRoomCategoryRequest;
-import com.hamcheeze.chat.room.category.api.dto.RoomCategoryListResponse;
-import com.hamcheeze.chat.room.category.api.dto.RoomCategoryResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.CacheControl;
@@ -41,32 +41,31 @@ public class AdminRoomCategoryController {
     }
 
     @GetMapping
-    public ResponseEntity<RoomCategoryListResponse> categories(
+    public ResponseEntity<AdminRoomCategoryListResponse> categories(
             Authentication authentication
     ) {
         requireAdmin(authentication);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(new RoomCategoryListResponse(
+                .body(new AdminRoomCategoryListResponse(
                         service.findAll().stream()
-                                .map(RoomCategoryResponse::from)
+                                .map(this::response)
                                 .toList()));
     }
 
     @GetMapping("/{categoryId}")
-    public ResponseEntity<RoomCategoryResponse> category(
+    public ResponseEntity<AdminRoomCategoryResponse> category(
             Authentication authentication,
             @PathVariable String categoryId
     ) {
         requireAdmin(authentication);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(RoomCategoryResponse.from(
-                        service.findById(categoryId)));
+                .body(response(service.findById(categoryId)));
     }
 
     @PostMapping
-    public ResponseEntity<RoomCategoryResponse> create(
+    public ResponseEntity<AdminRoomCategoryResponse> create(
             Authentication authentication,
             @Valid @RequestBody CreateRoomCategoryRequest request
     ) {
@@ -79,22 +78,23 @@ public class AdminRoomCategoryController {
                 .toUri();
         return ResponseEntity.created(location)
                 .cacheControl(CacheControl.noStore())
-                .body(RoomCategoryResponse.from(created));
+                .body(response(created));
     }
 
     @PatchMapping("/{categoryId}")
-    public ResponseEntity<RoomCategoryResponse> rename(
+    public ResponseEntity<AdminRoomCategoryResponse> rename(
             Authentication authentication,
             @PathVariable String categoryId,
             @Valid @RequestBody RenameRoomCategoryRequest request
     ) {
         requireAdmin(authentication);
+        RoomCategory renamed = service.rename(
+                categoryId,
+                request.name(),
+                request.expectedVersion());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(RoomCategoryResponse.from(service.rename(
-                        categoryId,
-                        request.name(),
-                        request.expectedVersion())));
+                .body(response(renamed));
     }
 
     @DeleteMapping("/{categoryId}")
@@ -113,5 +113,11 @@ public class AdminRoomCategoryController {
 
     private void requireAdmin(Authentication authentication) {
         userIdResolver.resolve(authentication);
+    }
+
+    private AdminRoomCategoryResponse response(RoomCategory category) {
+        return AdminRoomCategoryResponse.from(
+                category,
+                service.countRoomsUsing(category.categoryId()));
     }
 }

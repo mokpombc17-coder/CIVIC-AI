@@ -103,6 +103,56 @@ class RoomCategoryApiIntegrationTest
     }
 
     @Test
+    void adminCategoryResponsesExposeUsageAndDeleteCapability()
+            throws Exception {
+        MvcResult created = mockMvc.perform(post(
+                        "/api/v1/admin/room-categories")
+                        .with(admin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"교통\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.usageCount").value(0))
+                .andExpect(jsonPath("$.deletable").value(true))
+                .andReturn();
+        String categoryId = json(created)
+                .get("categoryId")
+                .asText();
+
+        mockMvc.perform(get("/api/v1/admin/room-categories")
+                        .with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2));
+        mockMvc.perform(get(
+                        "/api/v1/admin/room-categories/{categoryId}",
+                        RoomCategoryDefaults.POLICY_CATEGORY_ID)
+                        .with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usageCount").value(0))
+                .andExpect(jsonPath("$.deletable").value(false));
+        mockMvc.perform(get(
+                        "/api/v1/admin/room-categories/{categoryId}",
+                        categoryId)
+                        .with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usageCount").value(0))
+                .andExpect(jsonPath("$.deletable")
+                        .value(true));
+
+        mongoOperations.getCollection(
+                        MongoRoomDocument.COLLECTION_NAME)
+                .insertOne(new Document("_id", "room-category-usage")
+                        .append("categoryIds", List.of(categoryId)));
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/room-categories/{categoryId}",
+                        categoryId)
+                        .with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usageCount").value(1))
+                .andExpect(jsonPath("$.deletable").value(false));
+    }
+
+    @Test
     void adminCreatesRenamesInspectsAndDeletesUnusedCategory()
             throws Exception {
         MvcResult created = mockMvc.perform(post(

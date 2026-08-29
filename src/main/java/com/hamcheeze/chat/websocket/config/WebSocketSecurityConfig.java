@@ -94,6 +94,11 @@ public class WebSocketSecurityConfig {
                         .hasAuthority(ChatScopes.authority(
                                 ChatScopes.ROOMS_APPROVE))
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/admin/rooms")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CATEGORIES_MANAGE))
+                        .requestMatchers(
                                 HttpMethod.PUT,
                                 "/api/v1/admin/rooms/*/categories")
                         .hasAuthority(ChatScopes.authority(

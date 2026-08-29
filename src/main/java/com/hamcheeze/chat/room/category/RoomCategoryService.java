@@ -78,6 +78,10 @@ public final class RoomCategoryService {
                 .orElseThrow(RoomCategoryService::notFound);
     }
 
+    public long countRoomsUsing(String categoryId) {
+        return usage.countRoomsUsing(categoryId);
+    }
+
     public List<String> requireExistingCategoryIds(
             List<String> categoryIds
     ) {

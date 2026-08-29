@@ -5,6 +5,7 @@ import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.query.AdminRoomQueryCriteria;
 import com.hamcheeze.chat.room.query.CursorSlice;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCriteria;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
@@ -145,6 +146,58 @@ public final class MongoRoomQueryReader
         if (listedCriteria.nameContains() != null) {
             criteria = criteria.and("name").regex(Pattern.compile(
                     Pattern.quote(listedCriteria.nameContains()),
+                    Pattern.CASE_INSENSITIVE
+                            | Pattern.UNICODE_CASE));
+        }
+        if (afterRoomId != null) {
+            requireText(afterRoomId, "afterRoomId");
+            criteria = criteria.and("_id").gt(afterRoomId);
+        }
+        List<Room> found = mongoOperations.find(
+                        Query.query(criteria)
+                                .with(Sort.by(
+                                        Sort.Direction.ASC,
+                                        "_id"))
+                                .limit(limit + 1)
+                                .maxTime(
+                                        listedRoomPageQueryMaxTime),
+                        MongoRoomDocument.class)
+                .stream()
+                .map(MongoRoomDocument::toDomain)
+                .toList();
+        boolean hasNext = found.size() > limit;
+        return new CursorSlice<>(
+                hasNext ? found.subList(0, limit) : found,
+                hasNext);
+    }
+
+    @Override
+    public CursorSlice<Room> findAdminRooms(
+            AdminRoomQueryCriteria adminCriteria,
+            String afterRoomId,
+            int limit
+    ) {
+        Objects.requireNonNull(adminCriteria, "adminCriteria");
+        if (limit < 1) {
+            throw new IllegalArgumentException(
+                    "limit must be positive");
+        }
+        Criteria criteria = new Criteria();
+        if (adminCriteria.status() != null) {
+            criteria = criteria.and("status")
+                    .is(adminCriteria.status());
+        }
+        if (adminCriteria.visibility() != null) {
+            criteria = criteria.and("visibility")
+                    .is(adminCriteria.visibility());
+        }
+        if (adminCriteria.categoryId() != null) {
+            criteria = criteria.and("categoryIds")
+                    .is(adminCriteria.categoryId());
+        }
+        if (adminCriteria.nameContains() != null) {
+            criteria = criteria.and("name").regex(Pattern.compile(
+                    Pattern.quote(adminCriteria.nameContains()),
                     Pattern.CASE_INSENSITIVE
                             | Pattern.UNICODE_CASE));
         }

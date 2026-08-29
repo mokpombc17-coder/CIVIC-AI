@@ -33,4 +33,9 @@ public interface RoomQueryReader {
             ListedRoomQueryCriteria criteria,
             String afterRoomId,
             int limit);
+
+    CursorSlice<Room> findAdminRooms(
+            AdminRoomQueryCriteria criteria,
+            String afterRoomId,
+            int limit);
 }

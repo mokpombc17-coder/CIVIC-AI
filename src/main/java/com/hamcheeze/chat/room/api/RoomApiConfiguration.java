@@ -1,5 +1,7 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.room.query.AdminRoomQueryCursorCodec;
+import com.hamcheeze.chat.room.query.AdminRoomQueryService;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCursorCodec;
 import com.hamcheeze.chat.room.inbox.RoomInboxCursorCodec;
 import com.hamcheeze.chat.room.query.ListedRoomQueryService;
@@ -33,6 +35,11 @@ public class RoomApiConfiguration {
     ListedRoomQueryCriteriaResolver
     listedRoomQueryCriteriaResolver() {
         return new ListedRoomQueryCriteriaResolver();
+    }
+
+    @Bean
+    AdminRoomQueryCriteriaResolver adminRoomQueryCriteriaResolver() {
+        return new AdminRoomQueryCriteriaResolver();
     }
 
     @Bean
@@ -73,11 +80,26 @@ public class RoomApiConfiguration {
     }
 
     @Bean
+    AdminRoomQueryCursorCodec adminRoomQueryCursorCodec(
+            ObjectMapper objectMapper
+    ) {
+        return new AdminRoomQueryCursorCodec(objectMapper);
+    }
+
+    @Bean
     ListedRoomQueryService listedRoomQueryService(
             RoomQueryReader reader,
             ListedRoomQueryCursorCodec cursorCodec
     ) {
         return new ListedRoomQueryService(reader, cursorCodec);
+    }
+
+    @Bean
+    AdminRoomQueryService adminRoomQueryService(
+            RoomQueryReader reader,
+            AdminRoomQueryCursorCodec cursorCodec
+    ) {
+        return new AdminRoomQueryService(reader, cursorCodec);
     }
 
     @Bean

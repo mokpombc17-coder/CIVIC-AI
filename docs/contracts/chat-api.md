@@ -207,6 +207,7 @@ Room 카테고리는 enum이 아니다. 관리자가 생성한 카테고리 리�
 | `POST` | `/api/v1/admin/room-categories` | 카테고리 생성 | `201` |
 | `PATCH` | `/api/v1/admin/room-categories/{categoryId}` | 카테고리 이름 변경 | `200` |
 | `DELETE` | `/api/v1/admin/room-categories/{categoryId}` | 카테고리 삭제 | `204` |
+| `GET` | `/api/v1/admin/rooms` | 관리자 전체 방 검색·필터 | `200` |
 | `PUT` | `/api/v1/admin/rooms/{roomId}/categories` | 기존 방 카테고리 전체 교체 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/update-settings` | 방 설정 부분 변경 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/join` | 방 참여 | `201` 또는 `200` |
@@ -260,6 +261,20 @@ GET /api/v1/admin/room-categories
 }
 ```
 
+사용자용 응답은 위 모델을 사용한다. 관리자용 카테고리 목록·상세·생성·수정
+응답에는 다음 필드가 추가된다.
+
+```json
+{
+  "usageCount": 3,
+  "deletable": false
+}
+```
+
+`usageCount`는 삭제를 막는 Room 참조 수다. `inUse`는 별도로 제공하지 않으며
+`usageCount > 0`으로 계산한다. `deletable`은 기본 카테고리 보호와 현재 사용
+여부를 반영한 조회 시점의 서버 판정이다. 삭제 요청의 최종 판정은 서버가 한다.
+
 목록 순서는 API 계약이 아니다. 프론트는 `name`을 기준으로 정렬해 표시한다.
 공개 방 목록, Room inbox, 방 상세는 `categoryIds`와 함께 표시용
 `categorySummaries`를 제공한다. 이 목록 API는 카테고리 필터 선택지와 그 밖의
@@ -296,6 +311,19 @@ DELETE /api/v1/admin/room-categories/{categoryId}?expectedVersion=1
 한다. 기본 `정책` 카테고리와 ACTIVE/CLOSED 여부와 관계없이 하나 이상의 Room이
 참조하는 카테고리는 삭제할 수 없다. 이름 변경은 ID를 바꾸지 않으므로 기존
 Room 연결은 유지된다.
+
+### 관리자 전체 방 검색
+
+```http
+GET /api/v1/admin/rooms?query=기후&categoryId={categoryId}&status=ACTIVE&visibility=UNLISTED&limit=20&cursor={cursor}
+```
+
+`chat:categories:manage` scope를 요구한다. 공개 목록과 달리 ACTIVE/CLOSED 및
+LISTED/UNLISTED Room을 모두 대상으로 한다. `query`, `categoryId`, `status`,
+`visibility`는 모두 선택 항목이며 함께 보내면 AND 조건이다. 응답은 공개 목록과
+같은 커서 페이지 구조이고 각 항목에 `categoryIds`, `categorySummaries`, 현재
+Room `version`이 포함된다. 커서는 필터 조건에 묶이므로 필터 변경 시 첫
+페이지부터 다시 요청해야 한다.
 
 ### 기존 방 카테고리 교체
 

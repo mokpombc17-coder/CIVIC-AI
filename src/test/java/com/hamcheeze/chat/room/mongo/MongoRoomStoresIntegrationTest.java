@@ -632,6 +632,13 @@ class MongoRoomStoresIntegrationTest {
                         .append("visibility", 1)
                         .append("_id", 1),
                 false);
+        assertIndex(
+                roomIndexes,
+                MongoRoomSchemaInitializer
+                        .ROOM_CATEGORY_CURSOR_INDEX_NAME,
+                new Document("categoryIds", 1)
+                        .append("_id", 1),
+                false);
 
         List<Document> membershipIndexes =
                 membershipCollection()
