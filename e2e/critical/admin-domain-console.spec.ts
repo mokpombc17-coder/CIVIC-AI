@@ -265,12 +265,14 @@ test("채팅 관리자는 일반 방 목록에서 선택해 현재 version으로
   await page.getByLabel("채팅방 이름 검색").fill("시민");
   await page.getByRole("button", { name: "검색" }).click();
   await expect.poll(() => listedRoomQueries).toContain("시민");
+  await expect(page.getByText("목록에 없는 방 ID로 찾기", { exact: true })).toHaveCount(0);
 
   const roomRow = page.getByRole("row", { name: /시민 정책 토론방/ });
   await expect(roomRow).toContainText("정책");
   await roomRow.getByRole("button", { name: "선택" }).click();
   const categoryGroup = page.getByRole("group", { name: "교체할 카테고리" });
   await expect(categoryGroup.getByLabel("정책")).toBeChecked();
+  await expect(page.getByText(/현재 버전:/u)).toHaveCount(0);
   await categoryGroup.getByLabel("지역 현안").check();
   await page.getByRole("button", { name: "카테고리 교체" }).click();
 
@@ -279,19 +281,6 @@ test("채팅 관리자는 일반 방 목록에서 선택해 현재 version으로
     categoryIds: [policyCategoryId, "category-local"],
     expectedVersion: 7,
   });
-});
-
-test("채팅 관리자는 목록에 없는 방을 알고 있는 roomId로 조회한다", async ({ context, page }) => {
-  await authenticate(context);
-  await page.goto("/admin/chat/categories");
-
-  await page.getByText("목록에 없는 방 ID로 찾기").click();
-  await page.getByLabel("채팅방 ID").fill("room-1");
-  await page.getByRole("button", { name: "현재 설정 불러오기" }).click();
-
-  await expect(
-    page.getByRole("group", { name: "교체할 카테고리" }).getByLabel("정책"),
-  ).toBeChecked();
 });
 
 test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행한다", async ({ context, page }) => {

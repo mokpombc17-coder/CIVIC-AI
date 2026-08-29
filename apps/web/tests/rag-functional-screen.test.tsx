@@ -1801,7 +1801,7 @@ describe("9 functional RAG screens", () => {
     }
   });
 
-  it("관리자 업로드는 지원 형식과 LEGAL-05 권리 확인을 함께 표시한다", () => {
+  it("관리자 업로드는 지원 형식을 표시하고 별도 권리 확인을 요구하지 않는다", () => {
     const screen = ragScreens.find((item) => item.id === "A-RAG-004");
     if (!screen) throw new Error("A-RAG-004 missing");
     const html = renderToStaticMarkup(
@@ -1810,7 +1810,7 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain('type="file"');
     expect(html).toContain(RAG_ACCEPTED_EXTENSIONS.join(","));
-    expect(html).toContain("문서 이용 권한을 보유하고 있습니다");
+    expect(html).not.toContain("문서 이용 권한을 보유하고 있습니다");
     expect(html).toContain("새 문서");
     expect(html).toContain('href="/admin/rag?folderId=folder-current"');
     const versionHtml = renderToStaticMarkup(

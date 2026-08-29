@@ -12,8 +12,6 @@ import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels"
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import type { RagQuery } from "./rag-functional-screen";
 import { ragScreenPrimaryActions } from "./rag-screen-actions";
-import { AdminRagAnalytics } from "./admin-rag-analytics";
-import { AdminRagSynonyms } from "./admin-rag-synonyms";
 import { AdminRagSpreadsheetPreview } from "./admin-rag-spreadsheet-preview";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
@@ -405,12 +403,6 @@ export function AdminRagScreen({
             onQueryChange={queryDocuments}
             pageState={pageState}
           />
-          {screen.id === "A-RAG-001" ? (
-            <>
-              <AdminRagAnalytics />
-              <AdminRagSynonyms />
-            </>
-          ) : null}
           {message ? (
             <p aria-live="polite" className="civic-form-message">
               {message}
@@ -765,12 +757,32 @@ export function FolderTree({
       <div className="civic-folder-tree-heading">
         <p className="civic-kicker">문서 폴더</p>
         <h2>폴더</h2>
+      </div>
+      <div aria-label="폴더 작업" className="civic-folder-tree-actions" role="toolbar">
         <Link
           className="civic-secondary-action civic-folder-add"
           href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId ?? "")}&mode=ADD`}
         >
           폴더 추가
         </Link>
+        {selectedFolderId ? (
+          <>
+            <Link
+              aria-label="폴더 수정"
+              className="civic-secondary-action"
+              href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId)}&mode=EDIT`}
+            >
+              수정
+            </Link>
+            <Link
+              aria-label="폴더 삭제"
+              className="civic-secondary-action is-danger"
+              href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId)}&mode=DELETE`}
+            >
+              삭제
+            </Link>
+          </>
+        ) : null}
       </div>
       <ul aria-label="RAG 폴더 트리">
         {visibleFolders.map((folder) => (
@@ -809,23 +821,6 @@ export function FolderTree({
                 <strong>{folder.name}</strong>
               </span>
             </button>
-            {folder.folder_id === selectedFolderId ? (
-              <span className="civic-folder-node-actions">
-                <Link
-                  aria-label="폴더 수정"
-                  href={`/admin/rag/folders?folderId=${encodeURIComponent(folder.folder_id)}&mode=EDIT`}
-                >
-                  수정
-                </Link>
-                <Link
-                  aria-label="폴더 삭제"
-                  className="is-danger"
-                  href={`/admin/rag/folders?folderId=${encodeURIComponent(folder.folder_id)}&mode=DELETE`}
-                >
-                  삭제
-                </Link>
-              </span>
-            ) : null}
           </li>
         ))}
       </ul>
@@ -1019,8 +1014,6 @@ export function DocumentWorkspace({
   const [statusFilter, setStatusFilter] = useState<DocumentStatusFilter>("ALL");
   const [mediaTypeFilter, setMediaTypeFilter] = useState("");
   const [createdByFilter, setCreatedByFilter] = useState("");
-  const [createdFromFilter, setCreatedFromFilter] = useState("");
-  const [createdToFilter, setCreatedToFilter] = useState("");
   const [includeSubfolders, setIncludeSubfolders] = useState(false);
   const [selection, setSelection] = useState<
     Readonly<{
@@ -1043,8 +1036,6 @@ export function DocumentWorkspace({
     statusFilter,
     mediaTypeFilter,
     createdByFilter,
-    createdFromFilter,
-    createdToFilter,
     includeSubfolders,
     visibleDocumentIdsKey,
   ].join("\u0001");
@@ -1116,6 +1107,20 @@ export function DocumentWorkspace({
             <option value="FAILED">실패</option>
           </select>
         </label>
+        <label>
+          <span>페이지당</span>
+          <select
+            aria-label="문서 목록 페이지당 표시 개수"
+            onChange={(event) =>
+              onQueryChange?.({ pageSize: Number(event.target.value) as 10 | 25 | 50, page: 1 })
+            }
+            value={pageState.pageSize}
+          >
+            <option value={10}>10개</option>
+            <option value={25}>25개</option>
+            <option value={50}>50개</option>
+          </select>
+        </label>
         <details className="wf-filter-advanced">
           <summary>상세 필터</summary>
           <div className="wf-filter-advanced-grid">
@@ -1153,28 +1158,6 @@ export function DocumentWorkspace({
                 ))}
               </select>
             </label>
-            <label>
-              <span>등록 시작일</span>
-              <input
-                onChange={(event) => {
-                  setCreatedFromFilter(event.target.value);
-                  onQueryChange?.({ createdFrom: event.target.value, page: 1 });
-                }}
-                type="date"
-                value={createdFromFilter}
-              />
-            </label>
-            <label>
-              <span>등록 종료일</span>
-              <input
-                onChange={(event) => {
-                  setCreatedToFilter(event.target.value);
-                  onQueryChange?.({ createdTo: event.target.value, page: 1 });
-                }}
-                type="date"
-                value={createdToFilter}
-              />
-            </label>
             <label className="civic-check-row">
               <input
                 checked={includeSubfolders}
@@ -1185,20 +1168,6 @@ export function DocumentWorkspace({
                 type="checkbox"
               />
               <span>하위 폴더 포함</span>
-            </label>
-            <label>
-              <span>페이지당</span>
-              <select
-                aria-label="문서 목록 페이지당 표시 개수"
-                onChange={(event) =>
-                  onQueryChange?.({ pageSize: Number(event.target.value) as 10 | 25 | 50, page: 1 })
-                }
-                value={pageState.pageSize}
-              >
-                <option value={10}>10개</option>
-                <option value={25}>25개</option>
-                <option value={50}>50개</option>
-              </select>
             </label>
           </div>
         </details>
@@ -1885,7 +1854,6 @@ function UploadPanel({
   const mode = firstQueryValue(query.mode) === "NEW_VERSION" ? "NEW_VERSION" : "NEW_DOCUMENT";
   const documentId = firstQueryValue(query.documentId);
   const [files, setFiles] = useState<File[]>([]);
-  const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<ReadonlyMap<File, string>>(() => new Map());
   const [acceptedJobs, setAcceptedJobs] = useState<Array<{ filename: string; jobId: string }>>([]);
@@ -1894,12 +1862,7 @@ function UploadPanel({
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      !folder ||
-      files.length === 0 ||
-      !rightsConfirmed ||
-      (mode === "NEW_VERSION" && !documentId)
-    ) {
+    if (!folder || files.length === 0 || (mode === "NEW_VERSION" && !documentId)) {
       return;
     }
     setBusy(true);
@@ -2055,14 +2018,6 @@ function UploadPanel({
           ))}
         </ul>
       ) : null}
-      <label className="civic-check-row">
-        <input
-          checked={rightsConfirmed}
-          onChange={(event) => setRightsConfirmed(event.target.checked)}
-          type="checkbox"
-        />
-        <span>문서 이용 권한을 보유하고 있습니다.</span>
-      </label>
       <div className="civic-form-actions">
         <Link
           className="civic-secondary-action"
@@ -2072,7 +2027,7 @@ function UploadPanel({
         </Link>
         <button
           className="civic-primary-action"
-          disabled={busy || !folder || !rightsConfirmed || files.length === 0}
+          disabled={busy || !folder || files.length === 0}
           type="submit"
         >
           업로드 시작

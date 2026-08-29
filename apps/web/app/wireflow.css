@@ -2461,33 +2461,24 @@ body:has([data-wireflow-shell]) {
   margin-right: auto;
 }
 
-[data-wireflow-screen^="A-RAG"] .civic-folder-tree-heading .civic-folder-add {
-  min-height: 32px;
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree-actions a {
+  min-height: 34px;
+  flex: 1 1 auto;
   border-radius: 6px;
-  padding: 5px 10px;
+  padding: 6px 10px;
   font-size: 12px;
 }
 
-[data-wireflow-screen^="A-RAG"] .civic-folder-node-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding-inline: 8px 4px;
-  font-size: 12px;
-}
-
-[data-wireflow-screen^="A-RAG"] .civic-folder-node-actions a {
-  color: #34537d;
-  font-weight: 750;
-  text-decoration: none;
-}
-
-[data-wireflow-screen^="A-RAG"] .civic-folder-node-actions a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-[data-wireflow-screen^="A-RAG"] .civic-folder-node-actions a.is-danger {
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree-actions a.is-danger {
+  border-color: #d9a3a3;
+  background: #fff;
   color: #aa2e2e;
 }
 
@@ -2836,7 +2827,7 @@ body:has([data-wireflow-shell]) {
 /* iKMS-derived dense document explorer: one shared CIVIC knowledge base, no ACL controls. */
 [data-wireflow-screen^="A-RAG"] .civic-folder-tree li {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
   padding-left: calc(var(--folder-depth, 0) * 14px);
 }
@@ -3259,13 +3250,26 @@ body:has([data-wireflow-shell]) {
 }
 
 .civic-rag-failure-summary li {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(240px, 1.4fr) auto;
+  align-items: center;
   gap: 12px;
   border-top: 1px solid #f1dddd;
   padding-top: 7px;
   color: #6b3a3a;
   font-size: 12px;
+}
+
+.civic-rag-failure-summary li > strong,
+.civic-rag-failure-summary li > span {
+  overflow-wrap: anywhere;
+}
+
+.civic-rag-failure-summary .civic-rag-failure-retry {
+  min-height: 32px;
+  padding: 6px 12px;
+  justify-self: end;
+  white-space: nowrap;
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-upload-dropzone {
@@ -3302,6 +3306,19 @@ body:has([data-wireflow-shell]) {
 
   .civic-ledger-pagination {
     flex-wrap: wrap;
+  }
+
+  .civic-rag-failure-summary li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .civic-rag-failure-summary li > span {
+    grid-column: 1 / -1;
+  }
+
+  .civic-rag-failure-summary .civic-rag-failure-retry {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 
@@ -4149,16 +4166,6 @@ body:has([data-wireflow-shell]) {
   transform: rotate(90deg);
 }
 
-.civic-rag-synonyms {
-  display: grid;
-  gap: 14px;
-}
-
-.civic-rag-synonyms > p {
-  margin: 0;
-  color: var(--wf-muted);
-}
-
 .civic-spreadsheet-preview {
   display: grid;
   gap: 10px;
@@ -4367,5 +4374,150 @@ body:has([data-wireflow-shell]) {
   [data-wireflow-screen^="U-RAG"] .civic-rag-live-badge > span,
   [data-wireflow-screen^="U-RAG"] .civic-rag-stream-cursor {
     animation: none;
+  }
+}
+
+/* === 2026-08-29 관리자 문서 관리 UX 조정 ====================== */
+
+/* 작업 공간을 화면 높이에 고정하고 폴더·문서 영역이 각자 스크롤한다. */
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+  height: calc(100dvh - 144px);
+  min-height: 480px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > * {
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree ul {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+  align-content: start;
+  overflow-y: auto;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+  overflow-y: auto;
+}
+
+/* 폴더 패널: 여백·행 높이를 줄여 밀도를 높인다. */
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > .civic-folder-tree {
+  padding: 14px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree h2 {
+  font-size: 16px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree-actions {
+  margin-top: 8px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree-actions a {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree ul {
+  gap: 2px;
+  margin-block: 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree li {
+  grid-template-columns: 20px minmax(0, 1fr);
+  padding-left: calc(var(--folder-depth, 0) * 10px);
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree li > .civic-folder-expander {
+  width: 20px;
+  min-height: 28px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-expander-placeholder {
+  width: 20px;
+}
+
+[data-wireflow-screen^="A-RAG"]
+  .civic-folder-tree
+  li
+  > :is(.civic-folder-expander, .civic-folder-expander-placeholder)
+  + button {
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+/* 폴더명 헤딩: 경로·이름을 한 줄로 붙여 세로 공간을 아낀다. */
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-heading {
+  margin-bottom: 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-heading > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-heading .civic-breadcrumb {
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-heading h2 {
+  margin-top: 0;
+  font-size: 17px;
+}
+
+/* 필터: 검색·처리 상태·페이지당을 한 줄에, 나머지는 상세 필터로 접는다. */
+[data-wireflow-screen^="A-RAG"] .wf-document-filters {
+  row-gap: 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .wf-document-filters > label:nth-of-type(3) {
+  flex: 0 1 110px;
+}
+
+@media (max-width: 900px) {
+  [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+    height: calc(100dvh - 128px);
+  }
+}
+
+@media (max-width: 720px) {
+  /* 한 열로 쌓이는 폭에서는 페이지 스크롤로 되돌린다. */
+  [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+    height: auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > * {
+    overflow: visible;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-folder-tree ul {
+    max-height: 240px;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .wf-document-filters > label:first-child {
+    flex: 1 1 100%;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .wf-document-filters > label:nth-of-type(2),
+  [data-wireflow-screen^="A-RAG"] .wf-document-filters > label:nth-of-type(3) {
+    flex: 1 1 auto;
   }
 }

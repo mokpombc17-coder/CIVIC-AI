@@ -201,7 +201,6 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     ).toBeGreaterThanOrEqual(400);
     await admin.locator("details[data-rag-inline-upload] > summary").click();
     await admin.locator('input[type="file"]').setInputFiles(fixture);
-    await admin.getByLabel("문서 이용 권한을 보유하고 있습니다.").check();
     const [completedUpload] = await Promise.all([
       admin.waitForResponse(
         (response) =>
