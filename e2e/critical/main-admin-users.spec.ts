@@ -56,7 +56,7 @@ test.beforeAll(async () => {
       };
       return json(response, {
         ...participantUser,
-        roles: ["PARTICIPANT", "ADMIN"],
+        roles: ["ADMIN"],
         permissions: ["RAG_ADMIN"],
         row_version: 3,
       });
@@ -72,7 +72,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => close(server));
 
-test("관리자는 사용자 조회부터 RAG 권한 변경과 감사 이력까지 GUI에서 완료한다", async ({
+test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력까지 GUI에서 완료한다", async ({
   context,
   page,
 }) => {
@@ -91,17 +91,36 @@ test("관리자는 사용자 조회부터 RAG 권한 변경과 감사 이력까�
   await page.getByRole("link", { name: "관리자 전환·권한 편집" }).first().click();
 
   await expect(page.getByRole("heading", { name: "관리자 전환·권한 편집" })).toBeVisible();
-  for (const permission of ["RAG 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {
+  const permissionLabels = ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"];
+  for (const permission of permissionLabels) {
     await expect(page.getByLabel(permission)).toBeVisible();
   }
-  await page.getByLabel("RAG 관리").check();
+  await page.getByRole("radio", { name: /^최고 관리자 /u }).check();
+  for (const permission of permissionLabels) {
+    await expect(page.getByLabel(permission)).toBeChecked();
+    await expect(page.getByLabel(permission)).toBeDisabled();
+  }
+  await expect(page.getByText(/최고 관리자는 모든 운영 권한/)).toBeVisible();
+
+  await page.getByRole("radio", { name: /^사용자 /u }).check();
+  for (const permission of permissionLabels) {
+    await expect(page.getByLabel(permission)).not.toBeChecked();
+    await expect(page.getByLabel(permission)).toBeDisabled();
+  }
+  await expect(
+    page.getByText(/사용자로 저장하면 관리자 역할과 운영 권한이 모두 해제/),
+  ).toBeVisible();
+
+  await page.getByRole("radio", { name: /^운영 관리자 /u }).check();
+  await page.getByLabel("문서 관리").check();
   await page.getByLabel("변경 사유 (필수)").fill("문서 운영 담당자 배정");
+  await expect(page.getByRole("link", { name: "권한 회수 영향 확인" })).toHaveCount(0);
   await page.getByRole("button", { name: "권한 변경 저장" }).click();
 
   await expect(page.getByRole("status")).toContainText("감사 이벤트를 저장했습니다");
   expect(roleUpdate).toEqual({
     body: {
-      roles: ["PARTICIPANT", "ADMIN"],
+      roles: ["ADMIN"],
       permissions: ["RAG_ADMIN"],
       row_version: 2,
       reason: "문서 운영 담당자 배정",

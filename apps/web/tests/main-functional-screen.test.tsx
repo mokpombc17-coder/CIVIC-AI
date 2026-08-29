@@ -8,7 +8,9 @@ import {
   createMutationLock,
   auditSubjectHref,
   adminRoleMutationPath,
+  ADMIN_PERMISSION_CODES,
   filterAdminUsers,
+  hasAdminAccessRevocation,
   loadRequestedAdminUser,
   loadRoleConflictUser,
   loadChatRequestSummary,
@@ -20,7 +22,9 @@ import {
   ragFailureLabel,
   requestAdminUsers,
   requestAdminAudit,
+  permissionsForAdminRole,
   roleFormKey,
+  selectedAdminRole,
   updateAdminLoadMessage,
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
@@ -305,6 +309,19 @@ describe("25 functional Main/Auth screens", () => {
     expect(lock.tryBegin()).toBe(false);
     lock.end();
     expect(lock.tryBegin()).toBe(true);
+  });
+
+  it("관리자 역할은 단일 선택이며 최고 관리자는 모든 운영 권한을 잠근다", () => {
+    expect(selectedAdminRole(["PARTICIPANT", "ADMIN"])).toBe("ADMIN");
+    expect(selectedAdminRole(["ADMIN", "HIGHEST_ADMIN"])).toBe("HIGHEST_ADMIN");
+    expect(permissionsForAdminRole("HIGHEST_ADMIN", [])).toEqual(ADMIN_PERMISSION_CODES);
+    expect(permissionsForAdminRole("PARTICIPANT", ["RAG_ADMIN"])).toEqual([]);
+    expect(permissionsForAdminRole("ADMIN", ["CHAT_ADMIN", "UNKNOWN"])).toEqual(["CHAT_ADMIN"]);
+  });
+
+  it("사용자 전환이나 운영 권한 축소는 저장 요청에서 회수 영향 확인으로 계산한다", () => {
+    expect(hasAdminAccessRevocation(["ADMIN"], ["RAG_ADMIN"], ["PARTICIPANT"], [])).toBe(true);
+    expect(hasAdminAccessRevocation(["PARTICIPANT"], [], ["ADMIN"], ["RAG_ADMIN"])).toBe(false);
   });
 
   it("권한 버전 충돌은 최신 사용자를 다시 읽고 역할 폼 키를 갱신한다", async () => {
@@ -680,7 +697,7 @@ describe("25 functional Main/Auth screens", () => {
     );
   });
 
-  it("Wire Flow의 첫 번째 행동 문구를 그대로 사용한다", () => {
+  it("현재 화면의 대표 행동 문구를 사용한다", () => {
     expect(mainScreenPrimaryActions).toEqual({
       "AUTH-001": "로그인",
       "AUTH-002": "다음으로",
@@ -701,7 +718,7 @@ describe("25 functional Main/Auth screens", () => {
       "A-USER-001": "사용자 상세",
       "A-USER-002": "관리자·권한 편집",
       "A-USER-003": "권한 변경 저장",
-      "A-USER-004": "권한 회수",
+      "A-USER-004": "권한 변경 저장",
       "A-USER-005": "대상 사용자 보기",
       "COMMON-001": "관리 업무 선택",
       "COMMON-002": "최신 상태 보기",
@@ -922,7 +939,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(deactivate).toContain("계정 유지");
   });
 
-  it("Wire Flow 관리자 사용자 표·사유 필드·회수 확인·감사 열을 유지한다", () => {
+  it("관리자 사용자 표·단일 역할·간결한 사유 필드·감사 열을 유지한다", () => {
     const renderAdmin = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -942,18 +959,22 @@ describe("25 functional Main/Auth screens", () => {
     }
     expect(list).not.toContain("<th>이메일 인증</th>");
     expect(list).toContain('aria-label="사용자 상태 필터"');
+    expect(list).toContain("이메일 검색");
+    expect(list).not.toContain("이메일 또는 채팅 이름 검색");
+    expect(list).not.toContain("wf-admin-workbench-link");
 
     const roles = renderAdmin("A-USER-003");
     expect(roles).toContain('name="reason"');
-    expect(roles).toContain("변경 사유 (필수)");
-    for (const permission of ["RAG 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {
+    expect(roles).toContain('aria-label="변경 사유 (필수)"');
+    expect(roles).toContain('class="civic-role-reason"');
+    expect(roles.match(/name="roles"/g)).toHaveLength(3);
+    expect(roles.match(/type="radio"/g)).toHaveLength(3);
+    for (const permission of ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {
       expect(roles).toContain(permission);
     }
+    expect(roles).not.toContain("RAG 관리");
+    expect(roles).not.toContain("권한 회수 영향 확인");
     expect(roles.match(/disabled=""/g)).toHaveLength(9);
-
-    const revoke = renderAdmin("A-USER-004");
-    expect(revoke).toContain('role="alertdialog"');
-    expect(revoke).toContain("영향을 확인했습니다");
 
     const audit = renderAdmin("A-USER-005");
     for (const heading of ["실행자", "대상", "변경 전", "변경 후", "사유", "변경 시각", "작업"]) {
@@ -990,7 +1011,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("오픈 예정");
   });
 
-  it("A-USER 상세·편집·회수는 최신 tab과 overlay 구조를 공유한다", () => {
+  it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {
     const renderAdmin = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -1007,10 +1028,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(roles).toContain('data-wireflow-layout="admin-role-editor"');
     expect(roles).toContain("대상 계정");
     expect(roles).toContain("현재 역할");
-
-    const revoke = renderAdmin("A-USER-004");
-    expect(revoke).toContain('class="wf-admin-overlay"');
-    expect(revoke).toContain('aria-modal="true"');
-    expect(revoke).toContain("권한을 회수하시겠습니까?");
+    expect(roles).not.toContain("wf-admin-overlay");
+    expect(roles).not.toContain("권한을 회수하시겠습니까?");
   });
 });
