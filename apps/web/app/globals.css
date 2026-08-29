@@ -3786,8 +3786,7 @@ body:has(.civic-shell-participant) {
 }
 
 [data-wireflow-shell="admin"] .civic-category-create,
-[data-wireflow-shell="admin"] .civic-category-room-search,
-[data-wireflow-shell="admin"] .civic-category-room-lookup {
+[data-wireflow-shell="admin"] .civic-category-room-search {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
@@ -3795,8 +3794,7 @@ body:has(.civic-shell-participant) {
 }
 
 [data-wireflow-shell="admin"] .civic-category-create > button,
-[data-wireflow-shell="admin"] .civic-category-room-search > button,
-[data-wireflow-shell="admin"] .civic-category-room-lookup > button {
+[data-wireflow-shell="admin"] .civic-category-room-search > button {
   min-height: 2.75rem;
 }
 
@@ -3822,23 +3820,6 @@ body:has(.civic-shell-participant) {
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
-}
-
-[data-wireflow-shell="admin"] .civic-category-room-fallback {
-  border-top: 1px solid var(--civic-line);
-  padding-top: 0.85rem;
-}
-
-[data-wireflow-shell="admin"] .civic-category-room-fallback > summary {
-  width: fit-content;
-  color: var(--civic-blue-dark);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-[data-wireflow-shell="admin"] .civic-category-room-fallback[open] {
-  display: grid;
-  gap: 0.75rem;
 }
 
 [data-wireflow-shell="admin"] .civic-selected-room {
@@ -4191,8 +4172,7 @@ body:has(.civic-shell-participant) {
   }
 
   [data-wireflow-shell="admin"] .civic-category-create,
-  [data-wireflow-shell="admin"] .civic-category-room-search,
-  [data-wireflow-shell="admin"] .civic-category-room-lookup {
+  [data-wireflow-shell="admin"] .civic-category-room-search {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
