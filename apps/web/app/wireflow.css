@@ -1281,7 +1281,7 @@ body {
 
 [data-wireflow-shell="admin"] .civic-admin-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
@@ -1311,6 +1311,18 @@ body {
   color: var(--wf-blue-dark);
   font-size: 24px;
   line-height: 1;
+}
+
+@media (max-width: 980px) {
+  [data-wireflow-shell="admin"] .civic-admin-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  [data-wireflow-shell="admin"] .civic-admin-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 [data-wireflow-shell="admin"] .civic-admin-cards {

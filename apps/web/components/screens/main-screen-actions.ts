@@ -14,7 +14,7 @@ export const mainScreenPrimaryActions: Readonly<Record<string, string>> = Object
   "U-ACCOUNT-002": "필수 정보·동의 저장",
   "U-ACCOUNT-003": "2단계 인증 활성화",
   "U-ACCOUNT-004": "계정 비활성화",
-  "A-HOME-001": "사용자·권한",
+  "A-HOME-001": "관리 현황",
   "A-USER-001": "사용자 상세",
   "A-USER-002": "관리자·권한 편집",
   "A-USER-003": "권한 변경 저장",

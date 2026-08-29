@@ -114,6 +114,15 @@ test.beforeAll(async () => {
         ],
       });
     }
+    if (url.pathname === "/api/v1/admin/simulation-billing/wallet") {
+      return json(response, {
+        balanceKrw: 100_000,
+        heldKrw: 12_000,
+        availableKrw: 88_000,
+        spentTodayKrw: 2_700,
+        updatedAt: "2026-08-29T10:00:00Z",
+      });
+    }
     if (url.pathname === "/internal/v1/rag/documents/document-1/versions/version-1/original") {
       response.writeHead(200, {
         "content-type": "application/pdf",
@@ -452,29 +461,14 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
 
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
-  await expect(page.locator('[data-wireflow-layout="admin-home"] .wf-admin-metric')).toHaveCount(3);
+  await expect(page.locator('[data-wireflow-layout="admin-home"] .wf-admin-metric')).toHaveCount(4);
   const adminCards = page.locator('[data-wireflow-layout="admin-home"] .wf-action-card');
-  await expect(adminCards).toHaveCount(5);
-  const firstAdminCard = await adminCards.nth(0).boundingBox();
-  const secondAdminCard = await adminCards.nth(1).boundingBox();
-  expect(firstAdminCard).not.toBeNull();
-  expect(secondAdminCard).not.toBeNull();
-  expect(Math.abs(firstAdminCard!.x - secondAdminCard!.x)).toBeLessThanOrEqual(1);
-  expect(firstAdminCard!.width).toBeGreaterThan(1000);
-  expect(firstAdminCard!.height).toBeLessThanOrEqual(100);
-  await expect(adminCards.nth(0).locator(".wf-badge")).toBeHidden();
-  const firstAdminAction = await adminCards.nth(0).locator(".wf-button").boundingBox();
-  expect(firstAdminAction).not.toBeNull();
-  expect(firstAdminAction!.height).toBeLessThanOrEqual(50);
-  expect(
-    await adminCards
-      .nth(0)
-      .locator(".wf-button")
-      .evaluate((element) => ({
-        borderColor: getComputedStyle(element).borderColor,
-        color: getComputedStyle(element).color,
-      })),
-  ).toEqual({ borderColor: "rgb(40, 108, 244)", color: "rgb(7, 85, 207)" });
+  await expect(adminCards).toHaveCount(0);
+  await expect(page.getByText("시뮬레이션 사용 잔액", { exact: true })).toBeVisible();
+  await expect(page.getByText("88,000원", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("전체 100,000원 · 실행 보류 12,000원", { exact: true }),
+  ).toBeVisible();
   await expectBox(page.locator(".civic-admin-sidebar"), {
     x: [0, 0],
     y: [0, 0],

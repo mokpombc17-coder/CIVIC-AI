@@ -13,6 +13,7 @@ import {
   loadRoleConflictUser,
   loadChatRequestSummary,
   loadRagJobSummary,
+  loadSimulationWalletSummary,
   loadTaskDeadlineSummary,
   RagFailureSummary,
   ragFailureRetryHref,
@@ -503,7 +504,7 @@ describe("25 functional Main/Auth screens", () => {
     });
   });
 
-  it("관리 홈은 Chat 승인 대기와 24시간 내 과업 마감을 실제 응답에서 계산한다", async () => {
+  it("관리 홈은 승인 대기·과업 마감·시뮬레이션 사용 잔액을 실제 응답에서 계산한다", async () => {
     const now = Date.parse("2026-08-26T00:00:00Z");
     const chat = vi.fn(async () =>
       Response.json({ items: [{ id: "one" }, { id: "two" }], hasNext: false }),
@@ -524,6 +525,15 @@ describe("25 functional Main/Auth screens", () => {
         },
       ]),
     );
+    const wallet = vi.fn(async () =>
+      Response.json({
+        balanceKrw: 100_000,
+        heldKrw: 12_000,
+        availableKrw: 88_000,
+        spentTodayKrw: 2_700,
+        updatedAt: "2026-08-29T10:00:00Z",
+      }),
+    );
 
     await expect(loadChatRequestSummary(chat as typeof fetch)).resolves.toEqual({
       status: "ready",
@@ -534,6 +544,16 @@ describe("25 functional Main/Auth screens", () => {
       status: "ready",
       count: 1,
       hasMore: false,
+    });
+    await expect(loadSimulationWalletSummary(wallet as typeof fetch)).resolves.toEqual({
+      status: "ready",
+      wallet: {
+        balanceKrw: 100_000,
+        heldKrw: 12_000,
+        availableKrw: 88_000,
+        spentTodayKrw: 2_700,
+        updatedAt: "2026-08-29T10:00:00Z",
+      },
     });
   });
 
@@ -677,7 +697,7 @@ describe("25 functional Main/Auth screens", () => {
       "U-ACCOUNT-002": "필수 정보·동의 저장",
       "U-ACCOUNT-003": "2단계 인증 활성화",
       "U-ACCOUNT-004": "계정 비활성화",
-      "A-HOME-001": "사용자·권한",
+      "A-HOME-001": "관리 현황",
       "A-USER-001": "사용자 상세",
       "A-USER-002": "관리자·권한 편집",
       "A-USER-003": "권한 변경 저장",
@@ -941,7 +961,7 @@ describe("25 functional Main/Auth screens", () => {
     }
   });
 
-  it("A-HOME-001은 최신 Wire Flow의 3개 현황 지표와 5개 관리 카드로 구성한다", () => {
+  it("A-HOME-001은 메뉴를 반복하지 않고 4개 운영 지표로 구성한다", () => {
     const home = mainScreens.find((screen) => screen.id === "A-HOME-001");
     if (!home) throw new Error("A-HOME-001 missing");
 
@@ -950,18 +970,20 @@ describe("25 functional Main/Auth screens", () => {
     );
 
     expect(html).toContain('data-wireflow-layout="admin-home"');
-    expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(3);
+    expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(4);
     expect(html).toContain("승인 대기");
     expect(html).toContain("채팅 생성 신청 확인 중");
     expect(html).toContain("처리 실패");
     expect(html).toContain("확인 중");
     expect(html).toContain("24시간 내 마감");
-    expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(5);
-    expect(html).toContain("사용자 관리 열기");
-    expect(html).toContain("문서 관리 열기");
-    expect(html).toContain("채팅 신청 열기");
-    expect(html).toContain("과업 관리 열기");
-    expect(html).toContain("시뮬레이션 열기");
+    expect(html).toContain("시뮬레이션 사용 잔액");
+    expect(html).toContain("공용 지갑 잔액 확인 중");
+    expect(html).not.toContain('class="wf-card wf-action-card"');
+    expect(html).not.toContain("사용자 관리 열기");
+    expect(html).not.toContain("문서 관리 열기");
+    expect(html).not.toContain("채팅 신청 열기");
+    expect(html).not.toContain("과업 관리 열기");
+    expect(html).not.toContain("시뮬레이션 열기");
     expect(html).not.toContain("RAG 자료");
     expect(html).not.toContain("오픈 예정");
   });

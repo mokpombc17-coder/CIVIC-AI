@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import Link from "next/link";
-import { WireflowActionCard } from "@/components/wireflow/wireflow-blocks";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
+import { readWalletSummary, type WalletSummary } from "@/lib/admin/simulation-billing-contracts";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
 import type { CurrentUser } from "@/lib/auth/shell-access";
@@ -60,6 +60,11 @@ export type AdminDomainMetricState =
   | { status: "ready"; count: number; hasMore: boolean }
   | { status: "unavailable" }
   | { status: "forbidden" };
+export type SimulationWalletMetricState =
+  | { status: "loading" }
+  | { status: "ready"; wallet: WalletSummary }
+  | { status: "unavailable" }
+  | { status: "forbidden" };
 
 export function AdminFunctionalScreen({
   screen,
@@ -79,6 +84,10 @@ export function AdminFunctionalScreen({
   const [taskDeadlineSummary, setTaskDeadlineSummary] = useState<AdminDomainMetricState>({
     status: adminCurrentUser.permissions.includes("VOTE_ADMIN") ? "loading" : "forbidden",
   });
+  const [simulationWalletSummary, setSimulationWalletSummary] =
+    useState<SimulationWalletMetricState>({
+      status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
+    });
   const [message, setMessage] = useState("");
   const [auditMessage, setAuditMessage] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>("all");
@@ -88,18 +97,22 @@ export function AdminFunctionalScreen({
   const canReadRag = adminCurrentUser.permissions.includes("RAG_ADMIN");
   const canManageChat = adminCurrentUser.permissions.includes("CHAT_ADMIN");
   const canManageVote = adminCurrentUser.permissions.includes("VOTE_ADMIN");
+  const canManageSimulation = adminCurrentUser.permissions.includes("SIMULATION_ADMIN");
 
   useEffect(() => {
     const activeUserLoadGate = userLoadGate.current;
-    if (screen.id === "A-HOME-001" || screen.id.startsWith("A-USER")) void loadUsers();
+    if (screen.id.startsWith("A-USER")) void loadUsers();
     if (screen.id === "A-USER-005") void loadAudit();
     if (screen.id === "A-HOME-001" && canReadRag) {
       void refreshRagJobSummary();
     }
     if (screen.id === "A-HOME-001" && canManageChat) void refreshChatRequestSummary();
     if (screen.id === "A-HOME-001" && canManageVote) void refreshTaskDeadlineSummary();
+    if (screen.id === "A-HOME-001" && canManageSimulation) {
+      void refreshSimulationWalletSummary();
+    }
     return () => activeUserLoadGate.cancel();
-  }, [canManageChat, canManageVote, canReadRag, screen.id]);
+  }, [canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
 
   async function loadUsers(query = "") {
     const isCurrent = userLoadGate.current.begin();
@@ -158,6 +171,10 @@ export function AdminFunctionalScreen({
 
   async function refreshTaskDeadlineSummary() {
     setTaskDeadlineSummary(await loadTaskDeadlineSummary());
+  }
+
+  async function refreshSimulationWalletSummary() {
+    setSimulationWalletSummary(await loadSimulationWalletSummary());
   }
 
   async function search(event: FormEvent<HTMLFormElement>) {
@@ -227,9 +244,9 @@ export function AdminFunctionalScreen({
     >
       {screen.id === "A-HOME-001" ? (
         <AdminHome
-          adminCurrentUser={adminCurrentUser}
           chatRequestSummary={chatRequestSummary}
           ragJobSummary={ragJobSummary}
+          simulationWalletSummary={simulationWalletSummary}
           taskDeadlineSummary={taskDeadlineSummary}
         />
       ) : null}
@@ -335,17 +352,15 @@ export function filterAdminUsers(users: AdminUser[], filter: UserStatusFilter) {
 
 function AdminHome({
   ragJobSummary,
-  adminCurrentUser,
   chatRequestSummary,
+  simulationWalletSummary,
   taskDeadlineSummary,
 }: {
   ragJobSummary: RagJobSummaryState;
   chatRequestSummary: AdminDomainMetricState;
+  simulationWalletSummary: SimulationWalletMetricState;
   taskDeadlineSummary: AdminDomainMetricState;
-  adminCurrentUser: Pick<CurrentUser, "role" | "permissions">;
 }) {
-  const can = (permission: CurrentUser["permissions"][number]) =>
-    adminCurrentUser.permissions.includes(permission);
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
       <ul aria-label="관리 현황" className="civic-admin-metrics">
@@ -376,52 +391,15 @@ function AdminHome({
           <strong>{metricCount(taskDeadlineSummary)}</strong>
           <span>{metricDescription(taskDeadlineSummary, "진행 중 과업")}</span>
         </li>
+        <li className="wf-admin-metric">
+          <small>시뮬레이션 사용 잔액</small>
+          <strong>{simulationWalletBalance(simulationWalletSummary)}</strong>
+          <span>{simulationWalletDescription(simulationWalletSummary)}</span>
+        </li>
       </ul>
       {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
         <RagFailureSummary failures={ragJobSummary.recentFailures} />
       ) : null}
-      <section aria-label="관리 업무" className="civic-admin-cards">
-        {adminCurrentUser.role === "HIGHEST_ADMIN" ? (
-          <WireflowActionCard
-            action={<AdminCardLink href="/admin/users">사용자 관리 열기</AdminCardLink>}
-            badge="계정"
-            description="관리자 역할과 변경 이력"
-            title="사용자·권한"
-          />
-        ) : null}
-        {can("RAG_ADMIN") ? (
-          <WireflowActionCard
-            action={<AdminCardLink href="/admin/rag">문서 관리 열기</AdminCardLink>}
-            badge="문서"
-            description="폴더·업로드·처리 상태"
-            title="문서 관리"
-          />
-        ) : null}
-        {can("CHAT_ADMIN") ? (
-          <WireflowActionCard
-            action={<AdminCardLink href="/admin/chat/requests">채팅 신청 열기</AdminCardLink>}
-            badge="채팅"
-            description="생성 신청 검토·승인·반려"
-            title="채팅 신청"
-          />
-        ) : null}
-        {can("VOTE_ADMIN") ? (
-          <WireflowActionCard
-            action={<AdminCardLink href="/admin/tasks">과업 관리 열기</AdminCardLink>}
-            badge="과업"
-            description="생성·마감·결과"
-            title="과업 관리"
-          />
-        ) : null}
-        {can("SIMULATION_ADMIN") ? (
-          <WireflowActionCard
-            action={<AdminCardLink href="/admin/simulations">시뮬레이션 열기</AdminCardLink>}
-            badge="실험"
-            description="실행·상태·결과"
-            title="시뮬레이션"
-          />
-        ) : null}
-      </section>
     </div>
   );
 }
@@ -584,6 +562,21 @@ export async function loadTaskDeadlineSummary(
   }
 }
 
+export async function loadSimulationWalletSummary(
+  request: typeof fetch = authenticatedFetch,
+): Promise<SimulationWalletMetricState> {
+  try {
+    const response = await request("/api/v1/admin/simulation-billing/wallet", {
+      cache: "no-store",
+    });
+    if (!response.ok) return { status: "unavailable" };
+    const wallet = readWalletSummary(await response.json());
+    return wallet ? { status: "ready", wallet } : { status: "unavailable" };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
 function metricCount(summary: AdminDomainMetricState): string {
   if (summary.status === "ready") return `${summary.count}건${summary.hasMore ? " 이상" : ""}`;
   if (summary.status === "forbidden") return "권한 없음";
@@ -594,6 +587,26 @@ function metricDescription(summary: AdminDomainMetricState, label: string): stri
   if (summary.status === "ready") return label;
   if (summary.status === "forbidden") return "담당 관리자 권한이 필요합니다";
   return summary.status === "loading" ? `${label} 확인 중` : `${label}을 불러오지 못했습니다`;
+}
+
+function simulationWalletBalance(summary: SimulationWalletMetricState): string {
+  if (summary.status === "ready") return formatKrw(summary.wallet.availableKrw);
+  if (summary.status === "forbidden") return "권한 없음";
+  return summary.status === "loading" ? "확인 중" : "확인 불가";
+}
+
+function simulationWalletDescription(summary: SimulationWalletMetricState): string {
+  if (summary.status === "ready") {
+    return `전체 ${formatKrw(summary.wallet.balanceKrw)} · 실행 보류 ${formatKrw(summary.wallet.heldKrw)}`;
+  }
+  if (summary.status === "forbidden") return "시뮬레이션 관리자 권한이 필요합니다";
+  return summary.status === "loading"
+    ? "공용 지갑 잔액 확인 중"
+    : "공용 지갑 잔액을 불러오지 못했습니다";
+}
+
+function formatKrw(value: number): string {
+  return `${value.toLocaleString("ko-KR")}원`;
 }
 
 export async function loadRequestedAdminUser(
@@ -663,13 +676,6 @@ export function updateAdminLoadMessage(
   return { ...current, [channel]: message };
 }
 
-function AdminCardLink({ children, href }: Readonly<{ children: string; href: string }>) {
-  return (
-    <Link className="wf-button wf-button-secondary" href={href as Route}>
-      {children}
-    </Link>
-  );
-}
 function RoleForm({
   selected,
   onSubmit,
