@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jdk-jammy AS builder
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk-jammy AS builder
 
 WORKDIR /workspace
 
@@ -6,8 +6,6 @@ COPY gradlew build.gradle settings.gradle ./
 COPY gradle ./gradle
 COPY civic-auth-resource-server-adapter/build.gradle \
     ./civic-auth-resource-server-adapter/build.gradle
-
-RUN ./gradlew --no-daemon dependencies
 
 COPY civic-auth-resource-server-adapter/src \
     ./civic-auth-resource-server-adapter/src

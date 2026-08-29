@@ -1,0 +1,79 @@
+services:
+  vote-db:
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    restart: unless-stopped
+    env_file:
+      - ${VOTE_SERVER_ENV:?VOTE_SERVER_ENV is required}
+    volumes:
+      - vote-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  vote-resource-server:
+    image: ${VOTE_IMAGE:?VOTE_IMAGE is required}
+    pull_policy: never
+    init: true
+    restart: unless-stopped
+    env_file:
+      - ${VOTE_SERVER_ENV:?VOTE_SERVER_ENV is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: local,stage,auth-main
+      SERVER_PORT: "8082"
+      VOTE_DB_URL: jdbc:postgresql://vote-db:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      VOTE_DB_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
+      VOTE_DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      VOTE_TASK_BOOTSTRAP_PERSONA_SUBJECTS: >-
+        46fd4756-f07f-4b54-b03a-6e07740317da,
+        4af25cff-f0ad-4a43-ad4f-5f556dcdff5b,
+        89074124-2d0f-4cc1-b14e-8e8a3c5e933f,
+        7f099599-04a3-4d25-9798-15a491e1ff32,
+        77b1499c-6951-4242-8ce8-d8a5b9d31621,
+        69230d56-11b5-42dd-9eea-a8116c005fc5,
+        352e7eab-ed90-4c7f-8628-483c4a5404aa,
+        cbf68442-aa94-4502-9911-9e1e348214b8,
+        74d8b3c6-86ed-44bd-abf6-8af36f21d753,
+        8c90ae1f-5b2d-435a-91fa-074ebe3e1d7c,
+        3c19157f-da2a-4392-8652-8643a5e2f019
+      VOTE_TASK_BOOTSTRAP_PARTICIPATION_ENABLED: "false"
+      VOTE_TASK_BOOTSTRAP_SUBMISSION_SIMULATION_ENABLED: "false"
+      VOTE_JWT_ISSUER_URI: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
+      VOTE_JWT_JWKS_URI: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}/.well-known/jwks.json
+      VOTE_BROWSER_ORIGIN: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
+      VOTE_SECURITY_LOCAL_ADMIN_API_ENABLED: "false"
+    depends_on:
+      vote-db:
+        condition: service_healthy
+    networks:
+      default:
+      edge:
+        aliases:
+          - vote-resource-server
+          - vote-primary
+    ports:
+      - "127.0.0.1:8082:8082"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent --show-error http://127.0.0.1:8082/actuator/health
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    stop_grace_period: 35s
+
+networks:
+  default:
+  edge:
+    name: ${VOTE_EDGE_NETWORK:-civic-a1-dev_default}
+    external: true
+
+volumes:
+  vote-data:
+    external: true
+    name: ${VOTE_DATA_VOLUME:?VOTE_DATA_VOLUME is required}
