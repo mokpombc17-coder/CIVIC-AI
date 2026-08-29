@@ -642,6 +642,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(signupHtml).toContain('data-wireflow-screen="AUTH-002"');
     expect(signupHtml).toContain('aria-label="회원가입 단계"');
     expect(signupHtml).toContain("1/3");
+    expect(signupHtml.match(/autocomplete="new-password"/gi)).toHaveLength(2);
+    expect(signupHtml).not.toMatch(/autocomplete="current-password"/i);
     expect(loginHtml).toContain("회원가입");
     expect(loginHtml).toContain("비밀번호 재설정");
   });
