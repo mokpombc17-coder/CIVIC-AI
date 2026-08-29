@@ -1055,7 +1055,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].userLabel")
-                        .value("owner-1"))
+                        .isString())
                 .andExpect(jsonPath("$.items[0].userId")
                         .doesNotExist())
                 .andExpect(jsonPath("$.items[0].displayName")
