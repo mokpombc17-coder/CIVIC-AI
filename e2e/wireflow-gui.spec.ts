@@ -25,6 +25,33 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/auth/csrf") {
       return json(response, { csrf_token: "wireflow-csrf-token" });
     }
+    if (url.pathname === "/api/v1/signup/flows" && request.method === "POST") {
+      return json(response, {
+        flow_id: "wireflow-signup-flow",
+        documents: {
+          TERMS: {
+            document_id: "TERMS",
+            document_version: "1",
+            body_sha256: "0".repeat(64),
+            path: "/legal/terms/1",
+          },
+          ACCOUNT_RAG_PRIVACY: {
+            document_id: "ACCOUNT_RAG_PRIVACY",
+            document_version: "1",
+            body_sha256: "1".repeat(64),
+            path: "/legal/account-rag-privacy/1",
+          },
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/auth/password-reset/request" && request.method === "POST") {
+      response.writeHead(202).end();
+      return;
+    }
+    if (url.pathname === "/api/v1/auth/password-reset/complete" && request.method === "POST") {
+      response.writeHead(204).end();
+      return;
+    }
     if (url.pathname === "/api/v1/account/profile") {
       return json(response, profileFixture);
     }
@@ -141,7 +168,8 @@ test("AUTH-001은 frontend2 Platform Shell 안에서 실제 로그인 UI를 유�
   await expectBox(signup, { x: [202, 204], width: [174, 177], height: [47, 50] });
 });
 
-test("AUTH-002 헤더는 Figma node 74:43의 좌표를 유지한다", async ({ page }) => {
+test("AUTH-002 헤더는 모바일 공통 높이로 본문과 분리된다", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
   await page.goto("/signup/account");
 
   const shell = page.locator(".civic-signup-account-shell");
@@ -151,9 +179,147 @@ test("AUTH-002 헤더는 Figma node 74:43의 좌표를 유지한다", async ({ p
 
   await expect(shell).toHaveCount(1);
   await expect(back).toBeVisible();
-  await expectBox(header, { x: [0, 1], y: [0, 1], width: [392, 394], height: [91, 93] });
-  await expectBox(back, { x: [15, 17], y: [11, 13], width: [43, 45], height: [43, 45] });
-  await expectBox(title, { x: [71, 73], y: [20, 22], height: [26, 28] });
+  await expectBox(header, { x: [0, 1], y: [0, 1], width: [392, 394], height: [63, 65] });
+  await expectBox(back, { x: [15, 17], y: [9, 11], width: [43, 45], height: [43, 45] });
+  await expectBox(title, { x: [71, 73], y: [18, 20], height: [26, 28] });
+});
+
+test("AUTH-002·003·004는 Figma 가입 요소와 유동 모바일 폭을 유지한다", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto("/signup/account");
+
+  const step = page.getByRole("navigation", { name: "회원가입 단계" });
+  const form = page.locator('[data-wireflow-layout="auth-flow"] .wf-auth-form');
+  const count = step.locator(":scope > p > strong");
+  const stepTitle = step.locator(":scope > p > span");
+  const submit = form.getByRole("button", { name: "다음으로" });
+
+  await expectBox(step, {
+    x: [15.5, 16.5],
+    y: [79.5, 80.5],
+    width: [360.5, 361.5],
+    height: [65, 66],
+  });
+  await expectBox(form, {
+    x: [15.5, 16.5],
+    y: [161, 162],
+    width: [360.5, 361.5],
+    height: [502, 503],
+  });
+  await expectBox(submit, { x: [36.5, 37.5], width: [318.5, 319.5], height: [47.5, 48.5] });
+  await expect(count).toHaveCSS("font-size", "13px");
+  await expect(count).toHaveCSS("font-weight", "700");
+  await expect(stepTitle).toHaveCSS("font-size", "16px");
+  await expect(stepTitle).toHaveCSS("font-weight", "700");
+  await expect(form.locator(".civic-field").first()).toHaveCSS("font-size", "15px");
+
+  for (const width of [320, 360, 393, 430]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/signup/account");
+    await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toBeVisible();
+
+    await expectBox(page.getByRole("navigation", { name: "회원가입 단계" }), {
+      x: [15.5, 16.5],
+      width: [width - 32.5, width - 31.5],
+    });
+    await expectBox(page.locator('[data-wireflow-layout="auth-flow"] .wf-auth-form'), {
+      x: [15.5, 16.5],
+      width: [width - 32.5, width - 31.5],
+    });
+    await expectBox(page.getByRole("button", { name: "다음으로" }), {
+      x: [36.5, 37.5],
+      width: [width - 74.5, width - 73.5],
+    });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
+
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto("/signup/account");
+  await page.getByRole("textbox", { name: "이메일" }).fill("wireflow@example.com");
+  await page.getByLabel("비밀번호", { exact: true }).fill("Wireflow1!");
+  await page.getByLabel("비밀번호 확인").fill("Wireflow1!");
+  await page.getByRole("checkbox", { name: "만 14세 이상입니다" }).check();
+  await page.getByRole("button", { name: "다음으로" }).click();
+  await expect(page.locator('[data-wireflow-screen="AUTH-003"]')).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+    "2/3개인정보·설문",
+  );
+  await expect(page.locator('.civic-step-indicator li[aria-current="step"]')).toHaveCSS(
+    "height",
+    "8px",
+  );
+
+  await page.getByRole("button", { name: "다음으로" }).click();
+  await expect(page.locator('[data-wireflow-screen="AUTH-004"]')).toBeVisible();
+  const termsLabel = page.locator(".civic-consent-item .civic-check > span").first();
+  await expect(termsLabel).toContainText("이용약관에 동의합니다");
+  await expect(termsLabel).toHaveCSS("font-size", "15px");
+  await expect(termsLabel).toHaveCSS("font-weight", "700");
+  await expect(termsLabel).toHaveCSS("line-height", "22.5px");
+});
+
+test("AUTH-007·008은 이메일 입력 단계를 건너뛰고 Figma 비밀번호 재설정 흐름을 유지한다", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto("/login");
+  await page.getByLabel("이메일").fill("name@example.com");
+  await page.getByRole("button", { name: "비밀번호 재설정" }).click();
+
+  await expect(page).toHaveURL(/\/password-reset$/u);
+  await expect(page.getByRole("heading", { name: "비밀번호 재설정" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "등록 이메일" })).toHaveCount(0);
+  const codeForm = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-form');
+  const codeSupport = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-info');
+  await expect(codeForm).toContainText("na***@example.com으로 코드를 전송했습니다.");
+  await expectBox(codeForm, {
+    x: [15.5, 16.5],
+    y: [84.5, 85.5],
+    width: [360.5, 361.5],
+    height: [270, 272],
+  });
+  await expectBox(codeSupport, {
+    x: [15.5, 16.5],
+    y: [375, 377],
+    width: [360.5, 361.5],
+    height: [184, 186],
+  });
+  await expect(codeForm.getByRole("heading", { name: "인증 코드 입력" })).toHaveCSS(
+    "font-size",
+    "18px",
+  );
+  await expect(codeForm.getByLabel("6자리 인증 코드")).toHaveCSS("font-size", "16px");
+
+  await codeForm.getByLabel("6자리 인증 코드").fill("111222");
+  await codeForm.getByRole("button", { name: "인증하기" }).click();
+
+  await expect(page).toHaveURL(/\/password-reset\/complete$/u);
+  const passwordForm = page.locator('[data-wireflow-screen="AUTH-008"] .wf-auth-form');
+  const passwordSupport = page.locator('[data-wireflow-screen="AUTH-008"] .wf-auth-info');
+  await expect(passwordForm.getByLabel("6자리 인증 코드")).toHaveValue("111222");
+  await expectBox(passwordForm, {
+    x: [15.5, 16.5],
+    y: [84.5, 85.5],
+    width: [360.5, 361.5],
+    height: [446, 447],
+  });
+  await expectBox(passwordSupport, {
+    x: [15.5, 16.5],
+    y: [547, 548],
+    width: [360.5, 361.5],
+    height: [205, 207],
+  });
+
+  for (const width of [320, 430]) {
+    await page.setViewportSize({ width, height: 852 });
+    await page.reload();
+    await expect(passwordForm).toBeVisible();
+    await expectBox(passwordForm, {
+      x: [15.5, 16.5],
+      width: [width - 32.5, width - 31.5],
+    });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
 });
 
 test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 하단 메뉴를 유지한다", async ({
@@ -617,7 +783,7 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계
     x: [0, 1],
     y: [0, 1],
     width: [392, 394],
-    height: [63, 65],
+    height: [68, 70],
   });
 
   await page

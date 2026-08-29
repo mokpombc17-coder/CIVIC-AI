@@ -13,7 +13,7 @@ type AuthFormCardProps = Readonly<{
 
 export function AuthFormCard({ children, onSubmit, subtitle, title }: AuthFormCardProps) {
   return (
-    <form className="wf-auth-form" onSubmit={onSubmit}>
+    <form className="wf-auth-form" method="post" onSubmit={onSubmit}>
       {title ? (
         <header className="wf-card-heading">
           <h2>{title}</h2>

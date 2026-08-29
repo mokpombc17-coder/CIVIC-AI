@@ -15,14 +15,8 @@
 
 html,
 body {
-  background: #f4f5f6;
   color: var(--wf-ink);
   font-family: var(--wf-font);
-}
-
-body:has([data-wireflow-screen]),
-body:has([data-wireflow-shell]) {
-  background: #f4f5f6;
 }
 
 .app-shell:has([data-wireflow-screen]),
@@ -96,13 +90,410 @@ body:has([data-wireflow-shell]) {
   border-radius: 0;
 }
 
-/* Figma AUTH-002 header (node 74:43): controls in a 68px row, divider at 91.84px. */
+/* Signup keeps the shared 64px mobile header; the Figma body starts below it. */
 .civic-signup-account-shell {
-  --platform-shell-header-height: 91.84px;
+  --platform-shell-header-height: 64px;
 }
 
-.civic-signup-account-shell > [data-platform-shell-surface="true"] > header > div {
-  min-height: 68px;
+/* Figma signup flow: nodes 74:51, 74:152, and 74:194 at a 393px reference width. */
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator {
+  gap: 10px;
+  margin: 16px 16px 0;
+  padding: 12px 16px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator
+  > p {
+  gap: 6px;
+  line-height: 1;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator
+  > p
+  strong {
+  color: #0a4fd1;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 19.5px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator
+  > p
+  span {
+  color: #1f2124;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22.4px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator
+  ol {
+  align-items: center;
+  gap: 4px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator
+  li {
+  height: 4px;
+  border-radius: 0;
+  background: #8a949e;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator
+  li.is-done {
+  height: 4px;
+  background: #266ef5;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-step-indicator
+  li.is-current {
+  height: 8px;
+  background: #266ef5;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .civic-auth-grid {
+  gap: 16px;
+  padding: 16px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form {
+  gap: 12px;
+  border-color: #ccd1d6;
+  border-radius: 8px;
+  padding: 12px 20px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .wf-card-heading {
+  padding-bottom: 10px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .wf-card-heading
+  h2 {
+  color: #121417;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 27px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .civic-field {
+  gap: 6px;
+  color: #121417;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .civic-field
+  > span {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .civic-field
+  :is(input, select) {
+  min-height: 48px;
+  border-color: #59616b;
+  border-radius: 6px;
+  padding: 11px 12px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .civic-field-help {
+  margin: 0;
+  color: #59616b;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19.5px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .civic-check {
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .civic-check
+  input {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin: 0;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  .civic-check
+  span {
+  color: #121417;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"]
+  )
+  .wf-auth-form
+  > .wf-button {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+[data-wireflow-screen="AUTH-002"] .wf-auth-form > .wf-button-primary {
+  margin-top: 6px;
+}
+
+/* Figma password reset flow: skip 74:338, then render 74:259 and 74:356. */
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .civic-auth-grid {
+  gap: 16px;
+  padding: 16px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-form {
+  gap: 12px;
+  border-color: #ccd1d6;
+  border-radius: 8px;
+  padding: 12px 20px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .wf-card-heading
+  h2 {
+  color: #121417;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 27px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field {
+  gap: 6px;
+  color: #121417;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field
+  > span {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field
+  input {
+  min-height: 48px;
+  border-color: #59616b;
+  border-radius: 6px;
+  padding: 11px 12px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field-help {
+  margin: 0;
+  color: #59616b;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19.5px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  > .wf-button-primary {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info {
+  gap: 12px;
+  border-color: #9ed1fa;
+  border-radius: 8px;
+  background: #edf7ff;
+  padding: 15px 16px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-info
+  .wf-info-icon {
+  width: 24px;
+  height: 24px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info strong {
+  color: #085985;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info p {
+  color: #1f2124;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info .wf-button {
+  min-height: 48px;
+  border-color: #266ef5;
+  border-radius: 6px;
+  background: #edf2ff;
+  color: #0a4fd1;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+[data-wireflow-screen="AUTH-007"] .civic-auth-grid {
+  gap: 20px;
+}
+
+[data-wireflow-screen="AUTH-007"] .wf-auth-form .wf-card-heading {
+  padding-bottom: 13px;
+}
+
+[data-wireflow-screen="AUTH-007"] .wf-auth-form .wf-card-subtitle {
+  line-height: 18.85px;
+}
+
+[data-wireflow-screen="AUTH-007"] .wf-auth-form > .wf-button-primary {
+  margin-top: 5px;
+}
+
+[data-wireflow-screen="AUTH-008"] .wf-auth-form .wf-card-heading {
+  padding-bottom: 10px;
+}
+
+[data-wireflow-screen="AUTH-008"] .wf-auth-form > .wf-button-primary {
+  margin-top: 6px;
 }
 
 .wf-screen-heading p {
@@ -516,33 +907,46 @@ body:has([data-wireflow-shell]) {
 .wf-participant-home {
   display: grid;
   align-content: start;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-  padding: 19px 16px 16px;
+  margin: 19px 16px 16px;
 }
 
 .wf-participant-home .wf-action-card {
   min-height: 120px;
-  padding: 20px;
+  align-items: start;
+  column-gap: 12px;
+  padding: 19px 21px 19px 19px;
 }
 
 .wf-participant-home .wf-action-copy {
-  gap: 3px;
+  gap: 6px;
 }
 
 .wf-participant-home .wf-action-copy h2 {
-  font-size: 20px;
-  line-height: 1.25;
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
 }
 
 .wf-participant-home .wf-action-copy p {
-  font-size: 15px;
-  line-height: 1.45;
+  color: #59616b;
+  font-size: 14px;
+  line-height: 20.3px;
+}
+
+.wf-participant-home .wf-action-control {
+  padding-top: 15px;
 }
 
 .wf-participant-home .wf-action-control .wf-button {
+  width: 94px;
   min-width: 94px;
   min-height: 48px;
   border-radius: 6px;
+  font-weight: 700;
+  line-height: 20px;
   white-space: nowrap;
 }
 
@@ -3352,10 +3756,16 @@ body:has([data-wireflow-shell]) {
 /* === 2026-08-28 Figma 디자이너 수정분 정렬 ===================== */
 
 /* 공통 헤더: 브랜드 타이틀(홈) */
+[data-platform-shell="true"]:has(.civic-brand-title) {
+  --platform-shell-header-height: 64px;
+}
+
 .civic-brand-title {
-  color: var(--wf-blue);
-  font-weight: 800;
-  letter-spacing: 0.2px;
+  color: #0a4fd1;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 20px;
 }
 
 /* 카드 부제(예: AUTH-005 마스킹 이메일 안내) */
@@ -3496,26 +3906,58 @@ body:has([data-wireflow-shell]) {
 }
 
 /* 홈: 환영 카드 + 액션 카드 강조 */
+[data-wireflow-screen="U-HOME-001"] {
+  --wf-ink: #121417;
+  --wf-muted: #59616b;
+  --wf-line: #ccd1d6;
+  --wf-blue: #266ef5;
+  --wf-blue-dark: #0a4fd1;
+  --wf-blue-soft: #edf2ff;
+}
+
 .wf-home-welcome {
   display: grid;
-  gap: 8px;
+  height: 141px;
+  align-content: start;
+  gap: 0;
   margin: 19px 16px 0;
+  border-color: #ccd1d6;
+  padding: 17px 19px 18px;
 }
 
 .wf-home-welcome h2 {
-  margin: 0;
-  font-size: 18px;
+  margin: 11px 0 0;
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
 }
 
 .wf-home-welcome p {
-  margin: 0;
-  color: var(--wf-muted);
+  margin: 6.2px 0 0;
+  color: #59616b;
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 20.3px;
 }
 
 .wf-home-welcome .wf-badge {
   justify-self: start;
+}
+
+[data-wireflow-screen="U-HOME-001"] .wf-badge {
+  height: 22px;
+  min-height: 22px;
+  border-radius: 4px;
+  background: #edf2ff;
+  color: #0a4fd1;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.wf-participant-home .wf-badge {
+  min-width: 32.75px;
+  justify-content: center;
 }
 
 .wf-participant-home .wf-action-card {
@@ -3993,9 +4435,10 @@ body:has([data-wireflow-shell]) {
 }
 
 .civic-header-greeting {
-  color: var(--wf-ink);
+  color: #1f2124;
   font-size: 14px;
   font-weight: 700;
+  line-height: 21px;
   white-space: nowrap;
 }
 

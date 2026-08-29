@@ -5,7 +5,7 @@ export const mainScreenPrimaryActions: Readonly<Record<string, string>> = Object
   "AUTH-004": "가입하기",
   "AUTH-005": "인증하기",
   "AUTH-006": "가입 이메일 인증",
-  "AUTH-007": "재설정 이메일 보내기",
+  "AUTH-007": "인증하기",
   "AUTH-008": "비밀번호 변경",
   "AUTH-009": "인증 코드 받기",
   "AUTH-010": "계정 재활성화",

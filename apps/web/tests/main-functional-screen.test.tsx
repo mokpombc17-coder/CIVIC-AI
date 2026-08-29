@@ -36,7 +36,9 @@ import {
   authenticatedDestination,
   duplicateEmailAccountState,
   isDeactivatedAccountError,
+  isPasswordResetEmail,
   LoginDeactivatedNotice,
+  passwordResetCodeFromSearch,
   safeReturnTarget,
   SignupDuplicateEmailNotice,
   signupRecovery,
@@ -514,6 +516,14 @@ describe("25 functional Main/Auth screens", () => {
     expect(verificationKindFromSearch("")).toBe("SIGNUP");
   });
 
+  it("비밀번호 재설정 이메일과 딥링크 인증 코드를 안전하게 읽는다", () => {
+    expect(isPasswordResetEmail(" citizen@example.com ")).toBe(true);
+    expect(isPasswordResetEmail("citizen.example.com")).toBe(false);
+    expect(passwordResetCodeFromSearch("?code=111222")).toBe("111222");
+    expect(passwordResetCodeFromSearch("?code=11%2012%2022")).toBe("111222");
+    expect(passwordResetCodeFromSearch("?code=12345x")).toBeNull();
+  });
+
   it("가입 인증과 비밀번호 재설정·재활성화 완료 뒤 로그인 화면으로 이동한다", () => {
     expect(authCompletionDestination("AUTH-005", "SIGNUP")).toBe("/login");
     expect(authCompletionDestination("AUTH-008", "SIGNUP")).toBe("/login");
@@ -613,7 +623,7 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-004": "가입하기",
       "AUTH-005": "인증하기",
       "AUTH-006": "가입 이메일 인증",
-      "AUTH-007": "재설정 이메일 보내기",
+      "AUTH-007": "인증하기",
       "AUTH-008": "비밀번호 변경",
       "AUTH-009": "인증 코드 받기",
       "AUTH-010": "계정 재활성화",
@@ -705,12 +715,17 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("인증 코드와 비밀번호 재설정은 최신 카드·안내 구조를 공유한다", () => {
-    for (const id of ["AUTH-005", "AUTH-006", "AUTH-008"]) {
+    for (const id of ["AUTH-005", "AUTH-006", "AUTH-007", "AUTH-008"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
       const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
-      expect(html).toContain('class="wf-auth-form"');
+      expect(html).toContain('class="wf-auth-form" method="post"');
       expect(html).toContain('class="wf-auth-info"');
+      if (id === "AUTH-007") {
+        expect(html).toContain("인증 코드 입력");
+        expect(html).toContain('name="code"');
+        expect(html).not.toContain('name="email"');
+      }
     }
   });
 
@@ -792,12 +807,15 @@ describe("25 functional Main/Auth screens", () => {
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
     expect(html).toContain('class="wf-card wf-home-welcome"');
     expect(html).toContain("배우고, 함께 토론하고, 결정합니다.");
-    expect(html).toContain("문서 질문");
+    expect(html).toContain("무엇이 궁금한가요?");
+    expect(html).toContain("주제와 관련된 자료를 바탕으로 AI가 답변해 드려요.");
     expect(html).toContain("질문하기");
-    expect(html).toContain("주제별 토론");
+    expect(html).toContain("함께 나누는 의견");
+    expect(html).toContain("다른 참여자와 편하게 의견을 나눠보세요.");
     expect(html).toContain("토론하기");
-    expect(html).toContain("과업 투표");
-    expect(html).toContain("투표하기");
+    expect(html).toContain("내 생각을 더하는 한 표");
+    expect(html).toContain("선택지를 고르고 그 이유를 제출해 보세요.");
+    expect(html).toContain("참여하기");
     expect(html).not.toMatch(/[▣◇▤›]/);
     expect(html).not.toContain("오픈 예정");
   });
