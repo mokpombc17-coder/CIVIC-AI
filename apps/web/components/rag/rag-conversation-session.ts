@@ -1,5 +1,3 @@
-import type { RagFeedbackValue } from "./rag-feedback";
-
 export type Citation = Readonly<{
   document_version_id: string;
   page_number: number;
@@ -42,7 +40,6 @@ export type RagJob = Readonly<{
   citations?: Citation[];
   suggestions?: string[];
   failure_code?: string;
-  feedback?: RagFeedbackValue;
   progress?: RagProgress;
 }>;
 
@@ -205,13 +202,6 @@ function isStoredRagJob(value: unknown): value is RagJob {
   }
   for (const field of ["session_id", "submitted_question", "answer", "failure_code"] as const) {
     if (value[field] !== undefined && typeof value[field] !== "string") return false;
-  }
-  if (
-    value.feedback !== undefined &&
-    value.feedback !== "HELPFUL" &&
-    value.feedback !== "UNHELPFUL"
-  ) {
-    return false;
   }
   if (value.progress !== undefined && !isStoredRagProgress(value.progress)) return false;
   if (

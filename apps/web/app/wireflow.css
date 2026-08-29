@@ -4778,45 +4778,6 @@ body {
   }
 }
 
-/* RAG 답변 평가 (A3: 무스타일 네이티브 버튼 정리) */
-.civic-rag-feedback {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.civic-rag-feedback > span {
-  color: var(--wf-muted);
-  font-size: 12px;
-}
-
-.civic-rag-feedback button {
-  min-height: 34px;
-  border: 1px solid var(--wf-line-strong);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--wf-ink);
-  padding: 5px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.civic-rag-feedback button[aria-pressed="true"] {
-  border-color: var(--wf-blue);
-  background: var(--wf-blue-soft);
-  color: var(--wf-blue-dark);
-}
-
-.civic-rag-feedback button:disabled {
-  opacity: 0.55;
-}
-
-.civic-rag-feedback small {
-  color: var(--wf-muted);
-}
-
 /* PDF 뷰어 문서 메타 */
 .wf-rag-document-meta {
   display: grid;
