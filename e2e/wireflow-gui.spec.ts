@@ -111,6 +111,8 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/jobs/job-1") {
       return json(response, {
         job_id: "job-1",
+        document_id: "document-1",
+        upload_cancel_allowed: true,
         status: "FAILED",
         progress: 10,
         failure_code: "DOCUMENT_READ_FAILED",
@@ -963,6 +965,26 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(page.getByRole("button", { name: "실패 파일 다시 처리" })).toHaveClass(
     /civic-primary-action/,
   );
+  await expect(page.getByRole("button", { name: "업로드 취소" })).toHaveClass(
+    /civic-danger-action/,
+  );
+  await expect(page.getByRole("button", { name: "상태 새로고침" })).toHaveCount(0);
+  const cancellationRequestPromise = page.waitForRequest(
+    (request) =>
+      request.method() === "DELETE" &&
+      new URL(request.url()).pathname === "/api/v1/rag/documents/document-1" &&
+      new URL(request.url()).searchParams.get("failed_job_id") === "job-1",
+  );
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toBe(
+      "실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?",
+    );
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "업로드 취소" }).click();
+  const cancellationRequest = await cancellationRequestPromise;
+  expect(cancellationRequest.headers()["idempotency-key"]).toBeTruthy();
+  await expect(page).toHaveURL(/\/admin\/rag$/u);
 
   await page.goto("/admin/rag/delete?folderId=general&documentId=document-1");
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toBeVisible();

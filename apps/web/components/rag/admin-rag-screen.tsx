@@ -244,6 +244,8 @@ export async function requestRagBulkAction(
 
 export type RagJob = Readonly<{
   job_id: string;
+  document_id?: string;
+  upload_cancel_allowed?: boolean;
   status: string;
   progress?: number;
   failure_code?: string;
@@ -2281,11 +2283,12 @@ function ragJobStepMarker(state: string): string {
 }
 
 export function RagJobStatusCard({
+  cancelling = false,
   filename,
   headingId = "civic-job-status-title",
   job,
   message,
-  onRefresh,
+  onCancelUpload,
   onRetry,
   replacementHref,
   retrying,
@@ -2295,8 +2298,9 @@ export function RagJobStatusCard({
   headingId?: string;
   job: RagJob | null;
   message: string;
-  onRefresh: () => void;
+  onCancelUpload?: () => void;
   onRetry: () => void;
+  cancelling?: boolean;
   replacementHref?: Route;
   retrying: boolean;
   workspaceHref?: Route;
@@ -2372,13 +2376,20 @@ export function RagJobStatusCard({
         <Link className="civic-secondary-action" href={workspaceHref}>
           문서 목록
         </Link>
-        <button className="civic-secondary-action" onClick={onRefresh} type="button">
-          상태 새로고침
-        </button>
+        {job?.status === "FAILED" && job.upload_cancel_allowed && job.document_id ? (
+          <button
+            className="civic-danger-action"
+            disabled={cancelling || retrying || Boolean(replacementHref) || !onCancelUpload}
+            onClick={onCancelUpload}
+            type="button"
+          >
+            {cancelling ? "업로드 취소 중…" : "업로드 취소"}
+          </button>
+        ) : null}
         {job?.status === "FAILED" ? (
           <button
             className="civic-primary-action"
-            disabled={retrying || Boolean(replacementHref)}
+            disabled={cancelling || retrying || Boolean(replacementHref)}
             onClick={onRetry}
             type="button"
           >
@@ -2404,7 +2415,6 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
       <RagJobStatusCard
         job={null}
         message="작업 ID가 필요합니다."
-        onRefresh={() => undefined}
         onRetry={() => undefined}
         retrying={false}
         workspaceHref={ragWorkspaceHref(folderId)}
@@ -2437,9 +2447,12 @@ function JobStatusItem({
   headingId: string;
   jobId: string;
 }>) {
+  const router = useRouter();
   const [job, setJob] = useState<RagJob | null>(null);
   const [replacementJobId, setReplacementJobId] = useState<string | null>(null);
   const retryOperation = useRef(createRetryOperation());
+  const cancellationOperation = useRef(createRetryOperation());
+  const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [message, setMessage] = useState("문서 처리 상태를 불러오는 중입니다…");
 
@@ -2499,12 +2512,49 @@ function JobStatusItem({
     }
   }
 
+  async function cancelUpload() {
+    if (!job?.document_id || !job.upload_cancel_allowed || job.status !== "FAILED" || cancelling) {
+      return;
+    }
+    if (!window.confirm("실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?")) {
+      return;
+    }
+    const idempotencyKey = cancellationOperation.current.begin(job.job_id);
+    if (!idempotencyKey) return;
+    setCancelling(true);
+    setMessage("업로드를 취소하고 문서를 정리하는 중입니다…");
+    let definitiveResponse = false;
+    try {
+      const result = await requestRagUploadCancellation({
+        documentId: job.document_id,
+        jobId: job.job_id,
+        idempotencyKey,
+      });
+      definitiveResponse = result.definitive;
+      if (result.kind === "network") {
+        setMessage("네트워크 오류로 업로드를 취소하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      if (result.kind === "rejected") {
+        setMessage("문서 상태가 변경되어 업로드를 취소하지 못했습니다.");
+        return;
+      }
+      setJob((current) => (current ? { ...current, status: "CANCELLED", progress: 0 } : current));
+      setMessage("업로드를 취소하고 실패 문서를 정리했습니다.");
+      router.replace(ragWorkspaceHref(folderId));
+    } finally {
+      cancellationOperation.current.settle(definitiveResponse);
+      setCancelling(false);
+    }
+  }
+
   return (
     <RagJobStatusCard
+      cancelling={cancelling}
       headingId={headingId}
       job={job}
       message={message}
-      onRefresh={() => void refresh()}
+      onCancelUpload={() => void cancelUpload()}
       onRetry={() => void retry()}
       retrying={retrying}
       workspaceHref={ragWorkspaceHref(folderId)}
@@ -2514,6 +2564,38 @@ function JobStatusItem({
         : {})}
     />
   );
+}
+
+export type RagUploadCancellationResult = Readonly<{
+  kind: "cancelled" | "rejected" | "network";
+  definitive: boolean;
+}>;
+
+export async function requestRagUploadCancellation({
+  documentId,
+  jobId,
+  idempotencyKey,
+  request = authenticatedFetch,
+}: Readonly<{
+  documentId: string;
+  jobId: string;
+  idempotencyKey: string;
+  request?: typeof fetch;
+}>): Promise<RagUploadCancellationResult> {
+  try {
+    const response = await request(
+      `/api/v1/rag/documents/${encodeURIComponent(documentId)}?failed_job_id=${encodeURIComponent(jobId)}`,
+      {
+        method: "DELETE",
+        headers: { "idempotency-key": idempotencyKey },
+      },
+    );
+    return response.ok
+      ? { kind: "cancelled", definitive: true }
+      : { kind: "rejected", definitive: true };
+  } catch {
+    return { kind: "network", definitive: false };
+  }
 }
 
 export async function loadRagJob(
