@@ -20,6 +20,7 @@ import {
   type Message,
   type RagJob,
   type RagProgress,
+  type RagProgressStage,
   RAG_PROGRESS_STAGES,
 } from "./rag-conversation-session";
 
@@ -44,8 +45,6 @@ function clockLabel(date = new Date()): string {
 
 export type RagLiveJob = Readonly<{
   progress: RagProgress;
-  progressReceivedAt: number;
-  startedAt: number;
   streamedAnswer: string;
 }>;
 
@@ -74,13 +73,10 @@ const STREAMING_PROGRESS: RagProgress = {
 type UpdateRagLiveJobs = (update: (current: RagLiveJobs) => RagLiveJobs) => void;
 
 function startLiveJob(updateLiveJobs: UpdateRagLiveJobs, jobId: string): void {
-  const now = Date.now();
   updateLiveJobs((current) => ({
     ...current,
     [jobId]: {
       progress: QUEUED_PROGRESS,
-      progressReceivedAt: now,
-      startedAt: now,
       streamedAnswer: "",
     },
   }));
@@ -103,34 +99,23 @@ function liveStreamOptions(
   return {
     signal,
     onProgress: (progress) => {
-      const now = Date.now();
       updateLiveJobs((current) => {
         const previous = current[jobId];
         return {
           ...current,
           [jobId]: {
             progress,
-            progressReceivedAt: now,
-            startedAt: previous?.startedAt ?? now - Math.max(0, progress.elapsed_seconds) * 1000,
             streamedAnswer: previous?.streamedAnswer ?? "",
           },
         };
       });
     },
     onAnswerStart: () => {
-      const now = Date.now();
       updateLiveJobs((current) => {
-        const previous = current[jobId];
-        const startedAt = previous?.startedAt ?? now;
         return {
           ...current,
           [jobId]: {
-            progress: {
-              ...STREAMING_PROGRESS,
-              elapsed_seconds: Math.max(0, Math.floor((now - startedAt) / 1000)),
-            },
-            progressReceivedAt: now,
-            startedAt,
+            progress: STREAMING_PROGRESS,
             streamedAnswer: "",
           },
         };
@@ -583,6 +568,9 @@ function RagMessage({
   const relatedTitles = Array.from(
     new Set(citations.flatMap((citation) => citation.related_titles ?? [])),
   );
+  const showStreamingAnswer = liveJob
+    ? shouldShowRagStreamingAnswer(liveJob.progress.stage, liveJob.streamedAnswer)
+    : false;
   return (
     <article className="civic-rag-exchange">
       <div className="civic-rag-question-row">
@@ -596,9 +584,16 @@ function RagMessage({
         </header>
         <div className={`civic-rag-answer${liveJob ? " is-live" : ""}`}>
           {liveJob ? (
-            liveJob.streamedAnswer ? (
-              <div aria-label="실시간 답변" className="civic-rag-streamed-answer">
-                <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+            showStreamingAnswer ? (
+              <div aria-busy="true" aria-label="실시간 답변" className="civic-rag-streamed-answer">
+                <span className="civic-rag-stream-label">
+                  <span aria-hidden="true" /> 실시간 답변
+                </span>
+                {liveJob.streamedAnswer ? (
+                  <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+                ) : (
+                  <p className="civic-rag-stream-starting">답변 생성을 시작하고 있어요.</p>
+                )}
                 <span aria-hidden="true" className="civic-rag-stream-cursor" />
               </div>
             ) : (
@@ -682,42 +677,68 @@ function RagMessage({
   );
 }
 
+const VISIBLE_PROGRESS_STAGES = [
+  { stage: "UNDERSTANDING", label: "질문 이해" },
+  { stage: "SEARCHING", label: "자료 검색" },
+  { stage: "READING", label: "근거 분석" },
+] as const satisfies ReadonlyArray<{ stage: RagProgressStage; label: string }>;
+
+const ANSWER_GENERATION_STAGES = new Set<RagProgressStage>(["COMPOSING", "VERIFYING", "STREAMING"]);
+
+export function shouldShowRagStreamingAnswer(
+  stage: RagProgressStage,
+  streamedAnswer: string,
+): boolean {
+  return streamedAnswer.length > 0 || ANSWER_GENERATION_STAGES.has(stage);
+}
+
 export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const elapsedSeconds = Math.max(
-    liveJob.progress.elapsed_seconds,
-    Math.floor((now - liveJob.startedAt) / 1000),
-  );
+  const activeIndex =
+    liveJob.progress.stage === "QUEUED"
+      ? 0
+      : VISIBLE_PROGRESS_STAGES.findIndex(({ stage }) => stage === liveJob.progress.stage);
+  const visibleProgressPercent = Math.min(100, Math.max(0, liveJob.progress.progress_percent));
 
   return (
-    <section aria-label="RAG 답변 로딩" className="civic-rag-live-progress" role="status">
+    <section aria-label="RAG 답변 처리 단계" className="civic-rag-live-progress" role="status">
       <div className="civic-rag-live-heading">
         <span className="civic-rag-live-badge">
           <span aria-hidden="true" /> 답변 준비 중
         </span>
-        <strong>시작 후 {formatRagElapsed(elapsedSeconds)}</strong>
       </div>
+      <div
+        aria-label={`답변 처리 ${visibleProgressPercent}%`}
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={visibleProgressPercent}
+        className="civic-rag-progress-track"
+        role="progressbar"
+      >
+        <span style={{ width: `${visibleProgressPercent}%` }} />
+      </div>
+      <ol aria-label="답변 준비 단계" className="civic-rag-stage-list">
+        {VISIBLE_PROGRESS_STAGES.map(({ stage, label }, index) => {
+          const state = index < activeIndex ? "done" : index === activeIndex ? "active" : "waiting";
+          return (
+            <li
+              aria-current={state === "active" ? "step" : undefined}
+              className={`is-${state}`}
+              key={stage}
+            >
+              <span aria-hidden="true">{state === "done" ? "✓" : index + 1}</span>
+              <small>{label}</small>
+            </li>
+          );
+        })}
+      </ol>
       <div className="civic-rag-live-copy">
         <div>
-          <strong>문서를 확인하고 답변을 준비하고 있어요</strong>
-          <p>답변이 시작되면 생성되는 내용부터 바로 표시합니다.</p>
+          <strong aria-live="polite">{liveJob.progress.label}</strong>
+          <p>{liveJob.progress.detail}</p>
         </div>
       </div>
     </section>
   );
-}
-
-function formatRagElapsed(seconds: number): string {
-  if (seconds < 60) return `${seconds}초`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return remainingSeconds ? `${minutes}분 ${remainingSeconds}초` : `${minutes}분`;
 }
 
 export function RagSuggestionChips({

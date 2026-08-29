@@ -8,6 +8,7 @@ const WEB_BASE_URL = "https://localhost:3110";
 const MOCK_API_HOST = "127.0.0.1";
 const MOCK_API_PORT = 4792;
 const ACCESS_COOKIE = "civic_ai_access_token";
+const ACTUAL_QUERY_ID = "11111111-1111-4111-8111-111111111111";
 const evidenceRoot = path.resolve(process.cwd(), "../../artifacts/release-evidence/browser");
 
 let mock: Server;
@@ -47,9 +48,16 @@ test.beforeAll(async () => {
       return json(response, { items: [document] });
     }
     if (url.pathname === "/internal/v1/rag/queries" && request.method === "POST") {
-      return json(response, { job_id: "actual-query", status: "PENDING" });
+      return json(response, { job_id: ACTUAL_QUERY_ID, status: "PENDING" });
     }
-    if (url.pathname === "/internal/v1/rag/queries/actual-query") {
+    if (url.pathname === "/internal/v1/rag/stream-session" && request.method === "POST") {
+      return json(response, { stream_path: `/stream/rag/queries/${ACTUAL_QUERY_ID}` });
+    }
+    if (url.pathname === `/internal/v1/rag/queries/${ACTUAL_QUERY_ID}/events`) {
+      void streamQueryEvents(response);
+      return;
+    }
+    if (url.pathname === `/internal/v1/rag/queries/${ACTUAL_QUERY_ID}`) {
       return json(response, queryResult);
     }
     if (
@@ -102,6 +110,18 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
     .getByPlaceholder("문서에 대해 질문하세요...")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
+  const progress = page.getByRole("status", { name: "RAG 답변 처리 단계" });
+  await expect(progress).toBeVisible();
+  await expect(progress).toContainText("질문 이해");
+  await expect(progress).toContainText("자료 검색");
+  await expect(progress).toContainText("근거 분석");
+  await expect(progress).not.toContainText("답변 작성");
+  await expect(progress).not.toContainText("최종 확인");
+  await expect(progress).not.toContainText("시작 후");
+  const streamedAnswer = page.getByLabel("실시간 답변");
+  await expect(streamedAnswer).toContainText("지원 대상과 ");
+  await expect(streamedAnswer).not.toContainText("신청 기준을 확인할 수 있습니다.");
+  await expect(streamedAnswer).toContainText("지원 대상과 신청 기준을 확인할 수 있습니다.");
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
   await page.getByRole("link", { name: "근거 페이지" }).click();
   await expect(page).toHaveURL(/\/rag$/);
@@ -216,6 +236,73 @@ function json(response: import("node:http").ServerResponse, body: unknown) {
   response.end(JSON.stringify(body));
 }
 
+async function streamQueryEvents(response: import("node:http").ServerResponse) {
+  response.writeHead(200, {
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+    "content-type": "text/event-stream",
+  });
+  writeSseEvent(response, "query.progress", {
+    status: "RUNNING",
+    stage: "UNDERSTANDING",
+    label: "질문의 맥락을 이해하고 있어요",
+    detail: "질문의 의도와 이전 대화 맥락을 안전하게 정리합니다.",
+    progress_percent: 12,
+    estimated_remaining_seconds: 8,
+    elapsed_seconds: 1,
+  });
+  await delay(300);
+  writeSseEvent(response, "query.progress", {
+    status: "RUNNING",
+    stage: "SEARCHING",
+    label: "관련 문서를 찾고 있어요",
+    detail: "키워드와 의미를 함께 비교해 관련 자료를 좁힙니다.",
+    progress_percent: 32,
+    estimated_remaining_seconds: 7,
+    elapsed_seconds: 2,
+  });
+  await delay(300);
+  writeSseEvent(response, "query.progress", {
+    status: "RUNNING",
+    stage: "READING",
+    label: "근거가 될 페이지를 읽고 있어요",
+    detail: "문서 구조와 표를 확인해 답변에 사용할 근거를 선별합니다.",
+    progress_percent: 55,
+    estimated_remaining_seconds: 6,
+    elapsed_seconds: 3,
+  });
+  await delay(300);
+  writeSseEvent(response, "query.progress", {
+    status: "RUNNING",
+    stage: "COMPOSING",
+    label: "문서 근거로 답변을 작성하고 있어요",
+    detail: "선별된 근거만 사용해 이해하기 쉬운 답변을 구성합니다.",
+    progress_percent: 76,
+    estimated_remaining_seconds: 4,
+    elapsed_seconds: 4,
+  });
+  await delay(300);
+  writeSseEvent(response, "query.answer.started", { status: "STREAMING" });
+  writeSseEvent(response, "query.answer.delta", { status: "STREAMING", delta: "지원 대상과 " });
+  await delay(700);
+  writeSseEvent(response, "query.answer.delta", {
+    status: "STREAMING",
+    delta: "신청 기준을 확인할 수 있습니다.",
+  });
+  await delay(700);
+  writeSseEvent(response, "query.succeeded", { status: "SUCCEEDED" });
+  response.end();
+}
+
+function writeSseEvent(response: import("node:http").ServerResponse, event: string, data: unknown) {
+  if (response.destroyed) return;
+  response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function currentUser(userId: string, role: "PARTICIPANT" | "HIGHEST_ADMIN") {
   return {
     user_id: userId,
@@ -284,7 +371,7 @@ const document = {
   },
 };
 const queryResult = {
-  job_id: "actual-query",
+  job_id: ACTUAL_QUERY_ID,
   status: "SUCCEEDED",
   submitted_question: "복지정책 문서의 핵심 내용을 알려줘.",
   answer: "지원 대상과 신청 기준을 확인할 수 있습니다.",

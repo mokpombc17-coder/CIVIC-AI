@@ -83,6 +83,7 @@ import {
   RagLiveProgress,
   readRagProgress,
   safeExternalSourceUrl,
+  shouldShowRagStreamingAnswer,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
 import * as participantRagSession from "@/components/rag/participant-rag-screen";
@@ -631,34 +632,41 @@ describe("9 functional RAG screens", () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
-  it("답변이 시작되기 전에는 단계 목록 없이 단일 로딩 상태만 보여준다", () => {
-    const now = Date.now();
+  it("답변 생성 전에는 공개 1·2·3단계만 보여주고 경과 시간은 노출하지 않는다", () => {
     const html = renderToStaticMarkup(
       createElement(RagLiveProgress, {
         liveJob: {
           progress: {
             status: "RUNNING",
-            stage: "COMPOSING",
-            label: "문서 근거로 답변을 작성하고 있어요",
-            detail: "선별된 근거만 사용해 답변을 구성합니다.",
-            progress_percent: 76,
-            estimated_remaining_seconds: 4,
-            elapsed_seconds: 12,
+            stage: "SEARCHING",
+            label: "관련 문서를 찾고 있어요",
+            detail: "키워드와 의미를 함께 비교해 관련 자료를 좁힙니다.",
+            progress_percent: 32,
+            estimated_remaining_seconds: 7,
+            elapsed_seconds: 3,
           },
-          progressReceivedAt: now,
-          startedAt: now - 12_000,
           streamedAnswer: "",
         },
       }),
     );
 
-    expect(html).toContain("답변 준비 중");
-    expect(html).toContain("문서를 확인하고 답변을 준비하고 있어요");
-    expect(html).toContain("생성되는 내용부터 바로 표시합니다");
-    expect(html).not.toContain("질문 이해");
-    expect(html).not.toContain("자료 검색");
+    expect(html).toContain("질문 이해");
+    expect(html).toContain("자료 검색");
+    expect(html).toContain("근거 분석");
+    expect(html).toContain('class="is-done"');
+    expect(html).toContain('class="is-active"');
+    expect(html).not.toContain("답변 작성");
     expect(html).not.toContain("최종 확인");
-    expect(html).not.toContain("COMPOSING");
+    expect(html).not.toContain("시작 후");
+    expect(html).not.toMatch(/[0-9]+초/u);
+  });
+
+  it("3단계 이후에는 빈 첫 조각을 기다리지 않고 스트리밍 답변 영역으로 전환한다", () => {
+    expect(shouldShowRagStreamingAnswer("READING", "")).toBe(false);
+    expect(shouldShowRagStreamingAnswer("COMPOSING", "")).toBe(true);
+    expect(shouldShowRagStreamingAnswer("VERIFYING", "")).toBe(true);
+    expect(shouldShowRagStreamingAnswer("STREAMING", "")).toBe(true);
+    expect(shouldShowRagStreamingAnswer("READING", "첫 답변 조각")).toBe(true);
   });
 
   it("진행 이벤트는 정해진 공개 단계와 제한된 숫자만 허용한다", () => {

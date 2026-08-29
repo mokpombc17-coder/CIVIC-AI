@@ -11,6 +11,10 @@ export function assetPrefixForEnvironment(environment: string | undefined): stri
   return environment === "production" ? MAIN_ASSET_PREFIX : undefined;
 }
 
+export function shouldCompressNextResponses(e2eRagUpstream: string | undefined): boolean {
+  return !e2eRagUpstream?.trim();
+}
+
 function loopbackOrigin(rawValue: string | undefined, variableName: string): string | undefined {
   const rawOrigin = rawValue?.trim();
   if (!rawOrigin) return undefined;
@@ -70,6 +74,9 @@ validateDirectResourceRouteOwnership(appRouteHandlers(appDirectory));
 const assetPrefix = assetPrefixForEnvironment(process.env.NODE_ENV);
 const nextConfig: NextConfig = {
   ...(assetPrefix ? { assetPrefix } : {}),
+  // The installed-browser RAG mock must preserve incremental SSE chunks.
+  // Next's development compression otherwise buffers the rewritten event stream.
+  compress: shouldCompressNextResponses(process.env.CIVIC_E2E_RAG_UPSTREAM),
   output: "standalone",
   outputFileTracingRoot: path.join(process.cwd(), "../.."),
   poweredByHeader: false,
