@@ -243,7 +243,10 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
         task ? `/api/v1/admin/tasks/${encodeURIComponent(task.id)}` : "/api/v1/admin/tasks",
         {
           method: task ? "PUT" : "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...(task ? {} : { "idempotency-key": crypto.randomUUID() }),
+          },
           body: JSON.stringify(body),
         },
       );

@@ -17,6 +17,7 @@ let roomCategories = categoryFixtures();
 let replacedRoomBody: Record<string, unknown> | null = null;
 let removeCategoryOnNextPatch = false;
 let listedRoomQueries: string[] = [];
+let createdTaskIdempotencyKey: string | null = null;
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -121,6 +122,10 @@ test.beforeAll(async () => {
       return json(response, [taskSummary(task)]);
     }
     if (url.pathname === "/api/v1/admin/tasks" && request.method === "POST") {
+      createdTaskIdempotencyKey = request.headers["idempotency-key"] ?? null;
+      if (!createdTaskIdempotencyKey) {
+        return json(response, { code: "INVALID_REQUEST", detail: "The request is invalid." }, 400);
+      }
       createdTaskBody = await readBody(request);
       task = taskFixture("DRAFT", createdTaskBody.title as string);
       return json(response, task, 201, { location: `/api/v1/admin/tasks/${taskId}` });
@@ -153,6 +158,7 @@ test.beforeEach(() => {
   replacedRoomBody = null;
   removeCategoryOnNextPatch = false;
   listedRoomQueries = [];
+  createdTaskIdempotencyKey = null;
 });
 
 test.afterAll(async () => close(server));
@@ -277,7 +283,7 @@ test("채팅 관리자는 목록에 없는 방을 알고 있는 roomId로 조회
   ).toBeChecked();
 });
 
-test("Vote 관리자는 Draft를 만들고 즉시 발행한다", async ({ context, page }) => {
+test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행한다", async ({ context, page }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/tasks/create");
@@ -289,6 +295,9 @@ test("Vote 관리자는 Draft를 만들고 즉시 발행한다", async ({ contex
   await page.getByLabel("선택지 2").fill("B안");
   await page.getByRole("button", { name: "초안 생성" }).click();
 
+  await expect
+    .poll(() => createdTaskIdempotencyKey, { timeout: 2_000 })
+    .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
   await expect(page.getByRole("heading", { name: "과업 상세" })).toBeVisible();
   expect(createdTaskBody).toMatchObject({ title: "지역 정책 선호도 조사" });
   await page.getByLabel("동작").selectOption("open-now");
