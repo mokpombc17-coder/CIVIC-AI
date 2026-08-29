@@ -137,8 +137,8 @@ test("AUTH-001은 frontend2 Platform Shell 안에서 실제 로그인 UI를 유�
   await expectBox(shell, { x: [0, 1], y: [0, 1], width: [392, 394], height: [851, 853] });
   await expectBox(form, { x: [16, 18], width: [359, 362], height: [303, 309] });
   await expectBox(submit, { x: [37, 39], width: [317, 320], height: [47, 50] });
-  await expectBox(reset, { x: [16, 18], width: [359, 362], height: [118, 122] });
-  await expectBox(signup, { x: [16, 18], width: [359, 362], height: [118, 122] });
+  await expectBox(reset, { x: [16, 18], width: [174, 177], height: [47, 50] });
+  await expectBox(signup, { x: [202, 204], width: [174, 177], height: [47, 50] });
 });
 
 test("AUTH-002 헤더는 Figma node 74:43의 좌표를 유지한다", async ({ page }) => {
@@ -693,7 +693,7 @@ test("U-RAG-001은 답변 처리 중 새로고침해도 기존 작업을 이어�
     .getByPlaceholder("문서에 대해 질문하세요...")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
-  await expect(page.getByText("문서를 검색하고 근거를 확인하고 있습니다.")).toBeVisible();
+  await expect(page.getByText("문서를 확인하고 답변을 준비하고 있어요")).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => sessionStorage.getItem("civic:rag-conversation:v1") ?? ""))
     .toContain("query-job-1");
