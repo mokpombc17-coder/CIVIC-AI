@@ -389,6 +389,9 @@ test("시뮬레이션 결과는 성별 필터·도넛 분포·응답 이유를 �
   await expect(page.getByRole("heading", { name: "주민참여예산 우선순위 조사" })).toBeVisible();
   await expect(page.getByRole("img", { name: /생활안전 강화 2명 66.7%/u })).toBeVisible();
   await expect(page.getByText("골목길 안전을 먼저 개선해야 합니다.")).toBeVisible();
+  await expect(page.getByText("실행 모델", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/이 결과는 생성형 AI를 사용해 생성한 가상 패널/u)).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "상세 화면" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "성별", exact: true }).click();
   await page.getByRole("button", { name: "여성", exact: true }).click();

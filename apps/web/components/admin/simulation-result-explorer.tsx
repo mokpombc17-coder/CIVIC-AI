@@ -1,7 +1,5 @@
 "use client";
 
-import type { Route } from "next";
-import Link from "next/link";
 import type { SimulationResult, SimulationResultDetail } from "@/lib/admin/simulation-contracts";
 import styles from "./simulation-result-explorer.module.css";
 
@@ -123,11 +121,6 @@ export function SimulationResultExplorer({
         </a>
       </header>
 
-      <div className={styles.notice} role="note">
-        <SparkIcon />
-        <p>{result.notice}</p>
-      </div>
-
       <dl aria-label="시뮬레이션 결과 요약" className={styles.metrics}>
         <div>
           <dt>요청 패널</dt>
@@ -140,10 +133,6 @@ export function SimulationResultExplorer({
         <div>
           <dt>유효 응답</dt>
           <dd>{answered.toLocaleString("ko-KR")}명</dd>
-        </div>
-        <div className={styles.modelMetric}>
-          <dt>실행 모델</dt>
-          <dd>{result.run.modelType}</dd>
         </div>
       </dl>
 
@@ -267,15 +256,6 @@ export function SimulationResultExplorer({
                   <span>{detail.demographics.ageGroup ?? "연령 미상"}</span>
                 </div>
               </div>
-              <Link
-                className={styles.detailLink}
-                href={
-                  `/admin/simulations/panel/detail?simulationId=${encodeURIComponent(simulationId)}&ordinal=${detail.resultSlot}` as Route
-                }
-              >
-                상세 화면
-                <ChevronIcon direction="right" />
-              </Link>
             </div>
             <div className={styles.answerReason}>
               <div>
@@ -357,14 +337,6 @@ function DownloadIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 20 20">
       <path d="M10 2v10m0 0 4-4m-4 4L6 8M3 15v2h14v-2" />
-    </svg>
-  );
-}
-
-function SparkIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20">
-      <path d="M10 2.5 11.7 7l4.3 1.7-4.3 1.7L10 15l-1.7-4.6L4 8.7 8.3 7 10 2.5Z" />
     </svg>
   );
 }

@@ -96,6 +96,8 @@ describe("simulation result explorer", () => {
     expect(html).toContain("45.0%");
     expect(html).toContain("응답자가 이렇게 답한 이유");
     expect(html).toContain("돌봄 공백을 줄이는 일이 가장 시급하다고 생각합니다.");
-    expect(html).toContain("ordinal=1");
+    expect(html).not.toContain("실행 모델");
+    expect(html).not.toContain("이 결과는 생성형 AI를 사용해 생성한 가상 패널");
+    expect(html).not.toContain("상세 화면");
   });
 });

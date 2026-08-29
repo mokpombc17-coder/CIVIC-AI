@@ -2,7 +2,6 @@
   --atlas-ink: #131923;
   --atlas-muted: #677387;
   --atlas-line: #e1e6ed;
-  --atlas-blue: #2058d6;
   --atlas-coral: #ec6544;
   display: grid;
   gap: 24px;
@@ -49,8 +48,7 @@
   line-height: 1.65;
 }
 
-.download,
-.detailLink {
+.download {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -71,15 +69,13 @@
     transform 160ms ease;
 }
 
-.download:hover,
-.detailLink:hover {
+.download:hover {
   border-color: #8da4ca;
   box-shadow: 0 8px 22px rgb(35 57 96 / 10%);
   transform: translateY(-1px);
 }
 
 .download svg,
-.detailLink svg,
 .resultNavigation svg {
   width: 17px;
   height: 17px;
@@ -90,37 +86,9 @@
   stroke-width: 1.8;
 }
 
-.notice {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 13px 16px;
-  border: 1px solid #d6e2f7;
-  border-radius: 12px;
-  background: #f4f8ff;
-  color: #355077;
-}
-
-.notice svg {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: var(--atlas-blue);
-  stroke-linejoin: round;
-  stroke-width: 1.5;
-}
-
-.notice p {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.5;
-}
-
 .metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(130px, 0.8fr)) minmax(180px, 1.5fr);
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
   gap: 1px;
   overflow: hidden;
   margin: 0;
@@ -151,11 +119,6 @@
   letter-spacing: -0.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.modelMetric dd {
-  font-size: 14px;
-  line-height: 1.45;
 }
 
 .filterStation {
@@ -530,12 +493,6 @@
   font-weight: 700;
 }
 
-.detailLink {
-  min-height: 34px;
-  padding: 0 10px;
-  font-size: 11px;
-}
-
 .answerReason {
   display: grid;
   grid-template-columns: minmax(180px, 0.34fr) minmax(340px, 1fr);
@@ -593,8 +550,7 @@
 .segmented button:focus-visible,
 .valueFilters button:focus-visible,
 .resultNavigation button:focus-visible,
-.download:focus-visible,
-.detailLink:focus-visible {
+.download:focus-visible {
   outline: 3px solid rgb(72 127 238 / 38%);
   outline-offset: 2px;
 }
@@ -672,11 +628,6 @@
     grid-template-columns: auto 1fr;
   }
 
-  .detailLink {
-    grid-column: 1 / -1;
-    justify-self: stretch;
-  }
-
   .answerReason {
     padding: 19px;
   }
@@ -684,7 +635,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .download,
-  .detailLink,
   .segmented button,
   .valueFilters button,
   .donut circle {
