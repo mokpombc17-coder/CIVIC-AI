@@ -341,12 +341,12 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
 
   const cards = page.locator('[data-wireflow-layout="participant-home"] .wf-action-card');
   await expect(cards).toHaveCount(3);
-  await expect(cards.nth(0)).toContainText("문서 질문");
+  await expect(cards.nth(0)).toContainText("무엇이 궁금한가요?");
   await expect(cards.nth(0)).toContainText("질문하기");
-  await expect(cards.nth(1)).toContainText("주제별 토론");
+  await expect(cards.nth(1)).toContainText("함께 나누는 의견");
   await expect(cards.nth(1)).toContainText("토론하기");
-  await expect(cards.nth(2)).toContainText("과업 투표");
-  await expect(cards.nth(2)).toContainText("투표하기");
+  await expect(cards.nth(2)).toContainText("내 생각을 더하는 한 표");
+  await expect(cards.nth(2)).toContainText("참여하기");
 
   await expectBox(cards.nth(0), {
     x: [16, 18],
