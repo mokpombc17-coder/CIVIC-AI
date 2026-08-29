@@ -8,6 +8,7 @@ import com.hamcheeze.chat.export.mongo.MongoResearchChatExportJobSchemaInitializ
 import com.hamcheeze.chat.export.mongo.MongoResearchChatExportJobStore;
 import com.hamcheeze.chat.export.mongo.MongoResearchChatExportSnapshotReader;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditReader;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditRangeReader;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -138,6 +139,23 @@ public class ChatExportConfiguration {
         return new MongoAdminRoomConversationExportSnapshotReader(
                 mongoOperations,
                 auditReader);
+    }
+
+    @Bean
+    AdminRoomConversationExportArtifactGenerator
+            adminRoomConversationExportArtifactGenerator(
+                    ChatMessageAuditRangeReader auditRangeReader,
+                    ObjectMapper objectMapper,
+                    ChatExportProperties properties,
+                    ChatExportTempManager tempManager,
+                    Clock chatExportClock
+            ) {
+        return new AdminRoomConversationExportArtifactGenerator(
+                auditRangeReader,
+                objectMapper,
+                properties,
+                tempManager,
+                chatExportClock);
     }
 
     @Bean(initMethod = "recover")
