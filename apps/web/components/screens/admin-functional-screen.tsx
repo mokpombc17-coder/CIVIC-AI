@@ -37,6 +37,32 @@ type AuditEvent = {
   reason?: string;
 };
 type UserStatusFilter = "all" | "active" | "inactive" | "admin";
+export type AdminRoleChoice = "PARTICIPANT" | "ADMIN" | "HIGHEST_ADMIN";
+export const ADMIN_PERMISSION_CODES = [
+  "RAG_ADMIN",
+  "CHAT_ADMIN",
+  "VOTE_ADMIN",
+  "SIMULATION_ADMIN",
+] as const;
+const ADMIN_ROLE_CHOICES: ReadonlyArray<
+  Readonly<{ description: string; label: string; value: AdminRoleChoice }>
+> = [
+  {
+    value: "PARTICIPANT",
+    label: "사용자",
+    description: "관리자 역할과 운영 권한을 모두 해제합니다.",
+  },
+  {
+    value: "ADMIN",
+    label: "운영 관리자",
+    description: "담당 업무에 필요한 운영 권한을 선택합니다.",
+  },
+  {
+    value: "HIGHEST_ADMIN",
+    label: "최고 관리자",
+    description: "모든 운영 권한이 자동으로 부여됩니다.",
+  },
+];
 export type AdminLoadMessages = Readonly<{ user: string; audit: string }>;
 type RagJobCounts = Readonly<Record<string, number>>;
 export type RecentRagFailure = Readonly<{
@@ -187,13 +213,18 @@ export function AdminFunctionalScreen({
     event.preventDefault();
     if (!selected) return;
     const data = new FormData(event.currentTarget);
-    const roles = data.getAll("roles").map(String);
-    const permissions = data.getAll("permissions").map(String);
+    const role = data.get("roles");
+    if (!isAdminRoleChoice(role)) return setMessage("변경할 역할을 선택해 주세요.");
+    const roles = [role];
+    const permissions = permissionsForAdminRole(role, data.getAll("permissions").map(String));
     const reason = String(data.get("reason") ?? "").trim();
     if (!reason) return setMessage("권한 변경 사유를 입력해 주세요.");
-    if (screen.id === "A-USER-004" && data.get("impact_confirmed") !== "yes") {
-      return setMessage("권한 회수 영향을 확인해 주세요.");
-    }
+    const impactConfirmed = hasAdminAccessRevocation(
+      selected.roles,
+      selected.permissions,
+      roles,
+      permissions,
+    );
     if (!roleMutationLock.current.tryBegin()) return;
     setRoleMutationPending(true);
     try {
@@ -205,7 +236,7 @@ export function AdminFunctionalScreen({
           permissions,
           row_version: selected.row_version,
           reason,
-          impact_confirmed: screen.id === "A-USER-004",
+          impact_confirmed: impactConfirmed,
         }),
       });
       if (!response.ok) {
@@ -258,8 +289,8 @@ export function AdminFunctionalScreen({
           {screen.id === "A-USER-001" ? (
             <form className="civic-admin-search" onSubmit={search}>
               <label>
-                <span>이메일 또는 채팅 이름 검색</span>
-                <input name="query" placeholder="검색어 입력…" type="search" />
+                <span>이메일 검색</span>
+                <input name="query" placeholder="이메일 주소 입력…" type="search" />
               </label>
               <button type="submit">검색</button>
               <div aria-label="사용자 상태 필터" className="wf-admin-filters" role="group">
@@ -282,12 +313,7 @@ export function AdminFunctionalScreen({
             </form>
           ) : null}
           {screen.id === "A-USER-001" ? (
-            <>
-              <UserTable onSelect={setSelected} users={filterAdminUsers(users, userStatusFilter)} />
-              <Link className="wf-button wf-button-secondary wf-admin-workbench-link" href="/admin">
-                관리 업무
-              </Link>
-            </>
+            <UserTable onSelect={setSelected} users={filterAdminUsers(users, userStatusFilter)} />
           ) : (
             <section className="civic-user-detail">
               <UserTabs activeId={screen.id} selected={selected} />
@@ -306,19 +332,9 @@ export function AdminFunctionalScreen({
                   </Link>
                 </>
               ) : null}
-              {screen.id === "A-USER-003" ? (
+              {screen.id === "A-USER-003" || screen.id === "A-USER-004" ? (
                 <RoleForm
                   action={action}
-                  key={roleFormKey(selected, screen.id)}
-                  onSubmit={saveRoles}
-                  pending={roleMutationPending}
-                  selected={selected}
-                />
-              ) : null}
-              {screen.id === "A-USER-004" ? (
-                <RoleForm
-                  action={action}
-                  confirmation
                   key={roleFormKey(selected, screen.id)}
                   onSubmit={saveRoles}
                   pending={roleMutationPending}
@@ -688,164 +704,162 @@ function RoleForm({
   selected,
   onSubmit,
   action,
-  confirmation = false,
   pending,
 }: {
   selected: AdminUser | null;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   action: string;
-  confirmation?: boolean;
   pending: boolean;
 }) {
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(selected?.roles ?? []);
+  const initialRole = selectedAdminRole(selected?.roles ?? []);
+  const [selectedRole, setSelectedRole] = useState<AdminRoleChoice>(initialRole);
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>(
-    selected?.permissions ?? [],
+    permissionsForAdminRole(initialRole, selected?.permissions ?? []),
   );
+  const effectivePermissions = permissionsForAdminRole(selectedRole, selectedPermissions);
+  const isHighestAdmin = selectedRole === "HIGHEST_ADMIN";
+  const isParticipant = selectedRole === "PARTICIPANT";
 
-  const form = (
-    <form
-      aria-labelledby={confirmation ? "role-revoke-title" : undefined}
-      className={`civic-role-form${confirmation ? " civic-role-dialog" : ""}`}
-      onSubmit={onSubmit}
-      role={confirmation ? "alertdialog" : undefined}
-      aria-modal={confirmation ? "true" : undefined}
-    >
-      {confirmation ? (
-        <header className="wf-role-dialog-heading">
-          <div>
-            <span>확인</span>
-            <h2 id="role-revoke-title">권한을 회수하시겠습니까?</h2>
-            <p>문서와 감사 이력은 삭제되지 않으며 저장 시 최신 권한 버전을 다시 확인합니다.</p>
-          </div>
-          <Link
-            aria-label="닫기"
-            className="wf-dialog-close"
-            href={userRoute("/admin/users/roles", selected)}
-          >
-            ×
-          </Link>
-        </header>
-      ) : null}
-      {!confirmation ? (
-        <dl className="wf-role-target">
-          <div>
-            <dt>대상 계정</dt>
-            <dd>{selected?.email ?? "사용자 확인 중"}</dd>
-          </div>
-          <div>
-            <dt>현재 역할</dt>
-            <dd>{selected?.roles.map(roleLabel).join(", ") || "없음"}</dd>
-          </div>
-          <div>
-            <dt>현재 운영 권한</dt>
-            <dd>{selected?.permissions.map(permissionLabel).join(", ") || "없음"}</dd>
-          </div>
-        </dl>
-      ) : null}
-      <fieldset>
-        <legend>{confirmation ? "회수 후 유지할 역할" : "관리자 역할"}</legend>
-        {["PARTICIPANT", "ADMIN", "HIGHEST_ADMIN"].map((role) => (
-          <label key={role}>
-            <input
-              checked={selectedRoles.includes(role)}
-              disabled={!selected || pending}
-              name="roles"
-              onChange={(event) => {
-                const checked = event.currentTarget.checked;
-                setSelectedRoles((current) =>
-                  checked
-                    ? [...new Set([...current, role])]
-                    : current.filter((item) => item !== role),
-                );
-                if (!checked && (role === "ADMIN" || role === "HIGHEST_ADMIN")) {
-                  const remainingAdministratorRole = selectedRoles.some(
-                    (item) => item !== role && (item === "ADMIN" || item === "HIGHEST_ADMIN"),
+  return (
+    <form className="civic-role-form" onSubmit={onSubmit}>
+      <dl className="wf-role-target">
+        <div>
+          <dt>대상 계정</dt>
+          <dd>{selected?.email ?? "사용자 확인 중"}</dd>
+        </div>
+        <div>
+          <dt>현재 역할</dt>
+          <dd>{selected?.roles.map(roleLabel).join(", ") || "없음"}</dd>
+        </div>
+        <div>
+          <dt>현재 운영 권한</dt>
+          <dd>{selected?.permissions.map(permissionLabel).join(", ") || "없음"}</dd>
+        </div>
+      </dl>
+      <fieldset className="wf-role-section">
+        <legend>역할</legend>
+        <p className="wf-role-section-help">역할은 하나만 선택할 수 있습니다.</p>
+        <div className="wf-role-options">
+          {ADMIN_ROLE_CHOICES.map((role) => (
+            <label
+              className={`wf-role-option${selectedRole === role.value ? " is-selected" : ""}`}
+              key={role.value}
+            >
+              <input
+                checked={selectedRole === role.value}
+                disabled={!selected || pending}
+                name="roles"
+                onChange={() => {
+                  setSelectedRole(role.value);
+                  setSelectedPermissions((current) => permissionsForAdminRole(role.value, current));
+                }}
+                type="radio"
+                value={role.value}
+              />
+              <span>
+                <strong>{role.label}</strong>
+                <small>{role.description}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="wf-role-section" aria-describedby="operating-permission-help">
+        <legend>운영 권한</legend>
+        <p
+          aria-live="polite"
+          className={`wf-role-section-help${isParticipant ? " is-revocation" : ""}`}
+          id="operating-permission-help"
+        >
+          {isHighestAdmin
+            ? "최고 관리자는 모든 운영 권한을 가지며 개별 권한을 편집할 수 없습니다."
+            : isParticipant
+              ? "사용자로 저장하면 관리자 역할과 운영 권한이 모두 해제됩니다."
+              : "담당할 관리 업무만 선택하세요."}
+        </p>
+        <div className="wf-permission-options">
+          {ADMIN_PERMISSION_CODES.map((permission) => (
+            <label
+              className={`wf-permission-option${effectivePermissions.includes(permission) ? " is-selected" : ""}${isHighestAdmin || isParticipant ? " is-locked" : ""}`}
+              key={permission}
+            >
+              <input
+                checked={effectivePermissions.includes(permission)}
+                disabled={!selected || pending || isHighestAdmin || isParticipant}
+                name="permissions"
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setSelectedPermissions((current) =>
+                    checked
+                      ? [...new Set([...current, permission])]
+                      : current.filter((item) => item !== permission),
                   );
-                  if (!remainingAdministratorRole) setSelectedPermissions([]);
-                }
-              }}
-              type="checkbox"
-              value={role}
-            />
-            <span>{roleLabel(role)}</span>
-          </label>
-        ))}
+                }}
+                type="checkbox"
+                value={permission}
+              />
+              <span>{permissionLabel(permission)}</span>
+            </label>
+          ))}
+        </div>
       </fieldset>
-      <fieldset>
-        <legend>{confirmation ? "회수 후 유지할 운영 권한" : "운영 권한"}</legend>
-        {["RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN"].map((permission) => (
-          <label key={permission}>
-            <input
-              checked={selectedPermissions.includes(permission)}
-              disabled={!selected || pending}
-              name="permissions"
-              onChange={(event) => {
-                const checked = event.currentTarget.checked;
-                setSelectedPermissions((current) =>
-                  checked
-                    ? [...new Set([...current, permission])]
-                    : current.filter((item) => item !== permission),
-                );
-                if (
-                  checked &&
-                  !selectedRoles.some((role) => role === "ADMIN" || role === "HIGHEST_ADMIN")
-                ) {
-                  setSelectedRoles((current) => [...new Set([...current, "ADMIN"])]);
-                }
-              }}
-              type="checkbox"
-              value={permission}
-            />
-            <span>{permissionLabel(permission)}</span>
-          </label>
-        ))}
-      </fieldset>
-      <label className="civic-field">
-        <span>변경 사유 (필수)</span>
+      <label className="civic-role-reason">
+        <span className="wf-role-reason-heading">
+          <strong>변경 사유</strong>
+          <em>필수</em>
+        </span>
+        <small>감사 이력에서 변경 목적을 바로 이해할 수 있도록 간단히 적어 주세요.</small>
         <textarea
+          aria-label="변경 사유 (필수)"
           disabled={!selected || pending}
           maxLength={1000}
           name="reason"
+          placeholder="예: 문서 운영 담당자로 지정"
           required
-          rows={4}
+          rows={2}
         />
       </label>
-      {confirmation ? (
-        <label className="civic-check">
-          <input disabled={pending} name="impact_confirmed" required type="checkbox" value="yes" />
-          <span>영향을 확인했습니다</span>
-        </label>
-      ) : null}
-      <div className="civic-form-actions">
-        {confirmation ? (
-          <Link className="civic-secondary-action" href={userRoute("/admin/users/roles", selected)}>
-            편집으로
-          </Link>
-        ) : (
-          <Link
-            className="civic-secondary-action"
-            href={userRoute("/admin/users/roles/revoke", selected)}
-          >
-            권한 회수 영향 확인
-          </Link>
-        )}
-        <button
-          className={confirmation ? "civic-danger-action" : "civic-primary-action"}
-          disabled={!selected || pending}
-          type="submit"
-        >
+      <div className="civic-form-actions civic-role-actions">
+        <button className="civic-primary-action" disabled={!selected || pending} type="submit">
           {action}
         </button>
       </div>
     </form>
   );
-  if (!confirmation) return form;
+}
+
+export function selectedAdminRole(roles: readonly string[]): AdminRoleChoice {
+  if (roles.includes("HIGHEST_ADMIN")) return "HIGHEST_ADMIN";
+  if (roles.includes("ADMIN")) return "ADMIN";
+  return "PARTICIPANT";
+}
+
+export function permissionsForAdminRole(
+  role: AdminRoleChoice,
+  permissions: readonly string[],
+): string[] {
+  if (role === "HIGHEST_ADMIN") return [...ADMIN_PERMISSION_CODES];
+  if (role === "PARTICIPANT") return [];
+  return ADMIN_PERMISSION_CODES.filter((permission) => permissions.includes(permission));
+}
+
+export function hasAdminAccessRevocation(
+  currentRoles: readonly string[],
+  currentPermissions: readonly string[],
+  nextRoles: readonly string[],
+  nextPermissions: readonly string[],
+): boolean {
+  const nextRoleSet = new Set(nextRoles);
+  const nextPermissionSet = new Set(nextPermissions);
   return (
-    <div className="wf-admin-overlay">
-      <div aria-hidden="true" className="wf-admin-scrim" />
-      {form}
-    </div>
+    currentRoles.some(
+      (role) => (role === "ADMIN" || role === "HIGHEST_ADMIN") && !nextRoleSet.has(role),
+    ) || currentPermissions.some((permission) => !nextPermissionSet.has(permission))
   );
+}
+
+function isAdminRoleChoice(value: FormDataEntryValue | null): value is AdminRoleChoice {
+  return value === "PARTICIPANT" || value === "ADMIN" || value === "HIGHEST_ADMIN";
 }
 export function AuditList({
   events,
@@ -967,13 +981,13 @@ function UserTabs({ activeId, selected }: { activeId: string; selected: AdminUse
   return (
     <nav aria-label="사용자 상세 메뉴" className="civic-detail-tabs">
       <Link
-        aria-current={activeId === "A-USER-002" || activeId === "A-USER-004" ? "page" : undefined}
+        aria-current={activeId === "A-USER-002" ? "page" : undefined}
         href={userRoute("/admin/users/detail", selected)}
       >
         사용자·관리자 상세
       </Link>
       <Link
-        aria-current={activeId === "A-USER-003" ? "page" : undefined}
+        aria-current={activeId === "A-USER-003" || activeId === "A-USER-004" ? "page" : undefined}
         href={userRoute("/admin/users/roles", selected)}
       >
         관리자 전환·권한 편집
@@ -1009,8 +1023,7 @@ function UserTimeline({ selected }: { selected: AdminUser | null }) {
 
 function adminUserLayout(id: string): string {
   if (id === "A-USER-001") return "admin-user-list";
-  if (id === "A-USER-003") return "admin-role-editor";
-  if (id === "A-USER-004") return "admin-role-revoke";
+  if (id === "A-USER-003" || id === "A-USER-004") return "admin-role-editor";
   if (id === "A-USER-005") return "admin-role-audit";
   return "admin-user-detail";
 }
@@ -1101,7 +1114,7 @@ function accountStateLabel(state: string): string {
 function roleLabel(role: string): string {
   return (
     {
-      PARTICIPANT: "참여자",
+      PARTICIPANT: "사용자",
       ADMIN: "운영 관리자",
       HIGHEST_ADMIN: "최고 관리자",
     }[role] ?? role
@@ -1111,7 +1124,7 @@ function roleLabel(role: string): string {
 function permissionLabel(permission: string): string {
   return (
     {
-      RAG_ADMIN: "RAG 관리",
+      RAG_ADMIN: "문서 관리",
       CHAT_ADMIN: "채팅 관리",
       VOTE_ADMIN: "과업·투표 관리",
       SIMULATION_ADMIN: "시뮬레이션 실행·관리",

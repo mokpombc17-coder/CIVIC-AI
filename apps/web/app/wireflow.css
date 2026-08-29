@@ -1721,31 +1721,226 @@ body {
 
 [data-wireflow-shell="admin"] .civic-role-form {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   border: 1px solid var(--wf-line);
   border-radius: var(--wf-radius);
   background: #fff;
-  padding: 20px;
+  padding: 24px;
 }
 
 .wf-role-target {
-  display: flex;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.2fr) repeat(2, minmax(10rem, 1fr));
+  gap: 0;
   margin: 0;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #f7f9fc;
+  overflow: hidden;
 }
 
 .wf-role-target div {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border-left: 1px solid var(--wf-line);
+  padding: 14px 16px;
+}
+
+.wf-role-target div:first-child {
+  border-left: 0;
 }
 
 .wf-role-target dt {
   color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .wf-role-target dd {
   margin: 0;
   font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form fieldset.wf-role-section {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  padding: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-role-section legend {
+  padding: 0 6px;
+  color: var(--wf-ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.wf-role-section-help {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.wf-role-section-help.is-revocation {
+  color: #934023;
+  font-weight: 700;
+}
+
+.wf-role-options,
+.wf-permission-options {
+  display: grid;
+  gap: 10px;
+}
+
+.wf-role-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wf-permission-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-role-option,
+[data-wireflow-shell="admin"] .civic-role-form .wf-permission-option {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 9px;
+  background: #fff;
+  padding: 13px 14px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-role-option:focus-within,
+[data-wireflow-shell="admin"] .civic-role-form .wf-permission-option:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--wf-blue) 24%, transparent);
+  outline-offset: 2px;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-role-option.is-selected,
+[data-wireflow-shell="admin"] .civic-role-form .wf-permission-option.is-selected {
+  border-color: var(--wf-blue);
+  background: var(--wf-blue-soft);
+  box-shadow: inset 0 0 0 1px var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-role-option > span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-role-option small {
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-permission-option {
+  align-items: center;
+  min-height: 50px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-permission-option.is-locked {
+  cursor: not-allowed;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .wf-role-option input,
+[data-wireflow-shell="admin"] .civic-role-form .wf-permission-option input {
+  flex: none;
+  margin-top: 1px;
+  accent-color: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-role-form label.civic-role-reason {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #f7f9fc;
+  padding: 16px 18px;
+}
+
+.wf-role-reason-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wf-role-reason-heading em {
+  border-radius: 999px;
+  background: #e8eefb;
+  color: var(--wf-blue-dark);
+  padding: 3px 7px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .civic-role-reason > small {
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .civic-role-reason textarea {
+  min-height: 78px;
+  resize: vertical;
+  border-color: var(--wf-line-strong);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .civic-role-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--wf-line);
+  padding-top: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-role-form .civic-role-actions button {
+  min-width: 148px;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .wf-role-target,
+  .wf-role-options {
+    grid-template-columns: 1fr;
+  }
+
+  .wf-role-target div,
+  .wf-role-target div:first-child {
+    border-top: 1px solid var(--wf-line);
+    border-left: 0;
+  }
+
+  .wf-role-target div:first-child {
+    border-top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  [data-wireflow-shell="admin"] .civic-role-form {
+    padding: 16px;
+  }
+
+  .wf-permission-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 .wf-admin-overlay {
