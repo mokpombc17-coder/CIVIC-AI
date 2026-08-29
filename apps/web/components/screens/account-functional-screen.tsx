@@ -51,7 +51,7 @@ type Profile = {
   survey_answers?: SurveyAnswers;
 } & Partial<Record<SurveyAnswerKey, string | number | null>>;
 
-type SecurityIntent = "password" | "2fa" | null;
+type SecurityIntent = "password" | "2fa-request" | "2fa-verify" | "2fa-disable" | null;
 type ProfileSettings = {
   preferredLanguage: "ko" | "en";
   answerDetail: "concise" | "balanced" | "detailed";
@@ -159,19 +159,27 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
           new_password: data.get("new_password"),
         });
         redirectAfterPasswordChange();
-      } else if (operation === "2fa") {
-        if (profile === null) throw new Error("계정 보안 상태를 불러온 뒤 다시 시도해 주세요.");
-        await mutation(
-          `/api/v1/account/2fa/${profile.two_factor_enabled ? "disable" : "enable"}`,
-          "POST",
-          profile.two_factor_enabled
-            ? { password: data.get("current_password") }
-            : { code: normalizeTwoFactorCode(data.get("code")) },
-        );
+      } else if (operation === "2fa-request") {
+        const response = await mutation("/api/v1/account/2fa/enable", "POST", { code: null });
+        if (response.status !== 202) {
+          throw new Error("인증 코드를 전송하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        setSecurityIntent("2fa-verify");
+        setMessage("인증코드가 전송되었습니다.");
+      } else if (operation === "2fa-verify") {
+        const code = normalizeTwoFactorCode(data.get("code"));
+        if (code === null) throw new Error("6자리 인증 코드를 입력해 주세요.");
+        await mutation("/api/v1/account/2fa/enable", "POST", { code });
         const updated = await loadAccountProfile();
         setProfile(updated);
         setProfileSettings(readProfileSettings(updated));
-        setMessage("2단계 인증 설정 요청을 처리했습니다.");
+        setSecurityIntent(null);
+        setMessage("2단계 인증이 설정되었습니다.");
+      } else if (operation === "2fa-disable") {
+        await mutation("/api/v1/account/2fa/disable", "POST", {
+          password: data.get("current_password"),
+        });
+        redirectAfterPasswordChange();
       } else if (operation === "deactivate") {
         await mutation("/api/v1/account/deactivate", "POST", { password: data.get("password") });
         location.assign("/reactivate");
@@ -183,6 +191,11 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
     }
   }
 
+  function selectSecurityIntent(intent: SecurityIntent) {
+    setMessage("");
+    setSecurityIntent(intent);
+  }
+
   return (
     <ScreenFrame screen={screen}>
       {screen.id === "U-ACCOUNT-001" ? <AccountHubSurface /> : null}
@@ -191,7 +204,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
           busy={busy}
           intent={securityIntent}
           message={message}
-          onIntent={setSecurityIntent}
+          onIntent={selectSecurityIntent}
           onProfileSettings={setProfileSettings}
           onSubmit={submit}
           profile={profile}
@@ -212,7 +225,7 @@ function AccountHubSurface() {
       <nav aria-label="계정 항목" className="wf-account-hub-menu">
         <Link className="wf-account-hub-card" href={"/mypage/profile" as Route}>
           <strong>내 정보 관리</strong>
-          <span>회원정보, 비밀번호, 2단계 인증과 서비스 이용 동의를 관리합니다.</span>
+          <span>회원정보, 비밀번호와 2단계 인증을 관리합니다.</span>
         </Link>
         <Link className="wf-account-hub-card" href={"/mypage/survey" as Route}>
           <strong>내 설문 보기</strong>
@@ -246,8 +259,13 @@ function AccountManagementSurface({
   settings: ProfileSettings;
 }>) {
   const loaded = profile !== null;
+  const twoFactorIntent = profile?.two_factor_enabled ? "2fa-disable" : "2fa-request";
+  const twoFactorFormOpen = intent?.startsWith("2fa-") === true;
   return (
-    <div className="wf-account-management" data-wireflow-layout="account-management">
+    <div
+      className={`wf-account-management${intent ? " wf-account-management-security-open" : ""}`}
+      data-wireflow-layout="account-management"
+    >
       <form className="wf-account-profile-form" id="wf-account-profile-form" onSubmit={onSubmit}>
         <input name="operation" type="hidden" value="profile" />
         <AccountSection title="회원정보 수정">
@@ -292,6 +310,19 @@ function AccountManagementSurface({
               </select>
             </label>
           </div>
+          {!intent && message ? (
+            <p aria-live="polite" className="civic-form-message">
+              {message}
+            </p>
+          ) : null}
+          <button
+            aria-label="변경사항 저장"
+            className="wf-button wf-button-primary wf-account-submit"
+            disabled={busy || !loaded}
+            type="submit"
+          >
+            {!loaded ? "불러오는 중…" : busy ? "처리 중…" : "변경사항 저장"}
+          </button>
         </AccountSection>
       </form>
 
@@ -312,48 +343,13 @@ function AccountManagementSurface({
                 ? "이메일 코드 인증을 사용하고 있습니다."
                 : "이메일 코드를 활용하여 보안을 강화합니다."
             }
-            onAction={() => onIntent(intent === "2fa" ? null : "2fa")}
+            onAction={() => onIntent(twoFactorFormOpen ? null : twoFactorIntent)}
             title="2단계 인증"
           />
         </div>
         {intent ? (
-          <SecurityForm
-            busy={busy}
-            intent={intent}
-            onSubmit={onSubmit}
-            twoFactorEnabled={profile?.two_factor_enabled === true}
-          />
+          <SecurityForm busy={busy} intent={intent} message={message} onSubmit={onSubmit} />
         ) : null}
-      </section>
-
-      <section aria-labelledby="wf-account-consent-title" className="wf-account-section">
-        <div className="wf-account-panel wf-account-consents">
-          <header>
-            <h2 id="wf-account-consent-title">서비스 이용 동의</h2>
-          </header>
-          <label className="wf-account-choice">
-            <input checked readOnly type="checkbox" />
-            <span>서비스 이용약관 동의</span>
-          </label>
-          <label className="wf-account-choice">
-            <input checked readOnly type="checkbox" />
-            <span>계정·RAG 개인정보 수집·이용 동의</span>
-          </label>
-          {message ? (
-            <p aria-live="polite" className="civic-form-message">
-              {message}
-            </p>
-          ) : null}
-          <button
-            aria-label="변경사항 저장"
-            className="wf-button wf-button-primary wf-account-submit"
-            disabled={busy || !loaded}
-            form="wf-account-profile-form"
-            type="submit"
-          >
-            {!loaded ? "불러오는 중…" : busy ? "처리 중…" : "변경사항 저장"}
-          </button>
-        </div>
       </section>
 
       <section aria-labelledby="wf-account-deactivate-title" className="wf-account-notice">
@@ -408,13 +404,13 @@ function SecurityAction({
 function SecurityForm({
   busy,
   intent,
+  message,
   onSubmit,
-  twoFactorEnabled,
 }: Readonly<{
   busy: boolean;
   intent: Exclude<SecurityIntent, null>;
+  message: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
-  twoFactorEnabled: boolean;
 }>) {
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -447,7 +443,12 @@ function SecurityForm({
   return (
     <form className="wf-account-panel wf-security-form" onSubmit={onSubmit} ref={formRef}>
       <input name="operation" type="hidden" value={intent} />
-      {intent === "password" || twoFactorEnabled ? (
+      {message ? (
+        <p aria-live="polite" className="civic-form-message">
+          {message}
+        </p>
+      ) : null}
+      {intent === "password" || intent === "2fa-disable" ? (
         <WireflowField label="현재 비밀번호" name="current_password" required type="password" />
       ) : null}
       {intent === "password" ? (
@@ -461,15 +462,30 @@ function SecurityForm({
           />
         </>
       ) : null}
-      {intent === "2fa" && !twoFactorEnabled ? (
+      {intent === "2fa-request" ? (
+        <p className="wf-account-help">등록된 이메일로 10분 동안 유효한 인증 코드를 보냅니다.</p>
+      ) : null}
+      {intent === "2fa-verify" ? (
         <WireflowField
+          autoComplete="one-time-code"
           inputMode="numeric"
-          label="인증 코드 (처음에는 비워 두고 요청하세요)"
+          label="6자리 인증 코드"
+          maxLength={6}
           name="code"
+          pattern="[0-9]{6}"
+          required
         />
       ) : null}
       <WireflowButton disabled={busy} type="submit">
-        {busy ? "처리 중…" : intent === "password" ? "비밀번호 변경" : "설정 저장"}
+        {busy
+          ? "처리 중…"
+          : intent === "password"
+            ? "비밀번호 변경"
+            : intent === "2fa-request"
+              ? "인증 코드 받기"
+              : intent === "2fa-verify"
+                ? "인증 확인"
+                : "인증 해제"}
       </WireflowButton>
     </form>
   );
@@ -607,7 +623,9 @@ function DeactivationDialog({
 }
 
 export function normalizeTwoFactorCode(value: FormDataEntryValue | null): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  if (typeof value !== "string") return null;
+  const code = value.trim();
+  return /^[0-9]{6}$/u.test(code) ? code : null;
 }
 
 export function passwordConfirmationMatches(data: FormData): boolean {

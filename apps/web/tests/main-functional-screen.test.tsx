@@ -229,9 +229,12 @@ describe("25 functional Main/Auth screens", () => {
     expect(navigate).toHaveBeenCalledWith("/login");
   });
 
-  it("2FA 최초 활성화는 빈 코드를 null challenge 요청으로 정규화한다", () => {
+  it("2FA 인증 코드는 공백을 제거한 6자리 숫자만 허용한다", () => {
     expect(normalizeTwoFactorCode("")).toBeNull();
     expect(normalizeTwoFactorCode("   ")).toBeNull();
+    expect(normalizeTwoFactorCode("12345")).toBeNull();
+    expect(normalizeTwoFactorCode("1234567")).toBeNull();
+    expect(normalizeTwoFactorCode("12345a")).toBeNull();
     expect(normalizeTwoFactorCode(" 123456 ")).toBe("123456");
   });
 
@@ -924,7 +927,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(management).toContain("회원정보 수정");
     expect(management).toContain("비밀번호 변경");
     expect(management).toContain("2단계 인증");
-    expect(management).toContain("서비스 이용 동의");
+    expect(management).not.toContain("서비스 이용 동의");
     expect(management).toContain("계정 관리");
 
     const survey = renderAccount("U-ACCOUNT-003");

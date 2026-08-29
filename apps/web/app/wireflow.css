@@ -5582,6 +5582,10 @@ body {
   padding: 16px 16px 28px;
 }
 
+.wf-account-management-security-open {
+  padding-bottom: 180px;
+}
+
 .wf-account-profile-form,
 .wf-account-section {
   display: grid;
@@ -5679,40 +5683,6 @@ body {
 .wf-security-form {
   margin-top: 4px;
   scroll-margin-block: 16px 24px;
-}
-
-.wf-account-consents {
-  gap: 12px;
-  padding-block: 12px 14px;
-}
-
-.wf-account-consents > header {
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--wf-line);
-}
-
-.wf-account-consents h2 {
-  margin: 0;
-  font-size: 18px;
-  line-height: 27px;
-}
-
-.wf-account-choice {
-  display: grid;
-  min-height: 44px;
-  grid-template-columns: 24px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 23px;
-}
-
-.wf-account-choice input {
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  accent-color: var(--wf-blue);
 }
 
 .wf-account-submit {
