@@ -10,7 +10,7 @@ import { ChatApiError } from "@/lib/chat/chat-fetch";
 import type { ChatMessage } from "@/lib/chat/chat-room-contracts";
 
 describe("Room message search panel", () => {
-  it("검색·초기화·결과 이동·취소 action을 한 줄에 표시한다", () => {
+  it("검색·초기화·결과 이동·닫기 action을 한 줄에 표시한다", () => {
     const html = renderPanel({
       controller: {
         appliedQuery: "환경 정책",
@@ -31,7 +31,7 @@ describe("Room message search panel", () => {
     expect(html).toContain('aria-label="더 최신 검색 결과"');
     expect(html).toContain('aria-label="메시지 검색 닫기"');
     expect(html).toContain("1 / 2+");
-    expect(html).toContain(">취소</button>");
+    expect(html).toContain(">닫기</button>");
     expect(html).toContain('maxLength="512"');
     expect(html).not.toContain("검색 결과</p>");
     expect(html).not.toContain("이동 하기");

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent, type Ref } from "react";
+import { useId, useState, type FormEvent } from "react";
+import { hasEditableRoomDetailsChanges } from "@/components/chat-room-settings-form";
 import {
   useChatRoomSettingsControl,
   type ChatRoomSettingsControlController,
@@ -29,73 +30,24 @@ export function ChatRoomInformationSection({
 
 export function ChatRoomSettingsControl({ room }: { room: RoomDetails }) {
   const controller = useChatRoomSettingsControl(room);
-  const [isEditing, setIsEditing] = useState(false);
-  const editButtonRef = useRef<HTMLButtonElement>(null);
-  const visibleIsEditing = isEditing && controller.completionMessage === null;
 
-  function closeEditor() {
-    setIsEditing(false);
-    requestAnimationFrame(() => editButtonRef.current?.focus());
-  }
-
-  useEffect(() => {
-    if (!controller.completionMessage) {
-      return;
-    }
-
-    requestAnimationFrame(() => editButtonRef.current?.focus());
-  }, [controller.completionMessage]);
-
-  return (
-    <ChatRoomSettingsControlView
-      controller={controller}
-      editButtonRef={editButtonRef}
-      isEditing={visibleIsEditing}
-      onCancel={closeEditor}
-      onEdit={() => {
-        controller.reset();
-        setIsEditing(true);
-      }}
-      room={room}
-    />
-  );
+  return <ChatRoomSettingsControlView controller={controller} room={room} />;
 }
 
 export function ChatRoomSettingsControlView({
   controller,
-  editButtonRef,
-  isEditing,
-  onCancel,
-  onEdit,
   room,
 }: {
   controller: ChatRoomSettingsControlController;
-  editButtonRef?: Ref<HTMLButtonElement>;
-  isEditing: boolean;
-  onCancel: () => void;
-  onEdit: () => void;
   room: RoomDetails;
 }) {
   const titleId = useId();
 
   return (
     <section aria-labelledby={titleId} className="py-5">
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
-          방 정보
-        </h3>
-        {!isEditing ? (
-          <button
-            aria-label="방 정보 수정하기"
-            className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-2 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-            onClick={onEdit}
-            ref={editButtonRef}
-            type="button"
-          >
-            수정하기
-          </button>
-        ) : null}
-      </div>
+      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
+        방 정보
+      </h3>
 
       {controller.completionMessage ? (
         <p
@@ -106,40 +58,36 @@ export function ChatRoomSettingsControlView({
         </p>
       ) : null}
 
-      {isEditing ? (
-        <ChatRoomSettingsInlineForm
-          controller={controller}
-          key={`${room.roomId}:${room.version}`}
-          onCancel={onCancel}
-          room={room}
-          titleId={titleId}
-        />
-      ) : (
-        <RoomInformationDetails room={room} />
-      )}
+      <ChatRoomSettingsInlineForm
+        controller={controller}
+        key={`${room.roomId}:${room.version}`}
+        room={room}
+        titleId={titleId}
+      />
     </section>
   );
 }
 
 export function ChatRoomSettingsInlineForm({
   controller,
-  onCancel,
   room,
   titleId,
 }: {
   controller: ChatRoomSettingsControlController;
-  onCancel: () => void;
   room: RoomDetails;
   titleId: string;
 }) {
+  const descriptionId = useId();
+  const descriptionHelpId = `${descriptionId}-help`;
+  const [draft, setDraft] = useState({
+    description: room.description,
+    name: room.name,
+  });
+  const hasChanges = hasEditableRoomDetailsChanges(room, draft);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const formData = new FormData(event.currentTarget);
-    controller.submit({
-      name: formData.get("name"),
-      description: formData.get("description"),
-    });
+    controller.submit(draft);
   }
 
   return (
@@ -147,42 +95,49 @@ export function ChatRoomSettingsInlineForm({
       aria-labelledby={titleId}
       className="mt-4 grid gap-4"
       onChange={controller.clearFailedAttempt}
-      onReset={() => {
-        controller.reset();
-        onCancel();
-      }}
       onSubmit={handleSubmit}
     >
       <fieldset className="grid gap-4" disabled={controller.isPending}>
-        <label className="grid gap-2 text-sm font-bold text-[var(--chat-publishing-color-text)]">
+        <div className="grid gap-1">
+          <span className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">
+            카테고리
+          </span>
+          <ChatRoomCategoryBadges categories={room.categorySummaries} maxVisible={5} />
+        </div>
+
+        <label className="grid gap-1 text-xs font-medium text-[var(--chat-publishing-color-muted)]">
           방 이름
           <input
-            autoFocus
-            className="min-h-12 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-muted)] bg-white px-3 py-2 text-base font-normal text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
-            defaultValue={room.name}
+            className="-mx-2 min-h-10 w-[calc(100%+1rem)] rounded-[var(--chat-publishing-radius-control)] border border-transparent bg-transparent px-2 py-1 text-base font-bold text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
             maxLength={100}
             name="name"
+            onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
             required
+            value={draft.name}
           />
         </label>
 
-        <div className="grid gap-2 text-sm text-[var(--chat-publishing-color-text)]">
-          <label className="font-bold" htmlFor="room-settings-description">
+        <div className="grid gap-1 text-[var(--chat-publishing-color-text)]">
+          <label
+            className="text-xs font-medium text-[var(--chat-publishing-color-muted)]"
+            htmlFor={descriptionId}
+          >
             방 설명
           </label>
           <textarea
-            aria-describedby="room-settings-description-help"
-            className="min-h-28 resize-y rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-muted)] bg-white px-3 py-2 text-base text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
-            defaultValue={room.description}
-            id="room-settings-description"
+            aria-describedby={descriptionHelpId}
+            className="-mx-2 min-h-16 w-[calc(100%+1rem)] resize-none rounded-[var(--chat-publishing-radius-control)] border border-transparent bg-transparent px-2 py-1 text-sm leading-6 text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
+            id={descriptionId}
             maxLength={500}
             name="description"
-            rows={4}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, description: event.target.value }))
+            }
+            placeholder="채팅방 소개가 없습니다."
+            rows={2}
+            value={draft.description}
           />
-          <span
-            className="text-xs leading-[18px] text-[var(--chat-publishing-color-muted)]"
-            id="room-settings-description-help"
-          >
+          <span className="sr-only" id={descriptionHelpId}>
             빈 값으로 저장하면 설명을 제거합니다. 최대 500자의 일반 텍스트입니다.
           </span>
         </div>
@@ -219,17 +174,10 @@ export function ChatRoomSettingsInlineForm({
         </div>
       ) : null}
 
-      <div className="mt-1 grid grid-cols-2 gap-2">
+      <div className="mt-1 flex justify-end">
         <button
-          className={SETTINGS_SECONDARY_BUTTON_CLASS_NAME}
-          disabled={controller.isPending}
-          type="reset"
-        >
-          취소
-        </button>
-        <button
-          className={SETTINGS_PRIMARY_BUTTON_CLASS_NAME}
-          disabled={controller.isPending}
+          className={`${SETTINGS_PRIMARY_BUTTON_CLASS_NAME} min-w-[108px]`}
+          disabled={!hasChanges || controller.isPending}
           type="submit"
         >
           {controller.isPending ? "저장 중…" : "저장"}

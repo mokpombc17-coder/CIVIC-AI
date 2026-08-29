@@ -302,11 +302,11 @@ experience hook이 `.tsx` 표현 컴포넌트의 구현 타입을 역으로 참�
 사용자 문구와 callback만 제공한다. View는 `ChatRoomInformationSection`과 모든 ACTIVE membership의
 profile 목록을 제공하고, BANNED 조회와 차단 해제 control은 활성 OWNER에게만 표시한다. LEFT membership은
 조회하거나 렌더링하지 않는다. `ChatRoomInformationSection`은 모든 사용자에게 이름·설명 요약을
-제공하고 활성 OWNER일 때만 같은 카드 안의 수정 disclosure를 조립한다.
+제공하고 활성 OWNER일 때만 같은 카드 안의 상시 편집 form을 조립한다.
 `ChatRoomSettingsControl`은 `useChatRoomSettingsControl`의 controller를 설정 View에 전달하는 container다.
 controller hook은 이름·설명만 허용하는 draft, 부분 patch 계산, update-settings mutation과 멱등성 key 재시도를
-소유한다. container는 조회·편집 전환과 완료 후 trigger focus 복원을 소유하며, View는 별도 modal 없이 같은
-방 정보 카드 안에서 조회 요약 또는 인라인 form 중 하나만 표시한다.
+소유한다. View는 별도 modal이나 편집 전환 없이 같은 방 정보 카드 안에 이름·설명 form을 항상 표시하고,
+canonical 값 기준 변경 여부에 따라 저장 action을 활성화한다.
 
 ## Route `/vote`, `/vote/[taskId]`, `/vote/[taskId]/result`
 

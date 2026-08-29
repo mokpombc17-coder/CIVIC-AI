@@ -257,7 +257,7 @@ export function MyRoomCard({
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
-        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
@@ -288,7 +288,7 @@ export function PublicRoomCard({
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
-        className="inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"

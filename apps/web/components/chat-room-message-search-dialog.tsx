@@ -177,7 +177,7 @@ export function ChatRoomMessageSearchPanel({
           onClick={onClose}
           type="button"
         >
-          취소
+          닫기
         </button>
       </header>
 

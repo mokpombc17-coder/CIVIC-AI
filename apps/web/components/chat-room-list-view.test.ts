@@ -113,6 +113,9 @@ describe("chat room list publishing layout", () => {
 describe("chat room list cards", () => {
   it("참여 Room card에 제목, 정원·unread 상태와 분리된 입장·상세 action을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem());
+    const detailButtonClass = /aria-label="프로젝트 회의방 자세히 보기" class="([^"]+)"/.exec(
+      html,
+    )?.[1];
 
     expect(html).toContain("프로젝트 회의방");
     expect(html).not.toContain("다음 회의는 월요일입니다.");
@@ -128,6 +131,10 @@ describe("chat room list cards", () => {
     expect(html).toContain('id="chat-room-list-detail-trigger-room-01"');
     expect(html.match(/cursor-pointer/g)).toHaveLength(2);
     expect(/<article class="([^"]+)"/.exec(html)?.[1]).not.toContain("hover:bg-");
+    expect(detailButtonClass).toContain(
+      "hover:text-[var(--chat-publishing-color-primary-emphasis)]",
+    );
+    expect(detailButtonClass).not.toContain("hover:bg-");
   });
 
   it("마지막 메시지 상태와 관계없이 unread가 없으면 새 메시지 없음만 표시한다", () => {
@@ -179,6 +186,9 @@ describe("chat room list cards", () => {
         room: PUBLIC_ROOM,
       }),
     );
+    const detailButtonClass = /aria-label="공개 채팅방 자세히 보기" class="([^"]+)"/.exec(
+      html,
+    )?.[1];
 
     expect(html).toContain("공개 채팅방");
     expect(html).toContain("3 / 50명");
@@ -187,6 +197,10 @@ describe("chat room list cards", () => {
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('id="chat-room-list-detail-trigger-room-public"');
     expect(html.match(/cursor-pointer/g)).toHaveLength(1);
+    expect(detailButtonClass).toContain(
+      "hover:text-[var(--chat-publishing-color-primary-emphasis)]",
+    );
+    expect(detailButtonClass).not.toContain("hover:bg-");
     expect(html).not.toContain("참여하기");
     expect(html).not.toContain("공개 채팅방 설명");
     expect(html).not.toContain("방 ID: room-public");

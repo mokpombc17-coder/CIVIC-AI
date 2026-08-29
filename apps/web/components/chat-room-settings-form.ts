@@ -73,3 +73,12 @@ export function createEditableRoomDetailsPatch(
     visibility: current.visibility,
   });
 }
+
+export function hasEditableRoomDetailsChanges(
+  current: RoomSettings,
+  draft: RoomEditableDetailsDraft,
+): boolean {
+  const result = createEditableRoomDetailsPatch(current, draft);
+
+  return !result.success || result.patch !== null;
+}

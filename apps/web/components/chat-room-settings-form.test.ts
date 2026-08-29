@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createEditableRoomDetailsPatch,
   createRoomSettingsPatch,
+  hasEditableRoomDetailsChanges,
 } from "@/components/chat-room-settings-form";
 import type { RoomSettings } from "@/lib/chat/chat-room-contracts";
 import { updateRoomSettingsMutationOptions } from "@/lib/chat/chat-room-mutations";
@@ -29,6 +30,27 @@ describe("room settings form patch", () => {
         name: "수정된 방 이름",
       },
     });
+  });
+
+  it("저장 활성화 여부는 canonical 값 기준의 의미 있는 변경으로 판정한다", () => {
+    expect(
+      hasEditableRoomDetailsChanges(CURRENT_SETTINGS, {
+        description: CURRENT_SETTINGS.description,
+        name: CURRENT_SETTINGS.name,
+      }),
+    ).toBe(false);
+    expect(
+      hasEditableRoomDetailsChanges(CURRENT_SETTINGS, {
+        description: ` ${CURRENT_SETTINGS.description} `,
+        name: ` ${CURRENT_SETTINGS.name} `,
+      }),
+    ).toBe(false);
+    expect(
+      hasEditableRoomDetailsChanges(CURRENT_SETTINGS, {
+        description: "변경된 설명",
+        name: CURRENT_SETTINGS.name,
+      }),
+    ).toBe(true);
   });
 
   it("서버 canonical 값과 같아지는 공백 차이는 변경으로 보내지 않는다", () => {
