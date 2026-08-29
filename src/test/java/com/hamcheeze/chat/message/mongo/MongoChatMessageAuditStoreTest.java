@@ -5,6 +5,7 @@ import com.hamcheeze.chat.message.MessageState;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditActorType;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditEvent;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditEventType;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditRangeCursor;
 import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditEventDocument;
 import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditSchemaInitializer;
 import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditStore;
@@ -98,6 +99,52 @@ class MongoChatMessageAuditStoreTest {
     }
 
     @Test
+    void readsInclusiveExclusiveTimeRangeWithStableCursorAndWatermark() {
+        ChatMessage created = active("A", 1, CREATED_AT);
+        ChatMessage updated = active("B", 2, UPDATED_AT);
+        ChatMessage deleted = deleted(3, UPDATED_AT.plusSeconds(1));
+        store.appendCreated(created, "user-1",
+                ChatMessageAuditActorType.ROOM_PARTICIPANT);
+        store.appendUpdated(created, updated, "user-1",
+                ChatMessageAuditActorType.ROOM_PARTICIPANT);
+        store.appendDeleted(updated, deleted, "user-1",
+                ChatMessageAuditActorType.ROOM_PARTICIPANT);
+
+        List<ChatMessageAuditEvent> first = store.findChangesInRange(
+                "room-1",
+                CREATED_AT,
+                UPDATED_AT.plusSeconds(1),
+                3,
+                ChatMessageAuditRangeCursor.startAt(CREATED_AT),
+                1);
+        assertThat(first)
+                .extracting(ChatMessageAuditEvent::roomChangeSequence)
+                .containsExactly(1L);
+
+        List<ChatMessageAuditEvent> second = store.findChangesInRange(
+                "room-1",
+                CREATED_AT,
+                UPDATED_AT.plusSeconds(1),
+                3,
+                ChatMessageAuditRangeCursor.after(first.getFirst()),
+                10);
+        assertThat(second)
+                .extracting(ChatMessageAuditEvent::roomChangeSequence)
+                .containsExactly(2L);
+        assertThat(second)
+                .extracting(ChatMessageAuditEvent::eventType)
+                .containsExactly(ChatMessageAuditEventType.MESSAGE_UPDATED);
+
+        assertThat(store.findChangesInRange(
+                "room-1",
+                CREATED_AT,
+                UPDATED_AT.plusSeconds(2),
+                2,
+                ChatMessageAuditRangeCursor.after(second.getFirst()),
+                10)).isEmpty();
+    }
+
+    @Test
     void sequencesAreIndependentByRoom() {
         store.appendCreated(
                 active("A", 1, CREATED_AT),
@@ -151,6 +198,15 @@ class MongoChatMessageAuditStoreTest {
                         .equals(index.getName()))
                 .singleElement()
                 .satisfies(index -> assertThat(index.isUnique()).isTrue());
+        assertThat(indexes)
+                .filteredOn(index -> MongoChatMessageAuditSchemaInitializer
+                        .ROOM_OCCURRED_AT_SEQUENCE_INDEX_NAME
+                        .equals(index.getName()))
+                .singleElement()
+                .satisfies(index -> {
+                    assertThat(index.isUnique()).isFalse();
+                    assertThat(index.getExpireAfter()).isEmpty();
+                });
     }
 
     @Test

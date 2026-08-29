@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.export;
 
+import com.hamcheeze.chat.export.mongo.MongoAdminRoomConversationExportSnapshotReader;
 import com.hamcheeze.chat.export.mongo.MongoChatExportJobSchemaInitializer;
 import com.hamcheeze.chat.export.mongo.MongoChatExportJobStore;
 import com.hamcheeze.chat.export.mongo.MongoChatExportSnapshotReader;
@@ -119,11 +120,24 @@ public class ChatExportConfiguration {
     AdminRoomConversationExportService
             adminRoomConversationExportService(
                     ChatExportProperties properties,
-                    Clock chatExportClock
+                    Clock chatExportClock,
+                    AdminRoomConversationExportSnapshotReader snapshotReader
             ) {
         return new AdminRoomConversationExportService(
                 properties,
-                chatExportClock);
+                chatExportClock,
+                snapshotReader);
+    }
+
+    @Bean
+    AdminRoomConversationExportSnapshotReader
+            adminRoomConversationExportSnapshotReader(
+                    MongoOperations mongoOperations,
+                    ChatMessageAuditReader auditReader
+            ) {
+        return new MongoAdminRoomConversationExportSnapshotReader(
+                mongoOperations,
+                auditReader);
     }
 
     @Bean(initMethod = "recover")

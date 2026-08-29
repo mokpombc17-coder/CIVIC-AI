@@ -4,6 +4,8 @@ import com.hamcheeze.chat.message.ChatMessage;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditActorType;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditEvent;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditEventType;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditRangeCursor;
+import com.hamcheeze.chat.message.audit.ChatMessageAuditRangeReader;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditReader;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
@@ -14,13 +16,15 @@ import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public final class MongoChatMessageAuditStore
-        implements ChatMessageAuditWriter, ChatMessageAuditReader {
+        implements ChatMessageAuditWriter, ChatMessageAuditReader,
+        ChatMessageAuditRangeReader {
 
     private static final int MAX_READ_LIMIT = 1_000;
 
@@ -140,6 +144,60 @@ public final class MongoChatMessageAuditStore
                 .with(Sort.by(
                         Sort.Direction.ASC,
                         "roomChangeSequence"))
+                .limit(limit);
+        return mongoOperations.find(
+                        query,
+                        MongoChatMessageAuditEventDocument.class)
+                .stream()
+                .map(MongoChatMessageAuditEventDocument::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<ChatMessageAuditEvent> findChangesInRange(
+            String roomId,
+            Instant fromInclusive,
+            Instant toExclusive,
+            long upToSequenceInclusive,
+            ChatMessageAuditRangeCursor afterExclusive,
+            int limit
+    ) {
+        requireNonBlank(roomId, "roomId");
+        Objects.requireNonNull(fromInclusive, "fromInclusive");
+        Objects.requireNonNull(toExclusive, "toExclusive");
+        Objects.requireNonNull(afterExclusive, "afterExclusive");
+        if (!fromInclusive.isBefore(toExclusive)
+                || upToSequenceInclusive < 0
+                || limit < 1
+                || limit > MAX_READ_LIMIT
+                || afterExclusive.occurredAt().isBefore(fromInclusive)
+                || !afterExclusive.occurredAt().isBefore(toExclusive)) {
+            throw new IllegalArgumentException(
+                    "Invalid message audit time range");
+        }
+        if (upToSequenceInclusive == 0) {
+            return List.of();
+        }
+        Criteria afterCursor = new Criteria().orOperator(
+                Criteria.where("occurredAt")
+                        .gt(afterExclusive.occurredAt()),
+                new Criteria().andOperator(
+                        Criteria.where("occurredAt")
+                                .is(afterExclusive.occurredAt()),
+                        Criteria.where("roomChangeSequence")
+                                .gt(afterExclusive
+                                        .roomChangeSequence())));
+        Query query = Query.query(new Criteria().andOperator(
+                        Criteria.where("roomId").is(roomId),
+                        Criteria.where("occurredAt")
+                                .gte(fromInclusive)
+                                .lt(toExclusive),
+                        Criteria.where("roomChangeSequence")
+                                .lte(upToSequenceInclusive),
+                        afterCursor))
+                .with(Sort.by(
+                        Sort.Order.asc("occurredAt"),
+                        Sort.Order.asc("roomChangeSequence")))
                 .limit(limit);
         return mongoOperations.find(
                         query,
