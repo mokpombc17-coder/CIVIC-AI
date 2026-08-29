@@ -11,6 +11,28 @@ export type Citation = Readonly<{
   related_titles?: string[];
 }>;
 
+export const RAG_PROGRESS_STAGES = [
+  "QUEUED",
+  "UNDERSTANDING",
+  "SEARCHING",
+  "READING",
+  "COMPOSING",
+  "VERIFYING",
+  "STREAMING",
+] as const;
+
+export type RagProgressStage = (typeof RAG_PROGRESS_STAGES)[number];
+
+export type RagProgress = Readonly<{
+  status: "QUEUED" | "RUNNING";
+  stage: RagProgressStage;
+  label: string;
+  detail: string;
+  progress_percent: number;
+  estimated_remaining_seconds: number;
+  elapsed_seconds: number;
+}>;
+
 export type RagJob = Readonly<{
   job_id: string;
   session_id?: string;
@@ -21,6 +43,7 @@ export type RagJob = Readonly<{
   suggestions?: string[];
   failure_code?: string;
   feedback?: RagFeedbackValue;
+  progress?: RagProgress;
 }>;
 
 export type Message = Readonly<{
@@ -139,6 +162,7 @@ function isStoredRagJob(value: unknown): value is RagJob {
   ) {
     return false;
   }
+  if (value.progress !== undefined && !isStoredRagProgress(value.progress)) return false;
   if (
     value.suggestions !== undefined &&
     (!Array.isArray(value.suggestions) ||
@@ -149,6 +173,24 @@ function isStoredRagJob(value: unknown): value is RagJob {
   return (
     value.citations === undefined ||
     (Array.isArray(value.citations) && value.citations.every(isStoredCitation))
+  );
+}
+
+function isStoredRagProgress(value: unknown): value is RagProgress {
+  if (!isRecord(value)) return false;
+  return (
+    (value.status === "QUEUED" || value.status === "RUNNING") &&
+    typeof value.stage === "string" &&
+    (RAG_PROGRESS_STAGES as readonly string[]).includes(value.stage) &&
+    typeof value.label === "string" &&
+    typeof value.detail === "string" &&
+    Number.isInteger(value.progress_percent) &&
+    Number(value.progress_percent) >= 0 &&
+    Number(value.progress_percent) <= 100 &&
+    Number.isInteger(value.estimated_remaining_seconds) &&
+    Number(value.estimated_remaining_seconds) >= 0 &&
+    Number.isInteger(value.elapsed_seconds) &&
+    Number(value.elapsed_seconds) >= 0
   );
 }
 
