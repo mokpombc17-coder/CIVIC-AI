@@ -3,15 +3,19 @@ import type { RoomMembershipListItem } from "./chat-room-contracts";
 import { createRoomParticipantDisplayNames } from "./chat-room-participant-profiles";
 
 describe("createRoomParticipantDisplayNames", () => {
-  it("Backend displayName을 membershipId 기준으로 정규화한다", () => {
+  it("userLabel을 우선 사용하고 미배포 응답은 displayName으로 보완한다", () => {
     const memberships: readonly RoomMembershipListItem[] = [
-      createMembership({ membershipId: "membership-01", displayName: "참여자 1" }),
+      createMembership({
+        membershipId: "membership-01",
+        displayName: "참여자 1",
+        userLabel: "owner",
+      }),
       createMembership({ membershipId: "membership-02", displayName: "참여자 2" }),
     ];
 
     expect(createRoomParticipantDisplayNames(memberships)).toEqual(
       new Map([
-        ["membership-01", "참여자 1"],
+        ["membership-01", "owner"],
         ["membership-02", "참여자 2"],
       ]),
     );

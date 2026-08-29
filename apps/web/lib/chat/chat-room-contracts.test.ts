@@ -463,9 +463,27 @@ describe("chat room REST contracts", () => {
     expect(result.items[0]).toMatchObject({
       membershipId: "membership-02",
       displayName: "참여자 2",
+      userLabel: "member-02",
       imageUrl: null,
       profileVersion: 1,
     });
+  });
+
+  it("userLabel 미배포 응답은 허용하고 null 값은 거절한다", () => {
+    expect(
+      roomMembershipListResponseSchema.safeParse({
+        items: [createRoomMembershipListItem({ userLabel: undefined })],
+        nextCursor: null,
+        hasNext: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      roomMembershipListResponseSchema.safeParse({
+        items: [createRoomMembershipListItem({ userLabel: null })],
+        nextCursor: null,
+        hasNext: false,
+      }).success,
+    ).toBe(false);
   });
 
   it("Room 참여자 목록에서 프로필 누락과 잘못된 profileVersion을 거절한다", () => {
@@ -1125,6 +1143,7 @@ function createRoomMembershipListItem(patch: Record<string, unknown> = {}) {
   return {
     membershipId: "membership-02",
     displayName: "참여자 2",
+    userLabel: "member-02",
     imageUrl: null,
     profileVersion: 1,
     role: "MEMBER",

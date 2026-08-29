@@ -27,7 +27,7 @@ describe("chat room view model", () => {
     });
   });
 
-  it("membershipId로 작성자를 판정하고 Backend 프로필 이름 또는 알 수 없는 참여자를 표시한다", () => {
+  it("membershipId로 작성자를 판정하고 Backend 프로필 이름 또는 알 수 없음을 표시한다", () => {
     const timeline: readonly ChatMessageTimelineItem[] = [
       {
         kind: "confirmed",
@@ -106,7 +106,7 @@ describe("chat room view model", () => {
       senderIsOwner: true,
       senderLabel: "참여자 1",
     });
-    expect(unknownParticipant?.senderLabel).toBe("알 수 없는 참여자");
+    expect(unknownParticipant?.senderLabel).toBe("알 수 없음");
   });
 
   it("같은 참여자의 같은 분 연속 메시지만 하나의 sender group으로 묶는다", () => {

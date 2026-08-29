@@ -261,6 +261,7 @@ export const roomInboxListItemSchema = myRoomListItemSchema
 export const roomMembershipListItemSchema = z.object({
   membershipId: opaqueIdSchema,
   displayName: membershipDisplayNameSchema,
+  userLabel: z.string().optional(),
   imageUrl: z.string().nullable(),
   profileVersion: z.number().int().positive(),
   role: membershipRoleSchema,

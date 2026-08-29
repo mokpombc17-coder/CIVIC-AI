@@ -46,16 +46,16 @@ describe("chat room message presentation", () => {
       unreadCount: null,
       unreadReceiptLabel: null,
       senderIsOwner: false,
-      senderLabel: "참여자 2",
+      senderLabel: "member",
     });
     expect(presentation.messageItems[1]).toMatchObject({
       deliveryStatus: "queued",
       isMine: true,
       unreadReceiptLabel: null,
       senderIsOwner: true,
-      senderLabel: "참여자 1",
+      senderLabel: "owner",
     });
-    expect(presentation.participantDisplayNames.get("membership-02")).toBe("참여자 2");
+    expect(presentation.participantDisplayNames.get("membership-02")).toBe("member");
   });
 
   it("receipt self membership가 다르면 읽음 표시를 숨기고 mismatch를 노출한다", () => {
@@ -113,6 +113,7 @@ const OUTGOING_MESSAGE = {
 const PARTICIPANT = {
   bannedAt: null,
   displayName: "참여자 2",
+  userLabel: "member",
   imageUrl: null,
   joinedAt: "2026-08-10T03:00:00Z",
   leftAt: null,
@@ -126,6 +127,7 @@ const PARTICIPANT = {
 const SELF_PARTICIPANT = {
   ...PARTICIPANT,
   displayName: "참여자 1",
+  userLabel: "owner",
   membershipId: "membership-01",
   role: "OWNER",
 } satisfies RoomMembershipListItem;

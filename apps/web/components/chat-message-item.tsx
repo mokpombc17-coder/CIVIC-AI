@@ -1,5 +1,6 @@
 import { forwardRef, type CSSProperties } from "react";
 import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model";
+import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
 
 type ChatMessageItemProps = Readonly<{
   item: ChatMessageItemViewModel;
@@ -76,14 +77,14 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
             </div>
           ) : (
             <span className="sr-only" data-message-metadata="accessible-only">
-              {senderLabel ?? "알 수 없는 참여자"}
+              {senderLabel ?? UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME}
               {item.senderIsOwner && !item.isMine ? ", 방장" : ""}
               {!item.endsSenderGroup ? `, ${item.timeLabel}` : ""}
             </span>
           )}
           <div
             className={`flex w-full min-w-0 items-end gap-1.5 ${
-              item.isMine ? "flex-row-reverse justify-end" : "justify-start"
+              item.isMine ? "flex-row-reverse justify-start" : "justify-start"
             }`}
           >
             {item.canOpenActions && item.messageId ? (

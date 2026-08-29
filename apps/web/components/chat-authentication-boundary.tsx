@@ -46,7 +46,6 @@ export function ChatAuthenticationBoundaryView({
 
   return (
     <PlatformPageShell
-      bottomNavigation={null}
       className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
       title="토론방"
     >

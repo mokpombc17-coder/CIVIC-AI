@@ -42,14 +42,18 @@ describe("chat room publishing view", () => {
   });
 
   it("말풍선은 metadata 너비와 무관하게 내용 너비를 따르되 메시지 영역의 82%를 넘지 않는다", () => {
-    const mine = renderMessage({ content: "네", isMine: true });
+    const mine = renderMessage({
+      content: "네",
+      isMine: true,
+      senderLabel: "아주 긴 사용자 이름입니다",
+    });
     const other = renderMessage({ content: "확인했습니다", isMine: false });
 
     expect(mine).toContain('data-message-bubble-container="true"');
     expect(mine).toContain("w-fit min-w-0 max-w-[82%]");
     expect(mine).toContain("w-fit min-w-0 max-w-full");
     expect(mine).toContain("inline-flex min-w-0 max-w-full");
-    expect(mine).toContain("flex w-full min-w-0 items-end gap-1.5 flex-row-reverse justify-end");
+    expect(mine).toContain("flex w-full min-w-0 items-end gap-1.5 flex-row-reverse justify-start");
     expect(other).toContain("flex w-full min-w-0 items-end gap-1.5 justify-start");
   });
 

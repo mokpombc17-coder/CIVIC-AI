@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ChatAuthenticationBoundaryView } from "./chat-authentication-boundary";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/chat",
+}));
 
 describe("ChatAuthenticationBoundaryView", () => {
   it("인증이 필요하면 하위 화면 대신 로그인 안내 하나만 제공한다", () => {
@@ -22,6 +26,9 @@ describe("ChatAuthenticationBoundaryView", () => {
     expect(markup).toContain("h-12 min-w-[131px]");
     expect(markup).toContain("bg-[var(--chat-publishing-color-primary)]");
     expect(markup).toContain("text-white");
+    expect(markup).toContain('href="/home"');
+    expect(markup).toContain('href="/chat"');
+    expect(markup).toContain('aria-current="page"');
     expect(markup.match(/로그인이 필요합니다\./g)).toHaveLength(1);
     expect(markup).toContain("로그인하면 현재 화면으로 돌아옵니다.");
     expect(markup).toContain("로그인하기");

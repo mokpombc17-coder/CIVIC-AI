@@ -46,7 +46,7 @@ describe("Room message search panel", () => {
     expect(html).toContain('aria-label="메시지 검색 결과"');
     expect(html).toContain('data-message-id="message-1"');
     expect(html).toContain("참여자 2");
-    expect(html).toContain("알 수 없는 참여자");
+    expect(html).toContain("알 수 없음");
     expect(html).toContain("환경 정책입니다.");
     expect(html).toContain("max-h-[min(240px,38dvh)]");
   });

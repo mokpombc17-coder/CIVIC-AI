@@ -1,4 +1,5 @@
 import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model";
+import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
 
 export function createChatMessageArrivalAnnouncement(
   items: readonly ChatMessageItemViewModel[],
@@ -21,5 +22,5 @@ function getMessageSenderLabel(item: ChatMessageItemViewModel): string {
     return "내 메시지";
   }
 
-  return item.senderLabel ?? "알 수 없는 참여자";
+  return item.senderLabel ?? UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME;
 }
