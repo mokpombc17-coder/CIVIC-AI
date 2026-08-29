@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import nextConfig, { validateDirectResourceRouteOwnership } from "../next.config";
+import nextConfig, {
+  MAIN_ASSET_PREFIX,
+  assetPrefixForEnvironment,
+  validateDirectResourceRouteOwnership,
+} from "../next.config";
 
 const originalUpstream = process.env.CIVIC_E2E_RAG_UPSTREAM;
 const originalDevRagUpstream = process.env.CIVIC_DEV_RAG_UPSTREAM;
@@ -18,6 +22,13 @@ afterEach(() => {
 });
 
 describe("direct resource route boundary", () => {
+  it("운영 정적 청크를 3001과 겹치지 않는 Front2 전용 prefix로 분리한다", () => {
+    expect(MAIN_ASSET_PREFIX).toBe("/main-assets");
+    expect(assetPrefixForEnvironment("production")).toBe(MAIN_ASSET_PREFIX);
+    expect(assetPrefixForEnvironment("development")).toBeUndefined();
+    expect(assetPrefixForEnvironment("test")).toBeUndefined();
+  });
+
   it("RAG와 Simulation 핸들러 재도입을 거부하고 Main/Auth, Chat, Vote 소유권을 보존한다", () => {
     expect(() =>
       validateDirectResourceRouteOwnership([
