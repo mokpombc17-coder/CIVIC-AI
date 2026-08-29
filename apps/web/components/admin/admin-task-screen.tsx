@@ -36,9 +36,28 @@ export function AdminTaskScreen({
   query: Readonly<Record<string, string | readonly string[] | undefined>>;
 }>) {
   const taskId = firstQueryValue(query.taskId);
+  const taskListAction =
+    screen.id === "A-TASK-001" ? (
+      <Link
+        aria-label="새 과업 만들기"
+        className="civic-primary-action civic-task-create-action"
+        href="/admin/tasks/create"
+      >
+        <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+          <path
+            d="M10 4v12M4 10h12"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeWidth="1.8"
+          />
+        </svg>
+        <span>새 과업 만들기</span>
+      </Link>
+    ) : undefined;
   return (
     <ScreenFrame
       {...(screen.id === "A-TASK-001" ? {} : { backHref: "/admin/tasks" as Route })}
+      headingAction={taskListAction}
       screen={screen}
     >
       <div
@@ -103,10 +122,12 @@ function TaskList() {
 
   return (
     <>
-      <div className="civic-domain-toolbar">
+      <div className="civic-domain-toolbar civic-task-list-toolbar">
         <label className="civic-field">
           <span>과업 제목 검색</span>
           <input
+            autoComplete="off"
+            name="task-query"
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="과업 제목 입력…"
             type="search"
@@ -125,9 +146,6 @@ function TaskList() {
             </button>
           ))}
         </div>
-        <Link className="civic-primary-action" href="/admin/tasks/create">
-          새 과업 만들기
-        </Link>
       </div>
       <div aria-label="과업 목록 표" className="civic-table-scroll" role="region" tabIndex={0}>
         <table className="civic-admin-table">
