@@ -2102,20 +2102,24 @@ function AutomaticRagJobRetryPanel({
   jobId,
 }: Readonly<{ filename?: string; jobId: string }>) {
   const router = useRouter();
-  const requestPending = useRef(false);
+  const retryOperation = useRef(
+    createRetryOperation(() => crypto.randomUUID(), automaticRagRetryIdempotencyKey(jobId)),
+  );
   const [retrying, setRetrying] = useState(true);
   const [message, setMessage] = useState("실패한 문서의 재처리를 자동으로 요청합니다.");
 
   const retry = useCallback(async () => {
-    if (requestPending.current) return;
-    requestPending.current = true;
+    const idempotencyKey = retryOperation.current.begin();
+    if (!idempotencyKey) return;
     setRetrying(true);
     setMessage("실패한 문서의 재처리를 요청하고 있습니다…");
+    let definitiveResponse = false;
     try {
       const result = await requestRagJobRetry({
         jobId,
-        idempotencyKey: automaticRagRetryIdempotencyKey(jobId),
+        idempotencyKey,
       });
+      definitiveResponse = result.definitive;
       if (result.kind === "rejected") {
         setMessage("자동 재시도를 접수하지 못했습니다. 다시 시도해 주세요.");
         return;
@@ -2131,7 +2135,7 @@ function AutomaticRagJobRetryPanel({
       setMessage("재처리를 접수했습니다. 새 작업의 처리 상태로 이동합니다.");
       router.replace(ragJobHref(result.acceptedJobId, undefined, filename));
     } finally {
-      requestPending.current = false;
+      retryOperation.current.settle(definitiveResponse);
       setRetrying(false);
     }
   }, [filename, jobId, router]);
@@ -2621,9 +2625,12 @@ export async function deleteRagFolder({
   }
 }
 
-export function createRetryOperation(idFactory: () => string = () => crypto.randomUUID()) {
+export function createRetryOperation(
+  idFactory: () => string = () => crypto.randomUUID(),
+  initialIdempotencyKey: string | null = null,
+) {
   let pending = false;
-  let idempotencyKey: string | null = null;
+  let idempotencyKey = initialIdempotencyKey;
   let operationIdentity: string | undefined;
   return {
     begin(nextOperationIdentity?: string): string | null {

@@ -738,12 +738,15 @@ describe("9 functional RAG screens", () => {
     operation.settle(true);
   });
 
-  it("관리 홈 자동 재시도는 새로고침에도 같은 멱등 키를 사용한다", () => {
-    expect(automaticRagRetryIdempotencyKey("job-1")).toBe("ADMIN_HOME_RETRY:job-1");
-    expect(automaticRagRetryIdempotencyKey("job-1")).toBe(automaticRagRetryIdempotencyKey("job-1"));
-    expect(automaticRagRetryIdempotencyKey("job-2")).not.toBe(
-      automaticRagRetryIdempotencyKey("job-1"),
-    );
+  it("관리 홈 자동 재시도는 불명확 실패에는 키를 보존하고 확정 거절 뒤에는 회전한다", () => {
+    const initialKey = automaticRagRetryIdempotencyKey("job-1");
+    const operation = createRetryOperation(() => "retry-key-rotated", initialKey);
+
+    expect(operation.begin()).toBe("ADMIN_HOME_RETRY:job-1");
+    operation.settle(false);
+    expect(operation.begin()).toBe("ADMIN_HOME_RETRY:job-1");
+    operation.settle(true);
+    expect(operation.begin()).toBe("retry-key-rotated");
   });
 
   it("재시도 요청 내용이 바뀌면 불명확 실패 뒤에도 새 키를 발급한다", () => {

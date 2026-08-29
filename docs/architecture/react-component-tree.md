@@ -71,11 +71,14 @@ AdminCatchAllPage [Server Route]
     ├── RagFunctionalScreen [RAG]
     │   └── AdminRagScreen
     │       ├── FolderTree
-    │       ├── DocumentLedger / Upload / Job panel
+    │       ├── DocumentWorkspace
+    │       │   └── UploadPanel [인라인 신규 문서]
+    │       ├── UploadPanel [A-RAG-004 신규 문서·새 버전]
+    │       ├── AutomaticRagJobRetryPanel [A-RAG-004 실패 작업 재시도·상태 이동]
+    │       ├── JobPanel [A-RAG-005]
     │       ├── DocumentInspector
     │       │   └── AdminRagSpreadsheetPreview [Excel/CSV 읽기 전용]
-    │       ├── AdminRagAnalytics
-    │       └── AdminRagSynonyms
+    │       └── AdminRagModal / FolderEditor
     ├── AdminChatRequestScreen [Chat 생성 신청 관리]
     ├── AdminRoomCategoryScreen [Chat 카테고리 및 ACTIVE·LISTED 방 관리]
     │   ├── ListedRoomTable [참여자 방 목록 API 검색·페이지네이션]
