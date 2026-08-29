@@ -18,9 +18,7 @@ import {
   formatAdminProblem,
   readAdminProblem,
   readTaskDetail,
-  readTaskSummaries,
   type TaskDetail,
-  type TaskSummary,
 } from "@/lib/admin/domain-contracts";
 import {
   readSimulationPreview,
@@ -33,11 +31,15 @@ import {
   readSimulationCapacity,
   readSimulationOptions,
   readSimulationResult,
+  readSimulationTaskSummaries,
   readSimulationView,
+  simulationTargetHref,
+  simulationTargetPresentation,
   type SimulationCapacity,
   type SimulationOptions,
   type SimulationResult,
   type SimulationState,
+  type SimulationTaskSummary,
   type SimulationView,
 } from "@/lib/admin/simulation-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
@@ -91,7 +93,7 @@ export function AdminSimulationScreen({
 }
 
 function SimulationTargets() {
-  const [items, setItems] = useState<readonly TaskSummary[]>([]);
+  const [items, setItems] = useState<readonly SimulationTaskSummary[]>([]);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -106,7 +108,7 @@ function SimulationTargets() {
         setMessage(formatAdminProblem(await readAdminProblem(response)));
         return;
       }
-      const tasks = readTaskSummaries(await response.json());
+      const tasks = readSimulationTaskSummaries(await response.json());
       if (!tasks) return setMessage("서버의 과업 목록 응답 형식을 확인해야 합니다.");
       setItems(tasks);
       setMessage("");
@@ -155,7 +157,7 @@ function SimulationTargets() {
           <thead>
             <tr>
               <th>과업 제목</th>
-              <th>상태</th>
+              <th>시뮬레이션 진행 상태</th>
               <th>최근 변경</th>
               <th>실행</th>
             </tr>
@@ -168,27 +170,30 @@ function SimulationTargets() {
                 </td>
               </tr>
             ) : null}
-            {filtered.map((task) => (
-              <tr key={task.taskId}>
-                <th scope="row">{task.title}</th>
-                <td>
-                  <span className={`civic-domain-status is-${task.status.toLowerCase()}`}>
-                    {taskStatusLabel(task.status)}
-                  </span>
-                </td>
-                <td>{formatDate(task.updatedAt)}</td>
-                <td>
-                  <Link
-                    className="civic-primary-action"
-                    href={
-                      `/admin/simulations/setup?taskId=${encodeURIComponent(task.taskId)}` as Route
-                    }
-                  >
-                    설정하기
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {filtered.map((task) => {
+              const presentation = simulationTargetPresentation(
+                task.latestSimulation?.state ?? null,
+              );
+              return (
+                <tr key={task.taskId}>
+                  <th scope="row">{task.title}</th>
+                  <td>
+                    <span className={`civic-domain-status is-${presentation.tone}`}>
+                      {presentation.label}
+                    </span>
+                  </td>
+                  <td>{formatDate(simulationTargetUpdatedAt(task))}</td>
+                  <td>
+                    <Link
+                      className="civic-primary-action"
+                      href={simulationTargetHref(task.taskId, task.latestSimulation) as Route}
+                    >
+                      {presentation.action}
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -205,7 +210,7 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
   const { pending, start, startMessage } = useStartSimulation(taskId);
   const runInput = options ? buildDefaultSimulationRunInput(personaCount, options) : null;
   const capacityState = useSimulationCapacity(
-    options ? normalizeCapacityInput(personaCount, "") : null,
+    options ? normalizeCapacityInput(personaCount, "", { regions: options.filters.regions }) : null,
   );
   const previewState = useSimulationPreview(taskId, runInput);
 
@@ -265,6 +270,9 @@ function SimulationSetup({ taskId }: Readonly<{ taskId: string | null }>) {
           <span>SONA 집계 실행</span>
           <h2>기본 실행 설정</h2>
         </header>
+        <p className="civic-simulation-copy">
+          표본과 사용 가능 인원은 전남·광주 페르소나만 기준으로 계산합니다.
+        </p>
         <div className="civic-simulation-fields">
           <label className="civic-field">
             <span>페르소나 수</span>
@@ -352,6 +360,7 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           const value = readSimulationOptions(await response.json());
           if (!value) throw new Error("서버의 패널 조건 응답 형식을 확인해야 합니다.");
           setOptions(value);
+          setFilters({ regions: value.filters.regions });
         })
         .catch((error: unknown) =>
           setMessage(error instanceof Error ? error.message : "패널 조건을 불러오지 못했습니다."),
@@ -368,7 +377,6 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
     ? ([
         ["genders", "성별", options.filters.genders],
         ["age_groups", "연령대", options.filters.ageGroups],
-        ["regions", "거주 지역", options.filters.regions],
         ["political_ideologies", "정치 성향", options.filters.politicalIdeologies],
       ] as const)
     : [];
@@ -392,8 +400,8 @@ function ManualPanel({ query, taskId }: Readonly<{ query: AdminQuery; taskId: st
           <h2>집계 패널 표본 조건</h2>
         </header>
         <p className="civic-simulation-copy">
-          항목을 선택하지 않으면 해당 범주는 전체를 사용합니다. 여기에 표시되는 값은 현재 서버에
-          마운트된 프로필 번들에서 읽은 범주이며 개인 레코드는 노출하지 않습니다.
+          거주 지역은 전남·광주로 고정됩니다. 나머지 항목을 선택하지 않으면 해당 범주의 전남·광주
+          페르소나 전체를 사용하며 개인 레코드는 노출하지 않습니다.
         </p>
         {options && !personaCountAllowed ? (
           <StatusMessage>
@@ -1266,7 +1274,7 @@ export function buildDefaultSimulationRunInput(
     personaCount,
     modelType: options.defaultModel,
     sampleSeed: null,
-    ...(filters === undefined ? {} : { filters }),
+    filters: filters ?? { regions: options.filters.regions },
   };
 }
 
@@ -1373,8 +1381,9 @@ function capacityBlockMessage(capacity: SimulationCapacity): string {
   return `현재 조건에서 사용할 수 있는 패널은 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대·거주 지역·정치 성향 조건이나 요청 수를 조정해 주세요.`;
 }
 
-function taskStatusLabel(status: TaskSummary["status"]): string {
-  return { DRAFT: "작성 중", SCHEDULED: "예약", OPEN: "진행 중", CLOSED: "종료" }[status];
+function simulationTargetUpdatedAt(task: SimulationTaskSummary): string {
+  const latest = task.latestSimulation;
+  return latest?.completedAt ?? latest?.startedAt ?? latest?.createdAt ?? task.updatedAt;
 }
 
 export function simulationStateLabel(state: SimulationState): string {
