@@ -233,7 +233,14 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
     });
     setSelectedRoomName(selected.name);
     setSelectedCategoryIds(selected.categoryIds);
-    setMessage("채팅방을 선택했습니다. 카테고리를 확인한 뒤 저장해 주세요.");
+    setMessage("");
+  }
+
+  function closeRoomEditor() {
+    setRoom(null);
+    setSelectedRoomName("");
+    setSelectedCategoryIds([]);
+    setMessage("");
   }
 
   async function loadRoom(roomId: string, force = false) {
@@ -372,6 +379,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
             onUpdate={(category, name) => void updateCategory(category, name)}
             pending={pending}
           />
+          {loading ? <p aria-live="polite">최신 카테고리를 불러오는 중입니다.</p> : null}
         </section>
 
         <section className="civic-domain-form-section">
@@ -426,35 +434,78 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
               {roomListMessage}
             </p>
           ) : null}
-          {room ? (
-            <form className="civic-domain-action-panel" onSubmit={replaceRoomCategories}>
-              <p className="civic-selected-room">
-                <strong>선택한 채팅방</strong>
-                <span>{selectedRoomName}</span>
-              </p>
-              <RoomCategorySelector
-                categories={categories}
-                disabled={pending}
-                legend="교체할 카테고리"
-                onChange={setSelectedCategoryIds}
-                selectedCategoryIds={selectedCategoryIds}
-              />
-              <div className="civic-form-actions">
-                <button className="civic-primary-action" disabled={pending} type="submit">
-                  카테고리 교체
-                </button>
-              </div>
-            </form>
-          ) : null}
         </section>
 
-        {loading ? <p aria-live="polite">최신 카테고리를 불러오는 중입니다.</p> : null}
-        {message ? (
+        {message && !room ? (
           <p aria-live="polite" className="civic-form-message" role="status">
             {message}
           </p>
         ) : null}
       </div>
+      {room ? (
+        <div className="civic-document-drawer-layer civic-category-editor-layer">
+          <button
+            aria-label="채팅방 카테고리 편집 닫기"
+            className="civic-document-drawer-scrim"
+            onClick={closeRoomEditor}
+            type="button"
+          />
+          <aside
+            aria-labelledby="civic-category-editor-title"
+            aria-modal="true"
+            className="civic-document-inspector civic-category-editor"
+            role="dialog"
+          >
+            <header>
+              <div>
+                <small>카테고리 편집</small>
+                <strong id="civic-category-editor-title">{selectedRoomName}</strong>
+              </div>
+              <button
+                aria-label="채팅방 카테고리 편집 닫기"
+                autoFocus
+                onClick={closeRoomEditor}
+                type="button"
+              >
+                ×
+              </button>
+            </header>
+            <form
+              className="civic-domain-action-panel civic-category-editor-form"
+              onSubmit={replaceRoomCategories}
+            >
+              <p className="civic-boundary-copy">
+                이 채팅방에 표시할 카테고리를 최대 5개까지 선택하고 저장하세요.
+              </p>
+              <RoomCategorySelector
+                categories={categories}
+                disabled={pending}
+                legend="적용할 카테고리"
+                onChange={setSelectedCategoryIds}
+                selectedCategoryIds={selectedCategoryIds}
+              />
+              {message ? (
+                <p aria-live="polite" className="civic-form-message" role="status">
+                  {message}
+                </p>
+              ) : null}
+              <div className="civic-form-actions civic-category-editor-actions">
+                <button
+                  className="civic-secondary-action"
+                  disabled={pending}
+                  onClick={closeRoomEditor}
+                  type="button"
+                >
+                  취소
+                </button>
+                <button className="civic-primary-action" disabled={pending} type="submit">
+                  변경사항 저장
+                </button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      ) : null}
     </ScreenFrame>
   );
 }
@@ -482,14 +533,13 @@ function ListedRoomTable({
             <th>채팅방 이름</th>
             <th>현재 카테고리</th>
             <th>참여자</th>
-            <th>버전</th>
             <th>작업</th>
           </tr>
         </thead>
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={5}>{loading ? "불러오는 중입니다." : "검색된 채팅방이 없습니다."}</td>
+              <td colSpan={4}>{loading ? "불러오는 중입니다." : "검색된 채팅방이 없습니다."}</td>
             </tr>
           ) : null}
           {items.map((listedRoom) => {
@@ -507,7 +557,6 @@ function ListedRoomTable({
                   </div>
                 </td>
                 <td>{listedRoom.activeMemberCount}명</td>
-                <td>{listedRoom.version}</td>
                 <td>
                   <button
                     className="civic-secondary-action"
@@ -544,14 +593,13 @@ function CategoryTable({
         <thead>
           <tr>
             <th>이름</th>
-            <th>버전</th>
             <th>작업</th>
           </tr>
         </thead>
         <tbody>
           {categories.length === 0 ? (
             <tr>
-              <td colSpan={3}>등록된 카테고리가 없습니다.</td>
+              <td colSpan={2}>등록된 카테고리가 없습니다.</td>
             </tr>
           ) : null}
           {categories.map((category) => (
@@ -603,7 +651,6 @@ function CategoryRow({
           value={name}
         />
       </th>
-      <td>{category.version}</td>
       <td>
         <div className="civic-category-actions">
           <button
