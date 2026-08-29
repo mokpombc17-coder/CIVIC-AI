@@ -63,7 +63,7 @@ export function useChatRoomOverlayExperience(
     },
     messageSearchPanel: {
       controller: messageSearchPanel.controller,
-      onNavigateToMessage: messageSearchPanel.onNavigateToMessage,
+      navigation: messageSearchPanel.navigation,
       onClose: messageSearchPanel.close,
       visible: state.searchPanelVisible,
     },

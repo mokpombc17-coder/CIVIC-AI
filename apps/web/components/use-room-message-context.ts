@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, type QueryKey, useQueryClient } from "@tanstack/react-query";
 import { chatRoomApi, type ChatRoomApi } from "@/lib/chat/chat-room-api";
 import type {
   ChatMessage,
@@ -21,12 +21,34 @@ const EMPTY_CHAT_MESSAGES: readonly ChatMessage[] = [];
 
 export type RoomMessageContextDirection = "older" | "newer";
 
-type RoomMessageContextSelection = Readonly<{
+type RoomMessageNavigationSelectionBase = Readonly<{
   generation: number;
-  messageId: string;
   roomId: string;
   searchSessionGeneration: number;
 }>;
+
+type RoomMessageContextSelection = RoomMessageNavigationSelectionBase &
+  Readonly<{
+    contextMessageId: string;
+    kind: "context";
+    targetMessageId: string;
+  }>;
+
+type RoomMessageLiveSelection = RoomMessageNavigationSelectionBase &
+  Readonly<{
+    kind: "live";
+    targetMessageId: string;
+  }>;
+
+type RoomMessageNavigationSelection = RoomMessageContextSelection | RoomMessageLiveSelection;
+
+export type RoomMessageNavigationDestination =
+  | Readonly<{ kind: "live" }>
+  | Readonly<{
+      contextMessageId: string;
+      kind: "context";
+      source: "cache" | "current" | "remote";
+    }>;
 
 export type RoomMessageContextExtensionState = Readonly<{
   error: unknown | null;
@@ -59,6 +81,7 @@ export type RoomMessageContextExtensionAction =
 export type UseRoomMessageContextParams = Readonly<{
   enabled: boolean;
   generation: number;
+  liveMessages?: readonly ChatMessage[];
   searchSessionGeneration: number;
   api?: Pick<ChatRoomApi, "getRoomMessages">;
 }>;
@@ -66,17 +89,24 @@ export type UseRoomMessageContextParams = Readonly<{
 type UseRoomMessageNavigationParams = Readonly<{
   enabled: boolean;
   generation: number;
+  liveMessages: readonly ChatMessage[];
 }>;
 
 export function useRoomMessageContext(
   roomId: string,
-  { enabled, generation, searchSessionGeneration, api = chatRoomApi }: UseRoomMessageContextParams,
+  {
+    enabled,
+    generation,
+    liveMessages = EMPTY_CHAT_MESSAGES,
+    searchSessionGeneration,
+    api = chatRoomApi,
+  }: UseRoomMessageContextParams,
 ) {
   const queryClient = useQueryClient();
   const [selection, setSelection] = useReducer(
     (
-      _selection: RoomMessageContextSelection | null,
-      nextSelection: RoomMessageContextSelection | null,
+      _selection: RoomMessageNavigationSelection | null,
+      nextSelection: RoomMessageNavigationSelection | null,
     ) => nextSelection,
     null,
   );
@@ -92,13 +122,16 @@ export function useRoomMessageContext(
     selection.generation === generation &&
     selection.searchSessionGeneration === searchSessionGeneration;
   const activeSelection = isCurrentSelection ? selection : null;
+  const activeContextSelection = activeSelection?.kind === "context" ? activeSelection : null;
   const selectionKey =
-    activeSelection === null ? null : createRoomMessageContextSelectionKey(activeSelection);
+    activeContextSelection === null
+      ? null
+      : createRoomMessageContextSelectionKey(activeContextSelection);
   const contextQuery = useRoomMessageContextQuery(
     roomId,
-    activeSelection?.messageId ?? INACTIVE_MESSAGE_CONTEXT_ID,
+    activeContextSelection?.contextMessageId ?? INACTIVE_MESSAGE_CONTEXT_ID,
     {
-      enabled: activeSelection !== null,
+      enabled: activeContextSelection !== null,
       generation,
     },
   );
@@ -106,7 +139,7 @@ export function useRoomMessageContext(
     extension.key === selectionKey
       ? extension
       : createRoomMessageContextExtensionState(selectionKey);
-  const messages = useMemo(
+  const contextMessages = useMemo(
     () =>
       contextQuery.data
         ? mergeRoomMessageContextWindow(
@@ -118,6 +151,7 @@ export function useRoomMessageContext(
         : EMPTY_CHAT_MESSAGES,
     [activeExtension.newerMessages, activeExtension.olderMessages, contextQuery.data, roomId],
   );
+  const messages = activeSelection?.kind === "live" ? liveMessages : contextMessages;
   const nextBeforeSequence =
     activeExtension.nextBeforeSequence === undefined
       ? (contextQuery.data?.nextBeforeSequence ?? null)
@@ -132,32 +166,72 @@ export function useRoomMessageContext(
     loadingDirectionsRef.current.clear();
     setSelection(null);
     dispatchExtension({ type: "reset", key: null });
-    void discardRoomMessageContextQueries(queryClient, roomId);
-  }, [queryClient, roomId]);
+  }, []);
 
-  const openContext = useCallback(
+  const navigateToMessage = useCallback(
     (messageId: string) => {
       operationGenerationRef.current += 1;
       loadingDirectionsRef.current.clear();
-      const nextSelection: RoomMessageContextSelection = {
+      const selectionBase: RoomMessageNavigationSelectionBase = {
         generation,
-        messageId,
         roomId,
         searchSessionGeneration,
       };
+
+      const destination = resolveRoomMessageNavigationDestination({
+        activeContextMessageId: activeContextSelection?.contextMessageId ?? null,
+        contextMessages,
+        generation,
+        liveMessages,
+        messageId,
+        queryClient,
+        roomId,
+      });
+
+      if (destination.kind === "live") {
+        setSelection({
+          ...selectionBase,
+          kind: "live",
+          targetMessageId: messageId,
+        });
+        dispatchExtension({ type: "reset", key: null });
+        return;
+      }
+
+      if (destination.source === "current" && activeContextSelection !== null) {
+        setSelection({
+          ...activeContextSelection,
+          targetMessageId: messageId,
+        });
+        return;
+      }
+
+      const nextSelection: RoomMessageContextSelection = {
+        ...selectionBase,
+        contextMessageId: destination.contextMessageId,
+        kind: "context",
+        targetMessageId: messageId,
+      };
       const nextKey = createRoomMessageContextSelectionKey(nextSelection);
 
-      void discardRoomMessageContextQueries(queryClient, roomId);
       setSelection(nextSelection);
       dispatchExtension({ type: "reset", key: nextKey });
     },
-    [generation, queryClient, roomId, searchSessionGeneration],
+    [
+      activeContextSelection,
+      contextMessages,
+      generation,
+      liveMessages,
+      queryClient,
+      roomId,
+      searchSessionGeneration,
+    ],
   );
 
   const loadDirection = useCallback(
     async (direction: RoomMessageContextDirection) => {
       if (
-        activeSelection === null ||
+        activeContextSelection === null ||
         selectionKey === null ||
         contextQuery.data === undefined ||
         loadingDirectionsRef.current.has(direction)
@@ -197,7 +271,7 @@ export function useRoomMessageContext(
 
         const contextQueryKey = chatRoomQueryKeys.messageContext(
           roomId,
-          activeSelection.messageId,
+          activeContextSelection.contextMessageId,
           generation,
           DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE,
           DEFAULT_ROOM_MESSAGE_CONTEXT_SIZE,
@@ -225,7 +299,7 @@ export function useRoomMessageContext(
       }
     },
     [
-      activeSelection,
+      activeContextSelection,
       api,
       contextQuery.data,
       generation,
@@ -252,21 +326,34 @@ export function useRoomMessageContext(
     };
   }, [enabled, generation, queryClient, roomId, searchSessionGeneration]);
 
+  const targetMessageId = activeSelection?.targetMessageId ?? null;
+  const targetMessage =
+    targetMessageId === null
+      ? undefined
+      : messages.find((message) => message.messageId === targetMessageId);
+
   return {
     closeContext,
-    error: activeSelection === null ? null : (contextQuery.error ?? activeExtension.error),
+    error: activeContextSelection === null ? null : (contextQuery.error ?? activeExtension.error),
     failedDirection: activeExtension.failedDirection,
-    hasNewer: contextQuery.data !== undefined && nextAfterSequence !== null,
-    hasOlder: contextQuery.data !== undefined && nextBeforeSequence !== null,
-    isError: activeSelection !== null && (contextQuery.isError || activeExtension.error !== null),
+    hasNewer: activeContextSelection !== null && nextAfterSequence !== null,
+    hasOlder: activeContextSelection !== null && nextBeforeSequence !== null,
+    isError:
+      activeContextSelection !== null && (contextQuery.isError || activeExtension.error !== null),
     isLoadingNewer: activeExtension.isLoadingNewer,
     isLoadingOlder: activeExtension.isLoadingOlder,
-    isPending: activeSelection !== null && contextQuery.isPending,
+    isPending: activeContextSelection !== null && contextQuery.isPending,
     loadNewer: () => loadDirection("newer"),
     loadOlder: () => loadDirection("older"),
     messages,
-    openContext,
+    mode: activeSelection?.kind ?? null,
+    navigateToMessage,
+    openContext: navigateToMessage,
     retry: async () => {
+      if (activeContextSelection === null) {
+        return;
+      }
+
       if (activeExtension.failedDirection !== null) {
         await loadDirection(activeExtension.failedDirection);
         return;
@@ -274,19 +361,20 @@ export function useRoomMessageContext(
 
       await contextQuery.refetch();
     },
-    selectedMessageId: activeSelection?.messageId ?? null,
-    targetMessageId: contextQuery.data?.targetMessageId ?? activeSelection?.messageId ?? null,
-    targetRoomSequence: contextQuery.data?.targetRoomSequence ?? null,
+    selectedMessageId: targetMessageId,
+    targetMessageId,
+    targetRoomSequence: targetMessage?.roomSequence ?? null,
   };
 }
 
 export function useRoomMessageNavigation(
   roomId: string,
-  { enabled, generation }: UseRoomMessageNavigationParams,
+  { enabled, generation, liveMessages }: UseRoomMessageNavigationParams,
 ) {
   return useRoomMessageContext(roomId, {
     enabled,
     generation,
+    liveMessages,
     searchSessionGeneration: 0,
   });
 }
@@ -329,6 +417,92 @@ export function extendRoomMessageContextResponse(
         items: [...items],
         nextAfterSequence: response.hasMore ? (response.nextAfterSequence ?? null) : null,
       };
+}
+
+export function resolveRoomMessageNavigationDestination({
+  activeContextMessageId,
+  contextMessages,
+  generation,
+  liveMessages,
+  messageId,
+  queryClient,
+  roomId,
+}: Readonly<{
+  activeContextMessageId: string | null;
+  contextMessages: readonly Pick<ChatMessage, "messageId">[];
+  generation: number;
+  liveMessages: readonly Pick<ChatMessage, "messageId">[];
+  messageId: string;
+  queryClient: Pick<QueryClient, "getQueriesData">;
+  roomId: string;
+}>): RoomMessageNavigationDestination {
+  if (liveMessages.some((message) => message.messageId === messageId)) {
+    return { kind: "live" };
+  }
+
+  if (
+    activeContextMessageId !== null &&
+    contextMessages.some((message) => message.messageId === messageId)
+  ) {
+    return {
+      contextMessageId: activeContextMessageId,
+      kind: "context",
+      source: "current",
+    };
+  }
+
+  const cachedContextMessageId = findCachedRoomMessageContextTarget({
+    generation,
+    messageId,
+    queryClient,
+    roomId,
+  });
+
+  return {
+    contextMessageId: cachedContextMessageId ?? messageId,
+    kind: "context",
+    source: cachedContextMessageId === null ? "remote" : "cache",
+  };
+}
+
+export function findCachedRoomMessageContextTarget({
+  generation,
+  messageId,
+  queryClient,
+  roomId,
+}: Readonly<{
+  generation: number;
+  messageId: string;
+  queryClient: Pick<QueryClient, "getQueriesData">;
+  roomId: string;
+}>): string | null {
+  const queryKey = chatRoomQueryKeys.messageContextsForRoom(roomId);
+
+  for (const [cachedQueryKey, context] of queryClient.getQueriesData<RoomMessageContextResponse>({
+    queryKey,
+  })) {
+    if (
+      context === undefined ||
+      getRoomMessageContextQueryGeneration(cachedQueryKey) !== generation ||
+      !context.items.some((message) => message.messageId === messageId)
+    ) {
+      continue;
+    }
+
+    return context.targetMessageId;
+  }
+
+  return null;
+}
+
+function getRoomMessageContextQueryGeneration(queryKey: QueryKey): number | null {
+  const criteria = queryKey.at(-1);
+
+  if (criteria === null || typeof criteria !== "object" || !("generation" in criteria)) {
+    return null;
+  }
+
+  return typeof criteria.generation === "number" ? criteria.generation : null;
 }
 
 export async function discardRoomMessageContextQueries(
@@ -417,6 +591,6 @@ function createRoomMessageContextSelectionKey(selection: RoomMessageContextSelec
     selection.roomId,
     selection.generation,
     selection.searchSessionGeneration,
-    selection.messageId,
+    selection.contextMessageId,
   ]);
 }

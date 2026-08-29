@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   closeChatRoomMessageSearchExperience,
-  navigateFromChatRoomMessageSearch,
+  createChatRoomMessageSearchNavigationState,
   shouldCloseChatRoomMessageSearchExperience,
 } from "./use-chat-room-message-search-experience";
 
@@ -17,16 +17,67 @@ describe("ChatRoom message search experience", () => {
     expect(calls).toEqual(["search", "dialog"]);
   });
 
-  it("검색 결과 메시지로 이동한 뒤 검색 panel을 닫는다", () => {
-    const calls: string[] = [];
-
-    navigateFromChatRoomMessageSearch({
-      closeSearch: vi.fn(() => calls.push("close")),
-      messageId: "message-01",
-      onNavigateToMessage: vi.fn((messageId) => calls.push(`navigate:${messageId}`)),
+  it("가장 최신 결과에서는 더 오래된 결과로만 이동할 수 있다", () => {
+    expect(
+      createChatRoomMessageSearchNavigationState({
+        currentResultMessageId: "message-03",
+        hasNextPage: false,
+        isError: false,
+        messages: [
+          { messageId: "message-03" },
+          { messageId: "message-02" },
+          { messageId: "message-01" },
+        ],
+      }),
+    ).toEqual({
+      canNavigateNewer: false,
+      canNavigateOlder: true,
+      currentResultIndex: 0,
     });
+  });
 
-    expect(calls).toEqual(["navigate:message-01", "close"]);
+  it("불러온 가장 오래된 결과에서는 다음 cursor가 있을 때만 위 이동을 허용한다", () => {
+    const messages = [{ messageId: "message-02" }, { messageId: "message-01" }];
+
+    expect(
+      createChatRoomMessageSearchNavigationState({
+        currentResultMessageId: "message-01",
+        hasNextPage: true,
+        isError: false,
+        messages,
+      }),
+    ).toEqual({
+      canNavigateNewer: true,
+      canNavigateOlder: true,
+      currentResultIndex: 1,
+    });
+    expect(
+      createChatRoomMessageSearchNavigationState({
+        currentResultMessageId: "message-01",
+        hasNextPage: false,
+        isError: false,
+        messages,
+      }),
+    ).toEqual({
+      canNavigateNewer: true,
+      canNavigateOlder: false,
+      currentResultIndex: 1,
+    });
+  });
+
+  it("현재 결과가 누적 결과에서 사라지면 선택되지 않은 상태로 복구한다", () => {
+    expect(
+      createChatRoomMessageSearchNavigationState({
+        currentResultMessageId: "message-missing",
+        hasNextPage: true,
+        isError: false,
+        messages: [{ messageId: "message-01" }],
+      }),
+    ).toEqual({
+      canNavigateNewer: false,
+      canNavigateOlder: false,
+      currentResultIndex: null,
+    });
   });
 
   it.each([

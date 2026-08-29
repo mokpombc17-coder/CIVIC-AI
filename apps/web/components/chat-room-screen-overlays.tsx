@@ -49,17 +49,14 @@ export function ChatRoomScreenHeaderActions({
 
 export function ChatRoomScreenMessageSearchPanel({
   messageSearchPanel,
-  participantDisplayNames,
 }: Readonly<{
   messageSearchPanel: ChatRoomOverlayExperience["messageSearchPanel"];
-  participantDisplayNames: ReadonlyMap<string, string>;
 }>) {
   return (
     <ChatRoomMessageSearchPanel
       controller={messageSearchPanel.controller}
+      navigation={messageSearchPanel.navigation}
       onClose={messageSearchPanel.onClose}
-      onNavigateToMessage={messageSearchPanel.onNavigateToMessage}
-      participantDisplayNames={participantDisplayNames}
     />
   );
 }

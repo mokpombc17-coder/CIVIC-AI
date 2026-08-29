@@ -23,12 +23,13 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const messageNavigation = useRoomMessageNavigation(roomId, {
     enabled: session.isActive,
     generation: session.generation,
+    liveMessages: realtime.messageHistory.messages,
   });
   const content = useChatRoomContentExperience(roomId, realtime, messageNavigation);
   const overlays = useChatRoomOverlayExperience(roomId, {
     generation: session.generation,
     hasMessageActions: content.messageActions.sheet !== null,
-    onNavigateToMessage: messageNavigation.openContext,
+    onNavigateToMessage: messageNavigation.navigateToMessage,
     roomActive: session.isActive,
     roomAvailable: content.room !== undefined,
   });
@@ -40,10 +41,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       messageHistory={content.messageHistory}
       messageSearchPanel={
         overlays.messageSearchPanel.visible ? (
-          <ChatRoomScreenMessageSearchPanel
-            messageSearchPanel={overlays.messageSearchPanel}
-            participantDisplayNames={content.participantDisplayNames}
-          />
+          <ChatRoomScreenMessageSearchPanel messageSearchPanel={overlays.messageSearchPanel} />
         ) : null
       }
       overlay={

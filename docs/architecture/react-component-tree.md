@@ -167,13 +167,15 @@ z-index만 책임진다. modal overlay가 열리면 `contentInert`가 header·co
 active anchor, 동작과 overlay 상태를 계속 소유한다.
 
 `ChatRoomMessageSearchPanel`은 route나 `PlatformShell` overlay를 추가하지 않고 채팅방 content 안에서
-메시지 viewport 위에 조건부로 조립된다. 검색 결과는 최대 `min(240px, 38dvh)` 높이의 내부
-스크롤 영역에 표시하고, 결과 선택 시 panel을 닫은 뒤 `ChatMessageViewport`의 해당 메시지 위치로
-이동한다. 검색 중에는 기존 채팅방 header, message viewport, composer와 bottom navigation을
-유지하며 read-state를 멈추지 않는다. 검색 결과 위치로 이동한 동안에는 최신 timeline과 분리된
-Context window를 표시하므로 read-state 보고를 멈추고 명시적인 최신 대화 복귀 동작을 제공한다. 멤버십과
-메시지 작업처럼 배경 상호작용을 막아야 하는 기능만 `ChatRoomScreenOverlay`의 blocking overlay로
-남는다.
+메시지 viewport 위에 조건부로 조립된다. 검색 입력·초기화·누적 결과 위치와 위·아래 이동을 단일
+control bar에 표시하며 별도의 검색 결과 목록이나 내부 scroll 영역을 만들지 않는다. 결과 이동 중에도
+검색 bar를 유지하고 `ChatMessageViewport`의 해당 메시지 위치로 이동한다. 검색 중에는 기존 채팅방
+header, message viewport, composer와 bottom navigation을 유지하며 read-state를 멈추지 않는다.
+검색 결과가 현재 message history에 있으면 같은 timeline에서 즉시 이동하고 read-state를 유지한다.
+현재·캐시된 Context window에 있으면 해당 window를 재사용하며, 어느 캐시에도 없을 때만 새 Context를
+조회한다. 최신 timeline과 분리된 Context를 표시하는 동안에만 read-state 보고를 멈추고 명시적인 최신
+대화 복귀 동작을 제공한다. 멤버십과 메시지 작업처럼 배경 상호작용을 막아야 하는 기능만
+`ChatRoomScreenOverlay`의 blocking overlay로 남는다.
 
 `ChatQueryProvider`가 렌더링하는 `ReactQueryDevtools`는 프로젝트 외부 컴포넌트이므로 트리에서
 제외한다. Devtools 출력은 development 환경에서만 활성화된다. `ChatRealtimeSyncStatus`는
@@ -229,11 +231,17 @@ Receipt 오류는 기존 coordinator 경계에서 core message realtime과 분�
 snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. Header, viewport ViewModel, history feedback과
 Room 오류 복구 동작까지 UI가 바로 소비할 수 있는 content model로 반환한다.
 Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 소유하는 독립 session,
-검색 결과 선택과 panel 종료는 `useChatRoomMessageSearchExperience`가 조립한다. 이 controller hook은
-선택한 `messageId`를 Screen의 메시지 이동 controller에 전달하고 검색 session을 정리하며, Room
-session이 비활성화되면 열린 검색을 닫는다. `ChatRoomScreen`이 소유한 `useRoomMessageNavigation`은 선택한
-메시지의 Context window를 일반 최신 timeline cache와 분리해 조회하고 `useChatRoomContentExperience`가
-이를 viewport용 메시지 source와 임의 메시지 초기 이동 목표로 변환한다.
+현재 결과 위치와 순차 이동은 `useChatRoomMessageSearchExperience`가 조립한다. 이 controller hook은
+선택한 `messageId`를 Screen의 메시지 이동 controller에 전달하되 검색 bar를 유지한다. 불러온 가장
+오래된 결과의 위쪽으로 이동하면 다음 cursor page를 조회하고, `items`가 빈 중간 page도
+`searchComplete`가 될 때까지 건너뛴다. 명시적인 취소나 Room session 비활성화 시에는 검색 session을
+정리하고 panel을 닫는다. `ChatRoomScreen`이 소유한 `useRoomMessageNavigation`은 선택한 메시지의
+위치를 live message history, 현재 Context window, 같은 Room generation의 캐시된 Context 순서로
+찾는다. 찾은 window에서는 API 요청 없이 target만 바꾸고, 캐시에 없을 때 선택한 메시지를 중심으로 새
+Context를 조회한다. Context query는 개별 이동이나 최신 대화 복귀 때 제거하지 않고 Room session
+lifecycle이 바뀔 때 정리해 겹치는 검색 결과가 window를 재사용할 수 있게 한다.
+`useChatRoomContentExperience`는 live 이동이면 기존 timeline source와 read-state를 유지하고, Context
+이동이면 분리된 message source와 read-state pause를 viewport model로 변환한다.
 새 메시지는 고정된 검색 session에 자동 추가하지 않고, 실시간 UPDATE와 DELETE만 이미 로드된
 검색 결과와 Context에 반영한다. 검색이나 Context 오류는 core message 수신·전송을 막지 않는다.
 `useChatRoomParticipantProfiles`는 ACTIVE membership profile을 메시지 이력과 병렬로 조회하고,
@@ -282,9 +290,10 @@ session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 �
 담당한다. 메시지 수정·삭제 lifecycle과 transport command는 `useChatRoomMessageExperience`가 조립하고,
 선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
 `useChatRoomOverlayExperience`는 채팅방 메뉴·메시지 검색 disclosure, trigger focus 복원과
-검색/멤버십/메시지 액션의 단일 overlay 우선순위를 조립한다. Screen은 이 controller가 제공한
+멤버십/메시지 액션의 단일 blocking overlay 우선순위를 조립한다. Screen은 이 controller가 제공한
 header action과 overlay model을 View에 배치하고, `ChatRoomMembershipDialog` 안에서만
-`ChatRoomMembershipPanel`을 mount한다. 세 overlay는 동시에 렌더링하지 않는다.
+`ChatRoomMembershipPanel`을 mount한다. 검색 bar는 content 안에 유지되고 두 blocking overlay는
+동시에 렌더링하지 않는다.
 순수 overlay 선택 정책과 message history feedback 타입은 `.ts` ViewModel 모듈에 두어,
 experience hook이 `.tsx` 표현 컴포넌트의 구현 타입을 역으로 참조하지 않게 한다.
 `ChatRoomMembershipPanel`은 `useChatRoomMembershipPanel`이 조립한 controller를

@@ -3,79 +3,92 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   ChatRoomMessageSearchPanel,
+  type ChatRoomMessageSearchNavigationController,
   type ChatRoomMessageSearchPanelController,
 } from "@/components/chat-room-message-search-dialog";
 import { ChatApiError } from "@/lib/chat/chat-fetch";
 import type { ChatMessage } from "@/lib/chat/chat-room-contracts";
 
 describe("Room message search panel", () => {
-  it("검색 입력과 취소 action을 채팅 안의 접근 가능한 inline panel로 표시한다", () => {
-    const html = renderDialog();
+  it("검색·초기화·결과 이동·취소 action을 한 줄에 표시한다", () => {
+    const html = renderPanel({
+      controller: {
+        appliedQuery: "환경 정책",
+        draftQuery: "환경 정책",
+        hasNextPage: true,
+        messages: [createMessage("message-2"), createMessage("message-1")],
+      },
+    });
 
     expect(html).toContain('data-chat-room-message-search-panel="true"');
     expect(html).toContain('data-presentation="inline"');
     expect(html).toContain('id="chat-room-message-search-panel"');
     expect(html).not.toContain('role="dialog"');
-    expect(html).not.toContain('aria-modal="true"');
-    expect(html).toContain('aria-label="메시지 검색 닫기"');
-    expect(html).toContain('role="search"');
     expect(html).toContain('aria-label="채팅방 메시지 검색"');
     expect(html).toContain('placeholder="메시지 검색"');
+    expect(html).toContain('aria-label="검색 초기화"');
+    expect(html).toContain('aria-label="더 오래된 검색 결과"');
+    expect(html).toContain('aria-label="더 최신 검색 결과"');
+    expect(html).toContain('aria-label="메시지 검색 닫기"');
+    expect(html).toContain("1 / 2+");
     expect(html).toContain(">취소</button>");
     expect(html).toContain('maxLength="512"');
-    expect(html).toContain("키보드의 검색 또는 Enter");
-    expect(html).not.toContain("검색어를 입력한 뒤 검색을 실행해 주세요.");
-    expect(html).not.toContain("두 글자 이상 입력해 주세요");
-    expect(html).not.toContain("Room messages");
+    expect(html).not.toContain("검색 결과</p>");
+    expect(html).not.toContain("이동 하기");
+    expect(html).not.toContain("더 오래된 메시지 검색");
   });
 
-  it("검색 결과에 참여자 프로필과 fallback을 표시한다", () => {
-    const html = renderDialog(
-      {
+  it("검색이 완료되면 누적 결과 수를 확정하고 현재 위치를 표시한다", () => {
+    const html = renderPanel({
+      controller: {
         appliedQuery: "환경 정책",
         draftQuery: "환경 정책",
-        messages: [
-          createMessage("message-1", "membership-known", "환경 정책입니다."),
-          createMessage("message-2", "membership-missing", "두 번째 결과"),
-        ],
+        hasNextPage: false,
+        messages: [createMessage("message-2"), createMessage("message-1")],
       },
-      new Map([["membership-known", "참여자 2"]]),
-    );
+      navigation: {
+        canNavigateNewer: true,
+        canNavigateOlder: false,
+        currentResultIndex: 1,
+      },
+    });
 
-    expect(html).toContain('aria-label="메시지 검색 결과"');
-    expect(html).toContain('data-message-id="message-1"');
-    expect(html).toContain("참여자 2");
-    expect(html).toContain("알 수 없음");
-    expect(html).toContain("이동 하기");
-    expect(html).not.toContain("주변 대화 보기");
-    expect(html).toContain("환경 정책입니다.");
-    expect(html).toContain("max-h-[min(240px,38dvh)]");
+    expect(html).toContain("2 / 2");
+    expect(html).not.toContain("2 / 2+");
   });
 
-  it("빈 중간 페이지를 최종 검색 결과 없음과 구분한다", () => {
-    const intermediateHtml = renderDialog({
-      appliedQuery: "환경 정책",
-      draftQuery: "환경 정책",
-      hasNextPage: true,
+  it("빈 중간 페이지는 검색 중으로, 완료된 빈 결과는 0 / 0으로 표시한다", () => {
+    const intermediateHtml = renderPanel({
+      controller: {
+        appliedQuery: "환경 정책",
+        draftQuery: "환경 정책",
+        hasNextPage: true,
+      },
+      navigation: { currentResultIndex: null },
     });
-    const completeHtml = renderDialog({
-      appliedQuery: "환경 정책",
-      draftQuery: "환경 정책",
-      hasNextPage: false,
+    const completeHtml = renderPanel({
+      controller: {
+        appliedQuery: "환경 정책",
+        draftQuery: "환경 정책",
+        hasNextPage: false,
+      },
+      navigation: { currentResultIndex: null },
     });
 
-    expect(intermediateHtml).toContain("이번 검색 구간에는 일치하는 메시지가 없습니다.");
-    expect(intermediateHtml).toContain("더 오래된 메시지 검색");
-    expect(completeHtml).toContain("검색 결과가 없습니다.");
+    expect(intermediateHtml).toContain("검색 중…");
+    expect(intermediateHtml).not.toContain("0 / 0+");
+    expect(completeHtml).toContain("0 / 0");
   });
 
   it("validation과 요청 실패를 alert로 표시한다", () => {
-    const html = renderDialog({
-      appliedQuery: "환경 정책",
-      draftQuery: "환경\n정책",
-      error: new TypeError("fetch failed"),
-      isError: true,
-      validationMessage: "검색어에 제어 문자를 포함할 수 없습니다.",
+    const html = renderPanel({
+      controller: {
+        appliedQuery: "환경 정책",
+        draftQuery: "환경\n정책",
+        error: new TypeError("fetch failed"),
+        isError: true,
+        validationMessage: "검색어에 제어 문자를 포함할 수 없습니다.",
+      },
     });
 
     expect(html.match(/role="alert"/g)).toHaveLength(2);
@@ -85,15 +98,16 @@ describe("Room message search panel", () => {
     expect(html).toContain("네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
     expect(html).toContain("다시 시도");
     expect(html).toContain("bg-[#fff7e8]");
-    expect(html).not.toContain("text-[#b42318]");
   });
 
   it("자동 반복하면 안 되는 서버 오류에는 다시 시도를 표시하지 않는다", () => {
-    const html = renderDialog({
-      appliedQuery: "환경 정책",
-      draftQuery: "환경 정책",
-      error: createChatApiError(500, "INTERNAL_ERROR"),
-      isError: true,
+    const html = renderPanel({
+      controller: {
+        appliedQuery: "환경 정책",
+        draftQuery: "환경 정책",
+        error: createChatApiError(500, "INTERNAL_ERROR"),
+        isError: true,
+      },
     });
 
     expect(html).toContain("같은 요청을 자동으로 반복하지 않습니다.");
@@ -101,10 +115,13 @@ describe("Room message search panel", () => {
   });
 });
 
-function renderDialog(
-  patch: Partial<ChatRoomMessageSearchPanelController> = {},
-  participantDisplayNames: ReadonlyMap<string, string> = new Map(),
-): string {
+function renderPanel({
+  controller: controllerPatch = {},
+  navigation: navigationPatch = {},
+}: Readonly<{
+  controller?: Partial<ChatRoomMessageSearchPanelController>;
+  navigation?: Partial<ChatRoomMessageSearchNavigationController>;
+}> = {}): string {
   return renderToStaticMarkup(
     createElement(ChatRoomMessageSearchPanel, {
       controller: {
@@ -120,18 +137,24 @@ function renderDialog(
         isFetching: false,
         isFetchingNextPage: false,
         isPending: false,
-        loadMore: vi.fn(async () => undefined),
         messages: [],
         rateLimitRetryAfterMs: undefined,
         retry: vi.fn(async () => undefined),
         setDraftQuery: vi.fn(),
         startComposition: vi.fn(),
         validationMessage: undefined,
-        ...patch,
+        ...controllerPatch,
+      },
+      navigation: {
+        canNavigateNewer: false,
+        canNavigateOlder: true,
+        currentResultIndex: 0,
+        isSeekingOlderResult: false,
+        navigateToNewerResult: vi.fn(),
+        navigateToOlderResult: vi.fn(),
+        ...navigationPatch,
       },
       onClose: vi.fn(),
-      onNavigateToMessage: vi.fn(),
-      participantDisplayNames,
     }),
   );
 }
@@ -149,18 +172,14 @@ function createChatApiError(status: number, code: string): ChatApiError {
   });
 }
 
-function createMessage(
-  messageId: string,
-  senderMembershipId: string,
-  content: string,
-): ChatMessage {
+function createMessage(messageId: string): ChatMessage {
   return {
     messageId,
     roomId: "room-01",
     roomSequence: Number(messageId.replace("message-", "")),
-    senderMembershipId,
+    senderMembershipId: "membership-01",
     clientMessageId: `client-${messageId}`,
-    content,
+    content: "환경 정책입니다.",
     state: "ACTIVE",
     countable: true,
     messageVersion: 1,

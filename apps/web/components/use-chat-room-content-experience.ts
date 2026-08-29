@@ -24,7 +24,8 @@ export function useChatRoomContentExperience(
   const participantProfiles = useChatRoomParticipantProfiles(roomId, {
     enabled: session.isActive,
   });
-  const messageNavigationActive = messageNavigation.selectedMessageId !== null;
+  const messageNavigationActive = messageNavigation.mode !== null;
+  const contextNavigationActive = messageNavigation.mode === "context";
   const confirmedMessages = messageNavigationActive
     ? messageNavigation.messages
     : messageHistory.messages;
@@ -60,9 +61,9 @@ export function useChatRoomContentExperience(
     confirmedMessages,
     enabled: session.isActive,
     generation: session.generation,
-    includeOutgoingMessages: !messageNavigationActive,
+    includeOutgoingMessages: !contextNavigationActive,
     participantProfiles,
-    readBoundaryAfterSequence: messageNavigationActive ? null : read.readBoundaryAfterSequence,
+    readBoundaryAfterSequence: contextNavigationActive ? null : read.readBoundaryAfterSequence,
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,
     roomId,
@@ -91,9 +92,9 @@ export function useChatRoomContentExperience(
     }),
     messageActions: message.actions,
     messageHistory: {
-      canLoadOlder: messageNavigationActive ? false : messageHistory.hasNextPage,
-      entryNavigation: messageNavigationActive ? null : read.entryNavigationNotice,
-      feedback: messageNavigationActive
+      canLoadOlder: contextNavigationActive ? false : messageHistory.hasNextPage,
+      entryNavigation: contextNavigationActive ? null : read.entryNavigationNotice,
+      feedback: contextNavigationActive
         ? createChatRoomMessageNavigationFeedback(messageNavigation)
         : createChatRoomMessageHistoryFeedback({
             error: messageHistory.error,
@@ -108,21 +109,21 @@ export function useChatRoomContentExperience(
           : messageNavigationActive
             ? ({ kind: "pending" } as const)
             : read.initialScrollTarget,
-      isLoadingOlder: messageNavigationActive ? false : messageHistory.isFetchingNextPage,
+      isLoadingOlder: contextNavigationActive ? false : messageHistory.isFetchingNextPage,
       items: message.viewportItems,
       latestConfirmedSequence,
       onLoadOlder: loadOlder,
       onNavigateToLatest: messageNavigationActive ? messageNavigation.closeContext : null,
       onOpenMessageActions: message.actions.openMessageActions,
       onReadThroughSequence: read.onReadThroughSequence,
-      onRetry: messageNavigationActive
+      onRetry: contextNavigationActive
         ? () => void messageNavigation.retry()
         : () => void messageHistory.refetch(),
-      readStateEnabled: read.readStateEnabled && !messageNavigationActive,
+      readStateEnabled: read.readStateEnabled && !contextNavigationActive,
       roomLabel: `${roomId} 메시지`,
       targetMessageId: messageNavigationActive ? messageNavigation.targetMessageId : null,
       viewportKey: messageNavigationActive
-        ? `${message.viewportKey}:message-navigation:${messageNavigation.selectedMessageId}`
+        ? `${message.viewportKey}:message-navigation:${messageNavigation.mode}:${messageNavigation.selectedMessageId}`
         : message.viewportKey,
     },
     participantDisplayNames: message.participantDisplayNames,

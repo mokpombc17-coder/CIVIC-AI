@@ -7,12 +7,13 @@ import {
   type ChatMessage,
 } from "@/lib/chat/chat-room-contracts";
 import { createRoomMessageSearchErrorPresentation } from "@/lib/chat/chat-room-message-search-error-presentation";
-import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
 
 const SEARCH_SECONDARY_BUTTON_CLASS_NAME =
   "inline-flex min-h-11 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
 const SEARCH_HEADER_ACTION_CLASS_NAME =
   "inline-flex h-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-1 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]";
+const SEARCH_NAVIGATION_BUTTON_CLASS_NAME =
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-full text-xl font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-35";
 
 export const CHAT_ROOM_MESSAGE_SEARCH_PANEL_ID = "chat-room-message-search-panel";
 
@@ -29,13 +30,21 @@ export type ChatRoomMessageSearchPanelController = Readonly<{
   isFetching: boolean;
   isFetchingNextPage: boolean;
   isPending: boolean;
-  loadMore: () => Promise<void>;
   messages: readonly ChatMessage[];
   rateLimitRetryAfterMs: number | undefined;
   retry: () => Promise<void>;
   setDraftQuery: (value: string) => void;
   startComposition: () => void;
   validationMessage: string | undefined;
+}>;
+
+export type ChatRoomMessageSearchNavigationController = Readonly<{
+  canNavigateNewer: boolean;
+  canNavigateOlder: boolean;
+  currentResultIndex: number | null;
+  isSeekingOlderResult: boolean;
+  navigateToNewerResult: () => void;
+  navigateToOlderResult: () => void;
 }>;
 
 export const ChatRoomMessageSearchPanelTrigger = forwardRef<
@@ -64,17 +73,16 @@ export const ChatRoomMessageSearchPanelTrigger = forwardRef<
 
 export function ChatRoomMessageSearchPanel({
   controller,
+  navigation,
   onClose,
-  onNavigateToMessage,
-  participantDisplayNames,
 }: Readonly<{
   controller: ChatRoomMessageSearchPanelController;
+  navigation: ChatRoomMessageSearchNavigationController;
   onClose: () => void;
-  onNavigateToMessage: (messageId: string) => void;
-  participantDisplayNames: ReadonlyMap<string, string>;
 }>) {
   const titleId = useId();
   const helpId = useId();
+  const inputId = useId();
   const validationId = useId();
   const describedBy = [helpId, controller.validationMessage ? validationId : undefined]
     .filter(Boolean)
@@ -104,7 +112,7 @@ export function ChatRoomMessageSearchPanel({
       id={CHAT_ROOM_MESSAGE_SEARCH_PANEL_ID}
       onKeyDown={handleKeyDown}
     >
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--chat-publishing-color-border)] bg-white px-4">
+      <header className="flex h-16 shrink-0 items-center gap-1.5 px-3">
         <h2 className="sr-only" id={titleId}>
           메시지 검색
         </h2>
@@ -114,8 +122,10 @@ export function ChatRoomMessageSearchPanel({
           onSubmit={handleSubmit}
           role="search"
         >
-          <label className="flex h-11 min-w-0 items-center gap-2 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 transition focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]">
-            <span className="sr-only">메시지 내용</span>
+          <label className="sr-only" htmlFor={inputId}>
+            메시지 내용
+          </label>
+          <div className="flex h-11 min-w-0 items-center gap-2 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 transition focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]">
             <Image alt="" aria-hidden height={20} src="/assets/chat/search.png" width={20} />
             <input
               aria-describedby={describedBy}
@@ -124,6 +134,7 @@ export function ChatRoomMessageSearchPanel({
               autoFocus
               className="min-w-0 flex-1 bg-transparent text-base text-[var(--chat-publishing-color-text)] outline-none placeholder:text-[var(--chat-publishing-color-muted)]"
               disabled={searchErrorPresentation?.terminal}
+              id={inputId}
               inputMode="search"
               maxLength={ROOM_MESSAGE_SEARCH_RAW_QUERY_MAX_UTF16_CODE_UNITS}
               onChange={(event) => controller.setDraftQuery(event.currentTarget.value)}
@@ -133,7 +144,17 @@ export function ChatRoomMessageSearchPanel({
               type="search"
               value={controller.draftQuery}
             />
-          </label>
+            {controller.appliedQuery !== undefined || controller.draftQuery ? (
+              <button
+                aria-label="검색 초기화"
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--chat-publishing-color-neutral-soft)] text-base font-bold leading-none text-[var(--chat-publishing-color-muted)] transition hover:text-[var(--chat-publishing-color-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+                onClick={controller.clearSearch}
+                type="button"
+              >
+                <span aria-hidden>×</span>
+              </button>
+            ) : null}
+          </div>
           <button
             className="sr-only"
             disabled={
@@ -145,6 +166,11 @@ export function ChatRoomMessageSearchPanel({
             검색
           </button>
         </form>
+
+        {controller.appliedQuery !== undefined ? (
+          <SearchResultNavigation controller={controller} navigation={navigation} />
+        ) : null}
+
         <button
           aria-label="메시지 검색 닫기"
           className={SEARCH_HEADER_ACTION_CLASS_NAME}
@@ -159,130 +185,27 @@ export function ChatRoomMessageSearchPanel({
         검색어를 입력한 뒤 키보드의 검색 또는 Enter를 누르면 현재 접근 가능한 메시지 본문에서
         찾습니다.
       </p>
-      {controller.validationMessage ||
-      controller.appliedQuery !== undefined ||
-      controller.draftQuery ? (
-        <div className="grid shrink-0 gap-2 border-b border-[var(--chat-publishing-color-border)] px-4 py-2.5">
-          {controller.appliedQuery !== undefined || controller.draftQuery ? (
-            <div className="flex justify-end">
-              <button
-                className="text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)] underline underline-offset-2"
-                onClick={controller.clearSearch}
-                type="button"
-              >
-                검색 초기화
-              </button>
-            </div>
-          ) : null}
-          {controller.validationMessage ? (
-            <p
-              className="rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-sm font-semibold leading-5 text-[#7a4b00]"
-              data-chat-form-feedback="validation-error"
-              id={validationId}
-              role="alert"
-            >
-              {controller.validationMessage}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
 
-      {controller.appliedQuery !== undefined ? (
-        <div className="max-h-[min(240px,38dvh)] overflow-y-auto overscroll-contain px-4 py-3">
-          <SearchResults
-            controller={controller}
-            onNavigateToMessage={onNavigateToMessage}
-            participantDisplayNames={participantDisplayNames}
-          />
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function SearchResults({
-  controller,
-  onNavigateToMessage,
-  participantDisplayNames,
-}: Readonly<{
-  controller: ChatRoomMessageSearchPanelController;
-  onNavigateToMessage: (messageId: string) => void;
-  participantDisplayNames: ReadonlyMap<string, string>;
-}>) {
-  if (controller.appliedQuery === undefined) {
-    return <SearchNotice>검색어를 입력한 뒤 검색을 실행해 주세요.</SearchNotice>;
-  }
-
-  if (controller.isPending && controller.messages.length === 0) {
-    return <SearchNotice>메시지를 검색하고 있습니다.</SearchNotice>;
-  }
-
-  const hasResults = controller.messages.length > 0;
-  const retryScheduled = controller.rateLimitRetryAfterMs !== undefined;
-  const errorPresentation = controller.isError
-    ? createRoomMessageSearchErrorPresentation(controller.error)
-    : null;
-  const searchTerminated = errorPresentation?.terminal === true;
-
-  return (
-    <div className="grid gap-4" aria-live="polite">
-      <p className="text-sm text-[var(--chat-publishing-color-muted)]">
-        <span className="font-bold text-[var(--chat-publishing-color-text)]">
-          “{controller.appliedQuery}”
-        </span>{" "}
-        검색 결과
-      </p>
-
-      {hasResults ? (
-        <ol aria-label="메시지 검색 결과" className="grid gap-3">
-          {controller.messages.map((message) => (
-            <li key={message.messageId}>
-              <button
-                className="w-full rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white p-4 text-left transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-60"
-                data-message-id={message.messageId}
-                data-room-sequence={message.roomSequence}
-                disabled={searchTerminated}
-                onClick={() => onNavigateToMessage(message.messageId)}
-                type="button"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--chat-publishing-color-muted)]">
-                  <span className="font-bold text-[var(--chat-publishing-color-text)]">
-                    {participantDisplayNames.get(message.senderMembershipId) ??
-                      UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME}
-                  </span>
-                  <time dateTime={message.createdAt}>
-                    {formatSearchResultTime(message.createdAt)}
-                  </time>
-                </div>
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-publishing-color-text)]">
-                  {message.content}
-                </p>
-                <span className="mt-3 block text-xs font-bold text-[var(--chat-publishing-color-primary-emphasis)]">
-                  이동 하기
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      ) : controller.isFetching ? (
-        <SearchNotice>메시지를 검색하고 있습니다.</SearchNotice>
-      ) : controller.hasNextPage && !controller.isError ? (
-        <SearchNotice>
-          이번 검색 구간에는 일치하는 메시지가 없습니다. 더 오래된 범위를 확인할 수 있습니다.
-        </SearchNotice>
-      ) : !controller.isError ? (
-        <SearchNotice>검색 결과가 없습니다.</SearchNotice>
+      {controller.validationMessage ? (
+        <p
+          className="mx-3 mb-3 rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-sm font-semibold leading-5 text-[#7a4b00]"
+          data-chat-form-feedback="validation-error"
+          id={validationId}
+          role="alert"
+        >
+          {controller.validationMessage}
+        </p>
       ) : null}
 
       {controller.isError ? (
         <div
-          className="rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
+          className="mx-3 mb-3 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-3 text-[var(--chat-publishing-color-text)]"
           data-chat-form-feedback="request-error"
           role="alert"
         >
-          <p className="text-sm font-semibold">{errorPresentation?.title}</p>
-          <p className="mt-1 text-xs leading-5 text-[#7a4b00]">{errorPresentation?.detail}</p>
-          {!retryScheduled && errorPresentation?.canRetry ? (
+          <p className="text-sm font-semibold">{searchErrorPresentation?.title}</p>
+          <p className="mt-1 text-xs leading-5 text-[#7a4b00]">{searchErrorPresentation?.detail}</p>
+          {controller.rateLimitRetryAfterMs === undefined && searchErrorPresentation?.canRetry ? (
             <button
               className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
               onClick={() => void controller.retry()}
@@ -293,32 +216,58 @@ function SearchResults({
           ) : null}
         </div>
       ) : null}
+    </section>
+  );
+}
 
-      {controller.hasNextPage && !controller.isError ? (
-        <button
-          className={`${SEARCH_SECONDARY_BUTTON_CLASS_NAME} justify-self-center`}
-          disabled={controller.isFetchingNextPage || retryScheduled}
-          onClick={() => void controller.loadMore()}
-          type="button"
-        >
-          {controller.isFetchingNextPage ? "더 검색하는 중…" : "더 오래된 메시지 검색"}
-        </button>
-      ) : null}
+function SearchResultNavigation({
+  controller,
+  navigation,
+}: Readonly<{
+  controller: ChatRoomMessageSearchPanelController;
+  navigation: ChatRoomMessageSearchNavigationController;
+}>) {
+  const loadedCount = controller.messages.length;
+  const currentPosition =
+    navigation.currentResultIndex === null ? 0 : navigation.currentResultIndex + 1;
+  const isSearchingWithoutResults =
+    loadedCount === 0 &&
+    (controller.isPending || controller.isFetching || controller.hasNextPage) &&
+    !controller.isError;
+  const countLabel = isSearchingWithoutResults
+    ? "검색 중…"
+    : `${currentPosition} / ${loadedCount}${controller.hasNextPage ? "+" : ""}`;
+
+  return (
+    <div
+      aria-busy={controller.isFetchingNextPage || navigation.isSeekingOlderResult}
+      aria-label="메시지 검색 결과 이동"
+      className="flex shrink-0 items-center gap-0.5"
+    >
+      <output
+        aria-live="polite"
+        className="min-w-12 whitespace-nowrap text-center text-xs font-bold tabular-nums text-[var(--chat-publishing-color-muted)]"
+      >
+        {countLabel}
+      </output>
+      <button
+        aria-label="더 오래된 검색 결과"
+        className={SEARCH_NAVIGATION_BUTTON_CLASS_NAME}
+        disabled={!navigation.canNavigateOlder || navigation.isSeekingOlderResult}
+        onClick={navigation.navigateToOlderResult}
+        type="button"
+      >
+        <span aria-hidden>↑</span>
+      </button>
+      <button
+        aria-label="더 최신 검색 결과"
+        className={SEARCH_NAVIGATION_BUTTON_CLASS_NAME}
+        disabled={!navigation.canNavigateNewer || navigation.isSeekingOlderResult}
+        onClick={navigation.navigateToNewerResult}
+        type="button"
+      >
+        <span aria-hidden>↓</span>
+      </button>
     </div>
   );
-}
-
-function SearchNotice({ children }: Readonly<{ children: string }>) {
-  return (
-    <p className="rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-neutral-soft)] p-5 text-center text-sm leading-6 text-[var(--chat-publishing-color-muted)]">
-      {children}
-    </p>
-  );
-}
-
-function formatSearchResultTime(instant: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(instant));
 }

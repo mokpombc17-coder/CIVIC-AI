@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
   createRoomAndEnter,
@@ -7,7 +7,7 @@ import {
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 
-test("메시지를 검색해 Context로 이동하고 실시간 수정·삭제를 반영한다", async ({
+test("메시지를 검색해 live cache 위치로 이동하고 실시간 수정·삭제를 반영한다", async ({
   browser,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -42,7 +42,20 @@ test("메시지를 검색해 Context로 이동하고 실시간 수정·삭제를
     await sendAndConfirm(memberPage, memberMessageLog, ownerMessageLog, afterMessage);
 
     await ownerPage.getByRole("button", { name: "메시지 검색", exact: true }).click();
-    const searchDialog = ownerPage.getByRole("dialog", { name: "메시지 검색" });
+    const searchPanel = ownerPage.locator('[data-chat-room-message-search-panel="true"]');
+    const contextRequests: string[] = [];
+    const recordContextRequest = (request: Request) => {
+      const url = new URL(request.url());
+
+      if (
+        request.method() === "GET" &&
+        url.pathname.startsWith(`/api/v1/rooms/${roomId}/messages/`) &&
+        url.pathname.endsWith("/context")
+      ) {
+        contextRequests.push(url.pathname);
+      }
+    };
+    ownerPage.on("request", recordContextRequest);
     const searchResponse = ownerPage.waitForResponse((response) => {
       const url = new URL(response.url());
       return (
@@ -50,34 +63,22 @@ test("메시지를 검색해 Context로 이동하고 실시간 수정·삭제를
         url.pathname === `/api/v1/rooms/${roomId}/messages/search`
       );
     });
-    await searchDialog
+    const searchInput = searchPanel
       .getByRole("search")
-      .getByRole("searchbox", { name: "메시지 내용" })
-      .fill(searchQuery);
-    await searchDialog.getByRole("button", { name: "검색", exact: true }).click();
+      .getByRole("searchbox", { name: "메시지 내용" });
+    await searchInput.fill(searchQuery);
+    await searchInput.press("Enter");
     expect((await searchResponse).ok(), "메시지 검색 요청이 성공해야 합니다.").toBe(true);
 
-    const searchResult = searchDialog.locator("li:has([data-message-id])").filter({
-      hasText: targetMessage,
-    });
-    await expect(searchResult).toBeVisible();
-    await expect(searchResult).toContainText("참여자 2");
-
-    const contextResponse = ownerPage.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return (
-        response.request().method() === "GET" &&
-        url.pathname.startsWith(`/api/v1/rooms/${roomId}/messages/`) &&
-        url.pathname.endsWith("/context")
-      );
-    });
-    await searchResult.getByRole("button").click();
-    expect((await contextResponse).ok(), "메시지 Context 요청이 성공해야 합니다.").toBe(true);
-
-    const targetContextRow = searchDialog.locator('li[data-context-target="true"]');
+    const targetContextRow = ownerMessageLog.locator('[data-navigation-target="true"]');
     await expect(targetContextRow).toContainText(targetMessage);
-    await expect(searchDialog.getByText(beforeMessage, { exact: true })).toBeVisible();
-    await expect(searchDialog.getByText(afterMessage, { exact: true })).toBeVisible();
+    await expect(ownerMessageLog.getByText(beforeMessage, { exact: true })).toBeVisible();
+    await expect(ownerMessageLog.getByText(afterMessage, { exact: true })).toBeVisible();
+    expect(
+      contextRequests,
+      "live cache 메시지 이동은 Context 요청을 만들지 않아야 합니다.",
+    ).toEqual([]);
+    ownerPage.off("request", recordContextRequest);
 
     await editMessage(memberPage, memberMessageLog, targetMessage, editedMessage);
     await expect(targetContextRow).toContainText(editedMessage);
@@ -86,10 +87,7 @@ test("메시지를 검색해 Context로 이동하고 실시간 수정·삭제를
     await deleteMessage(memberPage, memberMessageLog, editedMessage);
     await expect(targetContextRow.getByText("삭제된 메시지입니다.", { exact: true })).toBeVisible();
 
-    await searchDialog.getByRole("button", { name: "검색 결과로 돌아가기" }).click();
-    await expect(searchDialog.getByText("검색 결과가 없습니다.", { exact: true })).toBeVisible();
-    await expect(searchDialog.getByText(targetMessage, { exact: true })).toHaveCount(0);
-    await expect(searchDialog.getByText(editedMessage, { exact: true })).toHaveCount(0);
+    await expect(searchPanel.getByText("0 / 0", { exact: true })).toBeVisible();
   } finally {
     await Promise.all([ownerContext.close(), memberContext.close()]);
   }

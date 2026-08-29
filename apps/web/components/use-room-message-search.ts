@@ -7,6 +7,7 @@ import { roomMessageSearchQuerySchema } from "@/lib/chat/chat-room-contracts";
 import {
   chatRoomQueryKeys,
   DEFAULT_ROOM_MESSAGE_SEARCH_LIMIT,
+  flattenRoomMessageSearchPages,
   useRoomMessageSearchQuery,
 } from "@/lib/chat/chat-room-queries";
 
@@ -201,6 +202,7 @@ export function useRoomMessageSearch(
     isFetchNextPageError,
     isFetching,
     isFetchingNextPage,
+    messages,
     refetch,
   } = query;
   const fetchNextPageRef = useRef(fetchNextPage);
@@ -329,14 +331,24 @@ export function useRoomMessageSearch(
 
   const loadMore = useCallback(async () => {
     if (!hasNextPage || isFetchingNextPage) {
-      return;
+      return {
+        hasNextPage: Boolean(hasNextPage),
+        isError: error !== null,
+        messages,
+      };
     }
 
     automaticRateLimitRetryAttemptedRef.current = false;
     suppressedRateLimitErrorRef.current = error;
     dispatch({ type: "request-started" });
-    await fetchNextPage();
-  }, [error, fetchNextPage, hasNextPage, isFetchingNextPage]);
+    const result = await fetchNextPage();
+
+    return {
+      hasNextPage: Boolean(result.hasNextPage),
+      isError: result.isError,
+      messages: flattenRoomMessageSearchPages(result.data?.pages),
+    };
+  }, [error, fetchNextPage, hasNextPage, isFetchingNextPage, messages]);
 
   const retry = useCallback(async () => {
     automaticRateLimitRetryAttemptedRef.current = false;

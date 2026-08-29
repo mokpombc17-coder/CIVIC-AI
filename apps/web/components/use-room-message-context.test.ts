@@ -4,8 +4,10 @@ import {
   createRoomMessageContextExtensionState,
   discardRoomMessageContextQueries,
   extendRoomMessageContextResponse,
+  findCachedRoomMessageContextTarget,
   mergeRoomMessageContextWindow,
   reduceRoomMessageContextExtensionState,
+  resolveRoomMessageNavigationDestination,
 } from "@/components/use-room-message-context";
 import type {
   ChatMessage,
@@ -92,7 +94,89 @@ describe("Room message context window", () => {
     expect(stale).toBe(failed);
   });
 
-  it("Context를 닫으면 해당 Room의 generation별 query를 모두 제거한다", async () => {
+  it("같은 Room generation의 다른 Context에 메시지가 있으면 중심 메시지를 재사용한다", () => {
+    const queryClient = new QueryClient();
+    const contextKey = chatRoomQueryKeys.messageContext("room-01", "message-11", 1, 20, 20);
+    const staleKey = chatRoomQueryKeys.messageContext("room-01", "message-21", 0, 20, 20);
+
+    queryClient.setQueryData(
+      contextKey,
+      createContextResponse([createMessage(10), createMessage(11), createMessage(12)]),
+    );
+    queryClient.setQueryData(staleKey, {
+      ...createContextResponse([createMessage(20), createMessage(21), createMessage(22)]),
+      targetMessageId: "message-21",
+      targetRoomSequence: 21,
+    });
+
+    expect(
+      findCachedRoomMessageContextTarget({
+        generation: 1,
+        messageId: "message-12",
+        queryClient,
+        roomId: "room-01",
+      }),
+    ).toBe("message-11");
+    expect(
+      findCachedRoomMessageContextTarget({
+        generation: 1,
+        messageId: "message-22",
+        queryClient,
+        roomId: "room-01",
+      }),
+    ).toBeNull();
+  });
+
+  it("live, 현재 Context, 캐시 Context, 원격 Context 순서로 이동 위치를 결정한다", () => {
+    const queryClient = new QueryClient();
+    const contextKey = chatRoomQueryKeys.messageContext("room-01", "message-11", 1, 20, 20);
+    queryClient.setQueryData(
+      contextKey,
+      createContextResponse([createMessage(10), createMessage(11), createMessage(12)]),
+    );
+    const base = {
+      generation: 1,
+      messageId: "message-12",
+      queryClient,
+      roomId: "room-01",
+    } as const;
+
+    expect(
+      resolveRoomMessageNavigationDestination({
+        ...base,
+        activeContextMessageId: "message-21",
+        contextMessages: [createMessage(12)],
+        liveMessages: [createMessage(12)],
+      }),
+    ).toEqual({ kind: "live" });
+    expect(
+      resolveRoomMessageNavigationDestination({
+        ...base,
+        activeContextMessageId: "message-21",
+        contextMessages: [createMessage(12)],
+        liveMessages: [],
+      }),
+    ).toEqual({ contextMessageId: "message-21", kind: "context", source: "current" });
+    expect(
+      resolveRoomMessageNavigationDestination({
+        ...base,
+        activeContextMessageId: null,
+        contextMessages: [],
+        liveMessages: [],
+      }),
+    ).toEqual({ contextMessageId: "message-11", kind: "context", source: "cache" });
+    expect(
+      resolveRoomMessageNavigationDestination({
+        ...base,
+        activeContextMessageId: null,
+        contextMessages: [],
+        liveMessages: [],
+        messageId: "message-99",
+      }),
+    ).toEqual({ contextMessageId: "message-99", kind: "context", source: "remote" });
+  });
+
+  it("Room context lifecycle 종료 시 해당 Room의 generation별 query를 모두 제거한다", async () => {
     const queryClient = new QueryClient();
     const keyOne = chatRoomQueryKeys.messageContext("room-01", "message-10", 1, 20, 20);
     const keyTwo = chatRoomQueryKeys.messageContext("room-01", "message-20", 2, 20, 20);
