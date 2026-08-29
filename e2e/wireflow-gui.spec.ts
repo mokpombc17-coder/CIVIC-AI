@@ -266,13 +266,13 @@ test("AUTH-007·008은 이메일 입력 단계를 건너뛰고 Figma 비밀번�
   await expect(codeForm).toContainText("na***@example.com으로 코드를 전송했습니다.");
   await expectBox(codeForm, {
     x: [15.5, 16.5],
-    y: [79.5, 80.5],
+    y: [84.5, 85.5],
     width: [360.5, 361.5],
     height: [270, 272],
   });
   await expectBox(codeSupport, {
     x: [15.5, 16.5],
-    y: [370, 372],
+    y: [375, 377],
     width: [360.5, 361.5],
     height: [184, 186],
   });
@@ -291,13 +291,13 @@ test("AUTH-007·008은 이메일 입력 단계를 건너뛰고 Figma 비밀번�
   await expect(passwordForm.getByLabel("6자리 인증 코드")).toHaveValue("111222");
   await expectBox(passwordForm, {
     x: [15.5, 16.5],
-    y: [79.5, 80.5],
+    y: [84.5, 85.5],
     width: [360.5, 361.5],
     height: [446, 447],
   });
   await expectBox(passwordSupport, {
     x: [15.5, 16.5],
-    y: [542, 543],
+    y: [547, 548],
     width: [360.5, 361.5],
     height: [205, 207],
   });
