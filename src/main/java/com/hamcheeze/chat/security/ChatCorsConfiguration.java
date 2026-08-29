@@ -20,7 +20,13 @@ public class ChatCorsConfiguration {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.getAllowedOrigins());
         configuration.setAllowedMethods(
-                List.of("GET", "POST", "PUT", "OPTIONS"));
+                List.of(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "OPTIONS"));
         configuration.setAllowedHeaders(
                 List.of(
                         "Content-Type",

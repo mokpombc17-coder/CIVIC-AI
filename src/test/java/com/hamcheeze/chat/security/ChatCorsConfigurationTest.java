@@ -31,7 +31,13 @@ class ChatCorsConfigurationTest {
         assertThat(cors.getAllowedOrigins())
                 .containsExactly("https://app.example");
         assertThat(cors.getAllowedMethods())
-                .containsExactly("GET", "POST", "PUT", "OPTIONS");
+                .containsExactly(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "OPTIONS");
         assertThat(cors.getAllowedHeaders())
                 .containsExactly(
                         "Content-Type",

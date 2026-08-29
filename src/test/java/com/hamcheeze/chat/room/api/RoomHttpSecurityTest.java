@@ -604,6 +604,32 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
                                 .containsStringIgnoringCase(
                                         "authorization")));
 
+        for (String method : List.of("PATCH", "DELETE")) {
+            mockMvc.perform(options(
+                            "/api/v1/admin/room-categories/category-1")
+                            .header(
+                                    HttpHeaders.ORIGIN,
+                                    "http://localhost:3000")
+                            .header(
+                                    HttpHeaders
+                                            .ACCESS_CONTROL_REQUEST_METHOD,
+                                    method)
+                            .header(
+                                    HttpHeaders
+                                            .ACCESS_CONTROL_REQUEST_HEADERS,
+                                    "authorization,content-type"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string(
+                            HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                            "http://localhost:3000"))
+                    .andExpect(header().string(
+                            HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
+                            "true"))
+                    .andExpect(header().string(
+                            HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+                            org.hamcrest.Matchers.containsString(method)));
+        }
+
         mockMvc.perform(options("/api/v1/rooms")
                         .header(
                                 HttpHeaders.ORIGIN,
