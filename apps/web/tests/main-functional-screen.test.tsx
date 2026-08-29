@@ -33,7 +33,6 @@ import {
   loadAccountProfile,
   normalizeTwoFactorCode,
   passwordConfirmationMatches,
-  readProfileSettings,
   redirectAfterPasswordChange,
 } from "@/components/screens/account-functional-screen";
 import {
@@ -229,9 +228,12 @@ describe("25 functional Main/Auth screens", () => {
     expect(navigate).toHaveBeenCalledWith("/login");
   });
 
-  it("2FA 최초 활성화는 빈 코드를 null challenge 요청으로 정규화한다", () => {
+  it("2FA 인증 코드는 공백을 제거한 6자리 숫자만 허용한다", () => {
     expect(normalizeTwoFactorCode("")).toBeNull();
     expect(normalizeTwoFactorCode("   ")).toBeNull();
+    expect(normalizeTwoFactorCode("12345")).toBeNull();
+    expect(normalizeTwoFactorCode("1234567")).toBeNull();
+    expect(normalizeTwoFactorCode("12345a")).toBeNull();
     expect(normalizeTwoFactorCode(" 123456 ")).toBe("123456");
   });
 
@@ -393,30 +395,17 @@ describe("25 functional Main/Auth screens", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/account/profile", { cache: "no-store" });
   });
 
-  it("서버에서 늦게 읽은 계정 설정을 제어 입력값으로 정규화한다", () => {
-    expect(
-      readProfileSettings({
-        user_id: "participant-1",
-        email: "participant@example.com",
-        role: "PARTICIPANT",
-        account_state: "ACTIVE",
-        preferred_language: "en",
-        rag_answer_detail: "detailed",
-        two_factor_enabled: false,
-        response_version: 2,
-      }),
-    ).toEqual({ preferredLanguage: "en", answerDetail: "detailed" });
-  });
-
-  it("프로필 조회가 끝나기 전에는 기본값을 저장할 수 없다", () => {
+  it("내 정보 관리에서는 불필요한 회원정보 설정을 편집하지 않는다", () => {
     const profile = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
     if (!profile) throw new Error("profile screen missing");
 
     const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: profile }));
 
-    expect(html).toContain("불러오는 중…");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>불러오는 중…<\/button>/u);
-    expect(html).toMatch(/<select[^>]*disabled=""[^>]*name="preferred_language"/u);
+    expect(html).not.toContain("회원정보 수정");
+    expect(html).not.toContain("선호 언어");
+    expect(html).not.toContain("AI 답변 상세도");
+    expect(html).not.toContain('name="preferred_language"');
+    expect(html).not.toContain('name="rag_answer_detail"');
   });
 
   it("프로필 조회가 끝나기 전에는 2FA 상태를 추정해 변경할 수 없다", () => {
@@ -712,7 +701,7 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-010": "계정 재활성화",
       "U-HOME-001": "질문하기",
       "U-ACCOUNT-001": "내 정보 관리",
-      "U-ACCOUNT-002": "변경사항 저장",
+      "U-ACCOUNT-002": "비밀번호 변경",
       "U-ACCOUNT-003": "내 설문 보기",
       "U-ACCOUNT-004": "계정 비활성화",
       "A-HOME-001": "관리 현황",
@@ -921,11 +910,14 @@ describe("25 functional Main/Auth screens", () => {
 
     const management = renderAccount("U-ACCOUNT-002");
     expect(management).toContain('data-wireflow-layout="account-management"');
-    expect(management).toContain("회원정보 수정");
+    expect(management).not.toContain("회원정보 수정");
+    expect(management).not.toContain("선호 언어");
+    expect(management).not.toContain("AI 답변 상세도");
     expect(management).toContain("비밀번호 변경");
     expect(management).toContain("2단계 인증");
-    expect(management).toContain("서비스 이용 동의");
+    expect(management).not.toContain("서비스 이용 동의");
     expect(management).toContain("계정 관리");
+    expect(management).not.toContain("/mypage/deactivate");
 
     const survey = renderAccount("U-ACCOUNT-003");
     expect(survey).toContain('data-wireflow-layout="account-survey"');

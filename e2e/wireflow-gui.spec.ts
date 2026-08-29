@@ -7,6 +7,9 @@ const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE_NAME = "civic_ai_access_token";
 
 let mockApiServer: Server;
+let twoFactorEnabled = true;
+let twoFactorEnableRequested = false;
+let twoFactorEnableRequestBodies: Record<string, unknown>[] = [];
 
 test.beforeAll(async () => {
   mockApiServer = createServer((request, response) => {
@@ -53,7 +56,26 @@ test.beforeAll(async () => {
       return;
     }
     if (url.pathname === "/api/v1/account/profile") {
-      return json(response, profileFixture);
+      return json(response, { ...profileFixture, two_factor_enabled: twoFactorEnabled });
+    }
+    if (url.pathname === "/api/v1/account/2fa/enable" && request.method === "POST") {
+      void readJsonBody(request)
+        .then((body) => {
+          twoFactorEnableRequestBodies.push(body);
+          if (!twoFactorEnableRequested) {
+            twoFactorEnableRequested = true;
+            json(response, { next: "EMAIL_CODE" }, 202);
+            return;
+          }
+          if (body.code !== "123456") {
+            json(response, { detail: "인증 코드가 올바르지 않습니다." }, 400);
+            return;
+          }
+          twoFactorEnabled = true;
+          response.writeHead(204).end();
+        })
+        .catch(() => json(response, { detail: "요청 본문을 읽지 못했습니다." }, 400));
+      return;
     }
     if (url.pathname === "/api/v1/admin/users") {
       return json(response, { items: [adminUserFixture, participantUserFixture] });
@@ -174,6 +196,12 @@ test.afterAll(async () => {
   await new Promise<void>((resolve, reject) => {
     mockApiServer.close((error) => (error ? reject(error) : resolve()));
   });
+});
+
+test.beforeEach(() => {
+  twoFactorEnabled = true;
+  twoFactorEnableRequested = false;
+  twoFactorEnableRequestBodies = [];
 });
 
 test("AUTH-001은 frontend2 Platform Shell 안에서 실제 로그인 UI를 유지한다", async ({ page }) => {
@@ -449,30 +477,146 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
 
   await page.goto("/account/profile");
   await expect(page.getByRole("heading", { name: "내 정보 관리" })).toBeVisible();
-  await expect(page.getByLabel("선호 언어")).toHaveValue("en");
-  await expect(page.getByLabel("AI 답변 상세도")).toHaveValue("detailed");
+  await expect(page.getByText("회원정보 수정", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("선호 언어")).toHaveCount(0);
+  await expect(page.getByLabel("AI 답변 상세도")).toHaveCount(0);
   await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
   await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
-  await expect(page.getByText("서비스 이용 동의", { exact: true })).toBeVisible();
+  await expect(page.getByText("서비스 이용 동의", { exact: true })).toHaveCount(0);
+  const passwordCard = page.locator(".wf-account-security-card").filter({
+    hasText: "비밀번호 변경",
+  });
+  const passwordAction = passwordCard.getByRole("button", { name: "변경하기" });
+  await passwordAction.scrollIntoViewIfNeeded();
+  const accountScroller = page.locator('[data-platform-shell-content="true"]');
+  const scrollTopBeforePasswordForm = await accountScroller.evaluate((element) =>
+    Math.round(element.scrollTop),
+  );
+  await passwordAction.click();
+  const currentPassword = page.getByLabel("현재 비밀번호");
+  await expect(currentPassword).toBeVisible();
+  await expect(currentPassword).toBeFocused();
+  await expect
+    .poll(() => accountScroller.evaluate((element) => Math.round(element.scrollTop)))
+    .toBeGreaterThan(scrollTopBeforePasswordForm);
+  const securityForm = page.locator(".wf-security-form");
+  const readFormOffsetFromScroller = () =>
+    securityForm.evaluate((form) => {
+      const scroller = form.closest('[data-platform-shell-content="true"]');
+      if (!scroller) return Number.POSITIVE_INFINITY;
+      return Math.round(form.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
+    });
+  await expect.poll(readFormOffsetFromScroller).toBeLessThanOrEqual(24);
+  const formOffsetFromScroller = await readFormOffsetFromScroller();
+  expect(formOffsetFromScroller).toBeGreaterThanOrEqual(0);
   const accountManagement = page.getByRole("heading", { name: "계정 관리" });
   await accountManagement.scrollIntoViewIfNeeded();
   await expect(accountManagement).toBeVisible();
+  const profileUrl = page.url();
+  await page.getByRole("button", { name: "계정 비활성화" }).click();
+  await expect(page).toHaveURL(profileUrl);
+  await expect(page.getByLabel("화면을 불러오는 중")).toHaveCount(0);
+  const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("비밀번호 확인")).toBeFocused();
+  await expectBox(dialog, { width: [359, 362] });
+  await expectBox(dialog.locator(".wf-impact-list > div").first(), { height: [93, 95] });
+  await expectBox(dialog.locator(".wf-impact-list > div").last(), { height: [74, 76] });
+  const dialogTypography = await dialog.evaluate(async (element) => {
+    await document.fonts.ready;
+    const heading = element.querySelector("h2");
+    const description = element.querySelector(":scope > p");
+    if (!heading || !description) throw new Error("dialog typography missing");
+    const headingStyle = getComputedStyle(heading);
+    const descriptionStyle = getComputedStyle(description);
+    return {
+      fontLoaded: document.fonts.check('16px "Pretendard GOV"'),
+      fontFamily: headingStyle.fontFamily,
+      headingFontSize: headingStyle.fontSize,
+      headingLineHeight: headingStyle.lineHeight,
+      descriptionFontSize: descriptionStyle.fontSize,
+      descriptionLineHeight: descriptionStyle.lineHeight,
+    };
+  });
+  expect(dialogTypography).toEqual({
+    fontLoaded: true,
+    fontFamily: '"Pretendard GOV", Pretendard, "Apple SD Gothic Neo", sans-serif',
+    headingFontSize: "24px",
+    headingLineHeight: "32.4px",
+    descriptionFontSize: "15px",
+    descriptionLineHeight: "22.5px",
+  });
+  await dialog.getByRole("button", { name: "계정 유지" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(profileUrl);
 
   await page.goto("/account/survey");
   await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
   await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
+  const surveyIntro = page.locator(".wf-account-survey-intro");
+  await expectBox(surveyIntro, {
+    x: [16, 18],
+    width: [359, 362],
+    height: [134, 136],
+  });
+  const surveyIntroLayout = await surveyIntro.evaluate((element) => {
+    const root = element.getBoundingClientRect();
+    const icon = element.querySelector("img")?.getBoundingClientRect();
+    const copy = element.querySelector(":scope > div")?.getBoundingClientRect();
+    const heading = element.querySelector("h2");
+    if (!icon || !copy || !heading) throw new Error("survey intro layout missing");
+    const headingStyle = getComputedStyle(heading);
+    return {
+      iconLeft: Math.round(icon.left - root.left),
+      iconTop: Math.round(icon.top - root.top),
+      copyLeft: Math.round(copy.left - root.left),
+      copyTop: Math.round(copy.top - root.top),
+      headingColor: headingStyle.color,
+      headingFontSize: headingStyle.fontSize,
+      headingLineHeight: headingStyle.lineHeight,
+    };
+  });
+  expect(surveyIntroLayout).toEqual({
+    iconLeft: 16,
+    iconTop: 16,
+    copyLeft: 16,
+    copyTop: 52,
+    headingColor: "rgb(8, 89, 133)",
+    headingFontSize: "16px",
+    headingLineHeight: "24px",
+  });
   await expect(page.getByRole("heading", { name: "기본 정보" })).toBeVisible();
   await expect(page.getByText("서울특별시 종로구 사직동", { exact: true })).toBeVisible();
   const localTrust = page.getByText("약간 신뢰한다", { exact: true }).last();
   await localTrust.scrollIntoViewIfNeeded();
   await expect(localTrust).toBeVisible();
+});
 
-  await page.goto("/account/deactivate");
-  const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "계정 유지" })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "계정 비활성화" })).toBeVisible();
+test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {
+  twoFactorEnabled = false;
+  await authenticate(context, "participant.payload.signature");
+  await page.goto("/account/profile");
+
+  const twoFactorCard = page.locator(".wf-account-security-card").filter({
+    hasText: "2단계 인증",
+  });
+  await twoFactorCard.getByRole("button", { name: "인증 설정하기" }).click();
+  await expect(page.getByLabel("6자리 인증 코드")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "인증 코드 받기" }).click();
+  await expect(page.getByText("인증코드가 전송되었습니다.", { exact: true })).toBeVisible();
+  const codeInput = page.getByLabel("6자리 인증 코드");
+  await expect(codeInput).toBeVisible();
+  await expect(codeInput).toBeFocused();
+  await expect(codeInput).toHaveAttribute("autocomplete", "one-time-code");
+  await expect(codeInput).toHaveAttribute("inputmode", "numeric");
+  await expect(codeInput).toHaveAttribute("maxlength", "6");
+  await codeInput.fill("123456");
+  await page.getByRole("button", { name: "인증 확인" }).click();
+
+  await expect(twoFactorCard.getByRole("button", { name: "인증 해제하기" })).toBeVisible();
+  expect(twoFactorEnableRequestBodies).toEqual([{ code: null }, { code: "123456" }]);
 });
 
 test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한다", async ({ context, page }) => {
@@ -973,6 +1117,20 @@ async function authenticate(context: BrowserContext, token: string): Promise<voi
 function json(response: import("node:http").ServerResponse, body: unknown, status = 200) {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(body));
+}
+
+async function readJsonBody(
+  request: import("node:http").IncomingMessage,
+): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("JSON object expected");
+  }
+  return body as Record<string, unknown>;
 }
 
 function meResponse(userId: string, role: "PARTICIPANT" | "HIGHEST_ADMIN") {
