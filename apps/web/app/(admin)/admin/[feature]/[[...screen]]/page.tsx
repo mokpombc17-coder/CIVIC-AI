@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
@@ -30,10 +30,6 @@ export default async function AdminPlaceholderPage({
     adminAudience(definition.owner, definition.id),
     `${pathname}${serializeSearchParams(query)}`,
   );
-
-  if (definition.id === "A-USER-004") {
-    redirect(`/admin/users/roles${serializeSearchParams(query)}`);
-  }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "MAIN_AUTH") {
     return <MainFunctionalScreen adminCurrentUser={currentUser} screen={definition} />;

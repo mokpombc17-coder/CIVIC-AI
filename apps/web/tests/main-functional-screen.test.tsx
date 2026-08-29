@@ -1030,5 +1030,11 @@ describe("25 functional Main/Auth screens", () => {
     expect(roles).toContain("현재 역할");
     expect(roles).not.toContain("wf-admin-overlay");
     expect(roles).not.toContain("권한을 회수하시겠습니까?");
+
+    const legacyRevokeRoute = renderAdmin("A-USER-004");
+    expect(legacyRevokeRoute).toContain('data-wireflow-screen="A-USER-004"');
+    expect(legacyRevokeRoute).toContain('data-wireflow-layout="admin-role-editor"');
+    expect(legacyRevokeRoute).toContain("관리자 전환·권한 편집");
+    expect(legacyRevokeRoute).not.toContain('role="alertdialog"');
   });
 });

@@ -332,7 +332,7 @@ export function AdminFunctionalScreen({
                   </Link>
                 </>
               ) : null}
-              {screen.id === "A-USER-003" ? (
+              {screen.id === "A-USER-003" || screen.id === "A-USER-004" ? (
                 <RoleForm
                   action={action}
                   key={roleFormKey(selected, screen.id)}
