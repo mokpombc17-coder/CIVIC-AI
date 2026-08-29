@@ -113,7 +113,9 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [securityIntent, setSecurityIntent] = useState<SecurityIntent>(null);
+  const [deactivationRequested, setDeactivationRequested] = useState(false);
   const [profileSettings, setProfileSettings] = useState(initialProfileSettings);
+  const deactivationOpen = screen.id === "U-ACCOUNT-004" || deactivationRequested;
 
   useEffect(() => {
     if (screen.id === "U-ACCOUNT-001") return;
@@ -196,6 +198,21 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
     setSecurityIntent(intent);
   }
 
+  function openDeactivationDialog() {
+    setMessage("");
+    setSecurityIntent(null);
+    setDeactivationRequested(true);
+  }
+
+  function closeDeactivationDialog() {
+    setMessage("");
+    if (screen.id === "U-ACCOUNT-004") {
+      location.assign("/mypage/profile");
+      return;
+    }
+    setDeactivationRequested(false);
+  }
+
   return (
     <ScreenFrame screen={screen}>
       {screen.id === "U-ACCOUNT-001" ? <AccountHubSurface /> : null}
@@ -204,6 +221,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
           busy={busy}
           intent={securityIntent}
           message={message}
+          onDeactivate={openDeactivationDialog}
           onIntent={selectSecurityIntent}
           onProfileSettings={setProfileSettings}
           onSubmit={submit}
@@ -212,8 +230,13 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         />
       ) : null}
       {screen.id === "U-ACCOUNT-003" ? <AccountSurveySurface profile={profile} /> : null}
-      {screen.id === "U-ACCOUNT-004" ? (
-        <DeactivationDialog busy={busy} message={message} onSubmit={submit} />
+      {deactivationOpen ? (
+        <DeactivationDialog
+          busy={busy}
+          message={message}
+          onCancel={closeDeactivationDialog}
+          onSubmit={submit}
+        />
       ) : null}
     </ScreenFrame>
   );
@@ -243,6 +266,7 @@ function AccountManagementSurface({
   busy,
   intent,
   message,
+  onDeactivate,
   onIntent,
   onProfileSettings,
   onSubmit,
@@ -252,6 +276,7 @@ function AccountManagementSurface({
   busy: boolean;
   intent: SecurityIntent;
   message: string;
+  onDeactivate: () => void;
   onIntent: (intent: SecurityIntent) => void;
   onProfileSettings: Dispatch<SetStateAction<ProfileSettings>>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
@@ -357,9 +382,9 @@ function AccountManagementSurface({
         <div>
           <h2 id="wf-account-deactivate-title">계정 관리</h2>
           <p>계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다.</p>
-          <Link className="wf-button wf-button-danger" href={"/mypage/deactivate" as Route}>
+          <button className="wf-button wf-button-danger" onClick={onDeactivate} type="button">
             계정 비활성화
-          </Link>
+          </button>
         </div>
       </section>
     </div>
@@ -565,10 +590,12 @@ function InfoIcon() {
 function DeactivationDialog({
   busy,
   message,
+  onCancel,
   onSubmit,
 }: Readonly<{
   busy: boolean;
   message: string;
+  onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }>) {
   return (
@@ -584,9 +611,15 @@ function DeactivationDialog({
         <input name="operation" type="hidden" value="deactivate" />
         <header>
           <h2 id="wf-deactivate-dialog-title">계정을 비활성화할까요?</h2>
-          <Link aria-label="닫기" className="wf-dialog-close" href={"/mypage/profile" as Route}>
+          <button
+            aria-label="닫기"
+            className="wf-dialog-close"
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+          >
             <Image alt="" height={24} src="/assets/account/close.png" width={24} />
-          </Link>
+          </button>
         </header>
         <p>다음 내용을 확인한 뒤 비밀번호를 입력하세요.</p>
         <dl className="wf-impact-list">
@@ -603,16 +636,16 @@ function DeactivationDialog({
             <dd>현재 기기를 포함한 모든 기기에서 로그아웃됩니다.</dd>
           </div>
         </dl>
-        <WireflowField label="비밀번호 확인" name="password" required type="password" />
+        <WireflowField autoFocus label="비밀번호 확인" name="password" required type="password" />
         {message ? (
           <p aria-live="polite" className="civic-form-message">
             {message}
           </p>
         ) : null}
         <div className="wf-dialog-actions">
-          <Link className="wf-button wf-button-secondary" href={"/mypage/profile" as Route}>
+          <WireflowButton disabled={busy} onClick={onCancel} variant="secondary">
             계정 유지
-          </Link>
+          </WireflowButton>
           <WireflowButton disabled={busy} type="submit" variant="danger">
             {busy ? "처리 중…" : mainScreenPrimaryActions["U-ACCOUNT-004"]}
           </WireflowButton>

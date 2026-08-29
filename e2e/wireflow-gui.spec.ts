@@ -510,6 +510,17 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   const accountManagement = page.getByRole("heading", { name: "계정 관리" });
   await accountManagement.scrollIntoViewIfNeeded();
   await expect(accountManagement).toBeVisible();
+  const profileUrl = page.url();
+  await page.getByRole("button", { name: "계정 비활성화" }).click();
+  await expect(page).toHaveURL(profileUrl);
+  await expect(page.getByLabel("화면을 불러오는 중")).toHaveCount(0);
+  const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("비밀번호 확인")).toBeFocused();
+  await dialog.getByRole("button", { name: "계정 유지" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(profileUrl);
 
   await page.goto("/account/survey");
   await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
@@ -519,13 +530,6 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   const localTrust = page.getByText("약간 신뢰한다", { exact: true }).last();
   await localTrust.scrollIntoViewIfNeeded();
   await expect(localTrust).toBeVisible();
-
-  await page.goto("/account/deactivate");
-  const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "계정 유지" })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "계정 비활성화" })).toBeVisible();
 });
 
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {

@@ -929,6 +929,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(management).toContain("2단계 인증");
     expect(management).not.toContain("서비스 이용 동의");
     expect(management).toContain("계정 관리");
+    expect(management).not.toContain("/mypage/deactivate");
 
     const survey = renderAccount("U-ACCOUNT-003");
     expect(survey).toContain('data-wireflow-layout="account-survey"');
