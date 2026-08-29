@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   matchChatAdminRoute,
   matchChatCategoryAdminRoute,
+  matchChatConversationExportRoute,
   matchChatRoomCategoryAssignmentRoute,
   matchChatRoomDetailRoute,
   matchChatRoomListRoute,
@@ -74,6 +75,18 @@ describe("admin domain route allowlist", () => {
     expect(matchChatRoomListRoute("POST")).toEqual({
       allowedMethods: ["GET"],
       status: 405,
+    });
+    expect(matchChatConversationExportRoute("POST", "room-1")).toEqual({
+      path: "/api/v1/admin/rooms/room-1/conversation-exports",
+      scope: "chat:audit:exports",
+    });
+    expect(matchChatConversationExportRoute("GET", "room-1")).toEqual({
+      allowedMethods: ["POST"],
+      status: 405,
+    });
+    expect(matchChatConversationExportRoute("POST", "..")).toEqual({
+      allowedMethods: [],
+      status: 404,
     });
   });
 
