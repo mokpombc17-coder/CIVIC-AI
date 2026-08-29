@@ -45,6 +45,7 @@ type WireflowButtonProps = Readonly<{
   "aria-label"?: string | undefined;
   children: ReactNode;
   className?: string | undefined;
+  dataWireflowSlot?: string | undefined;
   disabled?: boolean | undefined;
   onClick?: (() => void) | undefined;
   type?: "button" | "submit" | "reset" | undefined;
@@ -55,6 +56,7 @@ export function WireflowButton({
   "aria-label": ariaLabel,
   children,
   className,
+  dataWireflowSlot,
   disabled,
   onClick,
   type = "button",
@@ -64,6 +66,7 @@ export function WireflowButton({
     <button
       aria-label={ariaLabel}
       className={join("wf-button", `wf-button-${variant}`, className)}
+      data-wireflow-slot={dataWireflowSlot}
       disabled={disabled}
       onClick={onClick}
       type={type}

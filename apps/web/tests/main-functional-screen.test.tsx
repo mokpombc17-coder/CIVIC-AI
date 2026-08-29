@@ -36,7 +36,9 @@ import {
   authenticatedDestination,
   duplicateEmailAccountState,
   isDeactivatedAccountError,
+  isPasswordResetEmail,
   LoginDeactivatedNotice,
+  passwordResetCodeFromSearch,
   safeReturnTarget,
   SignupDuplicateEmailNotice,
   signupRecovery,
@@ -514,6 +516,14 @@ describe("25 functional Main/Auth screens", () => {
     expect(verificationKindFromSearch("")).toBe("SIGNUP");
   });
 
+  it("비밀번호 재설정 이메일과 딥링크 인증 코드를 안전하게 읽는다", () => {
+    expect(isPasswordResetEmail(" citizen@example.com ")).toBe(true);
+    expect(isPasswordResetEmail("citizen.example.com")).toBe(false);
+    expect(passwordResetCodeFromSearch("?code=111222")).toBe("111222");
+    expect(passwordResetCodeFromSearch("?code=11%2012%2022")).toBe("111222");
+    expect(passwordResetCodeFromSearch("?code=12345x")).toBeNull();
+  });
+
   it("가입 인증과 비밀번호 재설정·재활성화 완료 뒤 로그인 화면으로 이동한다", () => {
     expect(authCompletionDestination("AUTH-005", "SIGNUP")).toBe("/login");
     expect(authCompletionDestination("AUTH-008", "SIGNUP")).toBe("/login");
@@ -613,7 +623,7 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-004": "가입하기",
       "AUTH-005": "인증하기",
       "AUTH-006": "가입 이메일 인증",
-      "AUTH-007": "재설정 이메일 보내기",
+      "AUTH-007": "인증하기",
       "AUTH-008": "비밀번호 변경",
       "AUTH-009": "인증 코드 받기",
       "AUTH-010": "계정 재활성화",
@@ -705,12 +715,17 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("인증 코드와 비밀번호 재설정은 최신 카드·안내 구조를 공유한다", () => {
-    for (const id of ["AUTH-005", "AUTH-006", "AUTH-008"]) {
+    for (const id of ["AUTH-005", "AUTH-006", "AUTH-007", "AUTH-008"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
       const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
-      expect(html).toContain('class="wf-auth-form"');
+      expect(html).toContain('class="wf-auth-form" method="post"');
       expect(html).toContain('class="wf-auth-info"');
+      if (id === "AUTH-007") {
+        expect(html).toContain("인증 코드 입력");
+        expect(html).toContain('name="code"');
+        expect(html).not.toContain('name="email"');
+      }
     }
   });
 

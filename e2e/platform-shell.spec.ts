@@ -70,6 +70,7 @@ test("공통 Shell은 모바일 viewport와 데스크톱 frame 배경을 원본�
 }) => {
   await page.setViewportSize({ height: 800, width: 480 });
   await page.goto("/home");
+  await expect(page.getByText("배우고, 함께 토론하고, 결정합니다.")).toBeVisible();
 
   const shell = page.locator('[data-platform-shell="true"]');
   const surface = page.locator('[data-platform-shell-surface="true"]');
