@@ -1,6 +1,9 @@
 package com.hamcheeze.chat.room;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.List;
 
 public final class RoomMembershipTransitions {
@@ -339,6 +342,77 @@ public final class RoomMembershipTransitions {
                 CloseRoomTransition.Outcome.CLOSED,
                 room.closeAt(closedAt),
                 owner.leaveAt(closedAt));
+    }
+
+    public static AdministrativeCloseRoomTransition
+            closeRoomAsAdministrator(
+                    Room room,
+                    Membership ownerMembership,
+                    List<Membership> activeMemberships,
+                    Instant transitionTime
+            ) {
+        requireRoom(room);
+        Membership owner = requireMembership(ownerMembership);
+        Instant closedAt =
+                requireTransitionTime(room, transitionTime);
+        List<Membership> active = List.copyOf(
+                activeMemberships == null
+                        ? List.of()
+                        : activeMemberships);
+        if (room.status() == RoomStatus.CLOSED) {
+            requireClosedOwnerMembership(room, owner);
+            if (!active.isEmpty()) {
+                throw failure(RoomDomainErrorCode.INVALID_DOMAIN_STATE);
+            }
+            return new AdministrativeCloseRoomTransition(
+                    AdministrativeCloseRoomTransition.Outcome
+                            .ALREADY_CLOSED,
+                    room,
+                    owner,
+                    List.of());
+        }
+
+        requireActiveOwnerMembership(room, owner);
+        if (active.size() != room.activeMemberCount()) {
+            throw failure(
+                    RoomDomainErrorCode
+                            .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
+        }
+
+        Set<String> membershipIds = new HashSet<>();
+        boolean ownerIncluded = false;
+        for (Membership membership : active) {
+            Membership current = requireMembership(membership);
+            requireSameRoom(room, current);
+            requireOwnerRoleConsistency(room, current);
+            if (current.status() != MembershipStatus.ACTIVE
+                    || !membershipIds.add(current.membershipId())) {
+                throw failure(RoomDomainErrorCode.INVALID_DOMAIN_STATE);
+            }
+            if (current.membershipId().equals(owner.membershipId())) {
+                ownerIncluded = true;
+            }
+        }
+        if (!ownerIncluded) {
+            throw failure(
+                    RoomDomainErrorCode.OWNER_MEMBERSHIP_MISMATCH);
+        }
+
+        List<Membership> closedMemberships = active.stream()
+                .map(membership -> membership.leaveAt(closedAt))
+                .toList();
+        Membership closedOwner = closedMemberships.stream()
+                .filter(membership -> membership.membershipId()
+                        .equals(owner.membershipId()))
+                .findFirst()
+                .orElseThrow(() -> failure(
+                        RoomDomainErrorCode
+                                .OWNER_MEMBERSHIP_MISMATCH));
+        return new AdministrativeCloseRoomTransition(
+                AdministrativeCloseRoomTransition.Outcome.CLOSED,
+                room.closeAt(closedAt),
+                closedOwner,
+                closedMemberships);
     }
 
     private static void requireRoom(Room room) {

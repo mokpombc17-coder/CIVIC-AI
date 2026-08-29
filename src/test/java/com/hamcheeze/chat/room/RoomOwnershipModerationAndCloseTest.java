@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -588,6 +589,82 @@ class RoomOwnershipModerationAndCloseTest {
         assertThat(result.ownerMembership().leftAt())
                 .isEqualTo(TRANSITION_AT);
         assertThat(result.ownerMembership().version()).isEqualTo(5);
+    }
+
+    @Test
+    void administratorClosesRoomAndLeavesEveryActiveMembership() {
+        Room room = activeRoom("owner-1", 3, 7);
+        Membership owner =
+                owner("owner-1", MembershipStatus.ACTIVE, 4);
+        Membership firstMember =
+                member("user-2", MembershipStatus.ACTIVE, 5);
+        Membership secondMember =
+                member("user-3", MembershipStatus.ACTIVE, 6);
+
+        AdministrativeCloseRoomTransition result =
+                RoomMembershipTransitions.closeRoomAsAdministrator(
+                        room,
+                        owner,
+                        List.of(owner, firstMember, secondMember),
+                        TRANSITION_AT);
+
+        assertThat(result.outcome()).isEqualTo(
+                AdministrativeCloseRoomTransition.Outcome.CLOSED);
+        assertThat(result.room().status())
+                .isEqualTo(RoomStatus.CLOSED);
+        assertThat(result.room().activeMemberCount()).isZero();
+        assertThat(result.room().closedAt()).isEqualTo(TRANSITION_AT);
+        assertThat(result.closedMemberships())
+                .extracting(Membership::status)
+                .containsOnly(MembershipStatus.LEFT);
+        assertThat(result.closedMemberships())
+                .extracting(Membership::leftAt)
+                .containsOnly(TRANSITION_AT);
+        assertThat(result.closedMemberships())
+                .extracting(Membership::version)
+                .containsExactly(5L, 6L, 7L);
+        assertThat(result.ownerMembership().membershipId())
+                .isEqualTo(owner.membershipId());
+        assertThat(result.ownerMembership().status())
+                .isEqualTo(MembershipStatus.LEFT);
+    }
+
+    @Test
+    void administratorCloseRejectsIncompleteActiveMembershipSet() {
+        Room room = activeRoom("owner-1", 2, 7);
+        Membership owner =
+                owner("owner-1", MembershipStatus.ACTIVE, 4);
+
+        assertFailure(
+                () -> RoomMembershipTransitions
+                        .closeRoomAsAdministrator(
+                                room,
+                                owner,
+                                List.of(owner),
+                                TRANSITION_AT),
+                RoomDomainErrorCode
+                        .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
+    }
+
+    @Test
+    void administratorCloseOfClosedRoomIsBusinessNoOp() {
+        Room room = closedRoom();
+        Membership owner =
+                owner("owner-1", MembershipStatus.LEFT, 5);
+
+        AdministrativeCloseRoomTransition result =
+                RoomMembershipTransitions.closeRoomAsAdministrator(
+                        room,
+                        owner,
+                        List.of(),
+                        TRANSITION_AT.plusSeconds(10));
+
+        assertThat(result.outcome()).isEqualTo(
+                AdministrativeCloseRoomTransition.Outcome
+                        .ALREADY_CLOSED);
+        assertThat(result.room()).isSameAs(room);
+        assertThat(result.ownerMembership()).isSameAs(owner);
+        assertThat(result.closedMemberships()).isEmpty();
     }
 
     @Test

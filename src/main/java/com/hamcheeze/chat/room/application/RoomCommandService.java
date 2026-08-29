@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room.application;
 
 import com.hamcheeze.chat.room.BanMemberTransition;
+import com.hamcheeze.chat.room.AdministrativeCloseRoomTransition;
 import com.hamcheeze.chat.room.CloseRoomTransition;
 import com.hamcheeze.chat.room.JoinRoomTransition;
 import com.hamcheeze.chat.room.LeaveRoomTransition;
@@ -41,6 +42,7 @@ import com.hamcheeze.chat.room.persistence.RoomStore;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -263,6 +265,24 @@ public final class RoomCommandService {
                 command.commandType(),
                 command.roomId(),
                 () -> closeRoomInTransaction(
+                        command,
+                        transitionTime)));
+        return complete(execution);
+    }
+
+    public RoomCommandExecution closeRoomAsAdministrator(
+            CloseRoomCommand command
+    ) {
+        Instant transitionTime = clock.instant();
+        PreparedRoomCommand prepared = prepare(
+                command,
+                transitionTime,
+                command.roomId());
+        RoomCommandExecution execution = executor.execute(
+                prepared, () -> executeDomain(
+                command.commandType(),
+                command.roomId(),
+                () -> closeRoomAsAdministratorInTransaction(
                         command,
                         transitionTime)));
         return complete(execution);
@@ -617,6 +637,51 @@ public final class RoomCommandService {
             replaceMembership(
                     transition.ownerMembership(),
                     owner.version());
+        }
+        return RoomCommandResult.closed(
+                RoomCommandResultCode.valueOf(
+                        transition.outcome().name()),
+                transition.room(),
+                transition.ownerMembership());
+    }
+
+    private RoomCommandResult
+            closeRoomAsAdministratorInTransaction(
+                    CloseRoomCommand command,
+                    Instant transitionTime
+            ) {
+        Room room = roomStore.findById(command.roomId())
+                .orElse(null);
+        if (room == null) {
+            return rejection(
+                    command.commandType(),
+                    RoomCommandResultCode.ROOM_NOT_FOUND,
+                    command.roomId());
+        }
+        Membership owner = requireOwnerInvariant(room);
+        List<Membership> activeMemberships =
+                room.status() == RoomStatus.CLOSED
+                        ? List.of()
+                        : membershipStore.findByRoomIdAndStatus(
+                                room.roomId(),
+                                MembershipStatus.ACTIVE);
+        AdministrativeCloseRoomTransition transition =
+                RoomMembershipTransitions
+                        .closeRoomAsAdministrator(
+                                room,
+                                owner,
+                                activeMemberships,
+                                transitionTime);
+        if (transition.outcome()
+                == AdministrativeCloseRoomTransition.Outcome.CLOSED) {
+            replaceRoom(transition.room(), room.version());
+            for (int index = 0;
+                    index < transition.closedMemberships().size();
+                    index++) {
+                replaceMembership(
+                        transition.closedMemberships().get(index),
+                        activeMemberships.get(index).version());
+            }
         }
         return RoomCommandResult.closed(
                 RoomCommandResultCode.valueOf(

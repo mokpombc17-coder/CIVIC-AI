@@ -238,6 +238,36 @@ class RoomCommandRevocationIntegrationTest
     }
 
     @Test
+    void administratorCloseRevokesWholeRoomAccess() {
+        String roomId = createRoom("owner-1");
+        join(roomId, "user-2");
+        clearInvocations(eventDeliveryPort, revocationPort);
+
+        RoomCommandExecution execution =
+                commandService.closeRoomAsAdministrator(
+                        new CloseRoomCommand(
+                                "administrator-1",
+                                uuid(),
+                                roomId));
+
+        assertThat(execution.result().code().name())
+                .isEqualTo("CLOSED");
+        assertThat(memberships.findByRoomIdAndUserId(
+                        roomId,
+                        "owner-1")
+                .orElseThrow().status())
+                .isEqualTo(MembershipStatus.LEFT);
+        assertThat(memberships.findByRoomIdAndUserId(
+                        roomId,
+                        "user-2")
+                .orElseThrow().status())
+                .isEqualTo(MembershipStatus.LEFT);
+        verify(revocationPort, times(1)).revokeRoomAccess(
+                roomId,
+                RoomAccessRevocationReason.ROOM_CLOSED);
+    }
+
+    @Test
     void failedReplacementCloseIsRetriedByLeaveReceiptReplay()
             throws Exception {
         String roomId = createRoom("owner-1");

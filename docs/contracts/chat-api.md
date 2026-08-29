@@ -131,7 +131,7 @@ chat:read-state:write
 | 방 및 멤버십 조회 | `chat:rooms:read` |
 | 방 topic 구독 및 구독 준비 sync | `chat:rooms:read` |
 | 방 생성 및 상태 변경 | `chat:rooms:write` |
-| 방 생성 신청 조회·승인·반려 | `chat:rooms:approve` |
+| 방 생성 신청 조회·승인·반려 및 관리자 방 종료 | `chat:rooms:approve` |
 | 채팅 메시지 전송 | `chat:messages:write` |
 | 개인 Room 읽음 위치 갱신 | `chat:read-state:write` |
 
@@ -209,6 +209,7 @@ Room 카테고리는 enum이 아니다. 관리자가 생성한 카테고리 리�
 | `DELETE` | `/api/v1/admin/room-categories/{categoryId}` | 카테고리 삭제 | `204` |
 | `GET` | `/api/v1/admin/rooms` | 관리자 전체 방 검색·필터 | `200` |
 | `PUT` | `/api/v1/admin/rooms/{roomId}/categories` | 기존 방 카테고리 전체 교체 | `200` |
+| `POST` | `/api/v1/admin/rooms/{roomId}/commands/close` | 관리자 강제 방 종료 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/update-settings` | 방 설정 부분 변경 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/join` | 방 참여 | `201` 또는 `200` |
 | `POST` | `/api/v1/rooms/{roomId}/commands/leave` | 방 나가기 | `200` |
@@ -892,6 +893,28 @@ Idempotency-Key: <uuid>
 ```
 
 가능한 성공 `code`는 `CLOSED`, `ALREADY_CLOSED`다.
+
+### 관리자 강제 방 종료
+
+```http
+POST /api/v1/admin/rooms/{roomId}/commands/close
+Idempotency-Key: <uuid>
+```
+
+`chat:rooms:approve` scope를 요구하며 요청 body는 없다. 관리자는 Room
+Membership과 방장 여부에 관계없이 ACTIVE Room을 종료할 수 있다. Room과 현재
+ACTIVE인 방장·참여자 Membership 전체는 하나의 트랜잭션에서 각각 `CLOSED`와
+`LEFT`로 변경된다. 기존 `LEFT`, `BANNED` Membership은 변경하지 않는다.
+
+응답은 방장 종료와 동일한 `CloseRoomResponse`이며 가능한 성공 `code`는
+`CLOSED`, `ALREADY_CLOSED`다. 참여자가 남아 있어도
+`ROOM_HAS_OTHER_ACTIVE_MEMBERS`를 반환하지 않는다. 같은 관리자가 같은
+`Idempotency-Key`와 `roomId`로 재시도하면 최초 응답을 `replayed: true`로
+재생한다. 같은 key를 다른 요청에 사용하면 `409 IDEMPOTENCY_CONFLICT`다.
+
+종료가 commit되면 모든 Room subscription을 격리하고 연결된 참여자의 WebSocket을
+close code `4003`, reason `ROOM_CLOSED`로 종료한다. 프론트는 `CLOSED`와
+`ALREADY_CLOSED`를 모두 종료 완료로 처리한다.
 
 ## 방 Query API
 

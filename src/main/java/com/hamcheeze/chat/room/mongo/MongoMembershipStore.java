@@ -1,13 +1,16 @@
 package com.hamcheeze.chat.room.mongo;
 
 import com.hamcheeze.chat.room.Membership;
+import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.mongodb.client.result.UpdateResult;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.ReplaceOptions;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.domain.Sort;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -53,6 +56,28 @@ public final class MongoMembershipStore
                         MongoMembershipDocument.COLLECTION_NAME);
         return Optional.ofNullable(document)
                 .map(MongoMembershipDocument::toDomain);
+    }
+
+    @Override
+    public List<Membership> findByRoomIdAndStatus(
+            String roomId,
+            MembershipStatus status
+    ) {
+        Query query = Query.query(
+                Criteria.where("roomId")
+                        .is(requireNonBlank(roomId, "roomId"))
+                        .and("status")
+                        .is(Objects.requireNonNull(
+                                status,
+                                "status").name()));
+        query.with(Sort.by(Sort.Direction.ASC, "_id"));
+        return mongoOperations.find(
+                        query,
+                        MongoMembershipDocument.class,
+                        MongoMembershipDocument.COLLECTION_NAME)
+                .stream()
+                .map(MongoMembershipDocument::toDomain)
+                .toList();
     }
 
     @Override

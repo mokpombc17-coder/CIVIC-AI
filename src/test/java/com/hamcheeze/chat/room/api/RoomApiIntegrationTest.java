@@ -66,7 +66,14 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                         new SimpleGrantedAuthority(ChatScopes.authority(
                                 ChatScopes.ROOMS_READ)),
                         new SimpleGrantedAuthority(ChatScopes.authority(
-                                ChatScopes.ROOMS_WRITE)));
+                                 ChatScopes.ROOMS_WRITE)));
+    }
+
+    private static JwtRequestPostProcessor administratorJwt() {
+        return SecurityMockMvcRequestPostProcessors.jwt()
+                .authorities(new SimpleGrantedAuthority(
+                        ChatScopes.authority(
+                                ChatScopes.ROOMS_APPROVE)));
     }
 
     @Autowired
@@ -1241,6 +1248,77 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].roomId")
                         .value(activeRoom));
+    }
+
+    @Test
+    void administratorClosesRoomWithActiveMembersAndReplays()
+            throws Exception {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+        commandService.joinRoom(new JoinRoomCommand(
+                "user-2", requestId(), roomId));
+        commandService.joinRoom(new JoinRoomCommand(
+                "user-3", requestId(), roomId));
+        String closeRequestId = requestId();
+        String path = "/api/v1/admin/rooms/{roomId}/commands/close";
+
+        mockMvc.perform(post(path, roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("ordinary-user")))
+                        .header("Idempotency-Key", closeRequestId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        mockMvc.perform(post(path, roomId)
+                        .with(administratorJwt().jwt(jwt ->
+                                jwt.subject("administrator-1")))
+                        .header("Idempotency-Key", closeRequestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("CLOSED"))
+                .andExpect(jsonPath("$.replayed").value(false))
+                .andExpect(jsonPath("$.roomId").value(roomId))
+                .andExpect(jsonPath("$.ownerMembershipId").isString())
+                .andExpect(jsonPath("$.roomVersion").isNumber())
+                .andExpect(jsonPath("$.ownerMembershipVersion")
+                        .isNumber());
+        mockMvc.perform(post(path, roomId)
+                        .with(administratorJwt().jwt(jwt ->
+                                jwt.subject("administrator-1")))
+                        .header("Idempotency-Key", closeRequestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("CLOSED"))
+                .andExpect(jsonPath("$.replayed").value(true));
+        mockMvc.perform(post(path, roomId)
+                        .with(administratorJwt().jwt(jwt ->
+                                jwt.subject("administrator-1")))
+                        .header("Idempotency-Key", requestId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code")
+                        .value("ALREADY_CLOSED"));
+
+        for (String userId : new String[]{
+                "owner-1", "user-2", "user-3"}) {
+            mockMvc.perform(get("/api/v1/me/rooms")
+                            .with(jwt().jwt(jwt ->
+                                    jwt.subject(userId))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.items.length()")
+                            .value(0));
+        }
+    }
+
+    @Test
+    void administratorCloseRequiresIdempotencyKey()
+            throws Exception {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+
+        mockMvc.perform(post(
+                                "/api/v1/admin/rooms/{roomId}"
+                                        + "/commands/close",
+                                roomId)
+                        .with(administratorJwt().jwt(jwt ->
+                                jwt.subject("administrator-1"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_IDEMPOTENCY_KEY"));
     }
 
     @Test

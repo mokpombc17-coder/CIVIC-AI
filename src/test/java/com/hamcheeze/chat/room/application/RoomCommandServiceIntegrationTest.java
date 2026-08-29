@@ -874,6 +874,79 @@ class RoomCommandServiceIntegrationTest
     }
 
     @Test
+    void administratorCloseLeavesAllActiveMembersAndReplays() {
+        String roomId = createOpenRoom("owner-1");
+        service.joinRoom(new JoinRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        service.joinRoom(new JoinRoomCommand(
+                "user-3",
+                requestId(),
+                roomId));
+        String closeRequestId = requestId();
+        CloseRoomCommand command = new CloseRoomCommand(
+                "administrator-1",
+                closeRequestId,
+                roomId);
+
+        RoomCommandExecution closed =
+                service.closeRoomAsAdministrator(command);
+        RoomCommandExecution replayed =
+                service.closeRoomAsAdministrator(command);
+        RoomCommandExecution alreadyClosed =
+                service.closeRoomAsAdministrator(
+                        new CloseRoomCommand(
+                                "administrator-1",
+                                requestId(),
+                                roomId));
+
+        assertThat(closed.result().code())
+                .isEqualTo(RoomCommandResultCode.CLOSED);
+        assertThat(closed.replayed()).isFalse();
+        assertThat(replayed.result()).isEqualTo(closed.result());
+        assertThat(replayed.replayed()).isTrue();
+        assertThat(alreadyClosed.result().code())
+                .isEqualTo(RoomCommandResultCode.ALREADY_CLOSED);
+        Room room = roomStore.findById(roomId).orElseThrow();
+        assertThat(room.status()).isEqualTo(RoomStatus.CLOSED);
+        assertThat(room.activeMemberCount()).isZero();
+        assertThat(List.of("owner-1", "user-2", "user-3"))
+                .allSatisfy(userId -> assertThat(
+                        membership(roomId, userId).status())
+                        .isEqualTo(MembershipStatus.LEFT));
+        assertThat(activeMembershipCount("owner-1")).isZero();
+        assertThat(activeMembershipCount("user-2")).isZero();
+        assertThat(activeMembershipCount("user-3")).isZero();
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
+    void administratorCloseRacingJoinNeverLeavesActiveMemberInClosedRoom()
+            throws Exception {
+        String roomId = createOpenRoom("owner-1");
+
+        concurrently(
+                () -> service.joinRoom(new JoinRoomCommand(
+                        "user-2",
+                        requestId(),
+                        roomId)),
+                () -> service.closeRoomAsAdministrator(
+                        new CloseRoomCommand(
+                                "administrator-1",
+                                requestId(),
+                                roomId)));
+
+        Room room = roomStore.findById(roomId).orElseThrow();
+        assertThat(room.status()).isEqualTo(RoomStatus.CLOSED);
+        assertThat(room.activeMemberCount()).isZero();
+        membershipStore.findByRoomIdAndUserId(roomId, "user-2")
+                .ifPresent(membership -> assertThat(membership.status())
+                        .isEqualTo(MembershipStatus.LEFT));
+        assertRoomInvariants(roomId);
+    }
+
+    @Test
     void membershipIdTargetsDriveModerationAndOwnershipCommands() {
         String roomId = createOpenRoom("owner-1");
         RoomCommandExecution joined = service.joinRoom(
