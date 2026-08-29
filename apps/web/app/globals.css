@@ -3666,12 +3666,15 @@ th {
   padding: 0.875rem 1rem;
 }
 
+[data-wireflow-shell="admin"] .civic-task-list-toolbar .wf-admin-filters {
+  grid-column: auto;
+  padding-left: 0;
+}
+
 [data-wireflow-shell="admin"] .civic-domain-toolbar .wf-admin-filters {
   display: flex;
-  grid-column: auto;
   flex-wrap: wrap;
   gap: 0.35rem;
-  padding-left: 0;
 }
 
 [data-wireflow-shell="admin"] .civic-domain-toolbar .wf-admin-filters button {

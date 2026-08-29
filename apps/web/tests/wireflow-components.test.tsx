@@ -118,6 +118,8 @@ describe("latest Wire Flow shared product UI", () => {
     );
     expect(html).toContain('aria-label="새 과업 만들기"');
     expect(toolbarHtml).toContain("과업 제목 검색");
+    expect(toolbarHtml).toContain('name="task-query"');
+    expect(toolbarHtml).toContain('autoComplete="off"');
     expect(toolbarHtml).toContain('aria-label="과업 상태"');
     expect(toolbarHtml).not.toContain("새 과업 만들기");
   });

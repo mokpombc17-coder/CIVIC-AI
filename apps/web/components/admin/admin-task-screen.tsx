@@ -126,6 +126,8 @@ function TaskList() {
         <label className="civic-field">
           <span>과업 제목 검색</span>
           <input
+            autoComplete="off"
+            name="task-query"
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="과업 제목 입력…"
             type="search"
