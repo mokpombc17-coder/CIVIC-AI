@@ -3654,7 +3654,58 @@ body:has([data-wireflow-shell]) {
   font-weight: 700;
 }
 
-/* 홈 헤더 인사말 (이메일 로컬파트 + 님) */
+/* 홈 헤더 관리자 화면 전환 + 인사말 (이메일 로컬파트 + 님) */
+.civic-header-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.civic-header-page-switch {
+  display: inline-flex;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid #b8cdf8;
+  border-radius: 7px;
+  background: #f7f9fe;
+}
+
+.civic-header-page-link {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  color: var(--wf-blue-dark);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.civic-header-page-link + .civic-header-page-link {
+  border-left: 1px solid #b8cdf8;
+}
+
+.civic-header-page-link[aria-current="page"] {
+  background: var(--wf-blue);
+  color: #fff;
+}
+
+.civic-header-page-link:not([aria-current="page"]):hover {
+  background: var(--wf-blue-soft);
+}
+
+.civic-header-page-link:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--wf-blue-dark);
+  outline-offset: -2px;
+}
+
 .civic-header-greeting {
   color: var(--wf-ink);
   font-size: 14px;
