@@ -79,6 +79,68 @@ describe("createAuthenticatedFetch", () => {
     expect(refreshCalls).toBe(1);
   });
 
+  it("waits for another tab's 409 rotation and retries only the resource request", async () => {
+    let resourceCalls = 0;
+    let currentUserCalls = 0;
+    let refreshCalls = 0;
+    const request = vi.fn<typeof fetch>(async (input) => {
+      const pathname = new URL((input as Request).url).pathname;
+      if (pathname === "/api/v1/auth/refresh") {
+        refreshCalls += 1;
+        return Response.json({ code: "REFRESH_CONFLICT" }, { status: 409 });
+      }
+      if (pathname === "/api/v1/auth/me") {
+        currentUserCalls += 1;
+        return currentUserCalls === 1
+          ? Response.json({ code: "UNAUTHORIZED" }, { status: 401 })
+          : Response.json({ subject: "user-1" });
+      }
+      resourceCalls += 1;
+      return resourceCalls === 1
+        ? Response.json({ code: "UNAUTHORIZED" }, { status: 401 })
+        : Response.json({ status: "ok" });
+    });
+    const pause = vi.fn(async () => undefined);
+
+    const response = await createAuthenticatedFetch(
+      request,
+      pause,
+    )("https://civic.example/api/v1/rag/folders");
+
+    expect(response.status).toBe(200);
+    expect(refreshCalls).toBe(1);
+    expect(resourceCalls).toBe(2);
+    expect(pause.mock.calls).toEqual([[100], [200]]);
+  });
+
+  it("returns the original 401 when a 409 rotation never becomes visible", async () => {
+    let resourceCalls = 0;
+    let refreshCalls = 0;
+    const request = vi.fn<typeof fetch>(async (input) => {
+      const pathname = new URL((input as Request).url).pathname;
+      if (pathname === "/api/v1/auth/refresh") {
+        refreshCalls += 1;
+        return Response.json({ code: "REFRESH_CONFLICT" }, { status: 409 });
+      }
+      if (pathname === "/api/v1/auth/me") {
+        return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
+      }
+      resourceCalls += 1;
+      return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
+    });
+    const pause = vi.fn(async () => undefined);
+
+    const response = await createAuthenticatedFetch(
+      request,
+      pause,
+    )("https://civic.example/api/v1/rag/folders");
+
+    expect(response.status).toBe(401);
+    expect(refreshCalls).toBe(1);
+    expect(resourceCalls).toBe(1);
+    expect(pause.mock.calls).toEqual([[100], [200], [400]]);
+  });
+
   it("does not rotate a fresh access token during a resource preflight", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ subject: "user-1" }));
 

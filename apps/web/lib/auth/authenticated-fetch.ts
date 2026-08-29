@@ -1,6 +1,9 @@
 "use client";
 
 type FetchBackend = typeof fetch;
+type PauseBackend = (delayMs: number) => Promise<void>;
+
+const REFRESH_CONFLICT_RETRY_DELAYS_MS = [100, 200, 400] as const;
 
 export type AuthenticatedClient = Readonly<{
   fetch: FetchBackend;
@@ -14,17 +17,15 @@ export type AuthenticatedClient = Readonly<{
  */
 export function createAuthenticatedClient(
   requestBackend: FetchBackend = fetch,
+  pauseBackend: PauseBackend = pause,
 ): AuthenticatedClient {
   let refreshInFlight: Promise<boolean> | null = null;
 
   function rotateAccessToken(requestUrl: string): Promise<boolean> {
     if (!refreshInFlight) {
-      refreshInFlight = requestBackend(refreshRequest(requestUrl))
-        .then((response) => response.ok)
-        .catch(() => false)
-        .finally(() => {
-          refreshInFlight = null;
-        });
+      refreshInFlight = refreshAccessToken(requestUrl, requestBackend, pauseBackend).finally(() => {
+        refreshInFlight = null;
+      });
     }
     return refreshInFlight;
   }
@@ -66,8 +67,11 @@ export function createAuthenticatedClient(
   return { ensureAccessToken, fetch: authenticatedRequest };
 }
 
-export function createAuthenticatedFetch(requestBackend: FetchBackend = fetch): FetchBackend {
-  return createAuthenticatedClient(requestBackend).fetch;
+export function createAuthenticatedFetch(
+  requestBackend: FetchBackend = fetch,
+  pauseBackend: PauseBackend = pause,
+): FetchBackend {
+  return createAuthenticatedClient(requestBackend, pauseBackend).fetch;
 }
 
 const authenticatedClient = createAuthenticatedClient();
@@ -90,6 +94,59 @@ function refreshRequest(requestUrl: string): Request {
     headers: { "content-type": "application/json" },
     body: "{}",
   });
+}
+
+async function refreshAccessToken(
+  requestUrl: string,
+  requestBackend: FetchBackend,
+  pauseBackend: PauseBackend,
+): Promise<boolean> {
+  let response: Response;
+  try {
+    response = await requestBackend(refreshRequest(requestUrl));
+  } catch {
+    return false;
+  }
+
+  if (response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    return true;
+  }
+  if (response.status !== 409) {
+    await response.body?.cancel().catch(() => undefined);
+    return false;
+  }
+  await response.body?.cancel().catch(() => undefined);
+
+  for (const delayMs of REFRESH_CONFLICT_RETRY_DELAYS_MS) {
+    await pauseBackend(delayMs);
+    let currentUserResponse: Response;
+    try {
+      currentUserResponse = await requestBackend(currentUserRequest(requestUrl));
+    } catch {
+      return false;
+    }
+    if (currentUserResponse.ok) {
+      await currentUserResponse.body?.cancel().catch(() => undefined);
+      return true;
+    }
+    const accessTokenPending = currentUserResponse.status === 401;
+    await currentUserResponse.body?.cancel().catch(() => undefined);
+    if (!accessTokenPending) return false;
+  }
+  return false;
+}
+
+function currentUserRequest(requestUrl: string): Request {
+  return new Request(new URL("/api/v1/auth/me", requestUrl), {
+    cache: "no-store",
+    credentials: "same-origin",
+    method: "GET",
+  });
+}
+
+function pause(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function isAuthRoute(requestUrl: string): boolean {
