@@ -2,6 +2,11 @@
 
 import { CHAT_API_BASE_URL } from "./chat-config";
 import {
+  CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
+  isChatAuthenticationRequiredResponse,
+  reportChatAuthenticationRequired,
+} from "./chat-authentication-required";
+import {
   isChatProblemDetails,
   type ChatFieldError,
   type ChatProblemDetails,
@@ -81,7 +86,9 @@ export function createChatFetch({
     const body = await readResponseBody(response, url);
 
     if (!response.ok) {
-      throw new ChatApiError(response.status, response.statusText, url.toString(), body);
+      const error = new ChatApiError(response.status, response.statusText, url.toString(), body);
+      reportChatAuthenticationRequired(error);
+      throw error;
     }
 
     return body as TResponse;
@@ -141,6 +148,10 @@ async function readResponseBody(response: Response, requestUrl: URL): Promise<un
 }
 
 function createHttpErrorMessage(status: number, statusText: string, body: unknown): string {
+  if (isChatAuthenticationRequiredResponse(status, body)) {
+    return CHAT_AUTHENTICATION_REQUIRED_MESSAGE;
+  }
+
   const detail = readErrorDetail(body);
   const statusLabel = statusText ? `${status} ${statusText}` : String(status);
 

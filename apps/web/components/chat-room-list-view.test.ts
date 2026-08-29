@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
+import { ChatApiError } from "@/lib/chat/chat-fetch";
 import type { ChatRoomListDetailSelection } from "./chat-room-list-detail";
 import { ChatRoomListDetailDialog } from "./chat-room-list-detail-dialog";
 import { ChatRoomListView, MyRoomCard, PublicRoomCard } from "./chat-room-list-view";
@@ -66,6 +67,15 @@ describe("chat room list publishing layout", () => {
     expect(loadingHtml.match(/role="status"/g)).toHaveLength(2);
     expect(loadingHtml).toContain("bg-transparent");
     expect(loadingHtml).not.toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+  });
+
+  it("401 목록 오류는 다시 불러오기 대신 로그인 action을 제공한다", () => {
+    const html = renderChatRoomListView("ALL", false, "authentication-error");
+
+    expect(html.match(/>로그인하기<\/a>/g)).toHaveLength(2);
+    expect(html.match(/href="\/login\?returnTo=%2Fchat"/g)).toHaveLength(2);
+    expect(html).not.toContain(">다시 불러오기</button>");
+    expect(html).not.toContain("Bearer");
   });
 
   it("안읽음 filter 결과가 비면 현재 누적 목록 기준임을 안내한다", () => {
@@ -238,16 +248,24 @@ const PUBLIC_ROOM: PublicRoomListItem = {
 function renderChatRoomListView(
   filter: "ALL" | "UNREAD",
   isCreateRoomOpen = false,
-  listStatus: "empty" | "error" | "loading" = "empty",
+  listStatus: "authentication-error" | "empty" | "error" | "loading" = "empty",
   roomDetailSelection: ChatRoomListDetailSelection | null = null,
 ): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  const isError = listStatus === "error" || listStatus === "authentication-error";
   const emptyListState = {
-    error: listStatus === "error" ? new Error("목록 조회 실패") : null,
+    error:
+      listStatus === "authentication-error"
+        ? new ChatApiError(401, "Unauthorized", "http://localhost:8082", {
+            detail: "A valid Bearer token is required.",
+          })
+        : listStatus === "error"
+          ? new Error("목록 조회 실패")
+          : null,
     hasNextPage: false,
-    isError: listStatus === "error",
+    isError,
     isFetchingNextPage: false,
     isPending: listStatus === "loading",
     loadMore: vi.fn(),

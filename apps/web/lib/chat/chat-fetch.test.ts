@@ -1,9 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
+  clearChatAuthenticationRequired,
+  getChatAuthenticationRequiredSnapshot,
+} from "./chat-authentication-required";
 import { ChatApiError, ChatResponseParseError, createChatFetch } from "./chat-fetch";
 
 type FetchRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 describe("chatFetch", () => {
+  beforeEach(() => clearChatAuthenticationRequired());
+
   it("Chat API URL과 credential, 기본 header를 적용한다", async () => {
     const request = vi.fn<FetchRequest>(async () =>
       Response.json({ roomId: "room-1" }, { status: 200 }),
@@ -144,6 +151,30 @@ describe("chatFetch", () => {
       retryable: true,
       fieldErrors: [],
     });
+  });
+
+  it("code가 없는 401도 raw 상세 대신 로그인 안내를 노출하고 인증 필요 상태를 알린다", async () => {
+    const request = vi.fn<FetchRequest>(async () =>
+      Response.json(
+        { detail: "A valid Bearer token is required." },
+        {
+          status: 401,
+          statusText: "Unauthorized",
+        },
+      ),
+    );
+    const chatFetch = createChatFetch({ request });
+
+    const error = await chatFetch("/me/room-inbox").catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(ChatApiError);
+    expect(error).toMatchObject({
+      status: 401,
+      code: undefined,
+      message: CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
+    });
+    expect((error as Error).message).not.toContain("Bearer");
+    expect(getChatAuthenticationRequiredSnapshot()).toBe(true);
   });
 
   it("메시지 검색 rate limit의 retryAfterMs를 노출한다", () => {

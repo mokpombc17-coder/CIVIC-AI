@@ -24,6 +24,10 @@ import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
+import {
+  createCurrentChatLoginHref,
+  isChatAuthenticationRequired,
+} from "@/lib/chat/chat-authentication-required";
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
@@ -331,6 +335,10 @@ function QueryFailure({
     return null;
   }
 
+  const authenticationRequired = isChatAuthenticationRequired(error);
+  const actionClassName =
+    "mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]";
+
   return (
     <div
       className="rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-4 text-[var(--chat-publishing-color-text)]"
@@ -351,13 +359,15 @@ function QueryFailure({
           </p>
         </div>
       </div>
-      <button
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-        onClick={onRetry}
-        type="button"
-      >
-        다시 불러오기
-      </button>
+      {authenticationRequired ? (
+        <a className={actionClassName} href={createCurrentChatLoginHref()}>
+          로그인하기
+        </a>
+      ) : (
+        <button className={actionClassName} onClick={onRetry} type="button">
+          다시 불러오기
+        </button>
+      )}
     </div>
   );
 }

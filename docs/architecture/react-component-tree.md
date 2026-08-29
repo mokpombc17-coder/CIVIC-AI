@@ -68,7 +68,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 ## Route `/chat`와 `/chat/[roomId]`
 
 `ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
-그 안에 `ChatRealtimeProvider`와 `ChatRoomReadStateProvider`를 배치한다. Read-state Provider는
+그 안에서 `ChatAuthenticationBoundary`가 Chat API의 401 상태를 route segment 범위로 구독한다.
+인증이 유효하면 Boundary는 `ChatRealtimeProvider`, `ChatRoomReadStateProvider`와 nested page를
+조립하고, 401이면 이 하위 트리를 unmount한 뒤 현재 URL을 `returnTo`로 보존한 단일 로그인 필요
+화면으로 교체한다. Read-state Provider는
 방별 pending·in-flight·confirmed sequence를 route segment 수명 동안 유지하므로 방 화면이
 unmount되어도 `/chat` 안의 route 이동에서는 예약된 보고가 유실되지 않는다. Provider는 짧은
 bounded retry 이후 남은 pending을 focus·online·실시간 연결 복구 시 재개하고, 로그인 성공마다
@@ -91,55 +94,57 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
         └── children [slot: App Router가 route child를 제공]
             └── ChatLayout [Server] [Route] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] [Provider] (apps/web/components/chat-query-provider.tsx)
-                    └── ChatRealtimeProvider [Client] [Provider] (apps/web/components/chat-realtime-provider.tsx)
-                        ├── ChatRoomReadStateProvider [Client] [Provider] (apps/web/components/chat-room-read-state-provider.tsx)
-                        │   └── children [slot: nested page를 제공]
-                            ├── route /chat: ChatPage [Server] [Route] (apps/web/app/chat/page.tsx)
-                            │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
-                            │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
-                            │           └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
-                            │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
-                            │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
-                            │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/create-chat-room-form.tsx)
-                            │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat-room-list-detail-dialog.tsx)
-                            │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
-                            │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
-                            │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
-                            │                       └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
-                            ├── route /chat/creation-requests: RoomCreationRequestsPage [Server] [Route] (apps/web/app/chat/creation-requests/page.tsx)
-                            │   └── RoomCreationRequestListScreen [Client] [Container] (apps/web/components/room-creation-request-list-screen.tsx)
-                            │       └── RoomCreationRequestListView [Client] [View] (apps/web/components/room-creation-request-list-view.tsx)
-                            ├── route /chat/creation-requests/[creationRequestId]: RoomCreationRequestPage [Server] [Route] (apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx)
-                            │   └── RoomCreationRequestScreen [Client] [Container] (apps/web/components/room-creation-request-screen.tsx)
-                            │       └── RoomCreationRequestView [Client] [View] (apps/web/components/room-creation-request-view.tsx)
-                            └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
-                                └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
-                                    ├── ChatRoomView [Client] [View] (apps/web/components/chat-room-view.tsx)
-                                    │   └── PlatformShell [Server-compatible] [View] [scroll: child] (apps/web/components/platform-shell/platform-shell.tsx)
-                                    │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
-                                    │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
-                                    │       ├── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
-                                    │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
-                                    │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
-                                    │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
-                                    ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat-room-session-status.tsx)
-                                    ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
-                                    ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
-                                    │   └── ChatMessageComposer [Client] [Feature] (apps/web/components/chat-message-composer.tsx)
-                                    ├── ChatRoomScreenHeaderActions [Client] [View] (apps/web/components/chat-room-screen-overlays.tsx)
-                                    ├── ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline] (apps/web/components/chat-room-screen-overlays.tsx)
-                                    │   └── ChatRoomMessageSearchPanel [Client] [Feature] (apps/web/components/chat-room-message-search-dialog.tsx)
-                                    └── ChatRoomScreenOverlay [Client] [View] [conditional, single] (apps/web/components/chat-room-screen-overlays.tsx)
-                                        ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
-                                        └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
-                                            └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
-                                                └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
-                                                    └── ChatRoomInformationSection [Client] [Feature] (apps/web/components/chat-room-settings-control.tsx)
-                                                        └── ChatRoomSettingsControl [Client] [Container] [conditional, OWNER] (apps/web/components/chat-room-settings-control.tsx)
-                                                            └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-control.tsx)
-                        ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
-                        │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
-                        └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
+                    └── ChatAuthenticationBoundary [Client] [Boundary] (apps/web/components/chat-authentication-boundary.tsx)
+                        ├── [authentication valid] ChatRealtimeProvider [Client] [Provider] (apps/web/components/chat-realtime-provider.tsx)
+                        │   ├── ChatRoomReadStateProvider [Client] [Provider] (apps/web/components/chat-room-read-state-provider.tsx)
+                        │   │   └── children [slot: nested page를 제공]
+                        │   │       ├── route /chat: ChatPage [Server] [Route] (apps/web/app/chat/page.tsx)
+                        │   │       │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
+                        │   │       │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
+                        │   │       │           └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
+                        │   │       │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+                        │   │       │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
+                        │   │       │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/create-chat-room-form.tsx)
+                        │   │       │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat-room-list-detail-dialog.tsx)
+                        │   │       │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
+                        │   │       │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+                        │   │       │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+                        │   │       │                       └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
+                        │   │       ├── route /chat/creation-requests: RoomCreationRequestsPage [Server] [Route] (apps/web/app/chat/creation-requests/page.tsx)
+                        │   │       │   └── RoomCreationRequestListScreen [Client] [Container] (apps/web/components/room-creation-request-list-screen.tsx)
+                        │   │       │       └── RoomCreationRequestListView [Client] [View] (apps/web/components/room-creation-request-list-view.tsx)
+                        │   │       ├── route /chat/creation-requests/[creationRequestId]: RoomCreationRequestPage [Server] [Route] (apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx)
+                        │   │       │   └── RoomCreationRequestScreen [Client] [Container] (apps/web/components/room-creation-request-screen.tsx)
+                        │   │       │       └── RoomCreationRequestView [Client] [View] (apps/web/components/room-creation-request-view.tsx)
+                        │   │       └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
+                        │   │           └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
+                        │   │               ├── ChatRoomView [Client] [View] (apps/web/components/chat-room-view.tsx)
+                        │   │               │   └── PlatformShell [Server-compatible] [View] [scroll: child] (apps/web/components/platform-shell/platform-shell.tsx)
+                        │   │               │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+                        │   │               │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
+                        │   │               │       ├── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
+                        │   │               │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+                        │   │               │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+                        │   │               │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
+                        │   │               ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat-room-session-status.tsx)
+                        │   │               ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
+                        │   │               ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
+                        │   │               │   └── ChatMessageComposer [Client] [Feature] (apps/web/components/chat-message-composer.tsx)
+                        │   │               ├── ChatRoomScreenHeaderActions [Client] [View] (apps/web/components/chat-room-screen-overlays.tsx)
+                        │   │               ├── ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline] (apps/web/components/chat-room-screen-overlays.tsx)
+                        │   │               │   └── ChatRoomMessageSearchPanel [Client] [Feature] (apps/web/components/chat-room-message-search-dialog.tsx)
+                        │   │               └── ChatRoomScreenOverlay [Client] [View] [conditional, single] (apps/web/components/chat-room-screen-overlays.tsx)
+                        │   │                   ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
+                        │   │                   └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
+                        │   │                       └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
+                        │   │                           └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
+                        │   │                               └── ChatRoomInformationSection [Client] [Feature] (apps/web/components/chat-room-settings-control.tsx)
+                        │   │                                   └── ChatRoomSettingsControl [Client] [Container] [conditional, OWNER] (apps/web/components/chat-room-settings-control.tsx)
+                        │   │                                       └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-control.tsx)
+                        │   ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
+                        │   │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
+                        │   └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
+                        └── [HTTP 401] PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
 ```
 
 `AppShell`은 route별 시각 layout을 소유하지 않는다. `/chat` 목록과 `/chat/[roomId]` 상세의
@@ -371,6 +376,7 @@ flowchart TD
     ChatQueryProvider["ChatQueryProvider [Client] [Provider]<br/>apps/web/components/chat-query-provider.tsx"]
     ChatRealtimeProvider["ChatRealtimeProvider [Client] [Provider]<br/>apps/web/components/chat-realtime-provider.tsx"]
     ChatRoomReadStateProvider["ChatRoomReadStateProvider [Client] [Provider]<br/>apps/web/components/chat-room-read-state-provider.tsx"]
+    ChatAuthenticationBoundary["ChatAuthenticationBoundary [Client] [Boundary]<br/>apps/web/components/chat-authentication-boundary.tsx"]
     ChatRealtimeDiagnosticsPanel["ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development]<br/>apps/web/components/chat-realtime-diagnostics-panel.tsx"]
     ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [Runtime]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
     ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [View] [conditional]<br/>apps/web/components/chat-room-inbox-toast-list.tsx"]
@@ -446,7 +452,9 @@ flowchart TD
 
     ChildrenSlot -. "route /chat" .-> ChatLayout
     ChatLayout --> ChatQueryProvider
-    ChatQueryProvider --> ChatRealtimeProvider
+    ChatQueryProvider --> ChatAuthenticationBoundary
+    ChatAuthenticationBoundary -->|"authentication valid"| ChatRealtimeProvider
+    ChatAuthenticationBoundary -->|"HTTP 401"| PlatformPageShell
     ChatRealtimeProvider --> ChatRoomReadStateProvider
     ChatRoomReadStateProvider --> ChatChildrenSlot
     ChatRealtimeProvider --> ChatRoomInboxRuntime
@@ -520,7 +528,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SpecialBoundary framework;
 ```

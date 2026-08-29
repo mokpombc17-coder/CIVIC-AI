@@ -1,4 +1,5 @@
 import { ChatApiError, ChatResponseParseError } from "../chat-fetch";
+import { CHAT_AUTHENTICATION_REQUIRED_MESSAGE } from "../chat-authentication-required";
 import { ChatMessageMergeConflictError } from "../chat-message-merge";
 import { ChatMessageRecoveryError } from "./chat-message-recovery";
 import { ChatRealtimeQueryCoordinatorError } from "./chat-realtime-query-coordinator";
@@ -44,7 +45,7 @@ export function getChatRealtimeQueryErrorPresentation(
       return {
         action: null,
         actionLabel: null,
-        description: "로컬 E2E 로그인을 다시 실행한 뒤 이 페이지를 새로고침해 주세요.",
+        description: CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
         title: "채팅 인증이 필요합니다.",
       };
     }

@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clearChatAuthenticationRequired,
+  getChatAuthenticationRequiredSnapshot,
+} from "../chat-authentication-required";
 import { ChatApiError } from "../chat-fetch";
 import {
   ChatRoomExportResponseError,
@@ -9,6 +13,8 @@ import {
 type FetchRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 describe("ChatRoomExportApi", () => {
+  beforeEach(() => clearChatAuthenticationRequired());
+
   it.each(["FULL", "INCREMENTAL"] as const)("%s ZIP을 BFF에서 다운로드한다", async (mode) => {
     const zip = new Uint8Array([80, 75, 3, 4]);
     const request = vi.fn<FetchRequest>(
@@ -100,6 +106,20 @@ describe("ChatRoomExportApi", () => {
       status: 409,
     });
     await expect(promise).rejects.toBeInstanceOf(ChatApiError);
+  });
+
+  it("Export 401도 채팅 인증 필요 상태를 알린다", async () => {
+    const api = createChatRoomExportApi(async () =>
+      Response.json(
+        { detail: "A valid Bearer token is required." },
+        { status: 401, statusText: "Unauthorized" },
+      ),
+    );
+
+    await expect(api.download({ roomId: "room-01", mode: "FULL" })).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(getChatAuthenticationRequiredSnapshot()).toBe(true);
   });
 
   it("성공 응답이 ZIP이 아니면 계약 오류로 처리한다", async () => {

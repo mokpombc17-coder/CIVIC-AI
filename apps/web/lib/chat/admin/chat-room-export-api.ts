@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatApiError } from "../chat-fetch";
+import { reportChatAuthenticationRequired } from "../chat-authentication-required";
 import {
   chatRoomExportIdSchema,
   chatRoomExportInputSchema,
@@ -40,12 +41,14 @@ export function createChatRoomExportApi(request: FetchRequest = fetch): ChatRoom
       });
 
       if (!response.ok) {
-        throw new ChatApiError(
+        const error = new ChatApiError(
           response.status,
           response.statusText,
           path,
           await readErrorBody(response),
         );
+        reportChatAuthenticationRequired(error);
+        throw error;
       }
 
       const contentType = response.headers.get("Content-Type") ?? "";

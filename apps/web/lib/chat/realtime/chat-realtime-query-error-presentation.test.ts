@@ -42,6 +42,7 @@ describe("getChatRealtimeQueryErrorPresentation", () => {
     expect(getChatRealtimeQueryErrorPresentation(error)).toMatchObject({
       action: null,
       actionLabel: null,
+      description: "로그인 정보가 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.",
       title: "채팅 인증이 필요합니다.",
     });
   });
