@@ -23,6 +23,7 @@ import {
   successfulBulkJobId,
   shouldPollRagJob,
   firstQueryValue,
+  queryValues,
   jobPanelKey,
   loadRagJob,
   loadRagJobFilename,
@@ -43,6 +44,7 @@ import {
   filterRagDocuments,
   processingJobHref,
   ragJobHref,
+  ragJobsHref,
   resolveInspectedRagDocument,
   resolveFolderMutation,
   resolveFolderEditorMode,
@@ -472,7 +474,11 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("2026. 8. 21.");
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");
-    expect(html).toContain("보기");
+    expect(html).toContain("미리보기");
+    expect(html).toContain("문서 삭제");
+    expect(html).toContain(
+      "/admin/rag/delete?folderId=00000000-0000-4000-8000-000000000002&amp;documentId=640af5c5-d302-4c32-97ca-c9db40ed22e5",
+    );
     const text = renderedText(html);
     expect(text).not.toContain(documentId);
     expect(text).not.toContain(creatorId);
@@ -854,6 +860,8 @@ describe("9 functional RAG screens", () => {
       }),
     );
     expect(html).toContain("폴더 삭제 확인");
+    expect(html).toContain("포함 문서 <b>0개</b>");
+    expect(html).not.toContain("포함 문서 <b>확인 중</b>");
     expect(html).toContain("포함된 문서와 하위 폴더는 상위 폴더로 이동합니다");
     expect(html.match(/href="\/admin\/rag\?folderId=folder-1"/g)).toHaveLength(2);
     expect(html).not.toContain("수정할 폴더 정보");
@@ -862,6 +870,7 @@ describe("9 functional RAG screens", () => {
   it("작업 ID가 바뀌면 상태 패널 인스턴스 키도 바뀐다", () => {
     expect(jobPanelKey("job-1")).toBe("job-job-1");
     expect(jobPanelKey("job-2")).toBe("job-job-2");
+    expect(jobPanelKey(["job-1", "job-2"])).toBe("job-job-1-job-2");
     expect(jobPanelKey(undefined)).toBe("missing-job");
   });
 
@@ -1060,12 +1069,35 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain("정책자료.hwpx");
+    expect(html).toContain('class="civic-file-icon"');
+    expect(html).toContain("HWPX");
     expect(html).toContain("문서 읽기 실패");
     expect(html).toContain("원본 파일을 확인한 뒤 다시 업로드하세요");
     expect(html).toContain('class="civic-primary-action"');
     expect(html).toContain("실패 파일 다시 처리");
     expect(html).toContain('href="/admin/rag?folderId=policy-folder"');
     expect(html).not.toContain("640af5c5-d302-4c32-97ca-c9db40ed22e5");
+  });
+
+  it("다중 업로드 작업을 한 문서 준비 상태 화면에 함께 표시한다", () => {
+    const screen = ragScreens.find((item) => item.id === "A-RAG-005");
+    if (!screen) throw new Error("A-RAG-005 missing");
+    const html = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen,
+        query: {
+          folderId: "folder-1",
+          jobId: ["job-1", "job-2"],
+          filename: ["정책.pdf", "통계.xlsx"],
+        },
+      }),
+    );
+
+    expect(html.match(/class="civic-job-panel/g)).toHaveLength(2);
+    expect(html).toContain("정책.pdf");
+    expect(html).toContain("통계.xlsx");
+    expect(html).toContain('id="civic-job-status-title-0"');
+    expect(html).toContain('id="civic-job-status-title-1"');
   });
 
   it("실패 진행률은 완료된 단계와 모순되지 않게 표시한다", () => {
@@ -1227,6 +1259,7 @@ describe("9 functional RAG screens", () => {
     expect(firstQueryValue("")).toBeUndefined();
     expect(firstQueryValue(["", "folder-2"])).toBeUndefined();
     expect(firstQueryValue("folder-1")).toBe("folder-1");
+    expect(queryValues(["job-1", "", " job-2 "])).toEqual(["job-1", "job-2"]);
   });
 
   it("수동 재시도 응답의 새 작업 ID만 후속 상태 링크로 사용한다", () => {
@@ -1670,6 +1703,17 @@ describe("9 functional RAG screens", () => {
     expect(ragJobHref("replacement-job", "folder-1")).toBe(
       "/admin/rag/jobs?jobId=replacement-job&folderId=folder-1",
     );
+    expect(
+      ragJobsHref(
+        [
+          { jobId: "job-1", filename: "정책 1.pdf" },
+          { jobId: "job-2", filename: "정책 2.docx" },
+        ],
+        "folder-1",
+      ),
+    ).toBe(
+      "/admin/rag/jobs?jobId=job-1&filename=%EC%A0%95%EC%B1%85+1.pdf&jobId=job-2&filename=%EC%A0%95%EC%B1%85+2.docx&folderId=folder-1",
+    );
     const statusScreen = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!statusScreen) throw new Error("A-RAG-005 missing");
     const statusHtml = renderToStaticMarkup(
@@ -1801,7 +1845,7 @@ describe("9 functional RAG screens", () => {
     }
   });
 
-  it("관리자 업로드는 지원 형식과 LEGAL-05 권리 확인을 함께 표시한다", () => {
+  it("관리자 업로드는 지원 형식을 표시하고 별도 권리 확인을 요구하지 않는다", () => {
     const screen = ragScreens.find((item) => item.id === "A-RAG-004");
     if (!screen) throw new Error("A-RAG-004 missing");
     const html = renderToStaticMarkup(
@@ -1809,8 +1853,10 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain('type="file"');
+    expect(html).toContain('multiple=""');
     expect(html).toContain(RAG_ACCEPTED_EXTENSIONS.join(","));
-    expect(html).toContain("문서 이용 권한을 보유하고 있습니다");
+    expect(html).toContain("여러 파일을 한 번에 선택할 수 있습니다");
+    expect(html).not.toContain("문서 이용 권한을 보유하고 있습니다");
     expect(html).toContain("새 문서");
     expect(html).toContain('href="/admin/rag?folderId=folder-current"');
     const versionHtml = renderToStaticMarkup(
