@@ -1568,6 +1568,20 @@ body:has([data-wireflow-shell]) {
   background: #fff;
 }
 
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-page-list {
+  align-self: flex-start;
+  width: 100%;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-page {
+  flex: none;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-page-status {
+  width: 100%;
+  min-height: 100%;
+}
+
 [data-wireflow-layout="rag-reference-modal"] .civic-reader-note {
   margin: 0 24px 20px;
   color: var(--wf-muted);
