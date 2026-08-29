@@ -3767,6 +3767,90 @@ th {
   gap: 1rem;
 }
 
+/* Keep room request context and the operator decision visible together on desktop. */
+[data-wireflow-layout="chat-request-admin"] .civic-chat-request-detail {
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="chat-request-admin"] .civic-chat-request-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(26rem, 1.05fr) minmax(32rem, 0.95fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="chat-request-admin"]
+  :is(.civic-chat-request-context, .civic-chat-request-decision) {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="chat-request-admin"] .civic-chat-request-context .civic-user-summary-grid {
+  gap: 0.5rem;
+}
+
+[data-wireflow-layout="chat-request-admin"]
+  .civic-chat-request-context
+  .civic-user-summary-grid
+  > div {
+  min-height: 4.25rem;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 0.7rem 0.8rem;
+}
+
+[data-wireflow-layout="chat-request-admin"]
+  .civic-chat-request-context
+  .civic-user-summary-grid
+  > div:last-child {
+  grid-column: 1 / -1;
+}
+
+[data-wireflow-layout="chat-request-admin"]
+  .civic-chat-request-context
+  .civic-user-summary-grid
+  strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+[data-wireflow-layout="chat-request-admin"]
+  :is(
+    .civic-chat-request-context .civic-domain-description,
+    .civic-chat-request-decision .civic-domain-action-panel
+  ) {
+  gap: 0.65rem;
+  padding: 0.8rem;
+}
+
+[data-wireflow-layout="chat-request-admin"]
+  .civic-chat-request-context
+  .civic-domain-description
+  h2 {
+  font-size: 1.05rem;
+}
+
+[data-wireflow-layout="chat-request-admin"]
+  .civic-chat-request-context
+  .civic-domain-description
+  p {
+  color: var(--civic-muted);
+  line-height: 1.5;
+}
+
+[data-wireflow-layout="chat-request-admin"] .civic-chat-request-decision fieldset {
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+[data-wireflow-layout="chat-request-admin"] .civic-chat-request-decision .civic-form-actions {
+  margin-top: 0.1rem;
+  border-top: 1px solid var(--civic-line);
+  padding-top: 0.75rem;
+}
+
 /* Keep the task operator's decision context and lifecycle controls in one desktop view. */
 [data-wireflow-layout="task-detail"].civic-domain-console {
   gap: 0.75rem;
@@ -4407,6 +4491,12 @@ th {
 @media (max-width: 1100px) and (min-width: 821px) {
   [data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1320px) {
+  [data-wireflow-layout="chat-request-admin"] .civic-chat-request-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

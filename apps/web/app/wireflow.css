@@ -1813,12 +1813,12 @@ body {
 }
 
 .civic-shell-admin .wf-screen-heading {
-  min-height: 96px;
-  padding: 24px 32px;
+  min-height: 80px;
+  padding: 18px 24px;
 }
 
 .civic-shell-admin .wf-screen-heading h1 {
-  font-size: 28px;
+  font-size: 24px;
 }
 
 @media (max-width: 720px) {
