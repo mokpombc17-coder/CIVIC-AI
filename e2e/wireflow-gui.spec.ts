@@ -132,7 +132,8 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
   await page.goto("/home");
 
   await expect(page.locator(".civic-participant-home-header")).toHaveCount(0);
-  await expect(page.getByRole("heading", { exact: true, name: "홈" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "페이지 전환" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { exact: true, name: "CIVIC.AI" })).toBeVisible();
   const shell = page.locator('[data-platform-shell="true"]');
   const navigation = page.getByRole("navigation", { name: "참여자 주요 메뉴" });
   await expect(shell).toHaveCount(1);
@@ -174,6 +175,34 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
     width: [392, 394],
     height: [63, 65],
   });
+});
+
+test("관리자 로그인 홈은 이름 왼쪽에 관리자·사용자 페이지 전환을 제공한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context, "admin.payload.signature");
+  await page.goto("/home");
+
+  const switcher = page.getByRole("navigation", { name: "페이지 전환" });
+  await expect(switcher).toBeVisible();
+  const adminPageLink = switcher.getByRole("link", { name: "관리자 페이지로 이동" });
+  await expect(adminPageLink).toHaveAttribute("href", "/admin");
+  await expect(switcher.getByRole("link", { name: "사용자 페이지로 이동" })).toHaveAttribute(
+    "href",
+    "/home",
+  );
+  await expect(switcher.getByRole("link", { name: "사용자 페이지로 이동" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page.locator(".civic-header-page-switch + .civic-header-greeting")).toHaveText(
+    "citizen님",
+  );
+
+  await adminPageLink.click();
+  await expect(page).toHaveURL(/\/admin$/u);
+  await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
 });
 
 test("U-ACCOUNT는 최신 Wire Flow의 탭·보안 카드·비활성화 dialog를 유지한다", async ({
