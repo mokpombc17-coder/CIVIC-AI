@@ -28,7 +28,6 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   const [activeRoomQuery, setActiveRoomQuery] = useState("");
   const [roomNextCursor, setRoomNextCursor] = useState<string | null>(null);
   const [roomHasNext, setRoomHasNext] = useState(false);
-  const [roomId, setRoomId] = useState("");
   const [room, setRoom] = useState<RoomDetailCategorySnapshot | null>(null);
   const [selectedRoomName, setSelectedRoomName] = useState("");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<readonly string[]>([]);
@@ -227,7 +226,6 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   }
 
   function selectListedRoom(selected: ListedRoom) {
-    setRoomId(selected.roomId);
     setRoom({
       roomId: selected.roomId,
       categoryIds: selected.categoryIds,
@@ -238,7 +236,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
     setMessage("채팅방을 선택했습니다. 카테고리를 확인한 뒤 저장해 주세요.");
   }
 
-  async function loadRoom(force = false) {
+  async function loadRoom(roomId: string, force = false) {
     const normalizedRoomId = roomId.trim();
     if (!normalizedRoomId || (pending && !force)) return;
     setPending(true);
@@ -266,9 +264,9 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         return;
       }
       setRoom(snapshot);
-      setRoomId(snapshot.roomId);
       setSelectedRoomName(
-        listedRooms.find((listedRoom) => listedRoom.roomId === snapshot.roomId)?.name ?? "",
+        (current) =>
+          listedRooms.find((listedRoom) => listedRoom.roomId === snapshot.roomId)?.name ?? current,
       );
       setSelectedCategoryIds(snapshot.categoryIds);
       setMessage("현재 카테고리 설정을 불러왔습니다.");
@@ -300,7 +298,9 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       );
       if (!response.ok) {
         const problem = await readAdminProblem(response);
-        if (problem.code === "ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT") await loadRoom(true);
+        if (problem.code === "ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT") {
+          await loadRoom(room.roomId, true);
+        }
         setMessage(formatAdminProblem(problem));
         return;
       }
@@ -329,7 +329,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
           : "선택한 카테고리가 현재 설정과 같아 변경하지 않았습니다.",
       );
     } catch {
-      await loadRoom(true);
+      await loadRoom(room.roomId, true);
       setMessage("처리 결과가 불명확하여 채팅방의 최신 설정을 다시 불러왔습니다.");
     } finally {
       setPending(false);
@@ -426,41 +426,11 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
               {roomListMessage}
             </p>
           ) : null}
-          <details className="civic-category-room-fallback">
-            <summary>목록에 없는 방 ID로 찾기</summary>
-            <p className="civic-boundary-copy">
-              비공개 또는 목록 비공개 방은 이미 알고 있는 채팅방 ID로 조회할 수 있습니다.
-            </p>
-            <div className="civic-category-room-lookup">
-              <label className="civic-field">
-                <span>채팅방 ID</span>
-                <input
-                  disabled={pending}
-                  onChange={(event) => {
-                    setRoomId(event.currentTarget.value);
-                    if (event.currentTarget.value !== room?.roomId) {
-                      setRoom(null);
-                      setSelectedRoomName("");
-                    }
-                  }}
-                  value={roomId}
-                />
-              </label>
-              <button
-                className="civic-secondary-action"
-                disabled={pending || !roomId.trim()}
-                onClick={() => void loadRoom()}
-                type="button"
-              >
-                현재 설정 불러오기
-              </button>
-            </div>
-          </details>
           {room ? (
             <form className="civic-domain-action-panel" onSubmit={replaceRoomCategories}>
               <p className="civic-selected-room">
                 <strong>선택한 채팅방</strong>
-                <span>{selectedRoomName || "ID로 조회한 채팅방"}</span>
+                <span>{selectedRoomName}</span>
               </p>
               <RoomCategorySelector
                 categories={categories}
@@ -469,7 +439,6 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 onChange={setSelectedCategoryIds}
                 selectedCategoryIds={selectedCategoryIds}
               />
-              <small>현재 버전: {room.version}</small>
               <div className="civic-form-actions">
                 <button className="civic-primary-action" disabled={pending} type="submit">
                   카테고리 교체

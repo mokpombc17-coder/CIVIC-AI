@@ -6,7 +6,7 @@
 ## 구현된 화면
 
 - Chat `A-CHAT-004..007`: 생성 신청 목록·상세, 카테고리 1~5개를 지정한 승인, 반려,
-  카테고리 생성·이름 변경·삭제, 알고 있는 `roomId`의 카테고리 전체 교체
+  카테고리 생성·이름 변경·삭제, 공개 중인 목록 방의 카테고리 전체 교체
 - Vote `A-TASK-001..005`: Draft 생성·전체 수정, 예약·즉시 발행, 일정 변경, 종료·취소,
   정량 결과와 JSONL 다운로드
 - Simulation `A-SIM-001..007`: Vote 과업 선택, SONA 집계 패널 설정·실행, 상태·취소,
@@ -49,12 +49,13 @@ Simulation Resource Server와 화면 계약에 포함하지 않는다.
 
 ## Chat 카테고리 운영 제한
 
-- 관리자용 전체 채팅방 목록·검색 API는 없다. 따라서 전체 기존 방을 탐색하는 관리 화면은 구현하지
-  않고, 운영자가 이미 알고 있는 `roomId`만 `GET /api/v1/rooms/{roomId}`로 version을 조회한 뒤
-  `PUT /api/v1/admin/rooms/{roomId}/categories`로 교체한다.
+- 관리자용 전체 채팅방 목록·검색 API는 없다. 참여자용 `/api/v1/rooms`에 노출되는
+  `ACTIVE + LISTED` 방만 검색·선택하고, 목록 응답의 version으로
+  `PUT /api/v1/admin/rooms/{roomId}/categories`를 호출한다. 비공개 또는 목록 비공개 방을
+  `roomId`로 직접 조회하는 운영 UI는 제공하지 않는다.
 - 카테고리 목록에는 `usageCount`, `inUse`, `deletable`이 없다. 기본 카테고리를 제외하고 삭제를
   시도하며, `409 ROOM_CATEGORY_IN_USE`의 `referencedRoomCount`를 사용자에게 표시한다.
 - 카테고리와 Room의 version conflict에서는 로컬 값을 덮어쓰지 않고 최신 리소스를 다시 조회한다.
 
 Chat 활성 방 전체 관리, 관리자 직접 생성, 통계 화면에는 아직 서버 계약이 없다. Chat 서버의 일반
-방 API를 관리자 전체 방 검색이나 비회원 관리자의 임의 방 운영 용도로 재사용하지 않는다.
+방 API를 관리자 전체 방 검색이나 목록에 노출되지 않는 임의 방 운영 용도로 재사용하지 않는다.

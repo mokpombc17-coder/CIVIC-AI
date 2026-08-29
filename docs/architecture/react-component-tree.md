@@ -183,7 +183,7 @@ Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지
 참여자 Chat·Vote와 Chat 통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
 Chat 생성 신청·카테고리 관리, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를
 사용한다. Chat 카테고리 화면은 참여자용 `/api/v1/rooms`에서 조회되는 `ACTIVE + LISTED` 방을
-검색·선택하고, 비공개 또는 목록 비공개 방은 이미 알고 있는 `roomId` 조회를 보조 경로로 제공한다.
+검색·선택해 카테고리를 교체한다. 비공개 또는 목록 비공개 방을 ID로 직접 조회하는 UI는 제공하지 않는다.
 placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 
 ## App Router special UI
