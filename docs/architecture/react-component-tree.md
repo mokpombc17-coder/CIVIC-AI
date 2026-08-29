@@ -37,8 +37,9 @@ HomePage /home [Server Route]
 
 ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
-│   └── PlatformPageShell [bottom navigation 없음]
-│       └── MainFunctionalScreen
+│   └── PublicAuthScreen [Client, 활성 인증 단계·header 동기화]
+│       └── PlatformPageShell [bottom navigation 없음]
+│           └── AuthFunctionalScreen [가입 단계 history state 관리]
 ├── PARTICIPANT or AUTHENTICATED Main/Auth
 │   ├── requireParticipantAccess
 │   └── ParticipantShell 또는 AdminShell
@@ -106,6 +107,11 @@ adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/ho
 `/rag`, `/chat`, `/vote`, `/mypage`는 `/login?returnTo=...`로 연결하고, `/home` 메뉴는 공개 홈에
 남는다. cookie가 있으면 원래 보호 경로를 유지하며, 실제 자격 확인과 refresh는 각 보호 route가
 담당한다.
+
+공개 인증 route는 Server Route가 `PublicAuthScreen`에 초기 화면과 query만 전달한다. 이 Client
+wrapper가 가입 단계의 `history.state` 변화와 상단 제목·뒤로가기 동작을 동기화하고,
+`AuthFunctionalScreen`은 입력 상태와 단계 전환을 소유한다. 가입 중 뒤로가기는 전체 페이지 이동이
+아니라 브라우저 history를 사용해 직전 가입 단계로 복귀한다.
 
 ## 인증 책임
 

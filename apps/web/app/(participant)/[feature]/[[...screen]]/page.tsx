@@ -8,9 +8,9 @@ import { AdminShell } from "@/components/shell/admin-shell";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { RagFunctionalScreen, type RagQuery } from "@/components/rag/rag-functional-screen";
 import { ragReturnTarget } from "@/lib/auth/rag-return-target";
-import { PlatformPageShell } from "@/components/platform-page-shell";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { devQuickLoginAvailable, readDevQuickLoginConfig } from "@/lib/server/dev-quick-login";
+import { PublicAuthScreen } from "@/components/screens/public-auth-screen";
 
 type ParticipantPlaceholderPageProps = Readonly<{
   params: Promise<{ feature: string; screen?: string[] }>;
@@ -35,24 +35,13 @@ export default async function ParticipantPlaceholderPage({
       const devQuickLoginEnabled =
         definition.id === "AUTH-001" &&
         devQuickLoginAvailable(requestHeaders.get("host"), readDevQuickLoginConfig(process.env));
-      const backHref =
-        definition.id === "AUTH-005" && query.kind === "two-factor"
-          ? ("/login" as const)
-          : heading.backHref;
       return (
-        <PlatformPageShell
-          {...(backHref
-            ? { backAction: { ariaLabel: "이전 화면으로 돌아가기", href: backHref } }
-            : {})}
-          bottomNavigation={null}
-          title={heading.title}
-        >
-          <MainFunctionalScreen
-            devQuickLoginEnabled={devQuickLoginEnabled}
-            initialSearch={serializeSearchParams(query)}
-            screen={definition}
-          />
-        </PlatformPageShell>
+        <PublicAuthScreen
+          devQuickLoginEnabled={devQuickLoginEnabled}
+          initialSearch={serializeSearchParams(query)}
+          key={definition.id}
+          screen={definition}
+        />
       );
     }
     if (definition.audience === "PARTICIPANT") {

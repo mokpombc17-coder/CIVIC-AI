@@ -58,10 +58,12 @@ export function AuthFunctionalScreen({
   screen,
   initialSearch = "",
   devQuickLoginEnabled = false,
+  onActiveScreenChange,
 }: Readonly<{
   screen: ScreenDefinition;
   initialSearch?: string;
   devQuickLoginEnabled?: boolean;
+  onActiveScreenChange?: (screenId: string) => void;
 }>) {
   const entryRecovery = signupRecovery(screen.id, false);
   const recoveryPathname = entryRecovery?.pathname;
@@ -90,11 +92,13 @@ export function AuthFunctionalScreen({
       history.replaceState({ ...history.state, civicSignupStep: screen.id }, "");
     }
     const restoreStep = (event: PopStateEvent) => {
-      setActiveId(authStepAfterPopState(event.state, screen.id));
+      const nextId = authStepAfterPopState(event.state, screen.id);
+      setActiveId(nextId);
+      onActiveScreenChange?.(nextId);
     };
     addEventListener("popstate", restoreStep);
     return () => removeEventListener("popstate", restoreStep);
-  }, [screen.id]);
+  }, [onActiveScreenChange, screen.id]);
 
   async function completeLogin(response: Response) {
     const returnTo = safeReturnTarget(location.search);
@@ -249,6 +253,7 @@ export function AuthFunctionalScreen({
   function changeSignupStep(id: string, pathname: string) {
     history.pushState({ ...history.state, civicSignupStep: id }, "", pathname);
     setActiveId(id);
+    onActiveScreenChange?.(id);
   }
 
   const action = mainScreenPrimaryActions[activeId] ?? mainScreenPrimaryActions[screen.id];
@@ -257,7 +262,7 @@ export function AuthFunctionalScreen({
       {...(activeId === "AUTH-005" && verificationKind === "TWO_FACTOR"
         ? { backHref: "/login" as Route }
         : {})}
-      platformHeading={activeId === screen.id ? "HIDDEN" : "SECONDARY"}
+      platformHeading="HIDDEN"
       screen={{ ...screen, id: activeId, canonical_title: authTitle(activeId) }}
     >
       <div
@@ -355,8 +360,20 @@ function renderFields(
   if (id === "AUTH-001") {
     return (
       <>
-        <Field label="이메일" name="email" placeholder="name@example.com" type="email" />
-        <Field label="비밀번호" name="password" placeholder="비밀번호 입력" type="password" />
+        <Field
+          autoComplete="username"
+          label="이메일"
+          name="email"
+          placeholder="name@example.com"
+          type="email"
+        />
+        <Field
+          autoComplete="current-password"
+          label="비밀번호"
+          name="password"
+          placeholder="비밀번호 입력"
+          type="password"
+        />
       </>
     );
   }
@@ -364,6 +381,7 @@ function renderFields(
     return (
       <>
         <Field
+          autoComplete="email"
           help="로그인에 사용할 이메일"
           label="이메일"
           name="email"
@@ -376,6 +394,7 @@ function renderFields(
           }}
         />
         <Field
+          autoComplete="new-password"
           help="8자 이상 · 영문·숫자·특수문자 포함"
           label="비밀번호"
           name="password"
@@ -384,6 +403,7 @@ function renderFields(
           onChange={(value) => setDraft((v) => ({ ...v, password: value }))}
         />
         <Field
+          autoComplete="new-password"
           label="비밀번호 확인"
           name="password_confirmation"
           type="password"
@@ -465,6 +485,7 @@ function renderFields(
     return (
       <>
         <Field
+          autoComplete="one-time-code"
           inputMode="numeric"
           label="6자리 인증 코드"
           maxLength={6}
@@ -483,18 +504,38 @@ function renderFields(
       </div>
     );
   if (id === "AUTH-007")
-    return <Field label="등록 이메일" name="email" placeholder="name@example.com" type="email" />;
+    return (
+      <Field
+        autoComplete="email"
+        label="등록 이메일"
+        name="email"
+        placeholder="name@example.com"
+        type="email"
+      />
+    );
   if (id === "AUTH-009")
     return (
       <>
-        <Field label="이메일" name="email" placeholder="등록 이메일 입력" type="email" />
-        <Field label="비밀번호 확인" name="password" type="password" />
+        <Field
+          autoComplete="username"
+          label="이메일"
+          name="email"
+          placeholder="등록 이메일 입력"
+          type="email"
+        />
+        <Field
+          autoComplete="current-password"
+          label="비밀번호 확인"
+          name="password"
+          type="password"
+        />
       </>
     );
   if (id === "AUTH-008")
     return (
       <>
         <Field
+          autoComplete="one-time-code"
           help="가장 최근에 받은 코드를 입력하세요."
           inputMode="numeric"
           label="6자리 인증 코드"
@@ -503,12 +544,18 @@ function renderFields(
           placeholder="000000"
         />
         <Field
+          autoComplete="new-password"
           help="8자 이상 · 영문·숫자·특수문자 포함"
           label="새 비밀번호"
           name="new_password"
           type="password"
         />
-        <Field label="새 비밀번호 확인" name="new_password_confirmation" type="password" />
+        <Field
+          autoComplete="new-password"
+          label="새 비밀번호 확인"
+          name="new_password_confirmation"
+          type="password"
+        />
       </>
     );
   return <p>요청 정보를 확인한 뒤 계속 진행하세요.</p>;
@@ -697,6 +744,7 @@ export function maskAuthEmail(email: string): string | null {
 }
 
 function Field({
+  autoComplete,
   label,
   name,
   type = "text",
@@ -707,6 +755,7 @@ function Field({
   help,
   onChange,
 }: {
+  autoComplete?: string;
   label: string;
   name: string;
   type?: string;
@@ -724,9 +773,7 @@ function Field({
       <input
         aria-describedby={helpId}
         aria-label={label}
-        autoComplete={
-          type === "password" ? "current-password" : name === "email" ? "email" : "one-time-code"
-        }
+        autoComplete={autoComplete}
         inputMode={inputMode}
         maxLength={maxLength}
         name={name}
