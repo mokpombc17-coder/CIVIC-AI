@@ -826,11 +826,6 @@ th {
   --civic-shadow: 0 0.75rem 2rem rgb(19 20 22 / 14%);
 }
 
-body:has(.civic-public-screen),
-body:has(.civic-shell-participant) {
-  background: var(--civic-navy);
-}
-
 .app-shell:has(.civic-public-screen),
 .app-shell:has(.civic-shell-participant) {
   display: grid;

@@ -75,8 +75,8 @@ export function MainFunctionalScreen({
                 </Link>
               ),
               badge: "AI",
-              description: "문서를 근거로 학습하기",
-              title: "문서 질문",
+              description: "주제와 관련된 자료를 바탕으로 AI가 답변해 드려요.",
+              title: "무엇이 궁금한가요?",
             },
             {
               action: (
@@ -85,18 +85,18 @@ export function MainFunctionalScreen({
                 </Link>
               ),
               badge: "토론방",
-              description: "다른 참여자와 채팅하며 의견 나누기",
-              title: "주제별 토론",
+              description: "다른 참여자와 편하게 의견을 나눠보세요.",
+              title: "함께 나누는 의견",
             },
             {
               action: (
                 <Link className="wf-button wf-button-primary" href={protectedHref("/votes")}>
-                  투표하기
+                  참여하기
                 </Link>
               ),
               badge: "투표",
-              description: "진행 중인 과업에 의견 제출하기",
-              title: "과업 투표",
+              description: "선택지를 고르고 그 이유를 제출해 보세요.",
+              title: "내 생각을 더하는 한 표",
             },
           ]}
         />

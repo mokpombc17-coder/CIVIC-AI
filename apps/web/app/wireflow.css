@@ -15,14 +15,8 @@
 
 html,
 body {
-  background: #f4f5f6;
   color: var(--wf-ink);
   font-family: var(--wf-font);
-}
-
-body:has([data-wireflow-screen]),
-body:has([data-wireflow-shell]) {
-  background: #f4f5f6;
 }
 
 .app-shell:has([data-wireflow-screen]),
@@ -516,33 +510,46 @@ body:has([data-wireflow-shell]) {
 .wf-participant-home {
   display: grid;
   align-content: start;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-  padding: 19px 16px 16px;
+  margin: 19px 16px 16px;
 }
 
 .wf-participant-home .wf-action-card {
   min-height: 120px;
-  padding: 20px;
+  align-items: start;
+  column-gap: 12px;
+  padding: 19px 21px 19px 19px;
 }
 
 .wf-participant-home .wf-action-copy {
-  gap: 3px;
+  gap: 6px;
 }
 
 .wf-participant-home .wf-action-copy h2 {
-  font-size: 20px;
-  line-height: 1.25;
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
 }
 
 .wf-participant-home .wf-action-copy p {
-  font-size: 15px;
-  line-height: 1.45;
+  color: #59616b;
+  font-size: 14px;
+  line-height: 20.3px;
+}
+
+.wf-participant-home .wf-action-control {
+  padding-top: 15px;
 }
 
 .wf-participant-home .wf-action-control .wf-button {
+  width: 94px;
   min-width: 94px;
   min-height: 48px;
   border-radius: 6px;
+  font-weight: 700;
+  line-height: 20px;
   white-space: nowrap;
 }
 
@@ -3319,10 +3326,16 @@ body:has([data-wireflow-shell]) {
 /* === 2026-08-28 Figma 디자이너 수정분 정렬 ===================== */
 
 /* 공통 헤더: 브랜드 타이틀(홈) */
+[data-platform-shell="true"]:has(.civic-brand-title) {
+  --platform-shell-header-height: 64px;
+}
+
 .civic-brand-title {
-  color: var(--wf-blue);
-  font-weight: 800;
-  letter-spacing: 0.2px;
+  color: #0a4fd1;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 20px;
 }
 
 /* 카드 부제(예: AUTH-005 마스킹 이메일 안내) */
@@ -3463,26 +3476,58 @@ body:has([data-wireflow-shell]) {
 }
 
 /* 홈: 환영 카드 + 액션 카드 강조 */
+[data-wireflow-screen="U-HOME-001"] {
+  --wf-ink: #121417;
+  --wf-muted: #59616b;
+  --wf-line: #ccd1d6;
+  --wf-blue: #266ef5;
+  --wf-blue-dark: #0a4fd1;
+  --wf-blue-soft: #edf2ff;
+}
+
 .wf-home-welcome {
   display: grid;
-  gap: 8px;
+  height: 141px;
+  align-content: start;
+  gap: 0;
   margin: 19px 16px 0;
+  border-color: #ccd1d6;
+  padding: 17px 19px 18px;
 }
 
 .wf-home-welcome h2 {
-  margin: 0;
-  font-size: 18px;
+  margin: 11px 0 0;
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
 }
 
 .wf-home-welcome p {
-  margin: 0;
-  color: var(--wf-muted);
+  margin: 6.2px 0 0;
+  color: #59616b;
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 20.3px;
 }
 
 .wf-home-welcome .wf-badge {
   justify-self: start;
+}
+
+[data-wireflow-screen="U-HOME-001"] .wf-badge {
+  height: 22px;
+  min-height: 22px;
+  border-radius: 4px;
+  background: #edf2ff;
+  color: #0a4fd1;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.wf-participant-home .wf-badge {
+  min-width: 32.75px;
+  justify-content: center;
 }
 
 .wf-participant-home .wf-action-card {
@@ -3960,9 +4005,10 @@ body:has([data-wireflow-shell]) {
 }
 
 .civic-header-greeting {
-  color: var(--wf-ink);
+  color: #1f2124;
   font-size: 14px;
   font-weight: 700;
+  line-height: 21px;
   white-space: nowrap;
 }
 

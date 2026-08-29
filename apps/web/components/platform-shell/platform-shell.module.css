@@ -1,6 +1,6 @@
 .stage {
   --platform-shell-max-width: 393px;
-  --platform-shell-header-height: 64px;
+  --platform-shell-header-height: 69px;
   --platform-shell-navigation-height: 64px;
   --platform-shell-color-surface: #ffffff;
   --platform-shell-color-text: #121417;
@@ -46,6 +46,7 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
