@@ -245,6 +245,7 @@ export async function requestRagBulkAction(
 export type RagJob = Readonly<{
   job_id: string;
   document_id?: string;
+  upload_cancel_allowed?: boolean;
   status: string;
   progress?: number;
   failure_code?: string;
@@ -2375,7 +2376,7 @@ export function RagJobStatusCard({
         <Link className="civic-secondary-action" href={workspaceHref}>
           문서 목록
         </Link>
-        {job?.document_id && !["SUCCEEDED", "CANCELLED"].includes(job.status) ? (
+        {job?.status === "FAILED" && job.upload_cancel_allowed && job.document_id ? (
           <button
             className="civic-danger-action"
             disabled={cancelling || retrying || Boolean(replacementHref) || !onCancelUpload}
@@ -2512,11 +2513,13 @@ function JobStatusItem({
   }
 
   async function cancelUpload() {
-    if (!job?.document_id || cancelling) return;
-    if (!window.confirm("업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?")) {
+    if (!job?.document_id || !job.upload_cancel_allowed || job.status !== "FAILED" || cancelling) {
       return;
     }
-    const idempotencyKey = cancellationOperation.current.begin();
+    if (!window.confirm("실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?")) {
+      return;
+    }
+    const idempotencyKey = cancellationOperation.current.begin(job.job_id);
     if (!idempotencyKey) return;
     setCancelling(true);
     setMessage("업로드를 취소하고 문서를 정리하는 중입니다…");
@@ -2524,6 +2527,7 @@ function JobStatusItem({
     try {
       const result = await requestRagUploadCancellation({
         documentId: job.document_id,
+        jobId: job.job_id,
         idempotencyKey,
       });
       definitiveResponse = result.definitive;
@@ -2535,7 +2539,7 @@ function JobStatusItem({
         setMessage("문서 상태가 변경되어 업로드를 취소하지 못했습니다.");
         return;
       }
-      setJob({ ...job, status: "CANCELLED", progress: 0 });
+      setJob((current) => (current ? { ...current, status: "CANCELLED", progress: 0 } : current));
       setMessage("업로드를 취소하고 실패 문서를 정리했습니다.");
       router.replace(ragWorkspaceHref(folderId));
     } finally {
@@ -2569,18 +2573,23 @@ export type RagUploadCancellationResult = Readonly<{
 
 export async function requestRagUploadCancellation({
   documentId,
+  jobId,
   idempotencyKey,
   request = authenticatedFetch,
 }: Readonly<{
   documentId: string;
+  jobId: string;
   idempotencyKey: string;
   request?: typeof fetch;
 }>): Promise<RagUploadCancellationResult> {
   try {
-    const response = await request(`/api/v1/rag/documents/${encodeURIComponent(documentId)}`, {
-      method: "DELETE",
-      headers: { "idempotency-key": idempotencyKey },
-    });
+    const response = await request(
+      `/api/v1/rag/documents/${encodeURIComponent(documentId)}?failed_job_id=${encodeURIComponent(jobId)}`,
+      {
+        method: "DELETE",
+        headers: { "idempotency-key": idempotencyKey },
+      },
+    );
     return response.ok
       ? { kind: "cancelled", definitive: true }
       : { kind: "rejected", definitive: true };

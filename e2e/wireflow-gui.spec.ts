@@ -112,6 +112,7 @@ test.beforeAll(async () => {
       return json(response, {
         job_id: "job-1",
         document_id: "document-1",
+        upload_cancel_allowed: true,
         status: "FAILED",
         progress: 10,
         failure_code: "DOCUMENT_READ_FAILED",
@@ -955,11 +956,12 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   const cancellationRequestPromise = page.waitForRequest(
     (request) =>
       request.method() === "DELETE" &&
-      new URL(request.url()).pathname === "/api/v1/rag/documents/document-1",
+      new URL(request.url()).pathname === "/api/v1/rag/documents/document-1" &&
+      new URL(request.url()).searchParams.get("failed_job_id") === "job-1",
   );
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toBe(
-      "업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?",
+      "실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?",
     );
     await dialog.accept();
   });

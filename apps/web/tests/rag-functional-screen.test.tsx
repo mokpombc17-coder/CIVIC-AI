@@ -889,12 +889,13 @@ describe("9 functional RAG screens", () => {
     await expect(
       requestRagUploadCancellation({
         documentId: "document-1",
+        jobId: "job-1",
         idempotencyKey: "cancel-key-1",
         request: accepted as typeof fetch,
       }),
     ).resolves.toEqual({ kind: "cancelled", definitive: true });
     expect(accepted).toHaveBeenCalledWith(
-      "/api/v1/rag/documents/document-1",
+      "/api/v1/rag/documents/document-1?failed_job_id=job-1",
       expect.objectContaining({
         method: "DELETE",
         headers: { "idempotency-key": "cancel-key-1" },
@@ -903,6 +904,7 @@ describe("9 functional RAG screens", () => {
     await expect(
       requestRagUploadCancellation({
         documentId: "document-1",
+        jobId: "job-1",
         idempotencyKey: "cancel-key-1",
         request: unavailable as typeof fetch,
       }),
@@ -1209,6 +1211,7 @@ describe("9 functional RAG screens", () => {
         job: {
           job_id: "640af5c5-d302-4c32-97ca-c9db40ed22e5",
           document_id: "20000000-0000-4000-8000-000000000001",
+          upload_cancel_allowed: true,
           status: "FAILED",
           progress: 10,
           failure_code: "DOCUMENT_READ_FAILED",
@@ -1232,6 +1235,29 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain("상태 새로고침");
     expect(html).toContain('href="/admin/rag?folderId=policy-folder"');
     expect(html).not.toContain("640af5c5-d302-4c32-97ca-c9db40ed22e5");
+  });
+
+  it("서버가 취소 불가로 판정한 실패 작업에는 업로드 취소를 노출하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagJobStatusCard, {
+        filename: "정책자료-v2.hwpx",
+        job: {
+          job_id: "failed-version-job",
+          document_id: "active-document",
+          upload_cancel_allowed: false,
+          status: "FAILED",
+          progress: 10,
+          failure_code: "DOCUMENT_READ_FAILED",
+        },
+        message: "최신 처리 상태를 반영했습니다.",
+        onCancelUpload: vi.fn(),
+        onRetry: vi.fn(),
+        retrying: false,
+      }),
+    );
+
+    expect(html).toContain("실패 파일 다시 처리");
+    expect(html).not.toContain("업로드 취소");
   });
 
   it("다중 업로드 작업을 한 문서 준비 상태 화면에 함께 표시한다", () => {
