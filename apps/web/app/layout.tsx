@@ -27,6 +27,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="ko">
+      <head>
+        <link
+          crossOrigin="anonymous"
+          href="/assets/fonts/PretendardGOV-Regular.subset.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
       </body>

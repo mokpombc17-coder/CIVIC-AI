@@ -476,8 +476,9 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
 
   await page.goto("/account/profile");
   await expect(page.getByRole("heading", { name: "내 정보 관리" })).toBeVisible();
-  await expect(page.getByLabel("선호 언어")).toHaveValue("en");
-  await expect(page.getByLabel("AI 답변 상세도")).toHaveValue("detailed");
+  await expect(page.getByText("회원정보 수정", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("선호 언어")).toHaveCount(0);
+  await expect(page.getByLabel("AI 답변 상세도")).toHaveCount(0);
   await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
   await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
   await expect(page.getByText("서비스 이용 동의", { exact: true })).toHaveCount(0);
@@ -518,6 +519,33 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("비밀번호 확인")).toBeFocused();
+  await expectBox(dialog, { width: [359, 362] });
+  await expectBox(dialog.locator(".wf-impact-list > div").first(), { height: [93, 95] });
+  await expectBox(dialog.locator(".wf-impact-list > div").last(), { height: [74, 76] });
+  const dialogTypography = await dialog.evaluate(async (element) => {
+    await document.fonts.ready;
+    const heading = element.querySelector("h2");
+    const description = element.querySelector(":scope > p");
+    if (!heading || !description) throw new Error("dialog typography missing");
+    const headingStyle = getComputedStyle(heading);
+    const descriptionStyle = getComputedStyle(description);
+    return {
+      fontLoaded: document.fonts.check('16px "Pretendard GOV"'),
+      fontFamily: headingStyle.fontFamily,
+      headingFontSize: headingStyle.fontSize,
+      headingLineHeight: headingStyle.lineHeight,
+      descriptionFontSize: descriptionStyle.fontSize,
+      descriptionLineHeight: descriptionStyle.lineHeight,
+    };
+  });
+  expect(dialogTypography).toEqual({
+    fontLoaded: true,
+    fontFamily: '"Pretendard GOV", Pretendard, "Apple SD Gothic Neo", sans-serif',
+    headingFontSize: "24px",
+    headingLineHeight: "32.4px",
+    descriptionFontSize: "15px",
+    descriptionLineHeight: "22.5px",
+  });
   await dialog.getByRole("button", { name: "계정 유지" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page).toHaveURL(profileUrl);

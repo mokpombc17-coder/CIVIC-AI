@@ -47,6 +47,26 @@ type VisualManifest = Readonly<{
 }>;
 
 describe("latest Wire Flow UI assets", () => {
+  it("ships the Pretendard GOV faces used by the Figma Wire Flow", () => {
+    const fontRoot = path.join(repositoryRoot, "apps/web/public/assets/fonts");
+    const expectedDigests = {
+      "PretendardGOV-Bold.subset.woff2":
+        "d09a0a9684b5a833681d2a3768a0e8a9163f3bfb04cf4fc0c36ab9dcec10eda9",
+      "PretendardGOV-Medium.subset.woff2":
+        "6a3b52d655e71ace7c3602087240b3b415f044f5cf95c1b1b97b85dfaf0c650b",
+      "PretendardGOV-Regular.subset.woff2":
+        "21c9e3b875c6ca0a6dc5bee45c37f95358bfff4a7ee00f0d12b9c1cfab4cfe88",
+    } as const;
+
+    for (const [file, digest] of Object.entries(expectedDigests)) {
+      expect(
+        createHash("sha256")
+          .update(readFileSync(path.join(fontRoot, file)))
+          .digest("hex"),
+      ).toBe(digest);
+    }
+  });
+
   it("freezes the exact 34 active Main/Auth and RAG screens", () => {
     const blueprint = readJson<AtlasBlueprint>(blueprintPath);
     const ids = blueprint.screens.map((screen) => screen.id);

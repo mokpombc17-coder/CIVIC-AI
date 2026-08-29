@@ -1,3 +1,27 @@
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/assets/fonts/PretendardGOV-Regular.subset.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/assets/fonts/PretendardGOV-Medium.subset.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/assets/fonts/PretendardGOV-Bold.subset.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   --wf-ink: #101114;
   --wf-muted: #5d6670;
@@ -5586,7 +5610,6 @@ body {
   padding-bottom: 180px;
 }
 
-.wf-account-profile-form,
 .wf-account-section {
   display: grid;
   gap: 8px;
@@ -5613,29 +5636,6 @@ body {
   display: grid;
   gap: 12px;
   padding: 20px;
-}
-
-.wf-account-fields {
-  display: grid;
-  gap: 12px;
-}
-
-.wf-account-fields .civic-field {
-  gap: 6px;
-}
-
-.wf-account-fields .civic-field > span {
-  font-size: 15px;
-  line-height: 23px;
-}
-
-.wf-account-fields :is(input, select) {
-  border-radius: 6px;
-}
-
-.wf-account-fields input[readonly] {
-  background: #f8f9fb;
-  color: var(--wf-muted);
 }
 
 .wf-account-security-list {
@@ -5685,8 +5685,8 @@ body {
   scroll-margin-block: 16px 24px;
 }
 
-.wf-account-submit {
-  width: 100%;
+.wf-account-load-message {
+  margin: 0 8px;
 }
 
 .wf-account-notice {
@@ -5804,24 +5804,46 @@ body {
 }
 
 .wf-account-dialog {
+  grid-template-rows: max-content max-content minmax(0, 1fr) max-content;
   width: 100%;
   max-height: calc(100dvh - 32px);
   gap: 14px;
-  overflow-y: auto;
+  overflow: hidden;
+  border-color: #ccd1d6;
   padding: 24px;
+  color: #121417;
+  font-family: var(--wf-font);
+  box-shadow: 0 16px 40px rgb(18 20 23 / 20%);
+}
+
+.wf-account-dialog > header {
+  display: block;
+  min-height: 32px;
+  padding-right: 44px;
 }
 
 .wf-account-dialog h2 {
+  color: #121417;
   font-size: 24px;
+  font-weight: 700;
   letter-spacing: -0.5px;
-  line-height: 32px;
+  line-height: 32.4px;
+}
+
+.wf-account-dialog > p {
+  color: #59616b;
+  font-size: 15px;
+  line-height: 22.5px;
 }
 
 .wf-dialog-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
   display: grid;
   width: 44px;
   height: 44px;
-  margin: -10px -10px 0 0;
+  margin: 0;
   border: 0;
   border-radius: 6px;
   place-items: center;
@@ -5838,26 +5860,82 @@ body {
   background: #f1f3f5;
 }
 
+.wf-account-dialog-body {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .wf-impact-list div {
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 12px;
-  background: #eef3f7;
-  padding: 12px;
+  min-height: 94px;
+  align-items: start;
+  border-color: #ccd1d6;
+  border-radius: 8px;
+  background: #edf2f7;
+  padding: 10px 12px;
+}
+
+.wf-impact-list div:last-child {
+  min-height: 75px;
 }
 
 .wf-impact-list dt {
-  font-size: 14px;
-  line-height: 21px;
+  padding-top: 3px;
+  color: #59616b;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 19.5px;
 }
 
 .wf-impact-list dd {
   font-size: 16px;
+  font-weight: 700;
   line-height: 24px;
 }
 
+.wf-account-dialog-body .wf-field {
+  gap: 6px;
+}
+
+.wf-account-dialog-body .wf-field label {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+.wf-account-dialog-body .wf-field input {
+  min-height: 48px;
+  border-color: #59616b;
+  border-radius: 6px;
+}
+
 .wf-dialog-actions {
-  grid-template-columns: auto auto;
+  display: flex;
   justify-content: end;
+  gap: 8px;
+}
+
+.wf-account-dialog .wf-button {
+  min-height: 48px;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight: 700;
+}
+
+.wf-account-dialog .wf-button-secondary {
+  border-color: #266ef5;
+  background: #edf2ff;
+  color: #0a4fd1;
+}
+
+.wf-account-dialog .wf-button-danger {
+  background: #ba1c1c;
 }
 
 @media (max-width: 360px) {
@@ -5871,6 +5949,11 @@ body {
 
   .wf-account-dialog {
     padding: 20px;
+  }
+
+  .wf-dialog-close {
+    top: 16px;
+    right: 16px;
   }
 
   .wf-impact-list div {

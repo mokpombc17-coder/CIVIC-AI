@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type FormEvent,
-  type ReactNode,
-  type SetStateAction,
-} from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -52,10 +44,6 @@ type Profile = {
 } & Partial<Record<SurveyAnswerKey, string | number | null>>;
 
 type SecurityIntent = "password" | "2fa-request" | "2fa-verify" | "2fa-disable" | null;
-type ProfileSettings = {
-  preferredLanguage: "ko" | "en";
-  answerDetail: "concise" | "balanced" | "detailed";
-};
 type SurveySection = Readonly<{
   title: string;
   items: readonly Readonly<{ label: string; value: string }>[];
@@ -64,11 +52,6 @@ type SurveySectionDefinition = Readonly<{
   title: string;
   items: readonly Readonly<{ key: SurveyAnswerKey; label: string }>[];
 }>;
-
-const initialProfileSettings: ProfileSettings = {
-  preferredLanguage: "ko",
-  answerDetail: "balanced",
-};
 
 const surveySectionDefinitions: readonly SurveySectionDefinition[] = Object.freeze([
   {
@@ -114,7 +97,6 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
   const [busy, setBusy] = useState(false);
   const [securityIntent, setSecurityIntent] = useState<SecurityIntent>(null);
   const [deactivationRequested, setDeactivationRequested] = useState(false);
-  const [profileSettings, setProfileSettings] = useState(initialProfileSettings);
   const deactivationOpen = screen.id === "U-ACCOUNT-004" || deactivationRequested;
 
   useEffect(() => {
@@ -124,7 +106,6 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
       .then((value) => {
         if (!active) return;
         setProfile(value);
-        setProfileSettings(readProfileSettings(value));
       })
       .catch((error: Error) => active && setMessage(error.message));
     return () => {
@@ -143,16 +124,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
     setBusy(true);
     setMessage("");
     try {
-      if (operation === "profile") {
-        const response = await mutation("/api/v1/account/profile", "PATCH", {
-          preferred_language: data.get("preferred_language"),
-          rag_answer_detail: data.get("rag_answer_detail"),
-        });
-        const updated = (await response.json()) as Profile;
-        setProfile(updated);
-        setProfileSettings(readProfileSettings(updated));
-        setMessage("변경사항을 저장했습니다.");
-      } else if (operation === "password") {
+      if (operation === "password") {
         if (!passwordConfirmationMatches(data)) {
           throw new Error("새 비밀번호 확인이 일치하지 않습니다.");
         }
@@ -174,7 +146,6 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         await mutation("/api/v1/account/2fa/enable", "POST", { code });
         const updated = await loadAccountProfile();
         setProfile(updated);
-        setProfileSettings(readProfileSettings(updated));
         setSecurityIntent(null);
         setMessage("2단계 인증이 설정되었습니다.");
       } else if (operation === "2fa-disable") {
@@ -223,10 +194,8 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
           message={message}
           onDeactivate={openDeactivationDialog}
           onIntent={selectSecurityIntent}
-          onProfileSettings={setProfileSettings}
           onSubmit={submit}
           profile={profile}
-          settings={profileSettings}
         />
       ) : null}
       {screen.id === "U-ACCOUNT-003" ? <AccountSurveySurface profile={profile} /> : null}
@@ -248,7 +217,7 @@ function AccountHubSurface() {
       <nav aria-label="계정 항목" className="wf-account-hub-menu">
         <Link className="wf-account-hub-card" href={"/mypage/profile" as Route}>
           <strong>내 정보 관리</strong>
-          <span>회원정보, 비밀번호와 2단계 인증을 관리합니다.</span>
+          <span>비밀번호와 2단계 인증을 관리합니다.</span>
         </Link>
         <Link className="wf-account-hub-card" href={"/mypage/survey" as Route}>
           <strong>내 설문 보기</strong>
@@ -268,20 +237,16 @@ function AccountManagementSurface({
   message,
   onDeactivate,
   onIntent,
-  onProfileSettings,
   onSubmit,
   profile,
-  settings,
 }: Readonly<{
   busy: boolean;
   intent: SecurityIntent;
   message: string;
   onDeactivate: () => void;
   onIntent: (intent: SecurityIntent) => void;
-  onProfileSettings: Dispatch<SetStateAction<ProfileSettings>>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   profile: Profile | null;
-  settings: ProfileSettings;
 }>) {
   const loaded = profile !== null;
   const twoFactorIntent = profile?.two_factor_enabled ? "2fa-disable" : "2fa-request";
@@ -291,71 +256,17 @@ function AccountManagementSurface({
       className={`wf-account-management${intent ? " wf-account-management-security-open" : ""}`}
       data-wireflow-layout="account-management"
     >
-      <form className="wf-account-profile-form" id="wf-account-profile-form" onSubmit={onSubmit}>
-        <input name="operation" type="hidden" value="profile" />
-        <AccountSection title="회원정보 수정">
-          <div className="wf-account-fields">
-            <label className="civic-field">
-              <span>이메일</span>
-              <input placeholder="불러오는 중…" readOnly value={profile?.email ?? ""} />
-            </label>
-            <label className="civic-field">
-              <span>선호 언어</span>
-              <select
-                disabled={!loaded}
-                name="preferred_language"
-                onChange={(event) =>
-                  onProfileSettings((value) => ({
-                    ...value,
-                    preferredLanguage: event.target.value as ProfileSettings["preferredLanguage"],
-                  }))
-                }
-                value={settings.preferredLanguage}
-              >
-                <option value="ko">한국어</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <label className="civic-field">
-              <span>AI 답변 상세도</span>
-              <select
-                disabled={!loaded}
-                name="rag_answer_detail"
-                onChange={(event) =>
-                  onProfileSettings((value) => ({
-                    ...value,
-                    answerDetail: event.target.value as ProfileSettings["answerDetail"],
-                  }))
-                }
-                value={settings.answerDetail}
-              >
-                <option value="concise">간결하게</option>
-                <option value="balanced">균형 있게</option>
-                <option value="detailed">상세하게</option>
-              </select>
-            </label>
-          </div>
-          {!intent && message ? (
-            <p aria-live="polite" className="civic-form-message">
-              {message}
-            </p>
-          ) : null}
-          <button
-            aria-label="변경사항 저장"
-            className="wf-button wf-button-primary wf-account-submit"
-            disabled={busy || !loaded}
-            type="submit"
-          >
-            {!loaded ? "불러오는 중…" : busy ? "처리 중…" : "변경사항 저장"}
-          </button>
-        </AccountSection>
-      </form>
-
       <section aria-labelledby="wf-account-security-title" className="wf-account-section">
         <h2 id="wf-account-security-title">보안</h2>
+        {!intent && message ? (
+          <p aria-live="polite" className="civic-form-message wf-account-load-message">
+            {message}
+          </p>
+        ) : null}
         <div className="wf-account-security-list">
           <SecurityAction
             actionLabel="변경하기"
+            disabled={busy || !loaded}
             description="변경하면 모든 기기에서 다시 로그인해야 합니다."
             onAction={() => onIntent(intent === "password" ? null : "password")}
             title="비밀번호 변경"
@@ -388,15 +299,6 @@ function AccountManagementSurface({
         </div>
       </section>
     </div>
-  );
-}
-
-function AccountSection({ children, title }: Readonly<{ children: ReactNode; title: string }>) {
-  return (
-    <section aria-labelledby="wf-account-profile-title" className="wf-account-section">
-      <h2 id="wf-account-profile-title">{title}</h2>
-      <div className="wf-account-panel">{children}</div>
-    </section>
   );
 }
 
@@ -602,6 +504,7 @@ function DeactivationDialog({
     <div className="wf-account-overlay" data-wireflow-layout="account-deactivate">
       <div aria-hidden="true" className="wf-account-scrim" />
       <form
+        aria-describedby="wf-deactivate-dialog-description"
         aria-labelledby="wf-deactivate-dialog-title"
         aria-modal="true"
         className="wf-account-dialog"
@@ -621,27 +524,29 @@ function DeactivationDialog({
             <Image alt="" height={24} src="/assets/account/close.png" width={24} />
           </button>
         </header>
-        <p>다음 내용을 확인한 뒤 비밀번호를 입력하세요.</p>
-        <dl className="wf-impact-list">
-          <div>
-            <dt>비활성화 영향</dt>
-            <dd>AI·채팅·투표 정보가 개인 정보에 더 이상 반영되지 않습니다.</dd>
-          </div>
-          <div>
-            <dt>보관 데이터</dt>
-            <dd>작성한 정보와 활동 기록은 계정을 다시 사용할 수 있도록 보관됩니다.</dd>
-          </div>
-          <div>
-            <dt>로그인 상태</dt>
-            <dd>현재 기기를 포함한 모든 기기에서 로그아웃됩니다.</dd>
-          </div>
-        </dl>
-        <WireflowField autoFocus label="비밀번호 확인" name="password" required type="password" />
-        {message ? (
-          <p aria-live="polite" className="civic-form-message">
-            {message}
-          </p>
-        ) : null}
+        <p id="wf-deactivate-dialog-description">다음 내용을 확인한 뒤 비밀번호를 입력하세요.</p>
+        <div className="wf-account-dialog-body">
+          <dl className="wf-impact-list">
+            <div>
+              <dt>비활성화 영향</dt>
+              <dd>AI·채팅·투표 정보가 개인 정보에 더 이상 반영되지 않습니다.</dd>
+            </div>
+            <div>
+              <dt>보관 데이터</dt>
+              <dd>작성한 정보와 활동 기록은 계정을 다시 사용할 수 있도록 보관됩니다.</dd>
+            </div>
+            <div>
+              <dt>로그인 상태</dt>
+              <dd>현재 기기를 포함한 모든 기기에서 로그아웃됩니다.</dd>
+            </div>
+          </dl>
+          <WireflowField autoFocus label="비밀번호 확인" name="password" required type="password" />
+          {message ? (
+            <p aria-live="polite" className="civic-form-message">
+              {message}
+            </p>
+          ) : null}
+        </div>
         <div className="wf-dialog-actions">
           <WireflowButton disabled={busy} onClick={onCancel} variant="secondary">
             계정 유지
@@ -679,16 +584,6 @@ export async function loadAccountProfile(
   const response = await request("/api/v1/account/profile", { cache: "no-store" });
   if (!response.ok) throw new Error("계정 정보를 불러오지 못했습니다.");
   return (await response.json()) as Profile;
-}
-
-export function readProfileSettings(profile: Profile): ProfileSettings {
-  return {
-    preferredLanguage: profile.preferred_language === "en" ? "en" : "ko",
-    answerDetail:
-      profile.rag_answer_detail === "concise" || profile.rag_answer_detail === "detailed"
-        ? profile.rag_answer_detail
-        : "balanced",
-  };
 }
 
 function hasExtendedSurveyAnswers(profile: Profile | null): boolean {
