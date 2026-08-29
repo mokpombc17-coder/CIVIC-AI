@@ -125,10 +125,28 @@ class ResearchChatExportArtifactGeneratorTest {
 
             JsonNode manifest = JsonMapper.builder().build()
                     .readTree(entry(zip, "manifest.json"));
+            assertThat(manifest.propertyNames()).containsExactlyInAnyOrder(
+                    "schemaVersion",
+                    "exportId",
+                    "roomId",
+                    "roomName",
+                    "roomDescription",
+                    "capturedChangeSequence",
+                    "capturedAt",
+                    "generatedAt",
+                    "identityMode",
+                    "messageRepresentation",
+                    "deletedContentIncluded",
+                    "changeHistoryIncluded",
+                    "jsonTimezone",
+                    "htmlTimezone",
+                    "counts",
+                    "files");
             assertThat(manifest.get("schemaVersion").intValue())
-                    .isEqualTo(2);
-            assertThat(manifest.get("roomCategoryIds").get(0)
-                    .stringValue()).isEqualTo("custom-category-id");
+                    .isEqualTo(1);
+            assertThat(manifest.has("roomCategoryIds")).isFalse();
+            assertThat(manifest.has("roomCategories")).isFalse();
+            assertThat(manifest.has("categories")).isFalse();
             assertThat(manifest.get("capturedChangeSequence").longValue())
                     .isEqualTo(6);
             assertThat(manifest.get("identityMode").stringValue())

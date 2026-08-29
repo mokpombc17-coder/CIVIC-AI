@@ -110,12 +110,11 @@ public final class ResearchChatExportArtifactGenerator {
                 descriptor("transcript.html", workspace.transcriptFile(),
                         deadline));
         Manifest manifest = new Manifest(
-                2,
+                1,
                 job.exportId(),
                 job.roomId(),
                 snapshot.room().name(),
                 snapshot.room().description(),
-                snapshot.room().categoryIds(),
                 job.capturedChangeSequence(),
                 snapshot.capturedAt(),
                 generatedAt,
@@ -562,7 +561,6 @@ public final class ResearchChatExportArtifactGenerator {
             String roomId,
             String roomName,
             String roomDescription,
-            List<String> roomCategoryIds,
             long capturedChangeSequence,
             Instant capturedAt,
             Instant generatedAt,

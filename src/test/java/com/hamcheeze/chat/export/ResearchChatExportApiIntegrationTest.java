@@ -284,6 +284,10 @@ class ResearchChatExportApiIntegrationTest
             throws Exception {
         JsonNode manifest = JSON.readTree(entries.get("manifest.json"));
         assertThat(manifest.get("roomId").stringValue()).isEqualTo(ROOM_ID);
+        assertThat(manifest.get("schemaVersion").intValue()).isEqualTo(1);
+        assertThat(manifest.has("roomCategoryIds")).isFalse();
+        assertThat(manifest.has("roomCategories")).isFalse();
+        assertThat(manifest.has("categories")).isFalse();
         assertThat(manifest.get("capturedChangeSequence").longValue())
                 .isEqualTo(4);
         assertThat(manifest.get("identityMode").stringValue())

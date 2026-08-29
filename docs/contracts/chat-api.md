@@ -3103,8 +3103,8 @@ ZIP entry는 `manifest.json`, `messages.jsonl`, `message_changes.jsonl`,
 `changeSequence` 순서로 제공한다. 삭제 메시지는 삭제 직전 content와
 `deleted=true`를 제공한다.
 
-현재 연구용 `manifest.json`의 `schemaVersion`은 `2`이며 Room 메타데이터에
-`roomCategoryIds`를 포함한다. 이 배열에도 표시 순서 의미는 없다.
+현재 연구용 `manifest.json`의 `schemaVersion`은 `1`이며 Room 카테고리 ID·이름을
+포함하지 않는다.
 
 연구용 Export는 `chat_message_audit_events`만 canonical source로 사용하며
 `chat_messages` fallback을 수행하지 않는다. 메시지 감사 원장 도입 전에 생성된
