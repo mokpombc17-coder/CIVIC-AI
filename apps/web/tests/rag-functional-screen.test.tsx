@@ -20,6 +20,7 @@ import {
   hasActiveRagDocuments,
   buildRagDocumentListPath,
   requestRagBulkAction,
+  successfulBulkJobId,
   shouldPollRagJob,
   firstQueryValue,
   jobPanelKey,
@@ -402,19 +403,21 @@ describe("9 functional RAG screens", () => {
         succeeded: 1,
         failed: 1,
         items: [
-          { document_id: "document-1", status: "SUCCEEDED" },
+          { document_id: "document-1", status: "SUCCEEDED", job_id: "reindex-job-1" },
           { document_id: "document-2", status: "FAILED", message: "처리 중" },
         ],
       }),
     );
 
-    await expect(
-      requestRagBulkAction(
-        { action: "REINDEX", documentIds: ["document-1", "document-2"] },
-        request as typeof fetch,
-        "bulk-operation-key",
-      ),
-    ).resolves.toMatchObject({ succeeded: 1, failed: 1 });
+    const result = await requestRagBulkAction(
+      { action: "REINDEX", documentIds: ["document-1", "document-2"] },
+      request as typeof fetch,
+      "bulk-operation-key",
+    );
+
+    expect(result).toMatchObject({ succeeded: 1, failed: 1 });
+    expect(successfulBulkJobId(result, "document-1")).toBe("reindex-job-1");
+    expect(successfulBulkJobId(result, "document-2")).toBeNull();
     expect(request).toHaveBeenCalledWith(
       "/api/v1/rag/documents/bulk",
       expect.objectContaining({

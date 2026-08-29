@@ -166,9 +166,21 @@ export type RagBulkActionResponse = Readonly<{
   items: readonly Readonly<{
     document_id: string;
     status: "SUCCEEDED" | "FAILED";
+    job_id?: string;
+    job_status?: string;
     message?: string;
   }>[];
 }>;
+
+export function successfulBulkJobId(
+  result: RagBulkActionResponse,
+  documentId: string,
+): string | null {
+  const jobId = result.items.find(
+    (item) => item.document_id === documentId && item.status === "SUCCEEDED",
+  )?.job_id;
+  return typeof jobId === "string" && jobId.length > 0 ? jobId : null;
+}
 
 const DEFAULT_DOCUMENT_QUERY: RagDocumentListQuery = {
   page: 1,
@@ -677,18 +689,9 @@ function useAdminWorkspace(initialFolderId?: string) {
         );
         if (reindex && result.failed === 0 && result.succeeded === 1) {
           const reindexedId = input.documentIds[0];
-          const versions = reindexedId ? await loadRagDocumentVersions(reindexedId) : null;
-          const newestFirst = (versions ?? [])
-            .slice()
-            .sort((a, b) => b.version_number - a.version_number);
-          const target =
-            newestFirst.find(
-              (version) =>
-                version.job_id &&
-                shouldPollRagJob(version.processing?.status ?? version.status, false),
-            ) ?? newestFirst.find((version) => version.job_id);
-          if (target) {
-            router.push(processingJobHref(target, selectedIdRef.current));
+          const jobId = reindexedId ? successfulBulkJobId(result, reindexedId) : null;
+          if (jobId) {
+            router.push(ragJobHref(jobId, selectedIdRef.current));
             return;
           }
         }

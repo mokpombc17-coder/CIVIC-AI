@@ -2835,19 +2835,33 @@ body:has([data-wireflow-shell]) {
   width: 24px;
 }
 
-[data-wireflow-screen^="A-RAG"] .civic-folder-tree li > :is(.civic-folder-expander, .civic-folder-expander-placeholder) + button {
+[data-wireflow-screen^="A-RAG"]
+  .civic-folder-tree
+  li
+  > :is(.civic-folder-expander, .civic-folder-expander-placeholder)
+  + button {
   min-height: 44px;
   justify-content: flex-start;
   gap: 9px;
 }
 
-[data-wireflow-screen^="A-RAG"] .civic-folder-tree li > :is(.civic-folder-expander, .civic-folder-expander-placeholder) + button > span:last-child {
+[data-wireflow-screen^="A-RAG"]
+  .civic-folder-tree
+  li
+  > :is(.civic-folder-expander, .civic-folder-expander-placeholder)
+  + button
+  > span:last-child {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-[data-wireflow-screen^="A-RAG"] .civic-folder-tree li > :is(.civic-folder-expander, .civic-folder-expander-placeholder) + button strong {
+[data-wireflow-screen^="A-RAG"]
+  .civic-folder-tree
+  li
+  > :is(.civic-folder-expander, .civic-folder-expander-placeholder)
+  + button
+  strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
