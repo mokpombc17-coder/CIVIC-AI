@@ -78,6 +78,9 @@ import {
   isRetryableRagStatus,
   pollResult,
   problemMessage,
+  RAG_SESSION_EXPIRED_MESSAGE,
+  RAG_SESSION_LOGIN_HREF,
+  RagNotice,
   ragJobStatusMessage,
   RagSuggestionChips,
   RagLiveProgress,
@@ -837,9 +840,26 @@ describe("9 functional RAG screens", () => {
       parseQuerySubmissionResponse(
         new Response("{", { status: 409, headers: { "content-type": "application/json" } }),
       ),
-    ).resolves.toEqual({ kind: "problem", code: undefined });
+    ).resolves.toEqual({ kind: "problem", code: undefined, status: 409 });
     operation.settle(true);
     expect(operation.begin("정책은?")).toBe("query-key-2");
+  });
+
+  it("인증 갱신 뒤에도 401이면 세션 만료와 재로그인을 안내한다", async () => {
+    await expect(
+      parseQuerySubmissionResponse(Response.json({ code: "UNAUTHORIZED" }, { status: 401 })),
+    ).resolves.toEqual({ kind: "problem", code: "UNAUTHORIZED", status: 401 });
+    expect(problemMessage("UNAUTHORIZED", 401)).toBe(
+      "세션이 만료되었습니다. 다시 로그인 해주세요.",
+    );
+    expect(problemMessage(undefined, 401)).toBe(RAG_SESSION_EXPIRED_MESSAGE);
+    expect(RAG_SESSION_LOGIN_HREF).toBe("/login?returnTo=%2Frag");
+
+    const noticeHtml = renderToStaticMarkup(
+      createElement(RagNotice, { notice: RAG_SESSION_EXPIRED_MESSAGE }),
+    );
+    expect(noticeHtml).toContain("세션이 만료되었습니다. 다시 로그인 해주세요.");
+    expect(noticeHtml).toContain('href="/login?returnTo=%2Frag"');
   });
 
   it("ADD는 선택 폴더의 자식 생성이고 EDIT는 일반 폴더 이름 변경이다", () => {

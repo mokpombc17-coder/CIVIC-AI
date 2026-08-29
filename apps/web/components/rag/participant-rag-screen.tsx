@@ -70,6 +70,9 @@ const STREAMING_PROGRESS: RagProgress = {
   elapsed_seconds: 0,
 };
 
+export const RAG_SESSION_EXPIRED_MESSAGE = "세션이 만료되었습니다. 다시 로그인 해주세요.";
+export const RAG_SESSION_LOGIN_HREF = "/login?returnTo=%2Frag" as Route;
+
 type UpdateRagLiveJobs = (update: (current: RagLiveJobs) => RagLiveJobs) => void;
 
 function startLiveJob(updateLiveJobs: UpdateRagLiveJobs, jobId: string): void {
@@ -318,7 +321,7 @@ function RagConversation({
       retireIdempotencyKey = true;
       if (requestGeneration.current !== generation) return;
       if (submission.kind === "problem") {
-        setNotice(problemMessage(submission.code));
+        setNotice(problemMessage(submission.code, submission.status));
         return;
       }
       const accepted = submission.job;
@@ -412,11 +415,7 @@ function RagConversation({
             </p>
           ) : null}
         </div>
-        {notice ? (
-          <p aria-live="polite" className="civic-form-message">
-            {notice}
-          </p>
-        ) : null}
+        <RagNotice notice={notice} />
         <form className="civic-rag-composer" onSubmit={submit}>
           <label className="sr-only" htmlFor="rag-question">
             메시지 입력
@@ -471,6 +470,21 @@ function browserRagConversationStorage(): Storage | null {
   }
 }
 
+export function RagNotice({ notice }: Readonly<{ notice: string }>) {
+  if (!notice) return null;
+  return (
+    <p aria-live="polite" className="civic-form-message">
+      {notice}
+      {notice === RAG_SESSION_EXPIRED_MESSAGE ? (
+        <>
+          {" "}
+          <Link href={RAG_SESSION_LOGIN_HREF}>로그인</Link>
+        </>
+      ) : null}
+    </p>
+  );
+}
+
 export function createQueryOperation(idFactory: () => string = () => crypto.randomUUID()) {
   let pending = false;
   let retained: { question: string; key: string } | null = null;
@@ -498,7 +512,7 @@ export async function parseQuerySubmissionResponse(
   response: Response,
 ): Promise<
   | Readonly<{ kind: "accepted"; job: RagJob }>
-  | Readonly<{ kind: "problem"; code: string | undefined }>
+  | Readonly<{ kind: "problem"; code: string | undefined; status: number }>
 > {
   if (!response.ok) {
     const problem = await response.json().catch(() => null);
@@ -509,7 +523,7 @@ export async function parseQuerySubmissionResponse(
       typeof problem.code === "string"
         ? problem.code
         : undefined;
-    return { kind: "problem", code };
+    return { kind: "problem", code, status: response.status };
   }
   const value = await response.json().catch(() => {
     throw new TypeError("RAG accepted query response is invalid");
@@ -990,7 +1004,10 @@ export function isRetryableRagStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
 
-export function problemMessage(code?: string) {
+export function problemMessage(code?: string, status?: number) {
+  if (status === 401 || code === "UNAUTHORIZED" || code === "INVALID_TOKEN") {
+    return RAG_SESSION_EXPIRED_MESSAGE;
+  }
   if (code === "NO_DOCUMENTS") return "아직 질문할 수 있는 문서가 없습니다.";
   if (code === "INDEX_NOT_READY") return "문서 색인이 진행 중입니다. 입력은 유지됩니다.";
   if (code === "AI_PROVIDER_DISABLED") return "현재 AI 답변 기능이 비활성화되어 있습니다.";
