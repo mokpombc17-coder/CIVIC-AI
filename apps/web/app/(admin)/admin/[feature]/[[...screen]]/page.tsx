@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
+import { AdminChatInsightsScreen } from "@/components/admin/admin-chat-insights-screen";
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
 import { AdminSimulationScreen } from "@/components/admin/admin-simulation-screen";
@@ -41,6 +42,9 @@ export default async function AdminPlaceholderPage({
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "CHAT") {
     if (definition.id === "A-CHAT-007") return <AdminRoomCategoryScreen screen={definition} />;
+    if (["A-CHAT-001", "A-CHAT-002", "A-CHAT-008", "A-CHAT-009"].includes(definition.id)) {
+      return <AdminChatInsightsScreen screen={definition} />;
+    }
     return <AdminChatRequestScreen query={query} screen={definition} />;
   }
 

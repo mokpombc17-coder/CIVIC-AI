@@ -1,0 +1,757 @@
+.page {
+  display: grid;
+  gap: 1rem;
+  color: #1e2124;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid #cdd1d5;
+}
+
+.tabs a {
+  position: relative;
+  flex: 0 0 auto;
+  color: #58616a;
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tabs a[aria-current="page"] {
+  color: #063a74;
+}
+
+.tabs a[aria-current="page"]::after {
+  position: absolute;
+  right: 0.75rem;
+  bottom: -1px;
+  left: 0.75rem;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #256ef4;
+  content: "";
+}
+
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(15rem, 0.7fr);
+  gap: 1.5rem;
+  align-items: end;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: linear-gradient(130deg, rgba(37, 110, 244, 0.92), rgba(6, 58, 116, 0.98)), #063a74;
+  color: white;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: 0 1rem 2.5rem rgb(6 58 116 / 17%);
+}
+
+.intro span,
+.roomPanel header span,
+.snapshot > div > span,
+.conversation header span,
+.barCard header span,
+.analysisGrid header span,
+.exportCard header span {
+  display: block;
+  color: #bcd2ff;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.intro h2 {
+  max-width: 38rem;
+  margin: 0.45rem 0 0;
+  font-size: clamp(1.35rem, 3vw, 2.15rem);
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+
+.intro p {
+  margin: 0;
+  color: #e6eeff;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.roomPanel,
+.analysisPanel,
+.rangeForm,
+.snapshot,
+.conversation,
+.barCard,
+.analysisGrid > section,
+.exportCard {
+  border: 1px solid #cdd1d5;
+  border-radius: 0.65rem;
+  background: #fff;
+}
+
+.roomPanel {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 0.85rem;
+  max-height: calc(100dvh - 2rem);
+  padding: 1rem;
+}
+
+.roomPanel header {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.roomPanel header span {
+  color: #256ef4;
+}
+
+.roomPanel header strong {
+  font-size: 1.05rem;
+}
+
+.search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.search input,
+.rangeFields input {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid #8a949e;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #1e2124;
+  padding: 0.6rem 0.7rem;
+}
+
+.search button,
+.moreButton,
+.rangeFields button,
+.exportCard button {
+  min-height: 2.65rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: #063a74;
+  color: #fff;
+  padding: 0.65rem 0.85rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.roomList {
+  display: grid;
+  gap: 0.4rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.roomList > p {
+  margin: 0;
+  color: #58616a;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.roomButton {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  background: #f4f5f6;
+  color: #1e2124;
+  padding: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roomButton:hover {
+  border-color: #8baef7;
+}
+
+.roomButton[aria-pressed="true"] {
+  border-color: #256ef4;
+  background: #edf3ff;
+  box-shadow: inset 3px 0 #256ef4;
+}
+
+.roomButton strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomButton span {
+  color: #58616a;
+  font-size: 0.78rem;
+}
+
+.moreButton {
+  border: 1px solid #8a949e;
+  background: #fff;
+  color: #063a74;
+}
+
+.analysisPanel {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+
+.rangeForm {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.rangeForm > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.rangeForm header div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.rangeForm header small,
+.rangeForm > p,
+.rangeFields label span {
+  color: #58616a;
+  font-size: 0.78rem;
+}
+
+.rangeForm header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rangeForm header > span {
+  flex: 0 0 auto;
+  border-radius: 99rem;
+  background: #eef9f0;
+  color: #166534;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.rangeFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.rangeFields label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.rangeFields > span {
+  padding-bottom: 0.75rem;
+  color: #8a949e;
+}
+
+.rangeFields button {
+  background: #256ef4;
+  white-space: nowrap;
+}
+
+.rangeForm > p {
+  margin: 0;
+}
+
+.rangeFields button:disabled,
+.search button:disabled,
+.moreButton:disabled,
+.exportCard button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.problem,
+.statusMessage {
+  margin: 0;
+  border-left: 3px solid #df563e;
+  background: #fff2f0;
+  color: #8f231c;
+  padding: 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.statusMessage {
+  border-left-color: #256ef4;
+  background: #edf3ff;
+  color: #063a74;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  min-height: 20rem;
+  border: 1px dashed #8a949e;
+  border-radius: 0.65rem;
+  background:
+    linear-gradient(135deg, rgb(37 110 244 / 4%) 25%, transparent 25%) 0 0 / 1rem 1rem,
+    #fff;
+  padding: 2rem;
+  text-align: center;
+}
+
+.empty span {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: #063a74;
+  color: #d9f553;
+  font-size: 1.5rem;
+}
+
+.empty h2 {
+  margin: 0.85rem 0 0;
+  font-size: 1.15rem;
+}
+
+.empty p {
+  max-width: 34rem;
+  margin: 0.4rem 0 0;
+  color: #58616a;
+  line-height: 1.65;
+}
+
+.result {
+  display: grid;
+  gap: 1rem;
+}
+
+.snapshot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.75fr);
+  gap: 1rem;
+  padding: 1.15rem;
+}
+
+.snapshot > div > span {
+  color: #166534;
+}
+
+.snapshot h2 {
+  margin: 0.35rem 0;
+  font-size: 1.45rem;
+  letter-spacing: -0.035em;
+}
+
+.snapshot p {
+  margin: 0;
+  color: #58616a;
+  line-height: 1.55;
+}
+
+.snapshot dl,
+.exportMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.snapshot dl div,
+.exportMeta div {
+  display: grid;
+  gap: 0.25rem;
+  border-left: 2px solid #8baef7;
+  padding-left: 0.65rem;
+}
+
+.snapshot dt,
+.exportMeta dt {
+  color: #58616a;
+  font-size: 0.72rem;
+}
+
+.snapshot dd,
+.exportMeta dd {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.warnings {
+  margin: 0;
+  border: 1px solid #e8bb74;
+  border-radius: 0.5rem;
+  background: #fff8e8;
+  color: #8a4b08;
+  padding: 0.8rem 0.8rem 0.8rem 1.8rem;
+  font-size: 0.84rem;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.kpis article {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid #cdd1d5;
+  border-top: 3px solid #256ef4;
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.kpis article span,
+.kpis article small {
+  color: #58616a;
+  font-size: 0.75rem;
+}
+
+.kpis article strong {
+  color: #063a74;
+  font-size: 1.45rem;
+}
+
+.kpis .dangerMetric {
+  border-top-color: #df563e;
+}
+
+.kpis .dangerMetric strong {
+  color: #a63225;
+}
+
+.eventStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  border-radius: 0.5rem;
+  background: #063a74;
+  color: #fff;
+  padding: 0.75rem 1rem;
+}
+
+.eventStrip strong {
+  margin-right: auto;
+}
+
+.eventStrip span {
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: 99rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.conversation {
+  padding: 1rem;
+}
+
+.conversation > header,
+.barCard header,
+.analysisGrid header,
+.exportCard > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 0.85rem;
+}
+
+.conversation header span,
+.barCard header span,
+.analysisGrid header span,
+.exportCard header span {
+  color: #256ef4;
+}
+
+.conversation h3,
+.barCard h3,
+.analysisGrid h3,
+.exportCard h3 {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+}
+
+.conversation header small {
+  color: #58616a;
+}
+
+.conversation ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation li {
+  border-left: 3px solid #8baef7;
+  background: #f4f7fc;
+  padding: 0.75rem 0.85rem;
+}
+
+.conversation li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.conversation time {
+  color: #58616a;
+  font-size: 0.72rem;
+}
+
+.conversation li > div > span {
+  border-radius: 99rem;
+  background: #fff2f0;
+  color: #a63225;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.conversation li p {
+  margin: 0.45rem 0 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.conversation .deletedMessage {
+  border-left-color: #df563e;
+  background: #fff8f7;
+}
+
+.deletedMessage p {
+  color: #58616a;
+  text-decoration: line-through;
+}
+
+.chartGrid,
+.analysisGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.barCard,
+.analysisGrid > section,
+.exportCard {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.barCard ol {
+  display: grid;
+  gap: 0.7rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.barCard li div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.78rem;
+}
+
+.barCard li div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barCard li i {
+  display: block;
+  width: var(--bar-width);
+  min-width: 2px;
+  height: 0.4rem;
+  border-radius: 99rem;
+  background: linear-gradient(90deg, #256ef4, #8ed8f0);
+}
+
+.barCard > p,
+.keywordCloud > p {
+  color: #58616a;
+  font-size: 0.82rem;
+}
+
+.keywordCloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.keywordCloud span {
+  border: 1px solid #a9bddb;
+  border-radius: 99rem;
+  background: #f4f7fc;
+  color: #063a74;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+.keywordCloud b {
+  margin-left: 0.2rem;
+  color: #256ef4;
+}
+
+.topicList,
+.exportCard ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.topicList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #e6e8eb;
+  padding: 0.45rem 0;
+  font-size: 0.83rem;
+}
+
+.analysisNote {
+  margin: 0;
+  border-left: 3px solid #8a949e;
+  color: #58616a;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.exportCard > header button {
+  background: #256ef4;
+}
+
+.exportCard li {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) auto auto;
+  gap: 1rem;
+  align-items: center;
+  border-top: 1px solid #e6e8eb;
+  padding: 0.75rem 0;
+  font-size: 0.82rem;
+}
+
+.exportCard li span {
+  color: #58616a;
+}
+
+.exportCard li b {
+  color: #166534;
+  font-size: 0.75rem;
+}
+
+.exportMeta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1rem;
+  border-top: 1px solid #cdd1d5;
+  padding-top: 1rem;
+}
+
+.search input:focus-visible,
+.rangeFields input:focus-visible,
+.search button:focus-visible,
+.moreButton:focus-visible,
+.roomButton:focus-visible,
+.rangeFields button:focus-visible,
+.exportCard button:focus-visible,
+.tabs a:focus-visible {
+  outline: 3px solid #d9f553;
+  outline-offset: 2px;
+}
+
+@media (max-width: 980px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .roomPanel {
+    position: static;
+    max-height: none;
+  }
+
+  .roomList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 15rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .intro,
+  .snapshot,
+  .chartGrid,
+  .analysisGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .rangeFields {
+    grid-template-columns: 1fr;
+  }
+
+  .rangeFields > span {
+    display: none;
+  }
+
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .exportCard li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .exportCard li b {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .roomList,
+  .kpis,
+  .snapshot dl,
+  .exportMeta {
+    grid-template-columns: 1fr;
+  }
+
+  .rangeForm > header,
+  .conversation > header,
+  .exportCard > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
