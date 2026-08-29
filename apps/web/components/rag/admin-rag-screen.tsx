@@ -277,6 +277,8 @@ export function AdminRagScreen({
 }: Readonly<{ screen: ScreenDefinition; query: RagQuery }>) {
   const router = useRouter();
   const folderId = firstQueryValue(query.folderId);
+  const retryJobId = firstQueryValue(query.retryJobId);
+  const retryFilename = firstQueryValue(query.filename);
   const {
     folders,
     documents,
@@ -317,22 +319,40 @@ export function AdminRagScreen({
       <ScreenFrame
         screen={screen}
         title={
-          selectedFolder ? `${selectedFolder.name} 폴더에 문서 업로드` : "선택 폴더에 문서 업로드"
+          retryJobId
+            ? `${retryFilename ?? "실패 문서"} 재처리`
+            : selectedFolder
+              ? `${selectedFolder.name} 폴더에 문서 업로드`
+              : "선택 폴더에 문서 업로드"
         }
       >
         <div className="wf-rag-task-page" data-wireflow-layout="rag-upload">
           <p className="civic-breadcrumb">
-            문서 /{" "}
-            {ragFolderAncestorPath(folders, selectedFolder)
-              .map((name) => `${name} / `)
-              .join("")}
-            {selectedFolder?.name ?? "선택 폴더"}
+            {retryJobId ? (
+              <>문서 / 실패 작업 재처리</>
+            ) : (
+              <>
+                문서 /{" "}
+                {ragFolderAncestorPath(folders, selectedFolder)
+                  .map((name) => `${name} / `)
+                  .join("")}
+                {selectedFolder?.name ?? "선택 폴더"}
+              </>
+            )}
           </p>
           <section className="wf-rag-task-card">
             <header className="wf-rag-task-heading">
-              <h2>파일 선택</h2>
+              <h2>{retryJobId ? "실패 문서 재처리" : "파일 선택"}</h2>
             </header>
-            <UploadPanel folder={selectedFolder} onMessage={setMessage} query={query} />
+            {retryJobId ? (
+              <AutomaticRagJobRetryPanel
+                jobId={retryJobId}
+                key={retryJobId}
+                {...(retryFilename ? { filename: retryFilename } : {})}
+              />
+            ) : (
+              <UploadPanel folder={selectedFolder} onMessage={setMessage} query={query} />
+            )}
           </section>
           {message ? (
             <p aria-live="polite" className="civic-form-message">
@@ -2077,6 +2097,72 @@ function UploadPanel({
   );
 }
 
+function AutomaticRagJobRetryPanel({
+  filename,
+  jobId,
+}: Readonly<{ filename?: string; jobId: string }>) {
+  const router = useRouter();
+  const requestPending = useRef(false);
+  const [retrying, setRetrying] = useState(true);
+  const [message, setMessage] = useState("실패한 문서의 재처리를 자동으로 요청합니다.");
+
+  const retry = useCallback(async () => {
+    if (requestPending.current) return;
+    requestPending.current = true;
+    setRetrying(true);
+    setMessage("실패한 문서의 재처리를 요청하고 있습니다…");
+    try {
+      const result = await requestRagJobRetry({
+        jobId,
+        idempotencyKey: automaticRagRetryIdempotencyKey(jobId),
+      });
+      if (result.kind === "rejected") {
+        setMessage("자동 재시도를 접수하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      if (result.kind === "malformed") {
+        setMessage("재시도 응답에서 새 작업 ID를 확인하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      if (result.kind === "network") {
+        setMessage(RAG_RETRY_NETWORK_MESSAGE);
+        return;
+      }
+      setMessage("재처리를 접수했습니다. 새 작업의 처리 상태로 이동합니다.");
+      router.replace(ragJobHref(result.acceptedJobId, undefined, filename));
+    } finally {
+      requestPending.current = false;
+      setRetrying(false);
+    }
+  }, [filename, jobId, router]);
+
+  useEffect(() => {
+    void retry();
+  }, [retry]);
+
+  return (
+    <div className="civic-rag-form">
+      <div className="civic-upload-mode">
+        <strong>{filename ?? "선택한 실패 문서"}</strong>
+        <p aria-live="polite">{message}</p>
+      </div>
+      <div className="civic-form-actions">
+        <Link className="civic-secondary-action" href="/admin/rag">
+          문서 관리
+        </Link>
+        <button
+          className="civic-primary-action"
+          disabled={retrying}
+          onClick={() => void retry()}
+          type="button"
+        >
+          {retrying ? "재시도 요청 중…" : "다시 시도"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function canSelectUploadFiles(busy: boolean): boolean {
   return !busy;
 }
@@ -2568,11 +2654,13 @@ export function readAcceptedJobId(value: unknown): string | null {
 
 export type RagJobRetryResult =
   | Readonly<{ kind: "accepted"; definitive: true; acceptedJobId: string }>
-  | Readonly<{
-      kind: "rejected" | "malformed" | "network";
-      definitive: boolean;
-      acceptedJobId: null;
-    }>;
+  | Readonly<{ kind: "rejected"; definitive: true; acceptedJobId: null }>
+  | Readonly<{ kind: "malformed"; definitive: false; acceptedJobId: null }>
+  | Readonly<{ kind: "network"; definitive: false; acceptedJobId: null }>;
+
+export function automaticRagRetryIdempotencyKey(jobId: string): string {
+  return `ADMIN_HOME_RETRY:${jobId}`;
+}
 
 export async function requestRagJobRetry({
   jobId,

@@ -88,6 +88,16 @@ test.beforeAll(async () => {
         failure_code: "DOCUMENT_READ_FAILED",
       });
     }
+    if (url.pathname === "/internal/v1/rag/jobs/job-1/retry" && request.method === "POST") {
+      return json(response, { job_id: "job-retry-1", status: "QUEUED" }, 202);
+    }
+    if (url.pathname === "/internal/v1/rag/jobs/job-retry-1") {
+      return json(response, {
+        job_id: "job-retry-1",
+        status: "QUEUED",
+        progress: 0,
+      });
+    }
     if (url.pathname === "/internal/v1/rag/jobs/summary") {
       return json(response, {
         active: 0,
@@ -96,8 +106,10 @@ test.beforeAll(async () => {
         recent_failures: [
           {
             job_id: "job-1",
+            document_id: "document-1",
             filename: "policy.pdf",
             failure_code: "DOCUMENT_READ_FAILED",
+            updated_at: "2026-08-29T10:00:00Z",
           },
         ],
       });
@@ -475,6 +487,22 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
     width: [1198, 1202],
     height: [94, 98],
   });
+
+  const retryLink = page.getByRole("link", { name: "policy.pdf 업로드 화면에서 재시도" });
+  await expect(retryLink).toHaveAttribute(
+    "href",
+    "/admin/rag/upload?retryJobId=job-1&documentId=document-1&filename=policy.pdf",
+  );
+  const retryRequestPromise = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/v1/rag/jobs/job-1/retry",
+  );
+  await retryLink.click();
+  const retryRequest = await retryRequestPromise;
+  expect(retryRequest.headers()["idempotency-key"]).toBe("ADMIN_HOME_RETRY:job-1");
+  await expect(page).toHaveURL(/\/admin\/rag\/jobs\?jobId=job-retry-1&filename=policy\.pdf$/u);
+  await expect(page.getByRole("heading", { name: "문서 준비 상태" })).toBeVisible();
 
   await page.goto("/admin/users");
   await expect(page.getByRole("heading", { name: "사용자 목록" })).toBeVisible();
@@ -901,8 +929,8 @@ async function authenticate(context: BrowserContext, token: string): Promise<voi
   ]);
 }
 
-function json(response: import("node:http").ServerResponse, body: unknown) {
-  response.writeHead(200, { "content-type": "application/json" });
+function json(response: import("node:http").ServerResponse, body: unknown, status = 200) {
+  response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(body));
 }
 
