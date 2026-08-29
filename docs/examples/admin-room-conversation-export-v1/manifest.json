@@ -1,0 +1,45 @@
+{
+  "contract": "admin-room-conversation-export",
+  "schemaVersion": 1,
+  "exportId": "21000000-0000-0000-0000-000000000001",
+  "roomId": "11000000-0000-0000-0000-000000000001",
+  "roomName": "지역 교통 정책 토론방",
+  "roomDescription": "지역 교통 정책 개선안을 논의하는 채팅방입니다.",
+  "range": {
+    "fromInclusive": "2026-08-24T02:00:00Z",
+    "toExclusive": "2026-08-24T03:00:00Z"
+  },
+  "capturedChangeSequence": 8,
+  "capturedAt": "2026-08-24T03:00:00Z",
+  "generatedAt": "2026-08-24T03:00:01Z",
+  "identityMode": "INTERNAL_USER_ID",
+  "messageRepresentation": "AS_OF_TO_EXCLUSIVE",
+  "deletedContentIncluded": true,
+  "changeHistoryIncluded": true,
+  "jsonTimezone": "UTC",
+  "htmlTimezone": "Asia/Seoul",
+  "counts": {
+    "messages": 3,
+    "changes": 8,
+    "created": 3,
+    "updated": 4,
+    "deleted": 1
+  },
+  "files": [
+    {
+      "name": "messages.jsonl",
+      "sizeBytes": 550,
+      "sha256": "bee73cb2e4dd9b2f44ea60da0093b93fa16b3c3bd33564118f39a5a36e2328ea"
+    },
+    {
+      "name": "message_changes.jsonl",
+      "sizeBytes": 1534,
+      "sha256": "633fb17365ade1dc5ffe0f3e412473c76c08cf7480247e7342716db04054b4bf"
+    },
+    {
+      "name": "transcript.html",
+      "sizeBytes": 1115,
+      "sha256": "1eaa0c85db42e137b8103d65badab2ab0c6e284ea2e37bca7adf6a04cbd37848"
+    }
+  ]
+}
