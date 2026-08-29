@@ -358,6 +358,144 @@ body {
   margin-top: 6px;
 }
 
+/* Figma password reset flow: skip 74:338, then render 74:259 and 74:356. */
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .civic-auth-grid {
+  gap: 16px;
+  padding: 16px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-form {
+  gap: 12px;
+  border-color: #ccd1d6;
+  border-radius: 8px;
+  padding: 12px 20px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .wf-card-heading
+  h2 {
+  color: #121417;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 27px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field {
+  gap: 6px;
+  color: #121417;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field
+  > span {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field
+  input {
+  min-height: 48px;
+  border-color: #59616b;
+  border-radius: 6px;
+  padding: 11px 12px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  .civic-field-help {
+  margin: 0;
+  color: #59616b;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 19.5px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-form
+  > .wf-button-primary {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info {
+  gap: 12px;
+  border-color: #9ed1fa;
+  border-radius: 8px;
+  background: #edf7ff;
+  padding: 15px 16px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"])
+  .wf-auth-info
+  .wf-info-icon {
+  width: 24px;
+  height: 24px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info strong {
+  color: #085985;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info p {
+  color: #1f2124;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+:is([data-wireflow-screen="AUTH-007"], [data-wireflow-screen="AUTH-008"]) .wf-auth-info .wf-button {
+  min-height: 48px;
+  border-color: #266ef5;
+  border-radius: 6px;
+  background: #edf2ff;
+  color: #0a4fd1;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+[data-wireflow-screen="AUTH-007"] .civic-auth-grid {
+  gap: 20px;
+}
+
+[data-wireflow-screen="AUTH-007"] .wf-auth-form .wf-card-heading {
+  padding-bottom: 13px;
+}
+
+[data-wireflow-screen="AUTH-007"] .wf-auth-form .wf-card-subtitle {
+  line-height: 18.85px;
+}
+
+[data-wireflow-screen="AUTH-007"] .wf-auth-form > .wf-button-primary {
+  margin-top: 5px;
+}
+
+[data-wireflow-screen="AUTH-008"] .wf-auth-form .wf-card-heading {
+  padding-bottom: 10px;
+}
+
+[data-wireflow-screen="AUTH-008"] .wf-auth-form > .wf-button-primary {
+  margin-top: 6px;
+}
+
 .wf-screen-heading p {
   margin: 0;
   color: var(--wf-muted);

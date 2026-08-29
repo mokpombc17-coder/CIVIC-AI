@@ -44,6 +44,14 @@ test.beforeAll(async () => {
         },
       });
     }
+    if (url.pathname === "/api/v1/auth/password-reset/request" && request.method === "POST") {
+      response.writeHead(202).end();
+      return;
+    }
+    if (url.pathname === "/api/v1/auth/password-reset/complete" && request.method === "POST") {
+      response.writeHead(204).end();
+      return;
+    }
     if (url.pathname === "/api/v1/account/profile") {
       return json(response, profileFixture);
     }
@@ -240,6 +248,70 @@ test("AUTH-002·003·004는 Figma 가입 요소와 유동 모바일 폭을 유�
   await expect(termsLabel).toHaveCSS("font-size", "15px");
   await expect(termsLabel).toHaveCSS("font-weight", "700");
   await expect(termsLabel).toHaveCSS("line-height", "22.5px");
+});
+
+test("AUTH-007·008은 이메일 입력 단계를 건너뛰고 Figma 비밀번호 재설정 흐름을 유지한다", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto("/login");
+  await page.getByLabel("이메일").fill("name@example.com");
+  await page.getByRole("button", { name: "비밀번호 재설정" }).click();
+
+  await expect(page).toHaveURL(/\/password-reset$/u);
+  await expect(page.getByRole("heading", { name: "비밀번호 재설정" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "등록 이메일" })).toHaveCount(0);
+  const codeForm = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-form');
+  const codeSupport = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-info');
+  await expect(codeForm).toContainText("na***@example.com으로 코드를 전송했습니다.");
+  await expectBox(codeForm, {
+    x: [15.5, 16.5],
+    y: [79.5, 80.5],
+    width: [360.5, 361.5],
+    height: [270, 272],
+  });
+  await expectBox(codeSupport, {
+    x: [15.5, 16.5],
+    y: [370, 372],
+    width: [360.5, 361.5],
+    height: [184, 186],
+  });
+  await expect(codeForm.getByRole("heading", { name: "인증 코드 입력" })).toHaveCSS(
+    "font-size",
+    "18px",
+  );
+  await expect(codeForm.getByLabel("6자리 인증 코드")).toHaveCSS("font-size", "16px");
+
+  await codeForm.getByLabel("6자리 인증 코드").fill("111222");
+  await codeForm.getByRole("button", { name: "인증하기" }).click();
+
+  await expect(page).toHaveURL(/\/password-reset\/complete$/u);
+  const passwordForm = page.locator('[data-wireflow-screen="AUTH-008"] .wf-auth-form');
+  const passwordSupport = page.locator('[data-wireflow-screen="AUTH-008"] .wf-auth-info');
+  await expect(passwordForm.getByLabel("6자리 인증 코드")).toHaveValue("111222");
+  await expectBox(passwordForm, {
+    x: [15.5, 16.5],
+    y: [79.5, 80.5],
+    width: [360.5, 361.5],
+    height: [446, 447],
+  });
+  await expectBox(passwordSupport, {
+    x: [15.5, 16.5],
+    y: [542, 543],
+    width: [360.5, 361.5],
+    height: [205, 207],
+  });
+
+  for (const width of [320, 430]) {
+    await page.setViewportSize({ width, height: 852 });
+    await page.reload();
+    await expect(passwordForm).toBeVisible();
+    await expectBox(passwordForm, {
+      x: [15.5, 16.5],
+      width: [width - 32.5, width - 31.5],
+    });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
 });
 
 test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 하단 메뉴를 유지한다", async ({
