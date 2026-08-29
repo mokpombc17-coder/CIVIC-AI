@@ -19,14 +19,26 @@ describe("chat message viewport state", () => {
   it("진입 목표에 맞는 초기 스크롤 row를 찾는다", () => {
     const items = [
       { kind: "date-separator" as const },
-      { kind: "message" as const },
+      { kind: "message" as const, messageId: "message-01" },
       { afterSequence: 13, kind: "read-boundary" as const },
-      { kind: "message" as const },
+      { kind: "message" as const, messageId: "message-02" },
     ];
 
     expect(findChatMessageInitialScrollIndex(items, { kind: "pending" })).toBeNull();
     expect(findChatMessageInitialScrollIndex(items, { kind: "latest" })).toBe(3);
     expect(findChatMessageInitialScrollIndex(items, { kind: "first-message" })).toBe(1);
+    expect(
+      findChatMessageInitialScrollIndex(items, {
+        kind: "message",
+        messageId: "message-02",
+      }),
+    ).toBe(3);
+    expect(
+      findChatMessageInitialScrollIndex(items, {
+        kind: "message",
+        messageId: "message-missing",
+      }),
+    ).toBeNull();
     expect(
       findChatMessageInitialScrollIndex(items, {
         afterSequence: 13,

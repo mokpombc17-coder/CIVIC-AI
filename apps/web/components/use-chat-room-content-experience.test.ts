@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createChatRoomMessageHistoryFeedback,
+  createChatRoomMessageNavigationFeedback,
   toChatRoomErrorMessage,
 } from "./use-chat-room-content-experience";
 
@@ -71,5 +72,41 @@ describe("ChatRoom content experience", () => {
 
   it("알 수 없는 오류에는 공통 fallback 문구를 사용한다", () => {
     expect(toChatRoomErrorMessage("unknown")).toBe("알 수 없는 오류가 발생했습니다.");
+  });
+
+  it("검색 메시지 이동의 loading, error, ready 상태를 구분한다", () => {
+    expect(
+      createChatRoomMessageNavigationFeedback({
+        error: null,
+        isError: false,
+        isPending: true,
+        messages: [],
+        targetMessageId: "message-01",
+      }),
+    ).toEqual({
+      kind: "notice",
+      message: "대화 위치로 이동하고 있습니다.",
+    });
+    expect(
+      createChatRoomMessageNavigationFeedback({
+        error: new Error("context failed"),
+        isError: true,
+        isPending: false,
+        messages: [],
+        targetMessageId: "message-01",
+      }),
+    ).toMatchObject({
+      kind: "error",
+      title: "대화 위치로 이동하지 못했습니다.",
+    });
+    expect(
+      createChatRoomMessageNavigationFeedback({
+        error: null,
+        isError: false,
+        isPending: false,
+        messages: [{} as never],
+        targetMessageId: "message-01",
+      }),
+    ).toBeNull();
   });
 });

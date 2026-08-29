@@ -9,15 +9,25 @@ import { useChatRoomMessageExperience } from "@/components/use-chat-room-message
 import { useChatRoomReadExperience } from "@/components/use-chat-room-read-experience";
 import type { ChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";
 import { useChatRoomParticipantProfiles } from "@/components/use-chat-room-screen-data";
+import type { RoomMessageContextController } from "@/components/use-room-message-context";
 import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
 import { createChatRoomEntryErrorPresentation } from "@/lib/chat/chat-room-entry-error-presentation";
+import { createRoomMessageContextErrorPresentation } from "@/lib/chat/chat-room-message-search-error-presentation";
 
-export function useChatRoomContentExperience(roomId: string, realtime: ChatRoomRealtimeExperience) {
+export function useChatRoomContentExperience(
+  roomId: string,
+  realtime: ChatRoomRealtimeExperience,
+  messageNavigation: RoomMessageContextController,
+) {
   const { coordinator, messageHistory, receiptStateQuery, session } = realtime;
   const roomQuery = useRoomDetailsQuery(roomId);
   const participantProfiles = useChatRoomParticipantProfiles(roomId, {
     enabled: session.isActive,
   });
+  const messageNavigationActive = messageNavigation.selectedMessageId !== null;
+  const confirmedMessages = messageNavigationActive
+    ? messageNavigation.messages
+    : messageHistory.messages;
   const { fetchNextPage } = messageHistory;
   const room = roomQuery.data;
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
@@ -47,11 +57,12 @@ export function useChatRoomContentExperience(roomId: string, realtime: ChatRoomR
     roomStatus: room?.status,
   });
   const message = useChatRoomMessageExperience({
-    confirmedMessages: messageHistory.messages,
+    confirmedMessages,
     enabled: session.isActive,
     generation: session.generation,
+    includeOutgoingMessages: !messageNavigationActive,
     participantProfiles,
-    readBoundaryAfterSequence: read.readBoundaryAfterSequence,
+    readBoundaryAfterSequence: messageNavigationActive ? null : read.readBoundaryAfterSequence,
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,
     roomId,
@@ -80,26 +91,39 @@ export function useChatRoomContentExperience(roomId: string, realtime: ChatRoomR
     }),
     messageActions: message.actions,
     messageHistory: {
-      canLoadOlder: messageHistory.hasNextPage,
-      entryNavigation: read.entryNavigationNotice,
-      feedback: createChatRoomMessageHistoryFeedback({
-        error: messageHistory.error,
-        isActive: session.isActive,
-        isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
-        isPending: messageHistory.isPending,
-        messageCount: message.messageItems.length,
-      }),
-      initialScrollTarget: read.initialScrollTarget,
-      isLoadingOlder: messageHistory.isFetchingNextPage,
+      canLoadOlder: messageNavigationActive ? false : messageHistory.hasNextPage,
+      entryNavigation: messageNavigationActive ? null : read.entryNavigationNotice,
+      feedback: messageNavigationActive
+        ? createChatRoomMessageNavigationFeedback(messageNavigation)
+        : createChatRoomMessageHistoryFeedback({
+            error: messageHistory.error,
+            isActive: session.isActive,
+            isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
+            isPending: messageHistory.isPending,
+            messageCount: message.messageItems.length,
+          }),
+      initialScrollTarget:
+        messageNavigationActive && messageNavigation.targetMessageId
+          ? ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
+          : messageNavigationActive
+            ? ({ kind: "pending" } as const)
+            : read.initialScrollTarget,
+      isLoadingOlder: messageNavigationActive ? false : messageHistory.isFetchingNextPage,
       items: message.viewportItems,
       latestConfirmedSequence,
       onLoadOlder: loadOlder,
+      onNavigateToLatest: messageNavigationActive ? messageNavigation.closeContext : null,
       onOpenMessageActions: message.actions.openMessageActions,
       onReadThroughSequence: read.onReadThroughSequence,
-      onRetry: () => void messageHistory.refetch(),
-      readStateEnabled: read.readStateEnabled,
+      onRetry: messageNavigationActive
+        ? () => void messageNavigation.retry()
+        : () => void messageHistory.refetch(),
+      readStateEnabled: read.readStateEnabled && !messageNavigationActive,
       roomLabel: `${roomId} 메시지`,
-      viewportKey: message.viewportKey,
+      targetMessageId: messageNavigationActive ? messageNavigation.targetMessageId : null,
+      viewportKey: messageNavigationActive
+        ? `${message.viewportKey}:message-navigation:${messageNavigation.selectedMessageId}`
+        : message.viewportKey,
     },
     participantDisplayNames: message.participantDisplayNames,
     room,
@@ -110,6 +134,38 @@ export function useChatRoomContentExperience(roomId: string, realtime: ChatRoomR
         }
       : null,
   };
+}
+
+export function createChatRoomMessageNavigationFeedback(
+  navigation: Pick<
+    RoomMessageContextController,
+    "error" | "isError" | "isPending" | "messages" | "targetMessageId"
+  >,
+): ChatMessageHistoryFeedback | null {
+  if (navigation.isPending && navigation.messages.length === 0) {
+    return {
+      kind: "notice",
+      message: "대화 위치로 이동하고 있습니다.",
+    };
+  }
+
+  if (navigation.isError) {
+    const presentation = createRoomMessageContextErrorPresentation(navigation.error);
+    return {
+      kind: "error",
+      message: presentation.detail,
+      title: "대화 위치로 이동하지 못했습니다.",
+    };
+  }
+
+  if (navigation.targetMessageId !== null && navigation.messages.length === 0) {
+    return {
+      kind: "notice",
+      message: "이동할 메시지를 찾지 못했습니다.",
+    };
+  }
+
+  return null;
 }
 
 export function createChatRoomMessageHistoryFeedback({

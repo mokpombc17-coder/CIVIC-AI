@@ -13,6 +13,7 @@ type ChatRoomMessageExperienceInput = Readonly<{
   confirmedMessages: readonly ChatMessage[];
   enabled: boolean;
   generation: number;
+  includeOutgoingMessages?: boolean;
   participantProfiles: readonly RoomMembershipListItem[];
   readBoundaryAfterSequence: number | null;
   receiptState: ChatRoomReadReceiptState | undefined;
@@ -25,6 +26,7 @@ export function useChatRoomMessageExperience({
   confirmedMessages,
   enabled,
   generation,
+  includeOutgoingMessages = true,
   participantProfiles,
   readBoundaryAfterSequence,
   receiptState,
@@ -42,7 +44,7 @@ export function useChatRoomMessageExperience({
   const presentation = useChatRoomMessagePresentation({
     confirmedMessages,
     mutationStates: mutations.states,
-    outgoingMessages,
+    outgoingMessages: includeOutgoingMessages ? outgoingMessages : [],
     participantProfiles,
     readBoundaryAfterSequence,
     receiptState,

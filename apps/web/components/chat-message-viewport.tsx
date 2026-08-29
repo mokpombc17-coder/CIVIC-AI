@@ -50,12 +50,14 @@ export type ChatMessageViewportViewModel = Readonly<{
   items: readonly ChatMessageViewportItemViewModel[];
   latestConfirmedSequence: number | null;
   onLoadOlder: () => Promise<ChatMessageViewportLoadOlderResult>;
+  onNavigateToLatest?: (() => void) | null;
   onOpenMessageActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
   onReadThroughSequence: (throughSequence: number) => void;
   onRetry: () => void;
   readStateEnabled: boolean;
   readStatePaused: boolean;
   roomLabel: string;
+  targetMessageId?: string | null;
   viewportKey: string;
 }>;
 
@@ -237,7 +239,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     latestScrollFramesRef.current.scroll = requestAnimationFrame(() => {
       latestScrollFramesRef.current.scroll = null;
       virtualizerRef.current.scrollToIndex(targetIndex, {
-        align: "start",
+        align: initialScrollTarget.kind === "message" ? "center" : "start",
       });
 
       const settleAtTarget = (remainingFrames: number) => {
@@ -255,7 +257,18 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
           if (targetElement) {
             const currentOffset =
               targetElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
-            scrollElement.scrollTop += currentOffset;
+            const targetOffset =
+              initialScrollTarget.kind === "message"
+                ? Math.max(
+                    0,
+                    (scrollElement.clientHeight - targetElement.getBoundingClientRect().height) / 2,
+                  )
+                : 0;
+            scrollElement.scrollTop += currentOffset - targetOffset;
+
+            if (initialScrollTarget.kind === "message") {
+              targetElement.focus({ preventScroll: true });
+            }
           }
 
           if (remainingFrames > 1) {
@@ -584,6 +597,11 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   }
 
   function handleJumpToLatest() {
+    if (history.onNavigateToLatest) {
+      history.onNavigateToLatest();
+      return;
+    }
+
     viewportPositionRef.current = "pinned";
     dispatch({ type: "jump-to-latest" });
     scrollToLatest();
@@ -615,6 +633,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
 
       <ChatMessageViewportNewMessagesButton
         count={viewportState.unseenMessageCount}
+        label={history.onNavigateToLatest ? "최신 대화로 이동" : undefined}
         onJumpToLatest={handleJumpToLatest}
       />
 
@@ -653,6 +672,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
                   measureElement={virtualizer.measureElement}
                   onOpenMessageActions={history.onOpenMessageActions}
                   start={virtualItem.start}
+                  targetMessageId={history.targetMessageId ?? null}
                   virtualIndex={virtualItem.index}
                 />
               );

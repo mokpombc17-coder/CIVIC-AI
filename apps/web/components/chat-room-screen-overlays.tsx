@@ -56,9 +56,9 @@ export function ChatRoomScreenMessageSearchPanel({
 }>) {
   return (
     <ChatRoomMessageSearchPanel
-      context={messageSearchPanel.context}
       controller={messageSearchPanel.controller}
       onClose={messageSearchPanel.onClose}
+      onNavigateToMessage={messageSearchPanel.onNavigateToMessage}
       participantDisplayNames={participantDisplayNames}
     />
   );

@@ -60,6 +60,13 @@ describe("ChatMessageViewport presentation", () => {
     const buttonMarkup = renderToStaticMarkup(
       <ChatMessageViewportNewMessagesButton count={3} onJumpToLatest={vi.fn()} />,
     );
+    const navigationMarkup = renderToStaticMarkup(
+      <ChatMessageViewportNewMessagesButton
+        count={0}
+        label="최신 대화로 이동"
+        onJumpToLatest={vi.fn()}
+      />,
+    );
     const announcementMarkup = renderToStaticMarkup(
       <ChatMessageViewportArrivalAnnouncement
         announcement={{ id: 1, message: "새 메시지가 도착했습니다." }}
@@ -70,6 +77,8 @@ describe("ChatMessageViewport presentation", () => {
     expect(buttonMarkup).toContain("최신 메시지로 이동");
     expect(buttonMarkup).toContain("bg-[var(--chat-publishing-color-primary)]");
     expect(buttonMarkup).not.toContain("bg-slate-950");
+    expect(navigationMarkup).toContain('aria-label="최신 대화로 이동"');
+    expect(navigationMarkup).toContain("최신 대화로 이동");
     expect(announcementMarkup).toContain('aria-live="polite"');
     expect(announcementMarkup).toContain("새 메시지가 도착했습니다.");
   });

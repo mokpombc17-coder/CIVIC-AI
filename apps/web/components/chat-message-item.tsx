@@ -3,6 +3,7 @@ import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model
 import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
 
 type ChatMessageItemProps = Readonly<{
+  isNavigationTarget?: boolean;
   item: ChatMessageItemViewModel;
   onOpenActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
   style: CSSProperties;
@@ -10,7 +11,10 @@ type ChatMessageItemProps = Readonly<{
 }>;
 
 export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
-  function ChatMessageItem({ item, onOpenActions, style, virtualIndex }, ref) {
+  function ChatMessageItem(
+    { isNavigationTarget = false, item, onOpenActions, style, virtualIndex },
+    ref,
+  ) {
     const failed = item.deliveryTone === "error";
     const bubbleClassName = `w-fit min-w-0 max-w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
       item.isDeleted
@@ -29,16 +33,19 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
 
     return (
       <li
+        aria-current={isNavigationTarget ? "true" : undefined}
         className={`flex ${item.isMine ? "justify-end" : "justify-start"}`}
         data-client-message-id={item.clientMessageId}
         data-delivery-status={item.deliveryStatus ?? undefined}
         data-index={virtualIndex}
+        data-navigation-target={isNavigationTarget ? "true" : undefined}
         data-render-key={item.renderKey}
         data-room-sequence={item.roomSequence ?? undefined}
         data-sender-group-end={item.endsSenderGroup ? "true" : "false"}
         data-sender-group-start={item.startsSenderGroup ? "true" : "false"}
         ref={ref}
         style={style}
+        tabIndex={isNavigationTarget ? -1 : undefined}
       >
         <div
           className="relative flex w-fit min-w-0 max-w-[82%] flex-col"

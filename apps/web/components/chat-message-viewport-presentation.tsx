@@ -138,24 +138,28 @@ export function ChatMessageViewportArrivalAnnouncement({
 
 export function ChatMessageViewportNewMessagesButton({
   count,
+  label,
   onJumpToLatest,
 }: Readonly<{
   count: number;
+  label?: string | undefined;
   onJumpToLatest: () => void;
 }>) {
-  if (count <= 0) {
+  if (count <= 0 && !label) {
     return null;
   }
+
+  const accessibleLabel = label ?? `새 메시지 ${count}개, 최신 메시지로 이동`;
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-5">
       <button
-        aria-label={`새 메시지 ${count}개, 최신 메시지로 이동`}
+        aria-label={accessibleLabel}
         className="pointer-events-auto rounded-full bg-[var(--chat-publishing-color-primary)] px-4 py-2 text-sm font-bold text-white shadow-[0_8px_24px_rgba(18,20,23,0.16)] transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         onClick={onJumpToLatest}
         type="button"
       >
-        새 메시지 {count}개 <span aria-hidden="true">↓</span>
+        {label ?? `새 메시지 ${count}개`} <span aria-hidden="true">↓</span>
       </button>
     </div>
   );
@@ -166,12 +170,14 @@ export function ChatMessageViewportVirtualRow({
   measureElement,
   onOpenMessageActions,
   start,
+  targetMessageId,
   virtualIndex,
 }: Readonly<{
   item: ChatMessageViewportItemViewModel;
   measureElement: RefCallback<HTMLLIElement>;
   onOpenMessageActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
   start: number;
+  targetMessageId?: string | null;
   virtualIndex: number;
 }>) {
   const style: CSSProperties = {
@@ -208,6 +214,7 @@ export function ChatMessageViewportVirtualRow({
 
   return (
     <ChatMessageItem
+      isNavigationTarget={item.item.messageId === targetMessageId}
       item={item.item}
       onOpenActions={onOpenMessageActions}
       ref={measureElement}

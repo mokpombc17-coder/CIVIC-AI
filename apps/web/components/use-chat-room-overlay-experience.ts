@@ -10,6 +10,7 @@ import { useChatRoomMessageSearchExperience } from "@/components/use-chat-room-m
 type ChatRoomOverlayExperienceOptions = Readonly<{
   generation: number;
   hasMessageActions: boolean;
+  onNavigateToMessage: (messageId: string) => void;
   roomActive: boolean;
   roomAvailable: boolean;
 }>;
@@ -23,11 +24,18 @@ type ChatRoomOverlayExperienceState = Readonly<{
 
 export function useChatRoomOverlayExperience(
   roomId: string,
-  { generation, hasMessageActions, roomActive, roomAvailable }: ChatRoomOverlayExperienceOptions,
+  {
+    generation,
+    hasMessageActions,
+    onNavigateToMessage,
+    roomActive,
+    roomAvailable,
+  }: ChatRoomOverlayExperienceOptions,
 ) {
   const membershipDialog = useChatRoomMembershipDialog(roomId);
   const messageSearchPanel = useChatRoomMessageSearchExperience(roomId, {
     generation,
+    onNavigateToMessage,
     roomActive,
   });
   const state = createChatRoomOverlayExperienceState({
@@ -54,8 +62,8 @@ export function useChatRoomOverlayExperience(
       onClose: membershipDialog.close,
     },
     messageSearchPanel: {
-      context: messageSearchPanel.context,
       controller: messageSearchPanel.controller,
+      onNavigateToMessage: messageSearchPanel.onNavigateToMessage,
       onClose: messageSearchPanel.close,
       visible: state.searchPanelVisible,
     },

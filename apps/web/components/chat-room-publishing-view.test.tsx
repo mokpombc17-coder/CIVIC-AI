@@ -128,6 +128,14 @@ describe("chat room publishing view", () => {
     expect(end).toContain("오전 10:14");
   });
 
+  it("검색으로 이동한 메시지를 현재 항목으로 표시하고 focus 대상으로 만든다", () => {
+    const html = renderMessage({ messageId: "message-01" }, true);
+
+    expect(html).toContain('aria-current="true"');
+    expect(html).toContain('data-navigation-target="true"');
+    expect(html).toContain('tabindex="-1"');
+  });
+
   it("전송 중 상태를 확정 bubble 스타일과 동일하게 유지하고 지연 indicator로 표시한다", () => {
     const html = renderMessage({
       canOpenActions: false,
@@ -220,7 +228,10 @@ describe("chat room publishing view", () => {
   });
 });
 
-function renderMessage(patch: Partial<ChatMessageItemViewModel>): string {
+function renderMessage(
+  patch: Partial<ChatMessageItemViewModel>,
+  isNavigationTarget = false,
+): string {
   const item: ChatMessageItemViewModel = {
     canOpenActions: true,
     canMutate: true,
@@ -248,6 +259,7 @@ function renderMessage(patch: Partial<ChatMessageItemViewModel>): string {
 
   return renderToStaticMarkup(
     createElement(ChatMessageItem, {
+      isNavigationTarget,
       item,
       onOpenActions: vi.fn(),
       style: {},

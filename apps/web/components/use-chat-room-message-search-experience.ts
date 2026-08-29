@@ -2,44 +2,52 @@
 
 import { useCallback, useEffect } from "react";
 import { useChatRoomMessageSearchPanel } from "@/components/use-chat-room-message-search-dialog";
-import { useRoomMessageContext } from "@/components/use-room-message-context";
 import { useRoomMessageSearch } from "@/components/use-room-message-search";
 
 type ChatRoomMessageSearchExperienceOptions = Readonly<{
   generation: number;
+  onNavigateToMessage: (messageId: string) => void;
   roomActive: boolean;
 }>;
 
 type ChatRoomMessageSearchCloseActions = Readonly<{
   clearSearch: () => void;
-  closeContext: () => void;
   closeDialog: () => void;
+}>;
+
+type ChatRoomMessageSearchNavigationActions = Readonly<{
+  closeSearch: () => void;
+  messageId: string;
+  onNavigateToMessage: (messageId: string) => void;
 }>;
 
 export function useChatRoomMessageSearchExperience(
   roomId: string,
-  { generation, roomActive }: ChatRoomMessageSearchExperienceOptions,
+  { generation, onNavigateToMessage, roomActive }: ChatRoomMessageSearchExperienceOptions,
 ) {
   const panel = useChatRoomMessageSearchPanel(roomId);
   const controller = useRoomMessageSearch(roomId, {
     enabled: roomActive && panel.isOpen,
     generation,
   });
-  const context = useRoomMessageContext(roomId, {
-    enabled: roomActive && panel.isOpen,
-    generation,
-    searchSessionGeneration: controller.sessionGeneration,
-  });
   const { clearSearch } = controller;
-  const { closeContext } = context;
   const { close: closeDialog } = panel;
   const close = useCallback(() => {
     closeChatRoomMessageSearchExperience({
       clearSearch,
-      closeContext,
       closeDialog,
     });
-  }, [clearSearch, closeContext, closeDialog]);
+  }, [clearSearch, closeDialog]);
+  const navigateToMessage = useCallback(
+    (messageId: string) => {
+      navigateFromChatRoomMessageSearch({
+        closeSearch: close,
+        messageId,
+        onNavigateToMessage,
+      });
+    },
+    [close, onNavigateToMessage],
+  );
 
   useEffect(() => {
     if (shouldCloseChatRoomMessageSearchExperience(panel.isOpen, roomActive)) {
@@ -49,20 +57,27 @@ export function useChatRoomMessageSearchExperience(
 
   return {
     close,
-    context,
     controller,
     isOpen: panel.isOpen,
     open: panel.open,
+    onNavigateToMessage: navigateToMessage,
     triggerRef: panel.triggerRef,
   };
 }
 
+export function navigateFromChatRoomMessageSearch({
+  closeSearch,
+  messageId,
+  onNavigateToMessage,
+}: ChatRoomMessageSearchNavigationActions): void {
+  onNavigateToMessage(messageId);
+  closeSearch();
+}
+
 export function closeChatRoomMessageSearchExperience({
   clearSearch,
-  closeContext,
   closeDialog,
 }: ChatRoomMessageSearchCloseActions): void {
-  closeContext();
   clearSearch();
   closeDialog();
 }

@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   ChatRoomMessageSearchPanel,
-  type ChatRoomMessageContextPanelController,
   type ChatRoomMessageSearchPanelController,
 } from "@/components/chat-room-message-search-dialog";
 import { ChatApiError } from "@/lib/chat/chat-fetch";
@@ -47,6 +46,8 @@ describe("Room message search panel", () => {
     expect(html).toContain('data-message-id="message-1"');
     expect(html).toContain("참여자 2");
     expect(html).toContain("알 수 없음");
+    expect(html).toContain("이동 하기");
+    expect(html).not.toContain("주변 대화 보기");
     expect(html).toContain("환경 정책입니다.");
     expect(html).toContain("max-h-[min(240px,38dvh)]");
   });
@@ -98,56 +99,14 @@ describe("Room message search panel", () => {
     expect(html).toContain("같은 요청을 자동으로 반복하지 않습니다.");
     expect(html).not.toContain(">다시 시도<");
   });
-
-  it("사라진 Context target은 전용 안내를 표시하고 재시도하지 않는다", () => {
-    const html = renderDialog({}, new Map(), {
-      error: createChatApiError(404, "MESSAGE_NOT_FOUND"),
-      isError: true,
-      selectedMessageId: "message-2",
-      targetMessageId: "message-2",
-    });
-
-    expect(html).toContain("메시지를 찾을 수 없습니다.");
-    expect(html).toContain("메시지가 삭제되었거나 더 이상 접근할 수 없습니다.");
-    expect(html).not.toContain(">다시 시도<");
-    expect(html).toContain("검색 결과로 돌아가기");
-    expect(html).toContain(">주변 대화</h2>");
-    expect(html).toContain(">닫기</button>");
-  });
-
-  it("검색 결과 Context를 별도 창에 ASC로 표시하고 target을 강조한다", () => {
-    const html = renderDialog({}, new Map([["membership-known", "참여자 2"]]), {
-      hasNewer: true,
-      hasOlder: true,
-      messages: [
-        createMessage("message-1", "membership-known", "이전 대화"),
-        createDeletedMessage("message-2", "membership-known"),
-        createMessage("message-3", "membership-known", "이후 대화"),
-      ],
-      selectedMessageId: "message-2",
-      targetMessageId: "message-2",
-      targetRoomSequence: 2,
-    });
-
-    expect(html).toContain('aria-label="검색 메시지 주변 대화"');
-    expect(html).toContain('data-context-target="true"');
-    expect(html).toContain('aria-current="true"');
-    expect(html).toContain("검색한 메시지");
-    expect(html).toContain("삭제된 메시지입니다.");
-    expect(html).toContain("이전 대화 더 보기");
-    expect(html).toContain("이후 대화 더 보기");
-    expect(html).toContain("검색 결과로 돌아가기");
-  });
 });
 
 function renderDialog(
   patch: Partial<ChatRoomMessageSearchPanelController> = {},
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
-  contextPatch: Partial<ChatRoomMessageContextPanelController> = {},
 ): string {
   return renderToStaticMarkup(
     createElement(ChatRoomMessageSearchPanel, {
-      context: createContextController(contextPatch),
       controller: {
         appliedQuery: undefined,
         applySearch: vi.fn(),
@@ -171,34 +130,10 @@ function renderDialog(
         ...patch,
       },
       onClose: vi.fn(),
+      onNavigateToMessage: vi.fn(),
       participantDisplayNames,
     }),
   );
-}
-
-function createContextController(
-  patch: Partial<ChatRoomMessageContextPanelController> = {},
-): ChatRoomMessageContextPanelController {
-  return {
-    closeContext: vi.fn(),
-    error: null,
-    failedDirection: null,
-    hasNewer: false,
-    hasOlder: false,
-    isError: false,
-    isLoadingNewer: false,
-    isLoadingOlder: false,
-    isPending: false,
-    loadNewer: vi.fn(async () => undefined),
-    loadOlder: vi.fn(async () => undefined),
-    messages: [],
-    openContext: vi.fn(),
-    retry: vi.fn(async () => undefined),
-    selectedMessageId: null,
-    targetMessageId: null,
-    targetRoomSequence: null,
-    ...patch,
-  };
 }
 
 function createChatApiError(status: number, code: string): ChatApiError {
@@ -232,21 +167,5 @@ function createMessage(
     createdAt: "2026-08-11T00:00:00Z",
     updatedAt: "2026-08-11T00:00:00Z",
     deletedAt: null,
-  };
-}
-
-function createDeletedMessage(
-  messageId: string,
-  senderMembershipId: string,
-): Extract<ChatMessage, { state: "DELETED_BY_AUTHOR" }> {
-  const activeMessage = createMessage(messageId, senderMembershipId, "삭제 전 내용");
-
-  return {
-    ...activeMessage,
-    content: null,
-    deletedAt: "2026-08-11T00:01:00Z",
-    messageVersion: 2,
-    state: "DELETED_BY_AUTHOR",
-    updatedAt: "2026-08-11T00:01:00Z",
   };
 }

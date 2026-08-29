@@ -17,11 +17,20 @@ export type ChatMessageViewportInitialScrollTarget =
   | Readonly<{
       afterSequence: number;
       kind: "read-boundary";
+    }>
+  | Readonly<{
+      kind: "message";
+      messageId: string;
     }>;
 
 type ChatMessageInitialScrollItem =
   | Readonly<{
-      kind: "date-separator" | "message";
+      kind: "date-separator";
+    }>
+  | Readonly<{
+      kind: "message";
+      item?: Readonly<{ messageId: string | null }>;
+      messageId?: string | null;
     }>
   | Readonly<{
       afterSequence: number;
@@ -96,6 +105,14 @@ export function findChatMessageInitialScrollIndex(
     case "read-boundary": {
       const index = items.findIndex(
         (item) => item.kind === "read-boundary" && item.afterSequence === target.afterSequence,
+      );
+      return index < 0 ? null : index;
+    }
+    case "message": {
+      const index = items.findIndex(
+        (item) =>
+          item.kind === "message" &&
+          (item.messageId ?? item.item?.messageId ?? null) === target.messageId,
       );
       return index < 0 ? null : index;
     }

@@ -1,20 +1,32 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   closeChatRoomMessageSearchExperience,
+  navigateFromChatRoomMessageSearch,
   shouldCloseChatRoomMessageSearchExperience,
 } from "./use-chat-room-message-search-experience";
 
 describe("ChatRoom message search experience", () => {
-  it("context와 검색 세션을 정리한 뒤 dialog를 닫는다", () => {
+  it("검색 세션을 정리한 뒤 dialog를 닫는다", () => {
     const calls: string[] = [];
 
     closeChatRoomMessageSearchExperience({
       clearSearch: vi.fn(() => calls.push("search")),
-      closeContext: vi.fn(() => calls.push("context")),
       closeDialog: vi.fn(() => calls.push("dialog")),
     });
 
-    expect(calls).toEqual(["context", "search", "dialog"]);
+    expect(calls).toEqual(["search", "dialog"]);
+  });
+
+  it("검색 결과 메시지로 이동한 뒤 검색 panel을 닫는다", () => {
+    const calls: string[] = [];
+
+    navigateFromChatRoomMessageSearch({
+      closeSearch: vi.fn(() => calls.push("close")),
+      messageId: "message-01",
+      onNavigateToMessage: vi.fn((messageId) => calls.push(`navigate:${messageId}`)),
+    });
+
+    expect(calls).toEqual(["navigate:message-01", "close"]);
   });
 
   it.each([

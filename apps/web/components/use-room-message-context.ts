@@ -63,6 +63,11 @@ export type UseRoomMessageContextParams = Readonly<{
   api?: Pick<ChatRoomApi, "getRoomMessages">;
 }>;
 
+type UseRoomMessageNavigationParams = Readonly<{
+  enabled: boolean;
+  generation: number;
+}>;
+
 export function useRoomMessageContext(
   roomId: string,
   { enabled, generation, searchSessionGeneration, api = chatRoomApi }: UseRoomMessageContextParams,
@@ -274,6 +279,19 @@ export function useRoomMessageContext(
     targetRoomSequence: contextQuery.data?.targetRoomSequence ?? null,
   };
 }
+
+export function useRoomMessageNavigation(
+  roomId: string,
+  { enabled, generation }: UseRoomMessageNavigationParams,
+) {
+  return useRoomMessageContext(roomId, {
+    enabled,
+    generation,
+    searchSessionGeneration: 0,
+  });
+}
+
+export type RoomMessageContextController = ReturnType<typeof useRoomMessageNavigation>;
 
 export function mergeRoomMessageContextWindow(
   roomId: string,
