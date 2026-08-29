@@ -5,6 +5,12 @@ import type { NextConfig } from "next";
 
 const appDirectory = fileURLToPath(new URL("./app", import.meta.url));
 
+export const MAIN_ASSET_PREFIX = "/main-assets";
+
+export function assetPrefixForEnvironment(environment: string | undefined): string | undefined {
+  return environment === "production" ? MAIN_ASSET_PREFIX : undefined;
+}
+
 function loopbackOrigin(rawValue: string | undefined, variableName: string): string | undefined {
   const rawOrigin = rawValue?.trim();
   if (!rawOrigin) return undefined;
@@ -61,7 +67,9 @@ function appRouteHandlers(directory: string, prefix = ""): string[] {
 
 validateDirectResourceRouteOwnership(appRouteHandlers(appDirectory));
 
+const assetPrefix = assetPrefixForEnvironment(process.env.NODE_ENV);
 const nextConfig: NextConfig = {
+  ...(assetPrefix ? { assetPrefix } : {}),
   output: "standalone",
   outputFileTracingRoot: path.join(process.cwd(), "../.."),
   poweredByHeader: false,
