@@ -26,11 +26,17 @@ import {
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 
-const statuses: readonly Readonly<{ label: string; value: RoomCreationStatus }>[] = [
+const statusLabels: Readonly<Record<RoomCreationStatus, string>> = {
+  PENDING: "승인 대기",
+  APPROVED: "승인",
+  REJECTED: "반려",
+  CANCELED: "취소",
+};
+
+const filterStatuses: readonly Readonly<{ label: string; value: RoomCreationStatus }>[] = [
   { value: "PENDING", label: "승인 대기" },
   { value: "APPROVED", label: "승인" },
   { value: "REJECTED", label: "반려" },
-  { value: "CANCELED", label: "취소" },
 ];
 
 export function AdminChatRequestScreen({
@@ -256,7 +262,7 @@ export function AdminChatRequestScreen({
                 />
               </label>
               <div aria-label="신청 상태" className="wf-admin-filters" role="group">
-                {statuses.map((option) => (
+                {filterStatuses.map((option) => (
                   <button
                     aria-pressed={status === option.value}
                     disabled={loading}
@@ -548,7 +554,7 @@ function StatusBadge({ status }: Readonly<{ status: RoomCreationStatus }>) {
 }
 
 function statusLabel(status: RoomCreationStatus): string {
-  return statuses.find((item) => item.value === status)?.label ?? status;
+  return statusLabels[status];
 }
 
 function roomPolicyLabel(visibility: string, joinPolicy: string): string {

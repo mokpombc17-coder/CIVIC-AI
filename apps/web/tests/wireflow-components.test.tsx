@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Route } from "next";
 import { describe, expect, it } from "vitest";
+import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ParticipantShell } from "@/components/shell/participant-shell";
@@ -84,6 +85,18 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain("문서 관리");
     expect(html).not.toContain("관리자 세션");
     expect(html).not.toContain("요청마다 권한 재확인");
+  });
+
+  it("채팅방 생성 요청 목록은 취소 상태 필터를 제공하지 않는다", () => {
+    const requestList = screenRegistry.find((screen) => screen.id === "A-CHAT-004");
+    if (!requestList) throw new Error("A-CHAT-004 missing");
+
+    const html = renderToStaticMarkup(<AdminChatRequestScreen query={{}} screen={requestList} />);
+
+    expect(html).toContain(">승인 대기</button>");
+    expect(html).toContain(">승인</button>");
+    expect(html).toContain(">반려</button>");
+    expect(html).not.toContain(">취소</button>");
   });
 
   it("shares accessible card, badge, field and button primitives", () => {
