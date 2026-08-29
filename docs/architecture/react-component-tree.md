@@ -48,6 +48,10 @@ ParticipantCatchAllPage [Server Route]
 │       │       └── 기존 frontend2 PlatformShell [정확히 1개]
 │       │           └── MainFunctionalScreen
 │       │               └── AccountFunctionalScreen [conditional]
+│       │                   ├── AccountHubSurface [/mypage, 로그아웃]
+│       │                   ├── AccountManagementSurface [/mypage/profile, 보안 포함]
+│       │                   ├── AccountSurveySurface [/mypage/survey, 읽기 전용]
+│       │                   └── DeactivationDialog [/mypage/deactivate]
 │       └── AdminShell
 │           └── MainFunctionalScreen
 ├── RAG
@@ -107,6 +111,11 @@ AdminCatchAllPage [Server Route]
 adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,
 `/vote`, `/mypage` navigation을 그대로 사용한다. 이관 전 실제 UI의 `/votes`, `/account` 주소도
 호환 별칭으로 같은 화면과 active menu에 매핑한다.
+
+계정 본문은 Figma `U-ACCOUNT-001..004`에 맞춰 `/mypage`, `/mypage/profile`,
+`/mypage/survey`, `/mypage/deactivate`로 나뉜다. 기존 강제 비밀번호 변경 복귀 주소인
+`/account/security`는 `/account/profile`의 호환 별칭으로 유지하며, 공통 header와 하단
+navigation은 `ParticipantShell`이 계속 소유한다.
 
 `/home`은 인증 없이 렌더링한다. Access Token cookie가 없는 경우 홈의 기능 동작과 하단 메뉴 중
 `/rag`, `/chat`, `/vote`, `/mypage`는 `/login?returnTo=...`로 연결하고, `/home` 메뉴는 공개 홈에

@@ -18,7 +18,8 @@ describe("canonical screen registry adapter", () => {
     expect(getScreenByRoute("/chat/")?.id).toBe("U-CHAT-001");
     expect(getScreenByRoute("/admin/tasks/results")?.id).toBe("A-TASK-005");
     expect(getScreenByRoute("/vote/results")?.id).toBe("U-VOTE-009");
-    expect(getScreenByRoute("/mypage/security")?.id).toBe("U-ACCOUNT-003");
+    expect(getScreenByRoute("/mypage/security")?.id).toBe("U-ACCOUNT-002");
+    expect(getScreenByRoute("/mypage/survey")?.id).toBe("U-ACCOUNT-003");
     expect(getScreenByRoute("/CHAT")).toBeUndefined();
     expect(getScreenByRoute("/unknown")).toBeUndefined();
   });

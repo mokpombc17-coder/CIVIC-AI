@@ -264,30 +264,30 @@
     },
     {
       "id": "U-ACCOUNT-001",
-      "canonical_title": "계정 홈",
+      "canonical_title": "계정",
       "audience": "PARTICIPANT",
       "route": "/account",
       "status": "FUNCTIONAL",
       "owner": "MAIN_AUTH",
-      "source_heading": "### U-ACCOUNT-001 계정 홈"
+      "source_heading": "### U-ACCOUNT-001 계정"
     },
     {
       "id": "U-ACCOUNT-002",
-      "canonical_title": "개인정보·설문 응답",
+      "canonical_title": "내 정보 관리",
       "audience": "PARTICIPANT",
       "route": "/account/profile",
       "status": "FUNCTIONAL",
       "owner": "MAIN_AUTH",
-      "source_heading": "### U-ACCOUNT-002 개인정보·설문 응답"
+      "source_heading": "### U-ACCOUNT-002 내 정보 관리"
     },
     {
       "id": "U-ACCOUNT-003",
-      "canonical_title": "보안 설정",
+      "canonical_title": "내 설문 보기",
       "audience": "PARTICIPANT",
-      "route": "/account/security",
+      "route": "/account/survey",
       "status": "FUNCTIONAL",
       "owner": "MAIN_AUTH",
-      "source_heading": "### U-ACCOUNT-003 보안 설정"
+      "source_heading": "### U-ACCOUNT-003 내 설문 보기"
     },
     {
       "id": "U-ACCOUNT-004",

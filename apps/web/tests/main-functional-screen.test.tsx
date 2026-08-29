@@ -29,6 +29,7 @@ import {
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
 import {
+  buildSurveySections,
   loadAccountProfile,
   normalizeTwoFactorCode,
   passwordConfirmationMatches,
@@ -408,7 +409,7 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("프로필 조회가 끝나기 전에는 기본값을 저장할 수 없다", () => {
-    const profile = mainScreens.find((screen) => screen.id === "U-ACCOUNT-001");
+    const profile = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
     if (!profile) throw new Error("profile screen missing");
 
     const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: profile }));
@@ -419,12 +420,12 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("프로필 조회가 끝나기 전에는 2FA 상태를 추정해 변경할 수 없다", () => {
-    const security = mainScreens.find((screen) => screen.id === "U-ACCOUNT-003");
+    const security = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
     if (!security) throw new Error("security screen missing");
 
     const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: security }));
 
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>2단계 인증 활성화<\/button>/u);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>인증 설정하기<\/button>/u);
   });
 
   it("RAG 실패 요약 조회 실패는 확인된 0건과 구분한다", async () => {
@@ -710,9 +711,9 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-009": "인증 코드 받기",
       "AUTH-010": "계정 재활성화",
       "U-HOME-001": "질문하기",
-      "U-ACCOUNT-001": "개인정보·설문",
-      "U-ACCOUNT-002": "필수 정보·동의 저장",
-      "U-ACCOUNT-003": "2단계 인증 활성화",
+      "U-ACCOUNT-001": "내 정보 관리",
+      "U-ACCOUNT-002": "변경사항 저장",
+      "U-ACCOUNT-003": "내 설문 보기",
       "U-ACCOUNT-004": "계정 비활성화",
       "A-HOME-001": "관리 현황",
       "A-USER-001": "사용자 상세",
@@ -911,25 +912,25 @@ describe("25 functional Main/Auth screens", () => {
       );
     };
 
-    const profile = renderAccount("U-ACCOUNT-001");
-    expect(profile).toContain('data-wireflow-layout="account-profile"');
-    expect(profile).toContain('aria-label="계정 설정"');
-    expect(profile).toContain("개인정보·설문");
-    expect(profile).toContain("보안");
-    expect(profile).toContain('class="wf-card wf-account-card"');
-    expect(profile).not.toContain("Account authority");
-    expect(profile).not.toContain('class="civic-account-summary"');
+    const hub = renderAccount("U-ACCOUNT-001");
+    expect(hub).toContain('data-wireflow-layout="account-hub"');
+    expect(hub).toContain('aria-label="계정 항목"');
+    expect(hub).toContain("내 정보 관리");
+    expect(hub).toContain("내 설문 보기");
+    expect(hub).toContain("로그아웃");
 
-    const validation = renderAccount("U-ACCOUNT-002");
-    expect(validation).toContain('data-wireflow-state="validation-error"');
-    expect(validation).toContain('role="alert"');
+    const management = renderAccount("U-ACCOUNT-002");
+    expect(management).toContain('data-wireflow-layout="account-management"');
+    expect(management).toContain("회원정보 수정");
+    expect(management).toContain("비밀번호 변경");
+    expect(management).toContain("2단계 인증");
+    expect(management).toContain("서비스 이용 동의");
+    expect(management).toContain("계정 관리");
 
-    const security = renderAccount("U-ACCOUNT-003");
-    expect(security).toContain('data-wireflow-layout="account-security"');
-    expect(security).toContain("2단계 인증 이메일");
-    expect(security).toContain("최근 변경");
-    expect(security.match(/class="wf-card wf-action-card"/g)).toHaveLength(2);
-    expect(security).toContain("로그아웃");
+    const survey = renderAccount("U-ACCOUNT-003");
+    expect(survey).toContain('data-wireflow-layout="account-survey"');
+    expect(survey).toContain("가입 시 제출한 설문입니다.");
+    expect(survey).toContain("서비스 설정");
 
     const deactivate = renderAccount("U-ACCOUNT-004");
     expect(deactivate).toContain('data-wireflow-layout="account-deactivate"');
@@ -937,6 +938,32 @@ describe("25 functional Main/Auth screens", () => {
     expect(deactivate).toContain('aria-modal="true"');
     expect(deactivate).toContain("계정을 비활성화할까요?");
     expect(deactivate).toContain("계정 유지");
+  });
+
+  it("확장 설문 응답이 있으면 Figma의 네 그룹으로 읽기 전용 표시한다", () => {
+    const sections = buildSurveySections({
+      user_id: "participant-1",
+      email: "participant@example.com",
+      role: "PARTICIPANT",
+      account_state: "ACTIVE",
+      preferred_language: "ko",
+      rag_answer_detail: "balanced",
+      two_factor_enabled: false,
+      response_version: 2,
+      survey_answers: {
+        gender: "남성",
+        address: "서울특별시 종로구 사직동",
+        birth_year: 1990,
+      },
+    });
+
+    expect(sections.map((section) => section.title)).toEqual([
+      "기본 정보",
+      "사회·경제",
+      "성향·매체",
+      "정치·기관 인식",
+    ]);
+    expect(sections[0]?.items).toContainEqual({ label: "출생연도", value: "1990년" });
   });
 
   it("관리자 사용자 표·단일 역할·간결한 사유 필드·감사 열을 유지한다", () => {

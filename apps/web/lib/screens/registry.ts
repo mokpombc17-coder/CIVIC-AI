@@ -52,6 +52,7 @@ export function getScreenByRoute(pathname: string): ScreenDefinition | undefined
     pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
   const normalized = withoutTrailingSlash
     .replace(/^\/vote(?=\/|$)/u, "/votes")
-    .replace(/^\/mypage(?=\/|$)/u, "/account");
+    .replace(/^\/mypage(?=\/|$)/u, "/account")
+    .replace(/^\/account\/security$/u, "/account/profile");
   return screensByRoute.get(normalized);
 }

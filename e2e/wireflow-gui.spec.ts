@@ -433,28 +433,38 @@ test("관리자 로그인 홈은 이름 왼쪽에 관리자·사용자 페이지
   await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
 });
 
-test("U-ACCOUNT는 최신 Wire Flow의 탭·보안 카드·비활성화 dialog를 유지한다", async ({
+test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dialog를 유지한다", async ({
   context,
   page,
 }) => {
   await authenticate(context, "participant.payload.signature");
 
   await page.goto("/account");
-  await expect(page.getByRole("heading", { name: "개인정보·설문 응답" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "계정 설정" })).toBeVisible();
-  await expect(
-    page.locator('[data-wireflow-layout="account-profile"] .wf-account-card'),
-  ).toHaveCount(1);
-  await expect(page.getByLabel("선호 언어")).toHaveValue("en");
-  await expect(page.getByLabel("답변 상세도")).toHaveValue("detailed");
+  await expect(page.getByRole("heading", { name: "계정" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "계정 항목" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /내 정보 관리/u })).toBeVisible();
+  await expect(page.getByRole("link", { name: /내 설문 보기/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: "로그아웃" })).toBeVisible();
 
-  await page.goto("/account/security");
-  await expect(page.getByRole("heading", { name: "보안 설정" })).toBeVisible();
-  await expect(page.getByText("2단계 인증 이메일", { exact: true })).toBeVisible();
-  await expect(page.getByText("최근 변경", { exact: true })).toBeVisible();
-  await expect(
-    page.locator('[data-wireflow-layout="account-security"] .wf-action-card'),
-  ).toHaveCount(2);
+  await page.goto("/account/profile");
+  await expect(page.getByRole("heading", { name: "내 정보 관리" })).toBeVisible();
+  await expect(page.getByLabel("선호 언어")).toHaveValue("en");
+  await expect(page.getByLabel("AI 답변 상세도")).toHaveValue("detailed");
+  await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
+  await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
+  await expect(page.getByText("서비스 이용 동의", { exact: true })).toBeVisible();
+  const accountManagement = page.getByRole("heading", { name: "계정 관리" });
+  await accountManagement.scrollIntoViewIfNeeded();
+  await expect(accountManagement).toBeVisible();
+
+  await page.goto("/account/survey");
+  await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
+  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "기본 정보" })).toBeVisible();
+  await expect(page.getByText("서울특별시 종로구 사직동", { exact: true })).toBeVisible();
+  const localTrust = page.getByText("약간 신뢰한다", { exact: true }).last();
+  await localTrust.scrollIntoViewIfNeeded();
+  await expect(localTrust).toBeVisible();
 
   await page.goto("/account/deactivate");
   const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
@@ -965,6 +975,23 @@ const profileFixture = {
   rag_answer_detail: "detailed",
   two_factor_enabled: true,
   response_version: 3,
+  survey_answers: {
+    gender: "남성",
+    address: "서울특별시 종로구 사직동",
+    birth_year: 1990,
+    marital_status: "미혼",
+    housing_type: "월세",
+    household_income: "연간 3천만원 이상~5천만원 미만",
+    education: "대학 졸업",
+    occupation: "사무직",
+    lifestyle: "조심스러운 편도, 모험을 즐기는 편도 아니다",
+    preferred_media: "인터넷, 소셜미디어",
+    moral_orientation: "기본적인 배려와 공정성을 중시하는 일반형",
+    political_ideology: "중도",
+    supporting_party: "지지정당 없음",
+    central_government_trust: "약간 신뢰한다",
+    local_government_trust: "약간 신뢰한다",
+  },
 };
 
 const adminUserFixture = {
