@@ -1,12 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
   readBillingPolicies,
+  readDailyUsage,
   readSimulationImportStatus,
   readSimulationPreview,
   readWalletSummary,
 } from "./simulation-billing-contracts";
 
 describe("simulation billing contracts", () => {
+  it("사용량 응답에서 내부 원가, 부담액과 모델 정보를 받지 않는다", () => {
+    const visible = {
+      day: "2026-08-29",
+      taskTitle: "교통 정책",
+      actorEmail: "admin@example.com",
+      personaCount: 20,
+      chargedKrw: 5_885,
+    };
+
+    expect(readDailyUsage([visible])).toEqual([visible]);
+    expect(
+      readDailyUsage([
+        {
+          ...visible,
+          model: "internal-model",
+          providerCostUsd: "0.77",
+          absorbedKrw: 10,
+        },
+      ]),
+    ).toBeNull();
+  });
+
   it("accepts safe integer KRW wallet values without an internal wallet id", () => {
     expect(
       readWalletSummary({

@@ -4134,7 +4134,7 @@ th {
 }
 
 [data-wireflow-shell="admin"] .civic-domain-impact-list > div {
-  border: 1px solid #fecaca;
+  border: 1px solid var(--civic-line);
   border-radius: var(--civic-radius);
   background: #fff;
   padding: 0.85rem;
@@ -4219,7 +4219,7 @@ th {
 
 [data-wireflow-shell="admin"] .civic-simulation-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 0.75rem;
 }
 
