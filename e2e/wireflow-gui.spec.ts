@@ -45,6 +45,10 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/documents") {
       return json(response, { items: [documentFixture] });
     }
+    if (url.pathname === "/internal/v1/rag/documents/document-1" && request.method === "DELETE") {
+      response.writeHead(204).end();
+      return;
+    }
     if (url.pathname === "/internal/v1/rag/jobs/job-1") {
       return json(response, {
         job_id: "job-1",
@@ -368,7 +372,7 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
   });
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toHaveCSS(
     "grid-template-columns",
-    /^250px /,
+    /^220px /,
   );
   for (const heading of [
     page.locator(".civic-folder-tree h2"),
@@ -378,13 +382,19 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
       "Iowan",
     );
   }
-  await expectBox(page.locator(".civic-folder-tree"), { width: [248, 252] });
+  await expectBox(page.locator(".civic-folder-tree"), { width: [218, 222] });
   await expect(page.locator(".civic-rag-admin-workspace")).toBeVisible();
   await expect(page.locator(".civic-document-inspector")).toHaveCount(0);
   const inlineUpload = page.locator("[data-rag-inline-upload]");
   await expect(inlineUpload).not.toHaveAttribute("open", "");
 
-  await page.getByRole("button", { name: "보기" }).click();
+  const documentRow = page.getByRole("row", { name: /2026_복지정책_기본계획\.pdf/u });
+  await expect(documentRow.getByRole("button", { name: "미리보기" })).toBeVisible();
+  const documentMenu = documentRow.locator('summary[aria-label$="추가 작업"]');
+  await documentMenu.click();
+  await expect(documentRow.getByRole("link", { name: "문서 삭제" })).toBeVisible();
+  await documentMenu.click();
+  await documentRow.getByRole("button", { name: "미리보기" }).click();
 
   const inspector = page.getByRole("dialog", { name: "2026_복지정책_기본계획.pdf" });
   await expect(inspector).toBeVisible();
@@ -520,12 +530,31 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(page.getByRole("heading", { name: "복지정책 폴더에 문서 업로드" })).toBeVisible();
   await expect(page.locator('[data-wireflow-layout="rag-upload"]')).toBeVisible();
   await expect(page.getByRole("heading", { name: "파일 선택" })).toBeVisible();
+  const uploadInput = page.locator('[data-wireflow-layout="rag-upload"] input[type="file"]');
+  await expect(uploadInput).toHaveAttribute("multiple", "");
+  await uploadInput.setInputFiles([
+    { name: "첫번째.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") },
+    { name: "두번째.docx", mimeType: "application/zip", buffer: Buffer.from("PK") },
+  ]);
+  await expect(page.getByRole("button", { name: "첫번째.pdf 업로드 목록에서 제거" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "두번째.docx 업로드 목록에서 제거" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "첫번째.pdf 업로드 목록에서 제거" }).click();
+  await expect(page.getByRole("button", { name: "첫번째.pdf 업로드 목록에서 제거" })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("button", { name: "두번째.docx 업로드 목록에서 제거" }),
+  ).toBeVisible();
 
   await page.goto("/admin/rag/jobs?jobId=job-1");
   await expect(page.getByRole("heading", { name: "문서 준비 상태" })).toBeVisible();
   await expect(page.locator('[data-wireflow-layout="rag-job-status"]')).toBeVisible();
   await expect(page.getByText("문서 준비 진행 상태", { exact: true })).toBeVisible();
   await expect(page.getByText("policy.pdf", { exact: true })).toBeVisible();
+  await expect(page.locator(".civic-job-file-mark .civic-file-icon")).toBeVisible();
+  await expect(page.locator(".civic-job-file-mark")).toContainText("PDF");
   await expect(page.getByText("문서 읽기 실패", { exact: true })).toBeVisible();
   const jobSteps = page.locator(".civic-job-timeline > li");
   await expect(jobSteps).toHaveCount(3);
@@ -553,6 +582,10 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(deleteDialog).toBeVisible();
   await expect(deleteDialog.getByText("2026_복지정책_기본계획.pdf", { exact: true })).toBeVisible();
   await expect(deleteDialog.getByRole("button", { name: "문서 삭제" })).toBeDisabled();
+  await deleteDialog.getByLabel("삭제 후 되돌릴 수 없음을 확인했습니다.").check();
+  await deleteDialog.getByRole("button", { name: "문서 삭제" }).click();
+  await expect(page).toHaveURL(/\/admin\/rag\?folderId=general$/u);
+  await expect(deleteDialog).toHaveCount(0);
 });
 
 test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계를 유지한다", async ({

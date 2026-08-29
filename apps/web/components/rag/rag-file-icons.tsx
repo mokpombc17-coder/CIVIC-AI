@@ -154,3 +154,18 @@ export function RagTreeChevron() {
     </svg>
   );
 }
+
+/** 업로드 대기열에서 선택한 파일을 제거하는 휴지통 아이콘. */
+export function RagTrashIcon() {
+  return (
+    <svg aria-hidden="true" className="civic-trash-icon" fill="none" viewBox="0 0 20 20">
+      <path
+        d="M4.75 6.25h10.5m-7.5 0V4.5h4.5v1.75m-6.5 0 .55 9.25h7.4l.55-9.25M8.4 8.7v4.4m3.2-4.4v4.4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}

@@ -1876,6 +1876,11 @@ body:has([data-wireflow-shell]) {
   padding: 0;
 }
 
+[data-wireflow-layout="rag-job-status"] .civic-job-batch {
+  display: grid;
+  gap: 24px;
+}
+
 [data-wireflow-layout="rag-job-status"] .civic-job-document {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1894,10 +1899,13 @@ body:has([data-wireflow-shell]) {
   height: 44px;
   place-items: center;
   border-radius: 9px;
-  background: #e7efff;
-  color: var(--wf-blue-dark);
-  font-size: 12px;
-  font-weight: 900;
+  border: 1px solid #d8e0eb;
+  background: #fff;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-file-mark .civic-file-icon {
+  width: 30px;
+  height: 38px;
 }
 
 [data-wireflow-layout="rag-job-status"] .civic-job-document > div {
@@ -3166,6 +3174,14 @@ body:has([data-wireflow-shell]) {
   :is(a, button, label):hover {
   background: #f2f6fc;
   text-decoration: none;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-row-actions .civic-row-menu-list a.is-danger {
+  color: #aa2e2e;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-row-actions .civic-row-menu-list a.is-danger:hover {
+  background: #fff1f0;
 }
 
 .civic-sort-button {

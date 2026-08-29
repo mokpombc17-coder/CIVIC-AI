@@ -211,14 +211,10 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
       admin.getByRole("button", { name: "업로드 시작" }).click(),
     ]);
     expect(completedUpload.status()).toBe(202);
-    await expect(admin.getByText("모든 파일을 접수했습니다")).toBeVisible();
-    const statusLink = admin.getByRole("link", { name: "처리 상태 보기" }).first();
-    await expect(statusLink).toBeVisible();
-    const statusHref = await statusLink.getAttribute("href");
-    const jobId = new URL(statusHref!, admin.url()).searchParams.get("jobId");
+    await expect(admin).toHaveURL(/\/admin\/rag\/jobs\?.*jobId=/u);
+    const jobId = new URL(admin.url()).searchParams.get("jobId");
     expect(jobId).toMatch(/^[0-9a-f-]{36}$/u);
     await waitForJob(admin, jobId!, "SUCCEEDED");
-    await statusLink.click();
     await admin.getByRole("button", { name: "상태 새로고침" }).click();
     await expect(admin.locator(".civic-job-summary")).toContainText("검색 준비완료");
     await expect(admin.locator(".civic-job-summary")).not.toContainText("SUCCEEDED");
