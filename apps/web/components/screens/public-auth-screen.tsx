@@ -36,7 +36,11 @@ export function PublicAuthScreen({
   return (
     <PlatformPageShell
       {...(backAction ? { backAction } : {})}
-      {...(activeId === "AUTH-002" ? { className: "civic-signup-account-shell" } : {})}
+      {...(activeId === "AUTH-001"
+        ? { className: "civic-login-shell" }
+        : activeId === "AUTH-002"
+          ? { className: "civic-signup-account-shell" }
+          : {})}
       bottomNavigation={null}
       title={header.title}
     >
