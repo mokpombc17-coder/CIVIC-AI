@@ -101,26 +101,60 @@ class RoomEventWebSocketIntegrationTest
             memberSession = connect(client, "user-2");
             BlockingQueue<byte[]> roomEvents =
                     new LinkedBlockingQueue<>();
+            BlockingQueue<byte[]> ownerSystemEvents =
+                    new LinkedBlockingQueue<>();
             BlockingQueue<byte[]> userEvents =
                     new LinkedBlockingQueue<>();
+            ownerSession.subscribe(
+                    "/user/queue/system-events",
+                    collectingHandler(ownerSystemEvents));
             ownerSession.subscribe(
                     "/topic/rooms/" + roomId + "/messages",
                     collectingHandler(new LinkedBlockingQueue<>()));
             ownerSession.subscribe(
                     "/topic/rooms/" + roomId + "/room-events",
                     collectingHandler(roomEvents));
-            waitUntil(() -> !subscriptions
-                    .findConnectionIdsByUserAndRoom(
-                            "owner-1",
-                            roomId)
-                    .isEmpty());
-            int subscriptionCount =
-                    subscriptions.activeSubscriptionCount();
+            ownerSession.subscribe(
+                    "/topic/rooms/" + roomId + "/read-receipts",
+                    collectingHandler(new LinkedBlockingQueue<>()));
+            String ownerSyncRequestId = uuid();
+            ownerSession.send(
+                    "/app/rooms/"
+                            + roomId
+                            + "/subscriptions/sync",
+                    new RoomSubscriptionSyncRequest(
+                            ownerSyncRequestId));
+            byte[] ownerReadyBytes = ownerSystemEvents.poll(
+                    5,
+                    TimeUnit.SECONDS);
+            assertThat(ownerReadyBytes).isNotNull();
+            JsonNode ownerReady = objectMapper.readTree(
+                    ownerReadyBytes);
+            assertThat(ownerReady.get("status").asText())
+                    .isEqualTo("READY");
+            assertThat(ownerReady.get("requestId").asText())
+                    .isEqualTo(ownerSyncRequestId);
+
             memberSession.subscribe(
                     "/user/queue/system-events",
                     collectingHandler(userEvents));
-            waitUntil(() -> subscriptions.activeSubscriptionCount()
-                    > subscriptionCount);
+            String memberSyncRequestId = uuid();
+            memberSession.send(
+                    "/app/rooms/"
+                            + roomId
+                            + "/subscriptions/sync",
+                    new RoomSubscriptionSyncRequest(
+                            memberSyncRequestId));
+            byte[] memberSyncBytes = userEvents.poll(
+                    5,
+                    TimeUnit.SECONDS);
+            assertThat(memberSyncBytes).isNotNull();
+            JsonNode memberSync = objectMapper.readTree(
+                    memberSyncBytes);
+            assertThat(memberSync.get("status").asText())
+                    .isEqualTo("REJECTED");
+            assertThat(memberSync.get("requestId").asText())
+                    .isEqualTo(memberSyncRequestId);
 
             RoomCommandExecution joined = commandService.joinRoom(
                     new JoinRoomCommand(
