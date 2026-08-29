@@ -101,20 +101,31 @@ const taskOptionSchema = z
   })
   .strict();
 
+const simulationResultOptionSchema = z
+  .object({
+    optionId: canonicalUuidSchema,
+    displayOrder: z.number().int(),
+    content: z.string().min(1),
+    count: z.number().int().nonnegative(),
+    percentage: z.number().min(0).max(100),
+  })
+  .strict();
+
 const simulationResultSchema = z
   .object({
-    schemaVersion: z.literal("CIVIC_TASK_SIMULATION_RESULT_V1"),
+    schemaVersion: z.literal("CIVIC_TASK_SIMULATION_RESULT_VIEW_V2"),
+    notice: z.literal("이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다."),
     task: z
       .object({
         id: canonicalUuidSchema,
         title: z.string().min(1),
-        description: z.string().nullable(),
-        status: z.string().min(1),
+        description: z.string().nullable().optional(),
+        status: z.string().min(1).optional(),
         question: z
           .object({
             id: canonicalUuidSchema,
             content: z.string().min(1),
-            description: z.string().nullable(),
+            description: z.string().nullable().optional(),
             options: z.array(taskOptionSchema).min(2),
           })
           .strict(),
@@ -124,112 +135,52 @@ const simulationResultSchema = z
       .object({
         personaCount: z.number().int().positive(),
         modelType: z.string().min(1),
-        sampleSeed: z.number().int().nullable(),
-        filters: z.record(z.string(), z.array(z.string())),
-        pricingFingerprint: z.string().min(1),
+        filters: z
+          .object({
+            genders: z.array(z.string().min(1)).optional(),
+            age_groups: z.array(z.string().min(1)).optional(),
+          })
+          .strict(),
       })
       .strict(),
+    denominators: z
+      .object({
+        total: z.number().int().nonnegative(),
+        filtered: z.number().int().nonnegative(),
+      })
+      .strict(),
+    optionResults: z.array(simulationResultOptionSchema),
+    unansweredCount: z.number().int().nonnegative(),
     summary: z
       .object({
-        requestedPersonaCount: z.number().int().positive(),
+        totalRespondentCount: z.number().int().nonnegative(),
+        filteredRespondentCount: z.number().int().nonnegative(),
         answeredPersonaCount: z.number().int().nonnegative(),
         unansweredPersonaCount: z.number().int().nonnegative(),
-        optionResults: z.array(
-          z
-            .object({
-              optionId: canonicalUuidSchema,
-              displayOrder: z.number().int(),
-              content: z.string().min(1),
-              count: z.number().int().nonnegative(),
-              percentage: z.number().min(0).max(100),
-            })
-            .strict(),
-        ),
+        optionResults: z.array(simulationResultOptionSchema),
       })
       .strict(),
-    respondents: z.array(
-      z
-        .object({
-          panelMemberOrdinal: z.number().int().positive(),
-          selectedOptionId: canonicalUuidSchema.nullable(),
-          reason: z.string().nullable(),
-          demographics: z
-            .object({
-              gender: z.string().nullable(),
-              ageGroup: z.string().nullable(),
-              region: z.string().nullable(),
-              politicalIdeology: z.string().nullable(),
-              informationType: z.string().nullable(),
-            })
-            .strict(),
-        })
-        .strict(),
-    ),
-    engine: z
+    availableFilters: z
       .object({
-        name: z.string().min(1),
-        sourceCommit: z.string().min(1),
-        modelType: z.string().nullable(),
-        elapsedSeconds: z.number().nonnegative().nullable(),
-        profileSha256: z.string().min(1),
-        networkSha256: z.string().min(1),
-        calibration: z
-          .object({
-            pipelineVersion: z.literal("CALIBRATED_PERSONA_PIPELINE_V2"),
-            contractVersion: z.literal("PERSONA_CALIBRATION_V2"),
-            answerDistributionModel: z.string().min(1),
-            assignmentModel: z.string().min(1),
-            answerDistribution: z.array(z.array(z.string().min(1))).min(1),
-            informationPracticeDistribution: z.array(z.string().min(1)).length(3),
-            assignedInformationPracticeCounts: z
-              .object({
-                A: z.number().int().nonnegative(),
-                B: z.number().int().nonnegative(),
-                C: z.number().int().nonnegative(),
-              })
-              .strict(),
-            targetPopulation: z.string().min(1),
-            referenceTime: z.string().min(1),
-            personaSetDigest: z.string().min(1),
-            proxyEligiblePersonaCount: z.number().int().nonnegative(),
-            supplementedPersonaCount: z.number().int().nonnegative(),
-            providerEvidence: z
-              .object({
-                totalProviderCalls: z.number().int().nonnegative(),
-                validatedProviderCalls: z.number().int().nonnegative(),
-                callsByStageAndModel: z.array(
-                  z
-                    .object({
-                      stage: z.string().min(1),
-                      model: z.string().min(1),
-                      count: z.number().int().positive(),
-                    })
-                    .strict(),
-                ),
-              })
-              .strict(),
-          })
-          .strict(),
-        externalInformation: z
-          .object({
-            sourceMode: z.string().nullable(),
-            keywordCount: z.number().int().nonnegative(),
-            collectedDocumentCount: z.number().int().nonnegative(),
-            documentCountsBySource: z.record(z.string(), z.number().int().nonnegative()),
-            documentCountsByNaverEndpoint: z
-              .object({
-                news: z.number().int().nonnegative(),
-                blog: z.number().int().nonnegative(),
-                cafearticle: z.number().int().nonnegative(),
-                webkr: z.number().int().nonnegative(),
-              })
-              .strict(),
-            personaSeenItemCount: z.number().int().nonnegative(),
-            providerCallCountsByStage: z.record(z.string(), z.number().int().nonnegative()),
-          })
-          .strict(),
-        personaWorkers: z.number().int().positive(),
-        innerWorkers: z.number().int().positive(),
+        genders: z.array(z.string().min(1)),
+        ageGroups: z.array(z.string().min(1)),
+      })
+      .strict(),
+    resultSlots: z.array(z.number().int().positive()),
+  })
+  .strict();
+
+const simulationResultDetailSchema = z
+  .object({
+    schemaVersion: z.literal("CIVIC_TASK_SIMULATION_SLOT_DETAIL_V1"),
+    notice: z.literal("이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다."),
+    resultSlot: z.number().int().positive(),
+    selectedOptionId: canonicalUuidSchema.nullable(),
+    reason: z.string().nullable(),
+    demographics: z
+      .object({
+        gender: z.string().nullable(),
+        ageGroup: z.string().nullable(),
       })
       .strict(),
   })
@@ -241,6 +192,7 @@ export type SimulationTaskSummary = TaskSummary &
 export type SimulationOptions = z.infer<typeof simulationOptionsSchema>;
 export type SimulationCapacity = z.infer<typeof simulationCapacitySchema>;
 export type SimulationResult = z.infer<typeof simulationResultSchema>;
+export type SimulationResultDetail = z.infer<typeof simulationResultDetailSchema>;
 
 export function readSimulationView(value: unknown): SimulationView | null {
   const parsed = simulationViewSchema.safeParse(value);
@@ -319,6 +271,11 @@ export function readSimulationCapacity(value: unknown): SimulationCapacity | nul
 
 export function readSimulationResult(value: unknown): SimulationResult | null {
   const parsed = simulationResultSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function readSimulationResultDetail(value: unknown): SimulationResultDetail | null {
+  const parsed = simulationResultDetailSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 

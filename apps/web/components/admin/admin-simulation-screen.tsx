@@ -10,10 +10,7 @@ import {
   SimulationBillingSection,
   SimulationSectionTabs,
 } from "@/components/admin/simulation-billing-panels";
-import {
-  AnonymousPanelAttributes,
-  PublicSimulationEvidence,
-} from "@/components/admin/simulation-result-presentation";
+import { AnonymousPanelAttributes } from "@/components/admin/simulation-result-presentation";
 import {
   formatAdminProblem,
   readAdminProblem,
@@ -31,6 +28,7 @@ import {
   readSimulationCapacity,
   readSimulationOptions,
   readSimulationResult,
+  readSimulationResultDetail,
   readSimulationTaskSummaries,
   readSimulationView,
   simulationTargetHref,
@@ -38,6 +36,7 @@ import {
   type SimulationCapacity,
   type SimulationOptions,
   type SimulationResult,
+  type SimulationResultDetail,
   type SimulationState,
   type SimulationTaskSummary,
   type SimulationView,
@@ -751,10 +750,11 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
       {result ? (
         <>
           <p className="civic-simulation-question">{result.task.question.content}</p>
+          <StatusMessage>{result.notice}</StatusMessage>
           <dl className="civic-domain-impact-list">
             <div>
               <dt>요청 패널</dt>
-              <dd>{result.summary.requestedPersonaCount}명</dd>
+              <dd>{result.run.personaCount}명</dd>
             </div>
             <div>
               <dt>응답 패널</dt>
@@ -768,9 +768,13 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
               <dt>실행 모델</dt>
               <dd>{result.run.modelType}</dd>
             </div>
+            <div>
+              <dt>현재 집계 기준</dt>
+              <dd>{result.denominators.filtered}명</dd>
+            </div>
           </dl>
           <ol className="civic-result-bars">
-            {result.summary.optionResults.map((option) => (
+            {result.optionResults.map((option) => (
               <li key={option.optionId}>
                 <div>
                   <strong>{option.content}</strong>
@@ -786,12 +790,19 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
               </li>
             ))}
           </ol>
-          <PublicSimulationEvidence engine={result.engine} />
-          {result.respondents.length > 0 ? (
+          <div className="civic-simulation-actions">
+            <a
+              className="civic-secondary-action"
+              href={`/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/export`}
+            >
+              XLSX 다운로드
+            </a>
+          </div>
+          {result.resultSlots[0] ? (
             <Link
               className="civic-secondary-action"
               href={
-                `/admin/simulations/panel/detail?simulationId=${encodeURIComponent(simulationId)}&ordinal=1` as Route
+                `/admin/simulations/panel/detail?simulationId=${encodeURIComponent(simulationId)}&ordinal=${result.resultSlots[0]}` as Route
               }
             >
               익명 패널 응답 상세 보기
@@ -808,22 +819,31 @@ function SimulationPanelDetail({
   query,
   simulationId,
 }: Readonly<{ query: AdminQuery; simulationId: string | null }>) {
-  const { message, result } = useSimulationResult(simulationId);
+  const { message: resultMessage, result } = useSimulationResult(simulationId);
   const requestedOrdinal = positiveInteger(first(query.ordinal)) ?? 1;
-  const respondent =
-    result?.respondents.find((item) => item.panelMemberOrdinal === requestedOrdinal) ?? null;
+  const { detail: respondent, message: detailMessage } = useSimulationResultDetail(
+    simulationId,
+    requestedOrdinal,
+  );
   const selected = result?.task.question.options.find(
     (item) => item.id === respondent?.selectedOptionId,
   );
+  const slotIndex = result?.resultSlots.indexOf(requestedOrdinal) ?? -1;
+  const previousSlot = slotIndex > 0 ? result?.resultSlots[slotIndex - 1] : null;
+  const nextSlot =
+    result && slotIndex >= 0 && slotIndex < result.resultSlots.length - 1
+      ? result.resultSlots[slotIndex + 1]
+      : null;
   if (!simulationId) return <MissingContext>확인할 패널 응답을 선택해 주세요.</MissingContext>;
   return (
     <section className="civic-domain-detail">
       {result && respondent ? (
         <>
           <section className="civic-domain-description">
-            <h2>익명 가상 패널 {respondent.panelMemberOrdinal}</h2>
+            <h2>익명 가상 패널 {respondent.resultSlot}</h2>
             <p>{respondent.reason ?? "응답 이유가 기록되지 않았습니다."}</p>
           </section>
+          <StatusMessage>{respondent.notice}</StatusMessage>
           <dl className="civic-domain-impact-list">
             <div>
               <dt>선택</dt>
@@ -832,19 +852,11 @@ function SimulationPanelDetail({
             <AnonymousPanelAttributes respondent={respondent} />
           </dl>
           <div className="civic-simulation-actions">
-            {requestedOrdinal > 1 ? (
-              <PanelLink
-                label="이전 패널"
-                ordinal={requestedOrdinal - 1}
-                simulationId={simulationId}
-              />
+            {previousSlot ? (
+              <PanelLink label="이전 패널" ordinal={previousSlot} simulationId={simulationId} />
             ) : null}
-            {requestedOrdinal < result.respondents.length ? (
-              <PanelLink
-                label="다음 패널"
-                ordinal={requestedOrdinal + 1}
-                simulationId={simulationId}
-              />
+            {nextSlot ? (
+              <PanelLink label="다음 패널" ordinal={nextSlot} simulationId={simulationId} />
             ) : null}
             <Link
               className="civic-secondary-action"
@@ -859,7 +871,9 @@ function SimulationPanelDetail({
       ) : result ? (
         <MissingContext>해당 순번의 익명 패널 응답이 없습니다.</MissingContext>
       ) : null}
-      {message ? <StatusMessage>{message}</StatusMessage> : null}
+      {resultMessage || detailMessage ? (
+        <StatusMessage>{resultMessage || detailMessage}</StatusMessage>
+      ) : null}
     </section>
   );
 }
@@ -1168,6 +1182,33 @@ function useSimulationResult(simulationId: string | null) {
     return () => window.clearTimeout(timer);
   }, [simulationId]);
   return { message, result };
+}
+
+function useSimulationResultDetail(simulationId: string | null, resultSlot: number) {
+  const [detail, setDetail] = useState<SimulationResultDetail | null>(null);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    if (!simulationId) return;
+    const timer = window.setTimeout(() => {
+      void authenticatedFetch(
+        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/${resultSlot}`,
+        { cache: "no-store" },
+      )
+        .then(async (response) => {
+          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          const next = readSimulationResultDetail(await response.json());
+          if (!next) throw new Error("서버의 익명 패널 응답 형식을 확인해야 합니다.");
+          setDetail(next);
+        })
+        .catch((error: unknown) =>
+          setMessage(
+            error instanceof Error ? error.message : "익명 패널 응답을 불러오지 못했습니다.",
+          ),
+        );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [resultSlot, simulationId]);
+  return { detail, message };
 }
 
 function TaskSnapshotCard({ task }: Readonly<{ task: TaskDetail | null }>) {
