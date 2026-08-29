@@ -7,16 +7,16 @@ describe("ParticipantHome", () => {
     const markup = renderToStaticMarkup(<ParticipantHome />);
 
     expect(markup).toContain('data-participant-home="true"');
-    expect(markup).toContain("배우고, 함께 토론하고, 결정합니다.");
+    expect(markup).toContain("의견을 가다듬고, 나누고, 담아내는 곳");
     expect(markup).toContain('href="/rag"');
     expect(markup).toContain('href="/chat"');
     expect(markup).toContain('href="/vote"');
-    expect(markup).toContain("무엇이 궁금한가요?");
-    expect(markup).toContain("함께 나누는 의견");
-    expect(markup).toContain("내 생각을 더하는 한 표");
+    expect(markup).toContain("어떤 점부터 짚어볼까요?");
+    expect(markup).toContain("서로 오가는 이야기");
+    expect(markup).toContain("논의에 보태는 내 의견");
     expect(markup).toContain("질문하기");
     expect(markup).toContain("토론하기");
-    expect(markup).toContain("참여하기");
+    expect(markup).toContain("투표하기");
   });
 
   it("홈 header용 CIVIC.AI 브랜드를 렌더링한다", () => {

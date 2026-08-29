@@ -108,6 +108,7 @@
   color: var(--participant-home-muted);
   font-size: 14px;
   line-height: 20.3px;
+  white-space: pre-line;
 }
 
 .actionControl {
