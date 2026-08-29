@@ -20,6 +20,7 @@ let removeCategoryOnNextPatch = false;
 let listedRoomQueries: string[] = [];
 let createdTaskIdempotencyKey: string | null = null;
 let latestSimulationState: "RUNNING" | "COMPLETED" | null = null;
+let simulationResultQueries: string[] = [];
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -131,6 +132,20 @@ test.beforeAll(async () => {
         },
       ]);
     }
+    if (
+      url.pathname === `/api/v1/admin/simulations/${simulationId}/results` &&
+      request.method === "GET"
+    ) {
+      simulationResultQueries.push(url.search);
+      return json(response, simulationResultFixture(url.searchParams.get("gender")));
+    }
+    if (
+      url.pathname.startsWith(`/api/v1/admin/simulations/${simulationId}/results/`) &&
+      request.method === "GET"
+    ) {
+      const resultSlot = Number(url.pathname.split("/").at(-1));
+      return json(response, simulationResultDetailFixture(resultSlot));
+    }
     if (url.pathname === "/api/v1/admin/tasks" && request.method === "POST") {
       createdTaskIdempotencyKey = request.headers["idempotency-key"] ?? null;
       if (!createdTaskIdempotencyKey) {
@@ -170,6 +185,7 @@ test.beforeEach(() => {
   listedRoomQueries = [];
   createdTaskIdempotencyKey = null;
   latestSimulationState = null;
+  simulationResultQueries = [];
 });
 
 test.afterAll(async () => close(server));
@@ -362,6 +378,30 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
   );
 });
 
+test("시뮬레이션 결과는 성별 필터·도넛 분포·응답 이유를 한 화면에서 탐색한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`/admin/simulations/results?simulationId=${simulationId}`);
+
+  await expect(page.getByRole("heading", { name: "주민참여예산 우선순위 조사" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /생활안전 강화 2명 66.7%/u })).toBeVisible();
+  await expect(page.getByText("골목길 안전을 먼저 개선해야 합니다.")).toBeVisible();
+
+  await page.getByRole("button", { name: "성별", exact: true }).click();
+  await page.getByRole("button", { name: "여성", exact: true }).click();
+  await expect.poll(() => simulationResultQueries).toContain("?gender=%EC%97%AC%EC%84%B1");
+  await expect(page.getByText(/성별 · 여성.*2명/u)).toBeVisible();
+
+  await page.getByRole("button", { name: /다음 결과/u }).click();
+  await expect(page.getByText("돌봄 공백을 줄이는 정책이 더 시급합니다.")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});
+
 test("관리자 Chat·Vote 화면은 200% 확대 대응 폭에서도 본문이 잘리지 않는다", async ({
   context,
   page,
@@ -504,6 +544,97 @@ function simulationFixture(state: "RUNNING" | "COMPLETED") {
     settledKrw: state === "COMPLETED" ? 9200 : null,
     absorbedKrw: 0,
     billingState: state === "COMPLETED" ? "SETTLED" : "HELD",
+  };
+}
+
+function simulationResultFixture(gender: string | null) {
+  const isWomen = gender === "여성";
+  const optionResults = [
+    {
+      optionId: "4928e1be-b4ef-45c6-bf83-17641cf4183d",
+      displayOrder: 1,
+      content: "생활안전 강화",
+      count: isWomen ? 1 : 2,
+      percentage: isWomen ? 50 : 66.67,
+    },
+    {
+      optionId: "879ba3de-0b84-412b-b51f-e879e9d8f6e2",
+      displayOrder: 2,
+      content: "돌봄·복지 확대",
+      count: 1,
+      percentage: isWomen ? 50 : 33.33,
+    },
+  ];
+  return {
+    schemaVersion: "CIVIC_TASK_SIMULATION_RESULT_VIEW_V2",
+    notice: "이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다.",
+    task: {
+      id: taskId,
+      title: "주민참여예산 우선순위 조사",
+      question: {
+        id: "0fb30319-91b2-419a-9bcb-90951bb4f3e9",
+        content: "주민참여예산을 한 분야에 우선 배정한다면 어디에 투자해야 합니까?",
+        options: [
+          {
+            id: "4928e1be-b4ef-45c6-bf83-17641cf4183d",
+            displayOrder: 1,
+            content: "생활안전 강화",
+          },
+          {
+            id: "879ba3de-0b84-412b-b51f-e879e9d8f6e2",
+            displayOrder: 2,
+            content: "돌봄·복지 확대",
+          },
+        ],
+      },
+    },
+    run: {
+      personaCount: 3,
+      modelType: "claude-sonnet-4-6",
+      filters: {},
+    },
+    denominators: { total: 3, filtered: isWomen ? 2 : 3 },
+    optionResults,
+    unansweredCount: 0,
+    summary: {
+      totalRespondentCount: 3,
+      filteredRespondentCount: isWomen ? 2 : 3,
+      answeredPersonaCount: isWomen ? 2 : 3,
+      unansweredPersonaCount: 0,
+      optionResults,
+    },
+    availableFilters: {
+      genders: ["남성", "여성"],
+      ageGroups: ["30대", "40대", "50대"],
+    },
+    resultSlots: isWomen ? [1, 3] : [1, 2, 3],
+  };
+}
+
+function simulationResultDetailFixture(resultSlot: number) {
+  const details = {
+    1: {
+      selectedOptionId: "4928e1be-b4ef-45c6-bf83-17641cf4183d",
+      reason: "골목길 안전을 먼저 개선해야 합니다.",
+      demographics: { gender: "여성", ageGroup: "30대" },
+    },
+    2: {
+      selectedOptionId: "4928e1be-b4ef-45c6-bf83-17641cf4183d",
+      reason: "보행 환경 개선이 모든 주민에게 도움이 됩니다.",
+      demographics: { gender: "남성", ageGroup: "40대" },
+    },
+    3: {
+      selectedOptionId: "879ba3de-0b84-412b-b51f-e879e9d8f6e2",
+      reason: "돌봄 공백을 줄이는 정책이 더 시급합니다.",
+      demographics: { gender: "여성", ageGroup: "50대" },
+    },
+  } as const;
+  const detail = details[resultSlot as keyof typeof details] ?? details[1];
+  return {
+    schemaVersion: "CIVIC_TASK_SIMULATION_SLOT_DETAIL_V1",
+    notice: "이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다.",
+    resultSlot,
+    ...detail,
   };
 }
 

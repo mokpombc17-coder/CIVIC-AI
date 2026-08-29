@@ -12,6 +12,10 @@ import {
 } from "@/components/admin/simulation-billing-panels";
 import { AnonymousPanelAttributes } from "@/components/admin/simulation-result-presentation";
 import {
+  SimulationResultExplorer,
+  type SimulationResultDimension,
+} from "@/components/admin/simulation-result-explorer";
+import {
   formatAdminProblem,
   readAdminProblem,
   readTaskDetail,
@@ -738,77 +742,59 @@ function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | nul
 }
 
 function SimulationResults({ simulationId }: Readonly<{ simulationId: string | null }>) {
-  const { message, result } = useSimulationResult(simulationId);
+  const [dimension, setDimension] = useState<SimulationResultDimension>("all");
+  const [filteredValue, setFilteredValue] = useState<string | null>(null);
+  const [requestedSlot, setRequestedSlot] = useState<number | null>(null);
+  const gender = dimension === "gender" ? filteredValue : null;
+  const ageGroup = dimension === "ageGroup" ? filteredValue : null;
+  const { loading, message, result } = useSimulationResult(simulationId, gender, ageGroup);
+  const requestedIndex = result && requestedSlot ? result.resultSlots.indexOf(requestedSlot) : -1;
+  const resultIndex = result && result.resultSlots.length > 0 ? Math.max(requestedIndex, 0) : -1;
+  const resultSlot = resultIndex >= 0 ? (result?.resultSlots[resultIndex] ?? null) : null;
+  const {
+    detail,
+    loading: detailLoading,
+    message: detailMessage,
+  } = useSimulationResultDetail(simulationId, resultSlot);
+
+  const changeDimension = (nextDimension: SimulationResultDimension) => {
+    setDimension(nextDimension);
+    setFilteredValue(null);
+    setRequestedSlot(null);
+  };
+
+  const changeFilteredValue = (value: string | null) => {
+    setFilteredValue(value);
+    setRequestedSlot(null);
+  };
+
   if (!simulationId)
     return <MissingContext>확인할 시뮬레이션 결과를 선택해 주세요.</MissingContext>;
   return (
     <section className="civic-domain-result">
-      <header>
-        <span>SONA 집계</span>
-        <h2>{result?.task.title ?? "집계 결과 불러오는 중"}</h2>
-      </header>
       {result ? (
-        <>
-          <p className="civic-simulation-question">{result.task.question.content}</p>
-          <StatusMessage>{result.notice}</StatusMessage>
-          <dl className="civic-domain-impact-list">
-            <div>
-              <dt>요청 패널</dt>
-              <dd>{result.run.personaCount}명</dd>
-            </div>
-            <div>
-              <dt>응답 패널</dt>
-              <dd>{result.summary.answeredPersonaCount}명</dd>
-            </div>
-            <div>
-              <dt>미응답</dt>
-              <dd>{result.summary.unansweredPersonaCount}명</dd>
-            </div>
-            <div>
-              <dt>실행 모델</dt>
-              <dd>{result.run.modelType}</dd>
-            </div>
-            <div>
-              <dt>현재 집계 기준</dt>
-              <dd>{result.denominators.filtered}명</dd>
-            </div>
-          </dl>
-          <ol className="civic-result-bars">
-            {result.optionResults.map((option) => (
-              <li key={option.optionId}>
-                <div>
-                  <strong>{option.content}</strong>
-                  <span>
-                    {option.count}명 · {option.percentage.toFixed(1)}%
-                  </span>
-                </div>
-                <progress
-                  aria-label={`${option.content} ${option.percentage}%`}
-                  max={100}
-                  value={option.percentage}
-                />
-              </li>
-            ))}
-          </ol>
-          <div className="civic-simulation-actions">
-            <a
-              className="civic-secondary-action"
-              href={`/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/export`}
-            >
-              XLSX 다운로드
-            </a>
-          </div>
-          {result.resultSlots[0] ? (
-            <Link
-              className="civic-secondary-action"
-              href={
-                `/admin/simulations/panel/detail?simulationId=${encodeURIComponent(simulationId)}&ordinal=${result.resultSlots[0]}` as Route
-              }
-            >
-              익명 패널 응답 상세 보기
-            </Link>
-          ) : null}
-        </>
+        <SimulationResultExplorer
+          detail={detail}
+          detailMessage={detailMessage}
+          dimension={dimension}
+          filteredValue={filteredValue}
+          loading={loading || detailLoading}
+          onDimensionChange={changeDimension}
+          onFilteredValueChange={changeFilteredValue}
+          onNextResult={() => {
+            const nextSlot = result.resultSlots[resultIndex + 1];
+            if (nextSlot) setRequestedSlot(nextSlot);
+          }}
+          onPreviousResult={() => {
+            const previousSlot = result.resultSlots[resultIndex - 1];
+            if (previousSlot) setRequestedSlot(previousSlot);
+          }}
+          result={result}
+          resultIndex={resultIndex}
+          simulationId={simulationId}
+        />
+      ) : loading ? (
+        <StatusMessage>시뮬레이션 결과를 불러오고 있습니다.</StatusMessage>
       ) : null}
       {message ? <StatusMessage>{message}</StatusMessage> : null}
     </section>
@@ -1159,37 +1145,64 @@ function useRetryFenceClock(retryAvailableAt: string | null): number {
   return now;
 }
 
-function useSimulationResult(simulationId: string | null) {
+function useSimulationResult(
+  simulationId: string | null,
+  gender: string | null = null,
+  ageGroup: string | null = null,
+) {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(Boolean(simulationId));
   useEffect(() => {
     if (!simulationId) return;
+    let disposed = false;
+    const search = new URLSearchParams();
+    if (gender) search.append("gender", gender);
+    if (ageGroup) search.append("ageGroup", ageGroup);
+    const suffix = search.size > 0 ? `?${search.toString()}` : "";
     const timer = window.setTimeout(() => {
+      setLoading(true);
+      setMessage("");
       void authenticatedFetch(
-        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results`,
+        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results${suffix}`,
         { cache: "no-store" },
       )
         .then(async (response) => {
           if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
           const next = readSimulationResult(await response.json());
           if (!next) throw new Error("서버의 집계 결과 응답 형식을 확인해야 합니다.");
-          setResult(next);
+          if (!disposed) setResult(next);
         })
-        .catch((error: unknown) =>
-          setMessage(error instanceof Error ? error.message : "집계 결과를 불러오지 못했습니다."),
-        );
+        .catch((error: unknown) => {
+          if (!disposed)
+            setMessage(error instanceof Error ? error.message : "집계 결과를 불러오지 못했습니다.");
+        })
+        .finally(() => {
+          if (!disposed) setLoading(false);
+        });
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [simulationId]);
-  return { message, result };
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [ageGroup, gender, simulationId]);
+  return { loading, message, result };
 }
 
-function useSimulationResultDetail(simulationId: string | null, resultSlot: number) {
-  const [detail, setDetail] = useState<SimulationResultDetail | null>(null);
+function useSimulationResultDetail(simulationId: string | null, resultSlot: number | null) {
+  const signature = simulationId && resultSlot ? `${simulationId}:${resultSlot}` : null;
+  const [result, setResult] = useState<{
+    detail: SimulationResultDetail;
+    signature: string;
+  } | null>(null);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
-    if (!simulationId) return;
+    if (!simulationId || !resultSlot || !signature) return;
+    let disposed = false;
     const timer = window.setTimeout(() => {
+      setLoading(true);
+      setMessage("");
       void authenticatedFetch(
         `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/${resultSlot}`,
         { cache: "no-store" },
@@ -1198,17 +1211,28 @@ function useSimulationResultDetail(simulationId: string | null, resultSlot: numb
           if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
           const next = readSimulationResultDetail(await response.json());
           if (!next) throw new Error("서버의 익명 패널 응답 형식을 확인해야 합니다.");
-          setDetail(next);
+          if (!disposed) setResult({ detail: next, signature });
         })
-        .catch((error: unknown) =>
-          setMessage(
-            error instanceof Error ? error.message : "익명 패널 응답을 불러오지 못했습니다.",
-          ),
-        );
+        .catch((error: unknown) => {
+          if (!disposed)
+            setMessage(
+              error instanceof Error ? error.message : "익명 패널 응답을 불러오지 못했습니다.",
+            );
+        })
+        .finally(() => {
+          if (!disposed) setLoading(false);
+        });
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [resultSlot, simulationId]);
-  return { detail, message };
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [resultSlot, signature, simulationId]);
+  return {
+    detail: result?.signature === signature ? result.detail : null,
+    loading: Boolean(signature && (loading || result?.signature !== signature)),
+    message,
+  };
 }
 
 function TaskSnapshotCard({ task }: Readonly<{ task: TaskDetail | null }>) {
