@@ -4333,3 +4333,10 @@ body:has(.civic-shell-participant) {
     overflow-x: auto;
   }
 }
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding-right: 0;
+    padding-left: 0;
+  }
+}

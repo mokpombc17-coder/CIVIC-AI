@@ -1,6 +1,5 @@
 .stage {
   --platform-shell-max-width: 393px;
-  --platform-shell-max-height: 852px;
   --platform-shell-header-height: 64px;
   --platform-shell-navigation-height: 64px;
   --platform-shell-color-surface: #ffffff;
@@ -27,12 +26,19 @@
   width: 100%;
   max-width: var(--platform-shell-max-width);
   height: 100dvh;
-  max-height: var(--platform-shell-max-height);
   overflow: hidden;
   border-radius: var(--platform-shell-radius);
   background: var(--platform-shell-color-surface);
   box-shadow: var(--platform-shell-shadow);
   color: var(--platform-shell-color-text);
+}
+
+@media (max-width: 480px) {
+  .shell {
+    max-width: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 .surface {
