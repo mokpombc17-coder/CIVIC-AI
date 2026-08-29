@@ -1,0 +1,53 @@
+services:
+  vote-db:
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    restart: unless-stopped
+    env_file:
+      - ${VOTE_SERVER_ENV:?VOTE_SERVER_ENV is required}
+    volumes:
+      - vote-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  vote-resource-server:
+    image: ${VOTE_IMAGE:?VOTE_IMAGE is required}
+    pull_policy: never
+    init: true
+    restart: unless-stopped
+    env_file:
+      - ${VOTE_SERVER_ENV:?VOTE_SERVER_ENV is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: stage,auth-main
+      SERVER_PORT: "8082"
+      VOTE_DB_URL: jdbc:postgresql://vote-db:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      VOTE_DB_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
+      VOTE_DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      VOTE_JWT_ISSUER_URI: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
+      VOTE_JWT_JWKS_URI: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}/.well-known/jwks.json
+      VOTE_BROWSER_ORIGIN: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
+      VOTE_SECURITY_LOCAL_ADMIN_API_ENABLED: "false"
+    depends_on:
+      vote-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8082:8082"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent --show-error http://127.0.0.1:8082/actuator/health
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    stop_grace_period: 35s
+
+volumes:
+  vote-data:
+    external: true
+    name: ${VOTE_DATA_VOLUME:?VOTE_DATA_VOLUME is required}
