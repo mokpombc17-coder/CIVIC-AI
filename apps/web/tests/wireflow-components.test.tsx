@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Route } from "next";
 import { describe, expect, it } from "vitest";
 import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
+import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ParticipantShell } from "@/components/shell/participant-shell";
@@ -100,6 +101,27 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("공개·참여 방식");
     expect(html).not.toContain("목록 공개");
     expect(html).not.toContain("바로 참여");
+  });
+
+  it("과업 생성 CTA를 목록 제목 우측에 두고 검색·필터 툴바와 분리한다", () => {
+    const taskList = screenRegistry.find((screen) => screen.id === "A-TASK-001");
+    if (!taskList) throw new Error("A-TASK-001 missing");
+
+    const html = renderToStaticMarkup(<AdminTaskScreen query={{}} screen={taskList} />);
+    const toolbarStart = html.indexOf('class="civic-domain-toolbar civic-task-list-toolbar"');
+    const tableStart = html.indexOf('aria-label="과업 목록 표"');
+    const toolbarHtml = html.slice(toolbarStart, tableStart);
+
+    expect(html).toContain('class="wf-screen-heading-action"');
+    expect(html).toContain(
+      'class="civic-primary-action civic-task-create-action" href="/admin/tasks/create"',
+    );
+    expect(html).toContain('aria-label="새 과업 만들기"');
+    expect(toolbarHtml).toContain("과업 제목 검색");
+    expect(toolbarHtml).toContain('name="task-query"');
+    expect(toolbarHtml).toContain('autoComplete="off"');
+    expect(toolbarHtml).toContain('aria-label="과업 상태"');
+    expect(toolbarHtml).not.toContain("새 과업 만들기");
   });
 
   it("shares accessible card, badge, field and button primitives", () => {

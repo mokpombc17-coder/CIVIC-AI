@@ -18,7 +18,7 @@ export const mainScreenPrimaryActions: Readonly<Record<string, string>> = Object
   "A-USER-001": "사용자 상세",
   "A-USER-002": "관리자·권한 편집",
   "A-USER-003": "권한 변경 저장",
-  "A-USER-004": "권한 회수",
+  "A-USER-004": "권한 변경 저장",
   "A-USER-005": "대상 사용자 보기",
   "COMMON-001": "관리 업무 선택",
   "COMMON-002": "최신 상태 보기",

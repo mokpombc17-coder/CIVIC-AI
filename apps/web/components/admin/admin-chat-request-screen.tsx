@@ -413,116 +413,122 @@ function RequestDetail({
   }
   const actionable = item.status === "PENDING";
   return (
-    <section className="civic-domain-detail">
-      <div className="civic-user-summary-grid">
-        <Detail label="신청자" value={adminUserLabel(labels, item.requesterUserId)} />
-        <Detail label="요청 시각" value={formatDate(item.requestedAt)} />
-        <Detail label="채팅방 이름" value={item.name} />
-        <Detail label="상태" value={statusLabel(item.status)} />
-        <Detail
-          label="카테고리"
-          value={
-            item.categoryIds
-              .map(
-                (categoryId) =>
-                  categories.find((category) => category.categoryId === categoryId)?.name ??
-                  categoryId,
-              )
-              .join(", ") || "지정 없음"
-          }
-        />
-      </div>
-      <article className="civic-domain-description">
-        <h2>신청 설명</h2>
-        <p>{item.description || "설명이 없습니다."}</p>
-      </article>
-      {item.rejectionReason ? (
-        <article className="civic-domain-description">
-          <h2>반려 사유</h2>
-          <p>{item.rejectionReason}</p>
-        </article>
-      ) : null}
-      {actionable ? (
-        <form
-          className="civic-domain-action-panel"
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (rejectMode) onReject(reason);
-            else onApprove();
-          }}
-        >
-          <fieldset>
-            <legend>처리 방법</legend>
-            <label>
-              <input
-                checked={!rejectMode}
-                disabled={pending}
-                name="decision"
-                onChange={() => setRejectMode(false)}
-                type="radio"
-              />
-              <span>신청 내용 그대로 승인</span>
-            </label>
-            <label>
-              <input
-                checked={rejectMode}
-                disabled={pending}
-                name="decision"
-                onChange={() => setRejectMode(true)}
-                type="radio"
-              />
-              <span>사유를 입력해 반려</span>
-            </label>
-          </fieldset>
-          {rejectMode ? (
-            <label className="civic-field">
-              <span>반려 사유</span>
-              <textarea
-                aria-describedby={
-                  adminFieldError(problem, "reason") ? "chat-rejection-reason-error" : undefined
-                }
-                aria-invalid={Boolean(adminFieldError(problem, "reason"))}
-                disabled={pending}
-                maxLength={100}
-                onChange={(event) => setReason(event.currentTarget.value)}
-                required
-                rows={4}
-                value={reason}
-              />
-              <FieldError
-                id="chat-rejection-reason-error"
-                message={adminFieldError(problem, "reason")}
-              />
-              <small>{[...reason.trim()].length} / 100자 · 한 줄 입력</small>
-            </label>
-          ) : (
-            <RoomCategorySelector
-              categories={categories}
-              disabled={pending}
-              legend="승인 카테고리"
-              onChange={setSelectedCategoryIds}
-              selectedCategoryIds={selectedCategoryIds}
+    <section className="civic-domain-detail civic-chat-request-detail">
+      <div className="civic-chat-request-detail-grid">
+        <div aria-label="신청 정보" className="civic-chat-request-context" role="region">
+          <div className="civic-user-summary-grid">
+            <Detail label="신청자" value={adminUserLabel(labels, item.requesterUserId)} />
+            <Detail label="요청 시각" value={formatDate(item.requestedAt)} />
+            <Detail label="채팅방 이름" value={item.name} />
+            <Detail label="상태" value={statusLabel(item.status)} />
+            <Detail
+              label="카테고리"
+              value={
+                item.categoryIds
+                  .map(
+                    (categoryId) =>
+                      categories.find((category) => category.categoryId === categoryId)?.name ??
+                      categoryId,
+                  )
+                  .join(", ") || "지정 없음"
+              }
             />
-          )}
-          <div className="civic-form-actions">
-            <Link className="civic-secondary-action" href="/admin/chat/requests">
-              목록으로
-            </Link>
-            <button
-              className={rejectMode ? "civic-danger-action" : "civic-primary-action"}
-              disabled={pending}
-              type="submit"
-            >
-              {pending ? "처리 확인 중…" : rejectMode ? "반려" : "승인"}
-            </button>
           </div>
-        </form>
-      ) : (
-        <div className="civic-boundary-note">
-          <strong>처리 완료</strong>
-          <p>승인·반려·취소된 신청에는 추가 결정을 전송하지 않습니다.</p>
+          <article className="civic-domain-description">
+            <h2>신청 설명</h2>
+            <p>{item.description || "설명이 없습니다."}</p>
+          </article>
+          {item.rejectionReason ? (
+            <article className="civic-domain-description">
+              <h2>반려 사유</h2>
+              <p>{item.rejectionReason}</p>
+            </article>
+          ) : null}
         </div>
-      )}
+        <aside aria-label="신청 처리" className="civic-chat-request-decision">
+          {actionable ? (
+            <form
+              className="civic-domain-action-panel"
+              onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                if (rejectMode) onReject(reason);
+                else onApprove();
+              }}
+            >
+              <fieldset>
+                <legend>처리 방법</legend>
+                <label>
+                  <input
+                    checked={!rejectMode}
+                    disabled={pending}
+                    name="decision"
+                    onChange={() => setRejectMode(false)}
+                    type="radio"
+                  />
+                  <span>신청 내용 그대로 승인</span>
+                </label>
+                <label>
+                  <input
+                    checked={rejectMode}
+                    disabled={pending}
+                    name="decision"
+                    onChange={() => setRejectMode(true)}
+                    type="radio"
+                  />
+                  <span>사유를 입력해 반려</span>
+                </label>
+              </fieldset>
+              {rejectMode ? (
+                <label className="civic-field">
+                  <span>반려 사유</span>
+                  <textarea
+                    aria-describedby={
+                      adminFieldError(problem, "reason") ? "chat-rejection-reason-error" : undefined
+                    }
+                    aria-invalid={Boolean(adminFieldError(problem, "reason"))}
+                    disabled={pending}
+                    maxLength={100}
+                    onChange={(event) => setReason(event.currentTarget.value)}
+                    required
+                    rows={4}
+                    value={reason}
+                  />
+                  <FieldError
+                    id="chat-rejection-reason-error"
+                    message={adminFieldError(problem, "reason")}
+                  />
+                  <small>{[...reason.trim()].length} / 100자 · 한 줄 입력</small>
+                </label>
+              ) : (
+                <RoomCategorySelector
+                  categories={categories}
+                  disabled={pending}
+                  legend="승인 카테고리"
+                  onChange={setSelectedCategoryIds}
+                  selectedCategoryIds={selectedCategoryIds}
+                />
+              )}
+              <div className="civic-form-actions">
+                <Link className="civic-secondary-action" href="/admin/chat/requests">
+                  목록으로
+                </Link>
+                <button
+                  className={rejectMode ? "civic-danger-action" : "civic-primary-action"}
+                  disabled={pending}
+                  type="submit"
+                >
+                  {pending ? "처리 확인 중…" : rejectMode ? "반려" : "승인"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="civic-boundary-note">
+              <strong>처리 완료</strong>
+              <p>승인·반려·취소된 신청에는 추가 결정을 전송하지 않습니다.</p>
+            </div>
+          )}
+        </aside>
+      </div>
     </section>
   );
 }

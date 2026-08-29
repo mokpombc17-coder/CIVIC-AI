@@ -7,12 +7,14 @@ export function ScreenFrame({
   screen,
   children,
   backHref,
+  headingAction,
   platformHeading = "HIDDEN",
   title,
 }: Readonly<{
   screen: ScreenDefinition;
   children: ReactNode;
   backHref?: Route;
+  headingAction?: ReactNode;
   platformHeading?: "HIDDEN" | "SECONDARY";
   title?: string;
 }>) {
@@ -26,6 +28,7 @@ export function ScreenFrame({
       data-wireflow-screen={screen.id}
     >
       <WireflowScreenHeading
+        action={headingAction}
         {...heading}
         {...(resolvedBackHref ? { backHref: resolvedBackHref } : {})}
         secondary={platformHeading === "SECONDARY"}
@@ -84,7 +87,7 @@ const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title:
   Object.freeze({
     "A-HOME-001": { title: "관리 업무" },
     "A-USER-002": { backHref: "/admin/users" as Route, title: "사용자·관리자 상세" },
-    "A-USER-004": { title: "사용자·관리자 상세" },
+    "A-USER-004": { title: "관리자 전환·권한 편집" },
     "A-USER-005": { backHref: "/admin/users/detail" as Route, title: "권한 변경 이력" },
     "A-RAG-001": { title: "문서 관리" },
     "A-RAG-002": { title: "문서 관리" },
