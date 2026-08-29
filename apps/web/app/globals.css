@@ -2607,6 +2607,60 @@ body:has(.civic-shell-participant) {
   transform-origin: top center;
 }
 
+.civic-pdf-page-list {
+  display: grid;
+  width: min(100%, 72rem);
+  gap: 1rem;
+  margin: 0 auto;
+}
+
+.civic-pdf-page {
+  overflow: hidden;
+  border: 1px solid #b9c1bd;
+  border-radius: 0.35rem;
+  background: white;
+  color: var(--civic-ink);
+  box-shadow: 0 0.25rem 0.8rem rgb(0 0 0 / 16%);
+  scroll-margin-top: 0.5rem;
+}
+
+.civic-pdf-page.is-cited {
+  outline: 3px solid var(--civic-blue);
+  outline-offset: 2px;
+}
+
+.civic-pdf-page img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 210 / 297;
+  background: white;
+  object-fit: contain;
+}
+
+.civic-pdf-page-number {
+  display: block;
+  border-bottom: 1px solid #d7dcda;
+  padding: 0.45rem 0.65rem;
+  color: #58635e;
+  font-size: 0.75rem;
+}
+
+.civic-pdf-page-status,
+.civic-pdf-page-error {
+  display: grid;
+  min-height: 12rem;
+  place-content: center;
+  gap: 0.75rem;
+  background: white;
+  color: var(--civic-ink);
+  text-align: center;
+}
+
+.civic-pdf-page-error button {
+  justify-self: center;
+}
+
 .civic-reader-note {
   margin: 0;
   padding: 0 1rem 1rem;

@@ -41,6 +41,30 @@ describe("본문 인용 마커", () => {
     expect(html).not.toContain("civic-citation-chip");
   });
 
+  it("한 괄호에 합쳐진 복수 인용은 발급된 인용만 칩으로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <SafeMarkdownAnswer
+        answer={
+          "세부 차원입니다 [11111111-2222-4333-8444-555555555555#2, " +
+          "0d7d9db6-6352-48f3-b2e1-222cd34069c9#3]."
+        }
+        citations={[citation]}
+      />,
+    );
+    expect(html).not.toContain("11111111");
+    expect(html).not.toContain("0d7d9db6");
+    expect(html.match(/class="civic-citation-chip"/gu)).toHaveLength(1);
+    expect(html).toContain("p.3");
+  });
+
+  it("한글 조사가 뒤따르는 굵은 글씨의 별표를 노출하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      <SafeMarkdownAnswer answer="**지배감(Dominance)**의 세 가지 차원" />,
+    );
+    expect(html).toContain("<strong>지배감(Dominance)의</strong>");
+    expect(html).not.toContain("**");
+  });
+
   it("이전 답변의 [UUID] 마커는 같은 문서 인용이 하나일 때만 호환 칩으로 표시한다", () => {
     const html = renderToStaticMarkup(
       <SafeMarkdownAnswer
@@ -85,6 +109,12 @@ describe("본문 인용 마커", () => {
   it("stripCitationMarkers는 잔여 마커와 이중 공백을 정리한다", () => {
     expect(
       stripCitationMarkers("첫 근거 [11111111-2222-4333-8444-555555555555#2] 그리고  둘째"),
+    ).toBe("첫 근거 그리고 둘째");
+    expect(
+      stripCitationMarkers(
+        "첫 근거 [11111111-2222-4333-8444-555555555555#2, " +
+          "22222222-2222-4222-8222-222222222222#3] 그리고  둘째",
+      ),
     ).toBe("첫 근거 그리고 둘째");
   });
 

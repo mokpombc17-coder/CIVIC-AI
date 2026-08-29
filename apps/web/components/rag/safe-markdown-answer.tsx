@@ -5,6 +5,10 @@ import type { Citation } from "./participant-rag-screen";
 
 const CITATION_MARKER_PATTERN =
   /\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#([1-9][0-9]*)\]/giu;
+const CITATION_REFERENCE_PATTERN =
+  /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#([1-9][0-9]*)/giu;
+const CITATION_REFERENCE_GROUP_PATTERN =
+  /\[[^\]\r\n]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[1-9][0-9]*[^\]\r\n]*\]/giu;
 const LEGACY_CITATION_MARKER_PATTERN =
   /\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]/giu;
 const CIVIC_CITATION_URL_PREFIX = "civic-citation:";
@@ -12,9 +16,14 @@ const CIVIC_CITATION_URL_PREFIX = "civic-citation:";
 /** 답변 본문에 섞여 오는 내부 인용 마커([UUID#page])를 제거한다. */
 export function stripCitationMarkers(answer: string): string {
   return answer
-    .replace(CITATION_MARKER_PATTERN, "")
+    .replace(CITATION_REFERENCE_GROUP_PATTERN, "")
     .replace(LEGACY_CITATION_MARKER_PATTERN, "")
     .replace(/[ \t]{2,}/gu, " ");
+}
+
+/** 한글 조사까지 굵게 묶어 CommonMark 닫힘 구분자가 본문에 노출되지 않게 한다. */
+export function normalizeKoreanStrongEmphasis(answer: string): string {
+  return answer.replace(/\*\*([^*\r\n]+(?:\)|\]))\*\*([가-힣]+)/gu, "**$1$2**");
 }
 
 /** 마커의 문서 버전과 페이지가 모두 일치하는 인용 정보를 찾는다. */
@@ -48,8 +57,10 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
   citations = [],
   onOpenCitation,
 }: SafeMarkdownAnswerProps) {
-  const markdown = answer
-    .replace(CITATION_MARKER_PATTERN, (marker) => citationMarkdownLink(citations, marker))
+  const markdown = normalizeKoreanStrongEmphasis(answer)
+    .replace(CITATION_REFERENCE_GROUP_PATTERN, (group) =>
+      citationMarkdownLinksForGroup(citations, group),
+    )
     .replace(LEGACY_CITATION_MARKER_PATTERN, (marker, versionId: string) => {
       const matches = citations.filter(
         (citation) => citation.document_version_id.toLowerCase() === versionId.toLowerCase(),
@@ -117,6 +128,13 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
 function citationMarkdownLink(citations: readonly Citation[], marker: string): string {
   if (!citationForMarker(citations, marker)) return "";
   return `[citation](${CIVIC_CITATION_URL_PREFIX}${encodeURIComponent(marker)})`;
+}
+
+function citationMarkdownLinksForGroup(citations: readonly Citation[], group: string): string {
+  const links = Array.from(group.matchAll(CITATION_REFERENCE_PATTERN), (match) =>
+    citationMarkdownLink(citations, `[${match[1]}#${match[2]}]`),
+  ).filter((link, index, all) => link.length > 0 && all.indexOf(link) === index);
+  return links.join(" ");
 }
 
 function CitationDocumentIcon() {

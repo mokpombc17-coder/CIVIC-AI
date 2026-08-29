@@ -52,9 +52,18 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/queries/actual-query") {
       return json(response, queryResult);
     }
-    if (url.pathname === "/internal/v1/rag/sources/version-1/pages/3/document") {
-      response.writeHead(200, { "content-type": "application/pdf" });
-      response.end("%PDF-1.4\n%%EOF\n");
+    if (
+      /^\/internal\/v1\/rag\/sources\/version-1\/pages\/3\/document\/pages\/\d+\.png$/u.test(
+        url.pathname,
+      )
+    ) {
+      response.writeHead(200, { "content-type": "image/png" });
+      response.end(
+        Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nLkAAAAASUVORK5CYII=",
+          "base64",
+        ),
+      );
       return;
     }
     response.writeHead(404).end();
@@ -102,6 +111,8 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "이전 페이지" })).toHaveCount(0);
   await expect(page.getByText("전체 12페이지 · 인용 3페이지 · 연속 스크롤")).toBeVisible();
+  await expect(page.getByRole("img", { name: "2026 복지정책 기본계획 3페이지" })).toBeVisible();
+  await expect(page.locator("iframe")).toHaveCount(0);
   await record(page, browser.version(), "chrome", testInfo.project.name);
 });
 

@@ -251,9 +251,12 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     await expect(participant).toHaveURL(/\/rag$/u);
     await expect(participant.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
     await expect(participant.getByText("이 화면은 읽기 전용입니다")).toBeVisible();
-    const source = await participant.locator("iframe").getAttribute("src");
-    expect(source).toMatch(/\/api\/v1\/rag\/sources\/[^/]+\/pages\/1/u);
-    expect((await participant.request.get(source!.split("#")[0]!)).status()).toBe(200);
+    const source = await participant
+      .getByRole("img", { name: "synthetic.pdf 1페이지" })
+      .getAttribute("src");
+    expect(source).toMatch(/\/api\/v1\/rag\/sources\/[^/]+\/pages\/1\/document\/pages\/1\.png/u);
+    expect((await participant.request.get(source!)).status()).toBe(200);
+    await expect(participant.locator("iframe")).toHaveCount(0);
 
     await assertDeferredWireFlowRoutesStayInert(admin, participant);
 

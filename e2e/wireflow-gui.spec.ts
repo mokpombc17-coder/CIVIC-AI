@@ -81,9 +81,18 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/queries/query-job-1") {
       return json(response, queryResultFixture);
     }
-    if (url.pathname === "/internal/v1/rag/sources/version-1/pages/3/document") {
-      response.writeHead(200, { "content-type": "application/pdf" });
-      response.end("%PDF-1.4\n%%EOF\n");
+    if (
+      /^\/internal\/v1\/rag\/sources\/version-1\/pages\/3\/document\/pages\/\d+\.png$/u.test(
+        url.pathname,
+      )
+    ) {
+      response.writeHead(200, { "content-type": "image/png" });
+      response.end(
+        Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nLkAAAAASUVORK5CYII=",
+          "base64",
+        ),
+      );
       return;
     }
     response.writeHead(404).end();
@@ -605,10 +614,13 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계
   await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "이전 페이지" })).toHaveCount(0);
   await expect(page.locator('[data-pdf-scroll-mode="continuous"]')).toHaveCount(1);
-  await expect(page.locator("iframe")).toHaveAttribute(
+  await expect(page.locator(".civic-pdf-page")).toHaveCount(12);
+  await expect(page.locator('[data-pdf-page="3"]')).toHaveClass(/is-cited/u);
+  await expect(page.getByRole("img", { name: "2026 복지정책 기본계획 3페이지" })).toHaveAttribute(
     "src",
-    /\/pages\/3\/document#page=3.*scrollbar=1/,
+    /\/pages\/3\/document\/pages\/3\.png$/u,
   );
+  await expect(page.locator("iframe")).toHaveCount(0);
   await expect(page).toHaveURL(/\/rag$/);
   await page.getByRole("button", { name: "참조 문서 닫기" }).click();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
