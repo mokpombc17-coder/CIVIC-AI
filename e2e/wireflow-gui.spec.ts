@@ -475,6 +475,22 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   await expect(page.getByRole("link", { name: /내 정보 관리/u })).toBeVisible();
   await expect(page.getByRole("link", { name: /내 설문 보기/u })).toBeVisible();
   await expect(page.getByRole("button", { name: "로그아웃" })).toBeVisible();
+  const accountCards = page.locator(".wf-account-hub-card");
+  await expect(accountCards).toHaveCount(2);
+  const accountCardLayout = await accountCards.evaluateAll((cards) =>
+    cards.map((card) => {
+      const box = card.getBoundingClientRect();
+      const style = getComputedStyle(card);
+      return {
+        height: Math.round(box.height),
+        paddingBlock: `${style.paddingTop} ${style.paddingBottom}`,
+      };
+    }),
+  );
+  expect(accountCardLayout).toEqual([
+    { height: 78, paddingBlock: "12px 12px" },
+    { height: 78, paddingBlock: "12px 12px" },
+  ]);
 
   await page.goto("/account/profile");
   await expect(page.getByRole("heading", { name: "내 정보 관리" })).toBeVisible();
