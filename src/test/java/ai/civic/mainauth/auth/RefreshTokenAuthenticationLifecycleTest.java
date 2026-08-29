@@ -9,8 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
+import ai.civic.mainauth.token.AccessTokenService;
 import com.nimbusds.jwt.SignedJWT;
 import jakarta.servlet.http.Cookie;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -78,6 +80,53 @@ class RefreshTokenAuthenticationLifecycleTest extends PostgresIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user_id").value(userId.toString()))
                 .andExpect(jsonPath("$.role").value("PARTICIPANT"));
+    }
+
+    @Test
+    void administratorLoginAndRefreshKeepEveryOrdinaryUserScope() throws Exception {
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'ADMIN'
+                """, userId);
+        jdbc.update("""
+                insert into user_permissions(user_id, permission_id)
+                select ?, id from permissions
+                """, userId);
+
+        var login = login();
+        var access = responseCookie(login, AuthCookieFactory.ACCESS_TOKEN_COOKIE);
+        var refresh = responseCookie(login, AuthCookieFactory.REFRESH_TOKEN_COOKIE);
+        assertOrdinaryUserScopesArePresent(access);
+        mvc.perform(get("/api/v1/auth/me").cookie(access))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("ADMIN"));
+
+        var refreshed = mvc.perform(post("/api/v1/auth/refresh")
+                        .cookie(refresh)
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNoContent())
+                .andReturn();
+        assertOrdinaryUserScopesArePresent(
+                responseCookie(refreshed, AuthCookieFactory.ACCESS_TOKEN_COOKIE));
+
+        jdbc.update("""
+                update user_roles set revoked_at = now()
+                where user_id = ? and role_id = (select id from roles where code = 'ADMIN')
+                """, userId);
+        jdbc.update("""
+                insert into user_roles(user_id, role_id)
+                select ?, id from roles where code = 'SUPER_ADMIN'
+                """, userId);
+
+        var highestAdministratorAccess = responseCookie(
+                login(), AuthCookieFactory.ACCESS_TOKEN_COOKIE);
+        assertOrdinaryUserScopesArePresent(highestAdministratorAccess);
+        mvc.perform(get("/api/v1/auth/me").cookie(highestAdministratorAccess))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("HIGHEST_ADMIN"));
     }
 
     @Test
@@ -268,5 +317,12 @@ class RefreshTokenAuthenticationLifecycleTest extends PostgresIntegrationTest {
         var cookie = result.getResponse().getCookie(name);
         assertThat(cookie).isNotNull();
         return cookie;
+    }
+
+    private void assertOrdinaryUserScopesArePresent(Cookie access) throws Exception {
+        var actualScopes = Set.of(
+                SignedJWT.parse(access.getValue()).getJWTClaimsSet().getStringClaim("scope").split(" "));
+        assertThat(actualScopes)
+                .containsAll(AccessTokenService.scopesForPermissions(Set.of()));
     }
 }

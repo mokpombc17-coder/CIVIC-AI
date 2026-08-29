@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 
 class InternalJwtContractTest {
     private static final Instant NOW = Instant.parse("2026-08-11T12:00:00Z");
+    private static final Set<String> ALL_ADMIN_PERMISSIONS = Set.of(
+            "RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN");
 
     @Test
     void participantScopesIncludeEveryResourceServerDefaultButNeverElevatedOperations() {
@@ -60,8 +62,7 @@ class InternalJwtContractTest {
                         "simulation:billing:read",
                         "simulation:billing:write")
                 .doesNotContain("vote:tasks:admin");
-        assertThat(AccessTokenService.scopesForPermissions(Set.of(
-                        "RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN")))
+        assertThat(AccessTokenService.scopesForPermissions(ALL_ADMIN_PERMISSIONS))
                 .contains(
                         "rag:documents:write",
                         "chat:rooms:approve",
@@ -76,6 +77,16 @@ class InternalJwtContractTest {
                         "simulation:tasks:run",
                         "simulation:billing:read",
                         "simulation:billing:write");
+    }
+
+    @Test
+    void administratorsInheritEveryOrdinaryUserScopeBeforePermissionScopesAreAdded() {
+        var ordinaryUserScopes = AccessTokenService.scopesForPermissions(Set.of());
+        var administratorScopes = AccessTokenService.scopesForPermissions(ALL_ADMIN_PERMISSIONS);
+
+        assertThat(administratorScopes)
+                .containsAll(ordinaryUserScopes)
+                .hasSizeGreaterThan(ordinaryUserScopes.size());
     }
 
     @Test

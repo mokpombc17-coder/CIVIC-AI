@@ -24,7 +24,9 @@ public final class AccessTokenService {
     public static final String AUDIENCE = "civic-ai-api";
     public static final Duration LIFETIME = Duration.ofMinutes(15);
 
-    private static final List<String> PARTICIPANT_SCOPES = List.of(
+    // Every active authenticated user starts with these scopes. Administrator roles add
+    // permission scopes to this set; they never replace the ordinary user capabilities.
+    private static final List<String> AUTHENTICATED_USER_SCOPES = List.of(
             "chat:connect",
             "chat:rooms:read",
             "chat:rooms:write",
@@ -126,7 +128,7 @@ public final class AccessTokenService {
     }
 
     public static List<String> scopesForPermissions(java.util.Set<String> permissions) {
-        var scopes = new LinkedHashSet<>(PARTICIPANT_SCOPES);
+        var scopes = new LinkedHashSet<>(AUTHENTICATED_USER_SCOPES);
         if (permissions.contains("RAG_ADMIN")) {
             scopes.add("rag:documents:write");
         }
