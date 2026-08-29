@@ -56,7 +56,7 @@ claim 대신 `scope` 문자열을 사용한다.
 
 ## 4. scope 발급 규칙
 
-일반 활성 사용자 기본 scope:
+활성 인증 사용자 공통 기본 scope:
 
 ```text
 chat:connect
@@ -75,6 +75,10 @@ rag:documents:read
 rag:queries:write
 rag:jobs:read
 ```
+
+위 목록은 역할과 무관한 활성 인증 사용자 공통 scope다. `ADMIN`과 `HIGHEST_ADMIN`도
+로그인 및 Refresh Token 회전으로 Access Token을 다시 발급받을 때 이 scope 전체를
+유지하며, 관리 permission scope는 공통 scope에 합집합으로 추가된다.
 
 관리 기능은 역할과 분리된 permission으로 부여하며 다음 scope가 추가된다.
 

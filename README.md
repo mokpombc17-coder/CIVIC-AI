@@ -70,7 +70,7 @@ Refresh Token은 사용할 때마다 즉시 교체됩니다. 이미 교체된 �
 - `scope`: 배열이나 `roles` claim이 아닌 공백 구분 문자열
 - 내부 상태 claim: `account_state_version`, `must_change_password`
 
-일반 사용자 기본 scope는 다음과 같습니다.
+모든 활성 인증 사용자의 공통 기본 scope는 다음과 같습니다.
 
 ```text
 chat:connect
@@ -89,6 +89,10 @@ rag:documents:read
 rag:queries:write
 rag:jobs:read
 ```
+
+이 목록은 `PARTICIPANT` 전용이 아니라 모든 활성 인증 사용자의 공통 기본 scope입니다.
+따라서 `ADMIN`과 `HIGHEST_ADMIN`도 로그인·토큰 갱신 시 이 scope 전체를 항상 받고,
+관리 permission에 따른 scope는 공통 기본 scope를 대체하지 않고 합집합으로 추가됩니다.
 
 관리 권한은 역할과 분리된 permission에서 scope로 변환됩니다.
 
