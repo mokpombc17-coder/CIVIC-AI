@@ -1,6 +1,17 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 import { RagFunctionalScreen } from "@/components/rag/rag-functional-screen";
 import {
   DocumentInspector,
@@ -288,7 +299,7 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("70%");
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");
-    expect(html).toContain("검색 사용 중");
+    expect(html).toContain("처리 완료");
     const text = renderedText(html);
     expect(text).not.toContain(documentId);
     expect(text).not.toContain(versionId);
@@ -357,6 +368,10 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain("복지 정책");
     expect(html).toContain("자료 / 복지 정책");
+    expect(html).toContain('aria-label="폴더 수정"');
+    expect(html).toContain('aria-label="폴더 삭제"');
+    expect(html).toContain("mode=EDIT");
+    expect(html).toContain("mode=DELETE");
     expect(renderedText(html)).not.toContain("00000000-0000");
   });
 
@@ -1821,8 +1836,6 @@ describe("9 functional RAG screens", () => {
     expect(participantHtml).toContain(">전송<");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');
     expect(adminHtml).toContain("폴더 추가");
-    expect(adminHtml).toContain("폴더 수정");
-    expect(adminHtml).toContain("폴더 삭제");
     expect(adminHtml).toContain('data-rag-inline-upload="true"');
     expect(adminHtml).toContain('type="file"');
     expect(adminHtml).not.toContain('class="civic-document-inspector"');
