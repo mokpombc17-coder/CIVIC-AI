@@ -5733,7 +5733,16 @@ body {
 }
 
 .wf-account-survey-intro {
+  height: 135px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 24px auto;
+  align-content: start;
   min-height: 135px;
+  padding: 15px;
+}
+
+.wf-account-survey-intro > div {
+  gap: 4px;
 }
 
 .wf-account-survey-section {

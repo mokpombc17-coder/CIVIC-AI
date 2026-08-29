@@ -525,6 +525,38 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   await page.goto("/account/survey");
   await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
   await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
+  const surveyIntro = page.locator(".wf-account-survey-intro");
+  await expectBox(surveyIntro, {
+    x: [16, 18],
+    width: [359, 362],
+    height: [134, 136],
+  });
+  const surveyIntroLayout = await surveyIntro.evaluate((element) => {
+    const root = element.getBoundingClientRect();
+    const icon = element.querySelector("img")?.getBoundingClientRect();
+    const copy = element.querySelector(":scope > div")?.getBoundingClientRect();
+    const heading = element.querySelector("h2");
+    if (!icon || !copy || !heading) throw new Error("survey intro layout missing");
+    const headingStyle = getComputedStyle(heading);
+    return {
+      iconLeft: Math.round(icon.left - root.left),
+      iconTop: Math.round(icon.top - root.top),
+      copyLeft: Math.round(copy.left - root.left),
+      copyTop: Math.round(copy.top - root.top),
+      headingColor: headingStyle.color,
+      headingFontSize: headingStyle.fontSize,
+      headingLineHeight: headingStyle.lineHeight,
+    };
+  });
+  expect(surveyIntroLayout).toEqual({
+    iconLeft: 16,
+    iconTop: 16,
+    copyLeft: 16,
+    copyTop: 52,
+    headingColor: "rgb(8, 89, 133)",
+    headingFontSize: "16px",
+    headingLineHeight: "24px",
+  });
   await expect(page.getByRole("heading", { name: "기본 정보" })).toBeVisible();
   await expect(page.getByText("서울특별시 종로구 사직동", { exact: true })).toBeVisible();
   const localTrust = page.getByText("약간 신뢰한다", { exact: true }).last();
