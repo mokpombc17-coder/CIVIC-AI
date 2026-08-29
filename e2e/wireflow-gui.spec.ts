@@ -366,6 +366,90 @@ test("A-RAG-001은 새 폴더 문서 조회가 실패하면 이전 폴더 문서
   await expect(page.locator(".civic-document-inspector")).toHaveCount(0);
 });
 
+test("A-RAG-001은 처리 상태 자동 갱신 중 기존 문서 표를 유지한다", async ({ context, page }) => {
+  await authenticate(context, "admin.payload.signature");
+
+  let folderRequestCount = 0;
+  let documentRequestCount = 0;
+  let userLabelRequestCount = 0;
+  let notifyPollStarted: () => void = () => undefined;
+  let releasePollResponse: () => void = () => undefined;
+  const pollStarted = new Promise<void>((resolve) => {
+    notifyPollStarted = resolve;
+  });
+  const pollResponseGate = new Promise<void>((resolve) => {
+    releasePollResponse = resolve;
+  });
+
+  await page.route(
+    (url) => url.pathname === "/api/v1/rag/folders",
+    (route) => {
+      folderRequestCount += 1;
+      return route.fulfill({ json: { items: folderFixtures } });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/api/v1/admin/user-labels",
+    (route) => {
+      userLabelRequestCount += 1;
+      return route.fulfill({
+        json: { items: [{ user_id: documentCreatorId, email: "rag-admin@example.com" }] },
+      });
+    },
+  );
+  await page.route(
+    (url) =>
+      url.pathname === "/api/v1/rag/documents" && url.searchParams.get("folder_id") === "welfare",
+    async (route) => {
+      documentRequestCount += 1;
+      const isBackgroundRefresh = documentRequestCount > 1;
+      if (isBackgroundRefresh) {
+        notifyPollStarted();
+        await pollResponseGate;
+      }
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              ...documentFixture,
+              active_version: {
+                ...documentFixture.active_version,
+                status: isBackgroundRefresh ? "ACTIVE" : "PROCESSING",
+              },
+            },
+          ],
+          page: 1,
+          page_size: 25,
+          total: 1,
+          total_pages: 1,
+          status_counts: { ACTIVE: isBackgroundRefresh ? 1 : 0 },
+        },
+      });
+    },
+  );
+
+  await page.goto("/admin/rag?folderId=welfare");
+  const documentName = page.getByText("2026_복지정책_기본계획.pdf", { exact: true });
+  const documentTable = page.getByRole("region", { name: "RAG 작업 목록 표" });
+  await expect(documentName.first()).toBeVisible();
+  await expect(page.getByText("상태 확인 중", { exact: true })).toBeVisible();
+
+  try {
+    await pollStarted;
+    await expect(documentTable).toBeVisible();
+    await expect(documentName.first()).toBeVisible();
+    expect(folderRequestCount).toBe(1);
+    expect(userLabelRequestCount).toBe(1);
+  } finally {
+    releasePollResponse();
+  }
+
+  await expect(page.getByText("검색 사용 중", { exact: true })).toBeVisible();
+  expect(documentRequestCount).toBe(2);
+  expect(folderRequestCount).toBe(1);
+  expect(userLabelRequestCount).toBe(1);
+});
+
 test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층을 유지한다", async ({
   context,
   page,

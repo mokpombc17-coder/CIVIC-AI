@@ -272,6 +272,7 @@ export function AdminRagScreen({
     selectedFolder,
     selectFolder,
     refresh,
+    refreshDocuments,
     pageState,
     queryDocuments,
     runBulk,
@@ -282,7 +283,7 @@ export function AdminRagScreen({
   useEffect(() => {
     if (!hasActiveDocuments) return;
     const update = () => {
-      if (!document.hidden) refresh();
+      if (!document.hidden) refreshDocuments();
     };
     const timer = window.setInterval(update, 4_000);
     document.addEventListener("visibilitychange", update);
@@ -290,7 +291,7 @@ export function AdminRagScreen({
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", update);
     };
-  }, [hasActiveDocuments, refresh]);
+  }, [hasActiveDocuments, refreshDocuments]);
   const [documentSelection, setDocumentSelection] = useState<RagDocumentSelection>();
   const inspected = resolveInspectedRagDocument(documents, documentSelection);
   const action = ragScreenPrimaryActions[screen.id];
@@ -371,7 +372,7 @@ export function AdminRagScreen({
               <UploadPanel
                 folder={selectedFolder}
                 inline
-                onAccepted={refresh}
+                onAccepted={refreshDocuments}
                 onMessage={setMessage}
                 query={{ mode: "NEW_DOCUMENT" }}
               />
@@ -494,12 +495,80 @@ function useAdminWorkspace(initialFolderId?: string) {
   const selectedIdRef = useRef(initialFolderId);
   const foldersRef = useRef<Folder[]>([]);
   const loadGateRef = useRef(createLatestRequestGate());
+  const documentRefreshInFlightRef = useRef<symbol | undefined>(undefined);
   const documentQueryRef = useRef<RagDocumentListQuery>(DEFAULT_DOCUMENT_QUERY);
+  const creatorIdsKeyRef = useRef("");
   const bulkOperationRef = useRef(createRetryOperation());
   const [message, setMessage] = useState("");
 
+  const loadDocuments = useCallback(
+    async (
+      folderId: string,
+      query: RagDocumentListQuery,
+      isCurrent: () => boolean,
+      clearMessageOnSuccess: boolean,
+    ) => {
+      const documentResponse = await authenticatedFetch(buildRagDocumentListPath(folderId, query), {
+        cache: "no-store",
+      });
+      if (!isCurrent()) return;
+      if (!documentResponse.ok) throw new Error("document request failed");
+      const documentData = (await documentResponse.json()) as {
+        items?: unknown;
+        page?: unknown;
+        page_size?: unknown;
+        total?: unknown;
+        total_pages?: unknown;
+        status_counts?: unknown;
+      };
+      if (!Array.isArray(documentData.items)) throw new Error("document response is invalid");
+      if (!isCurrent()) return;
+      const nextDocuments = documentData.items as RagDocument[];
+      const nextCreatorIds = [
+        ...new Set(
+          nextDocuments.flatMap((document) => (document.created_by ? [document.created_by] : [])),
+        ),
+      ].sort();
+      const nextCreatorIdsKey = nextCreatorIds.join("\u0000");
+      const labels =
+        nextCreatorIdsKey === creatorIdsKeyRef.current
+          ? undefined
+          : await requestAdminUserLabels(nextCreatorIds);
+      if (!isCurrent()) return;
+
+      setDocuments(nextDocuments);
+      setPageState({
+        page: typeof documentData.page === "number" ? documentData.page : query.page,
+        pageSize:
+          documentData.page_size === 10 ||
+          documentData.page_size === 25 ||
+          documentData.page_size === 50
+            ? documentData.page_size
+            : query.pageSize,
+        total: typeof documentData.total === "number" ? documentData.total : nextDocuments.length,
+        totalPages:
+          typeof documentData.total_pages === "number"
+            ? documentData.total_pages
+            : nextDocuments.length > 0
+              ? 1
+              : 0,
+        statusCounts:
+          documentData.status_counts && typeof documentData.status_counts === "object"
+            ? (documentData.status_counts as Record<string, number>)
+            : {},
+      });
+      if (labels !== undefined && labels !== null) {
+        creatorIdsKeyRef.current = nextCreatorIdsKey;
+        setCreatorLabels(labels);
+      }
+      if (clearMessageOnSuccess) setMessage("");
+    },
+    [],
+  );
+
   const load = useCallback(
     async (folderOverride?: string, queryOverride?: RagDocumentListQuery) => {
+      documentRefreshInFlightRef.current = undefined;
       const isCurrent = loadGateRef.current.begin();
       try {
         const folderResponse = await authenticatedFetch("/api/v1/rag/folders", {
@@ -522,6 +591,7 @@ function useAdminWorkspace(initialFolderId?: string) {
         selectedIdRef.current = nextSelected;
         setDocuments([]);
         setCreatorLabels(new Map());
+        creatorIdsKeyRef.current = "";
         if (!nextSelected) {
           setMessage("");
           setPageState(EMPTY_DOCUMENT_PAGE);
@@ -529,61 +599,17 @@ function useAdminWorkspace(initialFolderId?: string) {
         }
         const nextQuery = queryOverride ?? documentQueryRef.current;
         documentQueryRef.current = nextQuery;
-        const documentResponse = await authenticatedFetch(
-          buildRagDocumentListPath(nextSelected, nextQuery),
-          {
-            cache: "no-store",
-          },
-        );
-        if (!isCurrent()) return;
-        if (!documentResponse.ok) throw new Error("document request failed");
-        const documentData = (await documentResponse.json()) as {
-          items?: unknown;
-          page?: unknown;
-          page_size?: unknown;
-          total?: unknown;
-          total_pages?: unknown;
-          status_counts?: unknown;
-        };
-        if (!Array.isArray(documentData.items)) throw new Error("document response is invalid");
-        if (!isCurrent()) return;
-        const nextDocuments = documentData.items as RagDocument[];
-        setDocuments(nextDocuments);
-        setPageState({
-          page: typeof documentData.page === "number" ? documentData.page : nextQuery.page,
-          pageSize:
-            documentData.page_size === 10 ||
-            documentData.page_size === 25 ||
-            documentData.page_size === 50
-              ? documentData.page_size
-              : nextQuery.pageSize,
-          total: typeof documentData.total === "number" ? documentData.total : nextDocuments.length,
-          totalPages:
-            typeof documentData.total_pages === "number"
-              ? documentData.total_pages
-              : nextDocuments.length > 0
-                ? 1
-                : 0,
-          statusCounts:
-            documentData.status_counts && typeof documentData.status_counts === "object"
-              ? (documentData.status_counts as Record<string, number>)
-              : {},
-        });
-        const labels = await requestAdminUserLabels(
-          nextDocuments.flatMap((document) => (document.created_by ? [document.created_by] : [])),
-        );
-        if (!isCurrent()) return;
-        setCreatorLabels(labels ?? new Map());
-        setMessage("");
+        await loadDocuments(nextSelected, nextQuery, isCurrent, true);
       } catch {
         if (!isCurrent()) return;
         setDocuments([]);
         setCreatorLabels(new Map());
+        creatorIdsKeyRef.current = "";
         setPageState(EMPTY_DOCUMENT_PAGE);
         setMessage("문서 작업 공간을 불러오지 못했습니다. 다시 시도해 주세요.");
       }
     },
-    [],
+    [loadDocuments],
   );
 
   useEffect(() => {
@@ -596,6 +622,20 @@ function useAdminWorkspace(initialFolderId?: string) {
   }, [initialFolderId, load]);
 
   const refresh = useCallback(() => void load(selectedIdRef.current), [load]);
+  const refreshDocuments = useCallback(() => {
+    const selectedFolderId = selectedIdRef.current;
+    if (!selectedFolderId || documentRefreshInFlightRef.current !== undefined) return;
+    const refreshToken = Symbol("document-refresh");
+    documentRefreshInFlightRef.current = refreshToken;
+    const isCurrent = loadGateRef.current.begin();
+    void loadDocuments(selectedFolderId, documentQueryRef.current, isCurrent, false)
+      .catch(() => undefined)
+      .finally(() => {
+        if (documentRefreshInFlightRef.current === refreshToken) {
+          documentRefreshInFlightRef.current = undefined;
+        }
+      });
+  }, [loadDocuments]);
 
   return {
     folders,
@@ -608,6 +648,7 @@ function useAdminWorkspace(initialFolderId?: string) {
       void load(id, nextQuery);
     },
     refresh,
+    refreshDocuments,
     pageState,
     queryDocuments: (patch: Partial<RagDocumentListQuery>) => {
       const nextQuery = { ...documentQueryRef.current, ...patch };
@@ -1353,9 +1394,19 @@ function DocumentRow({
     document.active_version?.document_version_id ?? "",
   );
   const [versionLoadMessage, setVersionLoadMessage] = useState("");
-  const selectedStatus = selectedDocumentVersionStatus(versions, selectedVersionId);
+  const activeVersion = document.active_version;
+  const displayVersions = activeVersion
+    ? versions.some((version) => version.document_version_id === activeVersion.document_version_id)
+      ? versions.map((version) =>
+          version.document_version_id === activeVersion.document_version_id
+            ? activeVersion
+            : version,
+        )
+      : [activeVersion, ...versions]
+    : versions;
+  const selectedStatus = selectedDocumentVersionStatus(displayVersions, selectedVersionId);
   const selectedVersion =
-    versions.find((version) => version.document_version_id === selectedVersionId) ?? null;
+    displayVersions.find((version) => version.document_version_id === selectedVersionId) ?? null;
 
   async function loadVersions() {
     const items = await loadRagDocumentVersions(document.document_id);
@@ -1427,7 +1478,7 @@ function DocumentRow({
           onFocus={() => void loadVersions()}
           value={selectedVersionId}
         >
-          {versions.map((version) => (
+          {displayVersions.map((version) => (
             <option key={version.document_version_id} value={version.document_version_id}>
               v{version.version_number}
             </option>
