@@ -87,7 +87,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("요청마다 권한 재확인");
   });
 
-  it("채팅방 생성 요청 목록은 취소 상태 필터를 제공하지 않는다", () => {
+  it("채팅방 생성 요청 목록은 취소 필터와 고정된 공개·참여 방식을 표시하지 않는다", () => {
     const requestList = screenRegistry.find((screen) => screen.id === "A-CHAT-004");
     if (!requestList) throw new Error("A-CHAT-004 missing");
 
@@ -97,6 +97,9 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain(">승인</button>");
     expect(html).toContain(">반려</button>");
     expect(html).not.toContain(">취소</button>");
+    expect(html).not.toContain("공개·참여 방식");
+    expect(html).not.toContain("목록 공개");
+    expect(html).not.toContain("바로 참여");
   });
 
   it("shares accessible card, badge, field and button primitives", () => {

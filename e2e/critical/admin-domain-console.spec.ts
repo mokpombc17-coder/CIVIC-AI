@@ -197,10 +197,16 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
 
   const row = page.getByRole("row", { name: /시민 정책 토론방/ });
   await expect(row).toContainText("citizen@example.com");
+  await expect(page.getByRole("columnheader", { name: "공개·참여 방식" })).toHaveCount(0);
+  await expect(row).not.toContainText("목록 공개");
+  await expect(row).not.toContainText("바로 참여");
   await row.getByRole("link", { name: "상세 검토" }).click();
   await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=request-1$/u);
   await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toBeVisible();
   await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
+  await expect(page.getByText("공개·참여 방식", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("목록 공개", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("바로 참여", { exact: true })).toHaveCount(0);
   const categoryGroup = page.getByRole("group", { name: "승인 카테고리" });
   await categoryGroup.getByLabel("정책").check();
   await categoryGroup.getByLabel("지역 현안").check();
@@ -221,6 +227,8 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
   await page.goto("/admin/chat/categories");
 
   await expect(page.getByRole("heading", { name: "채팅방 카테고리 관리" })).toBeVisible();
+  await expect(page.getByText("ACTIVE · LISTED ROOMS", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "공개 채팅방 표" })).toHaveCount(0);
   await expect(page.getByRole("columnheader", { name: "버전" })).toHaveCount(0);
   await page.getByLabel("새 카테고리 이름").fill("복지");
   await page.getByRole("button", { name: "카테고리 추가" }).click();
