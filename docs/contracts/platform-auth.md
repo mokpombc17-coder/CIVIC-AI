@@ -69,6 +69,49 @@ Content-Type: application/json
 Next.js 3000 포트는 외부에 공개하지 않고 Nginx만 접근하게 한다. 이 경계가 지켜져야 외부 요청자가
 `X-Real-IP`를 위조해 로그인·가입 rate limit을 우회할 수 없다.
 
+## 가입 이메일 중복
+
+`POST /api/v1/signup/flows`는 대소문자를 무시한 동일 이메일이 이미 있으면 `409`와
+`application/problem+json`을 반환한다.
+
+```http
+HTTP/1.1 409 Conflict
+Content-Type: application/problem+json
+
+{
+  "detail": "이미 가입된 이메일입니다.",
+  "code": "EMAIL_ALREADY_REGISTERED",
+  "account_state": "ACTIVE"
+}
+```
+
+`account_state`는 `/me`와 같은 값 체계를 쓴다. Frontend(AUTH-002)는 `409`를 받으면
+`account_state`에 따라 안내를 나눈다.
+
+- `ACTIVE`(또는 값 없음): "이미 가입된 이메일" 경고와 `/login` 이동 버튼을 보여 준다.
+- `DEACTIVATED`: 재활성화 안내와 `/reactivate` 텍스트 버튼을 보여 준다.
+
+`409` 이외의 실패는 기존처럼 `detail` 문구를 일반 오류로 보여 준다.
+
+## 비활성 계정 로그인
+
+`POST /api/v1/auth/login`은 비활성화된 계정이면 `403`과 `application/problem+json`을 반환한다.
+
+```http
+HTTP/1.1 403 Forbidden
+Content-Type: application/problem+json
+
+{
+  "detail": "비활성화된 계정입니다.",
+  "code": "ACCOUNT_DEACTIVATED",
+  "account_state": "DEACTIVATED"
+}
+```
+
+Frontend(AUTH-001)는 실패 응답의 `account_state`가 `DEACTIVATED`이면 상태 코드와 무관하게
+"비활성화된 계정" 경고와 `/reactivate` 텍스트 버튼을 보여 준다. 그 밖의 실패는 `detail` 문구를
+일반 오류로 보여 준다.
+
 ## RAG Resource Server 경계
 
 공개 nginx는 `/api/v1/rag/**`와 `/stream/rag/queries/**`를 RAG Resource Server의 내부 경로로

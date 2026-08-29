@@ -18,6 +18,28 @@ test.beforeAll(async () => {
     const body = await readBody(request);
 
     if (url.pathname === "/api/v1/signup/flows") {
+      if (body.email === "registered-active@example.com") {
+        return json(
+          response,
+          {
+            detail: "이미 가입된 이메일입니다.",
+            code: "EMAIL_ALREADY_REGISTERED",
+            account_state: "ACTIVE",
+          },
+          409,
+        );
+      }
+      if (body.email === "registered-dormant@example.com") {
+        return json(
+          response,
+          {
+            detail: "이미 가입된 이메일입니다.",
+            code: "EMAIL_ALREADY_REGISTERED",
+            account_state: "DEACTIVATED",
+          },
+          409,
+        );
+      }
       return json(
         response,
         {
@@ -60,6 +82,17 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/auth/login") {
       if (body.email === "admin-2fa@example.com") {
         return json(response, { next: "TWO_FACTOR" }, 202, authFlowCookie("two-factor-flow"));
+      }
+      if (body.email === "registered-dormant@example.com") {
+        return json(
+          response,
+          {
+            detail: "비활성화된 계정입니다.",
+            code: "ACCOUNT_DEACTIVATED",
+            account_state: "DEACTIVATED",
+          },
+          403,
+        );
       }
       response.writeHead(204, { "set-cookie": authCookies("participant.payload.signature") }).end();
       return;
@@ -179,6 +212,46 @@ test("회원가입은 계정 생성 전 2문항·연령·두 필수 동의를 �
   await page.getByRole("textbox", { name: "인증 코드" }).fill("123456");
   await page.getByRole("button", { name: "인증하기" }).click();
   await expect(page).toHaveURL(/\/login$/u);
+});
+
+test("이미 가입된 이메일은 계정 상태에 따라 로그인 또는 재활성화로 안내한다", async ({ page }) => {
+  await page.goto("/signup/account");
+  await page.getByLabel("이메일").fill("registered-active@example.com");
+  await page.getByLabel("비밀번호", { exact: true }).fill("Civic!234");
+  await page.getByLabel("비밀번호 확인").fill("Civic!234");
+  await page.getByLabel("만 14세 이상입니다").check();
+  await page.getByRole("button", { name: "다음으로" }).click();
+
+  await expect(page.getByText("이미 가입된 이메일")).toBeVisible();
+  await expect(page.getByRole("link", { name: "로그인으로 이동" })).toHaveAttribute(
+    "href",
+    "/login",
+  );
+
+  await page.getByLabel("이메일").fill("registered-dormant@example.com");
+  await expect(page.getByText("이미 가입된 이메일")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "다음으로" }).click();
+  await expect(page.getByText("이미 가입된 이메일")).toBeVisible();
+  await expect(page.getByRole("link", { name: "계정 재활성화" })).toHaveAttribute(
+    "href",
+    "/reactivate",
+  );
+  await expect(page.getByRole("link", { name: "로그인으로 이동" })).toHaveCount(0);
+});
+
+test("비활성화된 계정 로그인은 재활성화 안내와 텍스트 버튼을 보여 준다", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("이메일").fill("registered-dormant@example.com");
+  await page.getByLabel("비밀번호", { exact: true }).fill("Civic!234");
+  await page.getByRole("button", { name: "로그인", exact: true }).click();
+
+  await expect(page.getByText("비활성화된 계정", { exact: true })).toBeVisible();
+  const notice = page.locator(".civic-login-deactivated");
+  await expect(notice.getByRole("link", { name: "계정 재활성화" })).toHaveAttribute(
+    "href",
+    "/reactivate",
+  );
 });
 
 test("2FA 로그인은 auth-flow cookie로 코드 확인 후 관리자 홈으로 이동한다", async ({ page }) => {

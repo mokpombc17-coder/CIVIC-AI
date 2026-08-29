@@ -29,10 +29,15 @@ import {
   redirectAfterPasswordChange,
 } from "@/components/screens/account-functional-screen";
 import {
+  ApiRequestError,
   authStepAfterPopState,
   authCompletionDestination,
   authenticatedDestination,
+  duplicateEmailAccountState,
+  isDeactivatedAccountError,
+  LoginDeactivatedNotice,
   safeReturnTarget,
+  SignupDuplicateEmailNotice,
   signupRecovery,
   signupCompletionPath,
   signupStepFromHistory,
@@ -496,6 +501,64 @@ describe("25 functional Main/Auth screens", () => {
     expect(authCompletionDestination("AUTH-008", "SIGNUP")).toBe("/login");
     expect(authCompletionDestination("AUTH-010", "SIGNUP")).toBe("/login");
     expect(authCompletionDestination("AUTH-005", "TWO_FACTOR")).toBeNull();
+  });
+
+  it("가입 흐름 409 응답만 이메일 중복으로 분류하고 계정 상태를 읽는다", () => {
+    const conflict = (problem: Record<string, unknown>) =>
+      new ApiRequestError(409, problem, "이미 가입된 이메일입니다.");
+    expect(duplicateEmailAccountState(conflict({ account_state: "ACTIVE" }))).toBe("ACTIVE");
+    expect(duplicateEmailAccountState(conflict({ account_state: "DEACTIVATED" }))).toBe(
+      "DEACTIVATED",
+    );
+    expect(duplicateEmailAccountState(conflict({}))).toBe("ACTIVE");
+    expect(duplicateEmailAccountState(new ApiRequestError(422, {}, "잘못된 요청"))).toBeNull();
+    expect(duplicateEmailAccountState(new Error("이미 가입된 이메일입니다."))).toBeNull();
+    expect(duplicateEmailAccountState(null)).toBeNull();
+  });
+
+  it("이메일 중복 안내는 활성 계정을 로그인으로, 비활성 계정을 재활성화로 보낸다", () => {
+    const activeHtml = renderToStaticMarkup(
+      createElement(SignupDuplicateEmailNotice, { accountState: "ACTIVE" }),
+    );
+    expect(activeHtml).toContain("이미 가입된 이메일");
+    expect(activeHtml).toContain('class="civic-form-alert civic-signup-duplicate"');
+    expect(activeHtml).toContain('href="/login"');
+    expect(activeHtml).toContain("로그인으로 이동");
+    expect(activeHtml).not.toContain("계정 재활성화");
+
+    const dormantHtml = renderToStaticMarkup(
+      createElement(SignupDuplicateEmailNotice, { accountState: "DEACTIVATED" }),
+    );
+    expect(dormantHtml).toContain("이미 가입된 이메일");
+    expect(dormantHtml).toContain('href="/reactivate"');
+    expect(dormantHtml).toContain("계정 재활성화");
+    expect(dormantHtml).not.toContain("로그인으로 이동");
+  });
+
+  it("비활성 계정 응답만 로그인 재활성화 안내로 분류한다", () => {
+    expect(
+      isDeactivatedAccountError(
+        new ApiRequestError(403, { account_state: "DEACTIVATED" }, "비활성화된 계정입니다."),
+      ),
+    ).toBe(true);
+    expect(
+      isDeactivatedAccountError(
+        new ApiRequestError(401, { account_state: "DEACTIVATED" }, "비활성화된 계정입니다."),
+      ),
+    ).toBe(true);
+    expect(
+      isDeactivatedAccountError(new ApiRequestError(403, { account_state: "ACTIVE" }, "금지됨")),
+    ).toBe(false);
+    expect(isDeactivatedAccountError(new ApiRequestError(401, {}, "인증 실패"))).toBe(false);
+    expect(isDeactivatedAccountError(new Error("비활성화된 계정입니다."))).toBe(false);
+  });
+
+  it("비활성 계정 로그인 안내는 재활성화 텍스트 버튼을 보여 준다", () => {
+    const html = renderToStaticMarkup(createElement(LoginDeactivatedNotice));
+    expect(html).toContain("비활성화된 계정");
+    expect(html).toContain('class="civic-form-alert civic-login-deactivated"');
+    expect(html).toContain('href="/reactivate"');
+    expect(html).toContain("계정 재활성화");
   });
 
   it("새로고침으로 가입 흐름 메타데이터가 없어진 후속 단계는 계정 입력으로 복구한다", () => {

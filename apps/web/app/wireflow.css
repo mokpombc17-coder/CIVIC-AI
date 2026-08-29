@@ -3131,6 +3131,22 @@ body:has([data-wireflow-shell]) {
   line-height: 1.5;
 }
 
+/* 가입 이메일 중복(AUTH-002)·비활성 계정 로그인(AUTH-001) 안내 */
+.civic-signup-duplicate .wf-button {
+  justify-self: start;
+  min-height: 40px;
+  margin-top: 4px;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.civic-signup-duplicate .civic-auth-reactivate,
+.civic-login-deactivated .civic-auth-reactivate {
+  justify-self: start;
+  margin-top: 4px;
+  font-size: 14px;
+}
+
 /* 필수 배지 */
 .civic-required-badge {
   margin-left: 6px;
