@@ -3954,6 +3954,23 @@ th {
   gap: 0.75rem;
 }
 
+[data-wireflow-shell="admin"] [data-wireflow-layout="room-category-admin"].civic-domain-console {
+  grid-template-columns: minmax(26rem, 0.85fr) minmax(36rem, 1.15fr);
+  align-items: start;
+}
+
+[data-wireflow-shell="admin"]
+  [data-wireflow-layout="room-category-admin"]
+  > .civic-domain-form-section {
+  min-width: 0;
+  align-content: start;
+}
+
+[data-wireflow-shell="admin"] [data-wireflow-layout="room-category-admin"] > .civic-form-message {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 [data-wireflow-shell="admin"] .civic-category-create > button,
 [data-wireflow-shell="admin"] .civic-category-room-search > button {
   min-height: 2.75rem;
@@ -3961,6 +3978,16 @@ th {
 
 [data-wireflow-shell="admin"] .civic-category-table input {
   min-width: 12rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-table th:first-child {
+  width: 58%;
+}
+
+[data-wireflow-shell="admin"] .civic-category-table td:last-child,
+[data-wireflow-shell="admin"] .civic-listed-room-table td:last-child {
+  width: 1%;
+  white-space: nowrap;
 }
 
 [data-wireflow-shell="admin"] .civic-listed-room-table tr.is-selected > * {
@@ -4005,6 +4032,26 @@ th {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 0.55rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor {
+  width: min(36rem, 94vw);
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor-form.civic-domain-action-panel {
+  align-content: start;
+  border: 0;
+  padding: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor-form .civic-form-message {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor-actions {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--civic-line);
+  padding-top: 1rem;
 }
 
 [data-wireflow-shell="admin"] .civic-boundary-copy {
@@ -4370,6 +4417,18 @@ th {
 
   [data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history {
     max-height: none;
+  }
+}
+
+@media (max-width: 1320px) {
+  [data-wireflow-shell="admin"] [data-wireflow-layout="room-category-admin"].civic-domain-console {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-shell="admin"] .civic-category-editor {
+    width: 100vw;
   }
 }
 
