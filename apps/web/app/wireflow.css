@@ -5656,10 +5656,6 @@ body {
   text-decoration: none;
 }
 
-.wf-account-hub-card:first-child {
-  min-height: 98px;
-}
-
 .wf-account-hub-card strong {
   color: var(--wf-blue-dark);
   font-size: 17px;
