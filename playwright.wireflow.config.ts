@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const WEB_BASE_URL = "https://localhost:3109";
-const MOCK_API_URL = "http://127.0.0.1:4791";
+const MOCK_API_PORT = process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791";
+const MOCK_API_URL = `http://127.0.0.1:${MOCK_API_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",

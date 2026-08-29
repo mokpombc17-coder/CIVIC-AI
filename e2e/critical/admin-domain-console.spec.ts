@@ -3,7 +3,7 @@ import { expect, test, type BrowserContext } from "@playwright/test";
 
 const WEB_BASE_URL = "https://localhost:3109";
 const MOCK_API_HOST = "127.0.0.1";
-const MOCK_API_PORT = 4791;
+const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE = "civic_ai_access_token";
 const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
 const simulationId = "0fa0d1cc-182f-4270-b9aa-66195b3ed8f4";
@@ -285,7 +285,7 @@ test("채팅 관리자는 일반 방 목록에서 선택해 현재 version으로
 
 test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행한다", async ({ context, page }) => {
   await authenticate(context);
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1138, height: 768 });
   await page.goto("/admin/tasks/create");
 
   await page.getByLabel("제목").fill("지역 정책 선호도 조사");
@@ -309,6 +309,22 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행�
     page.locator(".civic-user-summary-grid").getByText("진행 중", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText(taskId, { exact: true })).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  const [summaryBox, questionBox, operationsBox] = await Promise.all([
+    page.getByRole("group", { name: "과업 요약" }).boundingBox(),
+    page.locator(".civic-task-detail-content").boundingBox(),
+    page.getByRole("complementary", { name: "과업 운영" }).boundingBox(),
+  ]);
+  if (!summaryBox || !questionBox || !operationsBox) {
+    throw new Error("과업 상세의 고밀도 레이아웃 영역을 측정하지 못했습니다.");
+  }
+  expect(summaryBox.height).toBeLessThan(125);
+  expect(Math.abs(questionBox.y - operationsBox.y)).toBeLessThan(2);
+  expect(operationsBox.x).toBeGreaterThan(questionBox.x + questionBox.width);
+  expect(operationsBox.y + operationsBox.height).toBeLessThanOrEqual(
+    page.viewportSize()?.height ?? 768,
+  );
 });
 
 test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 화면으로 연결한다", async ({
@@ -494,6 +510,19 @@ function simulationFixture(state: "RUNNING" | "COMPLETED") {
 function lifecycleHistory(status: "DRAFT" | "OPEN") {
   if (status === "DRAFT") return [];
   return [
+    {
+      id: "event-0",
+      eventType: "CREATED",
+      previousStatus: "DRAFT",
+      newStatus: "DRAFT",
+      previousSchedule: null,
+      newSchedule: null,
+      trigger: "ADMIN",
+      actorId: "00000000-0000-4000-8000-000000000002",
+      reason: null,
+      closureType: null,
+      occurredAt: "2026-08-26T01:50:00Z",
+    },
     {
       id: "event-1",
       eventType: "OPENED",

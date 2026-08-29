@@ -474,52 +474,58 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
   return (
     <section className="civic-domain-detail">
       <TaskSummaryGrid task={task} />
-      {task.question ? (
-        <section className="civic-domain-description">
-          <h2>{task.question.content}</h2>
-          {task.question.description ? <p>{task.question.description}</p> : null}
-          <ol className="civic-task-options-readonly">
-            {[...task.question.options]
-              .sort((left, right) => left.displayOrder - right.displayOrder)
-              .map((option) => (
-                <li key={option.id}>{option.content}</li>
-              ))}
-          </ol>
-        </section>
-      ) : (
-        <div className="civic-boundary-note">
-          <strong>질문 미작성</strong>
-          <p>질문과 두 개 이상의 선택지를 저장해야 발행할 수 있습니다.</p>
+      <div className="civic-task-detail-grid">
+        <div className="civic-task-detail-content">
+          {task.question ? (
+            <section className="civic-domain-description">
+              <h2>{task.question.content}</h2>
+              {task.question.description ? <p>{task.question.description}</p> : null}
+              <ol className="civic-task-options-readonly">
+                {[...task.question.options]
+                  .sort((left, right) => left.displayOrder - right.displayOrder)
+                  .map((option) => (
+                    <li key={option.id}>{option.content}</li>
+                  ))}
+              </ol>
+            </section>
+          ) : (
+            <div className="civic-boundary-note">
+              <strong>질문 미작성</strong>
+              <p>질문과 두 개 이상의 선택지를 저장해야 발행할 수 있습니다.</p>
+            </div>
+          )}
+          <div className="civic-detail-actions">
+            {task.status === "DRAFT" ? (
+              <Link href={`/admin/tasks/create?taskId=${encodeURIComponent(task.id)}` as Route}>
+                초안 수정
+              </Link>
+            ) : null}
+            {task.status === "OPEN" ? (
+              <Link
+                className="civic-danger-action"
+                href={`/admin/tasks/close?taskId=${encodeURIComponent(task.id)}` as Route}
+              >
+                조기 종료
+              </Link>
+            ) : null}
+            {canReadTaskResult(task) ? (
+              <Link href={`/admin/tasks/results?taskId=${encodeURIComponent(task.id)}` as Route}>
+                정량 결과 보기
+              </Link>
+            ) : null}
+          </div>
         </div>
-      )}
-      <div className="civic-detail-actions">
-        {task.status === "DRAFT" ? (
-          <Link href={`/admin/tasks/create?taskId=${encodeURIComponent(task.id)}` as Route}>
-            초안 수정
-          </Link>
-        ) : null}
-        {task.status === "OPEN" ? (
-          <Link
-            className="civic-danger-action"
-            href={`/admin/tasks/close?taskId=${encodeURIComponent(task.id)}` as Route}
-          >
-            조기 종료
-          </Link>
-        ) : null}
-        {canReadTaskResult(task) ? (
-          <Link href={`/admin/tasks/results?taskId=${encodeURIComponent(task.id)}` as Route}>
-            정량 결과 보기
-          </Link>
-        ) : null}
+        <aside aria-label="과업 운영" className="civic-task-detail-operations">
+          <LifecyclePanel
+            key={task.status}
+            onSubmit={mutate}
+            pending={pending}
+            problem={problem}
+            task={task}
+          />
+          <LifecycleHistory events={detail.lifecycleHistory} />
+        </aside>
       </div>
-      <LifecyclePanel
-        key={task.status}
-        onSubmit={mutate}
-        pending={pending}
-        problem={problem}
-        task={task}
-      />
-      <LifecycleHistory events={detail.lifecycleHistory} />
       {message ? <StatusMessage>{message}</StatusMessage> : null}
     </section>
   );
@@ -610,7 +616,7 @@ function LifecyclePanel({
           aria-invalid={Boolean(adminFieldError(problem, "reason"))}
           disabled={pending}
           onChange={(event) => setReason(event.currentTarget.value)}
-          rows={3}
+          rows={2}
           value={reason}
         />
         <FieldError id="task-reason-error" message={adminFieldError(problem, "reason")} />
@@ -817,7 +823,7 @@ function TaskResultView({ taskId }: Readonly<{ taskId: string | null }>) {
 
 function TaskSummaryGrid({ task }: Readonly<{ task: Task }>) {
   return (
-    <div className="civic-user-summary-grid">
+    <div aria-label="과업 요약" className="civic-user-summary-grid" role="group">
       <Detail label="과업" value={task.title} />
       <Detail label="현재 상태" value={taskStatusLabel(task.status)} />
       <Detail label="시작" value={formatDate(task.openedAt ?? task.schedule?.opensAt ?? null)} />

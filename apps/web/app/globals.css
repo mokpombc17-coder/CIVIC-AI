@@ -3767,6 +3767,138 @@ th {
   gap: 1rem;
 }
 
+/* Keep the task operator's decision context and lifecycle controls in one desktop view. */
+[data-wireflow-layout="task-detail"].civic-domain-console {
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-detail {
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid {
+  grid-template-columns:
+    minmax(12rem, 1.7fr) minmax(5.75rem, 0.7fr) minmax(7.75rem, 1fr)
+    minmax(7.75rem, 1fr) minmax(5.75rem, 0.7fr) minmax(7.75rem, 1fr);
+  gap: 0.5rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid > div {
+  min-height: 4.25rem;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 0.7rem 0.8rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  .civic-user-summary-grid
+  > div:first-child {
+  border-color: #b8cdf8;
+  background: #f4f7fd;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-task-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(19rem, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  :is(.civic-task-detail-content, .civic-task-detail-operations) {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  :is(.civic-domain-description, .civic-domain-action-panel, .civic-domain-history) {
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-description h2,
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel h2,
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history h2 {
+  font-size: 1.05rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-description p {
+  color: var(--civic-muted);
+  line-height: 1.5;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-task-options-readonly {
+  gap: 0.45rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-task-options-readonly li {
+  padding: 0.6rem 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  .civic-domain-action-panel
+  :is(input, select, textarea) {
+  padding: 0.5rem 0.6rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel textarea {
+  min-height: 2.75rem;
+  resize: vertical;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel .civic-field {
+  gap: 0.25rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel > button {
+  justify-self: start;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history {
+  max-height: 10.75rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history ol {
+  gap: 0.45rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.1rem 0.5rem;
+  padding: 0.45rem 0.625rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li > div {
+  display: contents;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li time {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li p {
+  grid-column: 1;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-detail-actions a {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+}
+
 [data-wireflow-shell="admin"] .civic-domain-description,
 [data-wireflow-shell="admin"] .civic-domain-form-section,
 [data-wireflow-shell="admin"] .civic-domain-action-panel,
@@ -4211,6 +4343,10 @@ th {
     grid-template-columns: 1fr;
   }
 
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
   [data-wireflow-shell="admin"] .civic-simulation-fields,
   [data-wireflow-shell="admin"] .civic-filter-grid,
   [data-wireflow-shell="admin"] .civic-simulation-policy-grid,
@@ -4218,6 +4354,22 @@ th {
   [data-wireflow-shell="admin"] .civic-simulation-two-column,
   [data-wireflow-shell="admin"] .civic-simulation-usage-filter {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 821px) {
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-task-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history {
+    max-height: none;
   }
 }
 
