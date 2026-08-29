@@ -207,6 +207,23 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
   await expect(page.getByText("공개·참여 방식", { exact: true })).toHaveCount(0);
   await expect(page.getByText("목록 공개", { exact: true })).toHaveCount(0);
   await expect(page.getByText("바로 참여", { exact: true })).toHaveCount(0);
+  const requestInfo = page.getByRole("region", { name: "신청 정보" });
+  const requestDecision = page.getByRole("complementary", { name: "신청 처리" });
+  await expect(requestInfo).toBeVisible();
+  await expect(requestDecision).toBeVisible();
+  const [requestInfoBox, requestDecisionBox] = await Promise.all([
+    requestInfo.boundingBox(),
+    requestDecision.boundingBox(),
+  ]);
+  expect(requestInfoBox).not.toBeNull();
+  expect(requestDecisionBox).not.toBeNull();
+  expect(requestInfoBox!.x).toBeLessThan(requestDecisionBox!.x);
+  expect(Math.abs(requestInfoBox!.y - requestDecisionBox!.y)).toBeLessThan(2);
+  await expect(page.locator(".wf-screen-heading")).toHaveCSS("min-height", "80px");
+  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toHaveCSS(
+    "font-size",
+    "24px",
+  );
   const categoryGroup = page.getByRole("group", { name: "승인 카테고리" });
   await categoryGroup.getByLabel("정책").check();
   await categoryGroup.getByLabel("지역 현안").check();
