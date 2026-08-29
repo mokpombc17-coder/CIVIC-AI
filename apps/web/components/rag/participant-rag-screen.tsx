@@ -12,9 +12,12 @@ import { SafeMarkdownAnswer } from "./safe-markdown-answer";
 import { RagFeedback } from "./rag-feedback";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
+  clearRagConversationDraft,
   clearRagConversationSnapshot,
   latestPendingRagJobId,
+  readRagConversationDraft,
   readRagConversationSnapshot,
+  writeRagConversationDraft,
   writeRagConversationSnapshot,
   type Citation,
   type Message,
@@ -25,9 +28,12 @@ import {
 } from "./rag-conversation-session";
 
 export {
+  clearRagConversationDraft,
   clearRagConversationSnapshot,
   latestPendingRagJobId,
+  readRagConversationDraft,
   readRagConversationSnapshot,
+  writeRagConversationDraft,
   writeRagConversationSnapshot,
 } from "./rag-conversation-session";
 export type {
@@ -72,6 +78,13 @@ const STREAMING_PROGRESS: RagProgress = {
 
 export const RAG_SESSION_EXPIRED_MESSAGE = "세션이 만료되었습니다. 다시 로그인 해주세요.";
 export const RAG_SESSION_LOGIN_HREF = "/login?returnTo=%2Frag" as Route;
+
+export class RagSessionExpiredError extends Error {
+  constructor() {
+    super(RAG_SESSION_EXPIRED_MESSAGE);
+    this.name = "RagSessionExpiredError";
+  }
+}
 
 type UpdateRagLiveJobs = (update: (current: RagLiveJobs) => RagLiveJobs) => void;
 
@@ -211,6 +224,7 @@ function RagConversation({
     if (!userId) return;
     const storage = browserRagConversationStorage();
     const snapshot = storage ? readRagConversationSnapshot(storage, userId) : null;
+    const draft = storage ? readRagConversationDraft(storage, userId) : null;
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
@@ -218,6 +232,8 @@ function RagConversation({
         setMessages(snapshot.messages);
         setCurrentSessionId(snapshot.sessionId);
       }
+      if (draft !== null) setQuestion(draft);
+      if (storage) clearRagConversationDraft(storage);
       setRestored(true);
     });
     return () => {
@@ -271,6 +287,10 @@ function RagConversation({
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         finishLiveJob(setLiveJobs, pendingJobId);
+        if (error instanceof RagSessionExpiredError) {
+          setNotice(RAG_SESSION_EXPIRED_MESSAGE);
+          return;
+        }
         setNotice("연결이 끊겼습니다. 진행 중인 질문은 다음 방문 때 다시 확인합니다.");
       })
       .finally(() => {
@@ -291,6 +311,13 @@ function RagConversation({
     },
     [],
   );
+
+  function preserveDraftForLogin(): void {
+    if (!userId) return;
+    const storage = browserRagConversationStorage();
+    if (!storage) return;
+    writeRagConversationDraft(storage, userId, question);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -349,6 +376,10 @@ function RagConversation({
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (activeJobId) finishLiveJob(setLiveJobs, activeJobId);
+      if (error instanceof RagSessionExpiredError) {
+        setNotice(RAG_SESSION_EXPIRED_MESSAGE);
+        return;
+      }
       setNotice("연결이 끊겼습니다. 입력한 질문은 유지되며 잠시 후 다시 시도할 수 있습니다.");
     } finally {
       queryOperation.current.settle(retireIdempotencyKey);
@@ -415,7 +446,7 @@ function RagConversation({
             </p>
           ) : null}
         </div>
-        <RagNotice notice={notice} />
+        <RagNotice notice={notice} onLogin={preserveDraftForLogin} />
         <form className="civic-rag-composer" onSubmit={submit}>
           <label className="sr-only" htmlFor="rag-question">
             메시지 입력
@@ -470,7 +501,7 @@ function browserRagConversationStorage(): Storage | null {
   }
 }
 
-export function RagNotice({ notice }: Readonly<{ notice: string }>) {
+export function RagNotice({ notice, onLogin }: Readonly<{ notice: string; onLogin?: () => void }>) {
   if (!notice) return null;
   return (
     <p aria-live="polite" className="civic-form-message">
@@ -478,7 +509,9 @@ export function RagNotice({ notice }: Readonly<{ notice: string }>) {
       {notice === RAG_SESSION_EXPIRED_MESSAGE ? (
         <>
           {" "}
-          <Link href={RAG_SESSION_LOGIN_HREF}>로그인</Link>
+          <Link href={RAG_SESSION_LOGIN_HREF} {...(onLogin ? { onClick: onLogin } : {})}>
+            로그인
+          </Link>
         </>
       ) : null}
     </p>
@@ -863,6 +896,7 @@ export async function waitForStreamedResult(
     body: JSON.stringify({ job_id: jobId }),
     ...(signal ? { signal } : {}),
   }).catch(() => null);
+  if (bootstrap?.status === 401) throw new RagSessionExpiredError();
   if (!bootstrap?.ok) return fallbackResult();
   const body = (await bootstrap.json().catch(() => null)) as { stream_path?: unknown } | null;
   if (!body || typeof body.stream_path !== "string") return fallbackResult();
@@ -885,6 +919,7 @@ export async function waitForStreamedResult(
           cache: "no-store",
           ...(signal ? { signal } : {}),
         });
+        if (response.status === 401) throw new RagSessionExpiredError();
         if (!response.ok) throw new Error("query status unavailable");
         const result = (await response.json()) as RagJob;
         if (result.status !== "SUCCEEDED" && result.status !== "FAILED") {
@@ -892,8 +927,9 @@ export async function waitForStreamedResult(
           return;
         }
         resolve(result);
-      } catch {
+      } catch (error) {
         if (signal?.aborted) reject(new DOMException("query stream aborted", "AbortError"));
+        else if (error instanceof RagSessionExpiredError) reject(error);
         else fallbackResult().then(resolve, reject);
       }
     };
@@ -951,6 +987,7 @@ export async function pollResult(
         ...(signal ? { signal } : {}),
       });
       if (!response.ok) {
+        if (response.status === 401) throw new RagSessionExpiredError();
         if (!isRetryableRagStatus(response.status)) throw new Error("query status unavailable");
       } else {
         const job = (await response.json()) as RagJob;
@@ -959,6 +996,7 @@ export async function pollResult(
         if (job.status === "SUCCEEDED" || job.status === "FAILED") return job;
       }
     } catch (error) {
+      if (error instanceof RagSessionExpiredError) throw error;
       if (error instanceof Error && error.message === "query status unavailable") throw error;
     }
     await wait(1000);

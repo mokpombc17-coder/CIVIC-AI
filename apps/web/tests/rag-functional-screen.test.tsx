@@ -81,6 +81,7 @@ import {
   RAG_SESSION_EXPIRED_MESSAGE,
   RAG_SESSION_LOGIN_HREF,
   RagNotice,
+  RagSessionExpiredError,
   ragJobStatusMessage,
   RagSuggestionChips,
   RagLiveProgress,
@@ -129,12 +130,22 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 type RagSessionApi = Readonly<{
+  clearRagConversationDraft: (storage: ReturnType<typeof memoryStorage>) => void;
   clearRagConversationSnapshot: (storage: ReturnType<typeof memoryStorage>) => void;
   latestPendingRagJobId: (messages: ReadonlyArray<Record<string, unknown>>) => string | null;
   readRagConversationSnapshot: (
     storage: ReturnType<typeof memoryStorage>,
     ownerUserId: string,
   ) => Record<string, unknown> | null;
+  readRagConversationDraft: (
+    storage: ReturnType<typeof memoryStorage>,
+    ownerUserId: string,
+  ) => string | null;
+  writeRagConversationDraft: (
+    storage: ReturnType<typeof memoryStorage>,
+    ownerUserId: string,
+    draft: string,
+  ) => void;
   writeRagConversationSnapshot: (
     storage: ReturnType<typeof memoryStorage>,
     snapshot: Record<string, unknown>,
@@ -195,6 +206,25 @@ describe("9 functional RAG screens", () => {
     expect(ragSessionApi.readRagConversationSnapshot(storage, snapshot.ownerUserId)).toEqual(
       snapshot,
     );
+  });
+
+  it("세션 만료 로그인 왕복용 질문 초안은 사용자별 탭 저장소에서 한 번 복원한다", () => {
+    const storage = memoryStorage();
+    const ownerUserId = "00000000-0000-4000-8000-000000000001";
+    const draft = "로그인 뒤에도 남아야 할 질문 초안";
+
+    ragSessionApi.writeRagConversationDraft(storage, ownerUserId, draft);
+    expect(ragSessionApi.readRagConversationDraft(storage, ownerUserId)).toBe(draft);
+    ragSessionApi.clearRagConversationDraft(storage);
+    expect(ragSessionApi.readRagConversationDraft(storage, ownerUserId)).toBeNull();
+
+    ragSessionApi.writeRagConversationDraft(storage, ownerUserId, draft);
+    expect(
+      ragSessionApi.readRagConversationDraft(storage, "00000000-0000-4000-8000-000000000002"),
+    ).toBeNull();
+    ragSessionApi.writeRagConversationDraft(storage, ownerUserId, draft);
+    ragSessionApi.clearRagConversationSnapshot(storage);
+    expect(ragSessionApi.readRagConversationDraft(storage, ownerUserId)).toBeNull();
   });
 
   it("다른 사용자의 탭 대화는 복원하지 않고 저장소에서 제거한다", () => {
@@ -579,6 +609,32 @@ describe("9 functional RAG screens", () => {
     expect(onProgress).toHaveBeenCalledTimes(60);
   });
 
+  it("결과 폴링 중 최종 401이면 세션 만료 오류를 전파한다", async () => {
+    const request = vi.fn(async () => Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+
+    await expect(
+      pollResult("expired-job", {
+        request: request as typeof fetch,
+        wait: async () => undefined,
+      }),
+    ).rejects.toBeInstanceOf(RagSessionExpiredError);
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("스트림 세션 발급 중 최종 401이면 폴링으로 숨기지 않는다", async () => {
+    const request = vi.fn(async () => Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+    const fallback = vi.fn();
+
+    await expect(
+      waitForStreamedResult("expired-job", {
+        request: request as typeof fetch,
+        createSource: vi.fn(),
+        fallback,
+      }),
+    ).rejects.toBeInstanceOf(RagSessionExpiredError);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
   it("질의 단계와 검증된 답변 조각을 SSE로 표시한 뒤 정식 결과를 읽는다", async () => {
     const listeners = new Map<string, (event: { data?: string }) => void>();
     const source = {
@@ -633,6 +689,34 @@ describe("9 functional RAG screens", () => {
     expect(streamedParts.join("")).toBe("문서 답변");
     expect(source.close).toHaveBeenCalledOnce();
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("스트림 완료 결과 조회의 최종 401도 세션 만료 오류로 전파한다", async () => {
+    const listeners = new Map<string, (event: { data?: string }) => void>();
+    const source = {
+      addEventListener: vi.fn((name: string, listener: (event: { data?: string }) => void) =>
+        listeners.set(name, listener),
+      ),
+      close: vi.fn(),
+      onerror: null as (() => void) | null,
+    };
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ stream_path: "/stream/rag/queries/expired-job" }))
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+    const fallback = vi.fn();
+
+    const pending = waitForStreamedResult("expired-job", {
+      request,
+      createSource: () => source,
+      fallback,
+    });
+    await vi.waitFor(() => expect(listeners.has("query.succeeded")).toBe(true));
+    listeners.get("query.succeeded")?.({});
+
+    await expect(pending).rejects.toBeInstanceOf(RagSessionExpiredError);
+    expect(fallback).not.toHaveBeenCalled();
+    expect(source.close).toHaveBeenCalledOnce();
   });
 
   it("답변 생성 전에는 공개 1·2·3단계만 보여주고 경과 시간은 노출하지 않는다", () => {
