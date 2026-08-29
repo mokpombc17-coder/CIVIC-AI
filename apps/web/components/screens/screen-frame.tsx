@@ -7,12 +7,14 @@ export function ScreenFrame({
   screen,
   children,
   backHref,
+  headingAction,
   platformHeading = "HIDDEN",
   title,
 }: Readonly<{
   screen: ScreenDefinition;
   children: ReactNode;
   backHref?: Route;
+  headingAction?: ReactNode;
   platformHeading?: "HIDDEN" | "SECONDARY";
   title?: string;
 }>) {
@@ -26,6 +28,7 @@ export function ScreenFrame({
       data-wireflow-screen={screen.id}
     >
       <WireflowScreenHeading
+        action={headingAction}
         {...heading}
         {...(resolvedBackHref ? { backHref: resolvedBackHref } : {})}
         secondary={platformHeading === "SECONDARY"}

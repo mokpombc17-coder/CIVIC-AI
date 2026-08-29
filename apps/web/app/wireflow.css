@@ -52,7 +52,7 @@ body {
 
 .wf-screen-heading {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 65px;
   align-items: center;
   gap: 14px;
@@ -60,9 +60,23 @@ body {
   padding: 17px;
 }
 
-.wf-screen-heading > div {
+.wf-screen-heading-leading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.wf-screen-heading-copy {
   display: grid;
+  min-width: 0;
   gap: 3px;
+}
+
+.wf-screen-heading-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 /* frontend2 PlatformHeader owns the single page title and back action. */
