@@ -434,6 +434,7 @@ export function AdminRagScreen({
         >
           <FolderEditor
             cancelHref={ragWorkspaceHref(selectedFolder?.folder_id ?? folderId)}
+            documentCount={pageState.total}
             folder={selectedFolder}
             parentName={
               folderMode === "ADD"
@@ -444,6 +445,10 @@ export function AdminRagScreen({
             mode={folderMode}
             onComplete={() => {
               setCompletedFolderDialog(folderDialogKey);
+              if (folderMode === "DELETE") {
+                router.replace(ragWorkspaceHref(selectedFolder?.parent_id ?? undefined));
+                return;
+              }
               refresh();
             }}
             onMessage={setMessage}
@@ -1637,6 +1642,7 @@ function documentStatusLabel(value: string): string {
 
 function FolderEditor({
   cancelHref,
+  documentCount,
   folder,
   mode,
   onComplete,
@@ -1644,6 +1650,7 @@ function FolderEditor({
   parentName,
 }: Readonly<{
   cancelHref: Route;
+  documentCount: number;
   folder: Folder | undefined;
   mode: "ADD" | "EDIT" | "DELETE";
   onComplete: () => void;
@@ -1715,7 +1722,7 @@ function FolderEditor({
       <div className="wf-rag-modal-summary">
         <strong>문서 / {folder?.name ?? "Root"}</strong>
         <p>
-          포함 문서 <b>확인 중</b>
+          포함 문서 <b>{documentCount.toLocaleString("ko-KR")}개</b>
         </p>
       </div>
       {mode === "DELETE" ? (

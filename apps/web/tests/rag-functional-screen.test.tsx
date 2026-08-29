@@ -860,6 +860,8 @@ describe("9 functional RAG screens", () => {
       }),
     );
     expect(html).toContain("폴더 삭제 확인");
+    expect(html).toContain("포함 문서 <b>0개</b>");
+    expect(html).not.toContain("포함 문서 <b>확인 중</b>");
     expect(html).toContain("포함된 문서와 하위 폴더는 상위 폴더로 이동합니다");
     expect(html.match(/href="\/admin\/rag\?folderId=folder-1"/g)).toHaveLength(2);
     expect(html).not.toContain("수정할 폴더 정보");

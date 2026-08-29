@@ -42,6 +42,10 @@ test.beforeAll(async () => {
     if (url.pathname === "/internal/v1/rag/folders") {
       return json(response, { items: folderFixtures });
     }
+    if (url.pathname === "/internal/v1/rag/folders/welfare" && request.method === "DELETE") {
+      response.writeHead(204).end();
+      return;
+    }
     if (url.pathname === "/internal/v1/rag/documents") {
       return json(response, { items: [documentFixture] });
     }
@@ -525,6 +529,15 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   const folderDialog = page.getByRole("dialog", { name: "폴더 수정" });
   await expect(folderDialog).toBeVisible();
   await expect(folderDialog.getByRole("textbox", { name: "폴더명" })).toHaveValue("복지정책");
+
+  await page.goto("/admin/rag/folders?folderId=welfare&mode=DELETE");
+  const folderDeleteDialog = page.getByRole("dialog", { name: "폴더 삭제 확인" });
+  await expect(folderDeleteDialog).toBeVisible();
+  await expect(folderDeleteDialog.getByText("포함 문서 1개", { exact: true })).toBeVisible();
+  await expect(folderDeleteDialog.getByText("포함 문서 확인 중", { exact: true })).toHaveCount(0);
+  await folderDeleteDialog.getByRole("button", { name: "폴더 삭제 확인" }).click();
+  await expect(page).toHaveURL(/\/admin\/rag\?folderId=general$/u);
+  await expect(folderDeleteDialog).toHaveCount(0);
 
   await page.goto("/admin/rag/upload?folderId=welfare&mode=NEW_DOCUMENT");
   await expect(page.getByRole("heading", { name: "복지정책 폴더에 문서 업로드" })).toBeVisible();
