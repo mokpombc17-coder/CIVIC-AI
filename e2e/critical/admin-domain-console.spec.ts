@@ -296,7 +296,7 @@ test("다른 관리자가 삭제한 카테고리의 수정 404에서 최신 목�
   await expect(page.getByRole("row", { name: /대중교통/ })).toHaveCount(0);
 });
 
-test("채팅 관리자는 일반 방 목록에서 선택해 현재 version으로 카테고리를 교체한다", async ({
+test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 version의 카테고리를 교체한다", async ({
   context,
   page,
 }) => {
@@ -311,7 +311,7 @@ test("채팅 관리자는 일반 방 목록에서 선택해 현재 version으로
 
   const roomRow = page.getByRole("row", { name: /시민 정책 토론방/ });
   await expect(roomRow).toContainText("정책");
-  await roomRow.getByRole("button", { name: "선택" }).click();
+  await roomRow.getByRole("button", { name: "수정" }).click();
   const editor = page.getByRole("dialog", { name: "시민 정책 토론방" });
   await expect(editor).toBeVisible();
   const categoryGroup = editor.getByRole("group", { name: "적용할 카테고리" });

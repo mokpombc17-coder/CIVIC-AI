@@ -7,11 +7,11 @@ import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { getScreenByRoute, screenRegistry, type ScreenDefinition } from "@/lib/screens/registry";
 
 describe("canonical screen registry adapter", () => {
-  it("70개 route와 50/20 상태를 손실 없이 제공한다", () => {
+  it("70개 route와 54/16 상태를 손실 없이 제공한다", () => {
     expect(screenRegistry).toHaveLength(70);
     expect(new Set(screenRegistry.map((screen) => screen.route))).toHaveLength(70);
-    expect(screenRegistry.filter((screen) => screen.status === "FUNCTIONAL")).toHaveLength(50);
-    expect(screenRegistry.filter((screen) => screen.status === "PLACEHOLDER")).toHaveLength(20);
+    expect(screenRegistry.filter((screen) => screen.status === "FUNCTIONAL")).toHaveLength(54);
+    expect(screenRegistry.filter((screen) => screen.status === "PLACEHOLDER")).toHaveLength(16);
   });
 
   it("query나 trailing slash가 없는 pathname만 정규화해 정확한 화면을 찾는다", () => {
@@ -48,7 +48,7 @@ describe("coming-soon screen presentation", () => {
 
   it("참여자는 frontend2 Platform Shell, 관리자는 실제 UI 관리자 메뉴를 유지한다", () => {
     const participant = renderPlaceholder(getScreen("U-CHAT-001"));
-    const admin = renderPlaceholder(getScreen("A-CHAT-001"));
+    const admin = renderPlaceholder(getScreen("A-CHAT-003"));
 
     expect(participant).toContain('aria-label="참여자 주요 메뉴"');
     expect(participant).toContain("토론방");

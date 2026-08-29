@@ -5,8 +5,9 @@
 
 ## 구현된 화면
 
-- Chat `A-CHAT-004..007`: 생성 신청 목록·상세, 카테고리 1~5개를 지정한 승인, 반려,
-  카테고리 생성·이름 변경·삭제, 공개 중인 목록 방의 카테고리 전체 교체
+- Chat `A-CHAT-001..002`, `A-CHAT-004..009`: 공개 중인 활성 방 선택, 기간별 대화 ZIP
+  Export 기반 방 상세·통계·원본 다운로드, 생성 신청 목록·상세, 카테고리 1~5개를 지정한 승인,
+  반려, 카테고리 생성·이름 변경·삭제, 공개 중인 목록 방의 카테고리 전체 교체
 - Vote `A-TASK-001..005`: Draft 생성·전체 수정, 예약·즉시 발행, 일정 변경, 종료·취소,
   정량 결과와 JSONL 다운로드
 - Simulation `A-SIM-001..007`: Vote 과업 선택, SONA 집계 패널 설정·실행, 상태·취소,
@@ -24,6 +25,7 @@ Resource Server로 직접 전달한다. 각 Resource Server가 HttpOnly Access T
 | Chat 생성 신청                      | `chat:rooms:approve`       |
 | Chat 카테고리 관리·방 카테고리 교체 | `chat:categories:manage`   |
 | 기존 방 version 조회                | `chat:rooms:read`          |
+| Chat 기간별 대화 Export             | `chat:audit:exports`       |
 | Vote 과업                           | `vote:tasks:admin`         |
 | 과업 집계 시뮬레이션 조회           | `simulation:tasks:read`    |
 | 과업 집계 시뮬레이션 실행·취소      | `simulation:tasks:run`     |
@@ -65,5 +67,7 @@ Simulation Resource Server와 화면 계약에 포함하지 않는다.
   시도하며, `409 ROOM_CATEGORY_IN_USE`의 `referencedRoomCount`를 사용자에게 표시한다.
 - 카테고리와 Room의 version conflict에서는 로컬 값을 덮어쓰지 않고 최신 리소스를 다시 조회한다.
 
-Chat 활성 방 전체 관리, 관리자 직접 생성, 통계 화면에는 아직 서버 계약이 없다. Chat 서버의 일반
-방 API를 관리자 전체 방 검색이나 목록에 노출되지 않는 임의 방 운영 용도로 재사용하지 않는다.
+Chat 관리자 직접 생성과 목록 비공개·종료 방 전체 탐색에는 아직 서버 계약이 없다. 대화 상세와
+통계는 `POST /api/v1/admin/rooms/{roomId}/conversation-exports`의 v1 ZIP을 요청한 뒤
+`manifest.json`, `messages.jsonl`, `message_changes.jsonl`을 검증·분석한다. 방 선택에는 일반 방
+API가 제공하는 `ACTIVE + LISTED` 범위만 사용하며, 이를 관리자 전체 방 검색으로 확대 해석하지 않는다.

@@ -564,7 +564,7 @@ function ListedRoomTable({
                     onClick={() => onSelect(listedRoom)}
                     type="button"
                   >
-                    {selected ? "선택됨" : "선택"}
+                    수정
                   </button>
                 </td>
               </tr>

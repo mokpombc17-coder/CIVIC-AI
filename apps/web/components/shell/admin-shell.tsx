@@ -18,6 +18,7 @@ const adminNavigation = [
   { href: "/admin" as Route, label: "관리 홈", access: "ADMIN" },
   { href: "/admin/users" as Route, label: "사용자·권한", access: "HIGHEST_ADMIN" },
   { href: "/admin/rag" as Route, label: "문서 관리", access: "RAG_ADMIN" },
+  { href: "/admin/chat/statistics" as Route, label: "채팅 분석", access: "CHAT_ADMIN" },
   { href: "/admin/chat/requests" as Route, label: "채팅 신청", access: "CHAT_ADMIN" },
   { href: "/admin/chat/categories" as Route, label: "채팅 카테고리", access: "CHAT_ADMIN" },
   { href: "/admin/tasks" as Route, label: "과업 관리", access: "VOTE_ADMIN" },

@@ -411,7 +411,7 @@
       "canonical_title": "활성 채팅방 목록",
       "audience": "ADMIN",
       "route": "/admin/chat",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-001 활성 채팅방 목록"
     },
@@ -420,7 +420,7 @@
       "canonical_title": "활성 채팅방 상세",
       "audience": "ADMIN",
       "route": "/admin/chat/detail",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-002 활성 채팅방 상세"
     },
@@ -474,7 +474,7 @@
       "canonical_title": "채팅 통계",
       "audience": "ADMIN",
       "route": "/admin/chat/statistics",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-008 채팅 통계"
     },
@@ -483,7 +483,7 @@
       "canonical_title": "메시지 Export",
       "audience": "ADMIN",
       "route": "/admin/chat/export",
-      "status": "PLACEHOLDER",
+      "status": "FUNCTIONAL",
       "owner": "CHAT",
       "source_heading": "### A-CHAT-009 메시지 Export"
     },
