@@ -55,6 +55,7 @@ import {
   resolveWorkspaceFolderId,
   selectedDocumentVersionStatus,
   readAcceptedJobId,
+  requestRagUploadCancellation,
   requestRagJobRetry,
   rejectedInputs,
   RagJobStatusCard,
@@ -881,6 +882,33 @@ describe("9 functional RAG screens", () => {
     await expect(loadRagJob("job-1", malformed as typeof fetch)).resolves.toBeNull();
   });
 
+  it("업로드 취소는 작업이 가리키는 문서만 삭제하고 불명확 실패를 구분한다", async () => {
+    const accepted = vi.fn(async () => new Response(null, { status: 204 }));
+    const unavailable = vi.fn(async () => Promise.reject(new Error("offline")));
+
+    await expect(
+      requestRagUploadCancellation({
+        documentId: "document-1",
+        idempotencyKey: "cancel-key-1",
+        request: accepted as typeof fetch,
+      }),
+    ).resolves.toEqual({ kind: "cancelled", definitive: true });
+    expect(accepted).toHaveBeenCalledWith(
+      "/api/v1/rag/documents/document-1",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: { "idempotency-key": "cancel-key-1" },
+      }),
+    );
+    await expect(
+      requestRagUploadCancellation({
+        documentId: "document-1",
+        idempotencyKey: "cancel-key-1",
+        request: unavailable as typeof fetch,
+      }),
+    ).resolves.toEqual({ kind: "network", definitive: false });
+  });
+
   it("수동 재시도의 네트워크 오류는 사용자에게 다시 시도 가능한 상태로 안내한다", () => {
     expect(RAG_RETRY_NETWORK_MESSAGE).toContain("네트워크 오류");
     expect(RAG_RETRY_NETWORK_MESSAGE).toContain("다시 시도");
@@ -1180,12 +1208,13 @@ describe("9 functional RAG screens", () => {
         filename: "정책자료.hwpx",
         job: {
           job_id: "640af5c5-d302-4c32-97ca-c9db40ed22e5",
+          document_id: "20000000-0000-4000-8000-000000000001",
           status: "FAILED",
           progress: 10,
           failure_code: "DOCUMENT_READ_FAILED",
         },
         message: "최신 처리 상태를 반영했습니다.",
-        onRefresh: vi.fn(),
+        onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
         workspaceHref: ragWorkspaceHref("policy-folder"),
@@ -1199,6 +1228,8 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("원본 파일을 확인한 뒤 다시 업로드하세요");
     expect(html).toContain('class="civic-primary-action"');
     expect(html).toContain("실패 파일 다시 처리");
+    expect(html).toContain("업로드 취소");
+    expect(html).not.toContain("상태 새로고침");
     expect(html).toContain('href="/admin/rag?folderId=policy-folder"');
     expect(html).not.toContain("640af5c5-d302-4c32-97ca-c9db40ed22e5");
   });
