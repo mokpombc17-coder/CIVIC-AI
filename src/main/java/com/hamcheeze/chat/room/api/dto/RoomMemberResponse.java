@@ -8,6 +8,7 @@ import java.time.Instant;
 
 public record RoomMemberResponse(
         String membershipId,
+        String userLabel,
         String displayName,
         String imageUrl,
         long profileVersion,
@@ -22,6 +23,7 @@ public record RoomMemberResponse(
     public static RoomMemberResponse from(RoomMemberView view) {
         return new RoomMemberResponse(
                 view.membershipId(),
+                userLabel(view.userId()),
                 view.displayName(),
                 view.imageUrl(),
                 view.profileVersion(),
@@ -31,5 +33,12 @@ public record RoomMemberResponse(
                 view.leftAt(),
                 view.bannedAt(),
                 view.version());
+    }
+
+    private static String userLabel(String userId) {
+        int separatorIndex = userId.indexOf('@');
+        return separatorIndex > 0
+                ? userId.substring(0, separatorIndex)
+                : userId;
     }
 }
