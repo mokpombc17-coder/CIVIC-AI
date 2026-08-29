@@ -20,7 +20,6 @@ import {
   type Message,
   type RagJob,
   type RagProgress,
-  type RagProgressStage,
   RAG_PROGRESS_STAGES,
 } from "./rag-conversation-session";
 
@@ -147,6 +146,19 @@ function liveStreamOptions(
           [jobId]: {
             ...previous,
             streamedAnswer: nextAnswer.length <= 120_000 ? nextAnswer : previous.streamedAnswer,
+          },
+        };
+      });
+    },
+    onAnswerReset: () => {
+      updateLiveJobs((current) => {
+        const previous = current[jobId];
+        if (!previous) return current;
+        return {
+          ...current,
+          [jobId]: {
+            ...previous,
+            streamedAnswer: "",
           },
         };
       });
@@ -584,15 +596,14 @@ function RagMessage({
         </header>
         <div className={`civic-rag-answer${liveJob ? " is-live" : ""}`}>
           {liveJob ? (
-            <>
+            liveJob.streamedAnswer ? (
+              <div aria-label="실시간 답변" className="civic-rag-streamed-answer">
+                <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+                <span aria-hidden="true" className="civic-rag-stream-cursor" />
+              </div>
+            ) : (
               <RagLiveProgress liveJob={liveJob} />
-              {liveJob.streamedAnswer ? (
-                <div aria-label="실시간 답변" className="civic-rag-streamed-answer">
-                  <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
-                  <span aria-hidden="true" className="civic-rag-stream-cursor" />
-                </div>
-              ) : null}
-            </>
+            )
           ) : statusMessage ? (
             <p role={message.job?.status === "FAILED" ? "alert" : undefined}>{statusMessage}</p>
           ) : message.job?.answer ? (
@@ -671,14 +682,6 @@ function RagMessage({
   );
 }
 
-const VISIBLE_PROGRESS_STAGES = [
-  { stage: "UNDERSTANDING", label: "질문 이해" },
-  { stage: "SEARCHING", label: "자료 검색" },
-  { stage: "READING", label: "근거 분석" },
-  { stage: "COMPOSING", label: "답변 작성" },
-  { stage: "VERIFYING", label: "최종 확인" },
-] as const satisfies ReadonlyArray<{ stage: RagProgressStage; label: string }>;
-
 export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -687,71 +690,27 @@ export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) 
     return () => window.clearInterval(timer);
   }, []);
 
-  const secondsSinceUpdate = Math.max(0, Math.floor((now - liveJob.progressReceivedAt) / 1000));
   const elapsedSeconds = Math.max(
-    liveJob.progress.elapsed_seconds + secondsSinceUpdate,
+    liveJob.progress.elapsed_seconds,
     Math.floor((now - liveJob.startedAt) / 1000),
   );
-  const remainingSeconds = Math.max(
-    0,
-    liveJob.progress.estimated_remaining_seconds - secondsSinceUpdate,
-  );
-  const activeIndex = VISIBLE_PROGRESS_STAGES.findIndex(
-    ({ stage }) => stage === liveJob.progress.stage,
-  );
-  const allStagesComplete = liveJob.progress.stage === "STREAMING";
 
   return (
-    <section aria-label="RAG 답변 처리 현황" className="civic-rag-live-progress">
+    <section aria-label="RAG 답변 로딩" className="civic-rag-live-progress" role="status">
       <div className="civic-rag-live-heading">
         <span className="civic-rag-live-badge">
-          <span aria-hidden="true" /> 실시간 처리
+          <span aria-hidden="true" /> 답변 준비 중
         </span>
-        <strong>{formatRagRemaining(remainingSeconds, liveJob.progress.stage)}</strong>
+        <strong>시작 후 {formatRagElapsed(elapsedSeconds)}</strong>
       </div>
-      <div
-        aria-label={`답변 처리 ${liveJob.progress.progress_percent}%`}
-        aria-valuemax={100}
-        aria-valuemin={0}
-        aria-valuenow={liveJob.progress.progress_percent}
-        className="civic-rag-progress-track"
-        role="progressbar"
-      >
-        <span style={{ width: `${liveJob.progress.progress_percent}%` }} />
-      </div>
-      <ol className="civic-rag-stage-list">
-        {VISIBLE_PROGRESS_STAGES.map(({ stage, label }, index) => {
-          const state =
-            allStagesComplete || index < activeIndex
-              ? "done"
-              : index === activeIndex
-                ? "active"
-                : "waiting";
-          return (
-            <li className={`is-${state}`} key={stage}>
-              <span aria-hidden="true">{state === "done" ? "✓" : index + 1}</span>
-              <small>{label}</small>
-            </li>
-          );
-        })}
-      </ol>
       <div className="civic-rag-live-copy">
         <div>
-          <strong aria-live="polite">{liveJob.progress.label}</strong>
-          <p>{liveJob.progress.detail}</p>
+          <strong>문서를 확인하고 답변을 준비하고 있어요</strong>
+          <p>답변이 시작되면 생성되는 내용부터 바로 표시합니다.</p>
         </div>
-        <span>시작 후 {formatRagElapsed(elapsedSeconds)}</span>
       </div>
     </section>
   );
-}
-
-export function formatRagRemaining(seconds: number, stage: RagProgressStage): string {
-  if (stage === "STREAMING") return "곧 완료";
-  if (seconds <= 0) return "예상보다 조금 더 걸리고 있어요";
-  if (seconds < 60) return `약 ${seconds}초 남음`;
-  const minutes = Math.ceil(seconds / 60);
-  return `약 ${minutes}분 남음`;
 }
 
 function formatRagElapsed(seconds: number): string {
@@ -835,6 +794,7 @@ type StreamResultOptions = Readonly<{
   createSource?: (url: string) => EventSourceLike;
   fallback?: (jobId: string, options: PollResultOptions) => Promise<RagJob>;
   onAnswerDelta?: (delta: string) => void;
+  onAnswerReset?: () => void;
   onAnswerStart?: () => void;
   onProgress?: (progress: RagProgress) => void;
   signal?: AbortSignal;
@@ -847,6 +807,7 @@ export async function waitForStreamedResult(
     createSource,
     fallback = pollResult,
     onAnswerDelta,
+    onAnswerReset,
     onAnswerStart,
     onProgress,
     signal,
@@ -918,6 +879,7 @@ export async function waitForStreamedResult(
       if (progress) onProgress?.(progress);
     });
     source.addEventListener("query.answer.started", () => onAnswerStart?.());
+    source.addEventListener("query.answer.reset", () => onAnswerReset?.());
     source.addEventListener("query.answer.delta", (event) => {
       const value = readRagStreamData(event.data);
       if (
