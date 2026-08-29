@@ -15,6 +15,13 @@ describe("ChatAuthenticationBoundaryView", () => {
 
     expect(markup).toContain('data-chat-authentication-required="true"');
     expect(markup).toContain('role="alert"');
+    expect(markup).toContain("chat-publishing-surface");
+    expect(markup).toContain("border-[#ffc95c]");
+    expect(markup).toContain("bg-[#fff7e8]");
+    expect(markup).toContain("min-h-[204px]");
+    expect(markup).toContain("h-12 min-w-[131px]");
+    expect(markup).toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(markup).toContain("text-white");
     expect(markup.match(/로그인이 필요합니다\./g)).toHaveLength(1);
     expect(markup).toContain("로그인하면 현재 화면으로 돌아옵니다.");
     expect(markup).toContain("로그인하기");
