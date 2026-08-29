@@ -14,6 +14,7 @@ import {
   loadChatRequestSummary,
   loadRagJobSummary,
   loadTaskDeadlineSummary,
+  RagFailureSummary,
   ragFailureLabel,
   requestAdminUsers,
   requestAdminAudit,
@@ -436,6 +437,23 @@ describe("25 functional Main/Auth screens", () => {
       "문서 구조 분석에 실패했습니다. 다시 시도해 주세요.",
     );
     expect(ragFailureLabel("UNKNOWN_FAILURE")).toBe("처리 상태를 확인하고 다시 시도하세요.");
+  });
+
+  it("RAG 실패 요약은 공통 문서 관리 링크 대신 문서별 업로드 재시도를 제공한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagFailureSummary, {
+        failures: [
+          { filename: "sample.pdf", failureCode: "PAGE_INDEX_OUTLINE_FAILED" },
+          { filename: "civic-encrypted.pdf", failureCode: "DOCUMENT_READ_FAILED" },
+        ],
+      }),
+    );
+
+    expect(html).not.toContain("문서 관리에서 조치");
+    expect(html.match(/href="\/admin\/rag\/upload"/gu)).toHaveLength(2);
+    expect(html).toContain('aria-label="sample.pdf 업로드 화면에서 재시도"');
+    expect(html).toContain('aria-label="civic-encrypted.pdf 업로드 화면에서 재시도"');
+    expect(html.match(/>재시도<\/a>/gu)).toHaveLength(2);
   });
 
   it("관리 홈은 Chat 승인 대기와 24시간 내 과업 마감을 실제 응답에서 계산한다", async () => {

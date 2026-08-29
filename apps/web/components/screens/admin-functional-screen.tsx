@@ -376,20 +376,7 @@ function AdminHome({
         </li>
       </ul>
       {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
-        <section aria-label="최근 문서 처리 실패" className="civic-rag-failure-summary">
-          <header>
-            <h2>확인이 필요한 문서</h2>
-            <Link href="/admin/rag">문서 관리에서 조치</Link>
-          </header>
-          <ul>
-            {ragJobSummary.recentFailures.map((failure) => (
-              <li key={`${failure.filename}:${failure.updatedAt ?? failure.failureCode}`}>
-                <strong>{failure.filename}</strong>
-                <span>{ragFailureLabel(failure.failureCode)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <RagFailureSummary failures={ragJobSummary.recentFailures} />
       ) : null}
       <section aria-label="관리 업무" className="civic-admin-cards">
         {adminCurrentUser.role === "HIGHEST_ADMIN" ? (
@@ -434,6 +421,33 @@ function AdminHome({
         ) : null}
       </section>
     </div>
+  );
+}
+
+export function RagFailureSummary({
+  failures,
+}: Readonly<{ failures: readonly RecentRagFailure[] }>) {
+  return (
+    <section aria-label="최근 문서 처리 실패" className="civic-rag-failure-summary">
+      <header>
+        <h2>확인이 필요한 문서</h2>
+      </header>
+      <ul>
+        {failures.map((failure) => (
+          <li key={`${failure.filename}:${failure.updatedAt ?? failure.failureCode}`}>
+            <strong>{failure.filename}</strong>
+            <span>{ragFailureLabel(failure.failureCode)}</span>
+            <Link
+              aria-label={`${failure.filename} 업로드 화면에서 재시도`}
+              className="wf-button wf-button-secondary civic-rag-failure-retry"
+              href="/admin/rag/upload"
+            >
+              재시도
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

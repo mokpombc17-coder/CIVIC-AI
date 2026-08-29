@@ -3266,13 +3266,26 @@ body {
 }
 
 .civic-rag-failure-summary li {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(240px, 1.4fr) auto;
+  align-items: center;
   gap: 12px;
   border-top: 1px solid #f1dddd;
   padding-top: 7px;
   color: #6b3a3a;
   font-size: 12px;
+}
+
+.civic-rag-failure-summary li > strong,
+.civic-rag-failure-summary li > span {
+  overflow-wrap: anywhere;
+}
+
+.civic-rag-failure-summary .civic-rag-failure-retry {
+  min-height: 32px;
+  padding: 6px 12px;
+  justify-self: end;
+  white-space: nowrap;
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-upload-dropzone {
@@ -3309,6 +3322,19 @@ body {
 
   .civic-ledger-pagination {
     flex-wrap: wrap;
+  }
+
+  .civic-rag-failure-summary li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .civic-rag-failure-summary li > span {
+    grid-column: 1 / -1;
+  }
+
+  .civic-rag-failure-summary .civic-rag-failure-retry {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 
