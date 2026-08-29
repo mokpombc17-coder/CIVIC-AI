@@ -11,7 +11,7 @@ export const mainScreenPrimaryActions: Readonly<Record<string, string>> = Object
   "AUTH-010": "계정 재활성화",
   "U-HOME-001": "질문하기",
   "U-ACCOUNT-001": "내 정보 관리",
-  "U-ACCOUNT-002": "변경사항 저장",
+  "U-ACCOUNT-002": "비밀번호 변경",
   "U-ACCOUNT-003": "내 설문 보기",
   "U-ACCOUNT-004": "계정 비활성화",
   "A-HOME-001": "관리 현황",
