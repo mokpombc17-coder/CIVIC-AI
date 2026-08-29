@@ -58,6 +58,7 @@ import {
 import {
   citationHref,
   createQueryOperation,
+  formatRagRemaining,
   parseQuerySubmissionResponse,
   openCitationInline,
   isRetryableRagStatus,
@@ -65,6 +66,8 @@ import {
   problemMessage,
   ragJobStatusMessage,
   RagSuggestionChips,
+  RagLiveProgress,
+  readRagProgress,
   safeExternalSourceUrl,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
@@ -515,28 +518,43 @@ describe("9 functional RAG screens", () => {
 
   it("60초를 넘긴 정상 작업도 job id를 유지하며 완료까지 계속 조회한다", async () => {
     let attempts = 0;
+    const onProgress = vi.fn();
     const request = vi.fn(async () => {
       attempts += 1;
       return Response.json(
         attempts > 60
           ? { job_id: "slow-job", status: "SUCCEEDED", answer: "완료" }
-          : { job_id: "slow-job", status: "RUNNING" },
+          : {
+              job_id: "slow-job",
+              status: "RUNNING",
+              progress: {
+                status: "RUNNING",
+                stage: "SEARCHING",
+                label: "관련 문서를 찾고 있어요",
+                detail: "관련 자료를 좁힙니다.",
+                progress_percent: 32,
+                estimated_remaining_seconds: 7,
+                elapsed_seconds: attempts,
+              },
+            },
       );
     });
 
     await expect(
       pollResult("slow-job", {
         request: request as typeof fetch,
+        onProgress,
         wait: async () => undefined,
       }),
     ).resolves.toMatchObject({ status: "SUCCEEDED", answer: "완료" });
     expect(request).toHaveBeenCalledTimes(61);
+    expect(onProgress).toHaveBeenCalledTimes(60);
   });
 
-  it("질의 완료 SSE 뒤 정답과 인용은 정식 상태 API에서 한 번만 읽는다", async () => {
-    const listeners = new Map<string, () => void>();
+  it("질의 단계와 검증된 답변 조각을 SSE로 표시한 뒤 정식 결과를 읽는다", async () => {
+    const listeners = new Map<string, (event: { data?: string }) => void>();
     const source = {
-      addEventListener: vi.fn((name: string, listener: () => void) =>
+      addEventListener: vi.fn((name: string, listener: (event: { data?: string }) => void) =>
         listeners.set(name, listener),
       ),
       close: vi.fn(),
@@ -549,18 +567,94 @@ describe("9 functional RAG screens", () => {
       }
       return Response.json({ job_id: "job-1", status: "SUCCEEDED", answer: "문서 답변" });
     });
+    const onProgress = vi.fn();
+    const onAnswerStart = vi.fn();
+    const streamedParts: string[] = [];
 
     const pending = waitForStreamedResult("job-1", {
       request: request as typeof fetch,
       createSource: () => source,
       fallback: vi.fn(),
+      onProgress,
+      onAnswerStart,
+      onAnswerDelta: (delta) => streamedParts.push(delta),
     });
     await vi.waitFor(() => expect(listeners.has("query.succeeded")).toBe(true));
-    listeners.get("query.succeeded")?.();
+    listeners.get("query.progress")?.({
+      data: JSON.stringify({
+        status: "RUNNING",
+        stage: "READING",
+        label: "근거가 될 페이지를 읽고 있어요",
+        detail: "문서 근거를 선별합니다.",
+        progress_percent: 55,
+        estimated_remaining_seconds: 6,
+        elapsed_seconds: 8,
+      }),
+    });
+    listeners.get("query.answer.started")?.({});
+    listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "문서 " }) });
+    listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "답변" }) });
+    listeners.get("query.succeeded")?.({});
 
     await expect(pending).resolves.toMatchObject({ status: "SUCCEEDED", answer: "문서 답변" });
+    expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: "READING" }));
+    expect(onAnswerStart).toHaveBeenCalledOnce();
+    expect(streamedParts.join("")).toBe("문서 답변");
     expect(source.close).toHaveBeenCalledOnce();
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("사용자용 진행 카드는 현재 단계와 예상 잔여시간만 안전하게 보여준다", () => {
+    const now = Date.now();
+    const html = renderToStaticMarkup(
+      createElement(RagLiveProgress, {
+        liveJob: {
+          progress: {
+            status: "RUNNING",
+            stage: "COMPOSING",
+            label: "문서 근거로 답변을 작성하고 있어요",
+            detail: "선별된 근거만 사용해 답변을 구성합니다.",
+            progress_percent: 76,
+            estimated_remaining_seconds: 4,
+            elapsed_seconds: 12,
+          },
+          progressReceivedAt: now,
+          startedAt: now - 12_000,
+          streamedAnswer: "",
+        },
+      }),
+    );
+
+    expect(html).toContain("실시간 처리");
+    expect(html).toContain("약 4초 남음");
+    expect(html).toContain("답변 작성");
+    expect(html).not.toContain("COMPOSING");
+    expect(formatRagRemaining(61, "VERIFYING")).toBe("약 2분 남음");
+  });
+
+  it("진행 이벤트는 정해진 공개 단계와 제한된 숫자만 허용한다", () => {
+    expect(
+      readRagProgress({
+        status: "RUNNING",
+        stage: "SEARCHING",
+        label: "관련 문서를 찾고 있어요",
+        detail: "관련 자료를 좁힙니다.",
+        progress_percent: 32,
+        estimated_remaining_seconds: 7,
+        elapsed_seconds: 3,
+      }),
+    ).toMatchObject({ stage: "SEARCHING" });
+    expect(
+      readRagProgress({
+        status: "RUNNING",
+        stage: "INTERNAL_PROMPT_BUILD",
+        label: "내부 처리",
+        detail: "비공개 단계",
+        progress_percent: 20,
+        estimated_remaining_seconds: 7,
+        elapsed_seconds: 3,
+      }),
+    ).toBeNull();
   });
 
   it("처리 작업 폴링은 화면이 보이고 작업이 비종료 상태일 때만 수행한다", () => {

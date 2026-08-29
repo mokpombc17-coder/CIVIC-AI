@@ -120,12 +120,12 @@
     },
     {
       "id": "U-RAG-003",
-      "canonical_title": "참조 PDF 인용 위치 열기",
+      "canonical_title": "참조 PDF 페이지 이동",
       "audience": "PARTICIPANT",
       "route": "/rag/source/page",
       "status": "FUNCTIONAL",
       "owner": "RAG",
-      "source_heading": "### U-RAG-003 참조 PDF 인용 위치 열기"
+      "source_heading": "### U-RAG-003 참조 PDF 페이지 이동"
     },
     {
       "id": "U-CHAT-001",

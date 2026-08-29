@@ -19,6 +19,9 @@ import {
   type Citation,
   type Message,
   type RagJob,
+  type RagProgress,
+  type RagProgressStage,
+  RAG_PROGRESS_STAGES,
 } from "./rag-conversation-session";
 
 export {
@@ -32,10 +35,123 @@ export type {
   Message,
   RagConversationSnapshot,
   RagJob,
+  RagProgress,
+  RagProgressStage,
 } from "./rag-conversation-session";
 
 function clockLabel(date = new Date()): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+export type RagLiveJob = Readonly<{
+  progress: RagProgress;
+  progressReceivedAt: number;
+  startedAt: number;
+  streamedAnswer: string;
+}>;
+
+type RagLiveJobs = Readonly<Record<string, RagLiveJob>>;
+
+const QUEUED_PROGRESS: RagProgress = {
+  status: "QUEUED",
+  stage: "QUEUED",
+  label: "질문을 접수하고 처리 순서를 확인하고 있어요",
+  detail: "곧 문서 검색을 시작합니다. 화면을 벗어나도 질문은 안전하게 유지됩니다.",
+  progress_percent: 4,
+  estimated_remaining_seconds: 20,
+  elapsed_seconds: 0,
+};
+
+const STREAMING_PROGRESS: RagProgress = {
+  status: "RUNNING",
+  stage: "STREAMING",
+  label: "답변을 실시간으로 전송하고 있어요",
+  detail: "검증된 답변을 읽을 수 있는 순서대로 화면에 표시합니다.",
+  progress_percent: 97,
+  estimated_remaining_seconds: 1,
+  elapsed_seconds: 0,
+};
+
+type UpdateRagLiveJobs = (update: (current: RagLiveJobs) => RagLiveJobs) => void;
+
+function startLiveJob(updateLiveJobs: UpdateRagLiveJobs, jobId: string): void {
+  const now = Date.now();
+  updateLiveJobs((current) => ({
+    ...current,
+    [jobId]: {
+      progress: QUEUED_PROGRESS,
+      progressReceivedAt: now,
+      startedAt: now,
+      streamedAnswer: "",
+    },
+  }));
+}
+
+function finishLiveJob(updateLiveJobs: UpdateRagLiveJobs, jobId: string): void {
+  updateLiveJobs((current) => {
+    if (!(jobId in current)) return current;
+    const next = { ...current };
+    delete next[jobId];
+    return next;
+  });
+}
+
+function liveStreamOptions(
+  updateLiveJobs: UpdateRagLiveJobs,
+  jobId: string,
+  signal: AbortSignal,
+): StreamResultOptions {
+  return {
+    signal,
+    onProgress: (progress) => {
+      const now = Date.now();
+      updateLiveJobs((current) => {
+        const previous = current[jobId];
+        return {
+          ...current,
+          [jobId]: {
+            progress,
+            progressReceivedAt: now,
+            startedAt: previous?.startedAt ?? now - Math.max(0, progress.elapsed_seconds) * 1000,
+            streamedAnswer: previous?.streamedAnswer ?? "",
+          },
+        };
+      });
+    },
+    onAnswerStart: () => {
+      const now = Date.now();
+      updateLiveJobs((current) => {
+        const previous = current[jobId];
+        const startedAt = previous?.startedAt ?? now;
+        return {
+          ...current,
+          [jobId]: {
+            progress: {
+              ...STREAMING_PROGRESS,
+              elapsed_seconds: Math.max(0, Math.floor((now - startedAt) / 1000)),
+            },
+            progressReceivedAt: now,
+            startedAt,
+            streamedAnswer: "",
+          },
+        };
+      });
+    },
+    onAnswerDelta: (delta) => {
+      updateLiveJobs((current) => {
+        const previous = current[jobId];
+        if (!previous) return current;
+        const nextAnswer = `${previous.streamedAnswer}${delta}`;
+        return {
+          ...current,
+          [jobId]: {
+            ...previous,
+            streamedAnswer: nextAnswer.length <= 120_000 ? nextAnswer : previous.streamedAnswer,
+          },
+        };
+      });
+    },
+  };
 }
 
 export function ParticipantRagScreen({
@@ -82,6 +198,7 @@ function RagConversation({
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const [busy, setBusy] = useState(false);
+  const [liveJobs, setLiveJobs] = useState<RagLiveJobs>({});
   const [restored, setRestored] = useState(!userId);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const activePoll = useRef<AbortController | null>(null);
@@ -131,11 +248,18 @@ function RagConversation({
     activePoll.current = controller;
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) setBusy(true);
+      if (!cancelled) {
+        setBusy(true);
+        startLiveJob(setLiveJobs, pendingJobId);
+      }
     });
-    void waitForStreamedResult(pendingJobId, { signal: controller.signal })
+    void waitForStreamedResult(
+      pendingJobId,
+      liveStreamOptions(setLiveJobs, pendingJobId, controller.signal),
+    )
       .then((result) => {
         if (requestGeneration.current !== generation) return;
+        finishLiveJob(setLiveJobs, pendingJobId);
         setMessages((current) =>
           current.map((message) =>
             message.id === pendingJobId
@@ -146,6 +270,7 @@ function RagConversation({
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        finishLiveJob(setLiveJobs, pendingJobId);
         setNotice("연결이 끊겼습니다. 진행 중인 질문은 다음 방문 때 다시 확인합니다.");
       })
       .finally(() => {
@@ -181,6 +306,7 @@ function RagConversation({
     activePoll.current?.abort();
     activePoll.current = controller;
     let retireIdempotencyKey = false;
+    let activeJobId: string | null = null;
     try {
       const response = await authenticatedFetch("/api/v1/rag/queries", {
         method: "POST",
@@ -199,14 +325,20 @@ function RagConversation({
         return;
       }
       const accepted = submission.job;
+      activeJobId = accepted.job_id;
       if (accepted.session_id) setCurrentSessionId(accepted.session_id);
+      startLiveJob(setLiveJobs, accepted.job_id);
       setMessages((current) => [
         ...current,
         { askedAt: clockLabel(), id: accepted.job_id, question: submitted },
       ]);
       setQuestion("");
-      const result = await waitForStreamedResult(accepted.job_id, { signal: controller.signal });
+      const result = await waitForStreamedResult(
+        accepted.job_id,
+        liveStreamOptions(setLiveJobs, accepted.job_id, controller.signal),
+      );
       if (requestGeneration.current !== generation) return;
+      finishLiveJob(setLiveJobs, accepted.job_id);
       setMessages((current) =>
         current.map((message) =>
           message.id === accepted.job_id
@@ -216,6 +348,7 @@ function RagConversation({
       );
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
+      if (activeJobId) finishLiveJob(setLiveJobs, activeJobId);
       setNotice("연결이 끊겼습니다. 입력한 질문은 유지되며 잠시 후 다시 시도할 수 있습니다.");
     } finally {
       queryOperation.current.settle(retireIdempotencyKey);
@@ -246,6 +379,7 @@ function RagConversation({
               const storage = browserRagConversationStorage();
               if (storage) clearRagConversationSnapshot(storage);
               setMessages([]);
+              setLiveJobs({});
               setQuestion("");
               setBusy(false);
               setNotice("새 질문을 시작했습니다.");
@@ -271,12 +405,13 @@ function RagConversation({
                 message={message}
                 onOpenCitation={setActiveCitation}
                 onUseSuggestion={setQuestion}
+                {...(liveJobs[message.id] ? { liveJob: liveJobs[message.id] } : {})}
               />
             ))
           )}
-          {busy ? (
+          {busy && Object.keys(liveJobs).length === 0 ? (
             <p aria-live="polite" className="civic-rag-generating">
-              문서를 검색하고 근거를 확인하고 있습니다.
+              질문을 안전하게 접수하고 있어요.
             </p>
           ) : null}
         </div>
@@ -421,10 +556,12 @@ function ConversationBackdrop() {
 }
 
 function RagMessage({
+  liveJob,
   message,
   onOpenCitation,
   onUseSuggestion,
 }: Readonly<{
+  liveJob?: RagLiveJob;
   message: Message;
   onOpenCitation: (citation: Citation) => void;
   onUseSuggestion: (suggestion: string) => void;
@@ -445,8 +582,18 @@ function RagMessage({
           <strong>CIVIC.AI</strong>
           {message.answeredAt ? <time className="civic-rag-time">{message.answeredAt}</time> : null}
         </header>
-        <div className="civic-rag-answer">
-          {statusMessage ? (
+        <div className={`civic-rag-answer${liveJob ? " is-live" : ""}`}>
+          {liveJob ? (
+            <>
+              <RagLiveProgress liveJob={liveJob} />
+              {liveJob.streamedAnswer ? (
+                <div aria-label="실시간 답변" className="civic-rag-streamed-answer">
+                  <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+                  <span aria-hidden="true" className="civic-rag-stream-cursor" />
+                </div>
+              ) : null}
+            </>
+          ) : statusMessage ? (
             <p role={message.job?.status === "FAILED" ? "alert" : undefined}>{statusMessage}</p>
           ) : message.job?.answer ? (
             <SafeMarkdownAnswer
@@ -524,6 +671,96 @@ function RagMessage({
   );
 }
 
+const VISIBLE_PROGRESS_STAGES = [
+  { stage: "UNDERSTANDING", label: "질문 이해" },
+  { stage: "SEARCHING", label: "자료 검색" },
+  { stage: "READING", label: "근거 분석" },
+  { stage: "COMPOSING", label: "답변 작성" },
+  { stage: "VERIFYING", label: "최종 확인" },
+] as const satisfies ReadonlyArray<{ stage: RagProgressStage; label: string }>;
+
+export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const secondsSinceUpdate = Math.max(0, Math.floor((now - liveJob.progressReceivedAt) / 1000));
+  const elapsedSeconds = Math.max(
+    liveJob.progress.elapsed_seconds + secondsSinceUpdate,
+    Math.floor((now - liveJob.startedAt) / 1000),
+  );
+  const remainingSeconds = Math.max(
+    0,
+    liveJob.progress.estimated_remaining_seconds - secondsSinceUpdate,
+  );
+  const activeIndex = VISIBLE_PROGRESS_STAGES.findIndex(
+    ({ stage }) => stage === liveJob.progress.stage,
+  );
+  const allStagesComplete = liveJob.progress.stage === "STREAMING";
+
+  return (
+    <section aria-label="RAG 답변 처리 현황" className="civic-rag-live-progress">
+      <div className="civic-rag-live-heading">
+        <span className="civic-rag-live-badge">
+          <span aria-hidden="true" /> 실시간 처리
+        </span>
+        <strong>{formatRagRemaining(remainingSeconds, liveJob.progress.stage)}</strong>
+      </div>
+      <div
+        aria-label={`답변 처리 ${liveJob.progress.progress_percent}%`}
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={liveJob.progress.progress_percent}
+        className="civic-rag-progress-track"
+        role="progressbar"
+      >
+        <span style={{ width: `${liveJob.progress.progress_percent}%` }} />
+      </div>
+      <ol className="civic-rag-stage-list">
+        {VISIBLE_PROGRESS_STAGES.map(({ stage, label }, index) => {
+          const state =
+            allStagesComplete || index < activeIndex
+              ? "done"
+              : index === activeIndex
+                ? "active"
+                : "waiting";
+          return (
+            <li className={`is-${state}`} key={stage}>
+              <span aria-hidden="true">{state === "done" ? "✓" : index + 1}</span>
+              <small>{label}</small>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="civic-rag-live-copy">
+        <div>
+          <strong aria-live="polite">{liveJob.progress.label}</strong>
+          <p>{liveJob.progress.detail}</p>
+        </div>
+        <span>시작 후 {formatRagElapsed(elapsedSeconds)}</span>
+      </div>
+    </section>
+  );
+}
+
+export function formatRagRemaining(seconds: number, stage: RagProgressStage): string {
+  if (stage === "STREAMING") return "곧 완료";
+  if (seconds <= 0) return "예상보다 조금 더 걸리고 있어요";
+  if (seconds < 60) return `약 ${seconds}초 남음`;
+  const minutes = Math.ceil(seconds / 60);
+  return `약 ${minutes}분 남음`;
+}
+
+function formatRagElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}초`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds ? `${minutes}분 ${remainingSeconds}초` : `${minutes}분`;
+}
+
 export function RagSuggestionChips({
   onSelect,
   suggestions,
@@ -582,13 +819,14 @@ export function openCitationInline(
 }
 
 type PollResultOptions = Readonly<{
+  onProgress?: (progress: RagProgress) => void;
   request?: typeof fetch;
   signal?: AbortSignal;
   wait?: (milliseconds: number) => Promise<void>;
 }>;
 
 type EventSourceLike = Readonly<{
-  addEventListener: (name: string, listener: () => void) => void;
+  addEventListener: (name: string, listener: (event: { data?: string }) => void) => void;
   close: () => void;
 }> & { onerror: (() => void) | null };
 
@@ -596,6 +834,9 @@ type StreamResultOptions = Readonly<{
   request?: typeof fetch;
   createSource?: (url: string) => EventSourceLike;
   fallback?: (jobId: string, options: PollResultOptions) => Promise<RagJob>;
+  onAnswerDelta?: (delta: string) => void;
+  onAnswerStart?: () => void;
+  onProgress?: (progress: RagProgress) => void;
   signal?: AbortSignal;
 }>;
 
@@ -605,10 +846,18 @@ export async function waitForStreamedResult(
     request = authenticatedFetch,
     createSource,
     fallback = pollResult,
+    onAnswerDelta,
+    onAnswerStart,
+    onProgress,
     signal,
   }: StreamResultOptions = {},
 ): Promise<RagJob> {
-  const fallbackResult = () => fallback(jobId, { request, ...(signal ? { signal } : {}) });
+  const fallbackResult = () =>
+    fallback(jobId, {
+      request,
+      ...(onProgress ? { onProgress } : {}),
+      ...(signal ? { signal } : {}),
+    });
   if (signal?.aborted || (!createSource && typeof EventSource === "undefined")) {
     return fallbackResult();
   }
@@ -664,6 +913,23 @@ export async function waitForStreamedResult(
       close();
       reject(new DOMException("query stream aborted", "AbortError"));
     };
+    source.addEventListener("query.progress", (event) => {
+      const progress = readRagProgress(readRagStreamData(event.data));
+      if (progress) onProgress?.(progress);
+    });
+    source.addEventListener("query.answer.started", () => onAnswerStart?.());
+    source.addEventListener("query.answer.delta", (event) => {
+      const value = readRagStreamData(event.data);
+      if (
+        value &&
+        typeof value === "object" &&
+        "delta" in value &&
+        typeof value.delta === "string" &&
+        value.delta.length <= 512
+      ) {
+        onAnswerDelta?.(value.delta);
+      }
+    });
     source.addEventListener("query.succeeded", () => void finish());
     source.addEventListener("query.failed", () => void finish());
     source.onerror = recover;
@@ -675,6 +941,7 @@ export async function pollResult(
   jobId: string,
   {
     request = authenticatedFetch,
+    onProgress,
     signal,
     wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   }: PollResultOptions = {},
@@ -690,6 +957,8 @@ export async function pollResult(
         if (!isRetryableRagStatus(response.status)) throw new Error("query status unavailable");
       } else {
         const job = (await response.json()) as RagJob;
+        const progress = readRagProgress(job.progress);
+        if (progress) onProgress?.(progress);
         if (job.status === "SUCCEEDED" || job.status === "FAILED") return job;
       }
     } catch (error) {
@@ -697,6 +966,41 @@ export async function pollResult(
     }
     await wait(1000);
   }
+}
+
+export function readRagProgress(value: unknown): RagProgress | null {
+  if (!value || typeof value !== "object") return null;
+  const progress = value as Partial<Record<keyof RagProgress, unknown>>;
+  if (
+    (progress.status !== "QUEUED" && progress.status !== "RUNNING") ||
+    typeof progress.stage !== "string" ||
+    !(RAG_PROGRESS_STAGES as readonly string[]).includes(progress.stage) ||
+    typeof progress.label !== "string" ||
+    progress.label.length < 1 ||
+    progress.label.length > 200 ||
+    typeof progress.detail !== "string" ||
+    progress.detail.length < 1 ||
+    progress.detail.length > 500 ||
+    !isSafeProgressInteger(progress.progress_percent, 0, 100) ||
+    !isSafeProgressInteger(progress.estimated_remaining_seconds, 0, 600) ||
+    !isSafeProgressInteger(progress.elapsed_seconds, 0, 86_400)
+  ) {
+    return null;
+  }
+  return progress as RagProgress;
+}
+
+function readRagStreamData(data: string | undefined): unknown {
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function isSafeProgressInteger(value: unknown, minimum: number, maximum: number): boolean {
+  return Number.isSafeInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
 }
 
 export function isRetryableRagStatus(status: number): boolean {
