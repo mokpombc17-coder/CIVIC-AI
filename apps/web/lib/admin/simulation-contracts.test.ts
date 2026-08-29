@@ -4,6 +4,7 @@ import {
   readSimulationCapacity,
   readSimulationOptions,
   readSimulationResult,
+  readSimulationResultDetail,
   readSimulationTaskSummaries,
   readSimulationView,
   simulationTargetHref,
@@ -181,9 +182,10 @@ describe("simulation contracts", () => {
     expect(readSimulationResult({ personaId: "user-persona", prediction: "A" })).toBeNull();
   });
 
-  it("accepts billed simulation results containing canonical Vote fixture identifiers", () => {
+  it("accepts the privacy-safe V2 aggregate result view from Simulation", () => {
     const result = readSimulationResult({
-      schemaVersion: "CIVIC_TASK_SIMULATION_RESULT_V1",
+      schemaVersion: "CIVIC_TASK_SIMULATION_RESULT_VIEW_V2",
+      notice: "이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다.",
       task: {
         id: fixtureTaskId,
         title: "AI 투명성 의무",
@@ -210,72 +212,75 @@ describe("simulation contracts", () => {
       run: {
         personaCount: 10,
         modelType: "claude-sonnet-4-6",
-        sampleSeed: 20260827,
-        filters: {},
-        pricingFingerprint: "pricing-policy-sha256",
+        filters: { genders: [], age_groups: [] },
       },
-      summary: {
-        requestedPersonaCount: 10,
-        answeredPersonaCount: 10,
-        unansweredPersonaCount: 0,
-        optionResults: [],
+      denominators: {
+        total: 10,
+        filtered: 10,
       },
-      respondents: [
+      optionResults: [
         {
-          panelMemberOrdinal: 1,
-          selectedOptionId: fixtureOptionIds[0],
-          reason: "생활 안전을 우선했습니다.",
-          demographics: {
-            gender: "여성",
-            ageGroup: "30대",
-            region: "서울",
-            politicalIdeology: "중도",
-            informationType: "A",
-          },
+          optionId: fixtureOptionIds[0],
+          displayOrder: 1,
+          content: "동의한다",
+          count: 7,
+          percentage: 70,
+        },
+        {
+          optionId: fixtureOptionIds[1],
+          displayOrder: 2,
+          content: "동의하지 않는다",
+          count: 3,
+          percentage: 30,
         },
       ],
-      engine: {
-        name: "SONA PersonaSim",
-        sourceCommit: "source-commit",
-        modelType: "claude-sonnet-4-6",
-        elapsedSeconds: 263.585,
-        profileSha256: "profile-sha256",
-        networkSha256: "network-sha256",
-        calibration: {
-          pipelineVersion: "CALIBRATED_PERSONA_PIPELINE_V2",
-          contractVersion: "PERSONA_CALIBRATION_V2",
-          answerDistributionModel: "anthropic/claude-sonnet-5",
-          assignmentModel: "openai/gpt-5.6-luna",
-          answerDistribution: [["68.0", "32.0"]],
-          informationPracticeDistribution: ["22", "58", "20"],
-          assignedInformationPracticeCounts: { A: 2, B: 6, C: 2 },
-          targetPopulation: "대한민국 성인",
-          referenceTime: "2026-08-27",
-          personaSetDigest: "sha256:persona-set",
-          proxyEligiblePersonaCount: 4,
-          supplementedPersonaCount: 1,
-          providerEvidence: {
-            totalProviderCalls: 4,
-            validatedProviderCalls: 4,
-            callsByStageAndModel: [],
+      unansweredCount: 0,
+      summary: {
+        totalRespondentCount: 10,
+        filteredRespondentCount: 10,
+        answeredPersonaCount: 10,
+        unansweredPersonaCount: 0,
+        optionResults: [
+          {
+            optionId: fixtureOptionIds[0],
+            displayOrder: 1,
+            content: "동의한다",
+            count: 7,
+            percentage: 70,
           },
-        },
-        externalInformation: {
-          sourceMode: "text",
-          keywordCount: 4,
-          collectedDocumentCount: 158,
-          documentCountsBySource: { naver: 158 },
-          documentCountsByNaverEndpoint: { news: 40, blog: 40, cafearticle: 38, webkr: 40 },
-          personaSeenItemCount: 38,
-          providerCallCountsByStage: { "llm.generate": 10 },
-        },
-        personaWorkers: 2,
-        innerWorkers: 1,
+          {
+            optionId: fixtureOptionIds[1],
+            displayOrder: 2,
+            content: "동의하지 않는다",
+            count: 3,
+            percentage: 30,
+          },
+        ],
       },
+      availableFilters: {
+        genders: ["남성", "여성"],
+        ageGroups: ["20대", "30대"],
+      },
+      resultSlots: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     });
 
-    expect(result?.run.pricingFingerprint).toBe("pricing-policy-sha256");
-    expect(result?.engine.calibration.pipelineVersion).toBe("CALIBRATED_PERSONA_PIPELINE_V2");
+    expect(result?.schemaVersion).toBe("CIVIC_TASK_SIMULATION_RESULT_VIEW_V2");
+    expect(result?.summary.answeredPersonaCount).toBe(10);
+    expect(result?.resultSlots[0]).toBe(1);
+  });
+
+  it("reads one anonymous result-slot detail without internal Persona attributes", () => {
+    const detail = readSimulationResultDetail({
+      schemaVersion: "CIVIC_TASK_SIMULATION_SLOT_DETAIL_V1",
+      notice: "이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다.",
+      resultSlot: 3,
+      selectedOptionId: fixtureOptionIds[0],
+      reason: "생활 안전을 우선했습니다.",
+      demographics: { gender: "여성", ageGroup: "30대" },
+    });
+
+    expect(detail?.resultSlot).toBe(3);
+    expect(detail?.demographics).toEqual({ gender: "여성", ageGroup: "30대" });
   });
 
   it("accepts configured bounds and Persona-main의 네 가지 표본 필터", () => {
