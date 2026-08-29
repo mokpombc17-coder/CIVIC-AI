@@ -447,7 +447,7 @@ function renderFields(
           autoComplete="current-password"
           label="비밀번호"
           name="password"
-          placeholder="비밀번호 입력"
+          placeholder="비밀번호 입력…"
           type="password"
         />
       </>

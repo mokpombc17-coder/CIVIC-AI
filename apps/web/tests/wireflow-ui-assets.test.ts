@@ -48,7 +48,7 @@ type VisualManifest = Readonly<{
 
 describe("latest Wire Flow UI assets", () => {
   it("ships the Pretendard GOV faces used by the Figma Wire Flow", () => {
-    const fontRoot = path.join(repositoryRoot, "apps/web/public/assets/fonts");
+    const fontRoot = path.join(repositoryRoot, "apps/web/public/fonts/pretendard-gov");
     const expectedDigests = {
       "PretendardGOV-Bold.subset.woff2":
         "d09a0a9684b5a833681d2a3768a0e8a9163f3bfb04cf4fc0c36ab9dcec10eda9",

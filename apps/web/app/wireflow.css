@@ -1,25 +1,25 @@
 @font-face {
   font-family: "Pretendard GOV";
-  src: url("/assets/fonts/PretendardGOV-Regular.subset.woff2") format("woff2");
   font-style: normal;
+  font-display: swap;
   font-weight: 400;
-  font-display: swap;
+  src: url("/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2") format("woff2");
 }
 
 @font-face {
   font-family: "Pretendard GOV";
-  src: url("/assets/fonts/PretendardGOV-Medium.subset.woff2") format("woff2");
   font-style: normal;
+  font-display: swap;
   font-weight: 500;
-  font-display: swap;
+  src: url("/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2") format("woff2");
 }
 
 @font-face {
   font-family: "Pretendard GOV";
-  src: url("/assets/fonts/PretendardGOV-Bold.subset.woff2") format("woff2");
   font-style: normal;
-  font-weight: 700;
   font-display: swap;
+  font-weight: 700;
+  src: url("/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2") format("woff2");
 }
 
 :root {
@@ -128,7 +128,8 @@ body {
   border-radius: 0;
 }
 
-/* Signup keeps the shared 64px mobile header; the Figma body starts below it. */
+/* Figma auth screens keep the shared 64px mobile header; the body starts below it. */
+.civic-login-shell,
 .civic-signup-account-shell {
   --platform-shell-header-height: 64px;
 }
@@ -884,6 +885,82 @@ body {
 [data-wireflow-layout="auth-login"] .civic-auth-submit {
   width: 100%;
   justify-self: stretch;
+}
+
+/* Figma node 74:4 — AUTH-001 login at a 393 x 852 reference viewport. */
+[data-wireflow-screen="AUTH-001"] {
+  --wf-ink: #121417;
+  --wf-muted: #59616b;
+  --wf-line: #ccd1d6;
+  --wf-line-strong: #59616b;
+  --wf-blue: #266ef5;
+  --wf-blue-dark: #0a4fd1;
+  --wf-blue-soft: #edf2ff;
+}
+
+[data-wireflow-layout="auth-login"].civic-auth-grid {
+  gap: 16px;
+  padding: 16px;
+}
+
+[data-wireflow-layout="auth-login"] .wf-auth-form {
+  min-height: 307px;
+  gap: 12px;
+  border-color: #ccd1d6;
+  border-radius: 8px;
+  padding: 12px 20px 14px;
+}
+
+[data-wireflow-layout="auth-login"] .wf-card-heading {
+  min-height: 36px;
+  border-color: #ccd1d6;
+  padding: 2px 0 6px;
+}
+
+[data-wireflow-layout="auth-login"] .wf-card-heading h2 {
+  color: #121417;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: normal;
+  line-height: 27px;
+}
+
+[data-wireflow-layout="auth-login"] .wf-auth-form .civic-field {
+  gap: 6px;
+  color: #121417;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 19.2px;
+}
+
+[data-wireflow-layout="auth-login"] .wf-auth-form .civic-field > span {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+}
+
+[data-wireflow-layout="auth-login"] .wf-auth-form .civic-field input {
+  height: 48px;
+  border-color: #59616b;
+  border-radius: 6px;
+  padding: 11px 12px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 19.2px;
+}
+
+[data-wireflow-layout="auth-login"] .wf-auth-form .civic-field input::placeholder {
+  color: #59616b;
+}
+
+[data-wireflow-layout="auth-login"] .civic-auth-submit {
+  height: 48px;
+  margin-top: 6px;
+  border-radius: 6px;
+  padding: 13px 14px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
 }
 
 .civic-shell-participant {
@@ -4283,22 +4360,27 @@ body {
 }
 
 /* 로그인 보조 행동: 컴팩트 버튼 2개 + 재활성화 링크 */
-.civic-auth-support-compact {
+[data-wireflow-layout="auth-login"] .civic-auth-support-compact {
   display: grid;
-  gap: 14px;
+  gap: 9px;
 }
 
 .civic-auth-support-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 8px;
 }
 
 .civic-auth-support-row .wf-button {
-  min-height: 48px;
+  height: 48px;
   border: 1px solid var(--wf-blue);
+  border-radius: 6px;
   background: var(--wf-blue-soft);
   color: var(--wf-blue-dark);
+  padding: 14.25px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 17.5px;
   text-align: center;
   text-decoration: none;
 }
@@ -4309,6 +4391,27 @@ body {
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+[data-wireflow-layout="auth-login"] .civic-auth-support-compact > .civic-auth-reactivate {
+  position: relative;
+  display: grid;
+  width: 176.5px;
+  height: 48px;
+  place-items: center;
+  font-size: 14px;
+  line-height: 17.5px;
+  text-decoration: none;
+}
+
+[data-wireflow-layout="auth-login"] .civic-auth-support-compact > .civic-auth-reactivate::after {
+  position: absolute;
+  top: 34px;
+  left: 51px;
+  width: 75px;
+  height: 1px;
+  background: url("/assets/wireflow/auth-reactivate-underline.svg") center / 75px 1px no-repeat;
+  content: "";
 }
 
 /* 재활성화 안내 카드 3종 (AUTH-009·010) */

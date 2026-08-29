@@ -30,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <head>
         <link
           crossOrigin="anonymous"
-          href="/assets/fonts/PretendardGOV-Regular.subset.woff2"
+          href="/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2"
           rel="preload"
           type="font/woff2"
         />
