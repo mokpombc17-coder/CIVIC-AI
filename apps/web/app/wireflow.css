@@ -5678,6 +5678,7 @@ body {
 
 .wf-security-form {
   margin-top: 4px;
+  scroll-margin-block: 16px 24px;
 }
 
 .wf-account-consents {

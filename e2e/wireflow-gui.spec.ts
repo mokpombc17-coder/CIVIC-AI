@@ -453,6 +453,32 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
   await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
   await expect(page.getByText("서비스 이용 동의", { exact: true })).toBeVisible();
+  const passwordCard = page.locator(".wf-account-security-card").filter({
+    hasText: "비밀번호 변경",
+  });
+  const passwordAction = passwordCard.getByRole("button", { name: "변경하기" });
+  await passwordAction.scrollIntoViewIfNeeded();
+  const accountScroller = page.locator('[data-platform-shell-content="true"]');
+  const scrollTopBeforePasswordForm = await accountScroller.evaluate((element) =>
+    Math.round(element.scrollTop),
+  );
+  await passwordAction.click();
+  const currentPassword = page.getByLabel("현재 비밀번호");
+  await expect(currentPassword).toBeVisible();
+  await expect(currentPassword).toBeFocused();
+  await expect
+    .poll(() => accountScroller.evaluate((element) => Math.round(element.scrollTop)))
+    .toBeGreaterThan(scrollTopBeforePasswordForm);
+  const securityForm = page.locator(".wf-security-form");
+  const readFormOffsetFromScroller = () =>
+    securityForm.evaluate((form) => {
+      const scroller = form.closest('[data-platform-shell-content="true"]');
+      if (!scroller) return Number.POSITIVE_INFINITY;
+      return Math.round(form.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
+    });
+  await expect.poll(readFormOffsetFromScroller).toBeLessThanOrEqual(24);
+  const formOffsetFromScroller = await readFormOffsetFromScroller();
+  expect(formOffsetFromScroller).toBeGreaterThanOrEqual(0);
   const accountManagement = page.getByRole("heading", { name: "계정 관리" });
   await accountManagement.scrollIntoViewIfNeeded();
   await expect(accountManagement).toBeVisible();

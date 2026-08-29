@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type FormEvent,
@@ -415,8 +416,36 @@ function SecurityForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   twoFactorEnabled: boolean;
 }>) {
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+
+    const frame = requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const behavior = reduceMotion ? "auto" : "smooth";
+      const scroller = form.closest<HTMLElement>('[data-platform-shell-content="true"]');
+      if (scroller) {
+        const formTop = form.getBoundingClientRect().top;
+        const scrollerTop = scroller.getBoundingClientRect().top;
+        scroller.scrollTo({
+          behavior,
+          top: scroller.scrollTop + formTop - scrollerTop - 16,
+        });
+      } else {
+        form.scrollIntoView({ behavior, block: "start" });
+      }
+      form
+        .querySelector<HTMLInputElement>('input:not([type="hidden"])')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [intent]);
+
   return (
-    <form className="wf-account-panel wf-security-form" onSubmit={onSubmit}>
+    <form className="wf-account-panel wf-security-form" onSubmit={onSubmit} ref={formRef}>
       <input name="operation" type="hidden" value={intent} />
       {intent === "password" || twoFactorEnabled ? (
         <WireflowField label="현재 비밀번호" name="current_password" required type="password" />
