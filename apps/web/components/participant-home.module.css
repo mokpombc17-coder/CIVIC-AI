@@ -1,0 +1,139 @@
+.root {
+  --participant-home-ink: #121417;
+  --participant-home-muted: #59616b;
+  --participant-home-line: #ccd1d6;
+  --participant-home-blue: #266ef5;
+  --participant-home-blue-dark: #0a4fd1;
+  --participant-home-blue-soft: #edf2ff;
+
+  color: var(--participant-home-ink);
+}
+
+.brand {
+  color: #0a4fd1;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 20px;
+}
+
+:global([data-platform-shell="true"]):has(.brand) {
+  --platform-shell-header-height: 64px;
+}
+
+.card {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--participant-home-line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 20px;
+}
+
+.welcome {
+  height: 141px;
+  align-content: start;
+  gap: 0;
+  margin: 19px 16px 0;
+  border-color: #ccd1d6;
+  padding: 17px 19px 18px;
+}
+
+.welcome h2,
+.welcome p,
+.actionCopy h2,
+.actionCopy p {
+  margin: 0;
+}
+
+.welcome h2 {
+  margin-top: 11px;
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
+}
+
+.welcome p {
+  margin-top: 6.2px;
+  color: var(--participant-home-muted);
+  font-size: 14px;
+  line-height: 20.3px;
+}
+
+.badge {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 4px;
+  background: var(--participant-home-blue-soft);
+  color: var(--participant-home-blue-dark);
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.actions {
+  display: grid;
+  align-content: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin: 19px 16px 16px;
+}
+
+.actionCard {
+  min-height: 120px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  border-color: var(--participant-home-blue);
+  padding: 19px 21px 19px 19px;
+}
+
+.actionCopy {
+  display: grid;
+  gap: 6px;
+}
+
+.actionCopy h2 {
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
+}
+
+.actionCopy p {
+  color: var(--participant-home-muted);
+  font-size: 14px;
+  line-height: 20.3px;
+}
+
+.actionControl {
+  padding-top: 15px;
+}
+
+.primaryAction {
+  display: inline-flex;
+  width: 94px;
+  min-width: 94px;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--participant-home-blue);
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primaryAction:focus-visible {
+  outline: 3px solid #8eb4ff;
+  outline-offset: 2px;
+}

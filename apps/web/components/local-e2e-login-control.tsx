@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { notifyAuthenticationSucceeded } from "@/lib/auth/authentication-session-events";
 import { requestLocalE2ELogin } from "@/lib/auth/request-local-e2e-login";
+import styles from "./local-e2e-login-control.module.css";
 
 type LocalE2ELoginStatus = "idle" | "loading" | "authenticated" | "error";
 
@@ -22,27 +23,32 @@ export function LocalE2ELoginControl() {
   };
 
   return (
-    <button
-      aria-live="polite"
-      className="secondary-button"
-      disabled={status === "loading"}
-      onClick={() => void login()}
-      type="button"
-    >
-      {localE2ELoginLabel(status)}
-    </button>
+    <>
+      <button
+        aria-label="로컬 E2E 로그인 갱신"
+        className={styles.control}
+        disabled={status === "loading"}
+        onClick={() => void login()}
+        type="button"
+      >
+        로그인
+      </button>
+      <span aria-live="polite" className="sr-only">
+        {localE2ELoginStatusMessage(status)}
+      </span>
+    </>
   );
 }
 
-function localE2ELoginLabel(status: LocalE2ELoginStatus): string {
+export function localE2ELoginStatusMessage(status: LocalE2ELoginStatus): string {
   switch (status) {
     case "loading":
       return "로컬 E2E 로그인 발급 중…";
     case "authenticated":
-      return "로컬 E2E 로그인 다시 갱신";
+      return "로컬 E2E 로그인을 갱신했습니다.";
     case "error":
-      return "로컬 E2E 로그인 실패 · 다시 시도";
+      return "로컬 E2E 로그인 갱신에 실패했습니다. 다시 시도해 주세요.";
     case "idle":
-      return "로컬 E2E 로그인 갱신";
+      return "";
   }
 }

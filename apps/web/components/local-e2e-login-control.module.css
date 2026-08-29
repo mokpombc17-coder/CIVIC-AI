@@ -1,0 +1,25 @@
+.control {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: #1f2124;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 21px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.control:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #266ef5;
+  outline-offset: 2px;
+}
+
+.control:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
