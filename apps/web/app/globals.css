@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 :root {
+  --platform-app-background-color: #f5f7fb;
+  --platform-app-background-image: radial-gradient(
+    circle at 10% 0%,
+    rgba(74, 113, 255, 0.13),
+    transparent 30rem
+  );
   color-scheme: light;
   font-family:
     Inter,
@@ -11,7 +17,7 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  background: #f5f7fb;
+  background: var(--platform-app-background-color);
   color: #172033;
   font-synthesis: none;
 }
@@ -22,14 +28,13 @@
 
 html {
   min-width: 320px;
-  background: #f5f7fb;
+  background: var(--platform-app-background-color);
 }
 
 body {
   min-height: 100dvh;
   margin: 0;
-  background:
-    radial-gradient(circle at 10% 0%, rgba(74, 113, 255, 0.13), transparent 30rem), #f5f7fb;
+  background: var(--platform-app-background-image), var(--platform-app-background-color);
 }
 
 button,
@@ -828,7 +833,7 @@ th {
 
 body:has(.civic-public-screen),
 body:has(.civic-shell-participant) {
-  background: var(--civic-navy);
+  background: var(--platform-app-background-image), var(--platform-app-background-color);
 }
 
 .app-shell:has(.civic-public-screen),

@@ -15,14 +15,14 @@
 
 html,
 body {
-  background: #f4f5f6;
+  background: var(--platform-app-background-image), var(--platform-app-background-color);
   color: var(--wf-ink);
   font-family: var(--wf-font);
 }
 
 body:has([data-wireflow-screen]),
 body:has([data-wireflow-shell]) {
-  background: #f4f5f6;
+  background: var(--platform-app-background-image), var(--platform-app-background-color);
 }
 
 .app-shell:has([data-wireflow-screen]),
