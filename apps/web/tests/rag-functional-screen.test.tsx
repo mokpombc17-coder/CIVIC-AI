@@ -691,6 +691,55 @@ describe("9 functional RAG screens", () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
+  it("성공 이벤트가 같은 네트워크 배치에 와도 마지막 답변 조각의 화면 반영을 추월하지 않는다", async () => {
+    const listeners = new Map<string, (event: { data?: string }) => void>();
+    const source = {
+      addEventListener: vi.fn((name: string, listener: (event: { data?: string }) => void) =>
+        listeners.set(name, listener),
+      ),
+      close: vi.fn(),
+      onerror: null as (() => void) | null,
+    };
+    const request = vi.fn(async (input: string | URL | Request) => {
+      if (String(input) === "/api/v1/rag/stream-session") {
+        return Response.json({ stream_path: "/stream/rag/queries/job-visible" });
+      }
+      return Response.json({
+        job_id: "job-visible",
+        status: "SUCCEEDED",
+        answer: "실시간 답변",
+      });
+    });
+    let releasePaint: (() => void) | undefined;
+    const waitForAnswerPaint = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releasePaint = resolve;
+        }),
+    );
+    const streamedParts: string[] = [];
+
+    const pending = waitForStreamedResult("job-visible", {
+      request: request as typeof fetch,
+      createSource: () => source,
+      fallback: vi.fn(),
+      onAnswerDelta: (delta) => streamedParts.push(delta),
+      waitForAnswerPaint,
+    });
+    await vi.waitFor(() => expect(listeners.has("query.succeeded")).toBe(true));
+    listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "실시간 " }) });
+    listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "답변" }) });
+    listeners.get("query.succeeded")?.({});
+
+    await vi.waitFor(() => expect(waitForAnswerPaint).toHaveBeenCalledOnce());
+    expect(streamedParts.join("")).toBe("실시간 답변");
+    expect(request).toHaveBeenCalledTimes(1);
+    releasePaint?.();
+
+    await expect(pending).resolves.toMatchObject({ status: "SUCCEEDED" });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it("스트림 완료 결과 조회의 최종 401도 세션 만료 오류로 전파한다", async () => {
     const listeners = new Map<string, (event: { data?: string }) => void>();
     const source = {
