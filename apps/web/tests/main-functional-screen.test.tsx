@@ -507,9 +507,7 @@ describe("25 functional Main/Auth screens", () => {
     const conflict = (problem: Record<string, unknown>) =>
       new ApiRequestError(409, problem, "이미 가입된 이메일입니다.");
     expect(duplicateEmailAccountState(conflict({ account_state: "ACTIVE" }))).toBe("ACTIVE");
-    expect(duplicateEmailAccountState(conflict({ account_state: "DEACTIVATED" }))).toBe(
-      "DEACTIVATED",
-    );
+    expect(duplicateEmailAccountState(conflict({ account_state: "INACTIVE" }))).toBe("INACTIVE");
     expect(duplicateEmailAccountState(conflict({}))).toBe("ACTIVE");
     expect(duplicateEmailAccountState(new ApiRequestError(422, {}, "잘못된 요청"))).toBeNull();
     expect(duplicateEmailAccountState(new Error("이미 가입된 이메일입니다."))).toBeNull();
@@ -527,7 +525,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(activeHtml).not.toContain("계정 재활성화");
 
     const dormantHtml = renderToStaticMarkup(
-      createElement(SignupDuplicateEmailNotice, { accountState: "DEACTIVATED" }),
+      createElement(SignupDuplicateEmailNotice, { accountState: "INACTIVE" }),
     );
     expect(dormantHtml).toContain("이미 가입된 이메일");
     expect(dormantHtml).toContain('href="/reactivate"');
@@ -538,12 +536,12 @@ describe("25 functional Main/Auth screens", () => {
   it("비활성 계정 응답만 로그인 재활성화 안내로 분류한다", () => {
     expect(
       isDeactivatedAccountError(
-        new ApiRequestError(403, { account_state: "DEACTIVATED" }, "비활성화된 계정입니다."),
+        new ApiRequestError(403, { account_state: "INACTIVE" }, "비활성화된 계정입니다."),
       ),
     ).toBe(true);
     expect(
       isDeactivatedAccountError(
-        new ApiRequestError(401, { account_state: "DEACTIVATED" }, "비활성화된 계정입니다."),
+        new ApiRequestError(401, { account_state: "INACTIVE" }, "비활성화된 계정입니다."),
       ),
     ).toBe(true);
     expect(

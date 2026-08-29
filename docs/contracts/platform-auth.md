@@ -89,7 +89,7 @@ Content-Type: application/problem+json
 `account_state`에 따라 안내를 나눈다.
 
 - `ACTIVE`(또는 값 없음): "이미 가입된 이메일" 경고와 `/login` 이동 버튼을 보여 준다.
-- `DEACTIVATED`: 재활성화 안내와 `/reactivate` 텍스트 버튼을 보여 준다.
+- `INACTIVE`: 재활성화 안내와 `/reactivate` 텍스트 버튼을 보여 준다.
 
 `409` 이외의 실패는 기존처럼 `detail` 문구를 일반 오류로 보여 준다.
 
@@ -104,11 +104,11 @@ Content-Type: application/problem+json
 {
   "detail": "비활성화된 계정입니다.",
   "code": "ACCOUNT_DEACTIVATED",
-  "account_state": "DEACTIVATED"
+  "account_state": "INACTIVE"
 }
 ```
 
-Frontend(AUTH-001)는 실패 응답의 `account_state`가 `DEACTIVATED`이면 상태 코드와 무관하게
+Frontend(AUTH-001)는 실패 응답의 `account_state`가 `INACTIVE`이면 상태 코드와 무관하게
 "비활성화된 계정" 경고와 `/reactivate` 텍스트 버튼을 보여 준다. 그 밖의 실패는 `detail` 문구를
 일반 오류로 보여 준다.
 

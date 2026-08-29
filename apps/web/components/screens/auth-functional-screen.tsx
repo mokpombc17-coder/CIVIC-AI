@@ -566,7 +566,7 @@ function AuthSupport({
   );
 }
 
-export type DuplicateEmailAccountState = "ACTIVE" | "DEACTIVATED";
+export type DuplicateEmailAccountState = "ACTIVE" | "INACTIVE";
 
 export function SignupDuplicateEmailNotice({
   accountState,
@@ -574,11 +574,10 @@ export function SignupDuplicateEmailNotice({
   return (
     <div aria-live="polite" className="civic-form-alert civic-signup-duplicate" role="status">
       <strong>이미 가입된 이메일</strong>
-      {accountState === "DEACTIVATED" ? (
+      {accountState === "INACTIVE" ? (
         <>
           <p>
-            대소문자를 무시한 동일 이메일이 있습니다. 비활성화된 계정이니 재활성화 후 이용해
-            주세요.
+            대소문자를 무시한 동일 이메일이 있습니다. 비활성화된 계정이니 재활성화 후 이용해 주세요.
           </p>
           <Link
             className="civic-auth-reactivate"
@@ -894,11 +893,11 @@ async function api(path: string, body: unknown): Promise<Response> {
 
 export function duplicateEmailAccountState(error: unknown): DuplicateEmailAccountState | null {
   if (!(error instanceof ApiRequestError) || error.status !== 409) return null;
-  return error.problem.account_state === "DEACTIVATED" ? "DEACTIVATED" : "ACTIVE";
+  return error.problem.account_state === "INACTIVE" ? "INACTIVE" : "ACTIVE";
 }
 
 export function isDeactivatedAccountError(error: unknown): boolean {
-  return error instanceof ApiRequestError && error.problem.account_state === "DEACTIVATED";
+  return error instanceof ApiRequestError && error.problem.account_state === "INACTIVE";
 }
 
 export function safeReturnTarget(search: string): string | null {

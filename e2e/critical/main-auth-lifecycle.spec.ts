@@ -35,7 +35,7 @@ test.beforeAll(async () => {
           {
             detail: "이미 가입된 이메일입니다.",
             code: "EMAIL_ALREADY_REGISTERED",
-            account_state: "DEACTIVATED",
+            account_state: "INACTIVE",
           },
           409,
         );
@@ -89,7 +89,7 @@ test.beforeAll(async () => {
           {
             detail: "비활성화된 계정입니다.",
             code: "ACCOUNT_DEACTIVATED",
-            account_state: "DEACTIVATED",
+            account_state: "INACTIVE",
           },
           403,
         );
