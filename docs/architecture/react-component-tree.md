@@ -68,6 +68,8 @@ AdminCatchAllPage [Server Route]
 ├── requireAdminAccess(role 또는 permission)
 └── AdminShell
     ├── MainFunctionalScreen [Main/Auth]
+    │   └── AdminFunctionalScreen [A-HOME·A-USER]
+    │       └── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation 진행 상태 통합 폴링]
     ├── RagFunctionalScreen [RAG]
     │   └── AdminRagScreen
     │       ├── FolderTree
