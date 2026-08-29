@@ -111,8 +111,8 @@ modal이나 bottom sheet는 `overlay` slot에 전달한다. overlay가 열릴 �
 않고 항상 실제 viewport의 `100dvh`를 사용한다. 480px 이하의 모바일 viewport에서는 최대 너비
 제한과 외부 app shell padding, radius, shadow를 제거해 가용 너비를 모두 사용한다. 실제 기기의 화면
 모서리와 safe area는 운영체제와 기존 safe-area padding이 담당한다. shell 바깥 배경은 전역
-`--platform-app-background-*` 토큰을 사용해 route별 Wire Flow 배경과 같은 색·gradient를 유지한다.
-shell 내부 글자나 여백에 브라우저 전체 너비 기준의 큰 `vw` 값을 사용하지 않는다.
+`globals.css`의 `html`, `body`가 소유하며 Platform Shell stage는 투명하게 유지한다. shell 내부
+글자나 여백에 브라우저 전체 너비 기준의 큰 `vw` 값을 사용하지 않는다.
 
 ## App Router 특수 화면
 

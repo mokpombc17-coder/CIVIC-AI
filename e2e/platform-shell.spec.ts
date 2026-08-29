@@ -100,8 +100,16 @@ test("공통 Shell은 모바일 viewport와 데스크톱 frame 배경을 원본�
     const style = getComputedStyle(element);
     return { color: style.backgroundColor, image: style.backgroundImage };
   });
+  const htmlBackground = await page
+    .locator("html")
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  const stageBackground = await page
+    .locator('[data-platform-shell-stage="true"]')
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(htmlBackground).toBe("rgb(245, 247, 251)");
   expect(bodyBackground.color).toBe("rgb(245, 247, 251)");
   expect(bodyBackground.image).toContain("radial-gradient");
+  expect(stageBackground).toBe("rgba(0, 0, 0, 0)");
 
   await page.setViewportSize({ height: 900, width: 900 });
 
