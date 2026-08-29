@@ -1,8 +1,12 @@
 package ai.civic.mainauth.notification;
 
+import jakarta.mail.MessagingException;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,20 +26,21 @@ public class SmtpNotificationService {
     }
 
     public void sendChallenge(String recipient, String code, String purpose) {
-        var message = new SimpleMailMessage();
-        message.setFrom(senderEmail);
-        message.setTo(recipient);
-        message.setSubject(subjectFor(purpose));
-        message.setText("CIVIC 인증 코드는 " + code + " 입니다. 10분 안에 입력해 주세요.");
+        var content = AuthenticationMailTemplate.forChallenge(code, purpose);
+        var message = sender.createMimeMessage();
+        try {
+            var helper = new MimeMessageHelper(
+                    message,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                    StandardCharsets.UTF_8.name());
+            helper.setFrom(senderEmail, "CIVIC AI");
+            helper.setTo(recipient);
+            helper.setSubject(content.subject());
+            helper.setText(content.plainText(), content.htmlText());
+            message.setHeader("Auto-Submitted", "auto-generated");
+        } catch (MessagingException | UnsupportedEncodingException exception) {
+            throw new MailPreparationException("Unable to prepare authentication email", exception);
+        }
         sender.send(message);
-    }
-
-    private String subjectFor(String purpose) {
-        return switch (purpose) {
-            case "PASSWORD_RESET" -> "CIVIC 비밀번호 재설정";
-            case "TWO_FACTOR", "TWO_FACTOR_ENABLE" -> "CIVIC 2단계 인증";
-            case "REACTIVATION" -> "CIVIC 계정 재활성화";
-            default -> "CIVIC 이메일 인증";
-        };
     }
 }
