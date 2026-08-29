@@ -8,6 +8,8 @@ describe("route-neutral authentication transitions", () => {
     const markup = renderToStaticMarkup(<Loading />);
 
     expect(markup).toContain('data-fullscreen-status="true"');
+    expect(markup).toContain('role="status"');
+    expect(markup).not.toContain("aria-busy");
     expect(markup).not.toContain('data-platform-shell="true"');
     expect(markup).not.toContain("civic-platform-participant");
   });

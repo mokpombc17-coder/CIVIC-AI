@@ -17,8 +17,6 @@ export function FullscreenStatus({
 }: FullscreenStatusProps) {
   return (
     <section
-      aria-busy={busy}
-      aria-live="polite"
       className={styles.stage}
       data-fullscreen-status="true"
       role={busy ? "status" : "alert"}
@@ -26,8 +24,12 @@ export function FullscreenStatus({
       <div className={styles.content}>
         {busy ? <span aria-hidden="true" className={styles.spinner} /> : null}
         <h1 className={styles.title}>{title}</h1>
-        {description ? <p className={styles.description}>{description}</p> : null}
-        {action ? <div className={styles.action}>{action}</div> : null}
+        {description !== undefined && description !== null ? (
+          <p className={styles.description}>{description}</p>
+        ) : null}
+        {action !== undefined && action !== null ? (
+          <div className={styles.action}>{action}</div>
+        ) : null}
       </div>
     </section>
   );
