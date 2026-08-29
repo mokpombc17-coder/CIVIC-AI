@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { sha256 as createSha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
@@ -165,9 +166,21 @@ export type RagBulkActionResponse = Readonly<{
   items: readonly Readonly<{
     document_id: string;
     status: "SUCCEEDED" | "FAILED";
+    job_id?: string;
+    job_status?: string;
     message?: string;
   }>[];
 }>;
+
+export function successfulBulkJobId(
+  result: RagBulkActionResponse,
+  documentId: string,
+): string | null {
+  const jobId = result.items.find(
+    (item) => item.document_id === documentId && item.status === "SUCCEEDED",
+  )?.job_id;
+  return typeof jobId === "string" && jobId.length > 0 ? jobId : null;
+}
 
 const DEFAULT_DOCUMENT_QUERY: RagDocumentListQuery = {
   page: 1,
@@ -487,6 +500,7 @@ function AdminRagModal({
 }
 
 function useAdminWorkspace(initialFolderId?: string) {
+  const router = useRouter();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<RagDocument[]>([]);
   const [creatorLabels, setCreatorLabels] = useState<Map<string, string>>(new Map());
@@ -665,11 +679,22 @@ function useAdminWorkspace(initialFolderId?: string) {
       try {
         const result = await requestRagBulkAction(input, fetch, idempotencyKey);
         bulkOperationRef.current.settle(true);
+        const reindex = input.action === "REINDEX";
         setMessage(
           result.failed === 0
-            ? `${result.succeeded}개 문서 작업을 완료했습니다.`
-            : `${result.succeeded}개 완료, ${result.failed}개 실패했습니다. 실패 문서는 상태와 안내를 확인하세요.`,
+            ? reindex
+              ? `${result.succeeded}개 문서 재색인을 접수했습니다. 처리 상태에서 진행 상황을 확인하세요.`
+              : `${result.succeeded}개 문서 작업을 완료했습니다.`
+            : `${result.succeeded}개 ${reindex ? "접수" : "완료"}, ${result.failed}개 실패했습니다. 실패 문서는 상태와 안내를 확인하세요.`,
         );
+        if (reindex && result.failed === 0 && result.succeeded === 1) {
+          const reindexedId = input.documentIds[0];
+          const jobId = reindexedId ? successfulBulkJobId(result, reindexedId) : null;
+          if (jobId) {
+            router.push(ragJobHref(jobId, selectedIdRef.current));
+            return;
+          }
+        }
         await load(selectedIdRef.current);
       } catch {
         bulkOperationRef.current.settle(false);
@@ -737,9 +762,15 @@ export function FolderTree({
   });
   return (
     <aside className="civic-folder-tree">
-      <div>
+      <div className="civic-folder-tree-heading">
         <p className="civic-kicker">문서 폴더</p>
         <h2>폴더</h2>
+        <Link
+          className="civic-secondary-action civic-folder-add"
+          href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId ?? "")}&mode=ADD`}
+        >
+          폴더 추가
+        </Link>
       </div>
       <ul aria-label="RAG 폴더 트리">
         {visibleFolders.map((folder) => (
@@ -770,37 +801,34 @@ export function FolderTree({
             <button
               aria-current={folder.folder_id === selectedFolderId ? "true" : undefined}
               onClick={() => onSelect(folder.folder_id)}
+              title={(folder.path ?? [folder.name]).join(" / ")}
               type="button"
             >
               <RagFolderIcon root={folder.kind === "ROOT"} />
               <span>
                 <strong>{folder.name}</strong>
-                <small>{(folder.path ?? [folder.name]).join(" / ")}</small>
               </span>
             </button>
+            {folder.folder_id === selectedFolderId ? (
+              <span className="civic-folder-node-actions">
+                <Link
+                  aria-label="폴더 수정"
+                  href={`/admin/rag/folders?folderId=${encodeURIComponent(folder.folder_id)}&mode=EDIT`}
+                >
+                  수정
+                </Link>
+                <Link
+                  aria-label="폴더 삭제"
+                  className="is-danger"
+                  href={`/admin/rag/folders?folderId=${encodeURIComponent(folder.folder_id)}&mode=DELETE`}
+                >
+                  삭제
+                </Link>
+              </span>
+            ) : null}
           </li>
         ))}
       </ul>
-      <div className="wf-folder-actions">
-        <Link
-          className="civic-secondary-action"
-          href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId ?? "")}&mode=ADD`}
-        >
-          폴더 추가
-        </Link>
-        <Link
-          className="civic-secondary-action"
-          href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId ?? "")}&mode=EDIT`}
-        >
-          폴더 수정
-        </Link>
-        <Link
-          className="civic-danger-action"
-          href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId ?? "")}&mode=DELETE`}
-        >
-          폴더 삭제
-        </Link>
-      </div>
     </aside>
   );
 }
@@ -1088,87 +1116,92 @@ export function DocumentWorkspace({
             <option value="FAILED">실패</option>
           </select>
         </label>
-        <label>
-          <span>문서 형식</span>
-          <select
-            onChange={(event) => {
-              setMediaTypeFilter(event.target.value);
-              onQueryChange?.({ mediaType: event.target.value, page: 1 });
-            }}
-            value={mediaTypeFilter}
-          >
-            <option value="">전체</option>
-            {RAG_DOCUMENT_MEDIA_TYPE_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>등록자</span>
-          <select
-            onChange={(event) => {
-              setCreatedByFilter(event.target.value);
-              onQueryChange?.({ createdBy: event.target.value, page: 1 });
-            }}
-            value={createdByFilter}
-          >
-            <option value="">전체</option>
-            {Array.from(creatorLabels.entries()).map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>등록 시작일</span>
-          <input
-            onChange={(event) => {
-              setCreatedFromFilter(event.target.value);
-              onQueryChange?.({ createdFrom: event.target.value, page: 1 });
-            }}
-            type="date"
-            value={createdFromFilter}
-          />
-        </label>
-        <label>
-          <span>등록 종료일</span>
-          <input
-            onChange={(event) => {
-              setCreatedToFilter(event.target.value);
-              onQueryChange?.({ createdTo: event.target.value, page: 1 });
-            }}
-            type="date"
-            value={createdToFilter}
-          />
-        </label>
-        <label className="civic-check-row">
-          <input
-            checked={includeSubfolders}
-            onChange={(event) => {
-              setIncludeSubfolders(event.target.checked);
-              onQueryChange?.({ includeSubfolders: event.target.checked, page: 1 });
-            }}
-            type="checkbox"
-          />
-          <span>하위 폴더 포함</span>
-        </label>
-        <label>
-          <span>페이지당</span>
-          <select
-            aria-label="문서 목록 페이지당 표시 개수"
-            onChange={(event) =>
-              onQueryChange?.({ pageSize: Number(event.target.value) as 10 | 25 | 50, page: 1 })
-            }
-            value={pageState.pageSize}
-          >
-            <option value={10}>10개</option>
-            <option value={25}>25개</option>
-            <option value={50}>50개</option>
-          </select>
-        </label>
+        <details className="wf-filter-advanced">
+          <summary>상세 필터</summary>
+          <div className="wf-filter-advanced-grid">
+            <label>
+              <span>문서 형식</span>
+              <select
+                onChange={(event) => {
+                  setMediaTypeFilter(event.target.value);
+                  onQueryChange?.({ mediaType: event.target.value, page: 1 });
+                }}
+                value={mediaTypeFilter}
+              >
+                <option value="">전체</option>
+                {RAG_DOCUMENT_MEDIA_TYPE_OPTIONS.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>등록자</span>
+              <select
+                onChange={(event) => {
+                  setCreatedByFilter(event.target.value);
+                  onQueryChange?.({ createdBy: event.target.value, page: 1 });
+                }}
+                value={createdByFilter}
+              >
+                <option value="">전체</option>
+                {Array.from(creatorLabels.entries()).map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>등록 시작일</span>
+              <input
+                onChange={(event) => {
+                  setCreatedFromFilter(event.target.value);
+                  onQueryChange?.({ createdFrom: event.target.value, page: 1 });
+                }}
+                type="date"
+                value={createdFromFilter}
+              />
+            </label>
+            <label>
+              <span>등록 종료일</span>
+              <input
+                onChange={(event) => {
+                  setCreatedToFilter(event.target.value);
+                  onQueryChange?.({ createdTo: event.target.value, page: 1 });
+                }}
+                type="date"
+                value={createdToFilter}
+              />
+            </label>
+            <label className="civic-check-row">
+              <input
+                checked={includeSubfolders}
+                onChange={(event) => {
+                  setIncludeSubfolders(event.target.checked);
+                  onQueryChange?.({ includeSubfolders: event.target.checked, page: 1 });
+                }}
+                type="checkbox"
+              />
+              <span>하위 폴더 포함</span>
+            </label>
+            <label>
+              <span>페이지당</span>
+              <select
+                aria-label="문서 목록 페이지당 표시 개수"
+                onChange={(event) =>
+                  onQueryChange?.({ pageSize: Number(event.target.value) as 10 | 25 | 50, page: 1 })
+                }
+                value={pageState.pageSize}
+              >
+                <option value={10}>10개</option>
+                <option value={25}>25개</option>
+                <option value={50}>50개</option>
+              </select>
+            </label>
+          </div>
+        </details>
       </form>
       <div aria-label="선택 문서 작업" className="civic-bulk-toolbar" role="toolbar">
         <strong>{selectedIds.size}개 선택</strong>
@@ -1444,24 +1477,22 @@ function DocumentRow({
       <td>{formatAdminDate(document.created_at)}</td>
       <td>{formatPageCount(selectedVersion?.page_count)}</td>
       <td>
-        <span className={`civic-job-state is-${selectedStatus.toLowerCase()}`}>
-          {documentStatusLabel(selectedStatus)}
-        </span>
-        <label className="civic-search-toggle">
-          <input
-            aria-label={`${filename} 검색 사용 여부`}
-            checked={document.search_enabled !== false}
-            onChange={(event) =>
-              void onBulk?.({
-                action: "SET_SEARCH_ENABLED",
-                documentIds: [document.document_id],
-                searchEnabled: event.target.checked,
-              })
-            }
-            type="checkbox"
-          />
-          <span>{document.search_enabled === false ? "검색 제외" : "검색 사용"}</span>
-        </label>
+        {selectedVersion?.job_id ? (
+          <Link
+            aria-label={`${filename} 처리 상태 보기`}
+            className={`civic-job-state is-${selectedStatus.toLowerCase()}`}
+            href={processingJobHref(selectedVersion, folder?.folder_id ?? document.folder_id)}
+          >
+            {documentStatusLabel(selectedStatus)}
+          </Link>
+        ) : (
+          <span className={`civic-job-state is-${selectedStatus.toLowerCase()}`}>
+            {documentStatusLabel(selectedStatus)}
+          </span>
+        )}
+        {document.search_enabled === false ? (
+          <span className="civic-search-toggle">검색 제외됨</span>
+        ) : null}
       </td>
       <td>
         <select
@@ -1495,26 +1526,47 @@ function DocumentRow({
           >
             보기
           </button>
-          {selectedVersionId ? (
-            <AuthenticatedDownloadLink
-              href={`/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(selectedVersionId)}/original`}
-            >
-              원본
-            </AuthenticatedDownloadLink>
-          ) : null}
-          <Link
-            href={`/admin/rag/upload?folderId=${encodeURIComponent(folder?.folder_id ?? document.folder_id)}&mode=NEW_VERSION&documentId=${encodeURIComponent(document.document_id)}&versionId=${encodeURIComponent(selectedVersionId)}`}
-          >
-            새 버전
-          </Link>
-          <button
-            onClick={() =>
-              void onBulk?.({ action: "REINDEX", documentIds: [document.document_id] })
-            }
-            type="button"
-          >
-            재색인
-          </button>
+          <details className="civic-row-menu">
+            <summary aria-label={`${filename} 추가 작업`}>⋯</summary>
+            <div className="civic-row-menu-list" role="menu">
+              {selectedVersionId ? (
+                <AuthenticatedDownloadLink
+                  href={`/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(selectedVersionId)}/original`}
+                >
+                  원본 내려받기
+                </AuthenticatedDownloadLink>
+              ) : null}
+              <Link
+                href={`/admin/rag/upload?folderId=${encodeURIComponent(folder?.folder_id ?? document.folder_id)}&mode=NEW_VERSION&documentId=${encodeURIComponent(document.document_id)}&versionId=${encodeURIComponent(selectedVersionId)}`}
+              >
+                새 버전
+              </Link>
+              <button
+                onClick={(event) => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  void onBulk?.({ action: "REINDEX", documentIds: [document.document_id] });
+                }}
+                type="button"
+              >
+                재색인
+              </button>
+              <label className="civic-search-toggle">
+                <input
+                  aria-label={`${filename} 검색 사용 여부`}
+                  checked={document.search_enabled !== false}
+                  onChange={(event) =>
+                    void onBulk?.({
+                      action: "SET_SEARCH_ENABLED",
+                      documentIds: [document.document_id],
+                      searchEnabled: event.target.checked,
+                    })
+                  }
+                  type="checkbox"
+                />
+                <span>검색 사용</span>
+              </label>
+            </div>
+          </details>
         </div>
       </td>
     </tr>
@@ -1593,7 +1645,7 @@ function mediaTypeLabel(value?: string): string {
 function documentStatusLabel(value: string): string {
   return (
     {
-      ACTIVE: "검색 사용 중",
+      ACTIVE: "처리 완료",
       READY: "처리 완료",
       SUCCEEDED: "처리 완료",
       QUEUED: "처리 대기",
@@ -1829,6 +1881,7 @@ function UploadPanel({
   query: RagQuery;
   onMessage: (message: string) => void;
 }>) {
+  const router = useRouter();
   const mode = firstQueryValue(query.mode) === "NEW_VERSION" ? "NEW_VERSION" : "NEW_DOCUMENT";
   const documentId = firstQueryValue(query.documentId);
   const [files, setFiles] = useState<File[]>([]);
@@ -1891,18 +1944,23 @@ function UploadPanel({
         : [],
     );
     const failed = failedResults.length;
-    setAcceptedJobs((current) => [
-      ...current,
-      ...results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : [])),
-    ]);
+    const acceptedNow = results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : [],
+    );
+    setAcceptedJobs((current) => [...current, ...acceptedNow]);
     setFiles(rejectedInputs(files, results));
     onMessage(
-      failed === 0
-        ? "모든 파일을 접수했습니다. 처리 상태에서 변환과 색인을 확인하세요."
-        : `${failed}개 파일 전송에 실패했습니다. ${failedResults.join(" ")} 성공 파일은 유지되며 실패 파일만 다시 시도하세요.`,
+      failed > 0
+        ? `${failed}개 파일 전송에 실패했습니다. ${failedResults.join(" ")} 성공 파일은 유지되며 실패 파일만 다시 시도하세요.`
+        : acceptedNow.length === 1
+          ? "파일을 접수했습니다. 처리 상태 화면으로 이동합니다."
+          : "모든 파일을 접수했습니다. 각 문서의 '처리 상태 보기'에서 진행 상황을 확인하세요.",
     );
-    if (results.some((result) => result.status === "fulfilled")) onAccepted?.();
+    if (acceptedNow.length > 0) onAccepted?.();
     setBusy(false);
+    if (failed === 0 && acceptedNow.length === 1 && acceptedNow[0]) {
+      router.push(ragJobHref(acceptedNow[0].jobId, folder.folder_id, acceptedNow[0].filename));
+    }
   }
 
   return (

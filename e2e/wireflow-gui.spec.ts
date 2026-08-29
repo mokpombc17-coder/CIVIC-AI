@@ -473,7 +473,7 @@ test("A-RAG-001은 처리 상태 자동 갱신 중 기존 문서 표를 유지�
     releasePollResponse();
   }
 
-  await expect(page.getByText("검색 사용 중", { exact: true })).toBeVisible();
+  await expect(page.locator(".civic-job-state", { hasText: "처리 완료" }).first()).toBeVisible();
   expect(documentRequestCount).toBe(2);
   expect(folderRequestCount).toBe(1);
   expect(userLabelRequestCount).toBe(1);
