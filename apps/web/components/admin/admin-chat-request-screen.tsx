@@ -338,7 +338,6 @@ function RequestTable({
           <tr>
             <th>채팅방 이름</th>
             <th>신청자</th>
-            <th>공개·참여 방식</th>
             <th>요청 시각</th>
             <th>상태</th>
             <th>작업</th>
@@ -347,14 +346,13 @@ function RequestTable({
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={6}>선택한 상태에 해당하는 신청이 없습니다.</td>
+              <td colSpan={5}>선택한 상태에 해당하는 신청이 없습니다.</td>
             </tr>
           ) : null}
           {items.map((item) => (
             <tr key={item.creationRequestId}>
               <th scope="row">{item.name}</th>
               <td>{adminUserLabel(labels, item.requesterUserId)}</td>
-              <td>{roomPolicyLabel(item.visibility, item.joinPolicy)}</td>
               <td>{formatDate(item.requestedAt)}</td>
               <td>
                 <StatusBadge status={item.status} />
@@ -433,7 +431,6 @@ function RequestDetail({
               .join(", ") || "지정 없음"
           }
         />
-        <Detail label="공개·참여 방식" value={roomPolicyLabel(item.visibility, item.joinPolicy)} />
       </div>
       <article className="civic-domain-description">
         <h2>신청 설명</h2>
@@ -555,19 +552,6 @@ function StatusBadge({ status }: Readonly<{ status: RoomCreationStatus }>) {
 
 function statusLabel(status: RoomCreationStatus): string {
   return statusLabels[status];
-}
-
-function roomPolicyLabel(visibility: string, joinPolicy: string): string {
-  const visibilityLabels: Readonly<Record<string, string>> = {
-    LISTED: "목록 공개",
-    UNLISTED: "링크 공개",
-    PUBLIC: "공개",
-    PRIVATE: "비공개",
-  };
-  const visibilityLabel = visibilityLabels[visibility] ?? visibility;
-  const joinLabel =
-    joinPolicy === "OPEN" ? "바로 참여" : joinPolicy === "INVITE_ONLY" ? "초대 참여" : joinPolicy;
-  return `${visibilityLabel} · ${joinLabel}`;
 }
 
 function formatDate(value: string | null): string {

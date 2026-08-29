@@ -376,11 +376,11 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
         <section className="civic-domain-form-section">
           <header>
-            <span>ACTIVE · LISTED ROOMS</span>
+            <span>CHAT ROOMS</span>
             <h2>기존 채팅방 카테고리 교체</h2>
           </header>
           <p className="civic-boundary-copy">
-            일반 채팅방 목록에서 현재 공개 중인 방을 검색하고 카테고리를 변경할 수 있습니다.
+            현재 운영 중인 채팅방을 검색하고 카테고리를 변경할 수 있습니다.
           </p>
           <form className="civic-category-room-search" onSubmit={searchRooms}>
             <label className="civic-field">
@@ -475,7 +475,7 @@ function ListedRoomTable({
   selectedRoomId: string | null;
 }>) {
   return (
-    <div aria-label="공개 채팅방 표" className="civic-table-scroll" role="region" tabIndex={0}>
+    <div aria-label="채팅방 표" className="civic-table-scroll" role="region" tabIndex={0}>
       <table className="civic-admin-table civic-listed-room-table">
         <thead>
           <tr>
