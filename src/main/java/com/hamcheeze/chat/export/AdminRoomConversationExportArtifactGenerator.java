@@ -75,7 +75,7 @@ public final class AdminRoomConversationExportArtifactGenerator {
     public AdminRoomConversationExportArtifact generate(
             String exportId,
             AdminRoomConversationExportSnapshot snapshot,
-            ResearchChatExportTempWorkspace workspace
+            AdminRoomConversationExportTempWorkspace workspace
     ) throws IOException {
         requireNonBlank(exportId, "exportId");
         Objects.requireNonNull(snapshot, "snapshot");
@@ -471,7 +471,7 @@ public final class AdminRoomConversationExportArtifactGenerator {
     }
 
     private void createZip(
-            ResearchChatExportTempWorkspace workspace,
+            AdminRoomConversationExportTempWorkspace workspace,
             ChatExportWorkspaceBudget budget,
             ChatExportDeadline deadline
     ) throws IOException {
@@ -555,7 +555,7 @@ public final class AdminRoomConversationExportArtifactGenerator {
     }
 
     private void ensureLimits(
-            ResearchChatExportTempWorkspace workspace,
+            AdminRoomConversationExportTempWorkspace workspace,
             ChatExportDeadline deadline
     ) throws IOException {
         deadline.check();

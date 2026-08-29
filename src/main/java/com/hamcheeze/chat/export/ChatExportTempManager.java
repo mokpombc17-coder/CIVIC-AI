@@ -144,6 +144,25 @@ public final class ChatExportTempManager {
                 directory.resolve("artifact.zip"));
     }
 
+    public AdminRoomConversationExportTempWorkspace
+            createAdminConversation(String exportId) throws IOException {
+        requireExportId(exportId);
+        ensureFreeDisk();
+        Path directory = safeWorkspace(exportId);
+        Files.createDirectory(directory);
+        applyDirectoryPermissions(directory);
+        activeExportIds.add(exportId);
+        return new AdminRoomConversationExportTempWorkspace(
+                exportId,
+                directory,
+                directory.resolve("messages.jsonl"),
+                directory.resolve("message_changes.jsonl"),
+                directory.resolve("transcript.html"),
+                directory.resolve("manifest.json"),
+                directory.resolve("artifact.part"),
+                directory.resolve("artifact.zip"));
+    }
+
     public void secureFile(Path file) throws IOException {
         ensureUnderRoot(file);
         try {
@@ -161,6 +180,15 @@ public final class ChatExportTempManager {
 
     public void cleanupResearchBestEffort(
             ResearchChatExportTempWorkspace workspace
+    ) {
+        if (workspace == null) {
+            return;
+        }
+        cleanupBestEffort(workspace.exportId(), workspace.directory());
+    }
+
+    public void cleanupAdminConversationBestEffort(
+            AdminRoomConversationExportTempWorkspace workspace
     ) {
         if (workspace == null) {
             return;

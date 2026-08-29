@@ -1,7 +1,7 @@
 # Admin room conversation export v1 example
 
-이 디렉터리는 관리자용 채팅방 기간별 대화 내역 Export의 예정 계약 예시다.
-현재 운영 API가 준비됐음을 의미하지 않으며, 구현 시 최종 OpenAPI와 함께 확정한다.
+이 디렉터리는 READY 상태인 관리자용 채팅방 기간별 대화 내역 Export v1의
+고정 계약 예시다. 실제 API 응답도 같은 ZIP entry와 manifest schema를 사용한다.
 
 ## API request
 

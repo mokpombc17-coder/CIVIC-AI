@@ -4,7 +4,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 
 public record AdminRoomConversationExportArtifact(
-        ResearchChatExportTempWorkspace workspace,
+        AdminRoomConversationExportTempWorkspace workspace,
         Path path,
         long sizeBytes,
         String sha256,

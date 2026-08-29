@@ -3075,6 +3075,94 @@ checkpoint를 만들지 않는다.
 `content=null`이며 Audit 원문과 userId는 이 관리자 Export 외부 계약으로
 노출되지 않는다.
 
+## 관리자 Room 기간별 대화 Export
+
+`POST /api/v1/admin/rooms/{roomId}/conversation-exports`는 관리자 페이지의
+방 단위 지표 계산을 위한 동기 ZIP Export다. `chat:audit:exports` scope가 있는
+JWT만 허용하며 Room Membership은 검사하지 않는다. ACTIVE와 CLOSED Room을 모두
+지원하고 감사 원장 원문과 내부 `userId`를 제공하므로 일반 사용자에게 전달하면
+안 된다.
+
+요청은 두 ISO 8601 절대 시각으로 반개구간 `[fromInclusive, toExclusive)`를
+지정한다.
+
+```http
+POST /api/v1/admin/rooms/{roomId}/conversation-exports
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+Accept: application/zip
+
+{
+  "fromInclusive": "2026-08-01T00:00:00Z",
+  "toExclusive": "2026-08-08T00:00:00Z"
+}
+```
+
+두 값은 필수이고 `fromInclusive < toExclusive`여야 한다. `toExclusive`는 요청
+시작 시각보다 미래일 수 없으며 기본 최대 범위는 31일이다. 최대 범위는
+`CHAT_EXPORT_MAX_CONVERSATION_RANGE`로 설정한다. 범위 검증 실패는
+`400 INVALID_EXPORT_TIME_RANGE`다.
+
+성공 시 `200 application/zip`과 다음 헤더를 반환한다.
+
+```text
+Content-Disposition: attachment; filename="room-conversation-export-{exportId}.zip"
+Content-Length: {artifactSize}
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+X-Content-Type-Options: nosniff
+X-Export-Id: {exportId}
+X-Export-SHA256: {sha256LowercaseHex}
+```
+
+ZIP entry는 `manifest.json`, `messages.jsonl`, `message_changes.jsonl`,
+`transcript.html` 네 개다. `manifest.json`의 `contract`는
+`admin-room-conversation-export`, `schemaVersion`은 `1`이다.
+
+- `messages.jsonl`: 범위 안에서 CREATE된 메시지만 포함하며 각 메시지를
+  `toExclusive` 직전 상태로 재생한다. 범위 뒤 변경은 반영하지 않는다.
+- `message_changes.jsonl`: 범위 안에서 발생한 CREATE/UPDATE/DELETE를 모두
+  포함한다. 범위 전에 생성됐더라도 범위 안에서 수정·삭제됐다면 포함한다.
+- 삭제 메시지는 삭제 직전 content와 `deleted=true`를 유지한다.
+- 이벤트는 `(occurredAt, roomChangeSequence)` 순서이고, 요청 시작 시 확보한
+  `capturedChangeSequence`를 watermark로 사용한다.
+
+외부 JSONL 필드는 연구용 Export와 동일하게 제한된다.
+
+```text
+messages.jsonl:
+messageSequence, userId, content, createdAt, deleted
+
+message_changes.jsonl:
+changeSequence, messageSequence, userId, changeType, content, changedAt
+```
+
+이 데이터로 전체·잔존·삭제 메시지 수, 작성자 수, 사용자별/시간대별 메시지 수,
+생성·수정·삭제 횟수, 수정률·삭제율과 content 기반 분석을 계산할 수 있다. 접속
+시간, 체류 시간, 세션 수, 비작성 참여자 수, 과거 시점의 정확한 멤버 수는 이
+Export만으로 계산할 수 없다.
+
+같은 Room에 RUNNING Export가 있으면 `409 CHAT_EXPORT_ALREADY_RUNNING`이다.
+Artifact는 응답 전 private temp workspace에서 완성되며 전송 뒤 삭제되고,
+재다운로드 API는 없다. 전송까지 완료되어야 전용 실행 이력이 SUCCEEDED가 된다.
+서버 재시작 시 남은 RUNNING 이력은 `SERVER_RESTARTED` 실패로 회수한다.
+
+주요 오류는 다음과 같다.
+
+```text
+400 INVALID_REQUEST
+400 INVALID_EXPORT_TIME_RANGE
+403 ACCESS_DENIED
+404 ROOM_NOT_FOUND
+409 CHAT_EXPORT_ALREADY_RUNNING
+413 CHAT_EXPORT_TOO_LARGE
+500 CHAT_EXPORT_LEDGER_INCONSISTENT
+503 CHAT_EXPORT_UNAVAILABLE
+```
+
+고정 예시는 `docs/examples/admin-room-conversation-export-v1`과
+`docs/examples/admin-room-conversation-export-v1-example.zip`에 있다.
+
 ## 연구용 Room 대화 Export
 
 `POST /api/v1/research/rooms/{roomId}/exports`는

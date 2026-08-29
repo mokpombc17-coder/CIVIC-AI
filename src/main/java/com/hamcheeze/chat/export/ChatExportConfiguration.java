@@ -1,6 +1,8 @@
 package com.hamcheeze.chat.export;
 
 import com.hamcheeze.chat.export.mongo.MongoAdminRoomConversationExportSnapshotReader;
+import com.hamcheeze.chat.export.mongo.MongoAdminRoomConversationExportJobSchemaInitializer;
+import com.hamcheeze.chat.export.mongo.MongoAdminRoomConversationExportJobStore;
 import com.hamcheeze.chat.export.mongo.MongoChatExportJobSchemaInitializer;
 import com.hamcheeze.chat.export.mongo.MongoChatExportJobStore;
 import com.hamcheeze.chat.export.mongo.MongoChatExportSnapshotReader;
@@ -120,14 +122,42 @@ public class ChatExportConfiguration {
     @Bean
     AdminRoomConversationExportService
             adminRoomConversationExportService(
+                    AdminRoomConversationExportJobStore jobStore,
+                    AdminRoomConversationExportSnapshotReader snapshotReader,
+                    AdminRoomConversationExportArtifactGenerator
+                            artifactGenerator,
+                    ChatExportTempManager tempManager,
+                    ChatExportConcurrencyGuard concurrencyGuard,
                     ChatExportProperties properties,
-                    Clock chatExportClock,
-                    AdminRoomConversationExportSnapshotReader snapshotReader
+                    Clock chatExportClock
             ) {
         return new AdminRoomConversationExportService(
+                jobStore,
+                snapshotReader,
+                artifactGenerator,
+                tempManager,
+                concurrencyGuard,
                 properties,
-                chatExportClock,
-                snapshotReader);
+                chatExportClock);
+    }
+
+    @Bean(initMethod = "initialize")
+    MongoAdminRoomConversationExportJobSchemaInitializer
+            adminRoomConversationExportJobSchemaInitializer(
+                    MongoOperations mongoOperations
+            ) {
+        return new MongoAdminRoomConversationExportJobSchemaInitializer(
+                mongoOperations);
+    }
+
+    @Bean
+    @DependsOn("adminRoomConversationExportJobSchemaInitializer")
+    AdminRoomConversationExportJobStore
+            adminRoomConversationExportJobStore(
+                    MongoOperations mongoOperations
+            ) {
+        return new MongoAdminRoomConversationExportJobStore(
+                mongoOperations);
     }
 
     @Bean
@@ -155,6 +185,17 @@ public class ChatExportConfiguration {
                 objectMapper,
                 properties,
                 tempManager,
+                chatExportClock);
+    }
+
+    @Bean(initMethod = "recover")
+    AdminRoomConversationExportStartupRecovery
+            adminRoomConversationExportStartupRecovery(
+                    AdminRoomConversationExportJobStore jobStore,
+                    Clock chatExportClock
+            ) {
+        return new AdminRoomConversationExportStartupRecovery(
+                jobStore,
                 chatExportClock);
     }
 

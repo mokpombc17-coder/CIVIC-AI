@@ -251,8 +251,8 @@ class AdminRoomConversationExportArtifactGeneratorTest {
                 clock,
                 new SimpleMeterRegistry());
         tempManager.initialize();
-        ResearchChatExportTempWorkspace workspace =
-                tempManager.createResearch(EXPORT_ID);
+        AdminRoomConversationExportTempWorkspace workspace =
+                tempManager.createAdminConversation(EXPORT_ID);
         return new Fixture(
                 new AdminRoomConversationExportArtifactGenerator(
                         reader,
@@ -456,7 +456,7 @@ class AdminRoomConversationExportArtifactGeneratorTest {
 
     private record Fixture(
             AdminRoomConversationExportArtifactGenerator generator,
-            ResearchChatExportTempWorkspace workspace
+            AdminRoomConversationExportTempWorkspace workspace
     ) {
     }
 
