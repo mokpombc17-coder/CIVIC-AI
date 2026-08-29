@@ -105,6 +105,11 @@ public class WebSocketSecurityConfig {
                                 ChatScopes.CATEGORIES_MANAGE))
                         .requestMatchers(
                                 HttpMethod.POST,
+                                "/api/v1/admin/rooms/*/conversation-exports")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CHAT_AUDIT_EXPORTS))
+                        .requestMatchers(
+                                HttpMethod.POST,
                                 "/api/v1/admin/rooms/*/exports")
                         .hasAuthority(ChatScopes.authority(
                                 ChatScopes.CHAT_AUDIT_EXPORTS))

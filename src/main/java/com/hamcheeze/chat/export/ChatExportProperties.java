@@ -22,6 +22,7 @@ public class ChatExportProperties {
     private Duration cleanupInterval = Duration.ofMinutes(15);
     private Duration orphanTtl = Duration.ofHours(1);
     private int snapshotMaxAttempts = 3;
+    private Duration maxConversationExportRange = Duration.ofDays(31);
 
     @PostConstruct
     void validate() {
@@ -51,7 +52,10 @@ public class ChatExportProperties {
                 || orphanTtl.compareTo(maxGenerationDuration) <= 0
                 || maxConcurrentExports != 1
                 || diskReservationOverflows
-                || snapshotMaxAttempts < 1) {
+                || snapshotMaxAttempts < 1
+                || maxConversationExportRange == null
+                || maxConversationExportRange.isZero()
+                || maxConversationExportRange.isNegative()) {
             throw new IllegalStateException("Invalid chat export properties");
         }
     }
@@ -103,5 +107,11 @@ public class ChatExportProperties {
     public int getSnapshotMaxAttempts() { return snapshotMaxAttempts; }
     public void setSnapshotMaxAttempts(int value) {
         snapshotMaxAttempts = value;
+    }
+    public Duration getMaxConversationExportRange() {
+        return maxConversationExportRange;
+    }
+    public void setMaxConversationExportRange(Duration value) {
+        maxConversationExportRange = value;
     }
 }

@@ -115,6 +115,17 @@ public class ChatExportConfiguration {
                 metrics);
     }
 
+    @Bean
+    AdminRoomConversationExportService
+            adminRoomConversationExportService(
+                    ChatExportProperties properties,
+                    Clock chatExportClock
+            ) {
+        return new AdminRoomConversationExportService(
+                properties,
+                chatExportClock);
+    }
+
     @Bean(initMethod = "recover")
     ChatExportStartupRecovery chatExportStartupRecovery(
             ChatExportJobStore jobStore,

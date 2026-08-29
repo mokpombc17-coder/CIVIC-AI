@@ -19,6 +19,7 @@ chat:
     cleanup-interval: ${CHAT_EXPORT_CLEANUP_INTERVAL:15m}
     orphan-ttl: ${CHAT_EXPORT_ORPHAN_TTL:1h}
     snapshot-max-attempts: ${CHAT_EXPORT_SNAPSHOT_MAX_ATTEMPTS:3}
+    max-conversation-export-range: ${CHAT_EXPORT_MAX_CONVERSATION_RANGE:31d}
 
   room:
     creation:

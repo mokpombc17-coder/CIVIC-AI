@@ -20,7 +20,8 @@ import java.net.URI;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(assignableTypes = {
         ChatExportController.class,
-        ResearchChatExportController.class
+        ResearchChatExportController.class,
+        AdminRoomConversationExportController.class
 })
 public final class ChatExportApiExceptionHandler {
 

@@ -2,6 +2,7 @@ package com.hamcheeze.chat.export;
 
 public enum ChatExportErrorCode {
     INVALID_REQUEST,
+    INVALID_EXPORT_TIME_RANGE,
     ROOM_NOT_FOUND,
     CHAT_EXPORT_ALREADY_RUNNING,
     CHAT_EXPORT_BASE_NOT_FOUND,

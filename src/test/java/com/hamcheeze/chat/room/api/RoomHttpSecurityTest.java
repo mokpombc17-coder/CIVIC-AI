@@ -64,6 +64,53 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
     private FixtureJwtProperties localJwtProperties;
 
     @Test
+    void conversationExportRequiresAuditScopeAndValidTimeRange()
+            throws Exception {
+        String endpoint = "/api/v1/admin/rooms/missing-room/"
+                + "conversation-exports";
+        String invalidRange = """
+                {
+                  "fromInclusive": "2026-08-29T08:00:00Z",
+                  "toExclusive": "2026-08-29T08:00:00Z"
+                }
+                """;
+
+        mockMvc.perform(post(endpoint)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidRange))
+                .andExpect(status().isUnauthorized());
+
+        for (String disallowed : List.of(
+                ChatScopes.ROOMS_READ,
+                ChatScopes.ROOMS_WRITE,
+                ChatScopes.CHAT_RESEARCH_EXPORTS)) {
+            mockMvc.perform(post(endpoint)
+                            .with(jwt().jwt(token -> token
+                                            .subject("admin-1"))
+                                    .authorities(
+                                            new SimpleGrantedAuthority(
+                                                    ChatScopes.authority(
+                                                            disallowed))))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(invalidRange))
+                    .andExpect(status().isForbidden());
+        }
+
+        mockMvc.perform(post(endpoint)
+                        .with(jwt().jwt(token -> token.subject("admin-1"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        ChatScopes.authority(
+                                                ChatScopes
+                                                        .CHAT_AUDIT_EXPORTS))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidRange))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_EXPORT_TIME_RANGE"))
+                .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    @Test
     void chatExportRequiresDedicatedAuditScope() throws Exception {
         String endpoint = "/api/v1/admin/rooms/missing-room/exports";
         String body = "{\"mode\":\"FULL\"}";
