@@ -128,10 +128,9 @@ export function AdminFunctionalScreen({
   const [upcomingTasks, setUpcomingTasks] = useState<
     readonly Readonly<{ taskId: string; title: string; opensAt: string }>[]
   >([]);
-  const [attentionSimulations, setAttentionSimulations] =
-    useState<HomeAttentionSimulationState>({
-      status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
-    });
+  const [attentionSimulations, setAttentionSimulations] = useState<HomeAttentionSimulationState>({
+    status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
+  });
   const [simulationWalletSummary, setSimulationWalletSummary] =
     useState<SimulationWalletMetricState>({
       status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
@@ -231,9 +230,7 @@ export function AdminHome({
                 ? "확인 불가"
                 : "확인 중"}
           </strong>
-          {ragJobSummary.status === "ready" ? (
-            <span>처리 중 {ragJobSummary.active}건</span>
-          ) : null}
+          {ragJobSummary.status === "ready" ? <span>처리 중 {ragJobSummary.active}건</span> : null}
         </HomeMetric>
         <HomeMetric href="/admin/tasks" label="진행 중 과업">
           <strong>{metricCount(activeTaskSummary)}</strong>
@@ -250,98 +247,95 @@ export function AdminHome({
       </ul>
       <div className="civic-home-columns">
         <AdminPendingChatRequests state={chatRequestSummary} />
-          {dueSoonTasks.length > 0 ? (
-            <HomeSection
-              action={
-                <Link className="civic-home-section-action" href="/admin/tasks">
-                  과업 관리
-                </Link>
-              }
-              title="마감 임박 과업"
-            >
-              {dueSoonTasks.map((task) => (
-                <HomeRow
-                  action={
-                    <Link
-                      href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
-                    >
-                      과업 보기
-                    </Link>
-                  }
-                  key={task.taskId}
-                  meta={`마감 ${formatAdminDate(task.closesAt)}`}
-                  title={task.title}
-                />
-              ))}
-            </HomeSection>
-          ) : null}
-          {upcomingTasks.length > 0 ? (
-            <HomeSection
-              action={
-                <Link className="civic-home-section-action" href="/admin/tasks">
-                  과업 관리
-                </Link>
-              }
-              title="시작 예정 과업"
-            >
-              {upcomingTasks.map((task) => (
-                <HomeRow
-                  action={
-                    <Link
-                      href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
-                    >
-                      과업 보기
-                    </Link>
-                  }
-                  key={task.taskId}
-                  meta={`시작 ${formatAdminDate(task.opensAt)}`}
-                  title={task.title}
-                />
-              ))}
-            </HomeSection>
-          ) : null}
-          {failures.length > 0 ? (
-            <HomeSection
-              action={
-                <Link className="civic-home-section-action" href="/admin/rag">
-                  문서 관리
-                </Link>
-              }
-              title="처리 실패 문서"
-            >
-              {failures.slice(0, 3).map((failure) => (
-                <HomeRow
-                  action={<Link href={ragFailureRetryHref(failure)}>재시도</Link>}
-                  key={failure.jobId}
-                  meta={ragFailureLabel(failure.failureCode)}
-                  title={failure.filename}
-                />
-              ))}
-            </HomeSection>
-          ) : null}
-          {attentionItems.length > 0 ? (
-            <HomeSection
-              action={
-                <Link className="civic-home-section-action" href="/admin/simulations">
-                  시뮬레이션
-                </Link>
-              }
-              title="확인 필요 시뮬레이션"
-            >
-              {attentionItems.map((item) => (
-                <HomeRow
-                  action={<Link href={item.href as Route}>상태 확인</Link>}
-                  key={item.taskId}
-                  meta={item.stateLabel}
-                  title={item.title}
-                />
-              ))}
-            </HomeSection>
-          ) : null}
-          <AdminCurrentOperations
-            canManageSimulation={canManageSimulation}
-            canReadRag={canReadRag}
-          />
+        {dueSoonTasks.length > 0 ? (
+          <HomeSection
+            action={
+              <Link className="civic-home-section-action" href="/admin/tasks">
+                과업 관리
+              </Link>
+            }
+            title="마감 임박 과업"
+          >
+            {dueSoonTasks.map((task) => (
+              <HomeRow
+                action={
+                  <Link
+                    href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
+                  >
+                    과업 보기
+                  </Link>
+                }
+                key={task.taskId}
+                meta={`마감 ${formatAdminDate(task.closesAt)}`}
+                title={task.title}
+              />
+            ))}
+          </HomeSection>
+        ) : null}
+        {upcomingTasks.length > 0 ? (
+          <HomeSection
+            action={
+              <Link className="civic-home-section-action" href="/admin/tasks">
+                과업 관리
+              </Link>
+            }
+            title="시작 예정 과업"
+          >
+            {upcomingTasks.map((task) => (
+              <HomeRow
+                action={
+                  <Link
+                    href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
+                  >
+                    과업 보기
+                  </Link>
+                }
+                key={task.taskId}
+                meta={`시작 ${formatAdminDate(task.opensAt)}`}
+                title={task.title}
+              />
+            ))}
+          </HomeSection>
+        ) : null}
+        {failures.length > 0 ? (
+          <HomeSection
+            action={
+              <Link className="civic-home-section-action" href="/admin/rag">
+                문서 관리
+              </Link>
+            }
+            title="처리 실패 문서"
+          >
+            {failures.slice(0, 3).map((failure) => (
+              <HomeRow
+                action={<Link href={ragFailureRetryHref(failure)}>재시도</Link>}
+                key={failure.jobId}
+                meta={ragFailureLabel(failure.failureCode)}
+                title={failure.filename}
+              />
+            ))}
+          </HomeSection>
+        ) : null}
+        {attentionItems.length > 0 ? (
+          <HomeSection
+            action={
+              <Link className="civic-home-section-action" href="/admin/simulations">
+                시뮬레이션
+              </Link>
+            }
+            title="확인 필요 시뮬레이션"
+          >
+            {attentionItems.map((item) => (
+              <HomeRow
+                action={<Link href={item.href as Route}>상태 확인</Link>}
+                key={item.taskId}
+                meta={item.stateLabel}
+                title={item.title}
+              />
+            ))}
+          </HomeSection>
+        ) : null}
+        <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
       </div>
     </div>
   );
@@ -711,7 +705,6 @@ export async function loadAttentionSimulations(
   }
 }
 
-
 export async function loadActiveRoomSummary(
   request: typeof fetch = authenticatedFetch,
 ): Promise<AdminDomainMetricState> {
@@ -758,13 +751,11 @@ function metricCount(summary: AdminDomainMetricState | ChatRequestSummaryState):
   return summary.status === "loading" ? "확인 중" : "확인 불가";
 }
 
-
 function simulationWalletBalance(summary: SimulationWalletMetricState): string {
   if (summary.status === "ready") return formatKrw(summary.wallet.availableKrw);
   if (summary.status === "forbidden") return "권한 없음";
   return summary.status === "loading" ? "확인 중" : "확인 불가";
 }
-
 
 function formatKrw(value: number): string {
   return `${value.toLocaleString("ko-KR")}원`;

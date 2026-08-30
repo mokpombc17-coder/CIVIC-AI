@@ -289,7 +289,9 @@ function AdminTaskWorkspace({
                 taskId={selectedTaskId}
               />
             ) : null}
-            {tab === "results" ? <TaskResultsTab key={selectedTaskId} taskId={selectedTaskId} /> : null}
+            {tab === "results" ? (
+              <TaskResultsTab key={selectedTaskId} taskId={selectedTaskId} />
+            ) : null}
           </>
         )}
       </ConsolePane>
@@ -689,21 +691,26 @@ function TaskOverviewTab({
               </button>
             ) : null}
             {canReadTaskResult(task) ? (
-              <button className="wf-button wf-button-secondary" onClick={onOpenResults} type="button">
+              <button
+                className="wf-button wf-button-secondary"
+                onClick={onOpenResults}
+                type="button"
+              >
                 결과 보기
               </button>
             ) : null}
           </div>
           {earlyCloseOpen ? (
             task.status === "OPEN" ? (
-              <form className="civic-domain-action-panel civic-domain-danger-panel" onSubmit={close}>
+              <form
+                className="civic-domain-action-panel civic-domain-danger-panel"
+                onSubmit={close}
+              >
                 <header>
                   <span>되돌릴 수 없는 작업</span>
                   <h2>조기 종료</h2>
                 </header>
-                <p>
-                  확정하면 신규 제출이 즉시 차단되고, 이미 받은 제출만 결과로 집계됩니다.
-                </p>
+                <p>확정하면 신규 제출이 즉시 차단되고, 이미 받은 제출만 결과로 집계됩니다.</p>
                 <dl className="civic-domain-impact-list">
                   <div>
                     <dt>현재 상태</dt>

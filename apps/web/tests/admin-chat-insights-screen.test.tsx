@@ -55,9 +55,7 @@ describe("admin chat conversation insights", () => {
     expect(chatInsightsPath("analysis", null)).toBe("/admin/chat");
     expect(chatInsightsPath("statistics", null)).toBe("/admin/chat/statistics");
     expect(chatInsightsPath("analysis", "room-1")).toBe("/admin/chat?roomId=room-1");
-    expect(chatInsightsPath("statistics", "room 1")).toBe(
-      "/admin/chat/statistics?roomId=room%201",
-    );
+    expect(chatInsightsPath("statistics", "room 1")).toBe("/admin/chat/statistics?roomId=room%201");
   });
 
   it("전체 기간은 토론방 개설 시각부터 현재까지로 계산한다", () => {

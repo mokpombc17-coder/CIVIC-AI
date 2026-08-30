@@ -1253,9 +1253,7 @@ describe("25 functional Main/Auth screens", () => {
           labels: new Map(),
         },
         dueSoonTaskSummary: { status: "ready", count: 1, hasMore: false },
-        dueSoonTasks: [
-          { taskId: "task-2", title: "복지 과업", closesAt: "2026-08-31T10:00:00Z" },
-        ],
+        dueSoonTasks: [{ taskId: "task-2", title: "복지 과업", closesAt: "2026-08-31T10:00:00Z" }],
         upcomingTasks: [
           { taskId: "task-3", title: "예약된 교통 과업", opensAt: "2026-08-31T09:00:00Z" },
         ],

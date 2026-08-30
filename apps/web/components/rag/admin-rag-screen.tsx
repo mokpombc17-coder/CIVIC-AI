@@ -1273,12 +1273,7 @@ export function DocumentWorkspace({
           <p>문서명 또는 처리 상태를 변경해 다시 확인해 주세요.</p>
         </div>
       ) : (
-        <div
-          aria-label="문서 목록 표"
-          className="civic-table-scroll"
-          role="region"
-          tabIndex={0}
-        >
+        <div aria-label="문서 목록 표" className="civic-table-scroll" role="region" tabIndex={0}>
           <table>
             <thead>
               <tr>

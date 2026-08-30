@@ -4,6 +4,10 @@ import { fetchConversationExportWithRetry } from "./conversation-export-request"
 
 const exportUrl = "/api/v1/admin/rooms/room-1/conversation-exports";
 
+function resolvedPause() {
+  return vi.fn<(delayMs: number, signal?: AbortSignal) => Promise<void>>().mockResolvedValue();
+}
+
 describe("conversation export request retry", () => {
   it("재시도 가능한 503 응답 뒤에 Export 요청을 다시 보낸다", async () => {
     const responses = [
@@ -15,7 +19,7 @@ describe("conversation export request retry", () => {
       }),
     ];
     const request = vi.fn(async () => responses.shift() as Response);
-    const pause = vi.fn(async (_delayMs: number, _signal?: AbortSignal) => undefined);
+    const pause = resolvedPause();
 
     const response = await fetchConversationExportWithRetry(
       exportUrl,
@@ -37,7 +41,7 @@ describe("conversation export request retry", () => {
       .fn()
       .mockRejectedValueOnce(new TypeError("network unavailable"))
       .mockResolvedValueOnce(new Response(null, { status: 200 }));
-    const pause = vi.fn(async (_delayMs: number, _signal?: AbortSignal) => undefined);
+    const pause = resolvedPause();
 
     const response = await fetchConversationExportWithRetry(
       exportUrl,
@@ -52,7 +56,7 @@ describe("conversation export request retry", () => {
 
   it("재시도할 수 없는 클라이언트 오류는 그대로 반환한다", async () => {
     const request = vi.fn(async () => problemResponse(400, "INVALID_REQUEST", false));
-    const pause = vi.fn(async (_delayMs: number, _signal?: AbortSignal) => undefined);
+    const pause = resolvedPause();
 
     const response = await fetchConversationExportWithRetry(
       exportUrl,
@@ -69,7 +73,7 @@ describe("conversation export request retry", () => {
     const request = vi.fn(async () =>
       problemResponse(503, "CHAT_EXPORT_LEDGER_INCONSISTENT", false),
     );
-    const pause = vi.fn(async (_delayMs: number, _signal?: AbortSignal) => undefined);
+    const pause = resolvedPause();
 
     const response = await fetchConversationExportWithRetry(
       exportUrl,
@@ -84,7 +88,7 @@ describe("conversation export request retry", () => {
 
   it("재시도 횟수를 소진하면 마지막 오류 본문을 호출자에게 보존한다", async () => {
     const request = vi.fn(async () => problemResponse(503, "CHAT_EXPORT_UNAVAILABLE", true));
-    const pause = vi.fn(async (_delayMs: number, _signal?: AbortSignal) => undefined);
+    const pause = resolvedPause();
 
     const response = await fetchConversationExportWithRetry(
       exportUrl,

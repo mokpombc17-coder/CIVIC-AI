@@ -60,7 +60,10 @@ export function ConsoleDataGrid<T>({
   // AG Grid measures the DOM, so it only renders after mount; server-side
   // rendering (and renderToStaticMarkup in unit tests) gets a plain fallback.
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const styleNonce = useStyleNonce();
 
   const defaultColDef = useMemo<ColDef<T>>(

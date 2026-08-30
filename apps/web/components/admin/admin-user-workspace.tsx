@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -188,21 +181,25 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
   // 선택이 바뀌면 개설 신청·AI 질의는 즉시 조회하고, 투표 참여는 자동으로 확인한다.
   // 대화 참여는 대화 원본을 내려받아야 해서 버튼으로만 시작한다.
   useEffect(() => {
-    setChatScan({ status: "idle" });
-    setVoteScan({ status: "idle" });
-    setRequests({ status: "loading" });
-    setRagUsage({ status: "loading" });
-    if (!selectedUserId) return;
     let cancelled = false;
-    void loadUserRoomRequests(selectedUserId).then((state) => {
-      if (!cancelled) setRequests(state);
-    });
-    void loadUserRagUsage(selectedUserId).then((state) => {
-      if (!cancelled) setRagUsage(state);
-    });
-    runScan(setVoteScan, (onProgress) => scanUserVoteParticipation(selectedUserId, onProgress));
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      setChatScan({ status: "idle" });
+      setVoteScan({ status: "idle" });
+      setRequests({ status: "loading" });
+      setRagUsage({ status: "loading" });
+      if (!selectedUserId) return;
+      void loadUserRoomRequests(selectedUserId).then((state) => {
+        if (!cancelled) setRequests(state);
+      });
+      void loadUserRagUsage(selectedUserId).then((state) => {
+        if (!cancelled) setRagUsage(state);
+      });
+      runScan(setVoteScan, (onProgress) => scanUserVoteParticipation(selectedUserId, onProgress));
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [selectedUserId]);
 
@@ -238,8 +235,11 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
 
   useEffect(() => {
     const activeGate = userLoadGate.current;
-    void loadUsers();
-    return () => activeGate.cancel();
+    const timer = window.setTimeout(() => void loadUsers(), 0);
+    return () => {
+      window.clearTimeout(timer);
+      activeGate.cancel();
+    };
   }, [loadUsers]);
 
   const loadAudit = useCallback(async (subjectId: string | undefined) => {
@@ -258,7 +258,10 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
   }, []);
 
   useEffect(() => {
-    if (tab === "audit" || tab === "overview") void loadAudit(selected?.user_id);
+    const timer = window.setTimeout(() => {
+      if (tab === "audit" || tab === "overview") void loadAudit(selected?.user_id);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadAudit, selected?.user_id, tab]);
 
   function switchTab(nextTab: UserWorkspaceTab) {
@@ -340,9 +343,7 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
       }
       const saved = (await response.json()) as AdminUser;
       setSelected(saved);
-      setUsers((current) =>
-        current.map((user) => (user.user_id === saved.user_id ? saved : user)),
-      );
+      setUsers((current) => current.map((user) => (user.user_id === saved.user_id ? saved : user)));
       setMessage("권한 변경을 저장했습니다. 변경 내역은 권한 이력 탭에 기록됩니다.");
     } catch {
       setMessage("네트워크 오류로 권한 변경을 저장하지 못했습니다. 다시 시도해 주세요.");
@@ -411,7 +412,12 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
         {...(selected ? { subtitle: accountStateLabel(selected.account_state) } : {})}
         title={selected?.email ?? "사용자를 선택하세요"}
       >
-        <ConsoleTabs activeId={tab} ariaLabel="사용자 상세 탭" onSelect={(id) => switchTab(id as UserWorkspaceTab)} tabs={tabs} />
+        <ConsoleTabs
+          activeId={tab}
+          ariaLabel="사용자 상세 탭"
+          onSelect={(id) => switchTab(id as UserWorkspaceTab)}
+          tabs={tabs}
+        />
         {tab === "overview" ? (
           <UserOverviewTab
             audits={audits}
@@ -499,7 +505,9 @@ export function chatSummaryValue(state: ActivityScanState<UserChatScanResult>): 
 
 export function voteSummaryValue(state: ActivityScanState<UserVoteScanResult>): string {
   if (state.status === "ready") {
-    return state.result.identifiersMissing ? "확인 불가" : `${state.result.participations.length}건`;
+    return state.result.identifiersMissing
+      ? "확인 불가"
+      : `${state.result.participations.length}건`;
   }
   if (state.status === "running") return "확인 중";
   if (state.status === "failed") return "확인 불가";
@@ -783,8 +791,7 @@ function UserActivityTab({
       <section className="console-section" data-wireflow-layout="admin-user-activity-chat">
         <h4>대화 참여 토론방</h4>
         <p className="console-status">
-          대화 기록을 내려받아 이 사용자가 작성한 메시지를 집계합니다. 시간이 다소 걸릴 수
-          있습니다.
+          대화 기록을 내려받아 이 사용자가 작성한 메시지를 집계합니다. 시간이 다소 걸릴 수 있습니다.
         </p>
         <ScanSection
           idleLabel="대화 참여 확인"
@@ -922,7 +929,11 @@ function RoomRequestsSection({ state }: Readonly<{ state: UserRoomRequestsState 
     return <ConsoleStatus>이 사용자가 개설을 신청한 토론방이 없습니다.</ConsoleStatus>;
   }
   return (
-    <ul aria-label="토론방 개설 신청 목록" className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
+    <ul
+      aria-label="토론방 개설 신청 목록"
+      className="console-metrics"
+      style={{ gridTemplateColumns: "1fr" }}
+    >
       {state.items.map((item) => (
         <li className="console-metric" key={item.creationRequestId}>
           <small>{formatAdminDate(item.requestedAt)}</small>
@@ -952,9 +963,7 @@ function RoomRequestsSection({ state }: Readonly<{ state: UserRoomRequestsState 
 }
 
 function requestStatusLabel(status: string): string {
-  return (
-    { PENDING: "승인 대기", APPROVED: "승인됨", REJECTED: "반려됨" }[status] ?? status
-  );
+  return { PENDING: "승인 대기", APPROVED: "승인됨", REJECTED: "반려됨" }[status] ?? status;
 }
 
 function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>) {
@@ -982,7 +991,7 @@ function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>
           ))}
         </ul>
       )}
-      {(result.truncated || result.failedRooms > 0) ? (
+      {result.truncated || result.failedRooms > 0 ? (
         <ConsoleStatus>
           {result.truncated
             ? `전체 ${result.totalRooms}개 중 최근 ${result.scannedRooms}개 토론방만 확인했습니다. `
@@ -1019,7 +1028,9 @@ function VoteScanResultView({ result }: Readonly<{ result: UserVoteScanResult }>
               <strong>{vote.taskTitle}</strong>
               {vote.answerLabel ? <span>선택: {vote.answerLabel}</span> : null}
               <span>
-                <Link href={`/admin/tasks/results?taskId=${encodeURIComponent(vote.taskId)}` as Route}>
+                <Link
+                  href={`/admin/tasks/results?taskId=${encodeURIComponent(vote.taskId)}` as Route}
+                >
                   과업 결과 보기
                 </Link>
               </span>
@@ -1027,7 +1038,7 @@ function VoteScanResultView({ result }: Readonly<{ result: UserVoteScanResult }>
           ))}
         </ul>
       )}
-      {(result.truncated || result.failedTasks > 0) ? (
+      {result.truncated || result.failedTasks > 0 ? (
         <ConsoleStatus>
           {result.truncated
             ? `종료 과업 ${result.totalClosedTasks}개 중 최근 ${result.scannedTasks}개만 확인했습니다. `

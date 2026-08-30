@@ -366,7 +366,9 @@ export function AdminChatRequestScreen({
                 다음 신청 불러오기
               </button>
             ) : null}
-            {listLoading ? <ConsoleStatus>최신 신청 목록을 불러오는 중입니다.</ConsoleStatus> : null}
+            {listLoading ? (
+              <ConsoleStatus>최신 신청 목록을 불러오는 중입니다.</ConsoleStatus>
+            ) : null}
           </ConsolePane>
 
           <ConsolePane

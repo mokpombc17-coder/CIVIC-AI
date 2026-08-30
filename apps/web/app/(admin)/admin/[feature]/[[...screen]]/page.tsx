@@ -79,4 +79,3 @@ function serializeSearchParams(query: RagQuery): string {
   const serialized = params.toString();
   return serialized ? `?${serialized}` : "";
 }
-
