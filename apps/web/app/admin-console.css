@@ -14,7 +14,12 @@
   min-width: 0;
 }
 
-/* 목록·상세는 카드로 감싸지 않고 중앙 세퍼레이터로만 나눈다. */
+/* 목록·상세는 카드로 감싸지 않고 중앙 세퍼레이터로만 나눈다.
+   stretch로 두 컬럼 높이를 맞춰 구분선이 중간에서 끊기지 않게 한다. */
+.console-workspace:not(.is-single) {
+  align-items: stretch;
+}
+
 .console-workspace:not(.is-single) > .console-pane + .console-pane {
   border-left: 1px solid var(--wf-line);
 }
