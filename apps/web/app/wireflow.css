@@ -5188,26 +5188,243 @@ body {
   height: 14px;
 }
 
-.civic-skeleton-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* 로딩 화면은 고정 셸·검색·필터를 그대로 유지하고, 데이터 자리만 shimmer 처리한다. */
+.civic-loading-static-surface :is(input, textarea, select, button):disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.civic-loading-static-surface :is(input, textarea, select):disabled {
+  background: #fff;
+  color: var(--wf-ink);
+  -webkit-text-fill-color: var(--wf-ink);
+}
+
+.civic-loading-static-surface :is(input, textarea):disabled::placeholder {
+  color: #626c78;
+  opacity: 1;
+  -webkit-text-fill-color: #626c78;
+}
+
+.civic-loading-auth-form {
+  pointer-events: none;
+}
+
+.civic-skeleton-auth-copy {
+  width: 76%;
+  height: 72px;
+}
+
+.civic-loading-rag-messages {
+  justify-content: flex-end;
   gap: 12px;
 }
 
-.civic-skeleton-row .civic-skeleton-line {
-  width: 55%;
+.civic-skeleton-chat-question {
+  width: min(236px, 76%);
+  height: 50px;
+  align-self: flex-end;
+  border-radius: 12px 12px 4px;
 }
 
-.civic-skeleton-action {
-  width: 88px;
-  height: 44px;
+.civic-skeleton-chat-answer {
+  width: min(276px, 86%);
+  height: 86px;
+  align-self: flex-start;
+  border-radius: 12px 12px 12px 4px;
+}
+
+.civic-loading-source-viewer {
+  display: grid;
+  min-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  background: #eef1f5;
+  padding: 16px;
+}
+
+.civic-loading-source-viewer .civic-pdf-toolbar {
+  position: static;
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--wf-line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.civic-loading-source-viewer .civic-pdf-toolbar span {
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+.civic-skeleton-document-page {
+  width: min(100%, 720px);
+  min-height: 520px;
+  justify-self: center;
+  border: 1px solid var(--wf-line);
+  border-radius: 4px;
+  background: linear-gradient(90deg, #fff 25%, #f5f7f9 45%, #fff 65%);
+  background-size: 200% 100%;
+}
+
+.civic-loading-logout-button {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  place-items: center;
+  border: 1px solid #d93636;
   border-radius: 7px;
+  background: #fff;
+  color: var(--wf-danger);
+  font-size: 16px;
+  font-weight: 800;
 }
 
-.civic-skeleton-header-title {
-  width: 96px;
-  height: 22px;
+.civic-loading-participant-list .civic-loading-search {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--wf-line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px;
+}
+
+.civic-loading-account-info-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  color: var(--wf-blue-dark);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.civic-loading-domain-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  padding: 20px;
+}
+
+.civic-loading-domain-toolbar .civic-loading-search {
+  min-width: 220px;
+  flex: 1;
+}
+
+.civic-loading-domain-toolbar .wf-admin-filters {
+  padding-left: 0;
+}
+
+.civic-loading-static-surface .wf-admin-filters button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.civic-loading-table {
+  overflow-x: auto;
+}
+
+.civic-loading-table td {
+  height: 58px;
+  vertical-align: middle;
+}
+
+.civic-skeleton-table-primary,
+.civic-skeleton-table-cell {
+  width: min(112px, 82%);
+  height: 14px;
+}
+
+.civic-skeleton-table-primary {
+  width: min(190px, 92%);
+  height: 17px;
+}
+
+.civic-skeleton-metric-value {
+  width: 64px;
+  height: 24px;
+}
+
+.civic-loading-operation-rows {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.civic-skeleton-operation-row {
+  width: 100%;
+  height: 48px;
+  border-radius: 8px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-loading-rag-admin {
+  display: grid;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-loading-rag-admin .civic-folder-tree ul {
+  overflow: hidden;
+}
+
+.civic-skeleton-folder-row {
+  width: 100%;
+  height: 32px;
+  border-radius: 6px;
+}
+
+[data-wireflow-screen^="A-RAG"]
+  .civic-loading-rag-admin
+  .civic-folder-tree-actions
+  .civic-secondary-action {
+  display: grid;
+  min-height: 30px;
+  place-items: center;
+  border: 1px solid var(--wf-blue);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--wf-blue-dark);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.civic-loading-workspace-heading {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.civic-loading-workspace-heading strong {
+  color: var(--wf-ink);
+  font-size: 20px;
+}
+
+.civic-loading-workspace-heading span {
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .civic-loading-domain-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .civic-loading-domain-toolbar .civic-loading-search,
+  .civic-loading-domain-toolbar .wf-admin-filters {
+    width: 100%;
+  }
+
+  .civic-loading-domain-toolbar .wf-admin-filters {
+    overflow-x: auto;
+  }
 }
 
 .civic-citation-chip-icon {
