@@ -446,9 +446,6 @@ function SimulationSetup({
         <header>
           <h2>기본 실행 설정</h2>
         </header>
-        <p className="civic-simulation-copy">
-          표본과 사용 가능 인원은 전남·광주 페르소나만 기준으로 계산합니다.
-        </p>
         <div className="civic-simulation-fields">
           <label className="civic-field">
             <span>페르소나 수</span>
@@ -462,12 +459,6 @@ function SimulationSetup({
               value={personaCount}
             />
             <small>최소 100명 이상 최대 800명 이하</small>
-            <small aria-live="polite">
-              가능한 페르소나 수{" "}
-              {capacityState.capacity
-                ? `${capacityState.capacity.availablePersonaCount.toLocaleString("ko-KR")}명`
-                : "-"}
-            </small>
           </label>
         </div>
       </section>
@@ -477,6 +468,12 @@ function SimulationSetup({
         open={panelOpen}
       >
         <summary>페르소나 선정 (선택)</summary>
+        <p aria-live="polite" className="civic-simulation-capacity-count">
+          가능한 페르소나 수{" "}
+          {capacityState.capacity
+            ? `${capacityState.capacity.availablePersonaCount.toLocaleString("ko-KR")}명`
+            : "-"}
+        </p>
         <div className="civic-filter-grid">
           {groups.map(([key, label, values]) => (
             <FilterGroup

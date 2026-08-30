@@ -5097,6 +5097,14 @@ th {
   color: var(--civic-muted);
 }
 
+[data-wireflow-shell="admin"] .civic-simulation-capacity-count {
+  margin: 0 0 0.85rem;
+  color: var(--civic-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 [data-wireflow-shell="admin"] .civic-simulation-actions {
   display: flex;
   flex-wrap: wrap;

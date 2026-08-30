@@ -156,7 +156,7 @@ describe("simulation setup", () => {
     );
 
     expect(html).toContain("페르소나 수");
-    expect(html).toContain("전남·광주 페르소나만 기준으로 계산");
+    expect(html).not.toContain("전남·광주 페르소나만 기준으로 계산");
     expect(html).toContain("최소 100명 이상 최대 800명 이하");
     expect(html).toContain("가능한 페르소나 수");
     expect(html).not.toContain("과업 단위 가상 패널 시뮬레이션");
