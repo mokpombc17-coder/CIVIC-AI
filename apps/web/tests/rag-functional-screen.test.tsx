@@ -2358,7 +2358,10 @@ describe("9 functional RAG screens", () => {
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
     expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
     expect(participantHtml).toContain("AI가 실제 문서를 기반으로 답변해드립니다.");
-    expect(participantHtml).toContain("새 질문");
+    expect(participantHtml).toContain('aria-label="안내 닫기"');
+    expect(participantHtml).toContain('aria-label="새 질문"');
+    expect(participantHtml).toContain('aria-haspopup="dialog"');
+    expect(participantHtml).not.toContain(">새 질문</button>");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');

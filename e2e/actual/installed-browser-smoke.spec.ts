@@ -105,6 +105,10 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
 
   await page.goto("/rag");
   await page.getByRole("button", { name: "새 질문" }).click();
+  await page
+    .getByRole("alertdialog", { name: "새 질문을 시작할까요?" })
+    .getByRole("button", { name: "새 질문 시작" })
+    .click();
   await expect(page.getByText("새 질문을 시작했습니다.")).toBeVisible();
   await page
     .getByPlaceholder("문서에 대해 질문하세요…")
