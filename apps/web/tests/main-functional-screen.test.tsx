@@ -1281,7 +1281,10 @@ describe("25 functional Main/Auth screens", () => {
     expect(detail).toContain('data-wireflow-layout="admin-user-detail"');
     expect(detail).toContain('aria-label="사용자 상세 메뉴"');
     expect(detail).toContain('class="civic-user-summary-grid"');
-    expect(detail).toContain('class="wf-admin-timeline"');
+    expect(detail).toContain("<span>역할</span>");
+    expect(detail).not.toContain("<span>관리자 역할</span>");
+    expect(detail).not.toContain('aria-label="사용자 권한 요약"');
+    expect(detail).not.toContain(">관리자 상태<");
 
     const roles = renderAdmin("A-USER-003");
     expect(roles).toContain('data-wireflow-layout="admin-role-editor"');

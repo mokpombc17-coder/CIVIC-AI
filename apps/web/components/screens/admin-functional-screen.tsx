@@ -419,7 +419,6 @@ export function AdminFunctionalScreen({
                   <div className="civic-detail-actions">
                     <Link href={userRoute("/admin/users/roles", selected)}>관리자·권한 편집</Link>
                   </div>
-                  <UserTimeline selected={selected} />
                   <Link
                     className="wf-button wf-button-secondary wf-admin-history-link"
                     href={userRoute("/admin/users/audit", selected)}
@@ -1284,12 +1283,7 @@ function UserDetailDrawer({
             id={`civic-user-${tab}-panel`}
             role="tabpanel"
           >
-            {tab === "account" ? (
-              <>
-                <UserSummary selected={selected} />
-                <UserTimeline selected={selected} />
-              </>
-            ) : null}
+            {tab === "account" ? <UserSummary selected={selected} /> : null}
             {tab === "access" ? (
               <RoleForm
                 action={mainScreenPrimaryActions["A-USER-003"] ?? "권한 변경 저장"}
@@ -1384,25 +1378,6 @@ function UserTabs({ activeId, selected }: { activeId: string; selected: AdminUse
   );
 }
 
-function UserTimeline({ selected }: { selected: AdminUser | null }) {
-  return (
-    <ol aria-label="사용자 권한 요약" className="wf-admin-timeline">
-      <li>
-        <span aria-hidden="true" />
-        <strong>
-          {selected?.roles.includes("HIGHEST_ADMIN") ? "최고 관리자 지정" : "관리자 상태"}
-        </strong>
-        <small>{formatDate(selected?.last_activity_at)}</small>
-      </li>
-      <li>
-        <span aria-hidden="true" />
-        <strong>권한 변경 이력</strong>
-        <small>변경 사유와 역할 기록을 보관합니다.</small>
-      </li>
-    </ol>
-  );
-}
-
 function adminUserLayout(id: string): string {
   if (id === "A-USER-001") return "admin-user-list";
   if (id === "A-USER-003" || id === "A-USER-004") return "admin-role-editor";
@@ -1426,7 +1401,7 @@ function UserSummary({ selected }: { selected: AdminUser | null }) {
         <strong>{selected ? accountStateLabel(selected.account_state) : "—"}</strong>
       </div>
       <div>
-        <span>관리자 역할</span>
+        <span>역할</span>
         <strong>{selected?.roles.map(roleLabel).join(", ") || "없음"}</strong>
       </div>
       <div>

@@ -99,9 +99,14 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
     "aria-selected",
     "true",
   );
+  const accountPanel = drawer.getByRole("tabpanel", { name: "계정 정보" });
+  await expect(accountPanel.getByText("역할", { exact: true })).toBeVisible();
+  await expect(accountPanel.getByText("관리자 역할", { exact: true })).toHaveCount(0);
+  await expect(accountPanel.getByText("관리자 상태", { exact: true })).toHaveCount(0);
+  await expect(accountPanel.getByText("권한 변경 이력", { exact: true })).toHaveCount(0);
   await expect(drawer).toHaveCSS("transform", "none");
   const drawerBox = await drawer.boundingBox();
-  const accountPanelBox = await drawer.getByRole("tabpanel", { name: "계정 정보" }).boundingBox();
+  const accountPanelBox = await accountPanel.boundingBox();
   const viewport = page.viewportSize();
   if (!drawerBox || !accountPanelBox || !viewport) {
     throw new Error("사용자 상세 Drawer의 밀도와 위치를 확인할 수 없습니다.");
