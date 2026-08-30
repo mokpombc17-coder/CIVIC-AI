@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { devices, expect, test, type BrowserContext } from "@playwright/test";
 
 const WEB_BASE_URL = "https://localhost:3109";
 const MOCK_API_HOST = "127.0.0.1";
@@ -83,7 +83,7 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
 
   await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
   const participantRow = page.getByRole("row", { name: /citizen@example.com/ });
-  await expect(participantRow).toContainText("활성");
+  await expect(participantRow).toContainText("없음");
   await participantRow.click();
 
   await expect(page.getByRole("heading", { name: "citizen@example.com" })).toBeVisible();
@@ -130,6 +130,38 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
   await expect(page.getByRole("region", { name: "감사 이력 표" })).toBeVisible();
   await expect(page.getByRole("gridcell", { name: "문서 운영 담당자 배정" })).toBeVisible();
   await expect(page.getByText(/사용자 비활성화|개인정보 삭제 실행/)).toHaveCount(0);
+});
+
+test("터치로 사용자 행을 연속 선택해도 이전 행의 선택 배경이 남지 않는다", async ({ browser }) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: WEB_BASE_URL,
+    ignoreHTTPSErrors: true,
+  });
+
+  try {
+    await authenticate(context, "admin.payload.signature");
+    const page = await context.newPage();
+    await page.goto("/admin/users");
+
+    const rows = page.getByRole("region", { name: "사용자 목록 표" }).locator(".ag-row");
+    await expect(rows).toHaveCount(2);
+
+    await rows.nth(0).tap();
+    await rows.nth(1).tap();
+
+    await expect
+      .poll(() =>
+        rows.evaluateAll((items) =>
+          items
+            .filter((row) => row.classList.contains("is-console-selected"))
+            .map((row) => row.getAttribute("row-id")),
+        ),
+      )
+      .toEqual(["00000000-0000-4000-8000-000000000001"]);
+  } finally {
+    await context.close();
+  }
 });
 
 test("참여자 cookie의 관리자 API 호출은 Main/Auth 권한 검사에서 403으로 차단한다", async ({
