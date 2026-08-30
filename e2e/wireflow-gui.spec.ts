@@ -893,6 +893,43 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(accessDrawer.getByRole("alertdialog")).toHaveCount(0);
 });
 
+test("A-RAG-001은 문서 수를 선택 폴더 헤더 우측에 표시한다", async ({ context, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await authenticate(context, "admin.payload.signature");
+  await page.goto("/admin/rag?folderId=welfare");
+
+  const workspaceHeading = page.locator(".civic-rag-workspace-heading");
+  const folderDocumentCount = workspaceHeading.locator(".civic-rag-folder-document-count");
+  await expect(folderDocumentCount).toHaveText("1개 문서");
+  await expect(page.locator(".civic-ledger-summary")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "검색에서 제외", exact: true })).toBeVisible();
+  await expect(page.getByText("검색 사용", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("검색 제외", { exact: true })).toHaveCount(0);
+  const documentMenu = page
+    .getByRole("row", { name: /2026_복지정책_기본계획\.pdf/u })
+    .locator('summary[aria-label$="추가 작업"]');
+  await documentMenu.click();
+  await expect(page.getByRole("checkbox", { name: /검색에서 제외$/u })).not.toBeChecked();
+  const workspaceHeadingBox = await workspaceHeading.boundingBox();
+  const folderDocumentCountBox = await folderDocumentCount.boundingBox();
+  if (!workspaceHeadingBox || !folderDocumentCountBox) {
+    throw new Error("폴더 헤더의 문서 수 위치를 확인할 수 없습니다.");
+  }
+  expect(
+    Math.abs(
+      folderDocumentCountBox.x +
+        folderDocumentCountBox.width -
+        (workspaceHeadingBox.x + workspaceHeadingBox.width),
+    ),
+  ).toBeLessThan(2);
+
+  await page.setViewportSize({ width: 394, height: 853 });
+  await expect(folderDocumentCount).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});
+
 test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를 제공한다", async ({
   context,
   page,

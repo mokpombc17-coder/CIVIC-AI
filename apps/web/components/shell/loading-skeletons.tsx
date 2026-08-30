@@ -467,7 +467,7 @@ function AdminRagWorkspaceLoadingSurface() {
         <div className="civic-document-ledger">
           <div className="civic-ledger-summary">
             <strong>문서를 불러오는 중입니다.</strong>
-            <span>처리 상태와 검색 사용 여부를 확인하고 있습니다.</span>
+            <span>처리 상태와 검색에서 제외했는지 확인하고 있습니다.</span>
           </div>
           <form className="wf-document-filters">
             <label>
