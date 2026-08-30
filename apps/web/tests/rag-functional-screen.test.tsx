@@ -2358,8 +2358,9 @@ describe("9 functional RAG screens", () => {
     expect(participantHtml).toContain(">전송<");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');
     expect(adminHtml).toContain("폴더 추가");
-    expect(adminHtml).toContain('data-rag-inline-upload="true"');
-    expect(adminHtml).toContain('type="file"');
+    expect(adminHtml).toContain("+ 문서 업로드");
+    expect(adminHtml).not.toContain('data-rag-inline-upload="true"');
+    expect(adminHtml).not.toContain('type="file"');
     expect(adminHtml).not.toContain('class="civic-document-inspector"');
   });
 
@@ -2417,9 +2418,10 @@ describe("9 functional RAG screens", () => {
     const jobHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: job }));
 
     expect(uploadHtml).toContain('data-wireflow-layout="rag-workspace"');
-    expect(uploadHtml).toMatch(/<details[^>]*data-rag-inline-upload="true"[^>]*open=""/);
+    expect(uploadHtml).not.toContain('data-rag-inline-upload="true"');
     expect(uploadHtml).toContain('type="file"');
-    expect(uploadHtml).not.toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(uploadHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(uploadHtml).toContain("문서 업로드");
     expect(uploadHtml).not.toContain("<main");
     expect(jobHtml).toContain('data-wireflow-layout="rag-workspace"');
     expect(jobHtml).not.toContain('data-wireflow-layout="rag-admin-modal"');

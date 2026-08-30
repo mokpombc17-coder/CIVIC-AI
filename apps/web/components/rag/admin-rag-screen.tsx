@@ -356,6 +356,7 @@ export function AdminRagScreen({
   const deleteReturnHref = ragWorkspaceHref(selectedFolder?.folder_id ?? folderId, documentQuery);
   const jobIds = queryValues(query.jobId);
   const showRetryOverlay = screen.id === "A-RAG-004" && retryJobId !== undefined;
+  const showUploadOverlay = screen.id === "A-RAG-004" && retryJobId === undefined;
   const showJobOverlay = screen.id === "A-RAG-005" && jobIds.length > 0;
 
   return (
@@ -374,29 +375,6 @@ export function AdminRagScreen({
               metrics={ragJobSummaryMetrics(jobSummary, pageState.total)}
             />
           </div>
-          <details
-            className="civic-inline-upload"
-            data-rag-inline-upload="true"
-            open={screen.id === "A-RAG-004"}
-          >
-            <summary>
-              <span>
-                <strong>문서 업로드</strong>
-              </span>
-              <span aria-hidden="true" className="civic-inline-upload-toggle">
-                파일 등록
-              </span>
-            </summary>
-            <div className="civic-inline-upload-body">
-              <UploadPanel
-                folder={selectedFolder}
-                inline
-                onAccepted={refreshDocuments}
-                onMessage={setMessage}
-                query={screen.id === "A-RAG-004" ? query : { mode: "NEW_DOCUMENT" }}
-              />
-            </div>
-          </details>
           <DocumentWorkspace
             creatorLabels={creatorLabels}
             documents={documents}
@@ -463,6 +441,16 @@ export function AdminRagScreen({
               refresh();
             }}
             onMessage={setMessage}
+          />
+        </AdminRagModal>
+      ) : null}
+      {showUploadOverlay ? (
+        <AdminRagModal closeHref={deleteReturnHref} title="문서 업로드">
+          <UploadPanel
+            folder={selectedFolder}
+            onAccepted={refreshDocuments}
+            onMessage={setMessage}
+            query={query}
           />
         </AdminRagModal>
       ) : null}
@@ -1233,62 +1221,70 @@ export function DocumentWorkspace({
           </div>
         </details>
       </form>
-      <div aria-label="선택 문서 작업" className="civic-bulk-toolbar" role="toolbar">
-        <strong>{selectedIds.size}개 선택</strong>
-        <button
-          className="civic-secondary-action"
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "REINDEX" })}
-          type="button"
+      <div className="civic-bulk-action-row">
+        <div aria-label="선택 문서 작업" className="civic-bulk-toolbar" role="toolbar">
+          <strong>{selectedIds.size}개 선택</strong>
+          <button
+            className="civic-secondary-action"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "REINDEX" })}
+            type="button"
+          >
+            선택 문서 재색인
+          </button>
+          <button
+            className="civic-danger-action"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "CANCEL" })}
+            type="button"
+          >
+            처리 중단
+          </button>
+          <button
+            className="civic-secondary-action"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "SET_SEARCH_ENABLED", searchEnabled: false })}
+            type="button"
+          >
+            검색에서 제외
+          </button>
+          <select
+            aria-label="선택 문서 이동 대상 폴더"
+            onChange={(event) => setMoveFolderId(event.target.value)}
+            value={moveFolderId}
+          >
+            <option value="">이동할 폴더 선택</option>
+            {folders
+              .filter((candidate) => candidate.folder_id !== folder?.folder_id)
+              .map((candidate) => (
+                <option key={candidate.folder_id} value={candidate.folder_id}>
+                  {(candidate.path ?? [candidate.name]).join(" / ")}
+                </option>
+              ))}
+          </select>
+          <button
+            className="civic-secondary-action"
+            disabled={selectedIds.size === 0 || !moveFolderId}
+            onClick={() => submitBulk({ action: "MOVE", folderId: moveFolderId })}
+            type="button"
+          >
+            선택 문서 이동
+          </button>
+          <button
+            className="civic-danger-action is-danger"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "DELETE" })}
+            type="button"
+          >
+            삭제
+          </button>
+        </div>
+        <Link
+          className="civic-primary-action civic-upload-dialog-trigger"
+          href={ragUploadHref(folder?.folder_id, retainedQuery)}
         >
-          선택 문서 재색인
-        </button>
-        <button
-          className="civic-danger-action"
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "CANCEL" })}
-          type="button"
-        >
-          처리 중단
-        </button>
-        <button
-          className="civic-secondary-action"
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "SET_SEARCH_ENABLED", searchEnabled: false })}
-          type="button"
-        >
-          검색에서 제외
-        </button>
-        <select
-          aria-label="선택 문서 이동 대상 폴더"
-          onChange={(event) => setMoveFolderId(event.target.value)}
-          value={moveFolderId}
-        >
-          <option value="">이동할 폴더 선택</option>
-          {folders
-            .filter((candidate) => candidate.folder_id !== folder?.folder_id)
-            .map((candidate) => (
-              <option key={candidate.folder_id} value={candidate.folder_id}>
-                {(candidate.path ?? [candidate.name]).join(" / ")}
-              </option>
-            ))}
-        </select>
-        <button
-          className="civic-secondary-action"
-          disabled={selectedIds.size === 0 || !moveFolderId}
-          onClick={() => submitBulk({ action: "MOVE", folderId: moveFolderId })}
-          type="button"
-        >
-          선택 문서 이동
-        </button>
-        <button
-          className="civic-danger-action is-danger"
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "DELETE" })}
-          type="button"
-        >
-          삭제
-        </button>
+          + 문서 업로드
+        </Link>
       </div>
       {documents.length === 0 ? (
         <div className="civic-admin-empty">
@@ -2028,13 +2024,11 @@ export function RagUploadConflictDialog({
 
 function UploadPanel({
   folder,
-  inline = false,
   onAccepted,
   query,
   onMessage,
 }: Readonly<{
   folder: Folder | undefined;
-  inline?: boolean;
   onAccepted?: () => void;
   query: RagQuery;
   onMessage: (message: string) => void;
@@ -2042,6 +2036,10 @@ function UploadPanel({
   const router = useRouter();
   const mode = firstQueryValue(query.mode) === "NEW_VERSION" ? "NEW_VERSION" : "NEW_DOCUMENT";
   const documentId = firstQueryValue(query.documentId);
+  const uploadReturnHref = ragWorkspaceHref(
+    folder?.folder_id ?? firstQueryValue(query.folderId),
+    ragDocumentQueryFromRoute(query),
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [activeUpload, setActiveUpload] = useState<
@@ -2157,7 +2155,7 @@ function UploadPanel({
     setActiveUpload(undefined);
     setBusy(false);
     if (rejected === 0 && acceptedNow.length > 0) {
-      router.push(ragJobsHref(acceptedNow, folder.folder_id));
+      router.push(ragJobsHref(acceptedNow, folder.folder_id, ragDocumentQueryFromRoute(query)));
     }
   }
 
@@ -2225,7 +2223,7 @@ function UploadPanel({
   }
 
   return (
-    <form className={`civic-rag-form${inline ? " is-inline" : ""}`} onSubmit={upload}>
+    <form className="civic-rag-form" onSubmit={upload}>
       <div className="civic-upload-mode">
         <strong>{mode === "NEW_VERSION" ? "새 버전" : "새 문서"}</strong>
         <p>
@@ -2332,10 +2330,7 @@ function UploadPanel({
         </ul>
       ) : null}
       <div className="civic-form-actions">
-        <Link
-          className="civic-secondary-action"
-          href={ragWorkspaceHref(folder?.folder_id ?? firstQueryValue(query.folderId))}
-        >
+        <Link className="civic-secondary-action" href={uploadReturnHref}>
           취소
         </Link>
         <button
@@ -3011,6 +3006,12 @@ export function ragWorkspaceHref(
   return (suffix ? `/admin/rag?${suffix}` : "/admin/rag") as Route;
 }
 
+export function ragUploadHref(folderId: string | undefined, query?: RagDocumentListQuery): Route {
+  const parameters = ragWorkspaceParameters(folderId, query);
+  parameters.set("mode", "NEW_DOCUMENT");
+  return `/admin/rag/upload?${parameters.toString()}` as Route;
+}
+
 export function ragDocumentDeleteHref(
   folderId: string,
   documentId: string,
@@ -3195,15 +3196,15 @@ export function ragJobHref(jobId?: string, folderId?: string, filename?: string)
 export function ragJobsHref(
   jobs: readonly Readonly<{ filename: string; jobId: string }>[],
   folderId?: string,
+  query?: RagDocumentListQuery,
 ): Route {
-  const parameters = new URLSearchParams();
+  const parameters = ragWorkspaceParameters(folderId, query);
   for (const job of jobs) {
     parameters.append("jobId", job.jobId);
     parameters.append("filename", job.filename);
   }
-  if (folderId) parameters.set("folderId", folderId);
-  const query = parameters.toString();
-  return (query ? `/admin/rag/jobs?${query}` : "/admin/rag/jobs") as Route;
+  const suffix = parameters.toString();
+  return (suffix ? `/admin/rag/jobs?${suffix}` : "/admin/rag/jobs") as Route;
 }
 
 function DeletePanel({

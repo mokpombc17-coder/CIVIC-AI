@@ -608,9 +608,40 @@
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+  gap: 0;
   border: none;
   border-radius: 0;
   background: transparent;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview {
+  padding-bottom: 4px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-bulk-action-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-upload-dialog-trigger {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-bulk-toolbar :is(button, select) {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding-block: 0;
+  line-height: 1;
 }
 
 /* ---- Admin home metric cards double as domain shortcuts ---- */
@@ -1020,6 +1051,16 @@
 
   [data-wireflow-screen^="A-RAG"] .civic-document-ledger > .civic-admin-empty {
     align-self: start;
+  }
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-screen^="A-RAG"] .civic-bulk-action-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-upload-dialog-trigger {
+    justify-self: end;
   }
 }
 
