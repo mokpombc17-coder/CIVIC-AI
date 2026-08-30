@@ -121,6 +121,7 @@ export type ActivityScanState<T> =
 const REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
 export const CHAT_SCAN_ROOM_LIMIT = 12;
 export const VOTE_SCAN_TASK_LIMIT = 20;
+const CHAT_SCAN_FALLBACK_CLOCK_SKEW_MS = 60_000;
 
 export async function loadUserRoomRequests(
   userId: string,
@@ -164,11 +165,12 @@ export async function scanUserChatParticipation(
   if (!page) throw new Error("토론방 목록 응답 형식을 확인하지 못했습니다.");
 
   const rooms = page.items.slice(0, CHAT_SCAN_ROOM_LIMIT);
+  const range = exportRangeForScan(chatScanCutoff(roomsResponse.headers.get("date")));
   const participations: UserChatParticipation[] = [];
   let failedRooms = 0;
   let done = 0;
   for (const room of rooms) {
-    const stats = await countUserMessages(room, userId, request);
+    const stats = await countUserMessages(room, userId, range, request);
     if (stats === null) failedRooms += 1;
     else if (stats.count > 0) {
       participations.push({
@@ -194,9 +196,9 @@ export async function scanUserChatParticipation(
 async function countUserMessages(
   room: AdminRoom,
   userId: string,
+  range: Readonly<{ fromInclusive: string; toExclusive: string }>,
   request: typeof fetch,
 ): Promise<Readonly<{ count: number; lastMessageAt: string | null }> | null> {
-  const range = exportRangeForScan();
   try {
     const response = await request(
       `/api/v1/admin/rooms/${encodeURIComponent(room.roomId)}/conversation-exports`,
@@ -227,8 +229,15 @@ async function countUserMessages(
 export function exportRangeForScan(
   now = new Date(),
 ): Readonly<{ fromInclusive: string; toExclusive: string }> {
-  const toExclusive = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  return { fromInclusive: "2020-01-01T00:00:00.000Z", toExclusive: toExclusive.toISOString() };
+  return { fromInclusive: "2020-01-01T00:00:00.000Z", toExclusive: now.toISOString() };
+}
+
+export function chatScanCutoff(responseDate: string | null, fallbackNow = new Date()): Date {
+  if (responseDate) {
+    const serverDate = new Date(responseDate);
+    if (Number.isFinite(serverDate.getTime())) return serverDate;
+  }
+  return new Date(fallbackNow.getTime() - CHAT_SCAN_FALLBACK_CLOCK_SKEW_MS);
 }
 
 export async function scanUserVoteParticipation(
