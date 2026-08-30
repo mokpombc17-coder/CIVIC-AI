@@ -69,7 +69,7 @@ const STREAMING_PROGRESS: RagProgress = {
   status: "RUNNING",
   stage: "STREAMING",
   label: "답변을 실시간으로 전송하고 있어요",
-  detail: "검증된 답변을 읽을 수 있는 순서대로 화면에 표시합니다.",
+  detail: "답변이 만들어지는 순서대로 화면에 표시합니다.",
   progress_percent: 97,
   estimated_remaining_seconds: 1,
   elapsed_seconds: 0,
@@ -859,7 +859,15 @@ type StreamResultOptions = Readonly<{
   onAnswerStart?: () => void;
   onProgress?: (progress: RagProgress) => void;
   signal?: AbortSignal;
+  waitForAnswerPaint?: () => Promise<void>;
 }>;
+
+function waitForTwoAnimationFrames(): Promise<void> {
+  if (typeof requestAnimationFrame === "undefined") return Promise.resolve();
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
 
 export async function waitForStreamedResult(
   jobId: string,
@@ -872,6 +880,7 @@ export async function waitForStreamedResult(
     onAnswerStart,
     onProgress,
     signal,
+    waitForAnswerPaint = waitForTwoAnimationFrames,
   }: StreamResultOptions = {},
 ): Promise<RagJob> {
   const fallbackResult = () =>
@@ -899,6 +908,7 @@ export async function waitForStreamedResult(
       ? createSource(body.stream_path as string)
       : new EventSource(body.stream_path as string);
     let settled = false;
+    let answerDeltaReceived = false;
     const close = () => {
       source.close();
       signal?.removeEventListener("abort", abort);
@@ -908,6 +918,7 @@ export async function waitForStreamedResult(
       settled = true;
       close();
       try {
+        if (answerDeltaReceived) await waitForAnswerPaint();
         const response = await request(`/api/v1/rag/queries/${encodeURIComponent(jobId)}`, {
           cache: "no-store",
           ...(signal ? { signal } : {}),
@@ -953,6 +964,7 @@ export async function waitForStreamedResult(
         typeof value.delta === "string" &&
         value.delta.length <= 512
       ) {
+        answerDeltaReceived = true;
         onAnswerDelta?.(value.delta);
       }
     });
