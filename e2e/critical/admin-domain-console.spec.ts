@@ -368,7 +368,7 @@ test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 versio
   await page.goto("/admin/chat/categories");
 
   await page.getByLabel("채팅방 이름 검색").fill("시민");
-  await page.getByRole("button", { name: "검색" }).click();
+  await expect(page.getByRole("button", { name: "검색", exact: true })).toHaveCount(0);
   await expect.poll(() => listedRoomQueries).toContain("시민");
   await expect(page.getByText("목록에 없는 방 ID로 찾기", { exact: true })).toHaveCount(0);
 
