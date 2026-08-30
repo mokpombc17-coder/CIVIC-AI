@@ -422,7 +422,6 @@ export function AdminRagScreen({
             </div>
           </details>
           <DocumentWorkspace
-            compact={screen.id !== "A-RAG-003"}
             creatorLabels={creatorLabels}
             documents={documents}
             folder={selectedFolder}
@@ -1028,7 +1027,6 @@ export function DocumentWorkspace({
   folder,
   folders = [],
   creatorLabels = new Map(),
-  compact = false,
   onInspect,
   onQueryChange,
   onBulk,
@@ -1039,7 +1037,6 @@ export function DocumentWorkspace({
   folder: Folder | undefined;
   folders?: Folder[];
   creatorLabels?: ReadonlyMap<string, string>;
-  compact?: boolean;
   onInspect: (document: RagDocument, version: DocumentVersion | null) => void;
   onQueryChange?: (query: Partial<RagDocumentListQuery>) => void;
   onBulk?: (input: RagBulkActionInput) => void | Promise<void>;
@@ -1368,14 +1365,6 @@ export function DocumentWorkspace({
           다음 페이지
         </button>
       </div>
-      {compact ? (
-        <Link
-          className="civic-text-action"
-          href={`/admin/rag/documents?folderId=${encodeURIComponent(folder?.folder_id ?? "")}`}
-        >
-          문서 목록 자세히 보기
-        </Link>
-      ) : null}
     </div>
   );
 }
