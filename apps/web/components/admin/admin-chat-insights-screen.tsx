@@ -263,7 +263,9 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
       return;
     }
 
+    exportAbort.current?.abort();
     setClosingRoom(true);
+    setAnalysisMessage("");
     setRoomOperationNotice(null);
     try {
       const response = await authenticatedFetch(
@@ -467,7 +469,6 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
               <EmptyAnalysis selected={selectedRoom !== null} />
             )}
             <RoomOperationSettings
-              analyzing={analyzing}
               closingRoom={closingRoom}
               onCloseRoom={() => {
                 if (selectedRoom?.status === "ACTIVE") setRoomToClose(selectedRoom);
@@ -587,12 +588,10 @@ function AnalysisRangeControls({
 }
 
 function RoomOperationSettings({
-  analyzing,
   closingRoom,
   onCloseRoom,
   selectedRoom,
 }: Readonly<{
-  analyzing: boolean;
   closingRoom: boolean;
   onCloseRoom: () => void;
   selectedRoom: AdminRoom | null;
@@ -610,7 +609,7 @@ function RoomOperationSettings({
         {selectedRoom.status === "ACTIVE" ? (
           <button
             className={styles.closeRoomButton}
-            disabled={closingRoom || analyzing}
+            disabled={closingRoom}
             onClick={onCloseRoom}
             type="button"
           >
