@@ -157,13 +157,37 @@ function RagConversationLoadingSurface() {
       data-wireflow-layout="rag-conversation"
     >
       <header className="civic-rag-session-bar">
-        <p className="civic-rag-intro">
-          궁금한 정보를 질문하세요.
-          <br />
-          AI가 실제 문서를 기반으로 답변해드립니다.
-        </p>
-        <button className="civic-secondary-action" disabled type="button">
-          새 질문
+        <div className="civic-rag-intro-banner">
+          <p className="civic-rag-intro">
+            궁금한 정보를 질문하세요.
+            <br />
+            AI가 실제 문서를 기반으로 답변해드립니다.
+          </p>
+          <span aria-hidden="true" className="civic-rag-intro-dismiss">
+            <svg fill="none" viewBox="0 0 20 20">
+              <path
+                d="m5 5 10 10M15 5 5 15"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.8"
+              />
+            </svg>
+          </span>
+        </div>
+        <button
+          aria-label="새 질문"
+          className="civic-icon-action civic-rag-new-question-action"
+          disabled
+          type="button"
+        >
+          <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+            <path
+              d="M10 4v12M4 10h12"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="1.8"
+            />
+          </svg>
         </button>
       </header>
       <div aria-hidden="true" className="civic-rag-messages civic-loading-rag-messages">

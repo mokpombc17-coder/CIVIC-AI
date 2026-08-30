@@ -8,6 +8,7 @@ import type { RagQuery } from "./rag-functional-screen";
 import { ragScreenPrimaryActions } from "./rag-screen-actions";
 import { ReadOnlyPdfViewer } from "./read-only-pdf-viewer";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { SafeMarkdownAnswer } from "./safe-markdown-answer";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
@@ -213,6 +214,8 @@ function RagConversation({
   const [liveJobs, setLiveJobs] = useState<RagLiveJobs>({});
   const [restored, setRestored] = useState(!userId);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [introVisible, setIntroVisible] = useState(true);
+  const [newQuestionDialogOpen, setNewQuestionDialogOpen] = useState(false);
   const activePoll = useRef<AbortController | null>(null);
   const requestGeneration = useRef(0);
   const restoredQueryChecked = useRef(false);
@@ -332,6 +335,22 @@ function RagConversation({
     writeRagConversationDraft(storage, userId, question);
   }
 
+  function startNewQuestion(): void {
+    requestGeneration.current += 1;
+    activePoll.current?.abort();
+    activePoll.current = null;
+    queryOperation.current.clear();
+    setCurrentSessionId(null);
+    const storage = browserRagConversationStorage();
+    if (storage) clearRagConversationSnapshot(storage);
+    setMessages([]);
+    setLiveJobs({});
+    setQuestion("");
+    setBusy(false);
+    setNewQuestionDialogOpen(false);
+    setNotice("새 질문을 시작했습니다.");
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const submitted = question.trim();
@@ -407,30 +426,34 @@ function RagConversation({
     <ScreenFrame screen={screen}>
       <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
         <header className="civic-rag-session-bar">
-          <p className="civic-rag-intro">
-            궁금한 정보를 질문하세요.
-            <br />
-            AI가 실제 문서를 기반으로 답변해드립니다.
-          </p>
+          {introVisible ? (
+            <div className="civic-rag-intro-banner">
+              <p className="civic-rag-intro">
+                궁금한 정보를 질문하세요.
+                <br />
+                AI가 실제 문서를 기반으로 답변해드립니다.
+              </p>
+              <button
+                aria-label="안내 닫기"
+                className="civic-rag-intro-dismiss"
+                onClick={() => setIntroVisible(false)}
+                title="안내 닫기"
+                type="button"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          ) : null}
           <button
-            className="civic-secondary-action"
-            onClick={() => {
-              requestGeneration.current += 1;
-              activePoll.current?.abort();
-              activePoll.current = null;
-              queryOperation.current.clear();
-              setCurrentSessionId(null);
-              const storage = browserRagConversationStorage();
-              if (storage) clearRagConversationSnapshot(storage);
-              setMessages([]);
-              setLiveJobs({});
-              setQuestion("");
-              setBusy(false);
-              setNotice("새 질문을 시작했습니다.");
-            }}
+            aria-expanded={newQuestionDialogOpen}
+            aria-haspopup="dialog"
+            aria-label="새 질문"
+            className="civic-icon-action civic-rag-new-question-action"
+            onClick={() => setNewQuestionDialogOpen(true)}
+            title="새 질문"
             type="button"
           >
-            새 질문
+            <PlusIcon />
           </button>
         </header>
         <div aria-label="현재 RAG 대화" className="civic-rag-messages" ref={messagesRef} role="log">
@@ -482,6 +505,15 @@ function RagConversation({
         </form>
         <span className="civic-screen-action-label">{ragScreenPrimaryActions[screen.id]}</span>
       </section>
+      <ConfirmDialog
+        cancelLabel="취소"
+        confirmLabel="새 질문 시작"
+        description="새 질문을 시작하면 대화 기록이 초기화 됩니다."
+        onCancel={() => setNewQuestionDialogOpen(false)}
+        onConfirm={startNewQuestion}
+        open={newQuestionDialogOpen}
+        title="새 질문을 시작할까요?"
+      />
       {activeCitation ? (
         <div className="wf-rag-reference-layer" data-wireflow-layout="rag-reference-modal">
           <div aria-hidden="true" className="wf-rag-reference-scrim" />
@@ -596,12 +628,19 @@ function ConversationBackdrop() {
       data-wireflow-layout="rag-conversation"
     >
       <header className="civic-rag-session-bar">
-        <p className="civic-rag-intro">
-          궁금한 정보를 질문하세요.
-          <br />
-          AI가 실제 문서를 기반으로 답변해드립니다.
-        </p>
-        <span className="civic-secondary-action">새 질문</span>
+        <div className="civic-rag-intro-banner">
+          <p className="civic-rag-intro">
+            궁금한 정보를 질문하세요.
+            <br />
+            AI가 실제 문서를 기반으로 답변해드립니다.
+          </p>
+          <span aria-hidden="true" className="civic-rag-intro-dismiss">
+            <CloseIcon />
+          </span>
+        </div>
+        <span aria-hidden="true" className="civic-icon-action civic-rag-new-question-action">
+          <PlusIcon />
+        </span>
       </header>
       <div className="civic-rag-messages" />
       <div className="civic-rag-composer">
@@ -609,6 +648,27 @@ function ConversationBackdrop() {
         <span>전송</span>
       </div>
     </section>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+      <path
+        d="m5 5 10 10M15 5 5 15"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+      <path d="M10 4v12M4 10h12" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
   );
 }
 
