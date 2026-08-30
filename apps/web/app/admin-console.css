@@ -424,3 +424,17 @@
   border-radius: 0;
   background: transparent;
 }
+
+/* ---- Admin home metric cards double as domain shortcuts ---- */
+
+.civic-admin-metric-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.civic-admin-metric-link:hover strong {
+  color: var(--wf-blue-dark);
+}

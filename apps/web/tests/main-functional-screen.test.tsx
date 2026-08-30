@@ -639,8 +639,8 @@ describe("25 functional Main/Auth screens", () => {
     });
   });
 
-  it("관리 홈은 서버의 접수순 계약에 맞춰 먼저 접수된 승인 대기 5건임을 안내한다", () => {
-    const items = Array.from({ length: 5 }, (_, index) =>
+  it("관리 홈은 서버의 접수순 계약에 맞춰 먼저 접수된 승인 대기 3건임을 안내한다", () => {
+    const items = Array.from({ length: 3 }, (_, index) =>
       pendingChatRequest(`request-${index + 1}`, `user-${index + 1}`, `토론방 ${index + 1}`),
     );
     const html = renderToStaticMarkup(
@@ -655,8 +655,8 @@ describe("25 functional Main/Auth screens", () => {
       }),
     );
 
-    expect(html).toContain("먼저 접수된 5건을 표시했습니다.");
-    expect(html).not.toContain("최신 5건");
+    expect(html).toContain("먼저 접수된 3건을 표시했습니다.");
+    expect(html).not.toContain("최신 3건");
   });
 
   it("로그인 복귀 경로는 동일 출처 상대 경로만 허용한다", () => {
@@ -1198,8 +1198,11 @@ describe("25 functional Main/Auth screens", () => {
     );
 
     expect(html).toContain('data-wireflow-layout="admin-home"');
-    expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(4);
+    expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(6);
     expect(html).toContain("토론방 승인 대기");
+    expect(html).toContain("운영 중 토론방");
+    expect(html).toContain("24시간 내 마감");
+    expect(html).toContain('class="civic-admin-metric-link" href="/admin/rag"');
     expect(html).not.toContain("채팅 생성 신청");
     expect(html).toContain('aria-labelledby="civic-pending-chat-requests-title"');
     expect(html).toContain("승인 대기 목록을 확인하고 있습니다.");
@@ -1210,8 +1213,10 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("시뮬레이션 사용 잔액");
     expect(html).not.toContain("공용 지갑 잔액 확인 중");
     expect(html).not.toContain("실행 보류");
-    expect(html).toContain("현재 처리 중");
-    expect(html).toContain("처리 현황을 확인하고 있습니다.");
+    // 실시간 운영 목록은 진행 작업이 1건 이상일 때만 나타난다.
+    expect(html).not.toContain("현재 처리 중");
+    expect(html).not.toContain("처리 현황을 확인하고 있습니다.");
+    expect(html).not.toContain("확인이 필요한 문서");
     expect(html).not.toContain('class="wf-card wf-action-card"');
     expect(html).not.toContain("사용자 관리 열기");
     expect(html).not.toContain("문서 관리 열기");
@@ -1222,9 +1227,11 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("오픈 예정");
   });
 
-  it("관리자 홈은 확인이 필요한 문서를 관리 현황 다음 두 번째 영역에 배치한다", () => {
+  it("관리자 홈은 문서 실패 상세를 나열하지 않고 지표 카드로만 안내한다", () => {
     const html = renderToStaticMarkup(
       createElement(AdminHome, {
+        activeRoomSummary: { status: "ready", count: 2, hasMore: false },
+        activeTaskSummary: { status: "ready", count: 1, hasMore: false },
         canManageSimulation: false,
         canReadRag: true,
         chatRequestSummary: {
@@ -1234,6 +1241,7 @@ describe("25 functional Main/Auth screens", () => {
           items: [],
           labels: new Map(),
         },
+        dueSoonTaskSummary: { status: "ready", count: 0, hasMore: false },
         ragJobSummary: {
           status: "ready",
           failed: 1,
@@ -1249,16 +1257,13 @@ describe("25 functional Main/Auth screens", () => {
           ],
         },
         simulationWalletSummary: { status: "forbidden" },
-        activeTaskSummary: { status: "forbidden" },
       }),
     );
 
-    const pendingSectionIndex = html.indexOf('id="civic-pending-chat-requests-title"');
-    expect(html).not.toContain("진행 중 3건");
-    expect(html).not.toContain("실패 작업 재시도 가능");
-    expect(html.indexOf("관리 현황")).toBeLessThan(html.indexOf("확인이 필요한 문서"));
-    expect(html.indexOf("확인이 필요한 문서")).toBeLessThan(pendingSectionIndex);
-    expect(pendingSectionIndex).toBeLessThan(html.indexOf("현재 처리 중"));
+    expect(html).not.toContain("확인이 필요한 문서");
+    expect(html).not.toContain("확인문서.pdf");
+    expect(html).toContain("문서 처리 실패");
+    expect(html).toContain("처리 중 3건");
   });
 
   it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { AdminCurrentOperations } from "@/components/admin/admin-current-operations";
@@ -94,6 +94,12 @@ export function AdminFunctionalScreen({
   const [activeTaskSummary, setActiveTaskSummary] = useState<AdminDomainMetricState>({
     status: adminCurrentUser.permissions.includes("VOTE_ADMIN") ? "loading" : "forbidden",
   });
+  const [dueSoonTaskSummary, setDueSoonTaskSummary] = useState<AdminDomainMetricState>({
+    status: adminCurrentUser.permissions.includes("VOTE_ADMIN") ? "loading" : "forbidden",
+  });
+  const [activeRoomSummary, setActiveRoomSummary] = useState<AdminDomainMetricState>({
+    status: adminCurrentUser.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
+  });
   const [simulationWalletSummary, setSimulationWalletSummary] =
     useState<SimulationWalletMetricState>({
       status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
@@ -107,7 +113,13 @@ export function AdminFunctionalScreen({
     if (screen.id !== "A-HOME-001") return;
     if (canReadRag) void loadRagJobSummary().then(setRagJobSummary);
     if (canManageChat) void loadChatRequestSummary().then(setChatRequestSummary);
-    if (canManageVote) void loadActiveTaskSummary().then(setActiveTaskSummary);
+    if (canManageChat) void loadActiveRoomSummary().then(setActiveRoomSummary);
+    if (canManageVote) {
+      void loadTaskActivitySummary().then(({ active, dueSoon }) => {
+        setActiveTaskSummary(active);
+        setDueSoonTaskSummary(dueSoon);
+      });
+    }
     if (canManageSimulation) void loadSimulationWalletSummary().then(setSimulationWalletSummary);
   }, [canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
 
@@ -123,12 +135,14 @@ export function AdminFunctionalScreen({
     <ScreenFrame screen={screen}>
       {screen.id === "A-HOME-001" ? (
         <AdminHome
+          activeRoomSummary={activeRoomSummary}
+          activeTaskSummary={activeTaskSummary}
           canManageSimulation={canManageSimulation}
           canReadRag={canReadRag}
           chatRequestSummary={chatRequestSummary}
+          dueSoonTaskSummary={dueSoonTaskSummary}
           ragJobSummary={ragJobSummary}
           simulationWalletSummary={simulationWalletSummary}
-          activeTaskSummary={activeTaskSummary}
         />
       ) : null}
     </ScreenFrame>
@@ -136,29 +150,34 @@ export function AdminFunctionalScreen({
 }
 
 export function AdminHome({
+  activeRoomSummary,
   activeTaskSummary,
   canManageSimulation,
   canReadRag,
   ragJobSummary,
   chatRequestSummary,
+  dueSoonTaskSummary,
   simulationWalletSummary,
 }: {
+  activeRoomSummary: AdminDomainMetricState;
   activeTaskSummary: AdminDomainMetricState;
   canManageSimulation: boolean;
   canReadRag: boolean;
   ragJobSummary: RagJobSummaryState;
   chatRequestSummary: ChatRequestSummaryState;
+  dueSoonTaskSummary: AdminDomainMetricState;
   simulationWalletSummary: SimulationWalletMetricState;
 }) {
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
       <ul aria-label="관리 현황" className="civic-admin-metrics">
-        <li className="wf-admin-metric">
-          <small>토론방 승인 대기</small>
+        <HomeMetric href="/admin/chat/requests" label="토론방 승인 대기">
           <strong>{metricCount(chatRequestSummary)}</strong>
-        </li>
-        <li className="wf-admin-metric">
-          <small>문서 처리 실패</small>
+        </HomeMetric>
+        <HomeMetric href="/admin/chat" label="운영 중 토론방">
+          <strong>{metricCount(activeRoomSummary)}</strong>
+        </HomeMetric>
+        <HomeMetric href="/admin/rag" label="문서 처리 실패">
           <strong>
             {ragJobSummary.status === "ready"
               ? `${ragJobSummary.failed}건`
@@ -166,23 +185,41 @@ export function AdminHome({
                 ? "확인 불가"
                 : "확인 중"}
           </strong>
-        </li>
-        <li className="wf-admin-metric">
-          <small>진행 중 과업</small>
+          {ragJobSummary.status === "ready" ? (
+            <span>처리 중 {ragJobSummary.active}건</span>
+          ) : null}
+        </HomeMetric>
+        <HomeMetric href="/admin/tasks" label="진행 중 과업">
           <strong>{metricCount(activeTaskSummary)}</strong>
-          <span>{metricDescription(activeTaskSummary, "현재 진행 중")}</span>
-        </li>
-        <li className="wf-admin-metric">
-          <small>시뮬레이션 사용 잔액</small>
+        </HomeMetric>
+        <HomeMetric href="/admin/tasks" label="24시간 내 마감">
+          <strong>{metricCount(dueSoonTaskSummary)}</strong>
+        </HomeMetric>
+        <HomeMetric href="/admin/simulations" label="시뮬레이션 사용 잔액">
           <strong>{simulationWalletBalance(simulationWalletSummary)}</strong>
-        </li>
+          {simulationWalletSummary.status === "ready" ? (
+            <span>오늘 사용 {formatKrw(simulationWalletSummary.wallet.spentTodayKrw)}</span>
+          ) : null}
+        </HomeMetric>
       </ul>
-      {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
-        <RagFailureSummary failures={ragJobSummary.recentFailures} />
-      ) : null}
       <AdminPendingChatRequests state={chatRequestSummary} />
       <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
     </div>
+  );
+}
+
+function HomeMetric({
+  href,
+  label,
+  children,
+}: Readonly<{ href: string; label: string; children: ReactNode }>) {
+  return (
+    <li className="wf-admin-metric">
+      <Link className="civic-admin-metric-link" href={href as Route}>
+        <small>{label}</small>
+        {children}
+      </Link>
+    </li>
   );
 }
 
@@ -391,7 +428,7 @@ export async function loadChatRequestSummary(
       status: "ready",
       count: page.items.length,
       hasMore: page.hasNext,
-      items: page.items.slice(0, 5),
+      items: page.items.slice(0, 3),
       labels,
     };
   } catch {
@@ -412,6 +449,62 @@ export async function loadActiveTaskSummary(
       return (item as Record<string, unknown>).status === "OPEN";
     }).length;
     return { status: "ready", count, hasMore: false };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export async function loadTaskActivitySummary(
+  request: typeof fetch = authenticatedFetch,
+  now = Date.now(),
+): Promise<Readonly<{ active: AdminDomainMetricState; dueSoon: AdminDomainMetricState }>> {
+  try {
+    const response = await request("/api/v1/admin/tasks", { cache: "no-store" });
+    if (!response.ok) {
+      return { active: { status: "unavailable" }, dueSoon: { status: "unavailable" } };
+    }
+    const value = await response.json();
+    if (!Array.isArray(value)) {
+      return { active: { status: "unavailable" }, dueSoon: { status: "unavailable" } };
+    }
+    const deadline = now + 24 * 60 * 60 * 1_000;
+    let active = 0;
+    let dueSoon = 0;
+    for (const item of value) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      if (record.status !== "OPEN") continue;
+      active += 1;
+      const schedule =
+        record.schedule && typeof record.schedule === "object"
+          ? (record.schedule as Record<string, unknown>)
+          : null;
+      const closesAt = typeof schedule?.closesAt === "string" ? schedule.closesAt : null;
+      if (closesAt === null) continue;
+      const timestamp = Date.parse(closesAt);
+      if (Number.isFinite(timestamp) && timestamp > now && timestamp <= deadline) dueSoon += 1;
+    }
+    return {
+      active: { status: "ready", count: active, hasMore: false },
+      dueSoon: { status: "ready", count: dueSoon, hasMore: false },
+    };
+  } catch {
+    return { active: { status: "unavailable" }, dueSoon: { status: "unavailable" } };
+  }
+}
+
+export async function loadActiveRoomSummary(
+  request: typeof fetch = authenticatedFetch,
+): Promise<AdminDomainMetricState> {
+  try {
+    const response = await request("/api/v1/admin/rooms?status=ACTIVE&limit=50", {
+      cache: "no-store",
+    });
+    if (response.status === 401 || response.status === 403) return { status: "forbidden" };
+    if (!response.ok) return { status: "unavailable" };
+    const value = (await response.json()) as { items?: unknown; hasNext?: unknown };
+    if (!Array.isArray(value.items)) return { status: "unavailable" };
+    return { status: "ready", count: value.items.length, hasMore: value.hasNext === true };
   } catch {
     return { status: "unavailable" };
   }
@@ -446,14 +539,6 @@ function metricCount(summary: AdminDomainMetricState | ChatRequestSummaryState):
   return summary.status === "loading" ? "확인 중" : "확인 불가";
 }
 
-function metricDescription(
-  summary: AdminDomainMetricState | ChatRequestSummaryState,
-  label: string,
-): string {
-  if (summary.status === "ready") return label;
-  if (summary.status === "forbidden") return "담당 관리자 권한이 필요합니다";
-  return summary.status === "loading" ? `${label} 확인 중` : `${label}을 불러오지 못했습니다`;
-}
 
 function simulationWalletBalance(summary: SimulationWalletMetricState): string {
   if (summary.status === "ready") return formatKrw(summary.wallet.availableKrw);
