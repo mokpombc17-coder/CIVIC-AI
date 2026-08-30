@@ -60,11 +60,8 @@ export function MainFunctionalScreen({
       <ScreenFrame screen={screen}>
         <WireflowCard className="wf-home-welcome">
           <WireflowBadge>참여 안내</WireflowBadge>
-          <h2>배우고, 함께 토론하고, 결정합니다.</h2>
-          <p>
-            CIVIC.AI와 함께 문서로 정보를 확인하고, 다른 참여자와 의견을 나눈 다음, 나의 생각을
-            투표로 남겨보세요.
-          </p>
+          <h2>의견을 가다듬고, 나누고, 담아내는 곳</h2>
+          <p>자료 속 근거를 찾아보고, 다른 참여자와 이야기하며, 내 의견을 남겨보세요.</p>
         </WireflowCard>
         <ParticipantHomeLayout
           actions={[
@@ -75,8 +72,8 @@ export function MainFunctionalScreen({
                 </Link>
               ),
               badge: "AI",
-              description: "주제와 관련된 자료를 바탕으로 AI가 답변해 드려요.",
-              title: "무엇이 궁금한가요?",
+              description: "AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.",
+              title: "어떤 점부터 짚어볼까요?",
             },
             {
               action: (
@@ -85,18 +82,18 @@ export function MainFunctionalScreen({
                 </Link>
               ),
               badge: "토론방",
-              description: "다른 참여자와 편하게 의견을 나눠보세요.",
-              title: "함께 나누는 의견",
+              description: "관심 있는 주제를 골라 자유롭게 참여해 보세요.",
+              title: "서로 오가는 이야기",
             },
             {
               action: (
                 <Link className="wf-button wf-button-primary" href={protectedHref("/votes")}>
-                  참여하기
+                  투표하기
                 </Link>
               ),
               badge: "투표",
-              description: "선택지를 고르고 그 이유를 제출해 보세요.",
-              title: "내 생각을 더하는 한 표",
+              description: "이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.",
+              title: "논의에 보태는 내 의견",
             },
           ]}
         />
