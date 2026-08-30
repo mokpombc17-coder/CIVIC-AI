@@ -6,6 +6,8 @@ import {
   PLATFORM_AUTH_COOKIE_PATH,
   PLATFORM_AUTH_SCOPE,
   PLATFORM_AUTH_SCOPES,
+  PLATFORM_PWA_REFRESH_COOKIE_NAME,
+  PLATFORM_PWA_REFRESH_COOKIE_PATH,
   PLATFORM_REFRESH_COOKIE_NAME,
   PLATFORM_REFRESH_COOKIE_PATH,
   VOTE_PERSONA_GENERATION_RETRY_SCOPE,
@@ -35,6 +37,10 @@ describe("platform-auth-contract", () => {
     expect([PLATFORM_REFRESH_COOKIE_NAME, PLATFORM_REFRESH_COOKIE_PATH]).toEqual([
       "civic_ai_refresh_token",
       "/api/v1/auth",
+    ]);
+    expect([PLATFORM_PWA_REFRESH_COOKIE_NAME, PLATFORM_PWA_REFRESH_COOKIE_PATH]).toEqual([
+      "civic_ai_pwa_refresh_token",
+      "/api/v1/auth/pwa",
     ]);
   });
 });

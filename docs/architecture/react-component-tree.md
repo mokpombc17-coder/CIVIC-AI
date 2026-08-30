@@ -143,13 +143,25 @@ Protected Client request
 └── authenticatedFetch
     ├── 원래 same-origin API 요청
     └── 401일 때
-        ├── 동시 요청을 하나의 POST /api/v1/auth/refresh로 직렬화
+        ├── 실행 모드에 맞는 refresh endpoint 선택
+        │   ├── 일반 브라우저: POST /api/v1/auth/refresh
+        │   └── 설치형 PWA: POST /api/v1/auth/pwa/refresh
+        ├── 동시 요청을 하나의 refresh rotation으로 직렬화
         └── 원래 요청 1회 재시도
+
+Installed PWA launch
+└── /pwa/start → PwaStartup → FullscreenStatus
+    ├── standalone 아님: /home (PWA refresh 호출 없음)
+    ├── PWA refresh 성공: /home
+    ├── PWA refresh 401: /login?returnTo=/home
+    └── 네트워크·일시 장애: splash에서 재시도
 ```
 
-Refresh Token은 `/api/v1/auth` path로 제한되므로 일반 Server Component가 읽지 않는다. Access Token이
+일반 Refresh Token은 `/api/v1/auth`, PWA Refresh Token은 `/api/v1/auth/pwa` path로 제한되므로
+일반 Server Component가 읽지 않는다. Access Token이
 없거나 만료된 Server Route는 `/auth/refresh`를 거쳐 브라우저가 갱신한다. Frontend는 JWT payload를
-해석하지 않고 `/me` 응답을 화면 접근 판정에 사용한다. `/auth/refresh`와 root `loading.tsx`는 갱신이
+해석하지 않고 `/me` 응답을 화면 접근 판정에 사용한다. `/pwa/start`, `/auth/refresh`와 root
+`loading.tsx`는 갱신이
 끝나기 전에 참여자·관리자 목적지를 확정할 수 없으므로 어느 제품 shell에도 들어가지 않고
 `FullscreenStatus`만 렌더링한다. 이 경계는 관리자 갱신과 `/` redirect 중 참가자 mobile shell이 먼저
 노출되는 것을 막는다.

@@ -288,6 +288,16 @@ describe("25 functional Main/Auth screens", () => {
       body: "{}",
     });
     expect(storage.removeItem).toHaveBeenCalledWith("civic:rag-conversation:v1");
+
+    const pwaRequest = vi.fn(async () => new Response(null, { status: 204 }));
+    await expect(requestLogout(pwaRequest as typeof fetch, storage, true)).resolves.toBe(true);
+    expect(pwaRequest).toHaveBeenCalledWith("/api/v1/auth/pwa/logout", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+
     await expect(
       requestLogout(vi.fn(async () => Promise.reject(new Error("offline"))) as typeof fetch),
     ).resolves.toBe(false);

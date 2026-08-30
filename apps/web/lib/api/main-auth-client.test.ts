@@ -5,7 +5,7 @@ import { createMainAuthProxy } from "./main-auth-client";
 vi.mock("server-only", () => ({}));
 
 describe("Main/Auth BFF", () => {
-  it("forwards login and returns only the three approved Auth cookies", async () => {
+  it("forwards login and returns only the approved Auth cookies", async () => {
     const upstreamHeaders = new Headers();
     upstreamHeaders.append(
       "set-cookie",
@@ -14,6 +14,10 @@ describe("Main/Auth BFF", () => {
     upstreamHeaders.append(
       "set-cookie",
       "civic_ai_refresh_token=opaque-refresh; Path=/api/v1/auth; Max-Age=2592000; Secure; HttpOnly; SameSite=Lax",
+    );
+    upstreamHeaders.append(
+      "set-cookie",
+      "civic_ai_pwa_refresh_token=opaque-pwa-refresh; Path=/api/v1/auth/pwa; Max-Age=7776000; Secure; HttpOnly; SameSite=Lax",
     );
     upstreamHeaders.append("set-cookie", "untrusted=value; Path=/");
     const requestBackend = vi.fn<typeof fetch>(async (_input, init) => {
@@ -50,6 +54,7 @@ describe("Main/Auth BFF", () => {
     const setCookies = response.headers.getSetCookie().join("\n");
     expect(setCookies).toContain("civic_ai_access_token=header.payload.signature");
     expect(setCookies).toContain("civic_ai_refresh_token=opaque-refresh");
+    expect(setCookies).toContain("civic_ai_pwa_refresh_token=opaque-pwa-refresh");
     expect(setCookies).not.toContain("untrusted=value");
   });
 
@@ -142,6 +147,34 @@ describe("Main/Auth BFF", () => {
     );
     expect(response.status).toBe(204);
     expect(cookies).toBe("civic_ai_refresh_token=opaque-refresh");
+  });
+
+  it("forwards the dedicated PWA refresh cookie to the PWA refresh endpoint", async () => {
+    let cookies: string | null = null;
+    const proxy = createMainAuthProxy({
+      browserOrigin: "https://civic.example",
+      mainAuthUrl: new URL("http://main-auth.internal:8080"),
+      requestBackend: vi.fn<typeof fetch>(async (_input, init) => {
+        cookies = new Headers(init?.headers).get("cookie");
+        return new Response(null, { status: 204 });
+      }),
+    });
+    const response = await proxy(
+      new NextRequest("https://civic.example/api/v1/auth/pwa/refresh", {
+        method: "POST",
+        headers: {
+          cookie: "civic_ai_pwa_refresh_token=opaque-pwa-refresh",
+          origin: "https://civic.example",
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      }),
+      "/api/v1/auth/pwa/refresh",
+    );
+
+    expect(response.status).toBe(204);
+    expect(cookies).toBe("civic_ai_pwa_refresh_token=opaque-pwa-refresh");
   });
 
   it("blocks cross-origin mutations before contacting Main/Auth", async () => {
