@@ -5715,6 +5715,9 @@ body {
 
 .wf-account-deactivate-button {
   width: 100%;
+  border-color: var(--wf-danger);
+  background: transparent;
+  color: var(--wf-danger);
 }
 
 .wf-account-management,

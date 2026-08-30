@@ -627,6 +627,8 @@ test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합
         logoutBorderColor: logoutStyle.borderColor,
         logoutColor: logoutStyle.color,
         deactivateBackground: deactivateStyle.backgroundColor,
+        deactivateBorderColor: deactivateStyle.borderColor,
+        deactivateColor: deactivateStyle.color,
         logoutBottom: Math.round(logout.getBoundingClientRect().bottom),
         deactivateTop: Math.round(deactivate.getBoundingClientRect().top),
       };
@@ -634,7 +636,9 @@ test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합
   expect(accountActionStyles).toEqual({
     logoutBorderColor: "rgb(18, 20, 23)",
     logoutColor: "rgb(18, 20, 23)",
-    deactivateBackground: "rgb(197, 29, 29)",
+    deactivateBackground: "rgba(0, 0, 0, 0)",
+    deactivateBorderColor: "rgb(197, 29, 29)",
+    deactivateColor: "rgb(197, 29, 29)",
     logoutBottom: expect.any(Number),
     deactivateTop: expect.any(Number),
   });
