@@ -2,7 +2,7 @@
   --atlas-ink: #131923;
   --atlas-muted: #677387;
   --atlas-line: #e1e6ed;
-  --atlas-coral: #ec6544;
+  --atlas-accent: #217fb8;
   display: grid;
   gap: 24px;
   color: var(--atlas-ink);
@@ -26,7 +26,7 @@
 .responseHeader > div > span {
   display: block;
   margin-bottom: 7px;
-  color: var(--atlas-coral);
+  color: var(--atlas-accent);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.13em;
@@ -128,12 +128,12 @@
   gap: 22px 34px;
   overflow: hidden;
   padding: 24px;
-  border: 1px solid #eadfd6;
+  border: 1px solid #d4e7f3;
   border-radius: 16px;
   background:
-    radial-gradient(circle at 96% 0%, rgb(242 139 114 / 16%), transparent 35%),
-    linear-gradient(125deg, #fffaf6 0%, #f8f5f0 100%);
-  box-shadow: 0 12px 30px rgb(84 63 48 / 8%);
+    radial-gradient(circle at 96% 0%, rgb(94 187 224 / 20%), transparent 35%),
+    linear-gradient(125deg, #f8fcff 0%, #edf7fb 100%);
+  box-shadow: 0 12px 30px rgb(29 91 126 / 8%);
   color: var(--atlas-ink);
 }
 
@@ -143,11 +143,11 @@
   bottom: -105px;
   width: 230px;
   height: 230px;
-  border: 1px solid rgb(226 118 91 / 15%);
+  border: 1px solid rgb(63 158 198 / 18%);
   border-radius: 50%;
   box-shadow:
-    0 0 0 28px rgb(239 139 113 / 6%),
-    0 0 0 58px rgb(239 139 113 / 3%);
+    0 0 0 28px rgb(101 190 225 / 8%),
+    0 0 0 58px rgb(101 190 225 / 4%);
   content: "";
   pointer-events: none;
 }
@@ -160,7 +160,7 @@
 }
 
 .filterCopy > span {
-  color: var(--atlas-coral);
+  color: var(--atlas-accent);
 }
 
 .filterCopy h3 {
@@ -172,7 +172,7 @@
 .filterCopy p {
   max-width: 420px;
   margin: 8px 0 0;
-  color: #716b65;
+  color: #607383;
   font-size: 12px;
   line-height: 1.55;
 }
@@ -192,10 +192,10 @@
 .segmented button {
   min-height: 38px;
   padding: 0 15px;
-  border: 1px solid #d8cec4;
+  border: 1px solid #cbdce7;
   border-radius: 9px;
   background: rgb(255 255 255 / 82%);
-  color: #5c5a56;
+  color: #4d6272;
   font: inherit;
   font-size: 13px;
   font-weight: 730;
@@ -208,26 +208,26 @@
 }
 
 .segmented button:hover {
-  border-color: #e48c75;
-  color: #24201e;
+  border-color: #69b7d7;
+  color: #163f58;
   transform: translateY(-1px);
 }
 
 .segmented .activeSegment {
-  border-color: #e17a60;
-  background: #f08b74;
-  box-shadow: 0 5px 13px rgb(202 93 66 / 18%);
-  color: #2c1d19;
+  border-color: #5aafd1;
+  background: #a7ddf1;
+  box-shadow: 0 5px 13px rgb(39 137 177 / 18%);
+  color: #103b55;
 }
 
 .compareStatus {
   margin: 0;
-  color: #77716b;
+  color: #667987;
   font-size: 12px;
 }
 
 .compareStatus strong {
-  color: #25221f;
+  color: #193d55;
 }
 
 .questionResult {
@@ -393,7 +393,7 @@
 .comparisonHeader > div > span {
   display: block;
   margin-bottom: 7px;
-  color: var(--atlas-coral);
+  color: var(--atlas-accent);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.13em;
@@ -416,13 +416,13 @@
   align-items: flex-start;
   gap: 13px;
   padding: 15px 17px;
-  border-left: 3px solid #df6244;
+  border-left: 3px solid #2386c2;
   border-radius: 0 11px 11px 0;
-  background: #f8f5f2;
+  background: #f1f8fc;
 }
 
 .insight > span {
-  color: #c64d31;
+  color: #176da7;
   font-size: 18px;
   font-weight: 850;
   line-height: 1;
@@ -436,7 +436,7 @@
 
 .insight p {
   margin: 0;
-  color: #4f4b47;
+  color: #4d6474;
   font-size: 12px;
   line-height: 1.55;
 }
@@ -454,10 +454,10 @@
 .comparisonCard {
   min-width: 0;
   padding: 16px;
-  border: 1px solid #e3ddd6;
+  border: 1px solid #dce8ef;
   border-radius: 14px;
   background: #fff;
-  box-shadow: 0 8px 22px rgb(53 46 40 / 5%);
+  box-shadow: 0 8px 22px rgb(33 86 116 / 5%);
 }
 
 .comparisonCard > header {
@@ -526,7 +526,7 @@
   height: 13px;
   overflow: hidden;
   border-radius: 4px;
-  background: #ebe9e6;
+  background: #e7edf1;
 }
 
 .comparisonTrack i {
@@ -554,10 +554,10 @@
 .comparisonLoading,
 .emptyComparison {
   padding: 30px;
-  border: 1px dashed #d7cfc7;
+  border: 1px dashed #cbdde8;
   border-radius: 14px;
-  background: #fcfaf8;
-  color: #706b65;
+  background: #f7fbfd;
+  color: #617685;
   font-size: 12px;
   text-align: center;
 }
@@ -710,7 +710,7 @@
   position: relative;
   margin: 0;
   padding: 1px 0 1px 19px;
-  border-left: 3px solid #f09378;
+  border-left: 3px solid #78c4e0;
   color: #303c4e;
   font-size: 14px;
   font-weight: 560;
