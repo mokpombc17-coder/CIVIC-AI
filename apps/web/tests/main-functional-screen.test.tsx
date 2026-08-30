@@ -1176,6 +1176,9 @@ describe("25 functional Main/Auth screens", () => {
     expect(roles).toContain('name="reason"');
     expect(roles).toContain('aria-label="변경 사유 (필수)"');
     expect(roles).toContain('class="civic-role-reason"');
+    expect(roles).not.toContain(
+      "감사 이력에서 변경 목적을 바로 이해할 수 있도록 간단히 적어 주세요.",
+    );
     expect(roles.match(/name="roles"/g)).toHaveLength(3);
     expect(roles.match(/type="radio"/g)).toHaveLength(3);
     for (const permission of ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {

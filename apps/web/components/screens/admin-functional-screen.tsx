@@ -974,7 +974,6 @@ function RoleForm({
           <strong>변경 사유</strong>
           <em>필수</em>
         </span>
-        <small>감사 이력에서 변경 목적을 바로 이해할 수 있도록 간단히 적어 주세요.</small>
         <textarea
           aria-label="변경 사유 (필수)"
           disabled={!selected || pending}
