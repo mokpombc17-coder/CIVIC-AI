@@ -6465,11 +6465,12 @@ body {
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer-meta {
   display: flex;
-  width: min(296px, 82%);
+  width: fit-content;
+  max-width: 100%;
   min-height: 20px;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 6px;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer-meta strong {
@@ -6665,10 +6666,6 @@ body {
   [data-wireflow-screen="U-RAG-001"] .civic-rag-session-bar .civic-secondary-action {
     width: 80px;
     min-width: 80px;
-  }
-
-  [data-wireflow-screen="U-RAG-001"] .civic-rag-answer-meta {
-    width: 86%;
   }
 
   [data-wireflow-screen="U-RAG-001"] .civic-rag-question-row {

@@ -284,6 +284,9 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain("문서 기반 답변입니다.");
+    expect(html).toContain(
+      '<header class="civic-rag-answer-meta"><strong>CIVIC.AI</strong><time class="civic-rag-time">11:33</time></header>',
+    );
     expect(html).not.toContain("이 답변이 도움이 되었나요?");
     expect(html).not.toContain("도움됨");
     expect(html).not.toContain("도움 안 됨");
