@@ -1207,12 +1207,13 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="admin-home"');
     expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(4);
-    expect(html).toContain("승인 대기");
-    expect(html).toContain("채팅 생성 신청 확인 중");
+    expect(html).toContain("토론방 승인 대기");
+    expect(html).not.toContain("채팅 생성 신청");
     expect(html).toContain('aria-labelledby="civic-pending-chat-requests-title"');
-    expect(html).toContain("채팅방 승인 대기");
+    expect(html).toContain("토론방 승인 대기");
     expect(html).toContain("승인 대기 목록을 확인하고 있습니다.");
-    expect(html).toContain("처리 실패");
+    expect(html).toContain("문서 처리 실패");
+    expect(html).not.toContain("실패 작업 재시도 가능");
     expect(html).toContain("확인 중");
     expect(html).toContain("진행 중 과업");
     expect(html).toContain("시뮬레이션 사용 잔액");
@@ -1245,7 +1246,7 @@ describe("25 functional Main/Auth screens", () => {
         ragJobSummary: {
           status: "ready",
           failed: 1,
-          active: 0,
+          active: 3,
           counts: { FAILED: 1 },
           recentFailures: [
             {
@@ -1261,9 +1262,12 @@ describe("25 functional Main/Auth screens", () => {
       }),
     );
 
+    const pendingSectionIndex = html.indexOf('id="civic-pending-chat-requests-title"');
+    expect(html).not.toContain("진행 중 3건");
+    expect(html).not.toContain("실패 작업 재시도 가능");
     expect(html.indexOf("관리 현황")).toBeLessThan(html.indexOf("확인이 필요한 문서"));
-    expect(html.indexOf("확인이 필요한 문서")).toBeLessThan(html.indexOf("채팅방 승인 대기"));
-    expect(html.indexOf("채팅방 승인 대기")).toBeLessThan(html.indexOf("현재 처리 중"));
+    expect(html.indexOf("확인이 필요한 문서")).toBeLessThan(pendingSectionIndex);
+    expect(pendingSectionIndex).toBeLessThan(html.indexOf("현재 처리 중"));
   });
 
   it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {

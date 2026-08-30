@@ -313,14 +313,14 @@ export async function readAdminProblem(response: Response): Promise<AdminProblem
 export function formatAdminProblem(problem: AdminProblem): string {
   const codeMessages: Readonly<Record<string, string>> = {
     ROOM_CREATION_DECISION_CONFLICT: "다른 관리자가 이미 처리했습니다. 최신 상태를 확인했습니다.",
-    ROOM_CATEGORY_IN_USE: "다른 채팅방에서 사용 중인 카테고리는 삭제할 수 없습니다.",
+    ROOM_CATEGORY_IN_USE: "다른 토론방에서 사용 중인 카테고리는 삭제할 수 없습니다.",
     ROOM_CATEGORY_NAME_CONFLICT: "같은 이름의 카테고리가 이미 있습니다.",
     ROOM_CATEGORY_DEFAULT_PROTECTED: "기본 정책 카테고리는 삭제할 수 없습니다.",
     ROOM_CATEGORY_VERSION_CONFLICT:
       "다른 관리자가 카테고리를 변경했습니다. 최신 목록에서 다시 시도해 주세요.",
     ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT:
-      "다른 관리자가 채팅방을 변경했습니다. 최신 설정에서 다시 시도해 주세요.",
-    USER_ACTIVE_ROOM_LIMIT_EXCEEDED: "신청자가 만들 수 있는 활성 채팅방 수를 초과했습니다.",
+      "다른 관리자가 토론방을 변경했습니다. 최신 설정에서 다시 시도해 주세요.",
+    USER_ACTIVE_ROOM_LIMIT_EXCEEDED: "신청자가 만들 수 있는 활성 토론방 수를 초과했습니다.",
     TASK_RESULT_SUMMARY_NOT_FOUND: "아직 확정된 정량 결과가 없습니다.",
     TASK_RESULT_VIEW_NOT_FOUND: "아직 다운로드할 상세 결과가 없습니다.",
   };

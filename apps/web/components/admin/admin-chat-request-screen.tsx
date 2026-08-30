@@ -294,8 +294,8 @@ export function AdminChatRequestScreen({
         result.replayed
           ? "이미 반영된 동일 결정을 확인했습니다. 방은 중복 생성되지 않았습니다."
           : action === "approve"
-            ? "채팅방 생성 신청을 승인했습니다."
-            : "채팅방 생성 신청을 반려했습니다.",
+            ? "토론방 생성 신청을 승인했습니다."
+            : "토론방 생성 신청을 반려했습니다.",
       );
     } catch {
       await loadDetail(selected.creationRequestId);
@@ -306,7 +306,7 @@ export function AdminChatRequestScreen({
   }
 
   return (
-    <ScreenFrame screen={screen} title="채팅방 생성 요청">
+    <ScreenFrame screen={screen} title="토론방 생성 요청">
       <AdminChatOperationsLayout>
         <div
           className="civic-admin-workbench civic-domain-console"
@@ -314,7 +314,7 @@ export function AdminChatRequestScreen({
         >
           <div className="civic-domain-toolbar">
             <label className="civic-field">
-              <span>신청자 이메일 또는 채팅방 이름 검색</span>
+              <span>신청자 이메일 또는 토론방 이름 검색</span>
               <input
                 onChange={(event) => setQuery(event.currentTarget.value)}
                 placeholder="검색어 입력…"
@@ -406,11 +406,11 @@ function RequestTable({
   selectedRequestId: string | null;
 }>) {
   return (
-    <div aria-label="채팅방 생성 신청 표" className="civic-table-scroll" role="region" tabIndex={0}>
+    <div aria-label="토론방 생성 신청 표" className="civic-table-scroll" role="region" tabIndex={0}>
       <table className="civic-admin-table">
         <thead>
           <tr>
-            <th>채팅방 이름</th>
+            <th>토론방 이름</th>
             <th>신청자</th>
             <th>요청 시각</th>
             <th>상태</th>
@@ -623,7 +623,7 @@ function RequestDetail({
           <div className="civic-user-summary-grid">
             <Detail label="신청자" value={adminUserLabel(labels, item.requesterUserId)} />
             <Detail label="요청 시각" value={formatDate(item.requestedAt)} />
-            <Detail label="채팅방 이름" value={item.name} />
+            <Detail label="토론방 이름" value={item.name} />
             <Detail label="상태" value={statusLabel(item.status)} />
             <Detail
               label="카테고리"

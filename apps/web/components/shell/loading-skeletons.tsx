@@ -506,8 +506,8 @@ function AdminRagWorkspaceLoadingSurface() {
 
 function AdminHomeLoadingSurface() {
   const metrics = [
-    ["승인 대기", "채팅 생성 신청"],
-    ["처리 실패", "문서 처리 상태 확인 중"],
+    ["토론방 승인 대기", null],
+    ["문서 처리 실패", null],
     ["진행 중 과업", "현재 진행 중"],
     ["시뮬레이션 사용 잔액", null],
   ] as const;
@@ -793,10 +793,10 @@ function adminListPresentation(kind: AdminListKind): Readonly<{
   }
   return {
     filters: ["전체", "대기", "승인", "반려"],
-    headers: ["채팅방 이름", "신청자", "요청 시각", "상태", "작업"],
+    headers: ["토론방 이름", "신청자", "요청 시각", "상태", "작업"],
     label: "채팅 운영 목록",
     placeholder: "검색어 입력…",
-    searchLabel: "채팅방 검색",
+    searchLabel: "토론방 검색",
   };
 }
 
@@ -817,9 +817,9 @@ function adminBackHref(id: string): Route | undefined {
 }
 
 function adminLoadingTitle(screen: ScreenDefinition): string {
-  if (screen.id === "A-CHAT-004") return "채팅방 생성 요청";
+  if (screen.id === "A-CHAT-004") return "토론방 생성 요청";
   if (screen.id === "A-CHAT-005" || screen.id === "A-CHAT-006") {
-    return "채팅방 생성 요청 검토";
+    return "토론방 생성 요청 검토";
   }
   return screenFrameHeading(screen).title;
 }

@@ -93,7 +93,7 @@ export function AdminChatInsightsScreen({
         const page = readAdminRoomPage(await response.json());
         if (!page) {
           if (!cursor) setRooms([]);
-          setRoomMessage("서버의 관리자 채팅방 목록 응답 형식을 확인해야 합니다.");
+          setRoomMessage("서버의 관리자 토론방 목록 응답 형식을 확인해야 합니다.");
           return null;
         }
         setRooms((current) => (cursor ? mergeRooms(current, page.items) : page.items));
@@ -102,7 +102,7 @@ export function AdminChatInsightsScreen({
         return page;
       } catch {
         if (!cursor) setRooms([]);
-        setRoomMessage("네트워크 오류로 관리자 채팅방 목록을 불러오지 못했습니다.");
+        setRoomMessage("네트워크 오류로 관리자 토론방 목록을 불러오지 못했습니다.");
         return null;
       } finally {
         setRoomsLoading(false);
@@ -377,7 +377,7 @@ export function AdminChatInsightsScreen({
   }
 
   return (
-    <ScreenFrame screen={screen} title="채팅방 관리">
+    <ScreenFrame screen={screen} title="토론방 관리">
       <AdminChatOperationsLayout>
         <div
           className="civic-admin-workbench civic-domain-console"
@@ -388,16 +388,16 @@ export function AdminChatInsightsScreen({
             onSubmit={searchRooms}
           >
             <label className="civic-field">
-              <span>채팅방 이름 검색</span>
+              <span>토론방 이름 검색</span>
               <input
                 disabled={roomsLoading || closingRoom}
                 onChange={(event) => setRoomQuery(event.currentTarget.value)}
-                placeholder="채팅방 이름 입력…"
+                placeholder="토론방 이름 입력…"
                 type="search"
                 value={roomQuery}
               />
             </label>
-            <div aria-label="채팅방 상태" className="wf-admin-filters" role="group">
+            <div aria-label="토론방 상태" className="wf-admin-filters" role="group">
               {(["", "ACTIVE", "CLOSED"] as const).map((status) => (
                 <button
                   aria-pressed={roomStatus === status}
@@ -432,7 +432,7 @@ export function AdminChatInsightsScreen({
               onClick={() => void loadRooms(activeRoomQuery, activeRoomStatus, nextCursor)}
               type="button"
             >
-              다음 채팅방 불러오기
+              다음 토론방 불러오기
             </button>
           ) : null}
           {roomMessage ? (
@@ -447,7 +447,7 @@ export function AdminChatInsightsScreen({
             {selectedRoom ? (
               <>
                 <RoomSummary room={selectedRoom} />
-                <section aria-label="채팅방 통계 상세" className={styles.analysisPanel}>
+                <section aria-label="토론방 통계 상세" className={styles.analysisPanel}>
                   <AnalysisRangeControls
                     analyzing={analyzing}
                     closingRoom={closingRoom}
@@ -507,8 +507,8 @@ export function AdminChatInsightsScreen({
             ) : (
               <p className={styles.drawerEmpty}>
                 {roomsLoading
-                  ? "채팅방 정보를 불러오는 중입니다."
-                  : "목록에서 채팅방을 찾지 못했습니다."}
+                  ? "토론방 정보를 불러오는 중입니다."
+                  : "목록에서 토론방을 찾지 못했습니다."}
               </p>
             )}
           </RoomStatisticsDrawer>
@@ -518,15 +518,15 @@ export function AdminChatInsightsScreen({
         busy={closingRoom}
         busyLabel="종료 중…"
         cancelLabel="운영 유지"
-        confirmLabel="채팅방 종료"
+        confirmLabel="토론방 종료"
         confirmationInputLabel="종료 확인 문구"
         confirmationPhrase="종료합니다."
-        description={`‘${roomToClose?.name ?? ""}’ 채팅방의 방장과 참여 중인 모든 사용자가 퇴장되고, 접속 중인 연결이 끊깁니다. 이후 참여·메시지·구독은 차단됩니다.`}
+        description={`‘${roomToClose?.name ?? ""}’ 토론방의 방장과 참여 중인 모든 사용자가 퇴장되고, 접속 중인 연결이 끊깁니다. 이후 참여·메시지·구독은 차단됩니다.`}
         destructive
         onCancel={() => setRoomToClose(null)}
         onConfirm={() => void closeSelectedRoom()}
         open={roomToClose !== null}
-        title="채팅방을 즉시 종료할까요?"
+        title="토론방을 즉시 종료할까요?"
       />
     </ScreenFrame>
   );
@@ -544,11 +544,11 @@ function RoomTable({
   selectedRoomId: string | null;
 }>) {
   return (
-    <div aria-label="채팅방 관리 목록" className="civic-table-scroll" role="region" tabIndex={0}>
+    <div aria-label="토론방 관리 목록" className="civic-table-scroll" role="region" tabIndex={0}>
       <table className="civic-admin-table">
         <thead>
           <tr>
-            <th>채팅방 이름</th>
+            <th>토론방 이름</th>
             <th>상태</th>
             <th>카테고리</th>
             <th>활성 참여자</th>
@@ -560,7 +560,7 @@ function RoomTable({
           {rooms.length === 0 ? (
             <tr>
               <td colSpan={6}>
-                {loading ? "채팅방을 불러오는 중입니다." : "검색된 채팅방이 없습니다."}
+                {loading ? "토론방을 불러오는 중입니다." : "검색된 토론방이 없습니다."}
               </td>
             </tr>
           ) : null}
@@ -638,7 +638,7 @@ function RoomStatisticsDrawer({
   return (
     <div className="civic-admin-detail-drawer-layer">
       <button
-        aria-label="채팅방 통계 닫기"
+        aria-label="토론방 통계 닫기"
         className="civic-admin-detail-drawer-scrim"
         onClick={onClose}
         type="button"
@@ -654,13 +654,13 @@ function RoomStatisticsDrawer({
       >
         <header>
           <div>
-            <small>채팅방 관리</small>
+            <small>토론방 관리</small>
             <h2 id="civic-chat-statistics-drawer-title">
-              {room ? `${room.name} 통계` : "채팅방 통계"}
+              {room ? `${room.name} 통계` : "토론방 통계"}
             </h2>
           </div>
           <button
-            aria-label="채팅방 통계 닫기"
+            aria-label="토론방 통계 닫기"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -684,7 +684,7 @@ function RoomSummary({ room }: Readonly<{ room: AdminRoom }>) {
     ["개설 시각", formatKoreanDate(room.createdAt)],
   ] as const;
   return (
-    <section aria-label="채팅방 정보" className={styles.roomSummary}>
+    <section aria-label="토론방 정보" className={styles.roomSummary}>
       {items.map(([label, value]) => (
         <div key={label}>
           <span>{label}</span>
@@ -721,7 +721,7 @@ function AnalysisRangeControls({
       <header>
         <div>
           <small>조회 대상</small>
-          <strong>{selectedRoom?.name ?? "왼쪽에서 채팅방을 선택하세요"}</strong>
+          <strong>{selectedRoom?.name ?? "왼쪽에서 토론방을 선택하세요"}</strong>
         </div>
         <span data-status={selectedRoom?.status ?? "NONE"}>
           {selectedRoom ? roomStatusLabel(selectedRoom.status) : "선택 필요"}
@@ -773,7 +773,7 @@ function AnalysisRangeControls({
         <p className={styles.periodSummary}>
           {selectedRoom
             ? `${formatKoreanDate(selectedRoom.createdAt)} 개설 이후의 전체 대화를 자동으로 표시합니다.`
-            : "채팅방을 선택하면 개설 이후 전체 대화를 자동으로 표시합니다."}
+            : "토론방을 선택하면 개설 이후 전체 대화를 자동으로 표시합니다."}
         </p>
       )}
       {period === "custom" ? (
@@ -798,12 +798,12 @@ function RoomOperationSettings({
   if (!selectedRoom) return null;
   return (
     <details className={styles.roomSettings}>
-      <summary>채팅방 운영 설정</summary>
+      <summary>토론방 운영 설정</summary>
       <div>
         <p>
           {selectedRoom.status === "ACTIVE"
             ? "종료하면 모든 참여자의 연결과 이후 활동이 즉시 차단됩니다."
-            : "종료된 채팅방입니다. 대화 기록과 분석 결과는 계속 확인할 수 있습니다."}
+            : "종료된 토론방입니다. 대화 기록과 분석 결과는 계속 확인할 수 있습니다."}
         </p>
         {selectedRoom.status === "ACTIVE" ? (
           <button
@@ -812,7 +812,7 @@ function RoomOperationSettings({
             onClick={onCloseRoom}
             type="button"
           >
-            {closingRoom ? "종료 상태 확인 중…" : "채팅방 종료"}
+            {closingRoom ? "종료 상태 확인 중…" : "토론방 종료"}
           </button>
         ) : null}
       </div>
@@ -858,7 +858,7 @@ function SnapshotHeader({
       <div>
         <span>무결성 확인 완료</span>
         <h2>{analysis.manifest.roomName}</h2>
-        <p>{analysis.manifest.roomDescription || "채팅방 설명이 없습니다."}</p>
+        <p>{analysis.manifest.roomDescription || "토론방 설명이 없습니다."}</p>
       </div>
       <div className={styles.snapshotMeta}>
         <dl>
@@ -958,11 +958,11 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
   return (
     <section className={styles.empty}>
       <span aria-hidden="true">↗</span>
-      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "채팅방을 먼저 선택하세요"}</h2>
+      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "토론방을 먼저 선택하세요"}</h2>
       <p>
         {selected
           ? "전체 기간 기록의 무결성을 확인한 뒤 분석 결과를 자동으로 표시합니다."
-          : "관리자 전체 채팅방 목록에서 운영 또는 분석 대상을 고를 수 있습니다."}
+          : "관리자 전체 토론방 목록에서 운영 또는 분석 대상을 고를 수 있습니다."}
       </p>
     </section>
   );
@@ -1062,7 +1062,7 @@ async function exportProblemMessage(response: Response): Promise<string> {
     return "대화 원본 접근 권한이 없습니다. 관리자 토큰의 chat:audit:exports scope를 확인해 주세요.";
   }
   if (response.status === 404) {
-    return "채팅방을 찾을 수 없거나 대화 기록 API가 아직 준비되지 않았습니다.";
+    return "토론방을 찾을 수 없거나 대화 기록 API가 아직 준비되지 않았습니다.";
   }
   if (response.status === 401) return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
   return formatAdminProblem(await readAdminProblem(response));

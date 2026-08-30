@@ -44,10 +44,10 @@ describe("conversation export v1", () => {
     expect(analysis.metrics.topics).toContainEqual({ label: "조직·업무", count: 1 });
   });
 
-  it("요청 채팅방·시간 범위가 manifest와 다르면 결과를 사용하지 않는다", async () => {
+  it("요청 토론방·시간 범위가 manifest와 다르면 결과를 사용하지 않는다", async () => {
     await expect(
       parseConversationExportArchive(buildArchive(), { roomId: "other-room", range }),
-    ).rejects.toThrow("요청한 채팅방과 Export의 채팅방이 일치하지 않습니다.");
+    ).rejects.toThrow("요청한 토론방과 Export의 토론방이 일치하지 않습니다.");
     await expect(
       parseConversationExportArchive(buildArchive(), {
         roomId,
