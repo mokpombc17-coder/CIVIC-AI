@@ -999,6 +999,10 @@ export function selectedAdminRole(roles: readonly string[]): AdminRoleChoice {
   return "PARTICIPANT";
 }
 
+export function userRoleLabel(roles: readonly string[]): string {
+  return roleLabel(selectedAdminRole(roles));
+}
+
 export function permissionsForAdminRole(
   role: AdminRoleChoice,
   permissions: readonly string[],
@@ -1106,7 +1110,7 @@ function UserTable({
           <tr>
             <th>이메일</th>
             <th>계정 상태</th>
-            <th>관리자 역할</th>
+            <th>역할</th>
             <th>운영 권한</th>
             <th>최근 활동</th>
             <th>작업</th>
@@ -1117,12 +1121,7 @@ function UserTable({
             <tr key={user.user_id}>
               <td>{user.email}</td>
               <td>{accountStateLabel(user.account_state)}</td>
-              <td>
-                {user.roles
-                  .filter((role) => role !== "PARTICIPANT")
-                  .map(roleLabel)
-                  .join(", ") || "없음"}
-              </td>
+              <td>{userRoleLabel(user.roles)}</td>
               <td>{user.permissions.map(permissionLabel).join(", ") || "없음"}</td>
               <td>{formatDate(user.last_activity_at)}</td>
               <td>

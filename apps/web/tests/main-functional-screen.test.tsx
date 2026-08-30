@@ -30,6 +30,7 @@ import {
   selectedAdminRole,
   updateAdminLoadMessage,
   userBackHref,
+  userRoleLabel,
 } from "@/components/screens/admin-functional-screen";
 import {
   loadAccountProfile,
@@ -356,6 +357,9 @@ describe("25 functional Main/Auth screens", () => {
   it("관리자 역할은 단일 선택이며 최고 관리자는 모든 운영 권한을 잠근다", () => {
     expect(selectedAdminRole(["PARTICIPANT", "ADMIN"])).toBe("ADMIN");
     expect(selectedAdminRole(["ADMIN", "HIGHEST_ADMIN"])).toBe("HIGHEST_ADMIN");
+    expect(userRoleLabel([])).toBe("사용자");
+    expect(userRoleLabel(["PARTICIPANT", "ADMIN"])).toBe("운영 관리자");
+    expect(userRoleLabel(["ADMIN", "HIGHEST_ADMIN"])).toBe("최고 관리자");
     expect(permissionsForAdminRole("HIGHEST_ADMIN", [])).toEqual(ADMIN_PERMISSION_CODES);
     expect(permissionsForAdminRole("PARTICIPANT", ["RAG_ADMIN"])).toEqual([]);
     expect(permissionsForAdminRole("ADMIN", ["CHAT_ADMIN", "UNKNOWN"])).toEqual(["CHAT_ADMIN"]);
@@ -1156,16 +1160,10 @@ describe("25 functional Main/Auth screens", () => {
     };
 
     const list = renderAdmin("A-USER-001");
-    for (const heading of [
-      "이메일",
-      "계정 상태",
-      "관리자 역할",
-      "운영 권한",
-      "최근 활동",
-      "작업",
-    ]) {
+    for (const heading of ["이메일", "계정 상태", "역할", "운영 권한", "최근 활동", "작업"]) {
       expect(list).toContain(`<th>${heading}</th>`);
     }
+    expect(list).not.toContain("<th>관리자 역할</th>");
     expect(list).not.toContain("<th>이메일 인증</th>");
     expect(list).toContain('aria-label="사용자 상태 필터"');
     expect(list).toContain("이메일 검색");
