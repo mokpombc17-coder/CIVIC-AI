@@ -117,7 +117,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
 
   const backAction = useMemo<PlatformHeaderBackAction>(() => {
     if (step === 1) return { href: "/vote", ariaLabel: "투표 목록으로" };
-    if (step === 2) return { onClick: () => setStep(1), ariaLabel: "과업 확인으로" };
+    if (step === 2) return { onClick: () => setStep(1), ariaLabel: "투표 확인으로" };
     if (step === 3) return { onClick: () => setStep(2), ariaLabel: "응답 작성으로" };
     return { href: "/vote", ariaLabel: "투표 목록으로" };
   }, [step]);
@@ -404,10 +404,10 @@ function TaskFeedback({
 
 function getTaskDetailErrorMessage(error: unknown): string {
   if (error instanceof VoteApiError) {
-    if (error.status === 401) return "로그인 후 과업에 참여할 수 있습니다.";
+    if (error.status === 401) return "로그인 후 투표에 참여할 수 있습니다.";
     if (error.status === 403) return "과업을 조회할 권한이 없습니다.";
     if (error.code === "TASK_NOT_FOUND") return "과업을 찾을 수 없습니다.";
-    if (error.code === "TASK_CLOSED") return "마감된 과업입니다.";
+    if (error.code === "TASK_CLOSED") return "마감된 투표입니다.";
   }
   return "과업을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
@@ -478,9 +478,9 @@ function getPredictionPreparationMessage({
   ensureError: unknown;
   ensurePending: boolean;
 }): string | null {
-  if (detail?.submission.submitted) return "이미 참여 완료한 과업입니다.";
+  if (detail?.submission.submitted) return "이미 참여한 투표입니다.";
   if (predictionError || ensureError) {
-    return "과업 참여 정보를 준비하지 못했습니다. 잠시 후 다시 접속해 주세요.";
+    return "투표 참여 정보를 준비하지 못했습니다. 잠시 후 다시 접속해 주세요.";
   }
   if (!view || ensurePending || view.state === "PERSONA_NOT_READY" || !view.predictionId) {
     return "과업 참여를 준비하는 중입니다.";
@@ -491,7 +491,7 @@ function getPredictionPreparationMessage({
 
 function VoteProgress({ step, label }: { step: VoteStep; label?: string | undefined }) {
   const labels: Record<VoteStep, string> = {
-    1: "과업 확인",
+    1: "투표 확인",
     2: "응답 작성",
     3: "응답 확인",
     4: "참여 완료",
@@ -538,10 +538,10 @@ function TaskOverview({
   return (
     <div className={styles.flowBody}>
       <section className={styles.flowSection}>
-        <h2 className={styles.sectionTitle}>과업</h2>
+        <h2 className={styles.sectionTitle}>주제</h2>
         <dl className={styles.infoCard}>
           <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
-          <InfoRow label="질의" value={detail.task.question.content} />
+          <InfoRow label="질문" value={detail.task.question.content} />
           <InfoRow label="마감" value={formatVoteDateTime(detail.closesAt)} />
         </dl>
       </section>
@@ -664,7 +664,7 @@ function SubmittedTaskResponse({
         <h2 className={styles.sectionTitle}>과업</h2>
         <dl className={styles.infoCard}>
           <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
-          <InfoRow label="질의" value={detail.task.question.content} />
+          <InfoRow label="질문" value={detail.task.question.content} />
           <InfoRow label="마감" value={formatVoteDateTime(detail.closesAt)} />
         </dl>
       </section>
@@ -828,10 +828,10 @@ function ResponseComposer(props: ComposerProps) {
           onClick={props.onSubmit}
           type="button"
         >
-          제출하기
+          확인하기
         </button>
         <button className={styles.fullSecondaryButton} onClick={props.onCancel} type="button">
-          참여 취소하기
+          나가기
         </button>
       </div>
     </div>
@@ -896,7 +896,7 @@ function VoteCompleted({ detail }: { detail: UserTaskDetail }) {
       </div>
       <dl className={styles.infoCard}>
         <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
-        <InfoRow label="질의" value={detail.task.question.content} />
+        <InfoRow label="질문" value={detail.task.question.content} />
       </dl>
       <Link className={styles.compactPrimaryButton} href="/vote">
         과업 목록으로
@@ -929,7 +929,7 @@ function CancelSheet({ onClose }: { onClose: () => void }) {
             type="button"
           />
         </div>
-        <p>저장하지 않고 나가면 현재 작성 내용이 사라집니다.</p>
+        <p>현재 작성 내용은 저장되지 않습니다.</p>
         <div className={styles.cancelActions}>
           <Link className={styles.fullSecondaryButton} href="/vote">
             저장하지 않고 나가기

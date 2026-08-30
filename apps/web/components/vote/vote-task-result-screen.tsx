@@ -94,14 +94,14 @@ function VoteTaskResultContent({ result }: { result: VoteResultPresentation }) {
   return (
     <>
       <section className={styles.resultTaskSummary}>
-        <h2>과업</h2>
+        <h2>주제</h2>
         <dl className={styles.resultTaskCard}>
           <div>
             <dt>배경</dt>
             <dd>{result.background}</dd>
           </div>
           <div>
-            <dt>질의</dt>
+            <dt>질문</dt>
             <dd>{result.question}</dd>
           </div>
         </dl>

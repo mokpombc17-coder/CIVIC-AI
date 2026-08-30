@@ -17,6 +17,9 @@ vi.mock("next/navigation", () => ({
 describe("chat room list publishing layout", () => {
   it("모바일 토론방 header와 참여·검색 영역을 Figma 순서로 조립한다", () => {
     const html = renderChatRoomListView("ALL");
+    const emptyStateClassNames = [
+      ...html.matchAll(/<div class="([^"]+)" data-chat-room-list-state="empty"/g),
+    ].map((match) => match[1] ?? "");
     const filterIndex = html.indexOf('aria-label="참여한 방 필터"');
     const participatingRoomsIndex = html.indexOf(">참여한 방</h2>");
     const publicRoomSearchIndex = html.indexOf('aria-label="공개 채팅방 검색"');
@@ -29,14 +32,25 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain(">토론방 생성 요청</button>");
     expect(html).toContain(">참여한 방</h2>");
     expect(html).toContain(">참여 가능한 방</h2>");
+    expect(html).toContain("아직 참여한 방이 없어요");
+    expect(html).toContain("아래에서 관심 있는 방을 찾아 참여해 보세요.");
+    expect(html).toContain('data-chat-room-list-empty-variant="no-participating-rooms"');
+    expect(html).not.toContain("현재 참여 중인 방이 없습니다.");
     expect(filterIndex).toBeLessThan(participatingRoomsIndex);
     expect(participatingRoomsIndex).toBeLessThan(publicRoomSearchIndex);
     expect(publicRoomSearchIndex).toBeLessThan(availableRoomsIndex);
     expect(html).toContain("참여 가능한 방이 없습니다.");
     expect(html.match(/data-chat-room-list-state="empty"/g)).toHaveLength(2);
-    expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
-    expect(html).not.toContain("border-dashed");
-    expect(html).not.toContain("border-slate-300");
+    expect(emptyStateClassNames).toHaveLength(2);
+    expect(emptyStateClassNames).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("min-h-[252px]"),
+        expect.stringContaining("min-h-[384px]"),
+      ]),
+    );
+    expect(emptyStateClassNames.every((className) => !className.includes("border"))).toBe(true);
+    expect(emptyStateClassNames.every((className) => !className.includes("bg-"))).toBe(true);
+    expect(html).not.toContain(">−</span>");
     expect(html).toContain('data-platform-shell="true"');
     expect(html.match(/data-scroll="self"/g)).toHaveLength(2);
     expect(html).toContain('aria-label="참여자 주요 메뉴"');
@@ -52,7 +66,7 @@ describe("chat room list publishing layout", () => {
     expect(html).not.toContain("Chat Resource Server");
   });
 
-  it("목록 조회 오류와 로딩 상태를 publishing token 기반 상태 카드로 표시한다", () => {
+  it("목록 조회 오류는 상태 카드로, 각 목록 로딩은 실제 개수의 skeleton으로 표시한다", () => {
     const errorHtml = renderChatRoomListView("ALL", false, "error");
     const loadingHtml = renderChatRoomListView("ALL", false, "loading");
 
@@ -65,8 +79,14 @@ describe("chat room list publishing layout", () => {
     expect(errorHtml).not.toContain("bg-red-50");
     expect(loadingHtml.match(/data-chat-room-list-state="loading"/g)).toHaveLength(2);
     expect(loadingHtml.match(/role="status"/g)).toHaveLength(2);
-    expect(loadingHtml).toContain("bg-transparent");
-    expect(loadingHtml).not.toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+    expect(loadingHtml.match(/data-chat-room-card-skeleton="true"/g)).toHaveLength(5);
+    expect(loadingHtml).toContain('aria-label="참여 중인 채팅방을 불러오는 중"');
+    expect(loadingHtml).toContain('aria-label="참여 가능한 채팅방을 불러오는 중"');
+    expect(loadingHtml).toContain("max-h-[252px]");
+    expect(loadingHtml).toContain("max-h-[384px]");
+    expect(loadingHtml).toContain("motion-safe:animate-pulse");
+    expect(loadingHtml).not.toContain("animate-spin");
+    expect(loadingHtml).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
   });
 
   it("401 목록 오류는 다시 불러오기 대신 로그인 action을 제공한다", () => {
@@ -78,11 +98,24 @@ describe("chat room list publishing layout", () => {
     expect(html).not.toContain("Bearer");
   });
 
-  it("안읽음 filter 결과가 비면 현재 누적 목록 기준임을 안내한다", () => {
+  it("안읽음 filter 결과가 비면 모든 새 메시지를 확인한 완료 상태를 표시한다", () => {
     const html = renderChatRoomListView("UNREAD");
+    const allReadEmptyStateClass =
+      /<div class="([^"]+)" data-chat-room-list-state="empty" data-chat-room-list-empty-variant="all-read"/.exec(
+        html,
+      )?.[1];
 
-    expect(html).toContain("불러온 방 중 읽지 않은 메시지가 있는 방이 없습니다.");
+    expect(html).toContain("읽지 않은 메시지가 없어요");
+    expect(html).toContain("참여한 방의 새 메시지를 모두 확인했습니다.");
+    expect(html).toContain(
+      'class="text-base font-medium leading-6 text-[var(--chat-publishing-color-text)]">읽지 않은 메시지가 없어요',
+    );
+    expect(html).toContain(">✓</span>");
+    expect(html).toContain('data-chat-room-list-empty-variant="all-read"');
+    expect(allReadEmptyStateClass).not.toContain("bg-");
+    expect(html).not.toContain("참여한 방 중 읽지 않은 메시지가 있는 방이 없습니다.");
     expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("min-h-[252px]");
   });
 
   it("생성 요청이 열리면 PlatformShell overlay로 sheet를 조립하고 본문을 비활성화한다", () => {

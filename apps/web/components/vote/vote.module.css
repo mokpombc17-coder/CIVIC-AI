@@ -250,14 +250,19 @@
 }
 
 .listRetryButton {
+  display: inline-flex;
   min-width: 88px;
   height: 40px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--vote-primary);
   border-radius: 6px;
   background: #fff;
+  padding: 0 16px;
   color: var(--vote-primary-emphasis);
   cursor: pointer;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .listRetryButton:disabled {
@@ -803,11 +808,14 @@
   }
 
   .loadingSpinner,
-  .successBurstDot {
+  .successBurstDot,
+  .successIcon,
+  .successCelebration::after {
     animation: none;
   }
 
-  .successBurstDot {
+  .successBurstDot,
+  .successCelebration::after {
     display: none;
   }
 }
@@ -881,29 +889,44 @@
 .successCelebration {
   position: relative;
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
   flex: none;
   place-items: center;
+}
+
+.successCelebration::after {
+  position: absolute;
+  z-index: 0;
+  inset: 4px;
+  border: 2px solid rgb(36 122 69 / 28%);
+  border-radius: 50%;
+  animation: success-ring 800ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
 }
 
 .successIcon {
   position: relative;
   z-index: 1;
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  animation: success-icon-pop 760ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   background: url("/assets/vote/success.png") center / contain no-repeat;
+  transform-origin: center;
 }
 
 .successBurstDot {
   position: absolute;
+  z-index: 2;
   top: 50%;
   left: 50%;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  animation: success-burst-dot 560ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
+  animation: success-burst-dot 800ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
   background: var(--vote-primary);
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.6);
@@ -911,35 +934,72 @@
 
 .successBurstDot:nth-child(2) {
   --burst-x: 0px;
-  --burst-y: -18px;
+  --burst-y: -26px;
 }
 
 .successBurstDot:nth-child(3) {
-  --burst-x: 16px;
-  --burst-y: -9px;
+  --burst-x: 23px;
+  --burst-y: -13px;
   background: #78a5ff;
 }
 
 .successBurstDot:nth-child(4) {
-  --burst-x: 16px;
-  --burst-y: 9px;
+  --burst-x: 23px;
+  --burst-y: 13px;
 }
 
 .successBurstDot:nth-child(5) {
   --burst-x: 0px;
-  --burst-y: 18px;
+  --burst-y: 26px;
   background: #78a5ff;
 }
 
 .successBurstDot:nth-child(6) {
-  --burst-x: -16px;
-  --burst-y: 9px;
+  --burst-x: -23px;
+  --burst-y: 13px;
 }
 
 .successBurstDot:nth-child(7) {
-  --burst-x: -16px;
-  --burst-y: -9px;
+  --burst-x: -23px;
+  --burst-y: -13px;
   background: #78a5ff;
+}
+
+@keyframes success-icon-pop {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.72);
+  }
+
+  45% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
+
+  70% {
+    transform: scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes success-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+
+  24% {
+    opacity: 0.45;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
 }
 
 @keyframes success-burst-dot {

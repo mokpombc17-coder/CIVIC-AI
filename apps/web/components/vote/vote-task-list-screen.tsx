@@ -20,6 +20,7 @@ import styles from "./vote.module.css";
 
 type VoteTab = "active" | "completed";
 const SHOW_COMPLETED_DESIGN_SAMPLE = process.env.NODE_ENV !== "production";
+const VOTE_LOGIN_HREF = { pathname: "/login", query: { returnTo: "/vote" } } as const;
 
 export function VoteTaskListScreen() {
   const [tab, setTab] = useState<VoteTab>("active");
@@ -79,12 +80,12 @@ export function VoteTaskListScreen() {
     <PlatformShell
       bottomNavigation={<PlatformNavigationClient />}
       contentClassName={styles.voteContent!}
-      header={<PlatformHeader className={styles.voteHeader!} leading={null} title="투표" />}
+      header={<PlatformHeader className={styles.voteHeader!} title="투표" />}
     >
       <div className={`${styles.surface} ${styles.listSurface}`}>
         <form className={styles.searchSection} onSubmit={submitSearch} role="search">
           <label className={styles.searchLabel} htmlFor="vote-task-search">
-            과업 검색
+            주제 검색
           </label>
           <div className={styles.searchControl}>
             <span aria-hidden="true" className={styles.searchIcon} />
@@ -92,7 +93,7 @@ export function VoteTaskListScreen() {
               className={styles.searchInput}
               id="vote-task-search"
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="과업을 검색해 주세요."
+              placeholder="투표 주제를 검색해 주세요."
               type="search"
               value={searchInput}
             />
@@ -130,22 +131,18 @@ export function VoteTaskListScreen() {
           </p>
         ) : null}
         {showingBlockingError ? (
-          <div className={styles.listFeedback} role="alert">
-            <p>
-              {tab === "active"
+          <VoteListFeedback
+            className={styles.listFeedback!}
+            error={tab === "active" ? openTasksQuery.error : completedTasksQuery.error}
+            message={
+              tab === "active"
                 ? getOpenTaskErrorMessage(openTasksQuery.error)
-                : getCompletedTaskErrorMessage(completedTasksQuery.error)}
-            </p>
-            <button
-              className={styles.listRetryButton}
-              onClick={() =>
-                void (tab === "active" ? openTasksQuery.refetch() : completedTasksQuery.refetch())
-              }
-              type="button"
-            >
-              다시 시도
-            </button>
-          </div>
+                : getCompletedTaskErrorMessage(completedTasksQuery.error)
+            }
+            onRetry={() =>
+              void (tab === "active" ? openTasksQuery.refetch() : completedTasksQuery.refetch())
+            }
+          />
         ) : null}
         {!showingBlockingLoading && !showingBlockingError ? (
           <>
@@ -158,8 +155,8 @@ export function VoteTaskListScreen() {
               <p className={styles.emptyState}>
                 {source.length === 0
                   ? tab === "active"
-                    ? "진행 중인 과업이 없습니다."
-                    : "완료한 과업이 없습니다."
+                    ? "진행 중인 투표가 없습니다."
+                    : "완료된 투표가 없습니다."
                   : "검색 결과가 없습니다."}
               </p>
             ) : null}
@@ -167,16 +164,12 @@ export function VoteTaskListScreen() {
               <p className={styles.listInlineStatus}>실제 완료 과업을 불러오는 중입니다.</p>
             ) : null}
             {showingCompletedError ? (
-              <div className={styles.listInlineFeedback} role="alert">
-                <p>{getCompletedTaskErrorMessage(completedTasksQuery.error)}</p>
-                <button
-                  className={styles.listRetryButton}
-                  onClick={() => void completedTasksQuery.refetch()}
-                  type="button"
-                >
-                  다시 시도
-                </button>
-              </div>
+              <VoteListFeedback
+                className={styles.listInlineFeedback!}
+                error={completedTasksQuery.error}
+                message={getCompletedTaskErrorMessage(completedTasksQuery.error)}
+                onRetry={() => void completedTasksQuery.refetch()}
+              />
             ) : null}
             {tab === "completed" && completedTasksQuery.hasNextPage ? (
               <div className={styles.completedListActions}>
@@ -213,6 +206,37 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
       </Link>
     </li>
   );
+}
+
+function VoteListFeedback({
+  className,
+  error,
+  message,
+  onRetry,
+}: {
+  className: string;
+  error: unknown;
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className={className} role="alert">
+      <p>{message}</p>
+      {isVoteAuthenticationRequired(error) ? (
+        <Link className={styles.listRetryButton!} href={VOTE_LOGIN_HREF}>
+          로그인하기
+        </Link>
+      ) : (
+        <button className={styles.listRetryButton} onClick={onRetry} type="button">
+          다시 시도
+        </button>
+      )}
+    </div>
+  );
+}
+
+function isVoteAuthenticationRequired(error: unknown): boolean {
+  return error instanceof VoteApiError && error.status === 401;
 }
 
 function getOpenTaskErrorMessage(error: unknown): string {

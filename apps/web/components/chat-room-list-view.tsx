@@ -34,6 +34,8 @@ const SCROLLABLE_ROOM_LIST_CLASS_NAME =
   "grid scroll-p-1 gap-3 overflow-y-auto overscroll-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] [scrollbar-gutter:stable]";
 const PARTICIPATING_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[252px]`;
 const PUBLIC_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[384px]`;
+const PARTICIPATING_ROOM_SKELETON_KEYS = ["participating-first", "participating-second"] as const;
+const PUBLIC_ROOM_SKELETON_KEYS = ["public-first", "public-second", "public-third"] as const;
 
 type RoomListState<TItem> = Readonly<{
   error: unknown;
@@ -112,17 +114,35 @@ export function ChatRoomListView({
           />
 
           {participatingRooms.isPending && participatingRooms.rooms.length === 0 ? (
-            <RoomListNotice kind="loading" message="참여 중인 방을 불러오고 있습니다." />
+            <RoomListSkeleton
+              ariaLabel="참여 중인 채팅방을 불러오는 중"
+              keys={PARTICIPATING_ROOM_SKELETON_KEYS}
+              listClassName={PARTICIPATING_ROOM_LIST_CLASS_NAME}
+              message="참여 중인 방을 불러오고 있습니다."
+            />
           ) : participatingRoomFilter.value === "UNREAD" &&
             participatingRooms.rooms.length === 0 &&
             !participatingRooms.isError ? (
-            <RoomListNotice message="불러온 방 중 읽지 않은 메시지가 있는 방이 없습니다." />
+            <RoomListNotice
+              description="참여한 방의 새 메시지를 모두 확인했습니다."
+              message="읽지 않은 메시지가 없어요"
+              size="participating"
+              variant="all-read"
+            />
           ) : participatingRooms.rooms.length === 0 &&
             !participatingRooms.isError &&
             participatingRooms.hasNextPage ? (
-            <RoomListNotice message="현재 페이지에 표시할 방이 없습니다. 다음 페이지를 확인해 주세요." />
+            <RoomListNotice
+              message="현재 페이지에 표시할 방이 없습니다. 다음 페이지를 확인해 주세요."
+              size="participating"
+            />
           ) : participatingRooms.rooms.length === 0 && !participatingRooms.isError ? (
-            <RoomListNotice message="현재 참여 중인 방이 없습니다." />
+            <RoomListNotice
+              description="아래에서 관심 있는 방을 찾아 참여해 보세요."
+              message="아직 참여한 방이 없어요"
+              size="participating"
+              variant="no-participating-rooms"
+            />
           ) : participatingRooms.rooms.length > 0 ? (
             <ul
               aria-label="참여 중인 채팅방"
@@ -167,9 +187,14 @@ export function ChatRoomListView({
             />
 
             {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
-              <RoomListNotice kind="loading" message="공개 방을 불러오고 있습니다." />
+              <RoomListSkeleton
+                ariaLabel="참여 가능한 채팅방을 불러오는 중"
+                keys={PUBLIC_ROOM_SKELETON_KEYS}
+                listClassName={PUBLIC_ROOM_LIST_CLASS_NAME}
+                message="공개 방을 불러오고 있습니다."
+              />
             ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
-              <RoomListNotice message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms} />
+              <RoomListNotice message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms} size="public" />
             ) : publicRooms.rooms.length > 0 ? (
               <ul aria-label="공개 채팅방" className={PUBLIC_ROOM_LIST_CLASS_NAME} tabIndex={0}>
                 {publicRooms.rooms.map((room) => (
@@ -373,34 +398,98 @@ function QueryFailure({
 }
 
 function RoomListNotice({
-  kind = "empty",
+  description,
   message,
+  size,
+  variant = "default",
 }: {
-  kind?: "empty" | "loading";
+  description?: string;
   message: string;
+  size: "participating" | "public";
+  variant?: "all-read" | "default" | "no-participating-rooms";
 }) {
+  const isIllustrated = variant !== "default";
+
   return (
     <div
-      aria-live={kind === "loading" ? "polite" : undefined}
-      className={`flex min-h-28 flex-col items-center justify-center rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] px-5 py-6 text-center ${
-        kind === "loading" ? "bg-transparent" : "bg-[var(--chat-publishing-color-neutral-soft)]"
+      className={`flex items-center justify-center px-5 text-center ${
+        size === "participating" ? "min-h-[252px]" : "min-h-[384px]"
       }`}
-      data-chat-room-list-state={kind}
-      role={kind === "loading" ? "status" : undefined}
+      data-chat-room-list-state="empty"
+      data-chat-room-list-empty-variant={variant}
     >
-      <span
-        aria-hidden="true"
-        className={`mb-3 flex size-9 items-center justify-center rounded-full border-2 ${
-          kind === "loading"
-            ? "animate-spin border-[var(--chat-publishing-color-border)] border-t-[var(--chat-publishing-color-primary)]"
-            : "border-[var(--chat-publishing-color-border)] bg-white text-[var(--chat-publishing-color-muted)]"
-        }`}
-      >
-        {kind === "empty" ? "−" : null}
-      </span>
-      <p className="text-sm font-medium leading-5 text-[var(--chat-publishing-color-muted)]">
-        {message}
-      </p>
+      {isIllustrated ? (
+        <div className="grid justify-items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="mb-2 flex size-10 items-center justify-center rounded-full bg-[var(--chat-publishing-color-primary)] text-xl font-bold text-white shadow-sm"
+          >
+            {variant === "all-read" ? (
+              "✓"
+            ) : (
+              <svg className="size-5" fill="none" viewBox="0 0 20 20">
+                <path
+                  d="M5 4.5h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3.17a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            )}
+          </span>
+          <p className="text-base font-medium leading-6 text-[var(--chat-publishing-color-text)]">
+            {message}
+          </p>
+          <p className="text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
+            {description}
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm font-medium leading-5 text-[var(--chat-publishing-color-muted)]">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RoomListSkeleton({
+  ariaLabel,
+  keys,
+  listClassName,
+  message,
+}: Readonly<{
+  ariaLabel: string;
+  keys: readonly string[];
+  listClassName: string;
+  message: string;
+}>) {
+  return (
+    <div
+      aria-label={ariaLabel}
+      aria-live="polite"
+      data-chat-room-list-state="loading"
+      role="status"
+    >
+      <span className="sr-only">{message}</span>
+      <ul aria-hidden="true" className={listClassName}>
+        {keys.map((key) => (
+          <li key={key}>
+            <article
+              className="grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 motion-safe:animate-pulse"
+              data-chat-room-card-skeleton="true"
+            >
+              <span className="min-w-0">
+                <span className="block h-5 w-14 rounded-full bg-[var(--chat-publishing-color-neutral-soft)]" />
+                <span className="mt-2 block h-6 w-3/4 rounded-md bg-[var(--chat-publishing-color-neutral-soft)]" />
+                <span className="mt-2 block h-5 w-1/2 rounded-md bg-[var(--chat-publishing-color-neutral-soft)]" />
+              </span>
+              <span className="h-12 min-w-[108px] rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
+            </article>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
