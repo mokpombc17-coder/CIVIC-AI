@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  matchChatAdminRoomCloseRoute,
+  matchChatAdminRoomListRoute,
   matchChatAdminRoute,
   matchChatCategoryAdminRoute,
   matchChatConversationExportRoute,
@@ -10,6 +12,7 @@ import {
 } from "./admin-domain-policy";
 
 const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
+const roomId = "4a52affd-77e8-4bee-86c1-8b74c2ea45ae";
 
 describe("admin domain route allowlist", () => {
   it("allows only the documented Chat approval methods", () => {
@@ -75,6 +78,26 @@ describe("admin domain route allowlist", () => {
     expect(matchChatRoomListRoute("POST")).toEqual({
       allowedMethods: ["GET"],
       status: 405,
+    });
+    expect(matchChatAdminRoomListRoute("GET")).toEqual({
+      path: "/api/v1/admin/rooms",
+      scope: "chat:categories:manage",
+    });
+    expect(matchChatAdminRoomListRoute("POST")).toEqual({
+      allowedMethods: ["GET"],
+      status: 405,
+    });
+    expect(matchChatAdminRoomCloseRoute("POST", roomId)).toEqual({
+      path: `/api/v1/admin/rooms/${roomId}/commands/close`,
+      scope: "chat:rooms:approve",
+    });
+    expect(matchChatAdminRoomCloseRoute("GET", roomId)).toEqual({
+      allowedMethods: ["POST"],
+      status: 405,
+    });
+    expect(matchChatAdminRoomCloseRoute("POST", "room-1")).toEqual({
+      allowedMethods: [],
+      status: 404,
     });
     expect(matchChatConversationExportRoute("POST", "room-1")).toEqual({
       path: "/api/v1/admin/rooms/room-1/conversation-exports",

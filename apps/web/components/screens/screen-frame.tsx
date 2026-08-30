@@ -95,7 +95,7 @@ const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title:
     "A-RAG-004": { title: "선택 폴더에 문서 업로드" },
     "A-RAG-005": { title: "문서 준비 상태" },
     "A-RAG-006": { title: "문서 관리" },
-    "A-CHAT-001": { title: "채팅방 분석" },
+    "A-CHAT-001": { title: "채팅방 운영" },
     "A-CHAT-002": { backHref: "/admin/chat" as Route, title: "채팅방 상세" },
     "A-CHAT-004": { title: "채팅방 생성 요청" },
     "A-CHAT-005": { backHref: "/admin/chat/requests" as Route, title: "생성 요청 상세" },

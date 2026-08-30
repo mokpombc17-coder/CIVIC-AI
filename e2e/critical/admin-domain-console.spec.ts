@@ -1,13 +1,14 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { expect, test, type BrowserContext } from "@playwright/test";
 
-const WEB_BASE_URL = "https://localhost:3109";
+const WEB_BASE_URL = `https://localhost:${process.env.CIVIC_E2E_WEB_PORT ?? "3109"}`;
 const MOCK_API_HOST = "127.0.0.1";
 const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE = "civic_ai_access_token";
 const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
 const simulationId = "0fa0d1cc-182f-4270-b9aa-66195b3ed8f4";
 const policyCategoryId = "00000000-0000-0000-0000-000000000001";
+const activeRoomId = "4a52affd-77e8-4bee-86c1-8b74c2ea45ae";
 
 let server: Server;
 let chatStatus: "PENDING" | "APPROVED" = "PENDING";
@@ -18,6 +19,9 @@ let roomCategories = categoryFixtures();
 let replacedRoomBody: Record<string, unknown> | null = null;
 let removeCategoryOnNextPatch = false;
 let listedRoomQueries: string[] = [];
+let adminRooms = adminRoomFixtures();
+let closeRoomIdempotencyKey: string | null = null;
+let closeRoomBody = "";
 let createdTaskIdempotencyKey: string | null = null;
 let latestSimulationState: "RUNNING" | "COMPLETED" | null = null;
 let simulationResultQueries: string[] = [];
@@ -99,6 +103,36 @@ test.beforeAll(async () => {
         nextCursor: null,
         hasNext: false,
       });
+    }
+    if (url.pathname === "/api/v1/admin/rooms" && request.method === "GET") {
+      const query = (url.searchParams.get("query") ?? "").toLocaleLowerCase();
+      const status = url.searchParams.get("status");
+      return json(response, {
+        items: adminRooms.filter(
+          (room) =>
+            (!query || room.name.toLocaleLowerCase().includes(query)) &&
+            (!status || room.status === status),
+        ),
+        nextCursor: null,
+        hasNext: false,
+      });
+    }
+    if (
+      url.pathname === `/api/v1/admin/rooms/${activeRoomId}/commands/close` &&
+      request.method === "POST"
+    ) {
+      closeRoomIdempotencyKey = request.headers["idempotency-key"] ?? null;
+      closeRoomBody = await readTextBody(request);
+      if (!closeRoomIdempotencyKey) {
+        return json(response, { code: "INVALID_REQUEST", status: 400 }, 400);
+      }
+      adminRooms = adminRooms.map((room) =>
+        room.roomId === activeRoomId
+          ? { ...room, status: "CLOSED" as const, activeMemberCount: 0, version: room.version + 1 }
+          : room,
+      );
+      response.writeHead(204).end();
+      return;
     }
     if (
       url.pathname === "/api/v1/admin/room-creation-requests/request-1/approve" &&
@@ -183,6 +217,9 @@ test.beforeEach(() => {
   replacedRoomBody = null;
   removeCategoryOnNextPatch = false;
   listedRoomQueries = [];
+  adminRooms = adminRoomFixtures();
+  closeRoomIdempotencyKey = null;
+  closeRoomBody = "";
   createdTaskIdempotencyKey = null;
   latestSimulationState = null;
   simulationResultQueries = [];
@@ -324,6 +361,41 @@ test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 versio
   expect(replacedRoomBody).toEqual({
     categoryIds: [policyCategoryId, "category-local"],
     expectedVersion: 7,
+  });
+});
+
+test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 방을 즉시 종료한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/chat");
+
+  await expect(page.getByRole("heading", { name: "채팅방 운영" })).toBeVisible();
+  const activeRoom = page.getByRole("button", { name: /시민 정책 토론방/u });
+  await expect(activeRoom).toContainText("운영 중");
+  await expect(page.getByRole("button", { name: /지난 정책 기록방/u })).toContainText("종료");
+  await activeRoom.click();
+  await expect(page.getByRole("button", { name: "채팅방 종료" })).toBeVisible();
+
+  const confirmation = page.waitForEvent("dialog").then(async (dialog) => {
+    expect(dialog.message()).toContain("모든 사용자");
+    expect(dialog.message()).toContain("접속 중인 연결이 끊깁니다");
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "채팅방 종료" }).click();
+  await confirmation;
+
+  await expect
+    .poll(() => closeRoomIdempotencyKey, { timeout: 2_000 })
+    .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
+  expect(closeRoomBody).toBe("");
+  await expect(page.getByRole("status")).toContainText("CLOSED 상태를 확인했습니다");
+  await expect(page.getByRole("button", { name: "채팅방 종료" })).toHaveCount(0);
+  expect(adminRooms.find((room) => room.roomId === activeRoomId)).toMatchObject({
+    status: "CLOSED",
+    activeMemberCount: 0,
   });
 });
 
@@ -491,6 +563,44 @@ function chatRequest(status: "PENDING" | "APPROVED") {
     ownerMembershipVersion: status === "APPROVED" ? 0 : null,
     rejectionReason: null,
     replayed: false,
+  };
+}
+
+function adminRoomFixtures() {
+  return [
+    adminRoomFixture(activeRoomId, "시민 정책 토론방", "ACTIVE", "LISTED", 4, 7),
+    adminRoomFixture(
+      "b4ed48e4-a0b7-4338-8740-134749851318",
+      "지난 정책 기록방",
+      "CLOSED",
+      "UNLISTED",
+      0,
+      3,
+    ),
+  ];
+}
+
+function adminRoomFixture(
+  roomId: string,
+  name: string,
+  status: "ACTIVE" | "CLOSED",
+  visibility: "LISTED" | "UNLISTED",
+  activeMemberCount: number,
+  version: number,
+) {
+  return {
+    roomId,
+    name,
+    description: `${name} 설명`,
+    categoryIds: [policyCategoryId],
+    categorySummaries: [{ categoryId: policyCategoryId, name: "정책" }],
+    ownerMembershipId: `owner-${roomId}`,
+    status,
+    visibility,
+    joinPolicy: "OPEN" as const,
+    activeMemberCount,
+    createdAt: "2026-08-28T00:00:00Z",
+    version,
   };
 }
 
@@ -705,6 +815,12 @@ async function readBody(request: IncomingMessage): Promise<Record<string, unknow
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+}
+
+async function readTextBody(request: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function json(

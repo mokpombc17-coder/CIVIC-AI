@@ -126,7 +126,22 @@
   gap: 0.4rem;
 }
 
+.queryField {
+  grid-column: 1 / -1;
+}
+
+.statusField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  color: #58616a;
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
 .search input,
+.search select,
 .rangeFields input {
   width: 100%;
   min-height: 2.65rem;
@@ -199,6 +214,31 @@
   font-size: 0.78rem;
 }
 
+.roomButton .roomTitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.roomTitle strong {
+  min-width: 0;
+}
+
+.roomTitle b {
+  flex: 0 0 auto;
+  border-radius: 99rem;
+  background: #dff7e4;
+  color: #166534;
+  padding: 0.18rem 0.42rem;
+  font-size: 0.65rem;
+}
+
+.roomTitle b[data-status="CLOSED"] {
+  background: #e6e8eb;
+  color: #58616a;
+}
+
 .moreButton {
   border: 1px solid #8a949e;
   background: #fff;
@@ -255,6 +295,52 @@
   font-weight: 750;
 }
 
+.rangeForm header > span[data-status="CLOSED"] {
+  background: #e6e8eb;
+  color: #58616a;
+}
+
+.rangeForm header > span[data-status="NONE"] {
+  background: #fff7d6;
+  color: #854d0e;
+}
+
+.roomOperationBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid #efb4ac;
+  border-radius: 0.5rem;
+  background: #fff8f7;
+  padding: 0.75rem 0.85rem;
+}
+
+.roomOperationBar p {
+  margin: 0;
+  color: #72302a;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.closeRoomButton {
+  flex: 0 0 auto;
+  min-height: 2.5rem;
+  border: 1px solid #b42318;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #a63225;
+  padding: 0.55rem 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.closeRoomButton:hover:not(:disabled) {
+  background: #a63225;
+  color: #fff;
+}
+
 .rangeFields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
@@ -284,6 +370,7 @@
 .rangeFields button:disabled,
 .search button:disabled,
 .moreButton:disabled,
+.closeRoomButton:disabled,
 .exportCard button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
@@ -684,10 +771,12 @@
 }
 
 .search input:focus-visible,
+.search select:focus-visible,
 .rangeFields input:focus-visible,
 .search button:focus-visible,
 .moreButton:focus-visible,
 .roomButton:focus-visible,
+.closeRoomButton:focus-visible,
 .rangeFields button:focus-visible,
 .exportCard button:focus-visible,
 .tabs a:focus-visible {
@@ -708,6 +797,11 @@
   .roomList {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-height: 15rem;
+  }
+
+  .roomOperationBar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
