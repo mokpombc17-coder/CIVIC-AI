@@ -382,7 +382,6 @@ export function AdminRagScreen({
           <section className="wf-rag-task-card">
             <header className="wf-rag-task-heading">
               <h2>업로드한 문서</h2>
-              <p>문서가 검색과 AI 답변에 사용될 준비 상태를 확인합니다.</p>
             </header>
             <JobPanel key={jobPanelKey(queryValues(query.jobId))} query={query} />
           </section>
@@ -2579,9 +2578,11 @@ export function RagJobStatusCard({
         ) : null}
       </div>
 
-      <p aria-live="polite" className="civic-job-live-message">
-        {message}
-      </p>
+      {message ? (
+        <p aria-live="polite" className="civic-job-live-message">
+          {message}
+        </p>
+      ) : null}
 
       <div className="civic-form-actions civic-job-actions">
         <Link className="civic-secondary-action" href={workspaceHref}>
@@ -2674,7 +2675,7 @@ function JobStatusItem({
     const recoveredFilename =
       !filename && latest.status === "FAILED" ? await loadRagJobFilename(jobId) : null;
     setJob(recoveredFilename ? { ...latest, filename: recoveredFilename } : latest);
-    setMessage("최신 처리 상태를 반영했습니다.");
+    setMessage("");
   }, [filename, jobId]);
 
   useEffect(() => {

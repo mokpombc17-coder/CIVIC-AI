@@ -1408,6 +1408,8 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain(jobId);
     expect(html).not.toContain("작업 ID");
     expect(html).toContain("문서 준비 진행 상태");
+    expect(html).not.toContain("문서가 검색과 AI 답변에 사용될 준비 상태를 확인합니다");
+    expect(html).not.toContain("최신 처리 상태를 반영했습니다");
   });
 
   it("실패한 문서 처리 상태는 파일명·실패 단계·해결 행동을 한 화면에 표시한다", () => {
@@ -1422,7 +1424,7 @@ describe("9 functional RAG screens", () => {
           progress: 10,
           failure_code: "DOCUMENT_READ_FAILED",
         },
-        message: "최신 처리 상태를 반영했습니다.",
+        message: "",
         onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
@@ -1439,6 +1441,7 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("실패 파일 다시 처리");
     expect(html).toContain("업로드 취소");
     expect(html).not.toContain("상태 새로고침");
+    expect(html).not.toContain("최신 처리 상태를 반영했습니다");
     expect(html).toContain('href="/admin/rag?folderId=policy-folder"');
     expect(html).not.toContain("640af5c5-d302-4c32-97ca-c9db40ed22e5");
   });
@@ -1455,7 +1458,7 @@ describe("9 functional RAG screens", () => {
           progress: 10,
           failure_code: "DOCUMENT_READ_FAILED",
         },
-        message: "최신 처리 상태를 반영했습니다.",
+        message: "",
         onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
@@ -1478,7 +1481,7 @@ describe("9 functional RAG screens", () => {
       createElement(RagJobStatusCard, {
         filename: "재시도-대기.hwpx",
         job: retryWaitJob,
-        message: "최신 처리 상태를 반영했습니다.",
+        message: "",
         onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
