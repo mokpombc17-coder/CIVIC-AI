@@ -2698,31 +2698,14 @@ th {
   color: var(--civic-citrus);
 }
 
-.civic-pdf-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-top: 1px solid #55625e;
-  border-bottom: 1px solid #55625e;
-  padding: 0.7rem;
-}
-
-.civic-pdf-controls .civic-icon-action {
-  min-height: 2.25rem;
-  padding: 0.4rem 0.65rem;
-}
-.civic-pdf-controls a[aria-disabled="true"] {
-  pointer-events: none;
-  opacity: 0.4;
-}
-
 .civic-pdf-canvas {
   min-height: 32rem;
   overflow: auto;
   background: #363f3b;
   padding: 1rem;
+  /* Chromium serializes this equivalent pan + pinch combination as `manipulation`. */
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
 }
 
 .civic-pdf-canvas iframe {
@@ -2738,11 +2721,9 @@ th {
 
 .civic-pdf-page-list {
   display: grid;
-  width: min(var(--document-width, 100%), var(--document-max-width, 72rem));
-  max-width: none;
+  width: min(100%, 72rem);
   gap: 1rem;
   margin: 0 auto;
-  transition: width 180ms ease;
 }
 
 .civic-pdf-page {

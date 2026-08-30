@@ -129,9 +129,17 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
   await expect(page.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
   await expect(page.locator('[data-pdf-scroll-mode="continuous"]')).toHaveCount(1);
+  await expect(page.locator('[data-pdf-zoom-mode="pinch"]')).toHaveCount(1);
   await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "이전 페이지" })).toHaveCount(0);
-  await expect(page.getByText("전체 12페이지 · 인용 3페이지 · 연속 스크롤")).toBeVisible();
+  await expect(page.getByRole("group", { name: "문서 확대/축소 도구" })).toHaveCount(0);
+  await expect(page.getByText("전체 12페이지 · 인용 3페이지", { exact: true })).toBeVisible();
+  await expect(page.getByText("연속 스크롤", { exact: true })).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.locator(".civic-pdf-canvas").evaluate((canvas) => getComputedStyle(canvas).touchAction),
+    )
+    .toMatch(/pinch-zoom|manipulation/u);
   await expect(page.getByRole("img", { name: "2026 복지정책 기본계획 3페이지" })).toBeVisible();
   await expect(page.locator("iframe")).toHaveCount(0);
   await record(page, browser.version(), "chrome", testInfo.project.name);

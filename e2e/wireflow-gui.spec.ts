@@ -1208,8 +1208,12 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
     height: [63, 65],
   });
 
-  await page.locator("#rag-question").fill("복지정책 문서의 핵심 내용을 알려줘.");
-  await page.getByRole("button", { name: "질문 전송" }).click();
+  const ragQuestion = page.locator("#rag-question");
+  await ragQuestion.fill("복지정책 문서의 핵심 내용을 알려줘.");
+  await ragQuestion.press("Shift+Enter");
+  await expect(ragQuestion).toHaveValue("복지정책 문서의 핵심 내용을 알려줘.\n");
+  await ragQuestion.fill("복지정책 문서의 핵심 내용을 알려줘.");
+  await ragQuestion.press("Enter");
 
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
@@ -1296,19 +1300,23 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await expect(
     page.getByRole("region", { name: "2026 복지정책 기본계획 읽기 전용 문서" }),
   ).toBeVisible();
-  const documentViewer = page.locator('[data-document-zoom="100%"]');
+  const documentViewer = page.locator('[data-pdf-zoom-mode="pinch"]');
   await expect(documentViewer).toBeVisible();
-  await page.getByRole("button", { name: "문서 확대" }).click();
-  await expect(page.locator('[data-document-zoom="125%"]')).toBeVisible();
+  await expect(page.getByRole("group", { name: "문서 확대/축소 도구" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "문서 확대" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "문서 축소" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "화면 맞춤" })).toHaveCount(0);
+  await expect(page.getByText("전체 12페이지 · 인용 3페이지", { exact: true })).toBeVisible();
+  await expect(page.getByText("연속 스크롤", { exact: true })).toHaveCount(0);
   await expect
     .poll(() =>
-      page
-        .locator(".civic-pdf-canvas")
-        .evaluate((canvas) => canvas.scrollWidth > canvas.clientWidth),
+      page.locator(".civic-pdf-canvas").evaluate((canvas) => getComputedStyle(canvas).touchAction),
     )
-    .toBe(true);
-  await page.getByRole("button", { name: "화면 맞춤" }).click();
-  await expect(page.locator('[data-document-zoom="100%"]')).toBeVisible();
+    .toMatch(/pinch-zoom|manipulation/u);
+  await expect(page.locator('meta[name="viewport"]')).not.toHaveAttribute(
+    "content",
+    /user-scalable=no|maximum-scale=1/u,
+  );
   await expect(page.locator("a[download], [target='_blank']")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /다운로드|저장/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);

@@ -95,6 +95,7 @@ import {
   safeExternalSourceUrl,
   scrollRagMessagesToLatest,
   shouldShowRagStreamingAnswer,
+  submitRagQuestionOnEnter,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
 import * as participantRagSession from "@/components/rag/participant-rag-screen";
@@ -162,6 +163,42 @@ type RagSessionApi = Readonly<{
 const ragSessionApi = participantRagSession as unknown as RagSessionApi;
 
 describe("9 functional RAG screens", () => {
+  it("참여자 AI 입력은 Enter로 전송하고 Shift+Enter와 한글 조합 Enter는 유지한다", () => {
+    const requestSubmit = vi.fn();
+    const preventDefault = vi.fn();
+    const event = (
+      overrides: {
+        key?: string;
+        shiftKey?: boolean;
+        isComposing?: boolean;
+        keyCode?: number;
+      } = {},
+    ) =>
+      ({
+        key: overrides.key ?? "Enter",
+        shiftKey: overrides.shiftKey ?? false,
+        nativeEvent: {
+          isComposing: overrides.isComposing ?? false,
+          keyCode: overrides.keyCode ?? 13,
+        },
+        currentTarget: { form: { requestSubmit } },
+        preventDefault,
+      }) as Parameters<typeof submitRagQuestionOnEnter>[0];
+
+    submitRagQuestionOnEnter(event());
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(requestSubmit).toHaveBeenCalledOnce();
+
+    preventDefault.mockClear();
+    requestSubmit.mockClear();
+    submitRagQuestionOnEnter(event({ shiftKey: true }));
+    submitRagQuestionOnEnter(event({ isComposing: true }));
+    submitRagQuestionOnEnter(event({ keyCode: 229 }));
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(requestSubmit).not.toHaveBeenCalled();
+  });
+
   it("참여자 RAG 대화 목록은 보조기기가 새 메시지 흐름으로 인식한다", () => {
     const screen = ragScreens.find((candidate) => candidate.id === "U-RAG-001");
     expect(screen).toBeDefined();

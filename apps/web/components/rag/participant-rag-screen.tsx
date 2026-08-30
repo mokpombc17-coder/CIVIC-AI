@@ -56,6 +56,24 @@ export type RagLiveJob = Readonly<{
 
 type RagLiveJobs = Readonly<Record<string, RagLiveJob>>;
 
+type RagQuestionKeyDownEvent = Readonly<{
+  key: string;
+  shiftKey: boolean;
+  nativeEvent: Pick<globalThis.KeyboardEvent, "isComposing" | "keyCode">;
+  currentTarget: Readonly<{ form: Pick<HTMLFormElement, "requestSubmit"> | null }>;
+  preventDefault: () => void;
+}>;
+
+export function submitRagQuestionOnEnter(event: RagQuestionKeyDownEvent): void {
+  const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+  if (event.key !== "Enter" || event.shiftKey || isComposing) return;
+
+  const form = event.currentTarget.form;
+  if (!form) return;
+  event.preventDefault();
+  form.requestSubmit();
+}
+
 const QUEUED_PROGRESS: RagProgress = {
   status: "QUEUED",
   stage: "QUEUED",
@@ -491,6 +509,7 @@ function RagConversation({
             id="rag-question"
             maxLength={8000}
             onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={submitRagQuestionOnEnter}
             placeholder="문서에 대해 질문하세요…"
             rows={2}
             value={question}
