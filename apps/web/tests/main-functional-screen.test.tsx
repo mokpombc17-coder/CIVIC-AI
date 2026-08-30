@@ -433,11 +433,11 @@ describe("25 functional Main/Auth screens", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/account/profile", { cache: "no-store" });
   });
 
-  it("내 정보 관리에서는 불필요한 회원정보 설정을 편집하지 않는다", () => {
-    const profile = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
-    if (!profile) throw new Error("profile screen missing");
+  it("계정 화면에서는 불필요한 회원정보 설정을 편집하지 않는다", () => {
+    const account = mainScreens.find((screen) => screen.id === "U-ACCOUNT-001");
+    if (!account) throw new Error("account screen missing");
 
-    const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: profile }));
+    const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: account }));
 
     expect(html).not.toContain("회원정보 수정");
     expect(html).not.toContain("선호 언어");
@@ -447,10 +447,10 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("프로필 조회가 끝나기 전에는 2FA 상태를 추정해 변경할 수 없다", () => {
-    const security = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
-    if (!security) throw new Error("security screen missing");
+    const account = mainScreens.find((screen) => screen.id === "U-ACCOUNT-001");
+    if (!account) throw new Error("account screen missing");
 
-    const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: security }));
+    const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: account }));
 
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>인증 설정하기<\/button>/u);
   });
@@ -740,7 +740,18 @@ describe("25 functional Main/Auth screens", () => {
     );
   });
 
-  it("설문 문항을 Figma 입력·결과 섹션 순서로 묶고 알 수 없는 문항도 보존한다", () => {
+  it("제출한 설문은 응답 상세를 다시 조회하지 않는다", async () => {
+    const request = vi.fn<typeof fetch>(async () => Response.json({ submitted: true }));
+
+    await expect(loadVoteSurvey(request)).resolves.toMatchObject({ submitted: true });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith(
+      "/api/v1/me/surveys/current",
+      expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("설문 문항을 입력 섹션 순서로 묶고 알 수 없는 문항도 보존한다", () => {
     const questions = [
       surveyQuestion("지방정부 신뢰도", 1),
       surveyQuestion("출생연도", 2),
@@ -749,23 +760,16 @@ describe("25 functional Main/Auth screens", () => {
       surveyQuestion("새로운 설문 문항", 5),
     ];
 
-    expect(groupSurveyQuestions(questions, "input").map((section) => section.title)).toEqual([
+    expect(groupSurveyQuestions(questions).map((section) => section.title)).toEqual([
       "일반 개인정보",
       "생활 · 경제",
       "사회 · 기관 신뢰",
       "매체 이용 · 정보 습관",
       "설문 항목",
     ]);
-    expect(groupSurveyQuestions(questions, "result").map((section) => section.title)).toEqual([
-      "기본 정보",
-      "사회·경제",
-      "성향·매체",
-      "정치·기관 인식",
-      "기타 응답",
-    ]);
-    expect(
-      groupSurveyQuestions(questions, "result").flatMap((section) => section.questions),
-    ).toHaveLength(questions.length);
+    expect(groupSurveyQuestions(questions).flatMap((section) => section.questions)).toHaveLength(
+      questions.length,
+    );
   });
 
   it("Vote 조회가 응답하지 않아도 제한시간 후 로그인 기본 홈으로 이동한다", async () => {
@@ -904,9 +908,9 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-009": "인증 코드 받기",
       "AUTH-010": "계정 재활성화",
       "U-HOME-001": "질문하기",
-      "U-ACCOUNT-001": "내 정보 관리",
+      "U-ACCOUNT-001": "비밀번호 변경",
       "U-ACCOUNT-002": "비밀번호 변경",
-      "U-ACCOUNT-003": "내 설문 보기",
+      "U-ACCOUNT-003": "설문 참여",
       "U-ACCOUNT-004": "계정 비활성화",
       "A-HOME-001": "관리 현황",
       "A-USER-001": "사용자 상세",
@@ -1099,7 +1103,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("오픈 예정");
   });
 
-  it("U-ACCOUNT 화면은 최신 모바일 탭·보안 카드·비활성화 dialog 구조를 사용한다", () => {
+  it("계정 화면은 보안·비활성화·로그아웃을 한 화면에 제공하고 설문 보기를 노출하지 않는다", () => {
     const renderAccount = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -1110,11 +1114,13 @@ describe("25 functional Main/Auth screens", () => {
 
     const hub = renderAccount("U-ACCOUNT-001");
     expect(hub).toContain('data-wireflow-layout="account-hub"');
-    expect(hub).toContain('aria-label="계정 항목"');
-    expect(hub).toContain("내 정보 관리");
-    expect(hub).toContain("내 설문 보기");
-    expect(hub).toContain("가입 시 제출한 설문 응답을 확인합니다.");
-    expect(hub).not.toContain("Vote 설문");
+    expect(hub).toContain('data-wireflow-layout="account-management"');
+    expect(hub).toContain("비밀번호 변경");
+    expect(hub).toContain("2단계 인증");
+    expect(hub).toContain("계정 관리");
+    expect(hub).toContain("계정 비활성화");
+    expect(hub).not.toContain("내 정보 관리");
+    expect(hub).not.toContain("내 설문 보기");
     expect(hub).toContain("로그아웃");
 
     const management = renderAccount("U-ACCOUNT-002");
@@ -1130,6 +1136,7 @@ describe("25 functional Main/Auth screens", () => {
 
     const survey = renderAccount("U-ACCOUNT-003");
     expect(survey).toContain('data-wireflow-layout="account-survey"');
+    expect(survey).toContain("설문 참여");
     expect(survey).toContain("현재 설문을 불러오는 중입니다");
     expect(survey).not.toContain("Vote 서버");
 

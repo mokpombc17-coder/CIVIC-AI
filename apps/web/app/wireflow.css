@@ -5894,53 +5894,10 @@ body {
   display: grid;
   min-height: 100%;
   align-content: start;
-  gap: 16px;
-  padding: 16px;
-}
-
-.wf-account-hub-menu {
-  display: grid;
-  gap: 14px;
-}
-
-.wf-account-hub-card {
-  display: grid;
-  min-height: 78px;
-  gap: 5px;
-  border: 1px solid var(--wf-line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--wf-ink);
-  padding: 12px;
-  text-decoration: none;
-}
-
-.wf-account-hub-card strong {
-  color: var(--wf-blue-dark);
-  font-size: 17px;
-  font-weight: 800;
-  line-height: 24px;
-}
-
-.wf-account-hub-card span {
-  max-width: 270px;
-  color: var(--wf-muted);
-  font-size: 14px;
-  line-height: 21px;
-}
-
-.wf-account-hub-card:hover {
-  border-color: var(--wf-blue);
-  background: #f9fbff;
-}
-
-.wf-account-hub-card:focus-visible {
-  outline: 3px solid #8eb4ff;
-  outline-offset: 2px;
 }
 
 .wf-account-logout {
-  margin-top: 2px;
+  margin: 0 16px 28px;
 }
 
 .wf-account-logout .civic-auth-action button {
@@ -6090,19 +6047,6 @@ body {
   object-fit: contain;
 }
 
-.wf-account-survey-intro {
-  height: 135px;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 24px auto;
-  align-content: start;
-  min-height: 135px;
-  padding: 15px;
-}
-
-.wf-account-survey-intro > div {
-  gap: 4px;
-}
-
 .wf-account-survey-section {
   display: grid;
   gap: 8px;
@@ -6114,41 +6058,6 @@ body {
   margin: 0;
   font-size: 18px;
   line-height: 28px;
-}
-
-.wf-account-survey-section dl {
-  overflow: hidden;
-  margin: 0;
-  border: 1px solid var(--wf-line);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.wf-account-survey-section dl > div {
-  display: grid;
-  min-height: 68px;
-  align-content: center;
-  gap: 2px;
-  padding: 9px 12px;
-}
-
-.wf-account-survey-section dl > div + div {
-  border-top: 1px solid var(--wf-line);
-}
-
-.wf-account-survey-section dt {
-  color: var(--wf-muted);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
-}
-
-.wf-account-survey-section dd {
-  margin: 0;
-  color: var(--wf-ink);
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 24px;
 }
 
 .wf-vote-survey-form {
