@@ -7,6 +7,7 @@ import { sha256 as createSha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { RagFileTile, RagFolderIcon, RagTrashIcon, RagTreeChevron } from "./rag-file-icons";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import type { ScreenDefinition } from "@/lib/screens/registry";
@@ -2452,6 +2453,7 @@ function JobStatusItem({
   const [replacementJobId, setReplacementJobId] = useState<string | null>(null);
   const retryOperation = useRef(createRetryOperation());
   const cancellationOperation = useRef(createRetryOperation());
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [message, setMessage] = useState("문서 처리 상태를 불러오는 중입니다…");
@@ -2514,13 +2516,14 @@ function JobStatusItem({
 
   async function cancelUpload() {
     if (!job?.document_id || !job.upload_cancel_allowed || job.status !== "FAILED" || cancelling) {
-      return;
-    }
-    if (!window.confirm("실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?")) {
+      setCancelDialogOpen(false);
       return;
     }
     const idempotencyKey = cancellationOperation.current.begin(job.job_id);
-    if (!idempotencyKey) return;
+    if (!idempotencyKey) {
+      setCancelDialogOpen(false);
+      return;
+    }
     setCancelling(true);
     setMessage("업로드를 취소하고 문서를 정리하는 중입니다…");
     let definitiveResponse = false;
@@ -2545,24 +2548,39 @@ function JobStatusItem({
     } finally {
       cancellationOperation.current.settle(definitiveResponse);
       setCancelling(false);
+      setCancelDialogOpen(false);
     }
   }
 
   return (
-    <RagJobStatusCard
-      cancelling={cancelling}
-      headingId={headingId}
-      job={job}
-      message={message}
-      onCancelUpload={() => void cancelUpload()}
-      onRetry={() => void retry()}
-      retrying={retrying}
-      workspaceHref={ragWorkspaceHref(folderId)}
-      {...(filename ? { filename } : {})}
-      {...(replacementJobId
-        ? { replacementHref: ragJobHref(replacementJobId, folderId, filename) }
-        : {})}
-    />
+    <>
+      <RagJobStatusCard
+        cancelling={cancelling}
+        headingId={headingId}
+        job={job}
+        message={message}
+        onCancelUpload={() => setCancelDialogOpen(true)}
+        onRetry={() => void retry()}
+        retrying={retrying}
+        workspaceHref={ragWorkspaceHref(folderId)}
+        {...(filename ? { filename } : {})}
+        {...(replacementJobId
+          ? { replacementHref: ragJobHref(replacementJobId, folderId, filename) }
+          : {})}
+      />
+      <ConfirmDialog
+        busy={cancelling}
+        busyLabel="취소 중…"
+        cancelLabel="돌아가기"
+        confirmLabel="업로드 취소"
+        description="실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다."
+        destructive
+        onCancel={() => setCancelDialogOpen(false)}
+        onConfirm={() => void cancelUpload()}
+        open={cancelDialogOpen}
+        title="업로드를 취소할까요?"
+      />
+    </>
   );
 }
 

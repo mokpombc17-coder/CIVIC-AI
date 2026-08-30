@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import type { Folder } from "./admin-rag-screen";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 
@@ -90,6 +91,8 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
   const [runs, setRuns] = useState<Readonly<Record<string, CrawlRun | undefined>>>({});
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<CrawlSource>();
+  const [sourceToRemove, setSourceToRemove] = useState<CrawlSource>();
+  const [removingSource, setRemovingSource] = useState(false);
   const [message, setMessage] = useState("");
   const [previewCookies, setPreviewCookies] = useState("");
   const [previewAuthorization, setPreviewAuthorization] = useState("");
@@ -183,18 +186,30 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
     setMessage("수집 중단을 요청했습니다.");
   }
 
-  async function remove(source: CrawlSource) {
-    if (!window.confirm(`${source.name} 수집 설정을 삭제할까요?`)) return;
-    const response = await authenticatedFetch(
-      `/api/v1/rag/crawler/sources/${encodeURIComponent(source.source_id)}`,
-      { method: "DELETE" },
-    );
-    if (!response.ok) {
-      setMessage("수집 설정을 삭제하지 못했습니다.");
+  async function remove() {
+    const source = sourceToRemove;
+    if (!source || removingSource) {
+      setSourceToRemove(undefined);
       return;
     }
-    setMessage("수집 설정을 삭제했습니다.");
-    await refresh();
+    setRemovingSource(true);
+    try {
+      const response = await authenticatedFetch(
+        `/api/v1/rag/crawler/sources/${encodeURIComponent(source.source_id)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        setMessage("수집 설정을 삭제하지 못했습니다.");
+        return;
+      }
+      setMessage("수집 설정을 삭제했습니다.");
+      await refresh();
+    } catch {
+      setMessage("네트워크 오류로 수집 설정을 삭제하지 못했습니다.");
+    } finally {
+      setRemovingSource(false);
+      setSourceToRemove(undefined);
+    }
   }
 
   async function checkAuthenticatedPreview() {
@@ -458,7 +473,11 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
                             지금 수집
                           </button>
                         )}
-                        <button className="is-danger" onClick={() => remove(source)} type="button">
+                        <button
+                          className="is-danger"
+                          onClick={() => setSourceToRemove(source)}
+                          type="button"
+                        >
                           삭제
                         </button>
                       </td>
@@ -473,6 +492,18 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
         )}
         {message ? <p aria-live="polite">{message}</p> : null}
       </div>
+      <ConfirmDialog
+        busy={removingSource}
+        busyLabel="삭제 중…"
+        cancelLabel="유지"
+        confirmLabel="수집 설정 삭제"
+        description={`‘${sourceToRemove?.name ?? ""}’ 수집 설정을 삭제합니다. 삭제 후에는 되돌릴 수 없습니다.`}
+        destructive
+        onCancel={() => setSourceToRemove(undefined)}
+        onConfirm={() => void remove()}
+        open={sourceToRemove !== undefined}
+        title="수집 설정을 삭제할까요?"
+      />
     </details>
   );
 }
