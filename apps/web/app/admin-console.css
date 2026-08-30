@@ -438,3 +438,26 @@
 .civic-admin-metric-link:hover strong {
   color: var(--wf-blue-dark);
 }
+
+/* ---- Admin home action columns ---- */
+
+.civic-home-columns {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .civic-home-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.civic-home-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}

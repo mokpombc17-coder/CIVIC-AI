@@ -9,8 +9,16 @@ import type { ScreenDefinition } from "@/lib/screens/registry";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import {
   readRoomCreationRequestPage,
+  readTaskSummaries,
   type RoomCreationRequest,
 } from "@/lib/admin/domain-contracts";
+import {
+  readSimulationTaskSummaries,
+  simulationTargetHref,
+  simulationTargetPresentation,
+} from "@/lib/admin/simulation-contracts";
+import { auditRowFromEvent, type AuditRow } from "@/components/admin/admin-user-workspace";
+import { requestAdminAudit } from "@/lib/admin/user-admin";
 import { readWalletSummary, type WalletSummary } from "@/lib/admin/simulation-billing-contracts";
 import { formatAdminDate } from "@/lib/admin/user-admin";
 import { ScreenFrame } from "./screen-frame";
@@ -74,6 +82,28 @@ export type ChatRequestSummaryState =
     }
   | { status: "unavailable" }
   | { status: "forbidden" };
+export type HomeTaskDeadline = Readonly<{ taskId: string; title: string; closesAt: string }>;
+export type HomeTaskActivityState = Readonly<{
+  active: AdminDomainMetricState;
+  dueSoon: AdminDomainMetricState;
+  dueSoonItems: readonly HomeTaskDeadline[];
+}>;
+export type HomeAttentionSimulation = Readonly<{
+  taskId: string;
+  title: string;
+  stateLabel: string;
+  href: string;
+}>;
+export type HomeAttentionSimulationState =
+  | { status: "loading" }
+  | { status: "ready"; items: readonly HomeAttentionSimulation[] }
+  | { status: "unavailable" }
+  | { status: "forbidden" };
+export type HomeRecentAuditState =
+  | { status: "loading" }
+  | { status: "ready"; rows: readonly AuditRow[] }
+  | { status: "hidden" };
+
 export type SimulationWalletMetricState =
   | { status: "loading" }
   | { status: "ready"; wallet: WalletSummary }
@@ -100,6 +130,14 @@ export function AdminFunctionalScreen({
   const [activeRoomSummary, setActiveRoomSummary] = useState<AdminDomainMetricState>({
     status: adminCurrentUser.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
   });
+  const [dueSoonTasks, setDueSoonTasks] = useState<readonly HomeTaskDeadline[]>([]);
+  const [attentionSimulations, setAttentionSimulations] =
+    useState<HomeAttentionSimulationState>({
+      status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
+    });
+  const [recentAudit, setRecentAudit] = useState<HomeRecentAuditState>({
+    status: adminCurrentUser.role === "HIGHEST_ADMIN" ? "loading" : "hidden",
+  });
   const [simulationWalletSummary, setSimulationWalletSummary] =
     useState<SimulationWalletMetricState>({
       status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
@@ -115,13 +153,16 @@ export function AdminFunctionalScreen({
     if (canManageChat) void loadChatRequestSummary().then(setChatRequestSummary);
     if (canManageChat) void loadActiveRoomSummary().then(setActiveRoomSummary);
     if (canManageVote) {
-      void loadTaskActivitySummary().then(({ active, dueSoon }) => {
+      void loadTaskActivitySummary().then(({ active, dueSoon, dueSoonItems }) => {
         setActiveTaskSummary(active);
         setDueSoonTaskSummary(dueSoon);
+        setDueSoonTasks(dueSoonItems);
       });
     }
+    if (canManageSimulation) void loadAttentionSimulations().then(setAttentionSimulations);
+    if (adminCurrentUser.role === "HIGHEST_ADMIN") void loadRecentAudit().then(setRecentAudit);
     if (canManageSimulation) void loadSimulationWalletSummary().then(setSimulationWalletSummary);
-  }, [canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
+  }, [adminCurrentUser.role, canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
 
   if (screen.id.startsWith("A-USER")) {
     return (
@@ -137,11 +178,14 @@ export function AdminFunctionalScreen({
         <AdminHome
           activeRoomSummary={activeRoomSummary}
           activeTaskSummary={activeTaskSummary}
+          attentionSimulations={attentionSimulations}
           canManageSimulation={canManageSimulation}
           canReadRag={canReadRag}
           chatRequestSummary={chatRequestSummary}
           dueSoonTaskSummary={dueSoonTaskSummary}
+          dueSoonTasks={dueSoonTasks}
           ragJobSummary={ragJobSummary}
+          recentAudit={recentAudit}
           simulationWalletSummary={simulationWalletSummary}
         />
       ) : null}
@@ -152,22 +196,31 @@ export function AdminFunctionalScreen({
 export function AdminHome({
   activeRoomSummary,
   activeTaskSummary,
+  attentionSimulations,
   canManageSimulation,
   canReadRag,
   ragJobSummary,
   chatRequestSummary,
   dueSoonTaskSummary,
+  dueSoonTasks,
+  recentAudit,
   simulationWalletSummary,
 }: {
   activeRoomSummary: AdminDomainMetricState;
   activeTaskSummary: AdminDomainMetricState;
+  attentionSimulations: HomeAttentionSimulationState;
   canManageSimulation: boolean;
   canReadRag: boolean;
   ragJobSummary: RagJobSummaryState;
   chatRequestSummary: ChatRequestSummaryState;
   dueSoonTaskSummary: AdminDomainMetricState;
+  dueSoonTasks: readonly HomeTaskDeadline[];
+  recentAudit: HomeRecentAuditState;
   simulationWalletSummary: SimulationWalletMetricState;
 }) {
+  const failures = ragJobSummary.status === "ready" ? ragJobSummary.recentFailures : [];
+  const attentionItems = attentionSimulations.status === "ready" ? attentionSimulations.items : [];
+  const auditRows = recentAudit.status === "ready" ? recentAudit.rows : [];
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
       <ul aria-label="관리 현황" className="civic-admin-metrics">
@@ -202,8 +255,83 @@ export function AdminHome({
           ) : null}
         </HomeMetric>
       </ul>
-      <AdminPendingChatRequests state={chatRequestSummary} />
-      <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
+      <div className="civic-home-columns">
+        <div className="civic-home-column">
+          <AdminPendingChatRequests state={chatRequestSummary} />
+          {dueSoonTasks.length > 0 ? (
+            <section aria-label="마감 임박 과업" className="console-section">
+              <h4>마감 임박 과업</h4>
+              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
+                {dueSoonTasks.map((task) => (
+                  <li className="console-metric" key={task.taskId}>
+                    <small>마감 {formatAdminDate(task.closesAt)}</small>
+                    <strong>{task.title}</strong>
+                    <span>
+                      <Link href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}>
+                        과업 보기
+                      </Link>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {failures.length > 0 ? (
+            <section aria-label="처리 실패 문서" className="console-section">
+              <h4>처리 실패 문서</h4>
+              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
+                {failures.slice(0, 3).map((failure) => (
+                  <li className="console-metric" key={failure.jobId}>
+                    <small>{ragFailureLabel(failure.failureCode)}</small>
+                    <strong>{failure.filename}</strong>
+                    <span>
+                      <Link href={ragFailureRetryHref(failure)}>재시도</Link>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+        <div className="civic-home-column">
+          {attentionItems.length > 0 ? (
+            <section aria-label="확인 필요 시뮬레이션" className="console-section">
+              <h4>확인 필요 시뮬레이션</h4>
+              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
+                {attentionItems.map((item) => (
+                  <li className="console-metric" key={item.taskId}>
+                    <small>{item.stateLabel}</small>
+                    <strong>{item.title}</strong>
+                    <span>
+                      <Link href={item.href as Route}>상태 확인</Link>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          <AdminCurrentOperations
+            canManageSimulation={canManageSimulation}
+            canReadRag={canReadRag}
+          />
+          {auditRows.length > 0 ? (
+            <section aria-label="최근 권한 변경" className="console-section">
+              <h4>최근 권한 변경</h4>
+              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
+                {auditRows.map((row) => (
+                  <li className="console-metric" key={row.eventId}>
+                    <small>{row.occurredLabel}</small>
+                    <strong>
+                      {row.subjectLabel} · {row.eventLabel}
+                    </strong>
+                    <span>{row.afterLabel}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -457,40 +585,88 @@ export async function loadActiveTaskSummary(
 export async function loadTaskActivitySummary(
   request: typeof fetch = authenticatedFetch,
   now = Date.now(),
-): Promise<Readonly<{ active: AdminDomainMetricState; dueSoon: AdminDomainMetricState }>> {
+): Promise<HomeTaskActivityState> {
+  const unavailable: HomeTaskActivityState = {
+    active: { status: "unavailable" },
+    dueSoon: { status: "unavailable" },
+    dueSoonItems: [],
+  };
   try {
     const response = await request("/api/v1/admin/tasks", { cache: "no-store" });
-    if (!response.ok) {
-      return { active: { status: "unavailable" }, dueSoon: { status: "unavailable" } };
-    }
-    const value = await response.json();
-    if (!Array.isArray(value)) {
-      return { active: { status: "unavailable" }, dueSoon: { status: "unavailable" } };
-    }
+    if (!response.ok) return unavailable;
+    const tasks = readTaskSummaries(await response.json());
+    if (!tasks) return unavailable;
     const deadline = now + 24 * 60 * 60 * 1_000;
-    let active = 0;
-    let dueSoon = 0;
-    for (const item of value) {
-      if (!item || typeof item !== "object") continue;
-      const record = item as Record<string, unknown>;
-      if (record.status !== "OPEN") continue;
-      active += 1;
-      const schedule =
-        record.schedule && typeof record.schedule === "object"
-          ? (record.schedule as Record<string, unknown>)
-          : null;
-      const closesAt = typeof schedule?.closesAt === "string" ? schedule.closesAt : null;
-      if (closesAt === null) continue;
+    const open = tasks.filter((task) => task.status === "OPEN");
+    const dueSoonItems = open
+      .flatMap((task) => {
+        const closesAt = task.schedule?.closesAt;
+        if (!closesAt) return [];
+        const timestamp = Date.parse(closesAt);
+        if (!Number.isFinite(timestamp) || timestamp <= now || timestamp > deadline) return [];
+        return [{ taskId: task.taskId, title: task.title, closesAt }];
+      })
+      .toSorted((left, right) => left.closesAt.localeCompare(right.closesAt))
+      .slice(0, 3);
+    const dueSoonCount = open.filter((task) => {
+      const closesAt = task.schedule?.closesAt;
+      if (!closesAt) return false;
       const timestamp = Date.parse(closesAt);
-      if (Number.isFinite(timestamp) && timestamp > now && timestamp <= deadline) dueSoon += 1;
-    }
+      return Number.isFinite(timestamp) && timestamp > now && timestamp <= deadline;
+    }).length;
     return {
-      active: { status: "ready", count: active, hasMore: false },
-      dueSoon: { status: "ready", count: dueSoon, hasMore: false },
+      active: { status: "ready", count: open.length, hasMore: false },
+      dueSoon: { status: "ready", count: dueSoonCount, hasMore: false },
+      dueSoonItems,
     };
   } catch {
-    return { active: { status: "unavailable" }, dueSoon: { status: "unavailable" } };
+    return unavailable;
   }
+}
+
+export async function loadAttentionSimulations(
+  request: typeof fetch = authenticatedFetch,
+): Promise<HomeAttentionSimulationState> {
+  try {
+    const response = await request("/api/v1/admin/simulation-tasks", { cache: "no-store" });
+    if (response.status === 401 || response.status === 403) return { status: "forbidden" };
+    if (!response.ok) return { status: "unavailable" };
+    const tasks = readSimulationTaskSummaries(await response.json());
+    if (!tasks) return { status: "unavailable" };
+    const items = tasks
+      .flatMap((task): readonly HomeAttentionSimulation[] => {
+        const latest = task.latestSimulation;
+        if (!latest) return [];
+        const presentation = simulationTargetPresentation(latest.state);
+        if (presentation.tone !== "attention") return [];
+        return [
+          {
+            taskId: task.taskId,
+            title: task.title,
+            stateLabel: presentation.label,
+            href: simulationTargetHref(task.taskId, latest),
+          },
+        ];
+      })
+      .slice(0, 3);
+    return { status: "ready", items };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export async function loadRecentAudit(
+  request: typeof fetch = authenticatedFetch,
+): Promise<HomeRecentAuditState> {
+  const events = await requestAdminAudit(undefined, request);
+  if (events === null) return { status: "hidden" };
+  const recent = events.slice(0, 3);
+  const labels =
+    (await requestAdminUserLabels(
+      recent.flatMap((event) => [event.actor_id, event.subject_id].filter(Boolean) as string[]),
+      request,
+    )) ?? new Map<string, string>();
+  return { status: "ready", rows: recent.map((event) => auditRowFromEvent(event, labels)) };
 }
 
 export async function loadActiveRoomSummary(

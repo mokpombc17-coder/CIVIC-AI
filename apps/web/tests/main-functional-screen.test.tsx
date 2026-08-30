@@ -1227,11 +1227,22 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("오픈 예정");
   });
 
-  it("관리자 홈은 문서 실패 상세를 나열하지 않고 지표 카드로만 안내한다", () => {
+  it("관리자 홈은 처리할 일을 차분한 목록으로 모아 보여준다", () => {
     const html = renderToStaticMarkup(
       createElement(AdminHome, {
         activeRoomSummary: { status: "ready", count: 2, hasMore: false },
         activeTaskSummary: { status: "ready", count: 1, hasMore: false },
+        attentionSimulations: {
+          status: "ready",
+          items: [
+            {
+              taskId: "task-1",
+              title: "교통 정책 과업",
+              stateLabel: "확인 필요",
+              href: "/admin/simulations/status?simulationId=sim-1",
+            },
+          ],
+        },
         canManageSimulation: false,
         canReadRag: true,
         chatRequestSummary: {
@@ -1241,7 +1252,10 @@ describe("25 functional Main/Auth screens", () => {
           items: [],
           labels: new Map(),
         },
-        dueSoonTaskSummary: { status: "ready", count: 0, hasMore: false },
+        dueSoonTaskSummary: { status: "ready", count: 1, hasMore: false },
+        dueSoonTasks: [
+          { taskId: "task-2", title: "복지 과업", closesAt: "2026-08-31T10:00:00Z" },
+        ],
         ragJobSummary: {
           status: "ready",
           failed: 1,
@@ -1256,14 +1270,37 @@ describe("25 functional Main/Auth screens", () => {
             },
           ],
         },
+        recentAudit: {
+          status: "ready",
+          rows: [
+            {
+              eventId: "audit-1",
+              eventLabel: "관리자 역할 변경",
+              actorLabel: "admin@example.com",
+              subjectLabel: "citizen@example.com",
+              subjectId: "user-1",
+              beforeLabel: "사용자",
+              afterLabel: "운영 관리자",
+              reason: "담당 지정",
+              occurredLabel: "26. 8. 12.",
+            },
+          ],
+        },
         simulationWalletSummary: { status: "forbidden" },
       }),
     );
 
+    // 강조 색의 옛 실패 섹션 대신 차분한 목록으로 안내한다.
     expect(html).not.toContain("확인이 필요한 문서");
-    expect(html).not.toContain("확인문서.pdf");
-    expect(html).toContain("문서 처리 실패");
-    expect(html).toContain("처리 중 3건");
+    expect(html).not.toContain("civic-rag-failure-summary");
+    expect(html).toContain("처리 실패 문서");
+    expect(html).toContain("확인문서.pdf");
+    expect(html).toContain("마감 임박 과업");
+    expect(html).toContain("복지 과업");
+    expect(html).toContain("확인 필요 시뮬레이션");
+    expect(html).toContain("교통 정책 과업");
+    expect(html).toContain("최근 권한 변경");
+    expect(html).toContain("citizen@example.com · 관리자 역할 변경");
   });
 
   it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {
