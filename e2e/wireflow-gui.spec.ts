@@ -932,12 +932,13 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
     x: [238, 242],
     y: [0, 0],
     width: [1198, 1202],
-    height: [78, 82],
+    height: [63, 65],
   });
   await expectBox(page.locator('[data-wireflow-layout="rag-workspace"]'), {
-    x: [262, 274],
-    y: [118, 130],
-    width: [1132, 1154],
+    x: [239, 241],
+    y: [63, 65],
+    width: [1199, 1201],
+    height: [835, 837],
   });
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toHaveCSS(
     "grid-template-columns",
@@ -956,6 +957,16 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
   await expect(page.locator(".civic-document-inspector")).toHaveCount(0);
   const inlineUpload = page.locator("[data-rag-inline-upload]");
   await expect(inlineUpload).not.toHaveAttribute("open", "");
+  const documentRowsScroller = page.locator(".civic-document-ledger > .civic-table-scroll");
+  await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toHaveCSS(
+    "overflow",
+    "hidden",
+  );
+  await expect(documentRowsScroller).toHaveCSS("overflow-y", "auto");
+  await expect(page.locator(".civic-folder-tree ul")).toHaveCSS("overflow", "visible");
+  expect(
+    await page.evaluate(() => document.body.scrollHeight > document.body.clientHeight + 1),
+  ).toBe(false);
 
   const documentRow = page.getByRole("row", { name: /2026_복지정책_기본계획\.pdf/u });
   await expect(documentRow.getByRole("button", { name: "미리보기" })).toBeVisible();

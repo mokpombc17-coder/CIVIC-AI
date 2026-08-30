@@ -10,9 +10,24 @@
   --console-gutter: 32px;
   --console-list-min: 280px;
   --console-detail-min: 420px;
-  --console-header-offset: 150px; /* wf-screen-heading(80px) + 상단 여백 기준 */
+  --console-header-offset: 126px; /* 공통 관리자 헤더(64px) + 화면 내부 여백 기준 */
+  --console-pane-header-height: 72px;
   --console-table-offset: 320px;
   --console-stack-gap: 24px; /* 카드(섹션) 컨테이너 사이 수직 리듬 */
+}
+
+/* ---- Compact, consistent administrator page heading ---- */
+
+[data-wireflow-shell="admin"] [data-wireflow-screen] > .wf-screen-heading,
+[data-wireflow-shell="admin"] [data-wireflow-screen^="A-RAG"] > .wf-screen-heading {
+  box-sizing: border-box;
+  min-height: 64px;
+  padding: 12px 24px;
+}
+
+[data-wireflow-shell="admin"] [data-wireflow-screen] > .wf-screen-heading h1 {
+  font-size: 21px;
+  line-height: 1.25;
 }
 
 /* 카드 스택 리듬 통일: 큰 섹션 카드들이 서로 딱 붙어 보이지 않게
@@ -80,6 +95,8 @@
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+  box-sizing: border-box;
+  min-height: var(--console-pane-header-height);
   padding: 12px 16px;
   border-bottom: 1px solid var(--wf-line);
 }
@@ -104,7 +121,9 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1 1 auto;
   padding: 16px;
+  min-height: 0;
   min-width: 0;
 }
 
@@ -375,11 +394,37 @@
 }
 
 @media (min-width: 1101px) {
+  /* 화면별 높이 계산 대신 ScreenFrame의 남은 행을 작업공간이 정확히 채운다. */
+  [data-wireflow-screen]:has(
+    > [data-chat-operations-layout] > [data-wireflow-layout="admin-chat-insights-console"]
+  ),
+  [data-wireflow-screen]:has(> [data-wireflow-layout="admin-task-console"]),
+  [data-wireflow-screen]:has(> [data-wireflow-layout="rag-workspace"]) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-chat-operations-layout]:has(> [data-wireflow-layout="admin-chat-insights-console"]) {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
   :is(
     [data-wireflow-layout="admin-task-console"],
-    [data-wireflow-layout="admin-chat-insights-console"]
+    [data-wireflow-layout="admin-chat-insights-console"],
+    [data-wireflow-layout="room-category-admin-console"]
   ) {
-    min-height: calc(100dvh - var(--console-header-offset));
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+  }
+
+  [data-wireflow-screen] > [data-wireflow-layout="admin-task-console"],
+  [data-wireflow-screen] > [data-wireflow-layout="rag-workspace"] {
+    flex: 1 1 auto;
   }
 }
 
@@ -442,12 +487,42 @@
 
 @media (min-width: 1101px) {
   .console-workspace:not(.is-single) > .console-pane {
+    height: 100%;
     max-height: calc(100dvh - var(--console-header-offset));
+  }
+
+  .console-workspace:is(
+      [data-wireflow-layout="admin-task-console"],
+      [data-wireflow-layout="admin-chat-insights-console"]
+    )
+    > .console-pane {
+    max-height: none;
   }
 
   .console-workspace:not(.is-single) > .console-pane > .console-pane-body {
     overflow-y: auto;
     min-height: 0;
+  }
+
+  [data-wireflow-layout="admin-chat-insights-console"]
+    > .console-pane:first-child
+    > .console-pane-body {
+    overflow: hidden;
+  }
+
+  [data-wireflow-layout="admin-chat-insights-console"] > .console-pane:last-child {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-wireflow-layout="admin-chat-insights-console"] > .console-pane:last-child > .console-tabs {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    min-height: var(--console-pane-header-height);
+    flex: 0 0 var(--console-pane-header-height);
+    align-items: flex-end;
+    background: #fff;
   }
 }
 
@@ -784,4 +859,207 @@
 .console-search-control > button.console-search-button:disabled {
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+/* ---- Operations tables and compact edit surfaces ---- */
+
+.civic-simulation-state-cell {
+  display: inline-flex;
+  width: 76px;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.civic-simulation-state-cell > .console-badge {
+  width: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.console-grid .civic-grid-row-action {
+  min-height: 28px;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.console-grid .civic-grid-row-actions {
+  height: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+[data-wireflow-layout="room-category-admin-console"] {
+  grid-template-columns: minmax(320px, 0.9fr) minmax(520px, 1.4fr);
+}
+
+[data-wireflow-layout="room-category-admin-console"] .civic-category-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor > header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor-form.civic-domain-action-panel {
+  gap: 16px;
+  padding: 16px;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor-actions {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-domain-action-panel .civic-category-selector-fieldset {
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-domain-action-panel
+  .civic-category-selector-fieldset
+  > legend {
+  margin-left: 12px;
+  padding: 0 5px;
+}
+
+[data-wireflow-shell="admin"] .civic-category-selector {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--wf-line);
+}
+
+[data-wireflow-shell="admin"] .civic-category-selector > label {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--wf-line);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-category-selector > label:last-of-type {
+  border-bottom: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-domain-action-panel .civic-category-selector-fieldset > small {
+  display: block;
+  padding: 8px 12px;
+  border-top: 1px solid var(--wf-line);
+  color: var(--wf-muted);
+}
+
+/* ---- RAG: keep the page fixed and scroll only the document rows ---- */
+
+@media (min-width: 1101px) {
+  [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-folder-tree ul {
+    max-height: none;
+    overflow: visible;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-document-ledger {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-document-ledger > .civic-table-scroll {
+    align-self: start;
+    min-height: 0;
+    max-height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-document-ledger > .civic-admin-empty {
+    align-self: start;
+  }
+}
+
+.civic-upload-batch-progress,
+.civic-job-batch-navigation {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--wf-line);
+  border-radius: 7px;
+  background: var(--wf-surface-soft, #f7f9fc);
+  padding: 10px 12px;
+}
+
+.civic-upload-batch-progress > b,
+.civic-job-batch-navigation > strong {
+  color: var(--wf-blue-dark);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.civic-job-batch-navigation {
+  justify-content: flex-end;
+}
+
+.civic-job-batch-navigation > button {
+  min-height: 34px;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 6px;
+  background: #fff;
+  padding: 6px 10px;
+  color: var(--wf-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.civic-job-batch-navigation > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 1100px) {
+  [data-wireflow-layout="room-category-admin-console"] {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    max-height: none;
+  }
 }

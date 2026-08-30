@@ -3,10 +3,18 @@
    좌우 패널의 16px 거터는 admin-console.css의 .console-pane-body(16px)와 맞춘다. */
 
 .analysisPanel {
-  display: grid;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
   gap: 1rem;
   min-width: 0;
-  padding: 0 16px;
+  padding: 0 16px 16px;
+}
+
+.analysisPanel > :global(.console-tabs) {
+  width: auto;
+  margin-inline: -16px;
+  padding-inline: 16px;
 }
 
 /* ---- 안내·오류 메시지 ---- */

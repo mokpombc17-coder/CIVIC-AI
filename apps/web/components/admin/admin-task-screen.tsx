@@ -1016,8 +1016,8 @@ function lifecycleRequest(
   return { path: `${base}/${action}`, method: "POST", body: { reason } };
 }
 
-function lifecycleActions(status: TaskStatus): readonly LifecycleAction[] {
-  if (status === "DRAFT") return ["schedule", "open-now", "cancel"];
+export function lifecycleActions(status: TaskStatus): readonly LifecycleAction[] {
+  if (status === "DRAFT") return ["open-now", "schedule", "cancel"];
   if (status === "SCHEDULED") return ["reschedule", "start-now", "cancel"];
   if (status === "OPEN") return ["deadline", "cancel"];
   return [];

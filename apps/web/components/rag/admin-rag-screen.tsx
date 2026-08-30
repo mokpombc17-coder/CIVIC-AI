@@ -514,7 +514,7 @@ export function ragJobSummaryMetrics(
       : "문서 처리 현황을 불러오지 못했습니다";
   return [
     {
-      label: "전체 문서",
+      label: "문서 수",
       value: `${totalDocuments.toLocaleString("ko-KR")}개`,
       description: "현재 목록 기준",
     },
@@ -2044,6 +2044,9 @@ function UploadPanel({
   const documentId = firstQueryValue(query.documentId);
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [activeUpload, setActiveUpload] = useState<
+    Readonly<{ filename: string; index: number; total: number }> | undefined
+  >();
   const [uploadProgress, setUploadProgress] = useState<ReadonlyMap<File, string>>(() => new Map());
   const [acceptedJobs, setAcceptedJobs] = useState<Array<{ filename: string; jobId: string }>>([]);
   const [pendingConflicts, setPendingConflicts] = useState<PendingRagUploadConflict[]>([]);
@@ -2115,9 +2118,14 @@ function UploadPanel({
       return;
     }
     setBusy(true);
-    const results = await mapSettledWithConcurrency(files, 2, (file) => uploadFile(file));
+    const uploadBatch = [...files];
+    const results = await mapSettledWithConcurrency(uploadBatch, 1, (file, index) => {
+      setActiveUpload({ filename: file.name, index: index + 1, total: uploadBatch.length });
+      onMessage(`${file.name}: ${index + 1}/${uploadBatch.length} 업로드를 시작합니다.`);
+      return uploadFile(file);
+    });
     const conflicts = results.flatMap((result, index) => {
-      const file = files[index];
+      const file = uploadBatch[index];
       const resolution =
         result.status === "rejected" ? readRagUploadDuplicateResolution(result.reason) : undefined;
       return file && resolution ? [{ file, resolution }] : [];
@@ -2126,7 +2134,7 @@ function UploadPanel({
       if (result.status !== "rejected" || readRagUploadDuplicateResolution(result.reason)) {
         return [];
       }
-      return [ragUploadFailureMessage(files[index]?.name ?? "선택한 파일", result.reason)];
+      return [ragUploadFailureMessage(uploadBatch[index]?.name ?? "선택한 파일", result.reason)];
     });
     const rejected = results.filter((result) => result.status === "rejected").length;
     const acceptedNow = results.flatMap((result) =>
@@ -2134,7 +2142,7 @@ function UploadPanel({
     );
     setPendingConflicts(conflicts);
     setAcceptedJobs((current) => [...current, ...acceptedNow]);
-    setFiles(rejectedInputs(files, results));
+    setFiles(rejectedInputs(uploadBatch, results));
     const messages = [
       ...(conflicts.length > 0
         ? [`${conflicts.length}개 파일은 기존 문서 처리 방법을 확인해 주세요.`]
@@ -2146,6 +2154,7 @@ function UploadPanel({
     ];
     onMessage(messages.join(" "));
     if (acceptedNow.length > 0) onAccepted?.();
+    setActiveUpload(undefined);
     setBusy(false);
     if (rejected === 0 && acceptedNow.length > 0) {
       router.push(ragJobsHref(acceptedNow, folder.folder_id));
@@ -2236,17 +2245,11 @@ function UploadPanel({
         onDrop={(event) => {
           if (!canSelectUploadFiles(busy)) return;
           event.preventDefault();
-          completionRecoveries.current.clear();
-          initiationKeys.current.clear();
-          conflictRetryKeys.current.clear();
-          setPendingConflicts([]);
-          const accepted = acceptRagUploadFiles(
-            Array.from(event.dataTransfer.files),
-            mode === "NEW_DOCUMENT",
-          );
-          setFiles(accepted);
+          const selected = Array.from(event.dataTransfer.files);
+          const accepted = acceptRagUploadFiles(selected, mode === "NEW_DOCUMENT");
+          setFiles((current) => appendRagUploadFiles(current, selected, mode === "NEW_DOCUMENT"));
           if (accepted.length !== event.dataTransfer.files.length) {
-            onMessage(ragUploadExclusionMessage(Array.from(event.dataTransfer.files)));
+            onMessage(ragUploadExclusionMessage(selected));
           }
         }}
       >
@@ -2258,13 +2261,9 @@ function UploadPanel({
           multiple={mode === "NEW_DOCUMENT"}
           onChange={(event) => {
             if (!canSelectUploadFiles(busy)) return;
-            completionRecoveries.current.clear();
-            initiationKeys.current.clear();
-            conflictRetryKeys.current.clear();
-            setPendingConflicts([]);
             const selected = Array.from(event.target.files ?? []);
             const accepted = acceptRagUploadFiles(selected, mode === "NEW_DOCUMENT");
-            setFiles(accepted);
+            setFiles((current) => appendRagUploadFiles(current, selected, mode === "NEW_DOCUMENT"));
             if (accepted.length !== selected.length) {
               onMessage(ragUploadExclusionMessage(selected));
             }
@@ -2276,6 +2275,17 @@ function UploadPanel({
           파일 찾아보기
         </span>
       </label>
+      {activeUpload ? (
+        <div aria-live="polite" className="civic-upload-batch-progress">
+          <span className="civic-doc-cell">
+            <RagFileTile filename={activeUpload.filename} />
+            <strong>{activeUpload.filename}</strong>
+          </span>
+          <b>
+            {activeUpload.index}/{activeUpload.total}
+          </b>
+        </div>
+      ) : null}
       <ul className="civic-upload-queue">
         {files.map((file) => (
           <li key={`${file.name}-${file.size}-${file.lastModified}`}>
@@ -2431,6 +2441,25 @@ export function acceptRagUploadFiles(files: readonly File[], multiple: boolean):
     );
   });
   return multiple ? accepted : accepted.slice(0, 1);
+}
+
+export function appendRagUploadFiles(
+  current: readonly File[],
+  selected: readonly File[],
+  multiple: boolean,
+): File[] {
+  const accepted = acceptRagUploadFiles(selected, multiple);
+  if (!multiple) return accepted;
+  const known = new Set(current.map(multipartFileRecoveryKey));
+  return [
+    ...current,
+    ...accepted.filter((file) => {
+      const key = multipartFileRecoveryKey(file);
+      if (known.has(key)) return false;
+      known.add(key);
+      return true;
+    }),
+  ];
 }
 
 export function ragUploadExclusionMessage(files: readonly File[]): string {
@@ -2663,6 +2692,7 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
   const jobIds = queryValues(query.jobId);
   const filenames = queryValues(query.filename);
   const folderId = firstQueryValue(query.folderId);
+  const [currentIndex, setCurrentIndex] = useState(0);
   if (jobIds.length === 0) {
     return (
       <RagJobStatusCard
@@ -2674,17 +2704,36 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
       />
     );
   }
+  const safeIndex = Math.min(currentIndex, jobIds.length - 1);
+  const jobId = jobIds[safeIndex]!;
   return (
     <div aria-label="업로드한 문서 준비 상태" className="civic-job-batch">
-      {jobIds.map((jobId, index) => (
-        <JobStatusItem
-          headingId={`civic-job-status-title-${index}`}
-          jobId={jobId}
-          key={`${jobId}-${index}`}
-          {...(folderId ? { folderId } : {})}
-          {...(filenames[index] ? { filename: filenames[index] } : {})}
-        />
-      ))}
+      <div aria-label="업로드 결과 이동" className="civic-job-batch-navigation">
+        <button
+          disabled={safeIndex === 0}
+          onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+          type="button"
+        >
+          이전 결과
+        </button>
+        <strong>
+          {safeIndex + 1} / {jobIds.length}
+        </strong>
+        <button
+          disabled={safeIndex >= jobIds.length - 1}
+          onClick={() => setCurrentIndex((index) => Math.min(jobIds.length - 1, index + 1))}
+          type="button"
+        >
+          이후 결과
+        </button>
+      </div>
+      <JobStatusItem
+        headingId={`civic-job-status-title-${safeIndex}`}
+        jobId={jobId}
+        key={`${jobId}-${safeIndex}`}
+        {...(folderId ? { folderId } : {})}
+        {...(filenames[safeIndex] ? { filename: filenames[safeIndex] } : {})}
+      />
     </div>
   );
 }

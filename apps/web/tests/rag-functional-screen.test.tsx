@@ -2403,7 +2403,7 @@ describe("9 functional RAG screens", () => {
       expect(html).toMatch(/<button[^>]+disabled=""[^>]*type="submit"/);
     }
     if (screenId === "A-RAG-006") {
-      expect(html).toContain("현재 폴더에서 문서를 찾을 수 없습니다.");
+      expect(html).toContain("이 폴더에는 문서가 없습니다.");
       expect(html).toMatch(/<button[^>]+disabled=""[^>]*>문서 삭제<\/button>/);
     }
   });
@@ -2459,7 +2459,7 @@ describe("9 functional RAG screens", () => {
     for (const screen of ragScreens.filter((item) => item.id.startsWith("A-RAG"))) {
       const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
       expect(html).toContain('aria-label="문서 처리 현황"');
-      expect(html).toContain("전체 문서");
+      expect(html).toContain("문서 수");
       expect(html).toContain("확인 중");
     }
   });
@@ -2469,7 +2469,7 @@ describe("9 functional RAG screens", () => {
       { status: "ready", failed: 2, active: 3, counts: {}, recentFailures: [] },
       120,
     );
-    expect(ready[0]).toMatchObject({ label: "전체 문서", value: "120개" });
+    expect(ready[0]).toMatchObject({ label: "문서 수", value: "120개" });
     expect(ready[1]).toMatchObject({ label: "처리 중", value: "3건" });
     expect(ready[2]).toMatchObject({ label: "실패", value: "2건", alert: true });
     const clean = ragJobSummaryMetrics(

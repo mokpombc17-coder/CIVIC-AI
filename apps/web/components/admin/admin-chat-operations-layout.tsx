@@ -17,7 +17,7 @@ const CHAT_SECTIONS = [
 export function AdminChatOperationsLayout({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname() ?? "/admin/chat";
   return (
-    <div className={styles.layout}>
+    <div className={styles.layout} data-chat-operations-layout="true">
       <nav aria-label="토론방 운영 섹션" className="console-tabs">
         {CHAT_SECTIONS.map((section) => (
           <Link

@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 const WEB_BASE_URL = `https://localhost:${process.env.CIVIC_E2E_WEB_PORT ?? "3109"}`;
 const MOCK_API_HOST = "127.0.0.1";
@@ -252,6 +252,7 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
   const requestInfo = page.getByRole("region", { name: "신청 정보" });
   const requestDecision = page.getByRole("complementary", { name: "신청 처리" });
   await expect(requestInfo).toBeVisible();
+  await expect(requestInfo.getByText("카테고리", { exact: true })).toHaveCount(0);
   await expect(requestDecision).toBeVisible();
   const [requestInfoBox, requestDecisionBox] = await Promise.all([
     requestInfo.boundingBox(),
@@ -269,7 +270,6 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
   await requestDecision.getByRole("button", { name: "승인", exact: true }).click();
 
   await expect(page.getByRole("status")).toContainText("승인했습니다");
-  await expect(requestDecision.getByText("승인", { exact: true })).toBeVisible();
   expect(approvedCategoryIds).toEqual([policyCategoryId, "category-local"]);
   await expect(page.getByText("request-1", { exact: true })).toHaveCount(0);
 });
@@ -280,13 +280,9 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
 }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/admin/chat");
-  const categoryManagementLink = page.getByRole("link", { name: "카테고리 관리" });
-  await expect(categoryManagementLink).toBeVisible();
-  await categoryManagementLink.click();
-  await expect(page).toHaveURL(/\/admin\/chat\/categories$/u);
+  await page.goto("/admin/chat/categories");
 
-  await expect(page.getByRole("heading", { name: "채팅방 카테고리 관리" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "토론방 운영" })).toBeVisible();
   await expect(page.getByText("ACTIVE · LISTED ROOMS", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "공개 채팅방 표" })).toHaveCount(0);
   await expect(page.getByRole("columnheader", { name: "버전" })).toHaveCount(0);
@@ -295,8 +291,10 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
 
   const createdRow = page.getByRole("row", { name: /복지/ });
   await expect(createdRow).toBeVisible();
-  await createdRow.getByLabel("카테고리 이름").fill("생활 복지");
-  await createdRow.getByRole("button", { name: "이름 저장" }).click();
+  await createdRow.getByRole("button", { name: "이름 수정" }).click();
+  const editDialog = page.getByRole("dialog", { name: "카테고리 이름 편집" });
+  await editDialog.getByRole("textbox", { name: "카테고리 이름", exact: true }).fill("생활 복지");
+  await editDialog.getByRole("button", { name: "이름 저장" }).click();
   const updatedRow = page.getByRole("row", { name: /생활 복지/ });
   await expect(updatedRow).toBeVisible();
   await updatedRow.getByRole("button", { name: "삭제" }).click();
@@ -308,7 +306,7 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
   await page.getByRole("row", { name: /환경/ }).getByRole("button", { name: "삭제" }).click();
   await expect(categoryDialog).toContainText("환경");
   await categoryDialog.getByRole("button", { name: "카테고리 삭제" }).click();
-  await expect(page.getByRole("status")).toContainText("3개 채팅방에서 사용 중");
+  await expect(page.getByRole("status")).toContainText("3개 토론방에서 사용 중");
 });
 
 test("카테고리 목록 요청이 끊겨도 신청 상세와 반려 작업을 유지한다", async ({ context, page }) => {
@@ -350,8 +348,10 @@ test("다른 관리자가 삭제한 카테고리의 수정 404에서 최신 목�
 
   removeCategoryOnNextPatch = true;
   const row = page.getByRole("row", { name: /교통/ });
-  await row.getByLabel("카테고리 이름").fill("대중교통");
-  await row.getByRole("button", { name: "이름 저장" }).click();
+  await row.getByRole("button", { name: "이름 수정" }).click();
+  const editDialog = page.getByRole("dialog", { name: "카테고리 이름 편집" });
+  await editDialog.getByRole("textbox", { name: "카테고리 이름", exact: true }).fill("대중교통");
+  await editDialog.getByRole("button", { name: "이름 저장" }).click();
 
   await expect(page.getByRole("row", { name: /대중교통/ })).toHaveCount(0);
 });
@@ -364,15 +364,15 @@ test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 versio
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/chat/categories");
 
-  await page.getByLabel("채팅방 이름 검색").fill("시민");
-  await expect(page.getByRole("button", { name: "검색", exact: true })).toHaveCount(0);
+  await page.getByLabel("토론방 이름 검색").fill("시민");
+  await page.getByRole("button", { name: "검색", exact: true }).click();
   await expect.poll(() => listedRoomQueries).toContain("시민");
   await expect(page.getByText("목록에 없는 방 ID로 찾기", { exact: true })).toHaveCount(0);
 
   const roomRow = page.getByRole("row", { name: /시민 정책 토론방/ });
   await expect(roomRow).toContainText("정책");
   await roomRow.getByRole("button", { name: "수정" }).click();
-  const editor = page.getByRole("dialog", { name: "시민 정책 토론방" });
+  const editor = page.getByRole("dialog", { name: "토론방 카테고리 편집" });
   await expect(editor).toBeVisible();
   const categoryGroup = editor.getByRole("group", { name: "적용할 카테고리" });
   await expect(categoryGroup.getByLabel("정책")).toBeChecked();
@@ -385,6 +385,46 @@ test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 versio
     categoryIds: [policyCategoryId, "category-local"],
     expectedVersion: 7,
   });
+});
+
+test("토론방·과업의 목록과 상세 구분선은 같은 높이에서 시작하고 페이지를 늘리지 않는다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/admin/chat");
+
+  const chatWorkspace = page.locator('[data-wireflow-layout="admin-chat-insights-console"]');
+  const chatListHeader = chatWorkspace
+    .locator(":scope > .console-pane")
+    .first()
+    .locator(":scope > .console-pane-header");
+  const analysisPanel = chatWorkspace.locator(":scope > .console-pane").nth(1);
+  const analysisTabs = analysisPanel.locator(":scope > .console-tabs");
+  await expect(chatWorkspace).toBeVisible();
+  await expect(analysisPanel).toHaveCSS("border-left-width", "1px");
+  await expect(analysisPanel).toHaveCSS("overflow-y", "auto");
+  expect(await elementBottomDifference(chatListHeader, analysisTabs)).toBeLessThan(1);
+  expect(
+    await elementBottomDifference(
+      chatWorkspace,
+      chatWorkspace.locator(":scope > .console-pane").first(),
+    ),
+  ).toBeLessThan(1);
+  expect(await elementBottomDifference(chatWorkspace, analysisPanel)).toBeLessThan(1);
+  expect(await pageHasVerticalOverflow(page)).toBe(false);
+
+  await page.goto(`/admin/tasks?taskId=${taskId}`);
+  const taskWorkspace = page.locator('[data-wireflow-layout="admin-task-console"]');
+  const taskHeaders = taskWorkspace.locator(":scope > .console-pane > .console-pane-header");
+  const taskPanes = taskWorkspace.locator(":scope > .console-pane");
+  await expect(taskHeaders).toHaveCount(2);
+  expect(await elementBottomDifference(taskHeaders.nth(0), taskHeaders.nth(1))).toBeLessThan(1);
+  expect(await elementBottomDifference(taskWorkspace, taskPanes.nth(0))).toBeLessThan(1);
+  expect(await elementBottomDifference(taskWorkspace, taskPanes.nth(1))).toBeLessThan(1);
+  await expect(page.getByLabel("동작")).toHaveValue("open-now");
+  expect(await pageHasVerticalOverflow(page)).toBe(false);
 });
 
 test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 방을 즉시 종료한다", async ({
@@ -600,34 +640,43 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
   page,
 }) => {
   await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
   task = taskFixture("OPEN", "교통 정책 과업");
 
   latestSimulationState = null;
   await page.goto("/admin/simulations");
   let row = page.getByRole("row", { name: /교통 정책 과업/ });
+  const stateBadgeWidths: number[] = [];
   await expect(row).toContainText("준비됨");
-  await expect(row.getByRole("link", { name: "설정하기" })).toHaveAttribute(
-    "href",
-    `/admin/simulations/setup?taskId=${taskId}`,
+  stateBadgeWidths.push(
+    (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
   );
+  await expect(row).toContainText("설정하기");
+  await row.click();
+  await expect(page).toHaveURL(`/admin/simulations/setup?taskId=${taskId}`);
 
   latestSimulationState = "RUNNING";
-  await page.reload();
+  await page.goto("/admin/simulations");
   row = page.getByRole("row", { name: /교통 정책 과업/ });
   await expect(row).toContainText("진행 중");
-  await expect(row.getByRole("link", { name: "진행 보기" })).toHaveAttribute(
-    "href",
-    `/admin/simulations/status?simulationId=${simulationId}`,
+  stateBadgeWidths.push(
+    (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
   );
+  await expect(row).toContainText("진행 보기");
+  await row.click();
+  await expect(page).toHaveURL(`/admin/simulations/status?simulationId=${simulationId}`);
 
   latestSimulationState = "COMPLETED";
-  await page.reload();
+  await page.goto("/admin/simulations");
   row = page.getByRole("row", { name: /교통 정책 과업/ });
   await expect(row).toContainText("완료");
-  await expect(row.getByRole("link", { name: "결과 보기" })).toHaveAttribute(
-    "href",
-    `/admin/simulations/results?simulationId=${simulationId}`,
+  stateBadgeWidths.push(
+    (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
   );
+  await expect(row).toContainText("결과 보기");
+  await row.click();
+  await expect(page).toHaveURL(`/admin/simulations/results?simulationId=${simulationId}`);
+  expect(stateBadgeWidths).toEqual([76, 76, 76]);
 });
 
 test("시뮬레이션 상태는 자동 종료 기준을 설명하고 서비스 부담을 노출하지 않는다", async ({
@@ -752,6 +801,18 @@ async function authenticate(context: BrowserContext): Promise<void> {
       sameSite: "Lax",
     },
   ]);
+}
+
+async function elementBottomDifference(first: Locator, second: Locator): Promise<number> {
+  const [firstBox, secondBox] = await Promise.all([first.boundingBox(), second.boundingBox()]);
+  if (!firstBox || !secondBox) throw new Error("레이아웃 요소의 위치를 확인할 수 없습니다.");
+  return Math.abs(firstBox.y + firstBox.height - (secondBox.y + secondBox.height));
+}
+
+async function pageHasVerticalOverflow(page: Page): Promise<boolean> {
+  // Next dev의 NEXTJS-PORTAL은 html scrollHeight에 46px을 추가한다. 앱 본문 자체의
+  // overflow만 검사해야 프로덕션 레이아웃과 같은 조건을 확인할 수 있다.
+  return page.evaluate(() => document.body.scrollHeight > document.body.clientHeight + 1);
 }
 
 function currentAdmin() {

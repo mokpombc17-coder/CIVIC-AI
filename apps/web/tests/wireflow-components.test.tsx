@@ -20,6 +20,7 @@ import {
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import {
   AdminTaskScreen,
+  lifecycleActions,
   TASK_GRID_COLUMNS,
   taskWorkspacePath,
   taskWorkspaceTabForScreen,
@@ -214,6 +215,9 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain(">토론방 운영</h1>");
     expect(html).toContain("토론방 이름 검색");
     expect(html).toContain('class="console-search-button"');
+    expect(html).toContain('data-wireflow-layout="room-category-admin-console"');
+    expect(html).toContain('aria-label="카테고리 목록 표"');
+    expect(html).toContain('aria-label="토론방 카테고리 교체 표"');
     expect(html).toContain('aria-label="토론방 운영 섹션"');
     expect(html).not.toContain('href="/admin/chat/export"');
   });
@@ -232,6 +236,10 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain('aria-label="과업 상태"');
     expect(html).toContain('aria-label="과업 목록 표"');
     expect(html).toContain("목록에서 과업을 선택하세요.");
+  });
+
+  it("작성 중 과업은 즉시 발행을 기본 동작으로 제공한다", () => {
+    expect(lifecycleActions("DRAFT")).toEqual(["open-now", "schedule", "cancel"]);
   });
 
   it("모든 과업 화면 ID가 동일한 통합 워크스페이스를 렌더링한다", () => {

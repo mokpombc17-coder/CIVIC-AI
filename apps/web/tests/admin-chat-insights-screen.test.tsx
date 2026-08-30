@@ -6,6 +6,7 @@ import {
   ChatStatisticsSummary,
   chatInsightsPath,
   chatInsightsTabForScreen,
+  conversationAuthorBuckets,
   resolveConversationAnalysisRange,
 } from "@/components/admin/admin-chat-insights-screen";
 import type { ConversationExportMetrics } from "@/lib/chat/conversation-export";
@@ -93,6 +94,12 @@ describe("admin chat conversation insights", () => {
 
     const html = renderToStaticMarkup(
       <ChatStatisticsSummary
+        authorEmailLabels={
+          new Map([
+            ["user-1", "alpha@civic.test"],
+            ["user-2", "beta@civic.test"],
+          ])
+        }
         messages={[
           {
             messageSequence: 1,
@@ -128,6 +135,8 @@ describe("admin chat conversation insights", () => {
     expect(html).toContain("최근 7일 메시지</span><strong>2건");
     expect(html).toContain("일자별 메시지 추이");
     expect(html).toContain("사용자별 메시지 수");
+    expect(html).toContain("alpha@civic.test");
+    expect(html).toContain("beta@civic.test");
     expect(html).not.toContain("수정 메시지");
     expect(html).not.toContain("삭제 메시지");
     expect(html).not.toContain("변경 이벤트");
@@ -135,5 +144,29 @@ describe("admin chat conversation insights", () => {
     expect(html).not.toContain("감성 표현 참고치");
     expect(html).not.toContain("자주 등장한 표현");
     expect(html).not.toContain("규칙 기반 주제 묶음");
+  });
+
+  it("관리자 이메일 라벨이 없을 때만 작성자 순번을 대체 표기로 사용한다", () => {
+    const messages = [
+      {
+        messageSequence: 1,
+        userId: "user-1",
+        content: "첫 메시지",
+        createdAt: "2026-08-30T00:00:00Z",
+        deleted: false,
+      },
+      {
+        messageSequence: 2,
+        userId: "user-2",
+        content: "둘째 메시지",
+        createdAt: "2026-08-30T00:01:00Z",
+        deleted: false,
+      },
+    ] as const;
+
+    expect(conversationAuthorBuckets(messages, new Map([["user-1", "alpha@civic.test"]]))).toEqual([
+      { key: "user-1", label: "alpha@civic.test", count: 1 },
+      { key: "user-2", label: "작성자 2", count: 1 },
+    ]);
   });
 });

@@ -468,18 +468,18 @@ function RequestDetail({
             <Detail label="요청 시각" value={formatDate(item.requestedAt)} />
             <Detail label="토론방 이름" value={item.name} />
             <Detail label="상태" value={statusLabel(item.status)} />
-            <Detail
-              label="카테고리"
-              value={
-                item.categoryIds
+            {item.categoryIds.length > 0 ? (
+              <Detail
+                label="카테고리"
+                value={item.categoryIds
                   .map(
                     (categoryId) =>
                       categories.find((category) => category.categoryId === categoryId)?.name ??
                       categoryId,
                   )
-                  .join(", ") || "지정 없음"
-              }
-            />
+                  .join(", ")}
+              />
+            ) : null}
           </div>
           <article className="civic-domain-description">
             <h2>신청 설명</h2>

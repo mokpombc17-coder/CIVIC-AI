@@ -4,10 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
-import { ConsoleStatus } from "@/components/admin/console/console-ui";
-import { ConsoleDrawer } from "@/components/admin/console/console-modal";
+import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import { ConsoleModal } from "@/components/admin/console/console-modal";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
+import {
+  ConsolePane,
+  ConsoleSearchControl,
+  ConsoleStatus,
+  ConsoleWorkspace,
+} from "@/components/admin/console/console-ui";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
 import {
   DEFAULT_ROOM_CATEGORY_ID,
@@ -38,6 +43,8 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   const [loading, setLoading] = useState(true);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [categoryToEdit, setCategoryToEdit] = useState<RoomCategory | null>(null);
+  const [categoryEditName, setCategoryEditName] = useState("");
   const [categoryToDelete, setCategoryToDelete] = useState<RoomCategory | null>(null);
   const [message, setMessage] = useState("");
   const [roomListMessage, setRoomListMessage] = useState("");
@@ -172,9 +179,9 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
     }
   }
 
-  async function updateCategory(category: RoomCategory, name: string) {
+  async function updateCategory(category: RoomCategory, name: string): Promise<boolean> {
     const normalizedName = name.trim();
-    if (!normalizedName || pending) return;
+    if (!normalizedName || pending) return false;
     setPending(true);
     setMessage("");
     try {
@@ -195,21 +202,38 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
           await loadCategories();
         }
         setMessage(formatAdminProblem(problem));
-        return;
+        return false;
       }
       const updated = readRoomCategory(await response.json());
-      if (!updated) return setMessage("서버의 카테고리 수정 응답 형식을 확인해야 합니다.");
+      if (!updated) {
+        setMessage("서버의 카테고리 수정 응답 형식을 확인해야 합니다.");
+        return false;
+      }
       setCategories((current) =>
         sortRoomCategories(
           current.map((item) => (item.categoryId === updated.categoryId ? updated : item)),
         ),
       );
       setMessage("카테고리 이름을 저장했습니다.");
+      return true;
     } catch {
       setMessage("네트워크 오류로 카테고리 이름을 저장하지 못했습니다.");
+      return false;
     } finally {
       setPending(false);
     }
+  }
+
+  function openCategoryEditor(category: RoomCategory) {
+    setCategoryToEdit(category);
+    setCategoryEditName(category.name);
+    setMessage("");
+  }
+
+  function closeCategoryEditor() {
+    setCategoryToEdit(null);
+    setCategoryEditName("");
+    setMessage("");
   }
 
   async function deleteCategory() {
@@ -372,14 +396,12 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   return (
     <ScreenFrame screen={screen}>
       <AdminChatOperationsLayout>
-        <div
-          className="civic-admin-workbench civic-domain-console"
-          data-wireflow-layout="room-category-admin"
-        >
-          <section className="civic-domain-form-section">
-            <header>
-              <h2>카테고리 목록</h2>
-            </header>
+        <ConsoleWorkspace layout="room-category-admin-console">
+          <ConsolePane
+            ariaLabel="카테고리 목록"
+            subtitle={`${categories.length.toLocaleString("ko-KR")}개`}
+            title="카테고리 목록"
+          >
             <form className="civic-category-create" onSubmit={createCategory}>
               <label className="civic-field">
                 <span>새 카테고리 이름</span>
@@ -399,19 +421,25 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 카테고리 추가
               </button>
             </form>
-            <CategoryTable
+            <CategoryGrid
               categories={categories}
               onDelete={setCategoryToDelete}
-              onUpdate={(category, name) => void updateCategory(category, name)}
+              onEdit={openCategoryEditor}
               pending={pending}
             />
             {loading ? <ConsoleStatus>최신 카테고리를 불러오는 중입니다.</ConsoleStatus> : null}
-          </section>
+            {message && !room && !categoryToEdit ? (
+              <ConsoleStatus error={message.includes("오류") || message.includes("못했습니다")}>
+                {message}
+              </ConsoleStatus>
+            ) : null}
+          </ConsolePane>
 
-          <section className="civic-domain-form-section">
-            <header>
-              <h2>기존 토론방 카테고리 교체</h2>
-            </header>
+          <ConsolePane
+            ariaLabel="토론방 카테고리 교체"
+            subtitle={`${visibleListedRooms.length.toLocaleString("ko-KR")}건 표시`}
+            title="토론방 카테고리 교체"
+          >
             <form
               className="civic-category-room-search console-toolbar"
               onSubmit={(event) => event.preventDefault()}
@@ -432,7 +460,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 value={roomQuery}
               />
             </form>
-            <ListedRoomTable
+            <ListedRoomGrid
               categoryNamesById={categoryNamesById}
               items={visibleListedRooms}
               disabled={pending}
@@ -456,20 +484,10 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 {roomListMessage}
               </p>
             ) : null}
-          </section>
-
-          {message && !room ? (
-            <p aria-live="polite" className="civic-form-message" role="status">
-              {message}
-            </p>
-          ) : null}
-        </div>
+          </ConsolePane>
+        </ConsoleWorkspace>
       </AdminChatOperationsLayout>
-      <ConsoleDrawer
-        ariaLabel="토론방 카테고리 편집"
-        onClose={closeRoomEditor}
-        open={room !== null}
-      >
+      <ConsoleModal ariaLabel="토론방 카테고리 편집" onClose={closeRoomEditor} open={room !== null}>
         <aside className="civic-document-inspector civic-category-editor">
           <header>
             <div>
@@ -514,7 +532,72 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
             </div>
           </form>
         </aside>
-      </ConsoleDrawer>
+      </ConsoleModal>
+      <ConsoleModal
+        ariaLabel="카테고리 이름 편집"
+        onClose={closeCategoryEditor}
+        open={categoryToEdit !== null}
+      >
+        <aside className="civic-document-inspector civic-category-editor">
+          <header>
+            <div>
+              <small>카테고리 이름 수정</small>
+              <strong>{categoryToEdit?.name ?? "카테고리"}</strong>
+            </div>
+            <button
+              aria-label="카테고리 이름 편집 닫기"
+              onClick={closeCategoryEditor}
+              type="button"
+            >
+              ×
+            </button>
+          </header>
+          <form
+            className="civic-domain-action-panel civic-category-editor-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!categoryToEdit) return;
+              void updateCategory(categoryToEdit, categoryEditName).then((updated) => {
+                if (updated) closeCategoryEditor();
+              });
+            }}
+          >
+            <label className="civic-field">
+              <span>카테고리 이름</span>
+              <input
+                autoFocus
+                disabled={pending}
+                maxLength={50}
+                onChange={(event) => setCategoryEditName(event.currentTarget.value)}
+                required
+                value={categoryEditName}
+              />
+            </label>
+            {message ? <ConsoleStatus error>{message}</ConsoleStatus> : null}
+            <div className="civic-form-actions civic-category-editor-actions">
+              <button
+                className="civic-secondary-action"
+                disabled={pending}
+                onClick={closeCategoryEditor}
+                type="button"
+              >
+                취소
+              </button>
+              <button
+                className="civic-primary-action"
+                disabled={
+                  pending ||
+                  !categoryEditName.trim() ||
+                  categoryEditName.trim() === categoryToEdit?.name
+                }
+                type="submit"
+              >
+                이름 저장
+              </button>
+            </div>
+          </form>
+        </aside>
+      </ConsoleModal>
       <ConfirmDialog
         busy={pending}
         busyLabel="삭제 중…"
@@ -531,7 +614,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   );
 }
 
-function ListedRoomTable({
+function ListedRoomGrid({
   categoryNamesById,
   disabled,
   items,
@@ -546,95 +629,122 @@ function ListedRoomTable({
   onSelect: (room: ListedRoom) => void;
   selectedRoomId: string | null;
 }>) {
+  const columns = useMemo<ReadonlyArray<ConsoleColumn<ListedRoom>>>(
+    () => [
+      { field: "name", headerName: "토론방", flex: 2, minWidth: 180 },
+      {
+        headerName: "현재 카테고리",
+        flex: 2,
+        minWidth: 180,
+        valueGetter: (params) =>
+          params.data
+            ? params.data.categoryIds
+                .map((categoryId) => categoryNamesById.get(categoryId) ?? "알 수 없는 카테고리")
+                .join(", ") || "—"
+            : "",
+      },
+      {
+        headerName: "활성 참여자",
+        minWidth: 110,
+        valueGetter: (params) =>
+          params.data ? `${params.data.activeMemberCount.toLocaleString("ko-KR")}명` : "",
+      },
+      {
+        headerName: "작업",
+        minWidth: 100,
+        sortable: false,
+        cellRenderer: (params: Readonly<{ data?: ListedRoom }>) =>
+          params.data ? (
+            <button
+              className="civic-secondary-action civic-grid-row-action"
+              disabled={disabled || loading || params.data.roomId === selectedRoomId}
+              onClick={() => onSelect(params.data as ListedRoom)}
+              type="button"
+            >
+              수정
+            </button>
+          ) : null,
+      },
+    ],
+    [categoryNamesById, disabled, loading, onSelect, selectedRoomId],
+  );
   return (
-    <div aria-label="토론방 표" className="civic-table-scroll" role="region" tabIndex={0}>
-      <table className="civic-admin-table civic-listed-room-table">
-        <thead>
-          <tr>
-            <th>토론방 이름</th>
-            <th>현재 카테고리</th>
-            <th>참여자</th>
-            <th>작업</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
-            <tr>
-              <td colSpan={4}>{loading ? "불러오는 중입니다." : "검색된 토론방이 없습니다."}</td>
-            </tr>
-          ) : null}
-          {items.map((listedRoom) => {
-            const selected = listedRoom.roomId === selectedRoomId;
-            return (
-              <tr className={selected ? "is-selected" : undefined} key={listedRoom.roomId}>
-                <th scope="row">{listedRoom.name}</th>
-                <td>
-                  <div className="civic-listed-room-categories">
-                    {listedRoom.categoryIds.map((categoryId) => (
-                      <span key={categoryId}>
-                        {categoryNamesById.get(categoryId) ?? "알 수 없는 카테고리"}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td>{listedRoom.activeMemberCount}명</td>
-                <td>
-                  <button
-                    className="civic-secondary-action"
-                    disabled={disabled || loading || selected}
-                    onClick={() => onSelect(listedRoom)}
-                    type="button"
-                  >
-                    수정
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <ConsoleDataGrid
+      ariaLabel="토론방 카테고리 교체 표"
+      columnDefs={columns}
+      emptyText={loading ? "불러오는 중입니다." : "검색된 토론방이 없습니다."}
+      getRowId={(listedRoom) => listedRoom.roomId}
+      height={460}
+      onRowClicked={onSelect}
+      rowData={items}
+      selectedRowId={selectedRoomId}
+    />
   );
 }
 
-function CategoryTable({
+function CategoryGrid({
   categories,
   onDelete,
-  onUpdate,
+  onEdit,
   pending,
 }: Readonly<{
   categories: readonly RoomCategory[];
   onDelete: (category: RoomCategory) => void;
-  onUpdate: (category: RoomCategory, name: string) => void;
+  onEdit: (category: RoomCategory) => void;
   pending: boolean;
 }>) {
+  const columns = useMemo<ReadonlyArray<ConsoleColumn<RoomCategory>>>(
+    () => [
+      { field: "name", headerName: "카테고리", flex: 2, minWidth: 180 },
+      {
+        headerName: "구분",
+        minWidth: 90,
+        valueGetter: (params) =>
+          params.data?.categoryId === DEFAULT_ROOM_CATEGORY_ID ? "기본" : "일반",
+      },
+      {
+        headerName: "작업",
+        minWidth: 190,
+        sortable: false,
+        cellRenderer: (params: Readonly<{ data?: RoomCategory }>) =>
+          params.data ? (
+            <div className="console-actions is-start civic-grid-row-actions">
+              <button
+                className="civic-secondary-action civic-grid-row-action"
+                disabled={pending}
+                onClick={() => onEdit(params.data as RoomCategory)}
+                type="button"
+              >
+                이름 수정
+              </button>
+              <button
+                className="civic-danger-action civic-grid-row-action"
+                disabled={pending || params.data.categoryId === DEFAULT_ROOM_CATEGORY_ID}
+                onClick={() => onDelete(params.data as RoomCategory)}
+                title={
+                  params.data.categoryId === DEFAULT_ROOM_CATEGORY_ID
+                    ? "기본 정책 카테고리는 삭제할 수 없습니다."
+                    : undefined
+                }
+                type="button"
+              >
+                삭제
+              </button>
+            </div>
+          ) : null,
+      },
+    ],
+    [onDelete, onEdit, pending],
+  );
   return (
-    <div aria-label="카테고리 표" className="civic-table-scroll" role="region" tabIndex={0}>
-      <table className="civic-admin-table civic-category-table">
-        <thead>
-          <tr>
-            <th>이름</th>
-            <th>작업</th>
-          </tr>
-        </thead>
-        <tbody>
-          {categories.length === 0 ? (
-            <tr>
-              <td colSpan={2}>등록된 카테고리가 없습니다.</td>
-            </tr>
-          ) : null}
-          {categories.map((category) => (
-            <CategoryRow
-              category={category}
-              key={`${category.categoryId}:${category.version}`}
-              onDelete={onDelete}
-              onUpdate={onUpdate}
-              pending={pending}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ConsoleDataGrid
+      ariaLabel="카테고리 목록 표"
+      columnDefs={columns}
+      emptyText="등록된 카테고리가 없습니다."
+      getRowId={(category) => category.categoryId}
+      height={460}
+      rowData={categories}
+    />
   );
 }
 
@@ -645,54 +755,4 @@ function mergeListedRooms(
   const merged = new Map(current.map((room) => [room.roomId, room]));
   for (const room of incoming) merged.set(room.roomId, room);
   return [...merged.values()];
-}
-
-function CategoryRow({
-  category,
-  onDelete,
-  onUpdate,
-  pending,
-}: Readonly<{
-  category: RoomCategory;
-  onDelete: (category: RoomCategory) => void;
-  onUpdate: (category: RoomCategory, name: string) => void;
-  pending: boolean;
-}>) {
-  const [name, setName] = useState(category.name);
-  const isDefault = category.categoryId === DEFAULT_ROOM_CATEGORY_ID;
-  return (
-    <tr>
-      <th scope="row">
-        <input
-          aria-label="카테고리 이름"
-          disabled={pending}
-          id={`category-${category.categoryId}`}
-          maxLength={50}
-          onChange={(event) => setName(event.currentTarget.value)}
-          value={name}
-        />
-      </th>
-      <td>
-        <div className="console-actions is-start">
-          <button
-            className="civic-secondary-action"
-            disabled={pending || !name.trim() || name.trim() === category.name}
-            onClick={() => onUpdate(category, name)}
-            type="button"
-          >
-            이름 저장
-          </button>
-          <button
-            className="civic-danger-action"
-            disabled={pending || isDefault}
-            onClick={() => onDelete(category)}
-            title={isDefault ? "기본 정책 카테고리는 삭제할 수 없습니다." : undefined}
-            type="button"
-          >
-            삭제
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
 }

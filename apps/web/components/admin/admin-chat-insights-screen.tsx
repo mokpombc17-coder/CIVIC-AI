@@ -27,6 +27,7 @@ import {
   type AdminRoomPage,
   type AdminRoomStatus,
 } from "@/lib/admin/admin-room-contracts";
+import { requestAdminUserLabels } from "@/lib/admin/user-labels";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
@@ -58,6 +59,7 @@ const INSIGHTS_TABS: readonly ConsoleTabItem[] = [
   { id: "analysis", label: "대화 분석" },
   { id: "statistics", label: "통계" },
 ];
+const EMPTY_AUTHOR_EMAIL_LABELS: ReadonlyMap<string, string> = new Map();
 
 const CHAT_ROOM_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<AdminRoom>> = [
   { field: "name", headerName: "토론방", flex: 2, minWidth: 170 },
@@ -105,6 +107,8 @@ export function AdminChatInsightsScreen({
   const [fromLocal, setFromLocal] = useState("");
   const [toLocal, setToLocal] = useState("");
   const [analysis, setAnalysis] = useState<ConversationExportAnalysis | null>(null);
+  const [authorEmailLabels, setAuthorEmailLabels] =
+    useState<ReadonlyMap<string, string>>(EMPTY_AUTHOR_EMAIL_LABELS);
   const [archive, setArchive] = useState<Uint8Array | null>(null);
   const [archiveName, setArchiveName] = useState("conversation-export.zip");
   const [analysisMessage, setAnalysisMessage] = useState("");
@@ -161,6 +165,7 @@ export function AdminChatInsightsScreen({
       exportAbort.current = controller;
       setAnalyzing(true);
       setAnalysis(null);
+      setAuthorEmailLabels(EMPTY_AUTHOR_EMAIL_LABELS);
       setArchive(null);
       setAnalysisMessage("");
       setAnalysisRetryCount(0);
@@ -193,7 +198,12 @@ export function AdminChatInsightsScreen({
         const bytes = await readConversationExportResponse(response);
         const parsed = await parseConversationExportArchive(bytes, { roomId, range });
         if (controller.signal.aborted) return;
+        const labels = await requestAdminUserLabels([
+          ...new Set(parsed.messages.map((message) => message.userId)),
+        ]);
+        if (controller.signal.aborted) return;
         setAnalysis(parsed);
+        setAuthorEmailLabels(labels ?? EMPTY_AUTHOR_EMAIL_LABELS);
         setArchive(bytes);
         setArchiveName(exportFilename(response, parsed.manifest.roomName));
         setAnalysisMessage(
@@ -485,7 +495,7 @@ export function AdminChatInsightsScreen({
             ) : null}
           </ConsolePane>
 
-          <section aria-label="대화 분석" className={styles.analysisPanel}>
+          <section aria-label="대화 분석" className={`${styles.analysisPanel} console-pane`}>
             <ConsoleTabs
               activeId={tab}
               ariaLabel="분석 보기 탭"
@@ -532,6 +542,7 @@ export function AdminChatInsightsScreen({
               <AnalysisResult
                 analysis={analysis}
                 archiveReady={archive !== null}
+                authorEmailLabels={authorEmailLabels}
                 onDownload={downloadArchive}
                 tab={tab}
               />
@@ -688,11 +699,13 @@ function RoomOperationSettings({
 function AnalysisResult({
   analysis,
   archiveReady,
+  authorEmailLabels,
   onDownload,
   tab,
 }: Readonly<{
   analysis: ConversationExportAnalysis;
   archiveReady: boolean;
+  authorEmailLabels: ReadonlyMap<string, string>;
   onDownload: () => void;
   tab: ChatInsightsTab;
 }>) {
@@ -708,12 +721,15 @@ function AnalysisResult({
       ) : null}
       {tab === "statistics" ? (
         <ChatStatisticsSummary
+          authorEmailLabels={authorEmailLabels}
           messages={analysis.messages}
           metrics={analysis.metrics}
           windowEnd={analysis.manifest.range.toExclusive}
         />
       ) : null}
-      {tab === "analysis" ? <ConversationDetail analysis={analysis} /> : null}
+      {tab === "analysis" ? (
+        <ConversationDetail analysis={analysis} authorEmailLabels={authorEmailLabels} />
+      ) : null}
     </div>
   );
 }
@@ -747,8 +763,17 @@ function SnapshotHeader({
   );
 }
 
-function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExportAnalysis }>) {
-  const labels = useMemo(() => authorLabels(analysis.messages), [analysis.messages]);
+function ConversationDetail({
+  analysis,
+  authorEmailLabels,
+}: Readonly<{
+  analysis: ConversationExportAnalysis;
+  authorEmailLabels: ReadonlyMap<string, string>;
+}>) {
+  const labels = useMemo(
+    () => conversationAuthorLabels(analysis.messages, authorEmailLabels),
+    [analysis.messages, authorEmailLabels],
+  );
   return (
     <>
       <section aria-label="토론방 핵심 수치" className={styles.kpis}>
@@ -786,20 +811,18 @@ function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExpor
 }
 
 export function ChatStatisticsSummary({
+  authorEmailLabels = EMPTY_AUTHOR_EMAIL_LABELS,
   messages,
   metrics,
   windowEnd,
 }: Readonly<{
+  authorEmailLabels?: ReadonlyMap<string, string>;
   messages: readonly ConversationMessage[];
   metrics: ConversationExportMetrics;
   windowEnd: string;
 }>) {
   const recent = recentConversationActivity(messages, windowEnd);
-  const authorBuckets = metrics.authors.map((author, index) => ({
-    key: `author-${index + 1}`,
-    label: author.label,
-    count: author.count,
-  }));
+  const authorBuckets = conversationAuthorBuckets(messages, authorEmailLabels);
   return (
     <>
       <section aria-label="채팅 통계" className={styles.kpis}>
@@ -940,7 +963,10 @@ export function resolveConversationAnalysisRange({
   return { fromInclusive: from.toISOString(), toExclusive: now.toISOString() };
 }
 
-function authorLabels(messages: readonly ConversationMessage[]): ReadonlyMap<string, string> {
+export function conversationAuthorLabels(
+  messages: readonly ConversationMessage[],
+  emailLabels: ReadonlyMap<string, string>,
+): ReadonlyMap<string, string> {
   const counts = new Map<string, number>();
   for (const message of messages) counts.set(message.userId, (counts.get(message.userId) ?? 0) + 1);
   return new Map(
@@ -948,8 +974,22 @@ function authorLabels(messages: readonly ConversationMessage[]): ReadonlyMap<str
       .sort(([leftId, leftCount], [rightId, rightCount]) =>
         rightCount === leftCount ? leftId.localeCompare(rightId) : rightCount - leftCount,
       )
-      .map(([userId], index) => [userId, `작성자 ${index + 1}`]),
+      .map(([userId], index) => [userId, emailLabels.get(userId) ?? `작성자 ${index + 1}`]),
   );
+}
+
+export function conversationAuthorBuckets(
+  messages: readonly ConversationMessage[],
+  emailLabels: ReadonlyMap<string, string>,
+): readonly ConversationMetricBucket[] {
+  const counts = new Map<string, number>();
+  for (const message of messages) counts.set(message.userId, (counts.get(message.userId) ?? 0) + 1);
+  const labels = conversationAuthorLabels(messages, emailLabels);
+  return [...counts.entries()]
+    .sort(([leftId, leftCount], [rightId, rightCount]) =>
+      rightCount === leftCount ? leftId.localeCompare(rightId) : rightCount - leftCount,
+    )
+    .map(([userId, count]) => ({ key: userId, label: labels.get(userId) ?? userId, count }));
 }
 
 function mergeRooms(current: readonly AdminRoom[], next: readonly AdminRoom[]) {

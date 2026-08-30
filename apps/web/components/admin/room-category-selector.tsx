@@ -16,7 +16,7 @@ export function RoomCategorySelector({
   selectedCategoryIds: readonly string[];
 }>) {
   return (
-    <fieldset>
+    <fieldset className="civic-category-selector-fieldset">
       <legend>{legend}</legend>
       <div className="civic-category-selector">
         {categories.map((category) => {
@@ -39,6 +39,7 @@ export function RoomCategorySelector({
             </label>
           );
         })}
+        {categories.length === 0 ? <p>선택할 수 있는 카테고리가 없습니다.</p> : null}
       </div>
       <small>{selectedCategoryIds.length} / 5개 선택</small>
     </fieldset>

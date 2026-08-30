@@ -255,7 +255,9 @@ export const SIMULATION_TARGET_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<Simulat
     minWidth: 150,
     cellRenderer: (params: Readonly<{ data?: SimulationTargetRow }>) =>
       params.data ? (
-        <ConsoleBadge tone={params.data.stateTone}>{params.data.stateLabel}</ConsoleBadge>
+        <span className="civic-simulation-state-cell">
+          <ConsoleBadge tone={params.data.stateTone}>{params.data.stateLabel}</ConsoleBadge>
+        </span>
       ) : null,
   },
   { field: "updatedLabel", headerName: "최근 변경", minWidth: 150 },
