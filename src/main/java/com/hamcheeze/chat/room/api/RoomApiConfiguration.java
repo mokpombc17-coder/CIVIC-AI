@@ -8,6 +8,8 @@ import com.hamcheeze.chat.room.query.ListedRoomQueryService;
 import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.query.RoomQueryService;
+import com.hamcheeze.chat.userlabel.AuthenticatedUserLabelRegistrar;
+import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
@@ -16,8 +18,10 @@ import tools.jackson.databind.ObjectMapper;
 public class RoomApiConfiguration {
 
     @Bean
-    AuthenticatedUserIdResolver authenticatedUserIdResolver() {
-        return new AuthenticatedUserIdResolver();
+    AuthenticatedUserIdResolver authenticatedUserIdResolver(
+            AuthenticatedUserLabelRegistrar userLabels
+    ) {
+        return new AuthenticatedUserIdResolver(userLabels);
     }
 
     @Bean
@@ -105,9 +109,13 @@ public class RoomApiConfiguration {
     @Bean
     RoomQueryService roomQueryService(
             RoomQueryReader reader,
-            RoomQueryCursorCodec cursorCodec
+            RoomQueryCursorCodec cursorCodec,
+            UserLabelDirectory userLabels
     ) {
-        return new RoomQueryService(reader, cursorCodec);
+        return new RoomQueryService(
+                reader,
+                cursorCodec,
+                userLabels);
     }
 
     @Bean

@@ -163,8 +163,10 @@ participant의 원문 `userId`는 노출하지 않고 화면 표시용 `userLabe
 | `bannedAt` | ISO-8601 string | 예 | BANNED 전환 시각 |
 | `version` | number | 아니요 | Membership 생명주기 버전 |
 
-`userLabel`은 내부 `userId`의 첫 `@` 앞부분이며 `@`가 없으면 전체 값을
-사용한다. 이 값은 중복될 수 있으므로 식별자, 권한 판정 또는 React key로
+`userLabel`은 검증된 JWT `email`의 `@` 앞부분을 UUID `userId`별로 저장한
+화면 표시용 값이며, 등록 전 기존 데이터는 `displayName`으로 보완한다. 로컬
+fixture의 비 UUID subject는 기존 값을 사용한다. 이 값은 중복될 수 있으므로
+식별자, 권한 판정 또는 React key로
 사용하지 않는다. 메시지의 `senderMembershipId`는 목록의 `membershipId`와
 매핑하고, 일치하는 ACTIVE 참여자가 없으면 화면에서 `알 수 없음`으로
 표시한다.

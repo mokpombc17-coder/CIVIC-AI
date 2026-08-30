@@ -40,6 +40,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -1148,6 +1149,43 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code")
                         .value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void membershipLabelsComeFromEachUsersJwtEmail()
+            throws Exception {
+        String ownerId = UUID.randomUUID().toString();
+        String memberId = UUID.randomUUID().toString();
+        String roomId = createRoom(ownerId, JoinPolicy.OPEN);
+
+        mockMvc.perform(get("/api/v1/rooms/{roomId}", roomId)
+                        .with(jwt().jwt(token -> token
+                                .subject(ownerId)
+                                .claim("email", "owner@example.com"))))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(
+                                "/api/v1/rooms/{roomId}/commands/join",
+                                roomId)
+                        .with(jwt().jwt(token -> token
+                                .subject(memberId)
+                                .claim("email", "member@example.com")))
+                        .header("Idempotency-Key", requestId()))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}/memberships",
+                                roomId)
+                        .with(jwt().jwt(token -> token
+                                .subject(ownerId)
+                                .claim("email", "owner@example.com")))
+                        .queryParam("status", "ACTIVE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].userLabel")
+                        .value(containsInAnyOrder(
+                                "owner",
+                                "member")))
+                .andExpect(jsonPath("$.items[*].userId")
+                        .doesNotExist());
     }
 
     @Test

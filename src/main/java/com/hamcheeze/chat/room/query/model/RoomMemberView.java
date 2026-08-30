@@ -8,6 +8,7 @@ import java.time.Instant;
 public record RoomMemberView(
         String membershipId,
         String userId,
+        String userLabel,
         String displayName,
         String imageUrl,
         long profileVersion,

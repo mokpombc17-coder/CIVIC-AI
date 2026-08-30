@@ -1159,10 +1159,12 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
 }
 ```
 
-`userLabel`은 내부 `userId`의 첫 `@` 앞부분이다. `@`가 없으면 전체
-`userId`를 사용한다. 화면 표시 전용이며 중복될 수 있으므로 식별자, 권한
-판정 또는 React key로 사용하지 않는다. participant identity는 계속
-`membershipId`를 사용한다.
+`userLabel`은 사용자가 인증될 때 검증된 JWT `email`의 `@` 앞부분만
+채팅 서버의 label directory에 저장해 제공한다. 내부 UUID `userId`와 전체
+이메일은 응답에 노출하지 않는다. 기존 데이터에 label이 아직 등록되지 않은
+경우에는 `displayName`을 사용하며, 로컬 fixture의 비 UUID subject는 기존 값을
+유지한다. 화면 표시 전용이며 중복될 수 있으므로 식별자, 권한 판정 또는 React
+key로 사용하지 않는다. participant identity는 계속 `membershipId`를 사용한다.
 
 `displayName`은 1~50 Unicode code point의 Room 단위 표시 이름이다.
 현재는 최초 참여 순서에 따라 서버가 `참여자 N` 형태로 생성한다.

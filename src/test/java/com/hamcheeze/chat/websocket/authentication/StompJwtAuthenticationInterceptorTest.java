@@ -1,6 +1,8 @@
 package com.hamcheeze.chat.websocket.authentication;
 
 import com.hamcheeze.chat.security.ChatScopes;
+import com.hamcheeze.chat.userlabel.AuthenticatedUserLabelRegistrar;
+import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 import com.hamcheeze.chat.websocket.config.ChatContentProperties;
 import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
 import com.hamcheeze.chat.websocket.protocol.StompPolicyException;
@@ -51,6 +53,35 @@ class StompJwtAuthenticationInterceptorTest {
         assertThat(resultAccessor.getUser()).isNotNull();
         assertThat(resultAccessor.getUser().getName()).isEqualTo("user-1");
         verify(decoder).decode("valid-token");
+    }
+
+    @Test
+    void registersEmailLocalPartWhenWebSocketConnects() {
+        String userId =
+                "46fd4756-f07f-4b54-b03a-6e07740317da";
+        JwtDecoder decoder = mock(JwtDecoder.class);
+        UserLabelDirectory directory =
+                mock(UserLabelDirectory.class);
+        when(decoder.decode("valid-token")).thenReturn(Jwt.withTokenValue(
+                        "valid-token")
+                .header("alg", "none")
+                .subject(userId)
+                .claim("email", "junseok@example.com")
+                .claim("scope", ChatScopes.CONNECT)
+                .build());
+        StompJwtAuthenticationInterceptor interceptor =
+                new StompJwtAuthenticationInterceptor(
+                        decoder,
+                        destinationPolicy(),
+                        new AuthenticatedUserLabelRegistrar(directory));
+        StompHeaderAccessor accessor =
+                StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.addNativeHeader(
+                "Authorization", "Bearer valid-token");
+
+        interceptor.preSend(message(accessor), null);
+
+        verify(directory).upsert(userId, "junseok");
     }
 
     @Test

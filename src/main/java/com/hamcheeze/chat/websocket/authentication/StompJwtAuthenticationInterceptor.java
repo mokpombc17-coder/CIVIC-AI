@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.websocket.authentication;
 
 import com.hamcheeze.chat.security.ChatScopes;
+import com.hamcheeze.chat.userlabel.AuthenticatedUserLabelRegistrar;
 import com.hamcheeze.chat.websocket.protocol.DestinationKind;
 import com.hamcheeze.chat.websocket.protocol.DestinationPolicy;
 import com.hamcheeze.chat.websocket.protocol.AuthenticationRequiredStompFrame;
@@ -11,6 +12,7 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -32,6 +34,7 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
 
     private final JwtDecoder jwtDecoder;
     private final DestinationPolicy destinationPolicy;
+    private final AuthenticatedUserLabelRegistrar userLabels;
     private final JwtAuthenticationConverter authenticationConverter =
             new JwtAuthenticationConverter();
 
@@ -39,12 +42,27 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
             JwtDecoder jwtDecoder,
             DestinationPolicy destinationPolicy
     ) {
+        this(
+                jwtDecoder,
+                destinationPolicy,
+                AuthenticatedUserLabelRegistrar.noop());
+    }
+
+    @Autowired
+    public StompJwtAuthenticationInterceptor(
+            JwtDecoder jwtDecoder,
+            DestinationPolicy destinationPolicy,
+            AuthenticatedUserLabelRegistrar userLabels
+    ) {
         this.jwtDecoder = Objects.requireNonNull(
                 jwtDecoder,
                 "jwtDecoder");
         this.destinationPolicy = Objects.requireNonNull(
                 destinationPolicy,
                 "destinationPolicy");
+        this.userLabels = Objects.requireNonNull(
+                userLabels,
+                "userLabels");
     }
 
     @Override
@@ -68,6 +86,8 @@ public final class StompJwtAuthenticationInterceptor implements ChannelIntercept
                 clearHandshakeAuthentication(accessor);
             }
             requireScope(accessor.getUser(), ChatScopes.CONNECT);
+            userLabels.register(
+                    (JwtAuthenticationToken) accessor.getUser());
         } else if (command == StompCommand.SUBSCRIBE) {
             requireScope(accessor.getUser(), ChatScopes.ROOMS_READ);
         } else if (command == StompCommand.SEND) {

@@ -9,11 +9,13 @@ import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.model.ActiveRoomView;
 import com.hamcheeze.chat.room.query.model.RoomMemberView;
+import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,10 +31,13 @@ class RoomQueryServiceTest {
 
     private final RoomQueryReader reader =
             mock(RoomQueryReader.class);
+    private final UserLabelDirectory userLabels =
+            mock(UserLabelDirectory.class);
     private final RoomQueryService service = new RoomQueryService(
             reader,
             new RoomQueryCursorCodec(
-                    JsonMapper.builder().build()));
+                    JsonMapper.builder().build()),
+            userLabels);
 
     @Test
     void participationUsesRoomClosedBeforeRawMembershipStatus() {
@@ -176,6 +181,11 @@ class RoomQueryServiceTest {
                 .thenReturn(new CursorSlice<>(
                         List.of(requester, participant),
                         false));
+        when(userLabels.findByUserIds(
+                List.of("user-1", "user-2")))
+                .thenReturn(Map.of(
+                        "user-1", "owner",
+                        "user-2", "participant"));
 
         CursorPage<RoomMemberView> page = service.roomMembers(
                 "user-1",
@@ -188,6 +198,9 @@ class RoomQueryServiceTest {
                 .extracting(RoomMemberView::membershipId)
                 .containsExactly("m-01", "m-02");
         assertThat(page.items())
+                .extracting(RoomMemberView::userLabel)
+                .containsExactly("owner", "participant");
+        assertThat(page.items())
                 .extracting(RoomMemberView::displayName)
                 .containsExactly("참여자 2", "참여자 2");
         assertThat(page.items())
@@ -196,6 +209,43 @@ class RoomQueryServiceTest {
         assertThat(page.items())
                 .extracting(RoomMemberView::profileVersion)
                 .containsExactly(1L, 1L);
+    }
+
+    @Test
+    void opaqueUuidWithoutRegisteredLabelUsesDisplayNameFallback() {
+        String userId =
+                "46fd4756-f07f-4b54-b03a-6e07740317da";
+        Room room = room("room-1", RoomStatus.ACTIVE);
+        Membership requester = membership(
+                "m-01",
+                "room-1",
+                userId,
+                MembershipStatus.ACTIVE);
+        when(reader.findRoomById("room-1"))
+                .thenReturn(Optional.of(room));
+        when(reader.findMembership("room-1", userId))
+                .thenReturn(Optional.of(requester));
+        when(reader.findMembershipsByRoomAndStatus(
+                "room-1",
+                MembershipStatus.ACTIVE,
+                null,
+                20))
+                .thenReturn(new CursorSlice<>(
+                        List.of(requester),
+                        false));
+        when(userLabels.findByUserIds(List.of(userId)))
+                .thenReturn(Map.of());
+
+        CursorPage<RoomMemberView> page = service.roomMembers(
+                userId,
+                "room-1",
+                MembershipStatus.ACTIVE,
+                null,
+                20);
+
+        assertThat(page.items())
+                .extracting(RoomMemberView::userLabel)
+                .containsExactly("참여자 2");
     }
 
     @Test

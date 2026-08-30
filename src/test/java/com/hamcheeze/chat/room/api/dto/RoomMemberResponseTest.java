@@ -15,25 +15,31 @@ class RoomMemberResponseTest {
             Instant.parse("2026-08-29T01:00:00Z");
 
     @Test
-    void derivesUserLabelFromEmailLocalPart() {
+    void usesProjectedUserLabelWithoutExposingOpaqueUserId() {
         RoomMemberResponse response = RoomMemberResponse.from(
-                member("junseok@example.com"));
+                member(
+                        "46fd4756-f07f-4b54-b03a-6e07740317da",
+                        "junseok"));
 
         assertThat(response.userLabel()).isEqualTo("junseok");
     }
 
     @Test
-    void keepsOpaqueUserIdAsUserLabel() {
+    void keepsLocalFixtureLabel() {
         RoomMemberResponse response = RoomMemberResponse.from(
-                member("local-user-1"));
+                member("local-user-1", "local-user-1"));
 
         assertThat(response.userLabel()).isEqualTo("local-user-1");
     }
 
-    private static RoomMemberView member(String userId) {
+    private static RoomMemberView member(
+            String userId,
+            String userLabel
+    ) {
         return new RoomMemberView(
                 "membership-1",
                 userId,
+                userLabel,
                 "참여자 1",
                 null,
                 1,

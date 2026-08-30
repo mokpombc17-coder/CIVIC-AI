@@ -23,7 +23,7 @@ public record RoomMemberResponse(
     public static RoomMemberResponse from(RoomMemberView view) {
         return new RoomMemberResponse(
                 view.membershipId(),
-                userLabel(view.userId()),
+                view.userLabel(),
                 view.displayName(),
                 view.imageUrl(),
                 view.profileVersion(),
@@ -35,10 +35,4 @@ public record RoomMemberResponse(
                 view.version());
     }
 
-    private static String userLabel(String userId) {
-        int separatorIndex = userId.indexOf('@');
-        return separatorIndex > 0
-                ? userId.substring(0, separatorIndex)
-                : userId;
-    }
 }
