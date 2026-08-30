@@ -3,6 +3,8 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import type { ConsoleMetricItem } from "@/components/admin/console/console-ui";
 import {
   readDailyUsage,
   readWalletSummary,
@@ -33,7 +35,10 @@ export function readSimulationSection(value: string | null): SimulationSection {
   return sections.some((item) => item.id === value) ? (value as SimulationSection) : "run";
 }
 
-export function SimulationSectionTabs({ active }: Readonly<{ active: SimulationSection }>) {
+export function SimulationSectionTabs({
+  active,
+  onSelect,
+}: Readonly<{ active: SimulationSection; onSelect?: (section: SimulationSection) => void }>) {
   return (
     <nav aria-label="시뮬레이션 관리자 메뉴" className="civic-simulation-section-tabs">
       {sections.map((section) => (
@@ -42,6 +47,14 @@ export function SimulationSectionTabs({ active }: Readonly<{ active: SimulationS
           className="civic-simulation-section-tab"
           href={section.href}
           key={section.id}
+          {...(onSelect
+            ? {
+                onClick: (event: { preventDefault: () => void }) => {
+                  event.preventDefault();
+                  onSelect(section.id);
+                },
+              }
+            : {})}
         >
           {section.label}
         </Link>
@@ -50,15 +63,55 @@ export function SimulationSectionTabs({ active }: Readonly<{ active: SimulationS
   );
 }
 
-export function SimulationBillingSection({ section }: Readonly<{ section: SimulationSection }>) {
-  if (section === "wallet") return <WalletPanel />;
+export type WalletMetricState =
+  | { status: "loading" }
+  | { status: "ready"; wallet: WalletSummary }
+  | { status: "unavailable" }
+  | { status: "forbidden" };
+
+export async function loadWalletMetricState(
+  request: typeof fetch = authenticatedFetch,
+): Promise<WalletMetricState> {
+  try {
+    const response = await request("/api/v1/admin/simulation-billing/wallet", {
+      cache: "no-store",
+    });
+    if (response.status === 403) return { status: "forbidden" };
+    if (!response.ok) return { status: "unavailable" };
+    const wallet = readWalletSummary(await response.json());
+    return wallet ? { status: "ready", wallet } : { status: "unavailable" };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export function walletMetricItems(state: WalletMetricState): readonly ConsoleMetricItem[] {
+  const value = (read: (wallet: WalletSummary) => string): string => {
+    if (state.status === "ready") return read(state.wallet);
+    if (state.status === "forbidden") return "권한 없음";
+    return state.status === "loading" ? "확인 중" : "확인 불가";
+  };
+  return [
+    { label: "전체 잔액", value: value((wallet) => formatKrw(wallet.balanceKrw)) },
+    { label: "실행 보류액", value: value((wallet) => formatKrw(wallet.heldKrw)) },
+    { label: "사용 가능액", value: value((wallet) => formatKrw(wallet.availableKrw)) },
+    { label: "오늘 사용액", value: value((wallet) => formatKrw(wallet.spentTodayKrw)) },
+  ];
+}
+
+export function SimulationBillingSection({
+  section,
+  onWalletChange,
+}: Readonly<{ section: SimulationSection; onWalletChange?: (wallet: WalletSummary) => void }>) {
+  if (section === "wallet") return <WalletPanel onWalletChange={onWalletChange} />;
   if (section === "usage") return <UsagePanel />;
   return null;
 }
 
-function WalletPanel() {
+function WalletPanel({
+  onWalletChange,
+}: Readonly<{ onWalletChange?: ((wallet: WalletSummary) => void) | undefined }>) {
   const mutate = useIdempotentMutation();
-  const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [rawCode, setRawCode] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
@@ -70,10 +123,8 @@ function WalletPanel() {
     if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
     const next = readWalletSummary(await response.json());
     if (!next) throw new Error("지갑 응답 형식을 확인해야 합니다.");
-    setWallet(next);
-  }, []);
-
-  useInitialLoad(load, setMessage);
+    onWalletChange?.(next);
+  }, [onWalletChange]);
 
   async function redeemCoupon() {
     if (!rawCode.trim()) return setMessage("사용할 쿠폰 코드를 입력해 주세요.");
@@ -85,7 +136,7 @@ function WalletPanel() {
       if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
       const next = readWalletSummary(await response.json());
       if (!next) return setMessage("쿠폰 사용 응답 형식을 확인해야 합니다.");
-      setWallet(next);
+      onWalletChange?.(next);
       setRawCode("");
       setMessage("쿠폰 금액을 공용 지갑에 반영했습니다.");
     } catch {
@@ -97,12 +148,6 @@ function WalletPanel() {
 
   return (
     <div className="civic-simulation-billing-stack">
-      <section className="civic-simulation-summary-grid" aria-label="공용 지갑 요약">
-        <Metric label="전체 잔액" value={formatKrw(wallet?.balanceKrw)} />
-        <Metric label="실행 보류액" value={formatKrw(wallet?.heldKrw)} />
-        <Metric label="사용 가능액" value={formatKrw(wallet?.availableKrw)} emphasis />
-        <Metric label="오늘 사용액" value={formatKrw(wallet?.spentTodayKrw)} />
-      </section>
       <section className="civic-domain-form-section">
         <header>
           <span>공용 예산 반영</span>
@@ -137,6 +182,34 @@ function WalletPanel() {
       <PanelMessage>{message}</PanelMessage>
     </div>
   );
+}
+
+export type UsageGridRow = Readonly<{
+  rowId: string;
+  day: string;
+  taskTitle: string;
+  actorEmail: string;
+  personaLabel: string;
+  chargedLabel: string;
+}>;
+
+export const USAGE_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<UsageGridRow>> = [
+  { field: "day", headerName: "일자", minWidth: 110 },
+  { field: "taskTitle", headerName: "과업", flex: 2, minWidth: 160 },
+  { field: "actorEmail", headerName: "실행 관리자", flex: 2, minWidth: 160 },
+  { field: "personaLabel", headerName: "패널", minWidth: 90 },
+  { field: "chargedLabel", headerName: "과금액", minWidth: 110 },
+];
+
+export function usageGridRows(rows: readonly DailyUsage[]): readonly UsageGridRow[] {
+  return rows.map((row, index) => ({
+    rowId: `${row.day}-${row.taskTitle}-${row.actorEmail}-${index}`,
+    day: row.day,
+    taskTitle: row.taskTitle,
+    actorEmail: row.actorEmail,
+    personaLabel: `${row.personaCount.toLocaleString("ko-KR")}명`,
+    chargedLabel: formatKrw(row.chargedKrw),
+  }));
 }
 
 function UsagePanel() {
@@ -199,32 +272,16 @@ function UsagePanel() {
       <section className="civic-simulation-summary-grid" aria-label="사용량 합계">
         <Metric label="과금액" value={formatKrw(totals.charged)} emphasis />
         <Metric label="처리한 가상 패널" value={`${totals.personas.toLocaleString("ko-KR")}명`} />
-        <Metric label="정산 행" value={`${rows.length.toLocaleString("ko-KR")}건`} />
+        <Metric label="정산 내역" value={`${rows.length.toLocaleString("ko-KR")}건`} />
       </section>
-      <div className="civic-table-scroll" role="region" tabIndex={0} aria-label="시뮬레이션 사용량">
-        <table className="civic-admin-table">
-          <thead>
-            <tr>
-              <th>일자</th>
-              <th>과업</th>
-              <th>실행 관리자</th>
-              <th>패널</th>
-              <th>과금액</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={`${row.day}-${row.taskTitle}-${row.actorEmail}-${index}`}>
-                <td>{row.day}</td>
-                <th scope="row">{row.taskTitle}</th>
-                <td>{row.actorEmail}</td>
-                <td>{row.personaCount.toLocaleString("ko-KR")}명</td>
-                <td>{formatKrw(row.chargedKrw)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ConsoleDataGrid
+        ariaLabel="시뮬레이션 사용량"
+        columnDefs={USAGE_GRID_COLUMNS}
+        emptyText="선택한 기간에 정산된 사용량이 없습니다."
+        getRowId={(row) => row.rowId}
+        height={420}
+        rowData={usageGridRows(rows)}
+      />
       <PanelMessage>{message}</PanelMessage>
     </div>
   );

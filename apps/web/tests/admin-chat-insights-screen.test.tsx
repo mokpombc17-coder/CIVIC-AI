@@ -4,51 +4,60 @@ import { describe, expect, it } from "vitest";
 import {
   AdminChatInsightsScreen,
   ChatStatisticsSummary,
+  chatInsightsPath,
+  chatInsightsTabForScreen,
   resolveConversationAnalysisRange,
 } from "@/components/admin/admin-chat-insights-screen";
 import type { ConversationExportMetrics } from "@/lib/chat/conversation-export";
 import { screenRegistry } from "@/lib/screens/registry";
 
 describe("admin chat conversation insights", () => {
-  it("토론방 관리는 배너와 내부 탭 없이 과업 관리형 목록을 제공한다", () => {
-    const screen = screenRegistry.find((candidate) => candidate.id === "A-CHAT-001");
+  it.each([
+    ["A-CHAT-001", "채팅 운영", "대화 분석"],
+    ["A-CHAT-002", "토론방 상세", "대화 분석"],
+    ["A-CHAT-008", "채팅 통계", "통계"],
+    ["A-CHAT-009", "채팅 운영", "대화 분석"],
+  ])("%s 화면에서 방 선택 중심의 자동 분석 흐름을 제공한다", (screenId, title, activeTab) => {
+    const screen = screenRegistry.find((candidate) => candidate.id === screenId);
     expect(screen?.status).toBe("FUNCTIONAL");
-    if (!screen) throw new Error("Missing screen: A-CHAT-001");
+    if (!screen) throw new Error(`Missing screen: ${screenId}`);
 
-    const html = renderToStaticMarkup(
-      createElement(AdminChatInsightsScreen, { query: {}, screen }),
-    );
+    const html = renderToStaticMarkup(createElement(AdminChatInsightsScreen, { screen }));
 
-    expect(html).toContain('data-wireflow-screen="A-CHAT-001"');
-    expect(html).toContain(">토론방 관리</h1>");
-    expect(html).toContain(
-      'class="civic-admin-workbench civic-domain-console" data-wireflow-layout="chat-room-admin"',
-    );
-    expect(html).toContain('aria-label="토론방 관리 목록"');
-    expect(html).toContain(">토론방 이름</th>");
-    expect(html).not.toContain(">공개·참여</th>");
-    expect(html).toContain(">작업</th>");
-    expect(html).not.toContain('href="/admin/chat/categories"');
-    expect(html).not.toContain("ROOM OPERATIONS · EXPORT V1");
+    expect(html).toContain(`data-wireflow-screen="${screenId}"`);
+    expect(html).toContain(`>${title}</h1>`);
+    expect(html).toContain("운영할 토론방");
+    expect(html).not.toContain("ACTIVE · CLOSED");
     expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
     expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
-    expect(html).not.toContain('aria-label="분석 기간"');
+    expect(html).not.toContain('href="/admin/chat/categories"');
+    expect(html).toContain('aria-label="분석 보기 탭"');
+    expect(html).toContain(
+      `<button aria-selected="true" class="console-tab" role="tab" type="button">${activeTab}</button>`,
+    );
+    expect(html).toContain('aria-label="분석 기간"');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain(">전체 기간</button>");
+    expect(html).toContain("개설 이후 전체 대화를 자동으로 표시합니다");
     expect(html).not.toContain('href="/admin/chat/export"');
+    expect(html).not.toContain("Export 요청·분석");
+    expect(html).not.toContain('type="datetime-local"');
     expect(html).not.toContain("roomId");
     expect(html).not.toContain("userId");
   });
 
-  it("roomId가 있으면 통계 Drawer 진입 상태를 복원한다", () => {
-    const screen = screenRegistry.find((candidate) => candidate.id === "A-CHAT-001");
-    if (!screen) throw new Error("Missing screen: A-CHAT-001");
+  it("탭 초기값은 화면 ID에서, 탭 URL은 선택한 방을 유지한 채 계산한다", () => {
+    expect(chatInsightsTabForScreen("A-CHAT-001")).toBe("analysis");
+    expect(chatInsightsTabForScreen("A-CHAT-002")).toBe("analysis");
+    expect(chatInsightsTabForScreen("A-CHAT-009")).toBe("analysis");
+    expect(chatInsightsTabForScreen("A-CHAT-008")).toBe("statistics");
 
-    const html = renderToStaticMarkup(
-      createElement(AdminChatInsightsScreen, { query: { roomId: "room-one" }, screen }),
+    expect(chatInsightsPath("analysis", null)).toBe("/admin/chat");
+    expect(chatInsightsPath("statistics", null)).toBe("/admin/chat/statistics");
+    expect(chatInsightsPath("analysis", "room-1")).toBe("/admin/chat?roomId=room-1");
+    expect(chatInsightsPath("statistics", "room 1")).toBe(
+      "/admin/chat/statistics?roomId=room%201",
     );
-
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain("토론방 통계");
-    expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
   });
 
   it("전체 기간은 토론방 개설 시각부터 현재까지로 계산한다", () => {

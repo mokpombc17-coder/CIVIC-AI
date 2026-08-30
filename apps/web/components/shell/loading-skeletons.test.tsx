@@ -56,7 +56,7 @@ describe("route-aware loading skeletons", () => {
   it("사용자 목록은 제목, 검색창, 필터와 표 머리글을 고정 UI로 렌더한다", () => {
     const markup = renderToStaticMarkup(<AdminLoadingView pathname="/admin/users" />);
 
-    expect(markup).toMatch(/<h1[^>]*>사용자 목록<\/h1>/);
+    expect(markup).toMatch(/<h1[^>]*>사용자·권한<\/h1>/);
     expect(markup).toContain('placeholder="이메일 주소 입력…"');
     expect(markup).toContain("활성");
     expect(markup).toContain("비활성");
@@ -80,7 +80,7 @@ describe("route-aware loading skeletons", () => {
   it("관리 상세 화면도 실제 제목과 목록 복귀 링크를 먼저 표시한다", () => {
     const markup = renderToStaticMarkup(<AdminLoadingView pathname="/admin/tasks/create" />);
 
-    expect(markup).toMatch(/<h1[^>]*>과업 생성<\/h1>/);
+    expect(markup).toMatch(/<h1[^>]*>과업 관리<\/h1>/);
     expect(markup).toContain('href="/admin/tasks"');
     expect(markup).not.toContain("civic-skeleton-header-title");
   });

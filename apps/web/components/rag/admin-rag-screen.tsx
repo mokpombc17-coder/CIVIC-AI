@@ -8,6 +8,11 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { ConsoleMetricStrip, type ConsoleMetricItem } from "@/components/admin/console/console-ui";
+import {
+  loadRagJobSummary,
+  type RagJobSummaryState,
+} from "@/components/screens/admin-functional-screen";
 import { RagFileTile, RagFolderIcon, RagTrashIcon, RagTreeChevron } from "./rag-file-icons";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import type { ScreenDefinition } from "@/lib/screens/registry";
@@ -303,6 +308,16 @@ export function AdminRagScreen({
     message,
     setMessage,
   } = useAdminWorkspace(folderId);
+  const [jobSummary, setJobSummary] = useState<RagJobSummaryState>({ status: "loading" });
+  useEffect(() => {
+    let cancelled = false;
+    void loadRagJobSummary().then((summary) => {
+      if (!cancelled) setJobSummary(summary);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const hasActiveDocuments = hasActiveRagDocuments(documents);
   useEffect(() => {
     if (!hasActiveDocuments) return;
@@ -323,73 +338,9 @@ export function AdminRagScreen({
   const folderDialogKey = ragFolderDialogKey(folderMode, folderId);
   const [completedFolderDialog, setCompletedFolderDialog] = useState<string>();
   const deleteReturnHref = ragWorkspaceHref(selectedFolder?.folder_id ?? folderId);
-
-  if (screen.id === "A-RAG-004") {
-    return (
-      <ScreenFrame
-        screen={screen}
-        title={
-          retryJobId
-            ? `${retryFilename ?? "실패 문서"} 재처리`
-            : selectedFolder
-              ? `${selectedFolder.name} 폴더에 문서 업로드`
-              : "선택 폴더에 문서 업로드"
-        }
-      >
-        <div className="wf-rag-task-page" data-wireflow-layout="rag-upload">
-          <p className="civic-breadcrumb">
-            {retryJobId ? (
-              <>문서 / 실패 작업 재처리</>
-            ) : (
-              <>
-                문서 /{" "}
-                {ragFolderAncestorPath(folders, selectedFolder)
-                  .map((name) => `${name} / `)
-                  .join("")}
-                {selectedFolder?.name ?? "선택 폴더"}
-              </>
-            )}
-          </p>
-          <section className="wf-rag-task-card">
-            <header className="wf-rag-task-heading">
-              <h2>{retryJobId ? "실패 문서 재처리" : "파일 선택"}</h2>
-            </header>
-            {retryJobId ? (
-              <AutomaticRagJobRetryPanel
-                jobId={retryJobId}
-                key={retryJobId}
-                {...(retryFilename ? { filename: retryFilename } : {})}
-              />
-            ) : (
-              <UploadPanel folder={selectedFolder} onMessage={setMessage} query={query} />
-            )}
-          </section>
-          {message ? (
-            <p aria-live="polite" className="civic-form-message">
-              {message}
-            </p>
-          ) : null}
-          <span className="civic-screen-action-label">{action}</span>
-        </div>
-      </ScreenFrame>
-    );
-  }
-
-  if (screen.id === "A-RAG-005") {
-    return (
-      <ScreenFrame screen={screen}>
-        <div className="wf-rag-task-page" data-wireflow-layout="rag-job-status">
-          <section className="wf-rag-task-card">
-            <header className="wf-rag-task-heading">
-              <h2>업로드한 문서</h2>
-            </header>
-            <JobPanel key={jobPanelKey(queryValues(query.jobId))} query={query} />
-          </section>
-          <span className="civic-screen-action-label">{action}</span>
-        </div>
-      </ScreenFrame>
-    );
-  }
+  const jobIds = queryValues(query.jobId);
+  const showRetryOverlay = screen.id === "A-RAG-004" && retryJobId !== undefined;
+  const showJobOverlay = screen.id === "A-RAG-005" && jobIds.length > 0;
 
   return (
     <ScreenFrame screen={screen}>
@@ -400,8 +351,16 @@ export function AdminRagScreen({
           selectedFolderId={selectedFolder?.folder_id}
         />
         <section className="civic-rag-admin-workspace">
-          <WorkspaceHeading documentCount={pageState.total} folder={selectedFolder} />
-          <details className="civic-inline-upload" data-rag-inline-upload="true">
+          <WorkspaceHeading folder={selectedFolder} />
+          <ConsoleMetricStrip
+            ariaLabel="문서 처리 현황"
+            metrics={ragJobSummaryMetrics(jobSummary, pageState.total)}
+          />
+          <details
+            className="civic-inline-upload"
+            data-rag-inline-upload="true"
+            open={screen.id === "A-RAG-004"}
+          >
             <summary>
               <span>
                 <strong>문서 업로드</strong>
@@ -416,7 +375,7 @@ export function AdminRagScreen({
                 inline
                 onAccepted={refreshDocuments}
                 onMessage={setMessage}
-                query={{ mode: "NEW_DOCUMENT" }}
+                query={screen.id === "A-RAG-004" ? query : { mode: "NEW_DOCUMENT" }}
               />
             </div>
           </details>
@@ -496,8 +455,60 @@ export function AdminRagScreen({
           />
         </AdminRagModal>
       ) : null}
+      {showRetryOverlay && retryJobId !== undefined ? (
+        <AdminRagModal
+          closeHref={deleteReturnHref}
+          title={`${retryFilename ?? "실패 문서"} 재처리`}
+        >
+          <AutomaticRagJobRetryPanel
+            jobId={retryJobId}
+            key={retryJobId}
+            {...(retryFilename ? { filename: retryFilename } : {})}
+          />
+        </AdminRagModal>
+      ) : null}
+      {showJobOverlay ? (
+        <AdminRagModal closeHref={deleteReturnHref} title="업로드한 문서">
+          <div className="civic-job-overlay" data-wireflow-layout="rag-job-status">
+            <JobPanel key={jobPanelKey(queryValues(query.jobId))} query={query} />
+          </div>
+        </AdminRagModal>
+      ) : null}
     </ScreenFrame>
   );
+}
+
+export function ragJobSummaryMetrics(
+  summary: RagJobSummaryState,
+  totalDocuments: number,
+): readonly ConsoleMetricItem[] {
+  const pendingValue = summary.status === "loading" ? "확인 중" : "확인 불가";
+  const pendingDescription =
+    summary.status === "loading"
+      ? "문서 처리 상태 확인 중"
+      : "문서 처리 현황을 불러오지 못했습니다";
+  return [
+    {
+      label: "전체 문서",
+      value: `${totalDocuments.toLocaleString("ko-KR")}개`,
+      description: "현재 목록 기준",
+    },
+    summary.status === "ready"
+      ? {
+          label: "처리 중",
+          value: `${summary.active.toLocaleString("ko-KR")}건`,
+          description: "변환·색인 진행 작업",
+        }
+      : { label: "처리 중", value: pendingValue, description: pendingDescription },
+    summary.status === "ready"
+      ? {
+          label: "실패",
+          value: `${summary.failed.toLocaleString("ko-KR")}건`,
+          description: summary.failed > 0 ? "실패 작업 재시도 가능" : "실패한 작업 없음",
+          ...(summary.failed > 0 ? { alert: true } : {}),
+        }
+      : { label: "실패", value: pendingValue, description: pendingDescription },
+  ];
 }
 
 function AdminRagModal({
@@ -790,7 +801,6 @@ export function FolderTree({
   return (
     <aside className="civic-folder-tree">
       <div className="civic-folder-tree-heading">
-        <p className="civic-kicker">문서 폴더</p>
         <h2>폴더</h2>
       </div>
       <div aria-label="폴더 작업" className="civic-folder-tree-actions" role="toolbar">
@@ -819,7 +829,7 @@ export function FolderTree({
           </>
         ) : null}
       </div>
-      <ul aria-label="RAG 폴더 트리">
+      <ul aria-label="문서 폴더 트리">
         {visibleFolders.map((folder) => (
           <li
             key={folder.folder_id}
@@ -979,7 +989,6 @@ export function DocumentInspector({
             versionId={version.document_version_id}
           />
         ) : null}
-        <p>원본은 읽기 전용으로 관리되며 삭제는 별도 확인 화면에서 수행합니다.</p>
         <div className="wf-inspector-actions">
           <Link
             className="civic-secondary-action"
@@ -1008,10 +1017,7 @@ export function DocumentInspector({
   );
 }
 
-export function WorkspaceHeading({
-  documentCount,
-  folder,
-}: Readonly<{ documentCount: number; folder: Folder | undefined }>) {
+function WorkspaceHeading({ folder }: Readonly<{ folder: Folder | undefined }>) {
   // 마지막 요소는 제목과 중복이므로 상위 경로만 표시한다.
   const ancestors = (folder?.path ?? []).slice(0, -1);
   return (
@@ -1020,9 +1026,6 @@ export function WorkspaceHeading({
         {ancestors.length > 0 ? <p className="civic-breadcrumb">{ancestors.join(" / ")}</p> : null}
         <h2>{folder?.name ?? "문서 작업 공간"}</h2>
       </div>
-      <strong className="civic-rag-folder-document-count">
-        {documentCount.toLocaleString("ko-KR")}개 문서
-      </strong>
     </header>
   );
 }
@@ -1269,7 +1272,7 @@ export function DocumentWorkspace({
         </div>
       ) : (
         <div
-          aria-label="RAG 작업 목록 표"
+          aria-label="문서 목록 표"
           className="civic-table-scroll"
           role="region"
           tabIndex={0}
@@ -2054,10 +2057,10 @@ function UploadPanel({
         onProgress: (uploadedParts, totalParts) => {
           setUploadProgress((current) => {
             const next = new Map(current);
-            next.set(file, `${uploadedParts}/${totalParts} part`);
+            next.set(file, `${uploadedParts}/${totalParts} 전송됨`);
             return next;
           });
-          onMessage(`${file.name}: ${uploadedParts}/${totalParts} part 전송 중`);
+          onMessage(`${file.name}: ${uploadedParts}/${totalParts} 전송 중`);
         },
       });
       completionRecoveries.current.delete(recoveryKey);
@@ -2186,7 +2189,7 @@ function UploadPanel({
         <p>
           {mode === "NEW_VERSION"
             ? "선택한 문서에 새 버전을 등록합니다."
-            : `${folder?.name ?? "선택 필요"}에 새 불변 문서를 만듭니다.`}
+            : `${folder?.name ?? "선택 필요"}에 새 문서를 만듭니다.`}
         </p>
       </div>
       <p className="civic-help">

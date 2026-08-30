@@ -19,7 +19,6 @@ import {
   DocumentInspector,
   DocumentWorkspace,
   FolderTree,
-  WorkspaceHeading,
   hasActiveRagDocuments,
   buildRagDocumentListPath,
   requestRagBulkAction,
@@ -49,6 +48,7 @@ import {
   processingJobHref,
   ragJobHref,
   ragJobsHref,
+  ragJobSummaryMetrics,
   resolveInspectedRagDocument,
   resolveFolderMutation,
   resolveFolderEditorMode,
@@ -98,7 +98,6 @@ import {
   safeExternalSourceUrl,
   scrollRagMessagesToLatest,
   shouldShowRagStreamingAnswer,
-  submitRagQuestionOnEnter,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
 import * as participantRagSession from "@/components/rag/participant-rag-screen";
@@ -118,8 +117,8 @@ const latestWireflowTitles = Object.freeze({
   "A-RAG-001": "문서 관리",
   "A-RAG-002": "문서 관리",
   "A-RAG-003": "문서 관리",
-  "A-RAG-004": "선택 폴더에 문서 업로드",
-  "A-RAG-005": "문서 준비 상태",
+  "A-RAG-004": "문서 관리",
+  "A-RAG-005": "문서 관리",
   "A-RAG-006": "문서 관리",
 } as const);
 
@@ -166,42 +165,6 @@ type RagSessionApi = Readonly<{
 const ragSessionApi = participantRagSession as unknown as RagSessionApi;
 
 describe("9 functional RAG screens", () => {
-  it("참여자 AI 입력은 Enter로 전송하고 Shift+Enter와 한글 조합 Enter는 유지한다", () => {
-    const requestSubmit = vi.fn();
-    const preventDefault = vi.fn();
-    const event = (
-      overrides: {
-        key?: string;
-        shiftKey?: boolean;
-        isComposing?: boolean;
-        keyCode?: number;
-      } = {},
-    ) =>
-      ({
-        key: overrides.key ?? "Enter",
-        shiftKey: overrides.shiftKey ?? false,
-        nativeEvent: {
-          isComposing: overrides.isComposing ?? false,
-          keyCode: overrides.keyCode ?? 13,
-        },
-        currentTarget: { form: { requestSubmit } },
-        preventDefault,
-      }) as Parameters<typeof submitRagQuestionOnEnter>[0];
-
-    submitRagQuestionOnEnter(event());
-    expect(preventDefault).toHaveBeenCalledOnce();
-    expect(requestSubmit).toHaveBeenCalledOnce();
-
-    preventDefault.mockClear();
-    requestSubmit.mockClear();
-    submitRagQuestionOnEnter(event({ shiftKey: true }));
-    submitRagQuestionOnEnter(event({ isComposing: true }));
-    submitRagQuestionOnEnter(event({ keyCode: 229 }));
-
-    expect(preventDefault).not.toHaveBeenCalled();
-    expect(requestSubmit).not.toHaveBeenCalled();
-  });
-
   it("참여자 RAG 대화 목록은 보조기기가 새 메시지 흐름으로 인식한다", () => {
     const screen = ragScreens.find((candidate) => candidate.id === "U-RAG-001");
     expect(screen).toBeDefined();
@@ -324,79 +287,10 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain("문서 기반 답변입니다.");
-    expect(html).toContain(
-      '<header class="civic-rag-answer-meta"><strong>CIVIC.AI</strong></header>',
-    );
-    expect(html).not.toContain('class="civic-rag-time"');
     expect(html).not.toContain("이 답변이 도움이 되었나요?");
     expect(html).not.toContain("도움됨");
     expect(html).not.toContain("도움 안 됨");
     expect(html).not.toContain('aria-label="답변 평가"');
-  });
-
-  it("완료된 AI 답변은 본문 인용 칩만 유지하고 별도 출처 카드를 표시하지 않는다", () => {
-    const versionId = "30000000-0000-4000-8000-000000000001";
-    const html = renderToStaticMarkup(
-      createElement(RagMessage, {
-        message: {
-          id: "citation-job",
-          question: "정책 내용을 알려줘.",
-          askedAt: "11:32",
-          answeredAt: "11:33",
-          job: {
-            job_id: "citation-job",
-            status: "SUCCEEDED",
-            answer: `문서 기반 답변입니다. [${versionId}#3]`,
-            citations: [
-              {
-                document_version_id: versionId,
-                page_number: 3,
-                page_count: 12,
-                source_object_sha256: "a".repeat(64),
-                title: "복지 정책.pdf",
-                related_titles: ["관련 공고.pdf"],
-              },
-            ],
-          },
-        },
-        onOpenCitation: vi.fn(),
-        onUseSuggestion: vi.fn(),
-      }),
-    );
-
-    expect(html).toContain('class="civic-citation-chip"');
-    expect(html).toContain('aria-label="출처 복지 정책.pdf p.3 열기"');
-    expect(html).not.toContain("civic-rag-citations");
-    expect(html).not.toContain("civic-rag-citation-card");
-    expect(html).not.toContain("원문 보기");
-    expect(html).not.toContain("관련 공고.pdf");
-  });
-
-  it("사용자 질문은 이름과 시간 없이 비대화형 말풍선으로 표시한다", () => {
-    const html = renderToStaticMarkup(
-      createElement(RagMessage, {
-        message: {
-          id: "completed-job",
-          question: "정책 내용을 알려줘.",
-          askedAt: "11:32",
-          answeredAt: "11:33",
-          job: {
-            job_id: "completed-job",
-            status: "SUCCEEDED",
-            answer: "문서 기반 답변입니다.",
-          },
-        },
-        onOpenCitation: vi.fn(),
-        onUseSuggestion: vi.fn(),
-      }),
-    );
-
-    expect(html).toContain('<div class="civic-rag-question-content">');
-    expect(html).toContain('<p class="civic-rag-question">정책 내용을 알려줘.</p>');
-    expect(html).not.toContain('class="civic-rag-question-meta"');
-    expect(html).not.toContain('class="civic-rag-time"');
-    expect(html).not.toContain("<strong>나</strong>");
-    expect(html).not.toContain('<button class="civic-rag-question"');
   });
 
   it("스트리밍 답변은 최종 답변 버블 스타일을 선택한다", () => {
@@ -425,41 +319,7 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain("civic-rag-answer is-live is-streaming-answer");
-    expect(html).toContain('aria-busy="true"');
-    expect(html).toContain('class="civic-rag-markdown"');
     expect(html).toContain("실시간 문서 답변");
-    expect(html).not.toContain("civic-rag-stream-label");
-    expect(html).not.toContain("civic-rag-stream-cursor");
-  });
-
-  it("답변 조각 전 작성 상태는 문구 너비의 아이콘 없는 버블로 표시한다", () => {
-    const html = renderToStaticMarkup(
-      createElement(RagMessage, {
-        liveJob: {
-          progress: {
-            status: "RUNNING",
-            stage: "COMPOSING",
-            label: "답변을 작성하고 있어요",
-            detail: "선별한 근거로 답변을 구성합니다.",
-            progress_percent: 80,
-            estimated_remaining_seconds: 3,
-            elapsed_seconds: 8,
-          },
-          streamedAnswer: "",
-        },
-        message: {
-          id: "composing-job",
-          question: "정책 내용을 알려줘.",
-          askedAt: "11:32",
-        },
-        onOpenCitation: vi.fn(),
-        onUseSuggestion: vi.fn(),
-      }),
-    );
-
-    expect(html).toContain("civic-rag-answer is-live is-streaming-answer is-loading-label-only");
-    expect(html).toContain("답변을 작성하는 중...");
-    expect(html).not.toContain("civic-rag-loading-orb");
   });
 
   it("스트리밍 답변 조각이 추가되면 대화의 마지막 높이로 자동 스크롤한다", () => {
@@ -676,11 +536,6 @@ describe("9 functional RAG screens", () => {
     );
   });
 
-  it("검색에서 제외 체크 상태를 기존 searchEnabled API 값으로 변환한다", () => {
-    expect(searchEnabledFromExcluded(true)).toBe(false);
-    expect(searchEnabledFromExcluded(false)).toBe(true);
-  });
-
   it("문서 목록은 UUID 대신 등록자 이메일·등록일·페이지 수·파일 크기를 표시한다", () => {
     const documentId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const creatorId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
@@ -732,7 +587,6 @@ describe("9 functional RAG screens", () => {
     expect(renderedText(html).match(/검색에서 제외/g)).toHaveLength(3);
     expect(html).not.toContain("검색 사용");
     expect(html).not.toContain("검색 제외");
-    expect(html).not.toContain("문서 목록 자세히 보기");
     expect(html).toContain(
       "/admin/rag/delete?folderId=00000000-0000-4000-8000-000000000002&amp;documentId=640af5c5-d302-4c32-97ca-c9db40ed22e5",
     );
@@ -767,23 +621,9 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain("처리 완료 6개");
   });
 
-  it("선택 폴더의 전체 문서 수를 폴더명과 같은 헤더에 표시한다", () => {
-    const html = renderToStaticMarkup(
-      createElement(WorkspaceHeading, {
-        documentCount: 66,
-        folder: {
-          folder_id: "general",
-          parent_id: "root",
-          name: "General",
-          kind: "GENERAL",
-          path: ["Root", "General"],
-        },
-      }),
-    );
-
-    expect(html).toContain("<h2>General</h2>");
-    expect(html).toContain('class="civic-rag-folder-document-count">66개 문서</strong>');
-    expect(html).not.toContain("civic-ledger-summary");
+  it("검색에서 제외 체크 상태를 기존 searchEnabled API 값으로 변환한다", () => {
+    expect(searchEnabledFromExcluded(true)).toBe(false);
+    expect(searchEnabledFromExcluded(false)).toBe(true);
   });
 
   it("등록자 조회에 실패해도 문서 UUID를 대체 문구로 노출하지 않는다", () => {
@@ -1031,7 +871,6 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain("관련 자료를 찾는 중...");
     expect(html).toContain("civic-rag-loading-label");
-    expect(html).not.toContain("civic-rag-loading-orb");
     expect(html).not.toContain("<ol");
     expect(html).not.toContain('role="progressbar"');
     expect(html).not.toContain("관련 자료를 좁힙니다.");
@@ -1801,7 +1640,7 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain("원본 파일 선택");
     expect(html).not.toContain("파일을 여러 개 놓거나 찾아보세요");
     expect(html).not.toContain("파일당 최대 500 MiB");
-    expect(html).not.toContain("8 MiB 단위");
+    expect(html).not.toContain("8 MiB");
     expect(html).not.toContain("파일 크기·요청당 파일 수의 제품 한도는 없습니다");
   });
 
@@ -2569,7 +2408,7 @@ describe("9 functional RAG screens", () => {
     }
   });
 
-  it("업로드와 처리 상태는 각각 독립 작업 화면을 사용한다", () => {
+  it("업로드와 처리 상태도 통합 문서 작업 공간 위에 렌더링한다", () => {
     const upload = ragScreens.find((item) => item.id === "A-RAG-004");
     const job = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!upload || !job) throw new Error("RAG task screens missing");
@@ -2577,13 +2416,68 @@ describe("9 functional RAG screens", () => {
     const uploadHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: upload }));
     const jobHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: job }));
 
-    expect(uploadHtml).toContain('data-wireflow-layout="rag-upload"');
-    expect(uploadHtml).not.toContain('data-wireflow-layout="rag-workspace"');
-    expect(uploadHtml).toContain("파일 선택");
+    expect(uploadHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(uploadHtml).toMatch(/<details[^>]*data-rag-inline-upload="true"[^>]*open=""/);
+    expect(uploadHtml).toContain('type="file"');
+    expect(uploadHtml).not.toContain('data-wireflow-layout="rag-admin-modal"');
     expect(uploadHtml).not.toContain("<main");
-    expect(jobHtml).toContain('data-wireflow-layout="rag-job-status"');
-    expect(jobHtml).not.toContain('data-wireflow-layout="rag-workspace"');
-    expect(jobHtml).toContain("문서 준비 진행 상태");
+    expect(jobHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(jobHtml).not.toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(jobHtml).not.toContain("작업 ID가 필요합니다");
     expect(jobHtml).not.toContain("<main");
+  });
+
+  it("실패 재처리와 처리 상태는 작업 공간 위 모달로 표시한다", () => {
+    const upload = ragScreens.find((item) => item.id === "A-RAG-004");
+    const job = ragScreens.find((item) => item.id === "A-RAG-005");
+    if (!upload || !job) throw new Error("RAG task screens missing");
+
+    const retryHtml = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen: upload,
+        query: { retryJobId: "job-1", filename: "정책.pdf", folderId: "folder-1" },
+      }),
+    );
+    expect(retryHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(retryHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(retryHtml).toContain("정책.pdf 재처리");
+    expect(retryHtml).toContain("실패한 문서의 재처리를 자동으로 요청합니다.");
+
+    const jobOverlayHtml = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen: job,
+        query: { jobId: "job-1", folderId: "folder-1" },
+      }),
+    );
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-job-status"');
+    expect(jobOverlayHtml).toContain("문서 준비 진행 상태");
+  });
+
+  it("모든 관리자 RAG 화면 상단에 문서 처리 현황 지표를 표시한다", () => {
+    for (const screen of ragScreens.filter((item) => item.id.startsWith("A-RAG"))) {
+      const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
+      expect(html).toContain('aria-label="문서 처리 현황"');
+      expect(html).toContain("전체 문서");
+      expect(html).toContain("확인 중");
+    }
+  });
+
+  it("작업 요약 지표는 실패가 있을 때만 경고 강조한다", () => {
+    const ready = ragJobSummaryMetrics(
+      { status: "ready", failed: 2, active: 3, counts: {}, recentFailures: [] },
+      120,
+    );
+    expect(ready[0]).toMatchObject({ label: "전체 문서", value: "120개" });
+    expect(ready[1]).toMatchObject({ label: "처리 중", value: "3건" });
+    expect(ready[2]).toMatchObject({ label: "실패", value: "2건", alert: true });
+    const clean = ragJobSummaryMetrics(
+      { status: "ready", failed: 0, active: 0, counts: {}, recentFailures: [] },
+      0,
+    );
+    expect(clean[2]?.alert).toBeUndefined();
+    expect(ragJobSummaryMetrics({ status: "loading" }, 0)[2]?.value).toBe("확인 중");
+    expect(ragJobSummaryMetrics({ status: "unavailable" }, 0)[1]?.value).toBe("확인 불가");
   });
 });

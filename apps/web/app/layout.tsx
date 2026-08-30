@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import "./wireflow.css";
+import "./admin-console.css";
 import { AppShell } from "@/components/app-shell";
 import { resolveSiteUrl } from "@/lib/site-url";
 

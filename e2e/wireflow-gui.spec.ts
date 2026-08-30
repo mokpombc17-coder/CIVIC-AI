@@ -253,9 +253,6 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/admin/simulation-tasks") {
       return json(response, [currentSimulationTaskFixture]);
     }
-    if (url.pathname === "/api/v1/admin/tasks") {
-      return json(response, [currentSimulationTaskFixture]);
-    }
     if (url.pathname === "/internal/v1/rag/documents/document-1/versions/version-1/original") {
       response.writeHead(200, {
         "content-type": "application/pdf",
@@ -271,10 +268,9 @@ test.beforeAll(async () => {
       return json(response, queryResultFixture);
     }
     if (
-      url.pathname.startsWith(
-        `/internal/v1/rag/sources/${CITATION_VERSION_ID}/pages/3/document/pages/`,
-      ) &&
-      url.pathname.endsWith(".png")
+      /^\/internal\/v1\/rag\/sources\/version-1\/pages\/3\/document\/pages\/\d+\.png$/u.test(
+        url.pathname,
+      )
     ) {
       response.writeHead(200, { "content-type": "image/png" });
       response.end(
@@ -564,23 +560,40 @@ test("관리자 로그인 홈은 이름 왼쪽에 관리자·사용자 페이지
 
   await adminPageLink.click();
   await expect(page).toHaveURL(/\/admin$/u);
-  await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "관리 홈" })).toBeVisible();
 });
 
-test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합한다", async ({ context, page }) => {
+test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dialog를 유지한다", async ({
+  context,
+  page,
+}) => {
   await authenticate(context, "participant.payload.signature");
 
   await page.goto("/account");
-  await expect(page.getByRole("heading", { name: "계정", exact: true })).toBeVisible();
-  await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
-  await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "계정 관리" })).toHaveCount(0);
-  await expect(
-    page.getByText("계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다."),
-  ).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /내 정보 관리/u })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /내 설문 보기/u })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "계정" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "계정 항목" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /내 정보 관리/u })).toBeVisible();
+  await expect(page.getByRole("link", { name: /내 설문 보기/u })).toBeVisible();
   await expect(page.getByRole("button", { name: "로그아웃" })).toBeVisible();
+  const accountCards = page.locator(".wf-account-hub-card");
+  await expect(accountCards).toHaveCount(2);
+  const accountCardLayout = await accountCards.evaluateAll((cards) =>
+    cards.map((card) => {
+      const box = card.getBoundingClientRect();
+      const style = getComputedStyle(card);
+      return {
+        height: Math.round(box.height),
+        paddingBlock: `${style.paddingTop} ${style.paddingBottom}`,
+      };
+    }),
+  );
+  expect(accountCardLayout).toEqual([
+    { height: 78, paddingBlock: "12px 12px" },
+    { height: 78, paddingBlock: "12px 12px" },
+  ]);
+
+  await page.goto("/account/profile");
+  await expect(page.getByRole("heading", { name: "내 정보 관리" })).toBeVisible();
   await expect(page.getByText("회원정보 수정", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("선호 언어")).toHaveCount(0);
   await expect(page.getByLabel("AI 답변 상세도")).toHaveCount(0);
@@ -613,47 +626,16 @@ test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합
   await expect.poll(readFormOffsetFromScroller).toBeLessThanOrEqual(24);
   const formOffsetFromScroller = await readFormOffsetFromScroller();
   expect(formOffsetFromScroller).toBeGreaterThanOrEqual(0);
-  const deactivateButton = page.getByRole("button", { name: "계정 비활성화" });
-  await deactivateButton.scrollIntoViewIfNeeded();
-  const accountActionStyles = await page
-    .locator(".wf-account-session-actions")
-    .evaluate((element) => {
-      const logout = element.querySelector<HTMLButtonElement>(".wf-account-logout button");
-      const deactivate = element.querySelector<HTMLButtonElement>(".wf-account-deactivate-button");
-      if (!logout || !deactivate) throw new Error("account actions missing");
-      const logoutStyle = getComputedStyle(logout);
-      const deactivateStyle = getComputedStyle(deactivate);
-      return {
-        logoutBorderColor: logoutStyle.borderColor,
-        logoutColor: logoutStyle.color,
-        deactivateBackground: deactivateStyle.backgroundColor,
-        deactivateBorderColor: deactivateStyle.borderColor,
-        deactivateColor: deactivateStyle.color,
-        logoutBottom: Math.round(logout.getBoundingClientRect().bottom),
-        deactivateTop: Math.round(deactivate.getBoundingClientRect().top),
-      };
-    });
-  expect(accountActionStyles).toEqual({
-    logoutBorderColor: "rgb(18, 20, 23)",
-    logoutColor: "rgb(18, 20, 23)",
-    deactivateBackground: "rgba(0, 0, 0, 0)",
-    deactivateBorderColor: "rgb(197, 29, 29)",
-    deactivateColor: "rgb(197, 29, 29)",
-    logoutBottom: expect.any(Number),
-    deactivateTop: expect.any(Number),
-  });
-  expect(accountActionStyles.deactivateTop - accountActionStyles.logoutBottom).toBe(8);
-  const accountUrl = page.url();
-  await deactivateButton.click();
-  await expect(page).toHaveURL(accountUrl);
+  const accountManagement = page.getByRole("heading", { name: "계정 관리" });
+  await accountManagement.scrollIntoViewIfNeeded();
+  await expect(accountManagement).toBeVisible();
+  const profileUrl = page.url();
+  await page.getByRole("button", { name: "계정 비활성화" }).click();
+  await expect(page).toHaveURL(profileUrl);
   await expect(page.getByLabel("화면을 불러오는 중")).toHaveCount(0);
   const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("다시 로그인시 계정을 활성화 할 수 있습니다.")).toBeVisible();
-  await expect(dialog.getByText("비활성화 영향", { exact: true })).toHaveCount(0);
-  await expect(
-    dialog.getByText("AI·채팅·투표 정보가 개인 정보에 더 이상 반영되지 않습니다."),
-  ).toHaveCount(0);
+  await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("비밀번호 확인")).toBeFocused();
   await expectBox(dialog, { width: [359, 362] });
   await expectBox(dialog.locator(".wf-impact-list > div").first(), { height: [93, 95] });
@@ -684,14 +666,47 @@ test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합
   });
   await dialog.getByRole("button", { name: "계정 유지" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page).toHaveURL(accountUrl);
+  await expect(page).toHaveURL(profileUrl);
 
   await page.goto("/account/survey");
-  await expect(page).toHaveURL(/\/account$/u);
-  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
+  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
+  const surveyIntro = page.locator(".wf-account-survey-intro");
+  await expectBox(surveyIntro, {
+    x: [16, 18],
+    width: [359, 362],
+    height: [134, 136],
+  });
+  const surveyIntroLayout = await surveyIntro.evaluate((element) => {
+    const root = element.getBoundingClientRect();
+    const copy = element.querySelector(":scope > div")?.getBoundingClientRect();
+    const heading = element.querySelector("h2");
+    if (!copy || !heading) throw new Error("survey intro layout missing");
+    const headingStyle = getComputedStyle(heading);
+    return {
+      copyLeft: Math.round(copy.left - root.left),
+      copyTop: Math.round(copy.top - root.top),
+      headingColor: headingStyle.color,
+      headingFontSize: headingStyle.fontSize,
+      headingLineHeight: headingStyle.lineHeight,
+    };
+  });
+  expect(surveyIntroLayout).toEqual({
+    copyLeft: 16,
+    copyTop: 52,
+    headingColor: "rgb(8, 89, 133)",
+    headingFontSize: "16px",
+    headingLineHeight: "24px",
+  });
+  await expect(page.getByRole("heading", { name: "기본 정보" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "기타 응답" })).toBeVisible();
+  await expect(page.getByText("서울특별시 종로구", { exact: true })).toBeVisible();
+  const policyInterest = page.getByText("4", { exact: true }).last();
+  await policyInterest.scrollIntoViewIfNeeded();
+  await expect(policyInterest).toBeVisible();
 });
 
-test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 계정 화면으로 돌아간다", async ({
+test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 불변 응답을 표시한다", async ({
   context,
   page,
 }) => {
@@ -721,8 +736,7 @@ test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 �
     .check();
   await page.getByRole("button", { name: "설문 최종 제출" }).click();
 
-  await expect(page).toHaveURL(/\/account$/u);
-  await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
+  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
   await expect.poll(() => surveySubmissionBodies.length).toBe(1);
   expect(surveyIdempotencyKeys).toHaveLength(1);
   expect(surveyIdempotencyKeys[0]).toMatch(
@@ -765,7 +779,7 @@ test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 �
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {
   twoFactorEnabled = false;
   await authenticate(context, "participant.payload.signature");
-  await page.goto("/account");
+  await page.goto("/account/profile");
 
   const twoFactorCard = page.locator(".wf-account-security-card").filter({
     hasText: "2단계 인증",
@@ -802,8 +816,8 @@ test("A-HOME은 채팅방 승인 대기 목록에서 검토 화면으로 이동�
   await expect(reviewChatRequest).toHaveCSS("justify-self", "end");
   await reviewChatRequest.click();
 
-  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=chat-request-1$/u);
-  await expect(page.getByRole("dialog", { name: "지역 교통 토론방" })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=chat-request-1$/u);
+  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toBeVisible();
 });
 
 test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한다", async ({ context, page }) => {
@@ -811,15 +825,13 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await authenticate(context, "admin.payload.signature");
 
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "관리 홈" })).toBeVisible();
   await expect(page.locator('[data-wireflow-layout="admin-home"] .wf-admin-metric')).toHaveCount(4);
   const adminCards = page.locator('[data-wireflow-layout="admin-home"] .wf-action-card');
   await expect(adminCards).toHaveCount(0);
-  const activeTaskMetric = page.locator(".wf-admin-metric").filter({ hasText: "진행 중 과업" });
-  await expect(activeTaskMetric.getByText("1건", { exact: true })).toBeVisible();
-  await expect(page.getByText("24시간 내 마감", { exact: true })).toHaveCount(0);
   await expect(page.getByText("시뮬레이션 사용 잔액", { exact: true })).toBeVisible();
   await expect(page.getByText("88,000원", { exact: true })).toBeVisible();
+  await expect(page.getByText("24시간 내 마감", { exact: true })).toHaveCount(0);
   await expect(page.getByText(/실행 보류/u)).toHaveCount(0);
   const currentOperations = page.getByRole("region", { name: "현재 처리 중" });
   await expect(currentOperations.getByText("2건", { exact: true })).toBeVisible();
@@ -842,7 +854,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
     height: [78, 82],
   });
 
-  const retryLink = page.getByRole("link", { name: "policy.pdf 업로드 화면에서 재시도" });
+  const retryLink = page.getByRole("link", { name: "policy.pdf 재시도" });
   await expect(retryLink).toHaveAttribute(
     "href",
     "/admin/rag/upload?retryJobId=job-1&documentId=document-1&filename=policy.pdf",
@@ -859,7 +871,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(page.getByRole("heading", { name: "문서 준비 상태" })).toBeVisible();
 
   await page.goto("/admin/users");
-  await expect(page.getByRole("heading", { name: "사용자 목록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
   const userFilters = page.getByRole("group", { name: "사용자 상태 필터" });
   await expect(userFilters).toBeVisible();
   await expect(userFilters.getByRole("button", { name: "전체" })).toHaveAttribute(
@@ -877,62 +889,19 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(page.getByRole("link", { name: "관리 업무" })).toHaveCount(0);
 
   await page.goto("/admin/users/detail?userId=00000000-0000-4000-8000-000000000002");
-  await expect(page).toHaveURL(
-    /\/admin\/users\?userId=00000000-0000-4000-8000-000000000002&tab=account$/u,
-  );
-  const userDrawer = page.getByRole("dialog", { name: "사용자 상세" });
-  await expect(userDrawer).toBeVisible();
-  await expect(userDrawer.getByRole("tablist", { name: "사용자 상세 메뉴" })).toBeVisible();
-  await expect(userDrawer.locator(".wf-admin-timeline")).toBeVisible();
-  await page.keyboard.press("Escape");
+  await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "사용자 상세 탭" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "개요" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "활동" })).toBeVisible();
 
   await page.goto("/admin/users/roles/revoke?userId=00000000-0000-4000-8000-000000000002");
-  await expect(page).toHaveURL(
-    /\/admin\/users\?userId=00000000-0000-4000-8000-000000000002&tab=access$/u,
-  );
-  const accessDrawer = page.getByRole("dialog", { name: "사용자 상세" });
-  await expect(accessDrawer.getByRole("tab", { name: "역할·권한" })).toHaveAttribute(
+  await expect(page).toHaveURL(/\/admin\/users\/roles\/revoke\?userId=/u);
+  
+  await expect(page.getByRole("tab", { name: "권한 편집" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await expect(accessDrawer.getByRole("alertdialog")).toHaveCount(0);
-});
-
-test("A-RAG-001은 문서 수를 선택 폴더 헤더 우측에 표시한다", async ({ context, page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await authenticate(context, "admin.payload.signature");
-  await page.goto("/admin/rag?folderId=welfare");
-
-  const workspaceHeading = page.locator(".civic-rag-workspace-heading");
-  const folderDocumentCount = workspaceHeading.locator(".civic-rag-folder-document-count");
-  await expect(folderDocumentCount).toHaveText("1개 문서");
-  await expect(page.locator(".civic-ledger-summary")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "검색에서 제외", exact: true })).toBeVisible();
-  await expect(page.getByText("검색 사용", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("검색 제외", { exact: true })).toHaveCount(0);
-  const documentMenu = page
-    .getByRole("row", { name: /2026_복지정책_기본계획\.pdf/u })
-    .locator('summary[aria-label$="추가 작업"]');
-  await documentMenu.click();
-  await expect(page.getByRole("checkbox", { name: /검색에서 제외$/u })).not.toBeChecked();
-  const workspaceHeadingBox = await workspaceHeading.boundingBox();
-  const folderDocumentCountBox = await folderDocumentCount.boundingBox();
-  if (!workspaceHeadingBox || !folderDocumentCountBox) {
-    throw new Error("폴더 헤더의 문서 수 위치를 확인할 수 없습니다.");
-  }
-  expect(
-    Math.abs(
-      folderDocumentCountBox.x +
-        folderDocumentCountBox.width -
-        (workspaceHeadingBox.x + workspaceHeadingBox.width),
-    ),
-  ).toBeLessThan(2);
-
-  await page.setViewportSize({ width: 394, height: 853 });
-  await expect(folderDocumentCount).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true,
-  );
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });
 
 test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를 제공한다", async ({
@@ -952,8 +921,6 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
   await expect(page.getByRole("cell", { name: "2026. 8. 12." })).toBeVisible();
   await expect(page.getByRole("cell", { name: "12쪽" })).toBeVisible();
   await expect(page.getByText(documentCreatorId)).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "문서 목록 자세히 보기" })).toHaveCount(0);
-  await expect(page.getByText(/선택 폴더만 표시\s*·\s*처리 완료\s*\d+개/u)).toHaveCount(0);
 
   await expectBox(page.locator(".civic-admin-sidebar"), {
     x: [0, 0],
@@ -1247,41 +1214,6 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(deleteDialog).toHaveCount(0);
 });
 
-test("U-RAG-001 안내 배너는 모바일 줄바꿈에 맞춰 높이가 늘어난다", async ({ context, page }) => {
-  await authenticate(context, "participant.payload.signature");
-  await page.setViewportSize({ height: 852, width: 280 });
-  await page.goto("/rag");
-
-  const ragContent = page.locator("#civic-content");
-  const introBar = ragContent.locator(".civic-rag-session-bar");
-  const introBanner = introBar.locator(".civic-rag-intro-banner");
-  const introCopy = introBanner.locator(".civic-rag-intro");
-
-  await expect(introBar).toBeVisible();
-  await expect(introBar).toHaveCSS("background-color", "rgb(255, 255, 255)");
-  await expect(introBar).toHaveCSS("border-bottom-width", "1px");
-  await expect(introBanner).toHaveCSS("border-radius", "0px");
-
-  const layout = await introBar.evaluate((element) => {
-    const copy = element.querySelector<HTMLElement>(".civic-rag-intro");
-    if (!copy) throw new Error("RAG intro copy is missing");
-    return {
-      barClientHeight: element.clientHeight,
-      barScrollHeight: element.scrollHeight,
-      copyClientHeight: copy.clientHeight,
-      copyScrollHeight: copy.scrollHeight,
-      copyClientWidth: copy.clientWidth,
-      copyScrollWidth: copy.scrollWidth,
-    };
-  });
-
-  expect(layout.copyClientHeight).toBeGreaterThan(42);
-  expect(layout.barClientHeight).toBeGreaterThan(64);
-  expect(layout.barScrollHeight).toBeLessThanOrEqual(layout.barClientHeight);
-  expect(layout.copyScrollHeight).toBeLessThanOrEqual(layout.copyClientHeight);
-  expect(layout.copyScrollWidth).toBeLessThanOrEqual(layout.copyClientWidth);
-});
-
 test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경계를 유지한다", async ({
   context,
   page,
@@ -1290,16 +1222,7 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await page.goto("/rag");
 
   await expect(page.getByRole("heading", { exact: true, name: "AI" })).toBeVisible();
-  const ragContent = page.locator("#civic-content");
-  await expect(ragContent.getByText("궁금한 정보를 질문하세요.")).toBeVisible();
-  await ragContent.getByRole("button", { name: "안내 닫기" }).click();
-  await expect(ragContent.getByText("궁금한 정보를 질문하세요.")).toHaveCount(0);
-  const newQuestionAction = page.getByRole("button", { name: "새 질문" });
-  await expect(newQuestionAction).toBeVisible();
-  await expect(ragContent.getByRole("button", { name: "새 질문" })).toHaveCount(0);
-  await expect(newQuestionAction).toHaveCSS("border-radius", "50%");
-  await expect(newQuestionAction).toHaveCSS("width", "44px");
-  await expect(newQuestionAction).toHaveCSS("height", "44px");
+  await expect(page.getByText("궁금한 정보를 질문하세요.")).toBeVisible();
   const shell = page.locator('[data-platform-shell="true"]');
   await expect(shell).toHaveCount(1);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"] .wf-screen-heading')).toBeHidden();
@@ -1320,70 +1243,45 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
     height: [63, 65],
   });
 
-  const ragQuestion = page.locator("#rag-question");
-  await ragQuestion.fill("복지정책 문서의 핵심 내용을 알려줘.");
-  await ragQuestion.press("Shift+Enter");
-  await expect(ragQuestion).toHaveValue("복지정책 문서의 핵심 내용을 알려줘.\n");
-  await ragQuestion.fill("복지정책 문서의 핵심 내용을 알려줘.");
-  await ragQuestion.press("Enter");
+  await page
+    .getByPlaceholder("문서에 대해 질문하세요…")
+    .fill("복지정책 문서의 핵심 내용을 알려줘.");
+  await page.getByRole("button", { name: "질문 전송" }).click();
 
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const citation = page.getByRole("button", {
-    name: "출처 2026 복지정책 기본계획 p.3 열기",
-  });
+  const citation = page.getByRole("link", { name: "원문 보기" });
   await expect(citation).toBeVisible();
-  await expect(page.locator(".civic-rag-citation-card")).toHaveCount(0);
-  await expect(page.getByText("원문 보기", { exact: true })).toHaveCount(0);
-  const questionBubble = page.locator(".civic-rag-question");
-  await expect(page.locator(".civic-rag-question-meta")).toHaveCount(0);
-  await expect(page.locator(".civic-rag-time")).toHaveCount(0);
-  await expectBox(questionBubble, {
-    x: [134, 137],
-    width: [240, 243],
+  await expectBox(page.locator(".civic-rag-question"), {
+    x: [80, 83],
+    width: [294, 297],
   });
-  const answerMeta = page.locator(".civic-rag-answer-meta");
-  const answerLabel = answerMeta.getByText("CIVIC.AI", { exact: true });
-  await expect(answerLabel).toBeVisible();
-  await expect(answerMeta.locator("time")).toHaveCount(0);
   await expectBox(page.locator(".civic-rag-answer:not(.is-live)"), {
     x: [16, 18],
     width: [359, 362],
   });
+  await expectBox(page.locator(".civic-rag-citation-card"), {
+    x: [16, 18],
+    width: [359, 362],
+    height: [64, 68],
+  });
+
   await page.reload();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "출처 2026 복지정책 기본계획 p.3 열기" }),
-  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "원문 보기" })).toBeVisible();
 
   await page.getByRole("button", { name: "새 질문" }).click();
-  const newQuestionDialog = page.getByRole("alertdialog", {
-    name: "새 질문을 시작할까요?",
-  });
-  await expect(newQuestionDialog).toBeVisible();
-  await expect(
-    newQuestionDialog.getByText("새 질문을 시작하면 대화 기록이 초기화 됩니다.", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await newQuestionDialog.getByRole("button", { name: "취소" }).click();
-  await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
-  await page.getByRole("button", { name: "새 질문" }).click();
-  await page
-    .getByRole("alertdialog", { name: "새 질문을 시작할까요?" })
-    .getByRole("button", { name: "새 질문 시작" })
-    .click();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
   await page.reload();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
 
-  await page.locator("#rag-question").fill("복지정책 문서의 핵심 내용을 알려줘.");
+  await page
+    .getByPlaceholder("문서에 대해 질문하세요…")
+    .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const restoredCitation = page.getByRole("button", {
-    name: "출처 2026 복지정책 기본계획 p.3 열기",
-  });
+  const restoredCitation = page.getByRole("link", { name: "원문 보기" });
   await expect(restoredCitation).toBeVisible();
   await restoredCitation.click();
 
@@ -1393,36 +1291,19 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await expect(
     page.getByRole("region", { name: "2026 복지정책 기본계획 읽기 전용 문서" }),
   ).toBeVisible();
-  const documentViewer = page.locator('[data-pdf-zoom-mode="pinch"]');
+  const documentViewer = page.locator('[data-document-zoom="100%"]');
   await expect(documentViewer).toBeVisible();
-  await expect(page.getByRole("group", { name: "문서 확대/축소 도구" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "문서 확대" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "문서 축소" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "화면 맞춤" })).toHaveCount(0);
-  await expect(page.getByText("전체 12페이지 · 인용 3페이지", { exact: true })).toBeVisible();
-  const documentCard = page.locator(".wf-rag-document-card");
-  const documentCanvas = documentCard.locator(".civic-pdf-canvas");
-  const documentMeta = documentCard.locator(".wf-rag-document-meta");
-  await expect(documentCard).toHaveCSS("border-top-width", "0px");
-  await expect(documentCard).toHaveCSS("border-radius", "0px");
-  await expect
-    .poll(async () => {
-      const canvasBox = await documentCanvas.boundingBox();
-      const metaBox = await documentMeta.boundingBox();
-      if (!canvasBox || !metaBox) return false;
-      return metaBox.y >= canvasBox.y + canvasBox.height;
-    })
-    .toBe(true);
-  await expect(page.getByText("연속 스크롤", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "문서 확대" }).click();
+  await expect(page.locator('[data-document-zoom="125%"]')).toBeVisible();
   await expect
     .poll(() =>
-      page.locator(".civic-pdf-canvas").evaluate((canvas) => getComputedStyle(canvas).touchAction),
+      page
+        .locator(".civic-pdf-canvas")
+        .evaluate((canvas) => canvas.scrollWidth > canvas.clientWidth),
     )
-    .toMatch(/pinch-zoom|manipulation/u);
-  await expect(page.locator('meta[name="viewport"]')).not.toHaveAttribute(
-    "content",
-    /user-scalable=no|maximum-scale=1/u,
-  );
+    .toBe(true);
+  await page.getByRole("button", { name: "화면 맞춤" }).click();
+  await expect(page.locator('[data-document-zoom="100%"]')).toBeVisible();
   await expect(page.locator("a[download], [target='_blank']")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /다운로드|저장/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
@@ -1678,16 +1559,14 @@ const currentSimulationTaskFixture = {
   },
 };
 
-const CITATION_VERSION_ID = "30000000-0000-4000-8000-000000000003";
-
 const queryResultFixture = {
   job_id: "query-job-1",
   status: "SUCCEEDED",
   submitted_question: "복지정책 문서의 핵심 내용을 알려줘.",
-  answer: `지원 대상과 신청 기준을 확인할 수 있습니다. [${CITATION_VERSION_ID}#3]`,
+  answer: "지원 대상과 신청 기준을 확인할 수 있습니다.",
   citations: [
     {
-      document_version_id: CITATION_VERSION_ID,
+      document_version_id: "version-1",
       page_number: 3,
       page_count: 12,
       source_object_sha256: "a".repeat(64),

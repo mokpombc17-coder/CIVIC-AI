@@ -1,0 +1,300 @@
+// Per-user activity extracted purely from EXISTING admin list APIs.
+// The chat/vote/rag backends stay untouched: everything here is derived on
+// the client from responses those services already expose.
+//
+// - Room creation requests: /api/v1/admin/room-creation-requests filtered by
+//   requesterUserId (cheap, loaded eagerly).
+// - Chat participation: on-demand scan — admin room list + conversation
+//   export archives, counting messages authored by the user.
+// - Vote participation: on-demand scan — admin task list + result-view JSONL,
+//   matching respondent identifier fields defensively.
+
+import {
+  readRoomCreationRequestPage,
+  readTaskSummaries,
+  type RoomCreationRequest,
+  type TaskSummary,
+} from "@/lib/admin/domain-contracts";
+import { readAdminRoomPage, type AdminRoom } from "@/lib/admin/admin-room-contracts";
+import {
+  parseConversationExportArchive,
+  readConversationExportResponse,
+} from "@/lib/chat/conversation-export";
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+
+export type UserRoomRequestsState =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "ready"; items: readonly RoomCreationRequest[] }>
+  | Readonly<{ status: "forbidden" }>
+  | Readonly<{ status: "unavailable" }>;
+
+export type UserChatParticipation = Readonly<{
+  roomId: string;
+  roomName: string;
+  roomStatus: string;
+  messageCount: number;
+}>;
+
+export type UserChatScanResult = Readonly<{
+  participations: readonly UserChatParticipation[];
+  scannedRooms: number;
+  totalRooms: number;
+  failedRooms: number;
+  truncated: boolean;
+}>;
+
+export type UserVoteParticipation = Readonly<{
+  taskId: string;
+  taskTitle: string;
+  taskStatus: string;
+  closedAt: string | null;
+  submittedAt: string | null;
+}>;
+
+export type UserVoteScanResult = Readonly<{
+  participations: readonly UserVoteParticipation[];
+  scannedTasks: number;
+  totalClosedTasks: number;
+  failedTasks: number;
+  identifiersMissing: boolean;
+  truncated: boolean;
+}>;
+
+export type ActivityScanState<T> =
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "running"; done: number; total: number }>
+  | Readonly<{ status: "ready"; result: T }>
+  | Readonly<{ status: "failed"; message: string }>;
+
+const REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
+export const CHAT_SCAN_ROOM_LIMIT = 12;
+export const VOTE_SCAN_TASK_LIMIT = 20;
+
+export async function loadUserRoomRequests(
+  userId: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<UserRoomRequestsState> {
+  try {
+    const pages = await Promise.all(
+      REQUEST_STATUSES.map(async (status) => {
+        const response = await request(
+          `/api/v1/admin/room-creation-requests?status=${status}&limit=100`,
+          { cache: "no-store" },
+        );
+        if (response.status === 401 || response.status === 403) return "forbidden" as const;
+        if (!response.ok) return null;
+        return readRoomCreationRequestPage(await response.json());
+      }),
+    );
+    if (pages.some((page) => page === "forbidden")) return { status: "forbidden" };
+    const readable = pages.filter(
+      (page): page is Exclude<typeof page, null | "forbidden"> => page !== null,
+    );
+    if (readable.length === 0) return { status: "unavailable" };
+    const items = readable
+      .flatMap((page) => page.items)
+      .filter((item) => item.requesterUserId === userId)
+      .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt));
+    return { status: "ready", items };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export async function scanUserChatParticipation(
+  userId: string,
+  onProgress?: (done: number, total: number) => void,
+  request: typeof fetch = authenticatedFetch,
+): Promise<UserChatScanResult> {
+  const roomsResponse = await request("/api/v1/admin/rooms?limit=50", { cache: "no-store" });
+  if (!roomsResponse.ok) throw new Error("토론방 목록을 불러오지 못했습니다.");
+  const page = readAdminRoomPage(await roomsResponse.json());
+  if (!page) throw new Error("토론방 목록 응답 형식을 확인하지 못했습니다.");
+
+  const rooms = page.items.slice(0, CHAT_SCAN_ROOM_LIMIT);
+  const participations: UserChatParticipation[] = [];
+  let failedRooms = 0;
+  let done = 0;
+  for (const room of rooms) {
+    const count = await countUserMessages(room, userId, request);
+    if (count === null) failedRooms += 1;
+    else if (count > 0) {
+      participations.push({
+        roomId: room.roomId,
+        roomName: room.name,
+        roomStatus: room.status,
+        messageCount: count,
+      });
+    }
+    done += 1;
+    onProgress?.(done, rooms.length);
+  }
+  return {
+    participations,
+    scannedRooms: rooms.length,
+    totalRooms: page.items.length,
+    failedRooms,
+    truncated: page.items.length > rooms.length || page.hasNext,
+  };
+}
+
+async function countUserMessages(
+  room: AdminRoom,
+  userId: string,
+  request: typeof fetch,
+): Promise<number | null> {
+  const range = exportRangeForScan();
+  try {
+    const response = await request(
+      `/api/v1/admin/rooms/${encodeURIComponent(room.roomId)}/conversation-exports`,
+      {
+        method: "POST",
+        headers: { accept: "application/zip", "content-type": "application/json" },
+        body: JSON.stringify(range),
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (!contentType.startsWith("application/zip")) return null;
+    const bytes = await readConversationExportResponse(response);
+    const parsed = await parseConversationExportArchive(bytes, { roomId: room.roomId, range });
+    return parsed.messages.filter((message) => message.userId === userId).length;
+  } catch {
+    return null;
+  }
+}
+
+export function exportRangeForScan(
+  now = new Date(),
+): Readonly<{ fromInclusive: string; toExclusive: string }> {
+  const toExclusive = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  return { fromInclusive: "2020-01-01T00:00:00.000Z", toExclusive: toExclusive.toISOString() };
+}
+
+export async function scanUserVoteParticipation(
+  userId: string,
+  onProgress?: (done: number, total: number) => void,
+  request: typeof fetch = authenticatedFetch,
+): Promise<UserVoteScanResult> {
+  const tasksResponse = await request("/api/v1/admin/tasks", { cache: "no-store" });
+  if (!tasksResponse.ok) throw new Error("과업 목록을 불러오지 못했습니다.");
+  const tasks = readTaskSummaries(await tasksResponse.json());
+  if (!tasks) throw new Error("과업 목록 응답 형식을 확인하지 못했습니다.");
+
+  const closed = tasks.filter((task) => task.status === "CLOSED");
+  const scannable = closed.slice(0, VOTE_SCAN_TASK_LIMIT);
+  const participations: UserVoteParticipation[] = [];
+  let failedTasks = 0;
+  let sawAnyIdentifier = false;
+  let sawAnyLine = false;
+  let done = 0;
+  for (const task of scannable) {
+    const match = await findUserVoteInResultView(task, userId, request);
+    if (match === null) failedTasks += 1;
+    else {
+      if (match.sawLines) sawAnyLine = true;
+      if (match.sawIdentifiers) sawAnyIdentifier = true;
+      if (match.participation) participations.push(match.participation);
+    }
+    done += 1;
+    onProgress?.(done, scannable.length);
+  }
+  return {
+    participations,
+    scannedTasks: scannable.length,
+    totalClosedTasks: closed.length,
+    failedTasks,
+    identifiersMissing: sawAnyLine && !sawAnyIdentifier,
+    truncated: closed.length > scannable.length,
+  };
+}
+
+async function findUserVoteInResultView(
+  task: TaskSummary,
+  userId: string,
+  request: typeof fetch,
+): Promise<Readonly<{
+  participation: UserVoteParticipation | null;
+  sawIdentifiers: boolean;
+  sawLines: boolean;
+}> | null> {
+  try {
+    const response = await request(
+      `/api/v1/admin/tasks/${encodeURIComponent(task.taskId)}/result-view`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    const lines = (await response.text())
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    let sawIdentifiers = false;
+    for (const line of lines) {
+      let record: unknown;
+      try {
+        record = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const identifier = readRespondentId(record);
+      if (identifier) sawIdentifiers = true;
+      if (identifier === userId) {
+        return {
+          participation: {
+            taskId: task.taskId,
+            taskTitle: task.title,
+            taskStatus: task.status,
+            closedAt: task.closedAt,
+            submittedAt: readSubmittedAt(record),
+          },
+          sawIdentifiers: true,
+          sawLines: true,
+        };
+      }
+    }
+    return { participation: null, sawIdentifiers, sawLines: lines.length > 0 };
+  } catch {
+    return null;
+  }
+}
+
+const RESPONDENT_ID_KEYS = [
+  "user_id",
+  "userId",
+  "participant_id",
+  "participantId",
+  "respondent_id",
+  "respondentId",
+  "subject_id",
+  "subjectId",
+] as const;
+
+const SUBMITTED_AT_KEYS = [
+  "submitted_at",
+  "submittedAt",
+  "created_at",
+  "createdAt",
+  "occurred_at",
+  "occurredAt",
+] as const;
+
+export function readRespondentId(record: unknown): string | null {
+  if (typeof record !== "object" || record === null) return null;
+  const value = record as Record<string, unknown>;
+  for (const key of RESPONDENT_ID_KEYS) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.length > 0) return candidate;
+  }
+  return null;
+}
+
+export function readSubmittedAt(record: unknown): string | null {
+  if (typeof record !== "object" || record === null) return null;
+  const value = record as Record<string, unknown>;
+  for (const key of SUBMITTED_AT_KEYS) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.length > 0) return candidate;
+  }
+  return null;
+}

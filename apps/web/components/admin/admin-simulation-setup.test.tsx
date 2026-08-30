@@ -7,7 +7,10 @@ import {
   buildDefaultSimulationRunInput,
   requestAdminSimulationPreview,
   requestAdminSimulationStart,
+  SIMULATION_TARGET_GRID_COLUMNS,
   SimulationPreviewCard,
+  simulationRunPath,
+  simulationRunStageForScreen,
 } from "@/components/admin/admin-simulation-screen";
 import { screenRegistry } from "@/lib/screens/registry";
 
@@ -161,6 +164,46 @@ describe("simulation setup", () => {
     );
     expect(html).not.toContain("실행 모델");
     expect(html).not.toContain("표본 시드");
+  });
+
+  it("실행 관리 표 열 정의는 과업 실행에 필요한 정보만 다룬다", () => {
+    expect(SIMULATION_TARGET_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
+      "과업 제목",
+      "시뮬레이션 진행 상태",
+      "최근 변경",
+      "실행",
+    ]);
+  });
+
+  it("화면 ID와 단계별 정본 경로를 유지한다", () => {
+    expect(simulationRunStageForScreen("A-SIM-002")).toBe("setup");
+    expect(simulationRunStageForScreen("A-SIM-003")).toBe("setup");
+    expect(simulationRunStageForScreen("A-SIM-004")).toBe("status");
+    expect(simulationRunStageForScreen("A-SIM-005")).toBe("status");
+    expect(simulationRunStageForScreen("A-SIM-006")).toBe("results");
+    expect(simulationRunStageForScreen("A-SIM-007")).toBe("results");
+
+    expect(simulationRunPath("setup", "task-1", null)).toBe(
+      "/admin/simulations/setup?taskId=task-1",
+    );
+    expect(simulationRunPath("status", "task-1", "sim-1")).toBe(
+      "/admin/simulations/status?simulationId=sim-1",
+    );
+    expect(simulationRunPath("results", null, "sim-1")).toBe(
+      "/admin/simulations/results?simulationId=sim-1",
+    );
+  });
+
+  it("패널 표본 조건은 설정 단계 안에서 선택 섹션으로 제공한다", () => {
+    const screen = screenRegistry.find((candidate) => candidate.id === "A-SIM-002");
+    if (!screen) throw new Error("Missing simulation setup screen");
+
+    const html = renderToStaticMarkup(
+      <AdminSimulationScreen screen={screen} query={{ taskId: "task-1" }} />,
+    );
+
+    expect(html).toContain("패널 표본 조건 (선택)");
+    expect(html).toContain("거주 지역은 전남·광주로 고정됩니다.");
   });
 
   it("예상 비용에는 실행 결정에 필요한 값만 표시한다", () => {
