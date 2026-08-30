@@ -10,35 +10,41 @@ import type { ConversationExportMetrics } from "@/lib/chat/conversation-export";
 import { screenRegistry } from "@/lib/screens/registry";
 
 describe("admin chat conversation insights", () => {
-  it.each([
-    ["A-CHAT-001", "채팅 운영"],
-    ["A-CHAT-002", "채팅방 상세"],
-    ["A-CHAT-008", "채팅 통계"],
-    ["A-CHAT-009", "채팅 운영"],
-  ])("%s 화면에서 방 선택 중심의 자동 분석 흐름을 제공한다", (screenId, title) => {
-    const screen = screenRegistry.find((candidate) => candidate.id === screenId);
+  it("채팅방 관리는 배너와 내부 탭 없이 과업 관리형 목록을 제공한다", () => {
+    const screen = screenRegistry.find((candidate) => candidate.id === "A-CHAT-001");
     expect(screen?.status).toBe("FUNCTIONAL");
-    if (!screen) throw new Error(`Missing screen: ${screenId}`);
+    if (!screen) throw new Error("Missing screen: A-CHAT-001");
 
-    const html = renderToStaticMarkup(createElement(AdminChatInsightsScreen, { screen }));
+    const html = renderToStaticMarkup(
+      createElement(AdminChatInsightsScreen, { query: {}, screen }),
+    );
 
-    expect(html).toContain(`data-wireflow-screen="${screenId}"`);
-    expect(html).toContain(`>${title}</h1>`);
-    expect(html).toContain("ACTIVE · CLOSED");
-    expect(html).toContain("운영 상태와 대화 맥락을 함께 확인합니다");
-    expect(html).toContain("관리자는 참여 여부와 관계없이 활성 방을 즉시 종료");
-    expect(html).toContain('aria-label="채팅 운영 메뉴"');
-    expect(html).toContain('href="/admin/chat/requests"');
+    expect(html).toContain('data-wireflow-screen="A-CHAT-001"');
+    expect(html).toContain(">채팅방 관리</h1>");
+    expect(html).toContain('aria-label="채팅방 관리 목록"');
+    expect(html).toContain(">채팅방 이름</th>");
+    expect(html).toContain(">작업</th>");
     expect(html).toContain('href="/admin/chat/categories"');
-    expect(html).toContain('aria-label="분석 기간"');
-    expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain(">전체 기간</button>");
-    expect(html).toContain("개설 이후 전체 대화를 자동으로 표시합니다");
+    expect(html).not.toContain("ROOM OPERATIONS · EXPORT V1");
+    expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
+    expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
+    expect(html).not.toContain('aria-label="분석 기간"');
     expect(html).not.toContain('href="/admin/chat/export"');
-    expect(html).not.toContain("Export 요청·분석");
-    expect(html).not.toContain('type="datetime-local"');
     expect(html).not.toContain("roomId");
     expect(html).not.toContain("userId");
+  });
+
+  it("roomId가 있으면 통계 Drawer 진입 상태를 복원한다", () => {
+    const screen = screenRegistry.find((candidate) => candidate.id === "A-CHAT-001");
+    if (!screen) throw new Error("Missing screen: A-CHAT-001");
+
+    const html = renderToStaticMarkup(
+      createElement(AdminChatInsightsScreen, { query: { roomId: "room-one" }, screen }),
+    );
+
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain("채팅방 통계");
+    expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
   });
 
   it("전체 기간은 채팅방 개설 시각부터 현재까지로 계산한다", () => {

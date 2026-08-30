@@ -187,7 +187,7 @@ describe("25 functional Main/Auth screens", () => {
   it("대상이 없는 감사 이벤트는 사용자 상세 링크를 만들지 않는다", () => {
     expect(auditSubjectHref(null)).toBeNull();
     expect(auditSubjectHref(undefined)).toBeNull();
-    expect(auditSubjectHref("user B/2")).toBe("/admin/users/detail?userId=user%20B%2F2");
+    expect(auditSubjectHref("user B/2")).toBe("/admin/users?userId=user%20B%2F2&tab=account");
   });
 
   it("관리자 사용자 검색은 가장 최근 요청만 결과를 반영한다", () => {
@@ -626,7 +626,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(chatHtml).toContain("지역 교통 토론방");
     expect(chatHtml).toContain("one@example.com");
     expect(chatHtml).toContain("검토하기");
-    expect(chatHtml).toContain("/admin/chat/requests/detail?requestId=request-one");
+    expect(chatHtml).toContain("/admin/chat/requests?requestId=request-one");
     await expect(loadTaskDeadlineSummary(tasks as typeof fetch, now)).resolves.toEqual({
       status: "ready",
       count: 1,

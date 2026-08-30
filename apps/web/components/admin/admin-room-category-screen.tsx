@@ -352,7 +352,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
   return (
     <ScreenFrame screen={screen} title="채팅방 카테고리 관리">
-      <AdminChatOperationsLayout active="categories">
+      <AdminChatOperationsLayout>
         <div
           className="civic-admin-workbench civic-domain-console"
           data-wireflow-layout="room-category-admin"

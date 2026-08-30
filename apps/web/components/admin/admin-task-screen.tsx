@@ -3,7 +3,15 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import {
@@ -36,12 +44,44 @@ export function AdminTaskScreen({
   query: Readonly<Record<string, string | readonly string[] | undefined>>;
 }>) {
   const taskId = firstQueryValue(query.taskId);
+  const [creating, setCreating] = useState(
+    screen.id === "A-TASK-001" && firstQueryValue(query.create) === "1",
+  );
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (screen.id !== "A-TASK-001") return;
+    const syncCreationFromHistory = () => {
+      setCreating(new URL(window.location.href).searchParams.get("create") === "1");
+    };
+    window.addEventListener("popstate", syncCreationFromHistory);
+    return () => window.removeEventListener("popstate", syncCreationFromHistory);
+  }, [screen.id]);
+
+  const openCreation = useCallback(() => {
+    setCreating(true);
+    window.history.pushState(null, "", "/admin/tasks?create=1");
+  }, []);
+
+  const closeCreation = useCallback(() => {
+    setCreating(false);
+    window.history.replaceState(null, "", "/admin/tasks");
+    window.setTimeout(() => createButtonRef.current?.focus(), 0);
+  }, []);
+
+  const finishCreation = useCallback(() => setCreating(false), []);
+
   const taskListAction =
     screen.id === "A-TASK-001" ? (
-      <Link
+      <button
+        aria-controls="civic-task-create-drawer"
+        aria-expanded={creating}
+        aria-haspopup="dialog"
         aria-label="새 과업 만들기"
         className="civic-primary-action civic-task-create-action"
-        href="/admin/tasks/create"
+        onClick={openCreation}
+        ref={createButtonRef}
+        type="button"
       >
         <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
           <path
@@ -52,7 +92,7 @@ export function AdminTaskScreen({
           />
         </svg>
         <span>새 과업 만들기</span>
-      </Link>
+      </button>
     ) : undefined;
   return (
     <ScreenFrame
@@ -64,7 +104,14 @@ export function AdminTaskScreen({
         className="civic-admin-workbench civic-domain-console"
         data-wireflow-layout={taskLayout(screen.id)}
       >
-        {screen.id === "A-TASK-001" ? <TaskList /> : null}
+        {screen.id === "A-TASK-001" ? (
+          <TaskList
+            creationOpen={creating}
+            initialTaskId={taskId}
+            onCloseCreation={closeCreation}
+            onFinishCreation={finishCreation}
+          />
+        ) : null}
         {screen.id === "A-TASK-002" ? <TaskEditor taskId={taskId} /> : null}
         {screen.id === "A-TASK-003" ? <TaskDetailView taskId={taskId} /> : null}
         {screen.id === "A-TASK-004" ? <TaskCloseConfirmation taskId={taskId} /> : null}
@@ -74,12 +121,24 @@ export function AdminTaskScreen({
   );
 }
 
-function TaskList() {
+function TaskList({
+  creationOpen,
+  initialTaskId,
+  onCloseCreation,
+  onFinishCreation,
+}: Readonly<{
+  creationOpen: boolean;
+  initialTaskId: string | null;
+  onCloseCreation: () => void;
+  onFinishCreation: () => void;
+}>) {
   const [items, setItems] = useState<readonly TaskSummary[]>([]);
   const [filter, setFilter] = useState<"ALL" | TaskStatus>("ALL");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId);
+  const returnFocusRef = useRef<HTMLButtonElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,6 +169,51 @@ function TaskList() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    const syncSelectionFromHistory = () => {
+      setSelectedTaskId(new URL(window.location.href).searchParams.get("taskId"));
+    };
+    window.addEventListener("popstate", syncSelectionFromHistory);
+    return () => window.removeEventListener("popstate", syncSelectionFromHistory);
+  }, []);
+
+  const openDetail = useCallback((taskId: string, trigger: HTMLButtonElement) => {
+    returnFocusRef.current = trigger;
+    setSelectedTaskId(taskId);
+    window.history.pushState(null, "", `/admin/tasks?taskId=${encodeURIComponent(taskId)}`);
+  }, []);
+
+  const closeDetail = useCallback(() => {
+    const returnTarget = returnFocusRef.current;
+    setSelectedTaskId(null);
+    window.history.replaceState(null, "", "/admin/tasks");
+    window.setTimeout(() => returnTarget?.focus(), 0);
+  }, []);
+
+  const updateSummary = useCallback((task: Task) => {
+    setItems((current) =>
+      current.map((item) => (item.taskId === task.id ? taskSummaryFromTask(task) : item)),
+    );
+  }, []);
+
+  const closeTaskCreation = useCallback(() => {
+    setSelectedTaskId(null);
+    onCloseCreation();
+  }, [onCloseCreation]);
+
+  const showCreatedTask = useCallback(
+    (task: Task) => {
+      setItems((current) => [
+        taskSummaryFromTask(task),
+        ...current.filter((item) => item.taskId !== task.id),
+      ]);
+      setSelectedTaskId(task.id);
+      onFinishCreation();
+      window.history.replaceState(null, "", `/admin/tasks?taskId=${encodeURIComponent(task.id)}`);
+    },
+    [onFinishCreation],
+  );
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
@@ -179,12 +283,15 @@ function TaskList() {
                 <td>{closureLabel(item.closureType)}</td>
                 <td>{formatDate(item.updatedAt)}</td>
                 <td>
-                  <Link
+                  <button
+                    aria-controls="civic-task-detail-drawer"
+                    aria-expanded={selectedTaskId === item.taskId}
                     className="civic-primary-action"
-                    href={`/admin/tasks/detail?taskId=${encodeURIComponent(item.taskId)}` as Route}
+                    onClick={(event) => openDetail(item.taskId, event.currentTarget)}
+                    type="button"
                   >
                     과업 상세
-                  </Link>
+                  </button>
                 </td>
               </tr>
             ))}
@@ -192,21 +299,205 @@ function TaskList() {
         </table>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
+      {selectedTaskId && !creationOpen ? (
+        <TaskDetailDrawer
+          key={selectedTaskId}
+          onClose={closeDetail}
+          onTaskChanged={updateSummary}
+          taskId={selectedTaskId}
+        />
+      ) : null}
+      <TaskCreationDrawer
+        onClose={closeTaskCreation}
+        onSaved={showCreatedTask}
+        open={creationOpen}
+      />
     </>
   );
 }
 
-function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
-  const router = useRouter();
+function TaskDetailDrawer({
+  taskId,
+  onClose,
+  onTaskChanged,
+}: Readonly<{
+  taskId: string;
+  onClose: () => void;
+  onTaskChanged: (task: Task) => void;
+}>) {
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = drawerRef.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+
+  return (
+    <div className="civic-admin-detail-drawer-layer">
+      <button
+        aria-label="과업 상세 닫기"
+        className="civic-admin-detail-drawer-scrim"
+        onClick={onClose}
+        type="button"
+      />
+      <aside
+        aria-labelledby="civic-task-drawer-title"
+        aria-modal="true"
+        className="civic-admin-detail-drawer civic-task-drawer"
+        id="civic-task-detail-drawer"
+        onKeyDown={handleKeyDown}
+        ref={drawerRef}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <small>과업 관리</small>
+            <h2 id="civic-task-drawer-title">과업 상세</h2>
+          </div>
+          <button aria-label="과업 상세 닫기" onClick={onClose} ref={closeButtonRef} type="button">
+            ×
+          </button>
+        </header>
+        <div className="civic-task-drawer-body">
+          <TaskDetailView onTaskChanged={onTaskChanged} taskId={taskId} />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function TaskCreationDrawer({
+  onClose,
+  onSaved,
+  open,
+}: Readonly<{
+  onClose: () => void;
+  onSaved: (task: Task) => void;
+  open: boolean;
+}>) {
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    closeButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose, open]);
+
+  function trapFocus(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = drawerRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+
+  return (
+    <div className="civic-admin-detail-drawer-layer" hidden={!open}>
+      <button
+        aria-label="새 과업 만들기 닫기"
+        className="civic-admin-detail-drawer-scrim"
+        onClick={onClose}
+        type="button"
+      />
+      <aside
+        aria-labelledby="civic-task-create-drawer-title"
+        aria-modal="true"
+        className="civic-admin-detail-drawer civic-task-create-drawer"
+        id="civic-task-create-drawer"
+        onKeyDown={trapFocus}
+        ref={drawerRef}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <small>과업 관리</small>
+            <h2 id="civic-task-create-drawer-title">새 과업 만들기</h2>
+          </div>
+          <button
+            aria-label="새 과업 만들기 닫기"
+            onClick={onClose}
+            ref={closeButtonRef}
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+        <div className="civic-task-create-drawer-body">
+          <TaskEditor onCancel={onClose} onSaved={onSaved} taskId={null} />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+type TaskEditorStep = 0 | 1 | 2;
+
+function TaskEditor({
+  taskId,
+  onCancel,
+  onSaved,
+}: Readonly<{
+  taskId: string | null;
+  onCancel?: () => void;
+  onSaved?: (task: Task) => void;
+}>) {
   const [task, setTask] = useState<Task | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [question, setQuestion] = useState("");
-  const [questionDescription, setQuestionDescription] = useState("");
   const [options, setOptions] = useState<readonly DraftOption[]>([
     { id: null, content: "" },
     { id: null, content: "" },
   ]);
+  const [step, setStep] = useState<TaskEditorStep>(0);
   const [message, setMessage] = useState("");
   const [problem, setProblem] = useState<AdminProblem | null>(null);
   const [pending, setPending] = useState(false);
@@ -224,7 +515,6 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
         setTitle(current.title);
         setDescription(current.description ?? "");
         setQuestion(current.question?.content ?? "");
-        setQuestionDescription(current.question?.description ?? "");
         setOptions(
           current.question?.options.map((option) => ({
             id: option.id,
@@ -241,6 +531,10 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (step < 2) {
+      moveToStep((step + 1) as TaskEditorStep);
+      return;
+    }
     const validation = validateDraft(title, question, options);
     if (validation) return setMessage(validation);
     setPending(true);
@@ -252,7 +546,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
       question: {
         id: task?.question?.id ?? null,
         content: question.trim(),
-        description: optionalText(questionDescription),
+        description: task?.question?.description ?? null,
         options: options.map((option) => ({ id: option.id, content: option.content.trim() })),
       },
     };
@@ -276,7 +570,20 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
       }
       const saved = readTask(await response.json());
       if (!saved) return setMessage("서버의 과업 저장 응답 형식을 확인해야 합니다.");
-      router.push(`/admin/tasks/detail?taskId=${encodeURIComponent(saved.id)}` as Route);
+      if (onSaved) {
+        setTask(null);
+        setTitle("");
+        setDescription("");
+        setQuestion("");
+        setOptions([
+          { id: null, content: "" },
+          { id: null, content: "" },
+        ]);
+        setStep(0);
+        onSaved(saved);
+      } else {
+        window.location.assign(`/admin/tasks?taskId=${encodeURIComponent(saved.id)}`);
+      }
     } catch {
       if (task) {
         const latest = await requestTaskDetail(task.id);
@@ -288,153 +595,235 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
     }
   }
 
+  function moveToStep(nextStep: TaskEditorStep) {
+    if (nextStep > 0 && !title.trim()) {
+      setStep(0);
+      setMessage("제목을 입력해 주세요.");
+      return;
+    }
+    if (nextStep > 1 && !question.trim()) {
+      setStep(1);
+      setMessage("질문을 입력해 주세요.");
+      return;
+    }
+    setMessage("");
+    setStep(nextStep);
+  }
+
+  const steps = [
+    { label: "기본 정보", detail: "제목 · 상황 또는 사건" },
+    { label: "질문", detail: "시민에게 물을 내용" },
+    { label: "선택지", detail: "응답 항목 · 검토" },
+  ] as const;
+
   return (
-    <form className="civic-domain-form" onSubmit={submit}>
-      <section className="civic-domain-form-section">
-        <header>
-          <span>{task ? "초안 전체 수정" : "새 초안"}</span>
-          <h2>과업 기본 정보</h2>
-        </header>
-        <label className="civic-field">
-          <span>제목</span>
-          <input
-            aria-describedby={adminFieldError(problem, "title") ? "task-title-error" : undefined}
-            aria-invalid={Boolean(adminFieldError(problem, "title"))}
-            disabled={pending}
-            maxLength={200}
-            onChange={(event) => setTitle(event.currentTarget.value)}
-            required
-            value={title}
-          />
-          <FieldError id="task-title-error" message={adminFieldError(problem, "title")} />
-        </label>
-        <label className="civic-field">
-          <span>관리자 설명</span>
-          <textarea
-            disabled={pending}
-            onChange={(event) => setDescription(event.currentTarget.value)}
-            rows={4}
-            value={description}
-          />
-        </label>
-        <label className="civic-field">
-          <span>질문</span>
-          <textarea
-            aria-describedby={
-              adminFieldError(problem, "question.content") ? "task-question-error" : undefined
+    <form className="civic-domain-form civic-task-wizard" onSubmit={submit}>
+      <nav aria-label="과업 생성 단계" className="civic-task-wizard-nav">
+        {steps.map((item, index) => (
+          <button
+            aria-current={step === index ? "step" : undefined}
+            data-complete={
+              index === 0
+                ? Boolean(title.trim())
+                : index === 1
+                  ? Boolean(question.trim())
+                  : options.length >= 2 && options.every((option) => option.content.trim())
             }
-            aria-invalid={Boolean(adminFieldError(problem, "question.content"))}
             disabled={pending}
-            onChange={(event) => setQuestion(event.currentTarget.value)}
-            required
-            rows={4}
-            value={question}
-          />
-          <FieldError
-            id="task-question-error"
-            message={adminFieldError(problem, "question.content")}
-          />
-        </label>
-        <label className="civic-field">
-          <span>질문 설명</span>
-          <textarea
-            disabled={pending}
-            onChange={(event) => setQuestionDescription(event.currentTarget.value)}
-            rows={3}
-            value={questionDescription}
-          />
-        </label>
-      </section>
-      <section className="civic-domain-form-section">
-        <header>
-          <span>단일 선택</span>
-          <h2>응답 선택지</h2>
-        </header>
-        <ol className="civic-option-builder">
-          {options.map((option, index) => (
-            <li key={option.id ?? `new-${index}`}>
-              <label className="civic-field">
-                <span>선택지 {index + 1}</span>
-                <input
-                  aria-describedby={
-                    adminFieldError(
-                      problem,
-                      `question.options[${index}].content`,
-                      `question.options.${index}.content`,
-                    )
-                      ? `task-option-${index}-error`
-                      : undefined
-                  }
-                  aria-invalid={Boolean(
-                    adminFieldError(
-                      problem,
-                      `question.options[${index}].content`,
-                      `question.options.${index}.content`,
-                    ),
-                  )}
-                  disabled={pending}
-                  maxLength={255}
-                  onChange={(event) => {
-                    const content = event.currentTarget.value;
-                    setOptions((current) =>
-                      current.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, content } : item,
+            key={item.label}
+            onClick={() => moveToStep(index as TaskEditorStep)}
+            type="button"
+          >
+            <span>{index + 1}</span>
+            <strong>{item.label}</strong>
+            <small>{item.detail}</small>
+          </button>
+        ))}
+      </nav>
+      {step === 0 ? (
+        <section className="civic-domain-form-section civic-task-wizard-panel">
+          <header>
+            <span>{task ? "초안 전체 수정" : "새 초안"}</span>
+            <h2>과업 기본 정보</h2>
+          </header>
+          <label className="civic-field">
+            <span>제목</span>
+            <input
+              aria-describedby={adminFieldError(problem, "title") ? "task-title-error" : undefined}
+              aria-invalid={Boolean(adminFieldError(problem, "title"))}
+              disabled={pending}
+              maxLength={200}
+              onChange={(event) => setTitle(event.currentTarget.value)}
+              required
+              value={title}
+            />
+            <FieldError id="task-title-error" message={adminFieldError(problem, "title")} />
+          </label>
+          <label className="civic-field">
+            <span>상황 또는 사건</span>
+            <textarea
+              disabled={pending}
+              maxLength={2000}
+              onChange={(event) => setDescription(event.currentTarget.value)}
+              placeholder="시민이 판단할 배경과 현재 상황을 입력해 주세요."
+              rows={4}
+              value={description}
+            />
+          </label>
+        </section>
+      ) : null}
+      {step === 1 ? (
+        <section className="civic-domain-form-section civic-task-wizard-panel">
+          <header>
+            <span>단일 질문</span>
+            <h2>질문</h2>
+          </header>
+          <label className="civic-field">
+            <span>질문</span>
+            <textarea
+              aria-describedby={
+                adminFieldError(problem, "question.content") ? "task-question-error" : undefined
+              }
+              aria-invalid={Boolean(adminFieldError(problem, "question.content"))}
+              disabled={pending}
+              onChange={(event) => setQuestion(event.currentTarget.value)}
+              required
+              rows={4}
+              value={question}
+            />
+            <FieldError
+              id="task-question-error"
+              message={adminFieldError(problem, "question.content")}
+            />
+          </label>
+        </section>
+      ) : null}
+      {step === 2 ? (
+        <section className="civic-domain-form-section civic-task-wizard-panel">
+          <header>
+            <span>단일 선택</span>
+            <h2>응답 선택지</h2>
+          </header>
+          <ol className="civic-option-builder">
+            {options.map((option, index) => (
+              <li key={option.id ?? `new-${index}`}>
+                <label className="civic-field">
+                  <span>선택지 {index + 1}</span>
+                  <input
+                    aria-describedby={
+                      adminFieldError(
+                        problem,
+                        `question.options[${index}].content`,
+                        `question.options.${index}.content`,
+                      )
+                        ? `task-option-${index}-error`
+                        : undefined
+                    }
+                    aria-invalid={Boolean(
+                      adminFieldError(
+                        problem,
+                        `question.options[${index}].content`,
+                        `question.options.${index}.content`,
                       ),
-                    );
-                  }}
-                  required
-                  value={option.content}
-                />
-                <FieldError
-                  id={`task-option-${index}-error`}
-                  message={adminFieldError(
-                    problem,
-                    `question.options[${index}].content`,
-                    `question.options.${index}.content`,
-                  )}
-                />
-              </label>
-              <button
-                disabled={pending || options.length <= 2}
-                onClick={() =>
-                  setOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))
-                }
-                type="button"
-              >
-                삭제
-              </button>
-            </li>
-          ))}
-        </ol>
-        <button
-          className="wf-button wf-button-secondary"
-          disabled={pending}
-          onClick={() => setOptions((current) => [...current, { id: null, content: "" }])}
-          type="button"
-        >
-          선택지 추가
-        </button>
-      </section>
-      <div className="civic-form-actions">
-        <Link
-          href={
-            task
-              ? (`/admin/tasks/detail?taskId=${encodeURIComponent(task.id)}` as Route)
-              : "/admin/tasks"
-          }
-        >
-          취소
-        </Link>
-        <button className="civic-primary-action" disabled={pending} type="submit">
-          {pending ? "서버 확인 중…" : task ? "초안 전체 저장" : "초안 생성"}
-        </button>
+                    )}
+                    disabled={pending}
+                    maxLength={255}
+                    onChange={(event) => {
+                      const content = event.currentTarget.value;
+                      setOptions((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, content } : item,
+                        ),
+                      );
+                    }}
+                    required
+                    value={option.content}
+                  />
+                  <FieldError
+                    id={`task-option-${index}-error`}
+                    message={adminFieldError(
+                      problem,
+                      `question.options[${index}].content`,
+                      `question.options.${index}.content`,
+                    )}
+                  />
+                </label>
+                <button
+                  disabled={pending || options.length <= 2}
+                  onClick={() =>
+                    setOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                  }
+                  type="button"
+                >
+                  삭제
+                </button>
+              </li>
+            ))}
+          </ol>
+          <button
+            className="wf-button wf-button-secondary"
+            disabled={pending}
+            onClick={() => setOptions((current) => [...current, { id: null, content: "" }])}
+            type="button"
+          >
+            선택지 추가
+          </button>
+        </section>
+      ) : null}
+      <div className="civic-form-actions civic-task-wizard-actions">
+        {onCancel ? (
+          <button className="civic-task-wizard-cancel" onClick={onCancel} type="button">
+            닫기
+          </button>
+        ) : (
+          <Link
+            href={
+              task
+                ? (`/admin/tasks?taskId=${encodeURIComponent(task.id)}` as Route)
+                : "/admin/tasks"
+            }
+          >
+            취소
+          </Link>
+        )}
+        <span />
+        {step > 0 ? (
+          <button
+            className="wf-button wf-button-secondary"
+            disabled={pending}
+            onClick={() => moveToStep((step - 1) as TaskEditorStep)}
+            type="button"
+          >
+            이전
+          </button>
+        ) : null}
+        {step < 2 ? (
+          <button
+            className="civic-primary-action"
+            disabled={pending}
+            onClick={() => moveToStep((step + 1) as TaskEditorStep)}
+            type="button"
+          >
+            다음
+          </button>
+        ) : (
+          <button className="civic-primary-action" disabled={pending} type="submit">
+            {pending ? "서버 확인 중…" : task ? "초안 전체 저장" : "초안 생성"}
+          </button>
+        )}
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
     </form>
   );
 }
 
-function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
+function TaskDetailView({
+  taskId,
+  onTaskChanged,
+}: Readonly<{
+  taskId: string | null;
+  onTaskChanged?: (task: Task) => void;
+}>) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [message, setMessage] = useState(taskId ? "" : "과업 목록에서 상세 대상을 선택해 주세요.");
   const [pending, setPending] = useState(false);
@@ -476,12 +865,14 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
       const task = readTask(await response.json());
       if (!task) return setMessage("서버의 과업 변경 응답 형식을 확인해야 합니다.");
       const latest = await requestTaskDetail(task.id);
-      setDetail(latest ?? { task, lifecycleHistory: detail.lifecycleHistory });
+      const nextDetail = latest ?? { task, lifecycleHistory: detail.lifecycleHistory };
+      setDetail(nextDetail);
+      onTaskChanged?.(nextDetail.task);
       setProblem(null);
       setMessage("과업의 최신 상태를 반영했습니다.");
     } catch {
       await load();
-      setMessage("처리 결과가 불명확하여 상세·이력을 다시 조회했습니다. 자동 재전송하지 않습니다.");
+      setMessage("처리 결과가 불명확하여 상세를 다시 조회했습니다. 자동 재전송하지 않습니다.");
     } finally {
       setPending(false);
     }
@@ -541,7 +932,6 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
             problem={problem}
             task={task}
           />
-          <LifecycleHistory events={detail.lifecycleHistory} />
         </aside>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
@@ -696,7 +1086,7 @@ function TaskCloseConfirmation({ taskId }: Readonly<{ taskId: string | null }>) 
       }
       const closed = readTask(await response.json());
       if (!closed) return setMessage("서버의 조기 종료 응답 형식을 확인해야 합니다.");
-      router.push(`/admin/tasks/detail?taskId=${encodeURIComponent(closed.id)}` as Route);
+      router.push(`/admin/tasks?taskId=${encodeURIComponent(closed.id)}` as Route);
     } catch {
       const latest = await requestTaskDetail(task.id);
       if (latest) setTask(latest.task);
@@ -746,9 +1136,7 @@ function TaskCloseConfirmation({ taskId }: Readonly<{ taskId: string | null }>) 
         <FieldError id="task-close-reason-error" message={adminFieldError(problem, "reason")} />
       </label>
       <div className="civic-form-actions">
-        <Link href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.id)}` as Route}>
-          취소
-        </Link>
+        <Link href={`/admin/tasks?taskId=${encodeURIComponent(task.id)}` as Route}>취소</Link>
         <button
           className="civic-danger-action"
           disabled={pending || task.status !== "OPEN"}
@@ -824,9 +1212,7 @@ function TaskResultView({ taskId }: Readonly<{ taskId: string | null }>) {
         })}
       </ol>
       <div className="civic-form-actions">
-        <Link href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.id)}` as Route}>
-          과업 상세
-        </Link>
+        <Link href={`/admin/tasks?taskId=${encodeURIComponent(task.id)}` as Route}>과업 상세</Link>
         <AuthenticatedDownloadLink
           className="civic-primary-action"
           href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
@@ -852,27 +1238,19 @@ function TaskSummaryGrid({ task }: Readonly<{ task: Task }>) {
   );
 }
 
-function LifecycleHistory({ events }: Readonly<{ events: TaskDetail["lifecycleHistory"] }>) {
-  return (
-    <section className="civic-domain-history">
-      <h2>운영 이력</h2>
-      {events.length === 0 ? <p>아직 기록된 상태 변경이 없습니다.</p> : null}
-      <ol>
-        {events.map((event) => (
-          <li key={event.id}>
-            <div>
-              <strong>{lifecycleEventLabel(event.eventType)}</strong>
-              <time dateTime={event.occurredAt}>{formatDate(event.occurredAt)}</time>
-            </div>
-            <p>
-              {statusTransition(event.previousStatus, event.newStatus)}
-              {event.reason ? ` · ${event.reason}` : ""}
-            </p>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
+function taskSummaryFromTask(task: Task): TaskSummary {
+  return {
+    closedAt: task.closedAt,
+    closureType: task.closureType,
+    createdAt: task.createdAt,
+    openedAt: task.openedAt,
+    publishedAt: task.publishedAt,
+    schedule: task.schedule,
+    status: task.status,
+    taskId: task.id,
+    title: task.title,
+    updatedAt: task.updatedAt,
+  };
 }
 
 function lifecycleRequest(
@@ -987,24 +1365,6 @@ function lifecycleActionLabel(action: LifecycleAction): string {
     deadline: "마감 변경",
     cancel: "과업 취소",
   }[action];
-}
-
-function lifecycleEventLabel(event: string): string {
-  return (
-    {
-      SCHEDULED: "예약 발행",
-      RESCHEDULED: "예약·마감 변경",
-      OPENED: "과업 시작",
-      CLOSED: "과업 종료",
-      CANCELLED: "과업 취소",
-    }[event] ?? "상태 변경"
-  );
-}
-
-function statusTransition(previous: TaskStatus | null, next: TaskStatus | null): string {
-  if (!previous && next) return taskStatusLabel(next);
-  if (previous && next) return `${taskStatusLabel(previous)} → ${taskStatusLabel(next)}`;
-  return "상태 기록";
 }
 
 function Detail({ label, value }: Readonly<{ label: string; value: string }>) {
