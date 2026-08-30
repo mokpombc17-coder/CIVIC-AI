@@ -342,7 +342,11 @@ test("기존 승인·반려 주소는 반려 모드 Drawer로 연결한다", asy
   const drawer = page.getByRole("dialog", { name: "시민 정책 토론방" });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByLabel("사유를 입력해 반려")).toBeChecked();
-  await expect(drawer.getByLabel("반려 사유")).toBeVisible();
+  const rejectionReason = drawer.getByLabel("반려 사유");
+  await expect(rejectionReason).toBeVisible();
+  await expect(rejectionReason).toHaveCSS("border-top-style", "solid");
+  await expect(rejectionReason).toHaveCSS("border-top-width", "1px");
+  await expect(drawer.getByText("한 줄 입력")).toHaveCount(0);
 });
 
 test("다른 관리자가 삭제한 카테고리의 수정 404에서 최신 목록을 다시 불러온다", async ({
