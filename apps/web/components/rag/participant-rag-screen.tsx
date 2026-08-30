@@ -648,15 +648,19 @@ export function RagMessage({
           {liveJob ? (
             showStreamingAnswer ? (
               <div aria-busy="true" aria-label="실시간 답변" className="civic-rag-streamed-answer">
-                <span className="civic-rag-stream-label">
-                  <span aria-hidden="true" /> 실시간 답변
-                </span>
                 {liveJob.streamedAnswer ? (
-                  <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+                  <>
+                    <span className="civic-rag-stream-label">
+                      <span aria-hidden="true" /> 실시간 답변
+                    </span>
+                    <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+                    <span aria-hidden="true" className="civic-rag-stream-cursor" />
+                  </>
                 ) : (
-                  <p className="civic-rag-stream-starting">답변 생성을 시작하고 있어요.</p>
+                  <p className="civic-rag-stream-starting civic-rag-loading-label">
+                    답변을 작성하는 중...
+                  </p>
                 )}
-                <span aria-hidden="true" className="civic-rag-stream-cursor" />
               </div>
             ) : (
               <RagLiveProgress liveJob={liveJob} />
@@ -739,12 +743,6 @@ export function scrollRagMessagesToLatest(messages: RagMessagesScrollTarget): vo
   messages.scrollTo({ behavior: "smooth", top: messages.scrollHeight });
 }
 
-const VISIBLE_PROGRESS_STAGES = [
-  { stage: "UNDERSTANDING", label: "질문 이해" },
-  { stage: "SEARCHING", label: "자료 검색" },
-  { stage: "READING", label: "근거 분석" },
-] as const satisfies ReadonlyArray<{ stage: RagProgressStage; label: string }>;
-
 const ANSWER_GENERATION_STAGES = new Set<RagProgressStage>(["COMPOSING", "VERIFYING", "STREAMING"]);
 
 export function shouldShowRagStreamingAnswer(
@@ -754,51 +752,29 @@ export function shouldShowRagStreamingAnswer(
   return streamedAnswer.length > 0 || ANSWER_GENERATION_STAGES.has(stage);
 }
 
-export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
-  const activeIndex =
-    liveJob.progress.stage === "QUEUED"
-      ? 0
-      : VISIBLE_PROGRESS_STAGES.findIndex(({ stage }) => stage === liveJob.progress.stage);
-  const visibleProgressPercent = Math.min(100, Math.max(0, liveJob.progress.progress_percent));
+export function ragLoadingLabel(stage: RagProgressStage): string {
+  switch (stage) {
+    case "QUEUED":
+    case "UNDERSTANDING":
+      return "질문을 이해하는 중...";
+    case "SEARCHING":
+      return "관련 자료를 찾는 중...";
+    case "READING":
+      return "근거를 검토하는 중...";
+    case "COMPOSING":
+    case "VERIFYING":
+    case "STREAMING":
+      return "답변을 작성하는 중...";
+  }
+}
 
+export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
   return (
-    <section aria-label="RAG 답변 처리 단계" className="civic-rag-live-progress" role="status">
-      <div className="civic-rag-live-heading">
-        <span className="civic-rag-live-badge">
-          <span aria-hidden="true" /> 답변 준비 중
-        </span>
-      </div>
-      <div
-        aria-label={`답변 처리 ${visibleProgressPercent}%`}
-        aria-valuemax={100}
-        aria-valuemin={0}
-        aria-valuenow={visibleProgressPercent}
-        className="civic-rag-progress-track"
-        role="progressbar"
-      >
-        <span style={{ width: `${visibleProgressPercent}%` }} />
-      </div>
-      <ol aria-label="답변 준비 단계" className="civic-rag-stage-list">
-        {VISIBLE_PROGRESS_STAGES.map(({ stage, label }, index) => {
-          const state = index < activeIndex ? "done" : index === activeIndex ? "active" : "waiting";
-          return (
-            <li
-              aria-current={state === "active" ? "step" : undefined}
-              className={`is-${state}`}
-              key={stage}
-            >
-              <span aria-hidden="true">{state === "done" ? "✓" : index + 1}</span>
-              <small>{label}</small>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="civic-rag-live-copy">
-        <div>
-          <strong aria-live="polite">{liveJob.progress.label}</strong>
-          <p>{liveJob.progress.detail}</p>
-        </div>
-      </div>
+    <section aria-label="RAG 답변 생성 중" className="civic-rag-live-progress" role="status">
+      <span aria-hidden="true" className="civic-rag-loading-orb" />
+      <strong aria-live="polite" className="civic-rag-loading-label">
+        {ragLoadingLabel(liveJob.progress.stage)}
+      </strong>
     </section>
   );
 }
