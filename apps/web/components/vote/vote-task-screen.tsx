@@ -229,6 +229,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         <PlatformHeader
           backAction={backAction}
           className={styles.voteHeader!}
+          leading={step === 4 ? null : undefined}
           title={isViewingSubmittedResponse ? "응답 보기" : "투표 참여하기"}
         />
       }
@@ -871,7 +872,7 @@ function ResponseConfirmation({
       ) : null}
       <button
         aria-busy={isSubmitting}
-        className={styles.compactPrimaryButton}
+        className={`${styles.compactPrimaryButton} ${styles.confirmationSubmitButton}`}
         disabled={isSubmitting}
         onClick={onSubmit}
         type="button"
@@ -884,7 +885,7 @@ function ResponseConfirmation({
 
 function VoteCompleted({ detail }: { detail: UserTaskDetail }) {
   return (
-    <div className={styles.flowBody}>
+    <div className={`${styles.flowBody} ${styles.completionBody}`}>
       <div className={styles.successPanel}>
         <span aria-hidden="true" className={styles.successCelebration}>
           <span className={styles.successIcon} />
@@ -894,11 +895,11 @@ function VoteCompleted({ detail }: { detail: UserTaskDetail }) {
         </span>
         <strong>투표 참여가 완료되었습니다.</strong>
       </div>
-      <dl className={styles.infoCard}>
+      <dl className={`${styles.infoCard} ${styles.completionInfoCard}`}>
         <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
         <InfoRow label="질문" value={detail.task.question.content} />
       </dl>
-      <Link className={styles.compactPrimaryButton} href="/vote">
+      <Link className={`${styles.compactPrimaryButton} ${styles.completionAction}`} href="/vote">
         과업 목록으로
       </Link>
     </div>

@@ -357,6 +357,10 @@
   padding-top: 10px;
 }
 
+.completionBody {
+  padding-top: 16px;
+}
+
 .flowSection {
   display: grid;
   gap: 8px;
@@ -537,6 +541,10 @@
 }
 
 .overviewContinueButton {
+  justify-self: end;
+}
+
+.confirmationSubmitButton {
   justify-self: end;
 }
 
@@ -871,14 +879,15 @@
 }
 
 .successPanel {
-  display: flex;
-  min-height: 76px;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  min-height: 106px;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid #a8d9b5;
   border-radius: 8px;
-  background: #eaf7ef;
-  padding: 18px 16px;
-  color: #247a45;
+  background: #edfaf0;
+  padding: 16px;
+  color: #176633;
 }
 
 .successPanel strong {
@@ -889,8 +898,8 @@
 .successCelebration {
   position: relative;
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 24px;
+  height: 24px;
   flex: none;
   place-items: center;
 }
@@ -898,7 +907,7 @@
 .successCelebration::after {
   position: absolute;
   z-index: 0;
-  inset: 4px;
+  inset: 0;
   border: 2px solid rgb(36 122 69 / 28%);
   border-radius: 50%;
   animation: success-ring 800ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both;
@@ -911,11 +920,34 @@
   position: relative;
   z-index: 1;
   display: block;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   animation: success-icon-pop 760ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   background: url("/assets/vote/success.png") center / contain no-repeat;
   transform-origin: center;
+}
+
+.completionInfoCard .infoRow {
+  min-height: 80px;
+  gap: 4px;
+  padding: 16px;
+}
+
+.completionInfoCard .infoRow dt {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 19.5px;
+}
+
+.completionInfoCard .infoRow dd {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.completionAction {
+  min-width: 124px;
+  padding: 0 20px;
+  font-size: 16px;
 }
 
 .successBurstDot {
