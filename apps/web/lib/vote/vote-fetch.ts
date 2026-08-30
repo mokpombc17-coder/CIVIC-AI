@@ -1,5 +1,6 @@
 "use client";
 
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { VOTE_API_BASE_URL } from "./vote-config";
 import { isVoteProblemDetails, type VoteProblemDetails } from "./vote-problem-details";
 
@@ -43,7 +44,7 @@ export class VoteResponseParseError extends Error {
 
 export function createVoteFetch({
   baseUrl = VOTE_API_BASE_URL,
-  request = fetch,
+  request = authenticatedFetch,
 }: { baseUrl?: string; request?: FetchRequest } = {}): VoteFetch {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
 

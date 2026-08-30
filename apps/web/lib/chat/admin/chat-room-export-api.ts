@@ -1,5 +1,6 @@
 "use client";
 
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { ChatApiError } from "../chat-fetch";
 import { reportChatAuthenticationRequired } from "../chat-authentication-required";
 import {
@@ -24,7 +25,9 @@ export class ChatRoomExportResponseError extends Error {
   }
 }
 
-export function createChatRoomExportApi(request: FetchRequest = fetch): ChatRoomExportApi {
+export function createChatRoomExportApi(
+  request: FetchRequest = authenticatedFetch,
+): ChatRoomExportApi {
   return {
     async download(input) {
       const parsedInput = chatRoomExportInputSchema.parse(input);

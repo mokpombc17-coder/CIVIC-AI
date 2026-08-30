@@ -81,7 +81,8 @@ bounded retry 이후 남은 pending을 focus·online·실시간 연결 복구 �
 transport의 인증 세대를 교체해 모든 탭에서 이전 사용자의 pending과 늦은 응답을 격리한다. 서버가
 read-state PUT을 확정하면 기존 worker/leader-tab protocol을 통해 같은 인증 세대의 다른 탭에도
 confirmation을 전달하고, 각 탭은 Room inbox query만 invalidate한다. 실시간 Provider는 STOMP Client를
-직접 노출하지 않고 교체 가능한 transport를 제공한다. SharedWorker 지원 브라우저에서는 Worker가 STOMP Client를
+직접 노출하지 않고 교체 가능한 transport를 제공하며, HTTP 계층의 Access Token 갱신 완료 이벤트를
+구독해 갱신된 쿠키로 transport를 재연결한다. SharedWorker 지원 브라우저에서는 Worker가 STOMP Client를
 소유하고, 미지원 단일 WebView에서는 Direct transport를 사용한다. 두 환경 모두 하위 채팅
 컴포넌트의 사용 계약은 같다. 활성 Room의 message, room-event, read-receipt 세 topic은 같은
 generation과 ordered delivery를 공유하고 Receipt 오류는 core message/Room event 적용과 분리한다.

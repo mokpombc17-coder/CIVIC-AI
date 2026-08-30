@@ -10,7 +10,10 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { observeAuthenticationSucceeded } from "@/lib/auth/authentication-session-events";
+import {
+  observeAccessTokenRefreshed,
+  observeAuthenticationSucceeded,
+} from "@/lib/auth/authentication-session-events";
 import { ChatRealtimeDiagnosticsPanel } from "@/components/chat-realtime-diagnostics-panel";
 import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
 import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realtime-room-lifecycle";
@@ -60,8 +63,12 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
     const detachAuthentication = observeAuthenticationSucceeded(window, () => {
       transport.reconnect("authentication-succeeded");
     });
+    const detachAccessTokenRefresh = observeAccessTokenRefreshed(window, () => {
+      transport.reconnect("authentication-succeeded");
+    });
 
     return () => {
+      detachAccessTokenRefresh();
       detachAuthentication();
       detachDiagnostics();
       detachRealtime();

@@ -1,5 +1,6 @@
 "use client";
 
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { CHAT_API_BASE_URL } from "./chat-config";
 import {
   CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
@@ -62,7 +63,7 @@ export class ChatResponseParseError extends Error {
 
 export function createChatFetch({
   baseUrl = CHAT_API_BASE_URL,
-  request = fetch,
+  request = authenticatedFetch,
 }: CreateChatFetchOptions = {}): ChatFetch {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
 
