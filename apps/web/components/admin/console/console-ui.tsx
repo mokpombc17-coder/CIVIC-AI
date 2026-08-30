@@ -145,7 +145,10 @@ export function ConsoleStatus({
 export function ConsoleSearchControl({
   ariaLabel,
   buttonLabel = "검색",
+  className,
   defaultValue,
+  disabled = false,
+  maxLength,
   name,
   onChange,
   placeholder,
@@ -153,19 +156,25 @@ export function ConsoleSearchControl({
 }: Readonly<{
   ariaLabel: string;
   buttonLabel?: string;
+  className?: string;
   defaultValue?: string;
+  disabled?: boolean;
+  maxLength?: number;
   name?: string;
   onChange?: (value: string) => void;
   placeholder: string;
   value?: string;
 }>) {
   return (
-    <div className="console-search-control">
+    <div className={`console-search-control${className ? ` ${className}` : ""}`}>
       <span aria-hidden="true" className="console-search-icon" />
       <input
         aria-label={ariaLabel}
         autoComplete="off"
+        className="console-search-input"
+        disabled={disabled}
         {...(defaultValue !== undefined ? { defaultValue } : {})}
+        {...(maxLength !== undefined ? { maxLength } : {})}
         {...(name ? { name } : {})}
         {...(onChange
           ? {
@@ -177,7 +186,7 @@ export function ConsoleSearchControl({
         type="search"
         {...(value !== undefined ? { value } : {})}
       />
-      <button className="console-search-button" type="submit">
+      <button className="console-search-button" disabled={disabled} type="submit">
         {buttonLabel}
       </button>
     </div>

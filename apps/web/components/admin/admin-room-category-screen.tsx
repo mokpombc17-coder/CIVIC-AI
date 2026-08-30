@@ -5,6 +5,7 @@ import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operati
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
 import {
   DEFAULT_ROOM_CATEGORY_ID,
@@ -414,28 +415,20 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
               onSubmit={(event) => event.preventDefault()}
               role="search"
             >
-              <div className="console-search-control">
-                <span aria-hidden="true" className="console-search-icon" />
-                <input
-                  aria-label="토론방 이름 검색"
-                  autoComplete="off"
-                  disabled={pending}
-                  maxLength={100}
-                  onChange={(event) => {
-                    roomListGeneration.current += 1;
-                    setRoomQuery(event.currentTarget.value);
-                    setRoomNextCursor(null);
-                    setRoomHasNext(false);
-                    setRoomsLoading(true);
-                  }}
-                  placeholder="토론방 이름을 검색해 주세요."
-                  type="search"
-                  value={roomQuery}
-                />
-                <button className="console-search-button" disabled={pending} type="submit">
-                  검색
-                </button>
-              </div>
+              <ConsoleSearchControl
+                ariaLabel="토론방 이름 검색"
+                disabled={pending}
+                maxLength={100}
+                onChange={(value) => {
+                  roomListGeneration.current += 1;
+                  setRoomQuery(value);
+                  setRoomNextCursor(null);
+                  setRoomHasNext(false);
+                  setRoomsLoading(true);
+                }}
+                placeholder="토론방 이름을 검색해 주세요."
+                value={roomQuery}
+              />
             </form>
             <ListedRoomTable
               categoryNamesById={categoryNamesById}

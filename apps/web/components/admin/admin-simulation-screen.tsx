@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
   ConsoleMetricStrip,
+  ConsoleSearchControl,
   ConsoleTabs,
   type ConsoleTabItem,
 } from "@/components/admin/console/console-ui";
@@ -310,20 +311,12 @@ function SimulationTargets() {
         }}
         role="search"
       >
-        <div className="console-search-control">
-          <span aria-hidden="true" className="console-search-icon" />
-          <input
-            aria-label="시뮬레이션할 과업 검색"
-            autoComplete="off"
-            onChange={(event) => setSearch(event.currentTarget.value)}
-            placeholder="과업 제목을 검색해 주세요."
-            type="search"
-            value={search}
-          />
-          <button className="console-search-button" type="submit">
-            검색
-          </button>
-        </div>
+        <ConsoleSearchControl
+          ariaLabel="시뮬레이션할 과업 검색"
+          onChange={setSearch}
+          placeholder="과업 제목을 검색해 주세요."
+          value={search}
+        />
       </form>
       <ConsoleDataGrid
         ariaLabel="시뮬레이션 과업 목록"

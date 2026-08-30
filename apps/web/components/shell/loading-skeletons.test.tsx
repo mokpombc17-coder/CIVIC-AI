@@ -57,7 +57,8 @@ describe("route-aware loading skeletons", () => {
     const markup = renderToStaticMarkup(<AdminLoadingView pathname="/admin/users" />);
 
     expect(markup).toMatch(/<h1[^>]*>사용자·권한<\/h1>/);
-    expect(markup).toContain('placeholder="이메일 주소 입력…"');
+    expect(markup).toContain('placeholder="이메일 주소를 검색해 주세요."');
+    expect(markup).toContain('class="console-search-input"');
     expect(markup).toContain("활성");
     expect(markup).toContain("비활성");
     expect(markup).toContain("운영 권한");
@@ -71,7 +72,8 @@ describe("route-aware loading skeletons", () => {
 
     expect(markup).toMatch(/<h1[^>]*>문서 관리<\/h1>/);
     expect(markup).toContain("<h2>폴더</h2>");
-    expect(markup).toContain('placeholder="문서명 검색..."');
+    expect(markup).toContain('placeholder="문서명을 검색해 주세요."');
+    expect(markup).toContain('class="console-search-input"');
     expect(markup).toContain("처리 상태");
     expect(markup).toContain("civic-skeleton-folder-row");
     expect(markup).toContain("civic-skeleton-table-cell");

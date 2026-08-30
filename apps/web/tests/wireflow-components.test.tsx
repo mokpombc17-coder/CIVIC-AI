@@ -27,6 +27,7 @@ import {
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { isSectionActive } from "@/components/admin/admin-chat-operations-layout";
+import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import {
   WireflowBadge,
@@ -37,6 +38,25 @@ import {
 import { screenRegistry } from "@/lib/screens/registry";
 
 describe("latest Wire Flow shared product UI", () => {
+  it("관리자 검색은 화면별 CSS에 덮이지 않는 공용 입력과 버튼을 렌더링한다", () => {
+    const html = renderToStaticMarkup(
+      <ConsoleSearchControl
+        ariaLabel="목록 검색"
+        className="narrow-panel"
+        disabled
+        maxLength={100}
+        placeholder="검색어를 입력해 주세요."
+      />,
+    );
+
+    expect(html).toContain('class="console-search-control narrow-panel"');
+    expect(html).toContain('class="console-search-input"');
+    expect(html).toContain('class="console-search-button"');
+    expect(html).toContain('aria-label="목록 검색"');
+    expect(html).toContain('maxLength="100"');
+    expect(html.match(/disabled=""/g)).toHaveLength(2);
+  });
+
   it("renders product headings without Atlas review chrome or legacy status copy", () => {
     const login = screenRegistry.find((screen) => screen.id === "AUTH-001");
     if (!login) throw new Error("AUTH-001 missing");

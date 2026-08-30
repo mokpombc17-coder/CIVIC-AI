@@ -584,10 +584,13 @@
 
 .console-search-control {
   display: flex;
+  width: 100%;
+  max-width: 720px;
   height: 48px;
   flex: 1 1 220px;
   align-items: center;
   overflow: hidden;
+  box-sizing: border-box;
   border: 1px solid var(--wf-line-strong);
   border-radius: 6px;
   background: #fff;
@@ -607,33 +610,42 @@
     center / contain no-repeat;
 }
 
-.console-search-control input {
+.console-search-control > input.console-search-input {
+  width: auto;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   flex: 1;
   border: 0;
+  border-radius: 0;
   outline: 0;
+  box-shadow: none;
   padding: 0 10px;
+  appearance: none;
   background: transparent;
   color: var(--wf-ink);
   font: inherit;
   font-size: 14px;
 }
 
-.console-search-control input:focus-visible {
+.console-search-control > input.console-search-input:focus-visible {
+  border: 0;
+  border-radius: 0;
   outline: 0;
+  box-shadow: none;
 }
 
-.console-search-control input::-webkit-search-cancel-button {
+.console-search-control > input.console-search-input::-webkit-search-cancel-button {
   display: none;
 }
 
-.console-search-control input::placeholder {
+.console-search-control > input.console-search-input::placeholder {
   color: #8a949e;
 }
 
-.console-search-button {
+.console-search-control > button.console-search-button {
   min-width: 56px;
+  min-height: 0;
   height: 100%;
   flex: none;
   margin: 0;
@@ -646,4 +658,9 @@
   font-size: 14px;
   font-weight: 700;
   padding: 0 12px;
+}
+
+.console-search-control > button.console-search-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }

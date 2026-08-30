@@ -12,7 +12,11 @@ import {
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { ConsoleTabs, type ConsoleTabItem } from "@/components/admin/console/console-ui";
+import {
+  ConsoleSearchControl,
+  ConsoleTabs,
+  type ConsoleTabItem,
+} from "@/components/admin/console/console-ui";
 import {
   readAdminRoomPage,
   type AdminRoom,
@@ -391,25 +395,14 @@ export function AdminChatInsightsScreen({
               <strong>운영할 토론방</strong>
             </header>
             <form className={styles.search} onSubmit={searchRooms} role="search">
-              <div className={`console-search-control ${styles.queryField ?? ""}`}>
-                <span aria-hidden="true" className="console-search-icon" />
-                <input
-                  aria-label="토론방 검색"
-                  autoComplete="off"
-                  disabled={roomsLoading || closingRoom}
-                  onChange={(event) => setRoomQuery(event.currentTarget.value)}
-                  placeholder="토론방 이름 검색"
-                  type="search"
-                  value={roomQuery}
-                />
-                <button
-                  className="console-search-button"
-                  disabled={roomsLoading || closingRoom}
-                  type="submit"
-                >
-                  검색
-                </button>
-              </div>
+              <ConsoleSearchControl
+                ariaLabel="토론방 검색"
+                className={styles.queryField ?? ""}
+                disabled={roomsLoading || closingRoom}
+                onChange={setRoomQuery}
+                placeholder="토론방 이름 검색"
+                value={roomQuery}
+              />
               <label className={styles.statusField}>
                 <span>상태</span>
                 <select
