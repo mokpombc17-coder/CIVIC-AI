@@ -31,7 +31,7 @@ describe("route-aware loading skeletons", () => {
   it("하위 참여자 화면의 제목과 뒤로가기를 현재 경로에 맞춘다", () => {
     const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/mypage/profile" />);
 
-    expect(markup).toMatch(/<h1[^>]*>내 정보 관리<\/h1>/);
+    expect(markup).toMatch(/<h1[^>]*>계정<\/h1>/);
     expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
     expect(markup).toContain('href="/mypage"');
   });
