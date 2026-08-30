@@ -885,7 +885,9 @@ function useStartSimulation(taskId: string | null) {
           `/admin/simulations/status?simulationId=${encodeURIComponent(created.simulationId)}` as Route,
         );
       } catch {
-        setMessage("실행 요청 결과가 불명확합니다. 같은 설정으로 다시 눌러도 중복 실행되지 않습니다.");
+        setMessage(
+          "실행 요청 결과가 불명확합니다. 같은 설정으로 다시 눌러도 중복 실행되지 않습니다.",
+        );
       } finally {
         setPending(false);
       }

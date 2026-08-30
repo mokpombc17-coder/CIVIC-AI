@@ -896,7 +896,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
 
   await page.goto("/admin/users/roles/revoke?userId=00000000-0000-4000-8000-000000000002");
   await expect(page).toHaveURL(/\/admin\/users\/roles\/revoke\?userId=/u);
-  
+
   await expect(page.getByRole("tab", { name: "권한 편집" })).toHaveAttribute(
     "aria-selected",
     "true",
