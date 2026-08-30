@@ -4439,6 +4439,36 @@ body {
   line-height: 20px;
 }
 
+.civic-header-login {
+  display: inline-flex;
+  min-width: 62px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #8fb2f7;
+  border-radius: 8px;
+  background: #eef4ff;
+  color: #0a4fd1;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.civic-header-login:hover {
+  border-color: #5e90ef;
+  background: #dfeaff;
+}
+
+.civic-header-login:focus-visible {
+  outline: 2px solid #0a4fd1;
+  outline-offset: 2px;
+}
+
 /* 카드 부제(예: AUTH-005 마스킹 이메일 안내) */
 .wf-card-subtitle {
   margin: 6px 0 0;
@@ -4523,10 +4553,9 @@ body {
   font-size: 13px;
 }
 
-/* 로그인 보조 행동: 컴팩트 버튼 2개 + 재활성화 링크 */
+/* 로그인 보조 행동: 컴팩트 버튼 2개 */
 [data-wireflow-layout="auth-login"] .civic-auth-support-compact {
   display: grid;
-  gap: 9px;
 }
 
 .civic-auth-support-row {
@@ -4555,27 +4584,6 @@ body {
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-[data-wireflow-layout="auth-login"] .civic-auth-support-compact > .civic-auth-reactivate {
-  position: relative;
-  display: grid;
-  width: 176.5px;
-  height: 48px;
-  place-items: center;
-  font-size: 14px;
-  line-height: 17.5px;
-  text-decoration: none;
-}
-
-[data-wireflow-layout="auth-login"] .civic-auth-support-compact > .civic-auth-reactivate::after {
-  position: absolute;
-  top: 34px;
-  left: 51px;
-  width: 75px;
-  height: 1px;
-  background: url("/assets/wireflow/auth-reactivate-underline.svg") center / 75px 1px no-repeat;
-  content: "";
 }
 
 /* 재활성화 안내 카드 3종 (AUTH-009·010) */

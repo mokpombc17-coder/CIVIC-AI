@@ -957,7 +957,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml).toContain("비밀번호 재설정");
   });
 
-  it("AUTH-001은 기준 GUI의 로그인 카드와 복구·가입 카드 배치를 유지한다", () => {
+  it("AUTH-001은 기준 GUI의 로그인 카드와 비밀번호 복구·가입 버튼 배치를 유지한다", () => {
     const login = mainScreens.find((screen) => screen.id === "AUTH-001");
     if (!login) throw new Error("AUTH-001 wire flow screen missing");
 
@@ -976,7 +976,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml.indexOf('data-wireflow-slot="auth-signup"')).toBeGreaterThan(
       loginHtml.indexOf('data-wireflow-slot="auth-reset"'),
     );
-    expect(loginHtml).toContain("계정 재활성화");
+    expect(loginHtml).not.toContain("계정 재활성화");
   });
 
   it("AUTH-001의 테스트 로그인 버튼은 개발 호스트에서만 렌더링한다", () => {
