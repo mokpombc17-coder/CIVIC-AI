@@ -367,19 +367,35 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   context,
   page,
 }) => {
+  let releaseExportResponse: (() => void) | null = null;
+  await page.route("**/api/v1/admin/rooms/*/conversation-exports", async (route) => {
+    await new Promise<void>((resolve) => {
+      releaseExportResponse = resolve;
+    });
+    await route.fulfill({
+      body: JSON.stringify({ code: "SERVICE_UNAVAILABLE", status: 503 }),
+      contentType: "application/problem+json",
+      status: 503,
+    });
+  });
   await authenticate(context);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/chat");
 
-  await expect(page.getByRole("heading", { name: "채팅방 운영" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "채팅 운영" })).toBeVisible();
   const activeRoom = page.getByRole("button", { name: /시민 정책 토론방/u });
   await expect(activeRoom).toContainText("운영 중");
   await expect(page.getByRole("button", { name: /지난 정책 기록방/u })).toContainText("종료");
   await activeRoom.click();
-  const closeRoomButton = page
-    .getByLabel("대화 Export 분석")
-    .getByRole("button", { name: "채팅방 종료" });
-  await expect(closeRoomButton).toBeVisible();
+  await expect.poll(() => releaseExportResponse !== null).toBe(true);
+  const analysisPanel = page.getByRole("region", { name: "대화 분석" });
+  await analysisPanel.getByText("채팅방 운영 설정", { exact: true }).click();
+  const closeRoomButton = analysisPanel.getByRole("button", { name: "채팅방 종료" });
+  try {
+    await expect(closeRoomButton).toBeEnabled();
+  } finally {
+    releaseExportResponse?.();
+  }
 
   await closeRoomButton.click();
   const closeRoomDialog = page.getByRole("alertdialog", {

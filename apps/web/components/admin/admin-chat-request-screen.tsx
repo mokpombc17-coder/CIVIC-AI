@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import {
@@ -245,75 +246,77 @@ export function AdminChatRequestScreen({
       screen={screen}
       title={detailMode ? "채팅방 생성 요청 검토" : "채팅방 생성 요청"}
     >
-      <div
-        className="civic-admin-workbench civic-domain-console"
-        data-wireflow-layout="chat-request-admin"
-      >
-        {!detailMode ? (
-          <>
-            <div className="civic-domain-toolbar">
-              <label className="civic-field">
-                <span>신청자 이메일 또는 채팅방 이름 검색</span>
-                <input
-                  onChange={(event) => setQuery(event.currentTarget.value)}
-                  placeholder="검색어 입력…"
-                  type="search"
-                  value={query}
-                />
-              </label>
-              <div aria-label="신청 상태" className="wf-admin-filters" role="group">
-                {filterStatuses.map((option) => (
-                  <button
-                    aria-pressed={status === option.value}
-                    disabled={loading}
-                    key={option.value}
-                    onClick={() => {
-                      setStatus(option.value);
-                      setItems([]);
-                      setNextCursor(null);
-                      setHasNext(false);
-                    }}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
+      <AdminChatOperationsLayout active="requests">
+        <div
+          className="civic-admin-workbench civic-domain-console"
+          data-wireflow-layout="chat-request-admin"
+        >
+          {!detailMode ? (
+            <>
+              <div className="civic-domain-toolbar">
+                <label className="civic-field">
+                  <span>신청자 이메일 또는 채팅방 이름 검색</span>
+                  <input
+                    onChange={(event) => setQuery(event.currentTarget.value)}
+                    placeholder="검색어 입력…"
+                    type="search"
+                    value={query}
+                  />
+                </label>
+                <div aria-label="신청 상태" className="wf-admin-filters" role="group">
+                  {filterStatuses.map((option) => (
+                    <button
+                      aria-pressed={status === option.value}
+                      disabled={loading}
+                      key={option.value}
+                      onClick={() => {
+                        setStatus(option.value);
+                        setItems([]);
+                        setNextCursor(null);
+                        setHasNext(false);
+                      }}
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <RequestTable items={filteredItems} labels={labels} />
-            {hasNext && nextCursor ? (
-              <button
-                className="wf-button wf-button-secondary civic-load-more"
-                disabled={loading}
-                onClick={() => void loadList(status, nextCursor)}
-                type="button"
-              >
-                다음 신청 불러오기
-              </button>
-            ) : null}
-          </>
-        ) : (
-          <RequestDetail
-            item={selected}
-            categories={categories}
-            labels={labels}
-            onApprove={() => void decide("approve")}
-            onReject={(reason) => void decide("reject", reason)}
-            pending={pending}
-            problem={problem}
-            rejectMode={rejectMode}
-            selectedCategoryIds={selectedCategoryIds}
-            setSelectedCategoryIds={setSelectedCategoryIds}
-            setRejectMode={setRejectMode}
-          />
-        )}
-        {loading ? <p aria-live="polite">최신 정보를 불러오는 중입니다.</p> : null}
-        {message ? (
-          <p aria-live="polite" className="civic-form-message" role="status">
-            {message}
-          </p>
-        ) : null}
-      </div>
+              <RequestTable items={filteredItems} labels={labels} />
+              {hasNext && nextCursor ? (
+                <button
+                  className="wf-button wf-button-secondary civic-load-more"
+                  disabled={loading}
+                  onClick={() => void loadList(status, nextCursor)}
+                  type="button"
+                >
+                  다음 신청 불러오기
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <RequestDetail
+              item={selected}
+              categories={categories}
+              labels={labels}
+              onApprove={() => void decide("approve")}
+              onReject={(reason) => void decide("reject", reason)}
+              pending={pending}
+              problem={problem}
+              rejectMode={rejectMode}
+              selectedCategoryIds={selectedCategoryIds}
+              setSelectedCategoryIds={setSelectedCategoryIds}
+              setRejectMode={setRejectMode}
+            />
+          )}
+          {loading ? <p aria-live="polite">최신 정보를 불러오는 중입니다.</p> : null}
+          {message ? (
+            <p aria-live="polite" className="civic-form-message" role="status">
+              {message}
+            </p>
+          ) : null}
+        </div>
+      </AdminChatOperationsLayout>
     </ScreenFrame>
   );
 }

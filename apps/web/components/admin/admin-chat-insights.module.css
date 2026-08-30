@@ -1,41 +1,3 @@
-.page {
-  display: grid;
-  gap: 1rem;
-  color: #1e2124;
-}
-
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  overflow-x: auto;
-  border-bottom: 1px solid #cdd1d5;
-}
-
-.tabs a {
-  position: relative;
-  flex: 0 0 auto;
-  color: #58616a;
-  padding: 0.8rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.tabs a[aria-current="page"] {
-  color: #063a74;
-}
-
-.tabs a[aria-current="page"]::after {
-  position: absolute;
-  right: 0.75rem;
-  bottom: -1px;
-  left: 0.75rem;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background: #256ef4;
-  content: "";
-}
-
 .intro {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(15rem, 0.7fr);
@@ -53,9 +15,7 @@
 .roomPanel header span,
 .snapshot > div > span,
 .conversation header span,
-.barCard header span,
-.analysisGrid header span,
-.exportCard header span {
+.barCard header span {
   display: block;
   color: #bcd2ff;
   font-size: 0.7rem;
@@ -90,9 +50,7 @@
 .rangeForm,
 .snapshot,
 .conversation,
-.barCard,
-.analysisGrid > section,
-.exportCard {
+.barCard {
   border: 1px solid #cdd1d5;
   border-radius: 0.65rem;
   background: #fff;
@@ -154,8 +112,7 @@
 
 .search button,
 .moreButton,
-.rangeFields button,
-.exportCard button {
+.downloadButton {
   min-height: 2.65rem;
   border: 0;
   border-radius: 0.4rem;
@@ -305,21 +262,36 @@
   color: #854d0e;
 }
 
-.roomOperationBar {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-  border: 1px solid #efb4ac;
+.periodPicker {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid #cdd1d5;
   border-radius: 0.5rem;
-  background: #fff8f7;
-  padding: 0.75rem 0.85rem;
+  background: #f4f5f6;
+  padding: 0.2rem;
 }
 
-.roomOperationBar p {
-  margin: 0;
-  color: #72302a;
-  font-size: 0.8rem;
+.periodPicker button {
+  min-height: 2.35rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #58616a;
+  padding: 0.5rem 0.8rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.periodPicker button[aria-pressed="true"] {
+  background: #fff;
+  color: #063a74;
+  box-shadow: 0 1px 4px rgb(30 33 36 / 12%);
+}
+
+.periodSummary {
+  border-left: 3px solid #8baef7;
+  background: #f4f7fc;
+  padding: 0.65rem 0.75rem;
   line-height: 1.55;
 }
 
@@ -343,7 +315,7 @@
 
 .rangeFields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 0.65rem;
   align-items: end;
 }
@@ -358,20 +330,15 @@
   color: #8a949e;
 }
 
-.rangeFields button {
-  background: #256ef4;
-  white-space: nowrap;
-}
-
 .rangeForm > p {
   margin: 0;
 }
 
-.rangeFields button:disabled,
+.periodPicker button:disabled,
 .search button:disabled,
 .moreButton:disabled,
 .closeRoomButton:disabled,
-.exportCard button:disabled {
+.downloadButton:disabled {
   cursor: not-allowed;
   opacity: 0.52;
 }
@@ -457,34 +424,45 @@
   line-height: 1.55;
 }
 
-.snapshot dl,
-.exportMeta {
+.snapshotMeta {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.snapshot dl {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
   margin: 0;
 }
 
-.snapshot dl div,
-.exportMeta div {
+.snapshot dl div {
   display: grid;
   gap: 0.25rem;
   border-left: 2px solid #8baef7;
   padding-left: 0.65rem;
 }
 
-.snapshot dt,
-.exportMeta dt {
+.snapshot dt {
   color: #58616a;
   font-size: 0.72rem;
 }
 
-.snapshot dd,
-.exportMeta dd {
+.snapshot dd {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 650;
   line-height: 1.45;
+}
+
+.downloadButton {
+  justify-self: end;
+  min-height: 2.35rem;
+  border: 1px solid #8a949e;
+  background: #fff;
+  color: #063a74;
+  font-size: 0.78rem;
 }
 
 .warnings {
@@ -532,36 +510,12 @@
   color: #a63225;
 }
 
-.eventStrip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: center;
-  border-radius: 0.5rem;
-  background: #063a74;
-  color: #fff;
-  padding: 0.75rem 1rem;
-}
-
-.eventStrip strong {
-  margin-right: auto;
-}
-
-.eventStrip span {
-  border: 1px solid rgb(255 255 255 / 25%);
-  border-radius: 99rem;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.78rem;
-}
-
 .conversation {
   padding: 1rem;
 }
 
 .conversation > header,
-.barCard header,
-.analysisGrid header,
-.exportCard > header {
+.barCard header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -570,16 +524,12 @@
 }
 
 .conversation header span,
-.barCard header span,
-.analysisGrid header span,
-.exportCard header span {
+.barCard header span {
   color: #256ef4;
 }
 
 .conversation h3,
-.barCard h3,
-.analysisGrid h3,
-.exportCard h3 {
+.barCard h3 {
   margin: 0.25rem 0 0;
   font-size: 1rem;
 }
@@ -640,16 +590,7 @@
   text-decoration: line-through;
 }
 
-.chartGrid,
-.analysisGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.barCard,
-.analysisGrid > section,
-.exportCard {
+.barCard {
   min-width: 0;
   padding: 1rem;
 }
@@ -687,87 +628,39 @@
   background: linear-gradient(90deg, #256ef4, #8ed8f0);
 }
 
-.barCard > p,
-.keywordCloud > p {
+.barCard > p {
   color: #58616a;
   font-size: 0.82rem;
 }
 
-.keywordCloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.keywordCloud span {
-  border: 1px solid #a9bddb;
-  border-radius: 99rem;
-  background: #f4f7fc;
-  color: #063a74;
-  padding: 0.4rem 0.65rem;
+.roomSettings {
+  border-top: 1px solid #cdd1d5;
+  color: #58616a;
   font-size: 0.8rem;
 }
 
-.keywordCloud b {
-  margin-left: 0.2rem;
-  color: #256ef4;
+.roomSettings summary {
+  width: fit-content;
+  padding: 0.65rem 0;
+  color: #58616a;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.topicList,
-.exportCard ul {
-  display: grid;
-  gap: 0.45rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.topicList li {
+.roomSettings > div {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid #e6e8eb;
-  padding: 0.45rem 0;
-  font-size: 0.83rem;
-}
-
-.analysisNote {
-  margin: 0;
-  border-left: 3px solid #8a949e;
-  color: #58616a;
-  padding: 0.65rem 0.8rem;
-  font-size: 0.78rem;
-  line-height: 1.55;
-}
-
-.exportCard > header button {
-  background: #256ef4;
-}
-
-.exportCard li {
-  display: grid;
-  grid-template-columns: minmax(10rem, 1fr) auto auto;
-  gap: 1rem;
   align-items: center;
-  border-top: 1px solid #e6e8eb;
-  padding: 0.75rem 0;
-  font-size: 0.82rem;
+  border: 1px solid #e6e8eb;
+  border-radius: 0.5rem;
+  background: #fafafa;
+  padding: 0.75rem 0.85rem;
 }
 
-.exportCard li span {
-  color: #58616a;
-}
-
-.exportCard li b {
-  color: #166534;
-  font-size: 0.75rem;
-}
-
-.exportMeta {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 1rem;
-  border-top: 1px solid #cdd1d5;
-  padding-top: 1rem;
+.roomSettings p {
+  margin: 0;
+  line-height: 1.55;
 }
 
 .search input:focus-visible,
@@ -777,9 +670,9 @@
 .moreButton:focus-visible,
 .roomButton:focus-visible,
 .closeRoomButton:focus-visible,
-.rangeFields button:focus-visible,
-.exportCard button:focus-visible,
-.tabs a:focus-visible {
+.periodPicker button:focus-visible,
+.downloadButton:focus-visible,
+.roomSettings summary:focus-visible {
   outline: 3px solid #d9f553;
   outline-offset: 2px;
 }
@@ -799,7 +692,7 @@
     max-height: 15rem;
   }
 
-  .roomOperationBar {
+  .roomSettings > div {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -807,9 +700,7 @@
 
 @media (max-width: 720px) {
   .intro,
-  .snapshot,
-  .chartGrid,
-  .analysisGrid {
+  .snapshot {
     grid-template-columns: 1fr;
   }
 
@@ -824,27 +715,17 @@
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .exportCard li {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .exportCard li b {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 480px) {
   .roomList,
   .kpis,
-  .snapshot dl,
-  .exportMeta {
+  .snapshot dl {
     grid-template-columns: 1fr;
   }
 
   .rangeForm > header,
-  .conversation > header,
-  .exportCard > header {
+  .conversation > header {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -351,103 +352,105 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
   return (
     <ScreenFrame screen={screen} title="채팅방 카테고리 관리">
-      <div
-        className="civic-admin-workbench civic-domain-console"
-        data-wireflow-layout="room-category-admin"
-      >
-        <section className="civic-domain-form-section">
-          <header>
-            <span>ROOM CATEGORY</span>
-            <h2>카테고리 목록</h2>
-          </header>
-          <form className="civic-category-create" onSubmit={createCategory}>
-            <label className="civic-field">
-              <span>새 카테고리 이름</span>
-              <input
-                disabled={pending}
-                maxLength={50}
-                onChange={(event) => setNewName(event.currentTarget.value)}
-                required
-                value={newName}
-              />
-            </label>
-            <button
-              className="civic-primary-action"
-              disabled={pending || !newName.trim()}
-              type="submit"
-            >
-              카테고리 추가
-            </button>
-          </form>
-          <CategoryTable
-            categories={categories}
-            onDelete={setCategoryToDelete}
-            onUpdate={(category, name) => void updateCategory(category, name)}
-            pending={pending}
-          />
-          {loading ? <p aria-live="polite">최신 카테고리를 불러오는 중입니다.</p> : null}
-        </section>
+      <AdminChatOperationsLayout active="categories">
+        <div
+          className="civic-admin-workbench civic-domain-console"
+          data-wireflow-layout="room-category-admin"
+        >
+          <section className="civic-domain-form-section">
+            <header>
+              <span>ROOM CATEGORY</span>
+              <h2>카테고리 목록</h2>
+            </header>
+            <form className="civic-category-create" onSubmit={createCategory}>
+              <label className="civic-field">
+                <span>새 카테고리 이름</span>
+                <input
+                  disabled={pending}
+                  maxLength={50}
+                  onChange={(event) => setNewName(event.currentTarget.value)}
+                  required
+                  value={newName}
+                />
+              </label>
+              <button
+                className="civic-primary-action"
+                disabled={pending || !newName.trim()}
+                type="submit"
+              >
+                카테고리 추가
+              </button>
+            </form>
+            <CategoryTable
+              categories={categories}
+              onDelete={setCategoryToDelete}
+              onUpdate={(category, name) => void updateCategory(category, name)}
+              pending={pending}
+            />
+            {loading ? <p aria-live="polite">최신 카테고리를 불러오는 중입니다.</p> : null}
+          </section>
 
-        <section className="civic-domain-form-section">
-          <header>
-            <span>CHAT ROOMS</span>
-            <h2>기존 채팅방 카테고리 교체</h2>
-          </header>
-          <p className="civic-boundary-copy">
-            현재 운영 중인 채팅방을 검색하고 카테고리를 변경할 수 있습니다.
-          </p>
-          <form className="civic-category-room-search" onSubmit={searchRooms}>
-            <label className="civic-field">
-              <span>채팅방 이름 검색</span>
-              <input
+          <section className="civic-domain-form-section">
+            <header>
+              <span>CHAT ROOMS</span>
+              <h2>기존 채팅방 카테고리 교체</h2>
+            </header>
+            <p className="civic-boundary-copy">
+              현재 운영 중인 채팅방을 검색하고 카테고리를 변경할 수 있습니다.
+            </p>
+            <form className="civic-category-room-search" onSubmit={searchRooms}>
+              <label className="civic-field">
+                <span>채팅방 이름 검색</span>
+                <input
+                  disabled={roomsLoading || pending}
+                  maxLength={100}
+                  onChange={(event) => setRoomQuery(event.currentTarget.value)}
+                  placeholder="검색어 입력…"
+                  type="search"
+                  value={roomQuery}
+                />
+              </label>
+              <button
+                className="civic-primary-action"
                 disabled={roomsLoading || pending}
-                maxLength={100}
-                onChange={(event) => setRoomQuery(event.currentTarget.value)}
-                placeholder="검색어 입력…"
-                type="search"
-                value={roomQuery}
-              />
-            </label>
-            <button
-              className="civic-primary-action"
-              disabled={roomsLoading || pending}
-              type="submit"
-            >
-              검색
-            </button>
-          </form>
-          <ListedRoomTable
-            categoryNamesById={categoryNamesById}
-            items={listedRooms}
-            disabled={pending}
-            loading={roomsLoading}
-            onSelect={selectListedRoom}
-            selectedRoomId={room?.roomId ?? null}
-          />
-          {roomHasNext && roomNextCursor ? (
-            <button
-              className="wf-button wf-button-secondary civic-load-more"
-              disabled={roomsLoading || pending}
-              onClick={() => void loadListedRooms(activeRoomQuery, roomNextCursor, true)}
-              type="button"
-            >
-              다음 채팅방 불러오기
-            </button>
-          ) : null}
-          {roomsLoading ? <p aria-live="polite">채팅방 목록을 불러오는 중입니다.</p> : null}
-          {roomListMessage ? (
+                type="submit"
+              >
+                검색
+              </button>
+            </form>
+            <ListedRoomTable
+              categoryNamesById={categoryNamesById}
+              items={listedRooms}
+              disabled={pending}
+              loading={roomsLoading}
+              onSelect={selectListedRoom}
+              selectedRoomId={room?.roomId ?? null}
+            />
+            {roomHasNext && roomNextCursor ? (
+              <button
+                className="wf-button wf-button-secondary civic-load-more"
+                disabled={roomsLoading || pending}
+                onClick={() => void loadListedRooms(activeRoomQuery, roomNextCursor, true)}
+                type="button"
+              >
+                다음 채팅방 불러오기
+              </button>
+            ) : null}
+            {roomsLoading ? <p aria-live="polite">채팅방 목록을 불러오는 중입니다.</p> : null}
+            {roomListMessage ? (
+              <p aria-live="polite" className="civic-form-message" role="status">
+                {roomListMessage}
+              </p>
+            ) : null}
+          </section>
+
+          {message && !room ? (
             <p aria-live="polite" className="civic-form-message" role="status">
-              {roomListMessage}
+              {message}
             </p>
           ) : null}
-        </section>
-
-        {message && !room ? (
-          <p aria-live="polite" className="civic-form-message" role="status">
-            {message}
-          </p>
-        ) : null}
-      </div>
+        </div>
+      </AdminChatOperationsLayout>
       {room ? (
         <div className="civic-document-drawer-layer civic-category-editor-layer">
           <button
