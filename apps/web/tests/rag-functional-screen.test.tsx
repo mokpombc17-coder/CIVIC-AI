@@ -70,6 +70,7 @@ import {
   settleMultipartCompletionRecovery,
   uploadRagFileMultipart,
   canSelectUploadFiles,
+  canCancelRagUpload,
 } from "@/components/rag/admin-rag-screen";
 import {
   citationHref,
@@ -1025,6 +1026,27 @@ describe("9 functional RAG screens", () => {
     ).resolves.toEqual({ kind: "network", definitive: false });
   });
 
+  it("재시도 대기 업로드 취소는 작업 전용 API를 호출한다", async () => {
+    const accepted = vi.fn(async () => new Response(null, { status: 204 }));
+
+    await expect(
+      requestRagUploadCancellation({
+        documentId: "document-1",
+        jobId: "job-retry-wait-1",
+        status: "RETRY_WAIT",
+        idempotencyKey: "cancel-key-retry-wait",
+        request: accepted as typeof fetch,
+      }),
+    ).resolves.toEqual({ kind: "cancelled", definitive: true });
+    expect(accepted).toHaveBeenCalledWith(
+      "/api/v1/rag/jobs/job-retry-wait-1/cancel-upload",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "idempotency-key": "cancel-key-retry-wait" },
+      }),
+    );
+  });
+
   it("수동 재시도의 네트워크 오류는 사용자에게 다시 시도 가능한 상태로 안내한다", () => {
     expect(RAG_RETRY_NETWORK_MESSAGE).toContain("네트워크 오류");
     expect(RAG_RETRY_NETWORK_MESSAGE).toContain("다시 시도");
@@ -1372,6 +1394,31 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain("실패 파일 다시 처리");
     expect(html).not.toContain("업로드 취소");
+  });
+
+  it("재시도 대기 작업은 서버가 허용한 경우 업로드 취소를 노출한다", () => {
+    const retryWaitJob = {
+      job_id: "retry-wait-job",
+      document_id: "retry-wait-document",
+      upload_cancel_allowed: true,
+      status: "RETRY_WAIT",
+      progress: 10,
+    } as const;
+    const html = renderToStaticMarkup(
+      createElement(RagJobStatusCard, {
+        filename: "재시도-대기.hwpx",
+        job: retryWaitJob,
+        message: "최신 처리 상태를 반영했습니다.",
+        onCancelUpload: vi.fn(),
+        onRetry: vi.fn(),
+        retrying: false,
+      }),
+    );
+
+    expect(canCancelRagUpload(retryWaitJob)).toBe(true);
+    expect(html).toContain("재시도 대기");
+    expect(html).toContain("업로드 취소");
+    expect(html).not.toContain("실패 파일 다시 처리");
   });
 
   it("다중 업로드 작업을 한 문서 준비 상태 화면에 함께 표시한다", () => {

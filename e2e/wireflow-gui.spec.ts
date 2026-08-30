@@ -128,6 +128,22 @@ test.beforeAll(async () => {
         progress: 0,
       });
     }
+    if (url.pathname === "/internal/v1/rag/jobs/job-retry-wait-1") {
+      return json(response, {
+        job_id: "job-retry-wait-1",
+        document_id: "document-retry-wait-1",
+        upload_cancel_allowed: true,
+        status: "RETRY_WAIT",
+        progress: 10,
+      });
+    }
+    if (
+      url.pathname === "/internal/v1/rag/jobs/job-retry-wait-1/cancel-upload" &&
+      request.method === "POST"
+    ) {
+      response.writeHead(204).end();
+      return;
+    }
     if (url.pathname === "/internal/v1/rag/jobs/summary") {
       return json(response, {
         active: 0,
@@ -987,6 +1003,32 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   const cancellationRequest = await cancellationRequestPromise;
   expect(cancellationRequest.headers()["idempotency-key"]).toBeTruthy();
   await expect(page).toHaveURL(/\/admin\/rag$/u);
+
+  await page.goto(
+    "/admin/rag/jobs?jobId=job-retry-wait-1&filename=downloads-02.hwpx&folderId=general",
+  );
+  await expect(page.locator(".civic-job-status-badge", { hasText: "재시도 대기" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "업로드 취소" })).toBeVisible();
+  const retryWaitCancellationRequestPromise = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/v1/rag/jobs/job-retry-wait-1/cancel-upload",
+  );
+  await page.getByRole("button", { name: "업로드 취소" }).click();
+  const retryWaitUploadCancelDialog = page.getByRole("alertdialog", {
+    name: "업로드를 취소할까요?",
+  });
+  await expect(retryWaitUploadCancelDialog).toBeVisible();
+  await expect(
+    retryWaitUploadCancelDialog.getByText(
+      "대기 중인 업로드를 취소하면 이 문서와 준비 중인 처리 결과가 삭제됩니다.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await retryWaitUploadCancelDialog.getByRole("button", { name: "업로드 취소" }).click();
+  const retryWaitCancellationRequest = await retryWaitCancellationRequestPromise;
+  expect(retryWaitCancellationRequest.headers()["idempotency-key"]).toBeTruthy();
+  await expect(page).toHaveURL(/\/admin\/rag\?folderId=general$/u);
 
   await page.goto("/admin/rag/delete?folderId=general&documentId=document-1");
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toBeVisible();

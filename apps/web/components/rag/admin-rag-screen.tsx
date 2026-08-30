@@ -254,9 +254,16 @@ export type RagJob = Readonly<{
 }>;
 
 const TERMINAL_RAG_JOB_STATES = new Set(["SUCCEEDED", "FAILED", "CANCELLED"]);
+const CANCELLABLE_RAG_UPLOAD_STATES = new Set(["QUEUED", "RETRY_WAIT", "FAILED"]);
 
 export function shouldPollRagJob(status: string | undefined, hidden: boolean): boolean {
   return !hidden && !TERMINAL_RAG_JOB_STATES.has(status ?? "");
+}
+
+export function canCancelRagUpload(job: RagJob | null): boolean {
+  return Boolean(
+    job?.document_id && job.upload_cancel_allowed && CANCELLABLE_RAG_UPLOAD_STATES.has(job.status),
+  );
 }
 
 export function hasActiveRagDocuments(documents: readonly RagDocument[]): boolean {
@@ -2314,6 +2321,7 @@ export function RagJobStatusCard({
   const displayFilename =
     (filename ?? job?.filename)?.trim() || (job ? "업로드한 문서" : "문서 정보 확인 중");
   const failureTitleId = `${headingId}-failure`;
+  const canCancelUpload = canCancelRagUpload(job);
 
   return (
     <section
@@ -2377,7 +2385,7 @@ export function RagJobStatusCard({
         <Link className="civic-secondary-action" href={workspaceHref}>
           문서 목록
         </Link>
-        {job?.status === "FAILED" && job.upload_cancel_allowed && job.document_id ? (
+        {canCancelUpload ? (
           <button
             className="civic-danger-action"
             disabled={cancelling || retrying || Boolean(replacementHref) || !onCancelUpload}
@@ -2515,7 +2523,7 @@ function JobStatusItem({
   }
 
   async function cancelUpload() {
-    if (!job?.document_id || !job.upload_cancel_allowed || job.status !== "FAILED" || cancelling) {
+    if (!canCancelRagUpload(job) || !job?.document_id || cancelling) {
       setCancelDialogOpen(false);
       return;
     }
@@ -2531,6 +2539,7 @@ function JobStatusItem({
       const result = await requestRagUploadCancellation({
         documentId: job.document_id,
         jobId: job.job_id,
+        status: job.status,
         idempotencyKey,
       });
       definitiveResponse = result.definitive;
@@ -2543,7 +2552,7 @@ function JobStatusItem({
         return;
       }
       setJob((current) => (current ? { ...current, status: "CANCELLED", progress: 0 } : current));
-      setMessage("업로드를 취소하고 실패 문서를 정리했습니다.");
+      setMessage("업로드를 취소하고 문서를 정리했습니다.");
       router.replace(ragWorkspaceHref(folderId));
     } finally {
       cancellationOperation.current.settle(definitiveResponse);
@@ -2573,7 +2582,11 @@ function JobStatusItem({
         busyLabel="취소 중…"
         cancelLabel="돌아가기"
         confirmLabel="업로드 취소"
-        description="실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다."
+        description={
+          job?.status === "FAILED"
+            ? "실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다."
+            : "대기 중인 업로드를 취소하면 이 문서와 준비 중인 처리 결과가 삭제됩니다."
+        }
         destructive
         onCancel={() => setCancelDialogOpen(false)}
         onConfirm={() => void cancelUpload()}
@@ -2592,22 +2605,30 @@ export type RagUploadCancellationResult = Readonly<{
 export async function requestRagUploadCancellation({
   documentId,
   jobId,
+  status = "FAILED",
   idempotencyKey,
   request = authenticatedFetch,
 }: Readonly<{
   documentId: string;
   jobId: string;
+  status?: string;
   idempotencyKey: string;
   request?: typeof fetch;
 }>): Promise<RagUploadCancellationResult> {
   try {
-    const response = await request(
-      `/api/v1/rag/documents/${encodeURIComponent(documentId)}?failed_job_id=${encodeURIComponent(jobId)}`,
-      {
-        method: "DELETE",
-        headers: { "idempotency-key": idempotencyKey },
-      },
-    );
+    const response =
+      status === "FAILED"
+        ? await request(
+            `/api/v1/rag/documents/${encodeURIComponent(documentId)}?failed_job_id=${encodeURIComponent(jobId)}`,
+            {
+              method: "DELETE",
+              headers: { "idempotency-key": idempotencyKey },
+            },
+          )
+        : await request(`/api/v1/rag/jobs/${encodeURIComponent(jobId)}/cancel-upload`, {
+            method: "POST",
+            headers: { "idempotency-key": idempotencyKey },
+          });
     return response.ok
       ? { kind: "cancelled", definitive: true }
       : { kind: "rejected", definitive: true };
