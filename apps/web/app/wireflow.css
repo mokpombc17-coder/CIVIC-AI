@@ -5227,10 +5227,10 @@ body {
   width: 100%;
   min-height: 48px;
   place-items: center;
-  border: 1px solid #d93636;
+  border: 1px solid #121417;
   border-radius: 7px;
   background: #fff;
-  color: var(--wf-danger);
+  color: #121417;
   font-size: 16px;
   font-weight: 800;
 }
@@ -5242,18 +5242,6 @@ body {
   border-radius: 8px;
   background: #fff;
   padding: 14px;
-}
-
-.civic-loading-account-info-icon {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  color: var(--wf-blue-dark);
-  font-size: 14px;
-  font-weight: 800;
 }
 
 .civic-loading-domain-toolbar {
@@ -5766,21 +5754,31 @@ body {
   align-content: start;
 }
 
-.wf-account-logout {
+.wf-account-session-actions {
+  display: grid;
+  gap: 8px;
   margin: 0 16px 28px;
+}
+
+.wf-account-logout {
+  margin: 0;
 }
 
 .wf-account-logout .civic-auth-action button {
   width: 100%;
   min-height: 48px;
-  border-color: #d93636;
+  border-color: #121417;
   background: #fff;
-  color: var(--wf-danger);
+  color: #121417;
   font-size: 16px;
 }
 
 .wf-account-logout .civic-auth-action button:hover {
-  background: #fff4f4;
+  background: #f4f5f6;
+}
+
+.wf-account-deactivate-button {
+  width: 100%;
 }
 
 .wf-account-management,
@@ -5792,7 +5790,7 @@ body {
 }
 
 .wf-account-management-security-open {
-  padding-bottom: 180px;
+  padding-bottom: 220px;
 }
 
 .wf-account-section {

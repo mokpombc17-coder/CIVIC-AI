@@ -1117,11 +1117,14 @@ describe("25 functional Main/Auth screens", () => {
     expect(hub).toContain('data-wireflow-layout="account-management"');
     expect(hub).toContain("비밀번호 변경");
     expect(hub).toContain("2단계 인증");
-    expect(hub).toContain("계정 관리");
     expect(hub).toContain("계정 비활성화");
+    expect(hub).not.toContain(
+      "계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다.",
+    );
     expect(hub).not.toContain("내 정보 관리");
     expect(hub).not.toContain("내 설문 보기");
     expect(hub).toContain("로그아웃");
+    expect(hub.indexOf("로그아웃")).toBeLessThan(hub.indexOf("계정 비활성화"));
 
     const management = renderAccount("U-ACCOUNT-002");
     expect(management).toContain('data-wireflow-layout="account-management"');
@@ -1131,7 +1134,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(management).toContain("비밀번호 변경");
     expect(management).toContain("2단계 인증");
     expect(management).not.toContain("서비스 이용 동의");
-    expect(management).toContain("계정 관리");
+    expect(management).not.toContain("계정 관리");
+    expect(management).toContain("계정 비활성화");
     expect(management).not.toContain("/mypage/deactivate");
 
     const survey = renderAccount("U-ACCOUNT-003");
