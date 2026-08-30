@@ -442,6 +442,8 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
         busyLabel="종료 중…"
         cancelLabel="운영 유지"
         confirmLabel="채팅방 종료"
+        confirmationInputLabel="종료 확인 문구"
+        confirmationPhrase="종료합니다."
         description={`‘${roomToClose?.name ?? ""}’ 채팅방의 방장과 참여 중인 모든 사용자가 퇴장되고, 접속 중인 연결이 끊깁니다. 이후 참여·메시지·구독은 차단됩니다.`}
         destructive
         onCancel={() => setRoomToClose(null)}
