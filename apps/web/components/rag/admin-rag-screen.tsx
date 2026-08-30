@@ -1099,10 +1099,6 @@ export function DocumentWorkspace({
     <div className="civic-document-ledger">
       <div className="civic-ledger-summary">
         <strong>{pageState.total.toLocaleString("ko-KR")}개 문서</strong>
-        <span>
-          {includeSubfolders ? "하위 폴더 포함" : "선택 폴더만 표시"} · 처리 완료{" "}
-          {(pageState.statusCounts.ACTIVE ?? 0).toLocaleString("ko-KR")}개
-        </span>
       </div>
       <form
         className="wf-document-filters"
