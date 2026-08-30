@@ -17,8 +17,6 @@ import {
   simulationTargetHref,
   simulationTargetPresentation,
 } from "@/lib/admin/simulation-contracts";
-import { auditRowFromEvent, type AuditRow } from "@/components/admin/admin-user-workspace";
-import { requestAdminAudit } from "@/lib/admin/user-admin";
 import { readWalletSummary, type WalletSummary } from "@/lib/admin/simulation-billing-contracts";
 import { formatAdminDate } from "@/lib/admin/user-admin";
 import { ScreenFrame } from "./screen-frame";
@@ -99,11 +97,6 @@ export type HomeAttentionSimulationState =
   | { status: "ready"; items: readonly HomeAttentionSimulation[] }
   | { status: "unavailable" }
   | { status: "forbidden" };
-export type HomeRecentAuditState =
-  | { status: "loading" }
-  | { status: "ready"; rows: readonly AuditRow[] }
-  | { status: "hidden" };
-
 export type SimulationWalletMetricState =
   | { status: "loading" }
   | { status: "ready"; wallet: WalletSummary }
@@ -135,9 +128,6 @@ export function AdminFunctionalScreen({
     useState<HomeAttentionSimulationState>({
       status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
     });
-  const [recentAudit, setRecentAudit] = useState<HomeRecentAuditState>({
-    status: adminCurrentUser.role === "HIGHEST_ADMIN" ? "loading" : "hidden",
-  });
   const [simulationWalletSummary, setSimulationWalletSummary] =
     useState<SimulationWalletMetricState>({
       status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
@@ -160,9 +150,8 @@ export function AdminFunctionalScreen({
       });
     }
     if (canManageSimulation) void loadAttentionSimulations().then(setAttentionSimulations);
-    if (adminCurrentUser.role === "HIGHEST_ADMIN") void loadRecentAudit().then(setRecentAudit);
     if (canManageSimulation) void loadSimulationWalletSummary().then(setSimulationWalletSummary);
-  }, [adminCurrentUser.role, canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
+  }, [canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
 
   if (screen.id.startsWith("A-USER")) {
     return (
@@ -185,7 +174,6 @@ export function AdminFunctionalScreen({
           dueSoonTaskSummary={dueSoonTaskSummary}
           dueSoonTasks={dueSoonTasks}
           ragJobSummary={ragJobSummary}
-          recentAudit={recentAudit}
           simulationWalletSummary={simulationWalletSummary}
         />
       ) : null}
@@ -203,7 +191,6 @@ export function AdminHome({
   chatRequestSummary,
   dueSoonTaskSummary,
   dueSoonTasks,
-  recentAudit,
   simulationWalletSummary,
 }: {
   activeRoomSummary: AdminDomainMetricState;
@@ -215,12 +202,10 @@ export function AdminHome({
   chatRequestSummary: ChatRequestSummaryState;
   dueSoonTaskSummary: AdminDomainMetricState;
   dueSoonTasks: readonly HomeTaskDeadline[];
-  recentAudit: HomeRecentAuditState;
   simulationWalletSummary: SimulationWalletMetricState;
 }) {
   const failures = ragJobSummary.status === "ready" ? ragJobSummary.recentFailures : [];
   const attentionItems = attentionSimulations.status === "ready" ? attentionSimulations.items : [];
-  const auditRows = recentAudit.status === "ready" ? recentAudit.rows : [];
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
       <ul aria-label="관리 현황" className="civic-admin-metrics">
@@ -256,83 +241,108 @@ export function AdminHome({
         </HomeMetric>
       </ul>
       <div className="civic-home-columns">
-        <div className="civic-home-column">
-          <AdminPendingChatRequests state={chatRequestSummary} />
+        <AdminPendingChatRequests state={chatRequestSummary} />
           {dueSoonTasks.length > 0 ? (
-            <section aria-label="마감 임박 과업" className="console-section">
-              <h4>마감 임박 과업</h4>
-              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
-                {dueSoonTasks.map((task) => (
-                  <li className="console-metric" key={task.taskId}>
-                    <small>마감 {formatAdminDate(task.closesAt)}</small>
-                    <strong>{task.title}</strong>
-                    <span>
-                      <Link href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}>
-                        과업 보기
-                      </Link>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <HomeSection
+              action={
+                <Link className="civic-home-section-action" href="/admin/tasks">
+                  과업 관리
+                </Link>
+              }
+              title="마감 임박 과업"
+            >
+              {dueSoonTasks.map((task) => (
+                <HomeRow
+                  action={
+                    <Link
+                      href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
+                    >
+                      과업 보기
+                    </Link>
+                  }
+                  key={task.taskId}
+                  meta={`마감 ${formatAdminDate(task.closesAt)}`}
+                  title={task.title}
+                />
+              ))}
+            </HomeSection>
           ) : null}
           {failures.length > 0 ? (
-            <section aria-label="처리 실패 문서" className="console-section">
-              <h4>처리 실패 문서</h4>
-              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
-                {failures.slice(0, 3).map((failure) => (
-                  <li className="console-metric" key={failure.jobId}>
-                    <small>{ragFailureLabel(failure.failureCode)}</small>
-                    <strong>{failure.filename}</strong>
-                    <span>
-                      <Link href={ragFailureRetryHref(failure)}>재시도</Link>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <HomeSection
+              action={
+                <Link className="civic-home-section-action" href="/admin/rag">
+                  문서 관리
+                </Link>
+              }
+              title="처리 실패 문서"
+            >
+              {failures.slice(0, 3).map((failure) => (
+                <HomeRow
+                  action={<Link href={ragFailureRetryHref(failure)}>재시도</Link>}
+                  key={failure.jobId}
+                  meta={ragFailureLabel(failure.failureCode)}
+                  title={failure.filename}
+                />
+              ))}
+            </HomeSection>
           ) : null}
-        </div>
-        <div className="civic-home-column">
           {attentionItems.length > 0 ? (
-            <section aria-label="확인 필요 시뮬레이션" className="console-section">
-              <h4>확인 필요 시뮬레이션</h4>
-              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
-                {attentionItems.map((item) => (
-                  <li className="console-metric" key={item.taskId}>
-                    <small>{item.stateLabel}</small>
-                    <strong>{item.title}</strong>
-                    <span>
-                      <Link href={item.href as Route}>상태 확인</Link>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <HomeSection
+              action={
+                <Link className="civic-home-section-action" href="/admin/simulations">
+                  시뮬레이션
+                </Link>
+              }
+              title="확인 필요 시뮬레이션"
+            >
+              {attentionItems.map((item) => (
+                <HomeRow
+                  action={<Link href={item.href as Route}>상태 확인</Link>}
+                  key={item.taskId}
+                  meta={item.stateLabel}
+                  title={item.title}
+                />
+              ))}
+            </HomeSection>
           ) : null}
           <AdminCurrentOperations
             canManageSimulation={canManageSimulation}
             canReadRag={canReadRag}
           />
-          {auditRows.length > 0 ? (
-            <section aria-label="최근 권한 변경" className="console-section">
-              <h4>최근 권한 변경</h4>
-              <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
-                {auditRows.map((row) => (
-                  <li className="console-metric" key={row.eventId}>
-                    <small>{row.occurredLabel}</small>
-                    <strong>
-                      {row.subjectLabel} · {row.eventLabel}
-                    </strong>
-                    <span>{row.afterLabel}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </div>
       </div>
     </div>
+  );
+}
+
+function HomeSection({
+  title,
+  action,
+  children,
+}: Readonly<{ title: string; action?: ReactNode; children: ReactNode }>) {
+  return (
+    <section aria-label={title} className="civic-home-section">
+      <header className="civic-home-section-header">
+        <h2>{title}</h2>
+        {action ?? null}
+      </header>
+      <ul className="civic-home-list">{children}</ul>
+    </section>
+  );
+}
+
+function HomeRow({
+  title,
+  meta,
+  action,
+}: Readonly<{ title: string; meta: string; action?: ReactNode }>) {
+  return (
+    <li className="civic-home-row">
+      <div className="civic-home-row-copy">
+        <strong>{title}</strong>
+        <small>{meta}</small>
+      </div>
+      {action ?? null}
+    </li>
   );
 }
 
@@ -355,56 +365,48 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
   const items = state.status === "ready" ? state.items : [];
 
   return (
-    <section
-      aria-labelledby="civic-pending-chat-requests-title"
-      className="civic-pending-chat-requests"
-    >
-      <header>
-        <div>
-          <small>채팅 운영</small>
-          <h2 id="civic-pending-chat-requests-title">토론방 승인 대기</h2>
-        </div>
+    <section aria-labelledby="civic-pending-chat-requests-title" className="civic-home-section">
+      <header className="civic-home-section-header">
+        <h2 id="civic-pending-chat-requests-title">토론방 승인 대기</h2>
         {state.status !== "forbidden" ? (
-          <Link className="wf-button wf-button-secondary" href="/admin/chat/requests">
+          <Link className="civic-home-section-action" href="/admin/chat/requests">
             전체 목록
           </Link>
         ) : null}
       </header>
       {state.status === "loading" ? (
-        <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
+        <p aria-live="polite" className="civic-home-empty" role="status">
           승인 대기 목록을 확인하고 있습니다.
         </p>
       ) : null}
       {state.status === "forbidden" ? (
-        <p className="civic-pending-chat-requests-empty">
+        <p className="civic-home-empty">
           채팅 관리 권한이 있는 관리자만 승인 대기 목록을 확인할 수 있습니다.
         </p>
       ) : null}
       {state.status === "unavailable" ? (
-        <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
+        <p aria-live="polite" className="civic-home-empty" role="status">
           승인 대기 목록을 불러오지 못했습니다. 전체 목록에서 다시 확인해 주세요.
         </p>
       ) : null}
       {state.status === "ready" && items.length === 0 ? (
-        <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
+        <p aria-live="polite" className="civic-home-empty" role="status">
           승인 대기 중인 토론방이 없습니다.
         </p>
       ) : null}
       {state.status === "ready" && items.length > 0 ? (
-        <ul>
+        <ul className="civic-home-list">
           {items.map((item) => (
-            <li key={item.creationRequestId}>
-              <div className="civic-pending-chat-request-copy">
+            <li className="civic-home-row" key={item.creationRequestId}>
+              <div className="civic-home-row-copy">
                 <strong>{item.name}</strong>
-                <span>
+                <small>
                   {adminUserLabel(state.labels, item.requesterUserId)} ·{" "}
                   {formatAdminDate(item.requestedAt)}
-                </span>
-                {item.description ? <p>{item.description}</p> : null}
+                </small>
               </div>
               <Link
                 aria-label={`${item.name} 검토하기`}
-                className="wf-button wf-button-primary civic-pending-chat-review"
                 href={
                   `/admin/chat/requests?requestId=${encodeURIComponent(item.creationRequestId)}` as Route
                 }
@@ -416,7 +418,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
         </ul>
       ) : null}
       {state.status === "ready" && (state.hasMore || state.count > items.length) ? (
-        <p className="civic-pending-chat-requests-more">
+        <p className="civic-home-empty">
           먼저 접수된 {items.length}건을 표시했습니다. 나머지 신청은 전체 목록에서 확인해 주세요.
         </p>
       ) : null}
@@ -655,19 +657,6 @@ export async function loadAttentionSimulations(
   }
 }
 
-export async function loadRecentAudit(
-  request: typeof fetch = authenticatedFetch,
-): Promise<HomeRecentAuditState> {
-  const events = await requestAdminAudit(undefined, request);
-  if (events === null) return { status: "hidden" };
-  const recent = events.slice(0, 3);
-  const labels =
-    (await requestAdminUserLabels(
-      recent.flatMap((event) => [event.actor_id, event.subject_id].filter(Boolean) as string[]),
-      request,
-    )) ?? new Map<string, string>();
-  return { status: "ready", rows: recent.map((event) => auditRowFromEvent(event, labels)) };
-}
 
 export async function loadActiveRoomSummary(
   request: typeof fetch = authenticatedFetch,

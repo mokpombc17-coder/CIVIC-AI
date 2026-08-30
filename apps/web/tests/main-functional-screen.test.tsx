@@ -1270,22 +1270,6 @@ describe("25 functional Main/Auth screens", () => {
             },
           ],
         },
-        recentAudit: {
-          status: "ready",
-          rows: [
-            {
-              eventId: "audit-1",
-              eventLabel: "관리자 역할 변경",
-              actorLabel: "admin@example.com",
-              subjectLabel: "citizen@example.com",
-              subjectId: "user-1",
-              beforeLabel: "사용자",
-              afterLabel: "운영 관리자",
-              reason: "담당 지정",
-              occurredLabel: "26. 8. 12.",
-            },
-          ],
-        },
         simulationWalletSummary: { status: "forbidden" },
       }),
     );
@@ -1299,8 +1283,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("복지 과업");
     expect(html).toContain("확인 필요 시뮬레이션");
     expect(html).toContain("교통 정책 과업");
-    expect(html).toContain("최근 권한 변경");
-    expect(html).toContain("citizen@example.com · 관리자 역할 변경");
+    expect(html).not.toContain("최근 권한 변경");
   });
 
   it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {
