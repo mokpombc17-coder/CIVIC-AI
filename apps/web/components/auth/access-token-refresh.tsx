@@ -2,25 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { FullscreenStatus } from "@/components/shell/fullscreen-status";
-import { refreshAccessToken } from "@/lib/auth/authenticated-fetch";
 
 export function AccessTokenRefresh({ returnTo }: Readonly<{ returnTo: string }>) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
-    void refreshAccessToken().then((result) => {
-      if (!active) return;
-      if (result === "authenticated") {
-        location.replace(returnTo);
-        return;
-      }
-      if (result === "unauthorized") {
+    void fetch("/api/v1/auth/refresh", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    })
+      .then((response) => {
+        if (!active) return;
+        if (response.ok) {
+          location.replace(returnTo);
+          return;
+        }
         location.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-        return;
-      }
-      setFailed(true);
-    });
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
     return () => {
       active = false;
     };

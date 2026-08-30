@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
-import { authEndpoint, isInstalledPwa } from "@/lib/auth/pwa-auth";
 
 export function LogoutButton() {
   const [busy, setBusy] = useState(false);
@@ -34,10 +33,9 @@ type LogoutStorage = Pick<Storage, "removeItem">;
 export async function requestLogout(
   request: typeof fetch = fetch,
   storage: LogoutStorage | null = browserSessionStorage(),
-  installedPwa: boolean = isInstalledPwa(),
 ): Promise<boolean> {
   try {
-    const response = await request(authEndpoint("logout", installedPwa), {
+    const response = await request("/api/v1/auth/logout", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },

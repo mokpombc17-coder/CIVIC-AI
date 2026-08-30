@@ -6,14 +6,14 @@ import manifest from "../app/manifest";
 const webRoot = path.resolve(import.meta.dirname, "..");
 
 describe("PWA installability", () => {
-  it("keeps the installed app on this origin and launches the PWA auth splash", () => {
+  it("keeps the installed app on this origin and launches the participant home", () => {
     const value = manifest();
 
     expect(value).toMatchObject({
       id: "/",
       name: "CIVIC.AI",
       short_name: "CIVIC.AI",
-      start_url: "/pwa/start",
+      start_url: "/home",
       scope: "/",
       display: "standalone",
       background_color: "#f5f7fb",

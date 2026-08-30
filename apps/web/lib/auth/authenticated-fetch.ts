@@ -1,19 +1,13 @@
 "use client";
 
-import { authEndpoint } from "./pwa-auth";
-
 type FetchBackend = typeof fetch;
 type PauseBackend = (delayMs: number) => Promise<void>;
-type RefreshPathBackend = () => string;
 
 const REFRESH_CONFLICT_RETRY_DELAYS_MS = [100, 200, 400] as const;
-
-export type AccessTokenRefreshResult = "authenticated" | "unauthorized" | "unavailable";
 
 export type AuthenticatedClient = Readonly<{
   fetch: FetchBackend;
   ensureAccessToken: () => Promise<boolean>;
-  refreshAccessToken: () => Promise<AccessTokenRefreshResult>;
 }>;
 
 /**
@@ -24,18 +18,12 @@ export type AuthenticatedClient = Readonly<{
 export function createAuthenticatedClient(
   requestBackend: FetchBackend = fetch,
   pauseBackend: PauseBackend = pause,
-  refreshPathBackend: RefreshPathBackend = () => authEndpoint("refresh"),
 ): AuthenticatedClient {
-  let refreshInFlight: Promise<AccessTokenRefreshResult> | null = null;
+  let refreshInFlight: Promise<boolean> | null = null;
 
-  function rotateAccessToken(requestUrl: string): Promise<AccessTokenRefreshResult> {
+  function rotateAccessToken(requestUrl: string): Promise<boolean> {
     if (!refreshInFlight) {
-      refreshInFlight = performRefresh(
-        requestUrl,
-        requestBackend,
-        pauseBackend,
-        refreshPathBackend,
-      ).finally(() => {
+      refreshInFlight = refreshAccessToken(requestUrl, requestBackend, pauseBackend).finally(() => {
         refreshInFlight = null;
       });
     }
@@ -61,11 +49,7 @@ export function createAuthenticatedClient(
     }
     const requestUrl = response.url || createRequest("/api/v1/auth/me").url;
     await response.body?.cancel().catch(() => undefined);
-    return (await rotateAccessToken(requestUrl)) === "authenticated";
-  }
-
-  function refreshAccessToken(): Promise<AccessTokenRefreshResult> {
-    return rotateAccessToken(createRequest("/api/v1/auth/me").url);
+    return rotateAccessToken(requestUrl);
   }
 
   const authenticatedRequest: FetchBackend = async (input, init) => {
@@ -74,28 +58,26 @@ export function createAuthenticatedClient(
     const firstResponse = await requestBackend(firstRequest);
     if (firstResponse.status !== 401 || isAuthRoute(firstRequest.url)) return firstResponse;
 
-    if ((await rotateAccessToken(firstRequest.url)) !== "authenticated") return firstResponse;
+    if (!(await rotateAccessToken(firstRequest.url))) return firstResponse;
 
     await firstResponse.body?.cancel().catch(() => undefined);
     return requestBackend(retryRequest);
   };
 
-  return { ensureAccessToken, fetch: authenticatedRequest, refreshAccessToken };
+  return { ensureAccessToken, fetch: authenticatedRequest };
 }
 
 export function createAuthenticatedFetch(
   requestBackend: FetchBackend = fetch,
   pauseBackend: PauseBackend = pause,
-  refreshPathBackend: RefreshPathBackend = () => authEndpoint("refresh"),
 ): FetchBackend {
-  return createAuthenticatedClient(requestBackend, pauseBackend, refreshPathBackend).fetch;
+  return createAuthenticatedClient(requestBackend, pauseBackend).fetch;
 }
 
 const authenticatedClient = createAuthenticatedClient();
 
 export const authenticatedFetch = authenticatedClient.fetch;
 export const ensureAccessToken = authenticatedClient.ensureAccessToken;
-export const refreshAccessToken = authenticatedClient.refreshAccessToken;
 
 function createRequest(input: RequestInfo | URL, init?: RequestInit): Request {
   if (input instanceof Request) {
@@ -105,8 +87,8 @@ function createRequest(input: RequestInfo | URL, init?: RequestInit): Request {
   return new Request(new URL(String(input), base), { ...init, credentials: "same-origin" });
 }
 
-function refreshRequest(requestUrl: string, refreshPath: string): Request {
-  return new Request(new URL(refreshPath, requestUrl), {
+function refreshRequest(requestUrl: string): Request {
+  return new Request(new URL("/api/v1/auth/refresh", requestUrl), {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
@@ -114,27 +96,25 @@ function refreshRequest(requestUrl: string, refreshPath: string): Request {
   });
 }
 
-async function performRefresh(
+async function refreshAccessToken(
   requestUrl: string,
   requestBackend: FetchBackend,
   pauseBackend: PauseBackend,
-  refreshPathBackend: RefreshPathBackend,
-): Promise<AccessTokenRefreshResult> {
+): Promise<boolean> {
   let response: Response;
   try {
-    response = await requestBackend(refreshRequest(requestUrl, refreshPathBackend()));
+    response = await requestBackend(refreshRequest(requestUrl));
   } catch {
-    return "unavailable";
+    return false;
   }
 
   if (response.ok) {
     await response.body?.cancel().catch(() => undefined);
-    return "authenticated";
+    return true;
   }
-  const unauthorized = response.status === 401;
   if (response.status !== 409) {
     await response.body?.cancel().catch(() => undefined);
-    return unauthorized ? "unauthorized" : "unavailable";
+    return false;
   }
   await response.body?.cancel().catch(() => undefined);
 
@@ -144,17 +124,17 @@ async function performRefresh(
     try {
       currentUserResponse = await requestBackend(currentUserRequest(requestUrl));
     } catch {
-      return "unavailable";
+      return false;
     }
     if (currentUserResponse.ok) {
       await currentUserResponse.body?.cancel().catch(() => undefined);
-      return "authenticated";
+      return true;
     }
     const accessTokenPending = currentUserResponse.status === 401;
     await currentUserResponse.body?.cancel().catch(() => undefined);
-    if (!accessTokenPending) return "unavailable";
+    if (!accessTokenPending) return false;
   }
-  return "unavailable";
+  return false;
 }
 
 function currentUserRequest(requestUrl: string): Request {
