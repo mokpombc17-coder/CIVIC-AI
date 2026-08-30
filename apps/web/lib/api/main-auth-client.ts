@@ -7,6 +7,7 @@ import { civicProductionServiceConfig } from "@/lib/server/civic-auth/production
 import {
   PLATFORM_AUTH_COOKIE_NAME,
   PLATFORM_AUTH_FLOW_COOKIE_NAME,
+  PLATFORM_PWA_REFRESH_COOKIE_NAME,
   PLATFORM_REFRESH_COOKIE_NAME,
 } from "@/lib/server/auth/platform-auth-contract";
 import { isTrustedBrowserRequest } from "./browser-request-boundary";
@@ -16,6 +17,7 @@ import { readSafeMainAuthSetCookies } from "./response-cookie-boundary";
 const allowedRequestCookies = new Set([
   PLATFORM_AUTH_COOKIE_NAME,
   PLATFORM_REFRESH_COOKIE_NAME,
+  PLATFORM_PWA_REFRESH_COOKIE_NAME,
   PLATFORM_AUTH_FLOW_COOKIE_NAME,
 ]);
 const mutationMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);

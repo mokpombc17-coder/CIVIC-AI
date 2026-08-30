@@ -16,11 +16,16 @@ describe("Main/Auth Set-Cookie forwarding", () => {
       "set-cookie",
       "civic_ai_refresh_token=; Max-Age=0; Path=/api/v1/auth; Secure; HttpOnly; SameSite=Lax",
     );
+    headers.append(
+      "set-cookie",
+      "civic_ai_pwa_refresh_token=; Max-Age=0; Path=/api/v1/auth/pwa; Secure; HttpOnly; SameSite=Lax",
+    );
 
     expect(readSafeMainAuthSetCookies(headers)).toEqual([
       "__Host-civic-auth-flow=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict",
       "civic_ai_access_token=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Lax",
       "civic_ai_refresh_token=; Max-Age=0; Path=/api/v1/auth; Secure; HttpOnly; SameSite=Lax",
+      "civic_ai_pwa_refresh_token=; Max-Age=0; Path=/api/v1/auth/pwa; Secure; HttpOnly; SameSite=Lax",
     ]);
   });
 
@@ -47,5 +52,19 @@ describe("Main/Auth Set-Cookie forwarding", () => {
       "set-cookie": "civic_ai_refresh_token=opaque; Path=/; Secure; HttpOnly; SameSite=Lax",
     });
     expect(readSafeMainAuthSetCookies(headers)).toEqual([]);
+  });
+
+  it("accepts a host-only PWA refresh cookie only on the PWA Auth path", () => {
+    const accepted = new Headers({
+      "set-cookie":
+        "civic_ai_pwa_refresh_token=opaque; Max-Age=7776000; Path=/api/v1/auth/pwa; Secure; HttpOnly; SameSite=Lax",
+    });
+    const rejected = new Headers({
+      "set-cookie":
+        "civic_ai_pwa_refresh_token=opaque; Max-Age=7776000; Path=/api/v1/auth; Secure; HttpOnly; SameSite=Lax",
+    });
+
+    expect(readSafeMainAuthSetCookies(accepted)).toHaveLength(1);
+    expect(readSafeMainAuthSetCookies(rejected)).toEqual([]);
   });
 });

@@ -8,11 +8,12 @@ Frontend는 토큰을 발급하거나 JWT payload를 해석하지 않는다.
 
 ## 브라우저 쿠키
 
-| 이름                     | 용도                             | Path           | 속성                                             |
-| ------------------------ | -------------------------------- | -------------- | ------------------------------------------------ |
-| `civic_ai_access_token`  | 15분 RS256 Access Token 원문     | `/`            | `HttpOnly; Secure; SameSite=Lax`, Domain 없음    |
-| `civic_ai_refresh_token` | 회전형 Refresh Token 원문        | `/api/v1/auth` | `HttpOnly; Secure; SameSite=Lax`, Domain 없음    |
-| `__Host-civic-auth-flow` | 2FA·비밀번호 재설정 등 임시 흐름 | `/`            | `HttpOnly; Secure; SameSite=Strict`, Domain 없음 |
+| 이름                         | 용도                                    | Path               | 속성                                             |
+| ---------------------------- | --------------------------------------- | ------------------ | ------------------------------------------------ |
+| `civic_ai_access_token`      | 15분 RS256 Access Token 원문            | `/`                | `HttpOnly; Secure; SameSite=Lax`, Domain 없음    |
+| `civic_ai_refresh_token`     | 일반 브라우저 회전형 Refresh Token 원문 | `/api/v1/auth`     | `HttpOnly; Secure; SameSite=Lax`, Domain 없음    |
+| `civic_ai_pwa_refresh_token` | 설치형 PWA 회전형 Refresh Token 원문    | `/api/v1/auth/pwa` | `HttpOnly; Secure; SameSite=Lax`, Domain 없음    |
+| `__Host-civic-auth-flow`     | 2FA·비밀번호 재설정 등 임시 흐름        | `/`                | `HttpOnly; Secure; SameSite=Strict`, Domain 없음 |
 
 쿠키 값에 `Bearer ` 접두사를 넣지 않는다. Access Token 쿠키의 만료 시각은 JWT `exp`와 같다.
 Refresh Token은 일반 페이지·RAG·Chat·Vote 경로로 전송되지 않고 Auth 경로에서만 회전한다.
@@ -50,6 +51,23 @@ Content-Type: application/json
 로그아웃은 `POST /api/v1/auth/logout`으로 현재 Refresh Token family를 폐기하고 두 쿠키를 즉시
 만료한다. 모든 기기 로그아웃은 Access Token과 CSRF가 필요한 `/api/v1/auth/logout-all`을 사용한다.
 
+### 설치형 PWA
+
+manifest의 시작 경로는 `/pwa/start`다. 이 route는 `display-mode: standalone` 또는 iOS
+`navigator.standalone`으로 설치 실행을 확인한 경우에만 다음 전용 API로 자동 로그인을 수행한다.
+일반 브라우저가 `/pwa/start`를 열면 PWA refresh를 호출하지 않고 `/home`으로 이동한다.
+
+```text
+POST /api/v1/auth/pwa/login    설치형 PWA 로그인, 2FA 단계 없이 Access/PWA Refresh 발급
+POST /api/v1/auth/pwa/refresh  시작 스플래시와 만료된 Access Token의 자동 갱신
+POST /api/v1/auth/pwa/logout   현재 PWA 세션 폐기와 PWA Refresh 쿠키 삭제
+```
+
+PWA Refresh Token은 마지막 사용 기준 90일 미사용 만료이며 Auth가 rotation과 token-family 재사용
+탐지를 담당한다. Frontend는 토큰 값을 읽지 않는다. `401`이면 로그인 화면으로 이동하고, 네트워크나
+일시 장애는 로그인 해제로 처리하지 않고 스플래시에 재시도 동작을 제공한다. PWA 로그인·로그아웃은
+설치 실행 여부에 따라 전용 endpoint를 선택하고, 일반 브라우저 로그인·로그아웃 계약은 변경하지 않는다.
+
 ## same-origin 인증 경계
 
 브라우저는 같은 origin의 `/api/v1/**`만 호출한다. Main/Auth BFF는 다음을 보장한다.
@@ -57,7 +75,7 @@ Content-Type: application/json
 - 허용한 Main/Auth 경로와 HTTP method만 프록시한다.
 - mutation은 정확한 `Origin`과 `Sec-Fetch-Site: same-origin`을 요구한다.
 - Main/Auth mutation 중 인증이 필요한 경로는 `/api/v1/auth/csrf`에서 토큰을 받아 전달한다.
-- Access, Refresh, Auth Flow 쿠키 이외의 브라우저 쿠키를 Main/Auth로 전달하지 않는다.
+- Access, 일반 Refresh, PWA Refresh, Auth Flow 쿠키 이외의 브라우저 쿠키를 Main/Auth로 전달하지 않는다.
 - 이름이 중복된 인증 쿠키를 거부한다.
 - Main/Auth의 Set-Cookie는 위 표의 이름·Path·HttpOnly·Secure·SameSite·host-only 조건을 만족할 때만
   브라우저로 전달한다.

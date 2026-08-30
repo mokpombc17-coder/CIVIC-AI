@@ -22,14 +22,17 @@ UI, Main/Auth 연동, RAG 사용자 질의와 관리자 문서 관리 화면이 
 
 ## 인증 방식
 
-브라우저는 Main/Auth가 발급한 두 HttpOnly 쿠키를 사용한다.
+브라우저는 Main/Auth가 발급한 HttpOnly 쿠키를 사용한다.
 
 - `civic_ai_access_token`: `Path=/`, 15분 Access Token
 - `civic_ai_refresh_token`: `Path=/api/v1/auth`, 회전형 Refresh Token
+- `civic_ai_pwa_refresh_token`: `Path=/api/v1/auth/pwa`, 설치형 PWA 전용 90일 미사용 만료
 
 Access Token 만료로 API가 `401`을 반환하면 브라우저가 `POST /api/v1/auth/refresh`를 한 번 호출하고
 원래 요청을 한 번만 재시도한다. 동시에 여러 요청이 만료되어도 Refresh Token 회전은 하나의 요청으로
-직렬화한다. Next.js는 JWT를 발급·해석·저장하지 않는다. RAG와 Simulation 요청은 공개 nginx가
+직렬화한다. 설치형 PWA는 manifest의 `/pwa/start`에서만 시작 자동 로그인을 실행하며
+`POST /api/v1/auth/pwa/refresh`를 사용한다. 일반 브라우저는 이 PWA 자동 로그인을 실행하지 않는다.
+Next.js는 JWT를 발급·해석·저장하지 않는다. RAG와 Simulation 요청은 공개 nginx가
 각 Resource Server로 직접 전달하며, Resource Server가 HttpOnly Access Token 쿠키 또는 Bearer를
 검증한다. Chat·Vote 관리자 API와 Main/Auth만 Next.js BFF 경계를 유지한다.
 

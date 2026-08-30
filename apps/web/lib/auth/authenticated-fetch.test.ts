@@ -164,6 +164,36 @@ describe("createAuthenticatedFetch", () => {
     );
   });
 
+  it("rotates through the dedicated PWA endpoint when installed mode selects it", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createAuthenticatedClient(
+      request,
+      async () => undefined,
+      () => "/api/v1/auth/pwa/refresh",
+    );
+
+    await expect(client.refreshAccessToken()).resolves.toBe("authenticated");
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(new URL((request.mock.calls[0]![0] as Request).url).pathname).toBe(
+      "/api/v1/auth/pwa/refresh",
+    );
+  });
+
+  it("distinguishes an expired PWA session from a temporarily unavailable refresh", async () => {
+    const unauthorized = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+    const unavailable = vi.fn<typeof fetch>().mockRejectedValue(new Error("offline"));
+
+    await expect(createAuthenticatedClient(unauthorized).refreshAccessToken()).resolves.toBe(
+      "unauthorized",
+    );
+    await expect(createAuthenticatedClient(unavailable).refreshAccessToken()).resolves.toBe(
+      "unavailable",
+    );
+  });
+
   it("shares one refresh while concurrent resource preflights observe an expired token", async () => {
     let releaseRefresh: (() => void) | undefined;
     let refreshCalls = 0;

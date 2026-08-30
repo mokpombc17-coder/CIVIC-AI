@@ -2,6 +2,8 @@ import {
   PLATFORM_AUTH_COOKIE_NAME,
   PLATFORM_AUTH_COOKIE_PATH,
   PLATFORM_AUTH_FLOW_COOKIE_NAME,
+  PLATFORM_PWA_REFRESH_COOKIE_NAME,
+  PLATFORM_PWA_REFRESH_COOKIE_PATH,
   PLATFORM_REFRESH_COOKIE_NAME,
   PLATFORM_REFRESH_COOKIE_PATH,
 } from "@/lib/server/auth/platform-auth-contract";
@@ -10,6 +12,7 @@ const cookiePolicies = new Map<string, Readonly<{ path: string; sameSite: "Lax" 
   [PLATFORM_AUTH_FLOW_COOKIE_NAME, { path: "/", sameSite: "Strict" }],
   [PLATFORM_AUTH_COOKIE_NAME, { path: PLATFORM_AUTH_COOKIE_PATH, sameSite: "Lax" }],
   [PLATFORM_REFRESH_COOKIE_NAME, { path: PLATFORM_REFRESH_COOKIE_PATH, sameSite: "Lax" }],
+  [PLATFORM_PWA_REFRESH_COOKIE_NAME, { path: PLATFORM_PWA_REFRESH_COOKIE_PATH, sameSite: "Lax" }],
 ]);
 
 export function readSafeMainAuthSetCookies(headers: Headers): string[] {

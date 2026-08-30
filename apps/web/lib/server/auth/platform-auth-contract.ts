@@ -2,6 +2,8 @@ export const PLATFORM_AUTH_COOKIE_NAME = "civic_ai_access_token";
 export const PLATFORM_AUTH_COOKIE_PATH = "/";
 export const PLATFORM_REFRESH_COOKIE_NAME = "civic_ai_refresh_token";
 export const PLATFORM_REFRESH_COOKIE_PATH = "/api/v1/auth";
+export const PLATFORM_PWA_REFRESH_COOKIE_NAME = "civic_ai_pwa_refresh_token";
+export const PLATFORM_PWA_REFRESH_COOKIE_PATH = "/api/v1/auth/pwa";
 export const PLATFORM_AUTH_FLOW_COOKIE_NAME = "__Host-civic-auth-flow";
 export const PLATFORM_AUTH_AUDIENCE = "civic-ai-api";
 
