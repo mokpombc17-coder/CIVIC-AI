@@ -2454,9 +2454,49 @@ body {
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls {
   display: flex;
   flex: none;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   margin-top: 10px;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls button {
+  display: inline-grid;
+  min-width: 40px;
+  min-height: 40px;
+  place-items: center;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--wf-ink);
+  padding: 7px 11px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls button:last-child {
+  margin-left: auto;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls button:hover,
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls button:focus-visible {
+  border-color: var(--platform-shell-color-primary);
+  background: #edf2ff;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-zoom-value {
+  min-width: 48px;
+  color: var(--wf-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-canvas {
@@ -2481,7 +2521,9 @@ body {
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-page-list {
   align-self: flex-start;
-  width: 100%;
+  width: min(var(--document-width, 100%), var(--document-max-width, 72rem));
+  max-width: none;
+  flex: none;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-page {
@@ -5212,6 +5254,12 @@ body {
   overflow: hidden;
 }
 
+[data-wireflow-screen^="U-RAG"] .civic-rag-answer.is-live.is-streaming-answer {
+  border-color: var(--wf-line);
+  background: #eef1f5;
+  color: var(--wf-ink);
+}
+
 [data-wireflow-screen^="U-RAG"] .civic-rag-live-progress {
   display: grid;
   gap: 14px;
@@ -5361,7 +5409,7 @@ body {
 [data-wireflow-screen^="U-RAG"] .civic-rag-streamed-answer {
   position: relative;
   display: flow-root;
-  background: #fff;
+  background: transparent;
   padding: 16px;
 }
 
@@ -6187,6 +6235,12 @@ body {
   max-width: 100%;
   min-height: 0;
   padding: 0;
+}
+
+[data-wireflow-screen="U-RAG-001"] .civic-rag-answer.is-live.is-streaming-answer {
+  border-color: #ccd1d6;
+  background: #edf2f7;
+  color: #1f2124;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-citations {
