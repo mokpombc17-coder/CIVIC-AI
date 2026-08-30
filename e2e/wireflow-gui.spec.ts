@@ -877,6 +877,7 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
   await expect(page.getByRole("cell", { name: "12쪽" })).toBeVisible();
   await expect(page.getByText(documentCreatorId)).toHaveCount(0);
   await expect(page.getByRole("link", { name: "문서 목록 자세히 보기" })).toHaveCount(0);
+  await expect(page.getByText(/선택 폴더만 표시\s*·\s*처리 완료\s*\d+개/u)).toHaveCount(0);
 
   await expectBox(page.locator(".civic-admin-sidebar"), {
     x: [0, 0],

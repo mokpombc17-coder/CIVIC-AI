@@ -660,7 +660,7 @@ describe("9 functional RAG screens", () => {
         folder: undefined,
         onInspect: vi.fn(),
         selectedDocumentId: undefined,
-        pageState: { page: 2, pageSize: 25, total: 61, totalPages: 3, statusCounts: {} },
+        pageState: { page: 2, pageSize: 25, total: 61, totalPages: 3, statusCounts: { ACTIVE: 6 } },
         onQueryChange: vi.fn(),
         onBulk: vi.fn(),
       }),
@@ -673,6 +673,8 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("이전 페이지");
     expect(html).toContain("다음 페이지");
     expect(html).toContain("2 / 3");
+    expect(html).not.toContain("선택 폴더만 표시");
+    expect(html).not.toContain("처리 완료 6개");
   });
 
   it("등록자 조회에 실패해도 문서 UUID를 대체 문구로 노출하지 않는다", () => {
