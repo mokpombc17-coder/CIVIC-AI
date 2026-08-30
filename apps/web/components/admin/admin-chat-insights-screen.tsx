@@ -30,6 +30,7 @@ import {
   type ConversationMetricBucket,
   type ConversationMessage,
 } from "@/lib/chat/conversation-export";
+import { fetchConversationExportWithRetry } from "@/lib/chat/conversation-export-request";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import styles from "./admin-chat-insights.module.css";
 
@@ -85,6 +86,7 @@ export function AdminChatInsightsScreen({
   const [archiveName, setArchiveName] = useState("conversation-export.zip");
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisRetryCount, setAnalysisRetryCount] = useState(0);
   const exportAbort = useRef<AbortController | null>(null);
 
   const loadRooms = useCallback(
@@ -138,8 +140,9 @@ export function AdminChatInsightsScreen({
       setAnalysis(null);
       setArchive(null);
       setAnalysisMessage("");
+      setAnalysisRetryCount(0);
       try {
-        const response = await authenticatedFetch(
+        const response = await fetchConversationExportWithRetry(
           `/api/v1/admin/rooms/${encodeURIComponent(roomId)}/conversation-exports`,
           {
             method: "POST",
@@ -147,6 +150,12 @@ export function AdminChatInsightsScreen({
             body: JSON.stringify(range),
             cache: "no-store",
             signal: controller.signal,
+          },
+          {
+            onRetry: ({ retryCount }) => {
+              if (!controller.signal.aborted) setAnalysisRetryCount(retryCount);
+            },
+            requestBackend: authenticatedFetch,
           },
         );
         if (!response.ok) {
@@ -180,6 +189,7 @@ export function AdminChatInsightsScreen({
         if (exportAbort.current === controller) {
           exportAbort.current = null;
           setAnalyzing(false);
+          setAnalysisRetryCount(0);
         }
       }
     },
@@ -485,9 +495,11 @@ export function AdminChatInsightsScreen({
             ) : null}
             {analyzing ? (
               <p aria-live="polite" className={styles.statusMessage} role="status">
-                {analysisPeriod === "all"
-                  ? "전체 기간의 대화를 자동으로 분석하고 있습니다."
-                  : "선택한 기간의 대화를 자동으로 분석하고 있습니다."}
+                {analysisRetryCount > 0
+                  ? `대화 분석 서버의 응답을 기다리며 자동 재시도하고 있습니다. (${analysisRetryCount}번째)`
+                  : analysisPeriod === "all"
+                    ? "전체 기간의 대화를 자동으로 분석하고 있습니다."
+                    : "선택한 기간의 대화를 자동으로 분석하고 있습니다."}
               </p>
             ) : null}
             {!analyzing && (customRangeInvalid || analysisMessage) ? (

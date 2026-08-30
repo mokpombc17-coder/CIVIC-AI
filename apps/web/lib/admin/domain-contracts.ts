@@ -312,6 +312,8 @@ export async function readAdminProblem(response: Response): Promise<AdminProblem
 
 export function formatAdminProblem(problem: AdminProblem): string {
   const codeMessages: Readonly<Record<string, string>> = {
+    CHAT_EXPORT_UNAVAILABLE:
+      "대화 분석 서버가 다른 작업을 처리 중입니다. 자동 재시도를 마쳤지만 아직 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     ROOM_CREATION_DECISION_CONFLICT: "다른 관리자가 이미 처리했습니다. 최신 상태를 확인했습니다.",
     ROOM_CATEGORY_IN_USE: "다른 토론방에서 사용 중인 카테고리는 삭제할 수 없습니다.",
     ROOM_CATEGORY_NAME_CONFLICT: "같은 이름의 카테고리가 이미 있습니다.",
