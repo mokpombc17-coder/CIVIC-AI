@@ -237,11 +237,7 @@ function AccountHubLoadingSurface() {
           <span>Vote 설문 응답을 작성·확인합니다.</span>
         </div>
       </nav>
-      <div className="wf-account-logout">
-        <span aria-hidden="true" className="civic-loading-logout-button">
-          로그아웃
-        </span>
-      </div>
+      <AccountSessionActionsLoading />
       <LoadingAnnouncement />
     </div>
   );
@@ -297,19 +293,27 @@ function AccountDetailLoadingSurface({ screenId }: Readonly<{ screenId: string }
           </article>
         </div>
       </section>
-      <section className="wf-account-notice">
-        <span aria-hidden="true" className="civic-loading-account-info-icon">
-          i
-        </span>
-        <div>
-          <h2>계정 관리</h2>
-          <p>계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다.</p>
-          <button className="wf-button wf-button-danger" disabled type="button">
-            계정 비활성화
-          </button>
-        </div>
-      </section>
+      <AccountSessionActionsLoading />
       <LoadingAnnouncement />
+    </div>
+  );
+}
+
+function AccountSessionActionsLoading() {
+  return (
+    <div className="wf-account-session-actions">
+      <div className="wf-account-logout">
+        <span aria-hidden="true" className="civic-loading-logout-button">
+          로그아웃
+        </span>
+      </div>
+      <button
+        className="wf-button wf-button-danger wf-account-deactivate-button"
+        disabled
+        type="button"
+      >
+        계정 비활성화
+      </button>
     </div>
   );
 }

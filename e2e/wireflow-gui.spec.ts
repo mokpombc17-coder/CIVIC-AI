@@ -573,7 +573,10 @@ test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합
   await expect(page.getByRole("heading", { name: "계정", exact: true })).toBeVisible();
   await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
   await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "계정 관리" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "계정 관리" })).toHaveCount(0);
+  await expect(
+    page.getByText("계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다."),
+  ).toHaveCount(0);
   await expect(page.getByRole("link", { name: /내 정보 관리/u })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /내 설문 보기/u })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "로그아웃" })).toBeVisible();
@@ -609,16 +612,43 @@ test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합
   await expect.poll(readFormOffsetFromScroller).toBeLessThanOrEqual(24);
   const formOffsetFromScroller = await readFormOffsetFromScroller();
   expect(formOffsetFromScroller).toBeGreaterThanOrEqual(0);
-  const accountManagement = page.getByRole("heading", { name: "계정 관리" });
-  await accountManagement.scrollIntoViewIfNeeded();
-  await expect(accountManagement).toBeVisible();
+  const deactivateButton = page.getByRole("button", { name: "계정 비활성화" });
+  await deactivateButton.scrollIntoViewIfNeeded();
+  const accountActionStyles = await page
+    .locator(".wf-account-session-actions")
+    .evaluate((element) => {
+      const logout = element.querySelector<HTMLButtonElement>(".wf-account-logout button");
+      const deactivate = element.querySelector<HTMLButtonElement>(".wf-account-deactivate-button");
+      if (!logout || !deactivate) throw new Error("account actions missing");
+      const logoutStyle = getComputedStyle(logout);
+      const deactivateStyle = getComputedStyle(deactivate);
+      return {
+        logoutBorderColor: logoutStyle.borderColor,
+        logoutColor: logoutStyle.color,
+        deactivateBackground: deactivateStyle.backgroundColor,
+        logoutBottom: Math.round(logout.getBoundingClientRect().bottom),
+        deactivateTop: Math.round(deactivate.getBoundingClientRect().top),
+      };
+    });
+  expect(accountActionStyles).toEqual({
+    logoutBorderColor: "rgb(18, 20, 23)",
+    logoutColor: "rgb(18, 20, 23)",
+    deactivateBackground: "rgb(197, 29, 29)",
+    logoutBottom: expect.any(Number),
+    deactivateTop: expect.any(Number),
+  });
+  expect(accountActionStyles.deactivateTop - accountActionStyles.logoutBottom).toBe(8);
   const accountUrl = page.url();
-  await page.getByRole("button", { name: "계정 비활성화" }).click();
+  await deactivateButton.click();
   await expect(page).toHaveURL(accountUrl);
   await expect(page.getByLabel("화면을 불러오는 중")).toHaveCount(0);
   const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("다시 로그인시 계정을 활성화 할 수 있습니다.")).toBeVisible();
+  await expect(dialog.getByText("비활성화 영향", { exact: true })).toHaveCount(0);
+  await expect(
+    dialog.getByText("AI·채팅·투표 정보가 개인 정보에 더 이상 반영되지 않습니다."),
+  ).toHaveCount(0);
   await expect(dialog.getByLabel("비밀번호 확인")).toBeFocused();
   await expectBox(dialog, { width: [359, 362] });
   await expectBox(dialog.locator(".wf-impact-list > div").first(), { height: [93, 95] });
