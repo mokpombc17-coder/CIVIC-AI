@@ -130,7 +130,7 @@ describe("simulation result explorer", () => {
       />,
     );
 
-    expect(html).toContain("RESULT COMPARE");
+    expect(html).not.toContain("RESULT COMPARE");
     expect(html).toContain("성별 응답을 한눈에 비교");
     expect(html).toContain("남성");
     expect(html).toContain("여성");

@@ -8,6 +8,7 @@ import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/
 import {
   ConsoleEmpty,
   ConsolePane,
+  ConsoleSearchControl,
   ConsoleStatus,
   ConsoleWorkspace,
 } from "@/components/admin/console/console-ui";
@@ -54,11 +55,10 @@ export type ChatRequestRow = Readonly<{
   statusLabel: string;
 }>;
 
+// 신청자·상태는 상세 패널에 그대로 나오므로 목록은 이름·요청 시각만 보여 준다.
 export const CHAT_REQUEST_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<ChatRequestRow>> = [
   { field: "name", headerName: "토론방 이름", flex: 2, minWidth: 150 },
-  { field: "requesterLabel", headerName: "신청자", flex: 2, minWidth: 140 },
   { field: "requestedLabel", headerName: "요청 시각", minWidth: 130 },
-  { field: "statusLabel", headerName: "상태", minWidth: 90 },
 ];
 
 export function chatRequestRowFromItem(
@@ -308,11 +308,7 @@ export function AdminChatRequestScreen({
   }
 
   return (
-    <ScreenFrame
-      {...(detailScreen ? { backHref: "/admin/chat/requests" as Route } : {})}
-      screen={screen}
-      title={detailScreen ? "토론방 생성 요청 검토" : "토론방 생성 요청"}
-    >
+    <ScreenFrame screen={screen}>
       <AdminChatOperationsLayout>
         <ConsoleWorkspace layout="admin-chat-request-console">
           <ConsolePane
@@ -320,15 +316,18 @@ export function AdminChatRequestScreen({
             subtitle={`${filteredItems.length}건 표시`}
             title="개설 신청"
           >
-            <div className="console-toolbar">
-              <input
-                aria-label="신청자 이메일 또는 토론방 이름 검색"
-                onChange={(event) => setQuery(event.currentTarget.value)}
-                placeholder="검색어 입력…"
-                type="search"
+            <form
+              className="console-toolbar"
+              onSubmit={(event) => event.preventDefault()}
+              role="search"
+            >
+              <ConsoleSearchControl
+                ariaLabel="신청자 이메일 또는 토론방 이름 검색"
+                onChange={setQuery}
+                placeholder="신청자 또는 토론방 이름을 검색해 주세요."
                 value={query}
               />
-            </div>
+            </form>
             <div aria-label="신청 상태" className="console-filter-group" role="group">
               {filterStatuses.map((option) => (
                 <button

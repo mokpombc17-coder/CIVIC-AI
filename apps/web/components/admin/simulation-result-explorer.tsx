@@ -148,7 +148,6 @@ export function SimulationResultExplorer({
     <section aria-busy={loading} className={styles.explorer}>
       <header className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>SONA RESULT ATLAS</span>
           <h2>{result.task.title}</h2>
           <p>{result.task.question.content}</p>
         </div>
@@ -178,7 +177,6 @@ export function SimulationResultExplorer({
 
       <section className={styles.compareStation}>
         <div className={styles.filterCopy}>
-          <span>RESULT COMPARE</span>
           <h3>무엇을 기준으로 비교할까요?</h3>
           <p>전체 분포는 그대로 두고, 선택한 기준의 모든 집단을 같은 축에서 나란히 보여드립니다.</p>
         </div>
@@ -242,7 +240,6 @@ export function SimulationResultExplorer({
         <section aria-busy={comparisonLoading} className={styles.comparisonSection}>
           <header className={styles.comparisonHeader}>
             <div>
-              <span>GROUP COMPARISON</span>
               <h3>{comparisonHeading}</h3>
             </div>
             <p>막대 길이는 각 집단 안에서 해당 응답을 선택한 비율입니다.</p>
@@ -295,7 +292,6 @@ export function SimulationResultExplorer({
       <section className={styles.responseExplorer}>
         <header className={styles.responseHeader}>
           <div>
-            <span>RESPONSE REASON</span>
             <h3>응답자가 이렇게 답한 이유</h3>
           </div>
           <nav aria-label="결과 탐색" className={styles.resultNavigation}>

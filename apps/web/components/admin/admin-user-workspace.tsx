@@ -17,6 +17,7 @@ import {
   ConsoleEmpty,
   ConsoleMetricStrip,
   ConsolePane,
+  ConsoleSearchControl,
   ConsoleStatus,
   ConsoleTabs,
   ConsoleWorkspace,
@@ -52,11 +53,13 @@ import {
   type UserStatusFilter,
 } from "@/lib/admin/user-admin";
 import {
+  loadUserRagUsage,
   loadUserRoomRequests,
   scanUserChatParticipation,
   scanUserVoteParticipation,
   type ActivityScanState,
   type UserChatScanResult,
+  type UserRagUsageState,
   type UserRoomRequestsState,
   type UserVoteScanResult,
 } from "@/lib/admin/user-activity";
@@ -85,12 +88,9 @@ export function userWorkspacePath(tab: UserWorkspaceTab, userId: string | null):
   return query ? `${base}?${query}` : base;
 }
 
+// 상세 패널에 그대로 나오는 값(계정 상태·운영 권한·최근 활동)은 목록에서 뺀다.
 export const USER_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<AdminUser>> = [
   { field: "email", headerName: "이메일", flex: 2, minWidth: 180 },
-  {
-    headerName: "계정 상태",
-    valueGetter: (params) => (params.data ? accountStateLabel(params.data.account_state) : ""),
-  },
   {
     headerName: "역할",
     valueGetter: (params) =>
@@ -98,15 +98,6 @@ export const USER_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<AdminUser>> = [
         .filter((role) => role !== "PARTICIPANT")
         .map(roleLabel)
         .join(", ") || "없음",
-  },
-  {
-    headerName: "운영 권한",
-    flex: 2,
-    valueGetter: (params) => params.data?.permissions.map(permissionLabel).join(", ") || "없음",
-  },
-  {
-    headerName: "최근 활동",
-    valueGetter: (params) => formatAdminDate(params.data?.last_activity_at),
   },
 ];
 
@@ -174,6 +165,46 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
   const [pendingRoleChange, setPendingRoleChange] = useState<PendingRoleChange | null>(null);
   const roleMutationLock = useRef(createMutationLock());
   const userLoadGate = useRef(createLatestAdminUserRequestGate());
+  const [requests, setRequests] = useState<UserRoomRequestsState>({ status: "loading" });
+  const [chatScan, setChatScan] = useState<ActivityScanState<UserChatScanResult>>({
+    status: "idle",
+  });
+  const [voteScan, setVoteScan] = useState<ActivityScanState<UserVoteScanResult>>({
+    status: "idle",
+  });
+  const [ragUsage, setRagUsage] = useState<UserRagUsageState>({ status: "loading" });
+  const selectedUserId = selected?.user_id ?? null;
+
+  const startChatScan = useCallback(() => {
+    if (!selectedUserId) return;
+    runScan(setChatScan, (onProgress) => scanUserChatParticipation(selectedUserId, onProgress));
+  }, [selectedUserId]);
+
+  const startVoteScan = useCallback(() => {
+    if (!selectedUserId) return;
+    runScan(setVoteScan, (onProgress) => scanUserVoteParticipation(selectedUserId, onProgress));
+  }, [selectedUserId]);
+
+  // 선택이 바뀌면 개설 신청·AI 질의는 즉시 조회하고, 투표 참여는 자동으로 확인한다.
+  // 대화 참여는 대화 원본을 내려받아야 해서 버튼으로만 시작한다.
+  useEffect(() => {
+    setChatScan({ status: "idle" });
+    setVoteScan({ status: "idle" });
+    setRequests({ status: "loading" });
+    setRagUsage({ status: "loading" });
+    if (!selectedUserId) return;
+    let cancelled = false;
+    void loadUserRoomRequests(selectedUserId).then((state) => {
+      if (!cancelled) setRequests(state);
+    });
+    void loadUserRagUsage(selectedUserId).then((state) => {
+      if (!cancelled) setRagUsage(state);
+    });
+    runScan(setVoteScan, (onProgress) => scanUserVoteParticipation(selectedUserId, onProgress));
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUserId]);
 
   const loadUsers = useCallback(async (query = "") => {
     const isCurrent = userLoadGate.current.begin();
@@ -336,16 +367,12 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
         subtitle={`${filteredUsers.length}명 표시`}
         title="사용자 검색"
       >
-        <form className="console-toolbar" onSubmit={search}>
-          <input
-            aria-label="이메일 검색"
+        <form className="console-toolbar" onSubmit={search} role="search">
+          <ConsoleSearchControl
+            ariaLabel="이메일 검색"
             name="query"
-            placeholder="이메일 주소 입력…"
-            type="search"
+            placeholder="이메일 주소를 검색해 주세요."
           />
-          <button className="civic-primary-action" type="submit">
-            검색
-          </button>
         </form>
         <div aria-label="사용자 상태 필터" className="console-filter-group" role="group">
           {(
@@ -388,10 +415,14 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
         {tab === "overview" ? (
           <UserOverviewTab
             audits={audits}
+            chatScan={chatScan}
             onOpenAudit={() => switchTab("audit")}
             onOpenRoles={() => switchTab("roles")}
+            onStartChatScan={startChatScan}
+            ragUsage={ragUsage}
             selected={selected}
             userLabels={auditUserLabels}
+            voteScan={voteScan}
           />
         ) : null}
         {tab === "roles" ? (
@@ -415,7 +446,17 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
             {auditMessage ? <ConsoleStatus error>{auditMessage}</ConsoleStatus> : null}
           </>
         ) : null}
-        {tab === "activity" ? <UserActivityTab selected={selected} /> : null}
+        {tab === "activity" ? (
+          <UserActivityTab
+            chatScan={chatScan}
+            onStartChatScan={startChatScan}
+            onStartVoteScan={startVoteScan}
+            ragUsage={ragUsage}
+            requests={requests}
+            selected={selected}
+            voteScan={voteScan}
+          />
+        ) : null}
       </ConsolePane>
 
       <ConfirmDialog
@@ -449,18 +490,49 @@ function syncUrl(tab: UserWorkspaceTab, userId: string | null) {
   window.history.replaceState(window.history.state, "", userWorkspacePath(tab, userId));
 }
 
+export function chatSummaryValue(state: ActivityScanState<UserChatScanResult>): string {
+  if (state.status === "ready") return `${state.result.participations.length}개`;
+  if (state.status === "running") return "확인 중";
+  if (state.status === "failed") return "확인 불가";
+  return "미확인";
+}
+
+export function voteSummaryValue(state: ActivityScanState<UserVoteScanResult>): string {
+  if (state.status === "ready") {
+    return state.result.identifiersMissing ? "확인 불가" : `${state.result.participations.length}건`;
+  }
+  if (state.status === "running") return "확인 중";
+  if (state.status === "failed") return "확인 불가";
+  return "미확인";
+}
+
+export function ragSummaryValue(state: UserRagUsageState): string {
+  if (state.status === "ready") return `${state.usage.totalQueries}회`;
+  if (state.status === "loading") return "확인 중";
+  if (state.status === "forbidden") return "권한 없음";
+  return "확인 불가";
+}
+
 function UserOverviewTab({
   selected,
   audits,
   userLabels,
   onOpenRoles,
   onOpenAudit,
+  chatScan,
+  voteScan,
+  ragUsage,
+  onStartChatScan,
 }: Readonly<{
   selected: AdminUser | null;
   audits: readonly AuditEvent[];
   userLabels: ReadonlyMap<string, string>;
   onOpenRoles: () => void;
   onOpenAudit: () => void;
+  chatScan: ActivityScanState<UserChatScanResult>;
+  voteScan: ActivityScanState<UserVoteScanResult>;
+  ragUsage: UserRagUsageState;
+  onStartChatScan: () => void;
 }>) {
   if (!selected) {
     return <ConsoleEmpty title="목록에서 사용자를 선택하세요." />;
@@ -499,6 +571,33 @@ function UserOverviewTab({
           권한 편집
         </button>
       </div>
+      <section className="console-section">
+        <h4>활동 요약</h4>
+        <ul aria-label="활동 요약" className="console-metrics">
+          <li className="console-metric">
+            <small>참여 토론방</small>
+            <strong>{chatSummaryValue(chatScan)}</strong>
+            {chatScan.status === "idle" ? (
+              <span>
+                <button className="civic-text-action" onClick={onStartChatScan} type="button">
+                  대화 기록으로 확인
+                </button>
+              </span>
+            ) : null}
+          </li>
+          <li className="console-metric">
+            <small>투표 참여</small>
+            <strong>{voteSummaryValue(voteScan)}</strong>
+          </li>
+          <li className="console-metric">
+            <small>AI 질의</small>
+            <strong>{ragSummaryValue(ragUsage)}</strong>
+            {ragUsage.status === "ready" && ragUsage.usage.lastQueryAt ? (
+              <span>마지막 질의 {formatAdminDate(ragUsage.usage.lastQueryAt)}</span>
+            ) : null}
+          </li>
+        </ul>
+      </section>
       <section className="console-section">
         <h4>최근 권한 변경 이력</h4>
         {recent.length === 0 ? (
@@ -653,32 +752,24 @@ function RoleForm({
   );
 }
 
-function UserActivityTab({ selected }: Readonly<{ selected: AdminUser | null }>) {
-  const [requests, setRequests] = useState<UserRoomRequestsState>({ status: "loading" });
-  const [chatScan, setChatScan] = useState<ActivityScanState<UserChatScanResult>>({
-    status: "idle",
-  });
-  const [voteScan, setVoteScan] = useState<ActivityScanState<UserVoteScanResult>>({
-    status: "idle",
-  });
-
-  const userId = selected?.user_id ?? null;
-
-  useEffect(() => {
-    setChatScan({ status: "idle" });
-    setVoteScan({ status: "idle" });
-    if (!userId) return;
-    let cancelled = false;
-    setRequests({ status: "loading" });
-    void loadUserRoomRequests(userId).then((state) => {
-      if (!cancelled) setRequests(state);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  if (!selected || !userId) {
+function UserActivityTab({
+  selected,
+  requests,
+  chatScan,
+  voteScan,
+  ragUsage,
+  onStartChatScan,
+  onStartVoteScan,
+}: Readonly<{
+  selected: AdminUser | null;
+  requests: UserRoomRequestsState;
+  chatScan: ActivityScanState<UserChatScanResult>;
+  voteScan: ActivityScanState<UserVoteScanResult>;
+  ragUsage: UserRagUsageState;
+  onStartChatScan: () => void;
+  onStartVoteScan: () => void;
+}>) {
+  if (!selected) {
     return <ConsoleEmpty title="목록에서 사용자를 선택하세요." />;
   }
 
@@ -697,9 +788,7 @@ function UserActivityTab({ selected }: Readonly<{ selected: AdminUser | null }>)
         </p>
         <ScanSection
           idleLabel="대화 참여 확인"
-          onStart={() =>
-            runScan(setChatScan, (onProgress) => scanUserChatParticipation(userId, onProgress))
-          }
+          onStart={onStartChatScan}
           renderResult={(result) => <ChatScanResultView result={result} />}
           state={chatScan}
         />
@@ -707,25 +796,59 @@ function UserActivityTab({ selected }: Readonly<{ selected: AdminUser | null }>)
 
       <section className="console-section" data-wireflow-layout="admin-user-activity-votes">
         <h4>투표 참여</h4>
-        <p className="console-status">
-          종료된 과업의 상세 결과에서 이 사용자의 응답 여부를 확인합니다.
-        </p>
         <ScanSection
           idleLabel="투표 참여 확인"
-          onStart={() =>
-            runScan(setVoteScan, (onProgress) => scanUserVoteParticipation(userId, onProgress))
-          }
+          onStart={onStartVoteScan}
           renderResult={(result) => <VoteScanResultView result={result} />}
           state={voteScan}
         />
       </section>
 
       <section className="console-section" data-wireflow-layout="admin-user-activity-rag">
-        <h4>AI 질의 사용량</h4>
-        <ConsoleStatus>
-          사용자별 AI 질의 집계는 아직 지원되지 않습니다.
-        </ConsoleStatus>
+        <h4>AI 질의</h4>
+        <RagUsageSection state={ragUsage} />
       </section>
+    </>
+  );
+}
+
+function RagUsageSection({ state }: Readonly<{ state: UserRagUsageState }>) {
+  if (state.status === "loading") return <ConsoleStatus>질의 사용량 확인 중…</ConsoleStatus>;
+  if (state.status === "forbidden") {
+    return <ConsoleStatus>문서 관리자 권한이 있어야 확인할 수 있습니다.</ConsoleStatus>;
+  }
+  if (state.status === "unavailable") {
+    return <ConsoleStatus error>질의 사용량을 불러오지 못했습니다.</ConsoleStatus>;
+  }
+  const { usage } = state;
+  return (
+    <>
+      <div className="console-field-grid">
+        <div>
+          <span>총 질의</span>
+          <strong>{usage.totalQueries}회</strong>
+        </div>
+        <div>
+          <span>마지막 질의</span>
+          <strong>{formatAdminDate(usage.lastQueryAt)}</strong>
+        </div>
+      </div>
+      {usage.recentQuestions.length > 0 ? (
+        <ul
+          aria-label="최근 질문 목록"
+          className="console-metrics"
+          style={{ gridTemplateColumns: "1fr" }}
+        >
+          {usage.recentQuestions.map((entry, index) => (
+            <li className="console-metric" key={`${entry.askedAt ?? "unknown"}-${index}`}>
+              <small>{formatAdminDate(entry.askedAt)}</small>
+              <strong>{entry.question}</strong>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ConsoleStatus>기록된 질문이 없습니다.</ConsoleStatus>
+      )}
     </>
   );
 }
@@ -851,7 +974,10 @@ function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>
             <li className="console-metric" key={room.roomId}>
               <small>{room.roomStatus === "ACTIVE" ? "운영 중" : "종료됨"}</small>
               <strong>{room.roomName}</strong>
-              <span>작성 메시지 {room.messageCount}건</span>
+              <span>
+                작성 메시지 {room.messageCount}건
+                {room.lastMessageAt ? ` · 마지막 작성 ${formatAdminDate(room.lastMessageAt)}` : ""}
+              </span>
             </li>
           ))}
         </ul>
@@ -891,6 +1017,7 @@ function VoteScanResultView({ result }: Readonly<{ result: UserVoteScanResult }>
                 제출 {formatAdminDate(vote.submittedAt)} · 마감 {formatAdminDate(vote.closedAt)}
               </small>
               <strong>{vote.taskTitle}</strong>
+              {vote.answerLabel ? <span>선택: {vote.answerLabel}</span> : null}
               <span>
                 <Link href={`/admin/tasks/results?taskId=${encodeURIComponent(vote.taskId)}` as Route}>
                   과업 결과 보기

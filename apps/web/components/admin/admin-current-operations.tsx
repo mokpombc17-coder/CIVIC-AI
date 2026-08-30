@@ -83,6 +83,8 @@ export function AdminCurrentOperations({
   }, [canManageSimulation, canReadRag, enabled]);
 
   if (!enabled) return null;
+  // 홈은 요약 화면이므로 확인 중이거나 진행 작업이 없으면 영역 자체를 숨긴다.
+  if (state.status !== "ready" || state.total === 0) return null;
   return <AdminCurrentOperationsView state={state} />;
 }
 

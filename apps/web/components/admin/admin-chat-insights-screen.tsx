@@ -380,17 +380,26 @@ export function AdminChatInsightsScreen({
             <header>
               <strong>운영할 토론방</strong>
             </header>
-            <form className={styles.search} onSubmit={searchRooms}>
-              <label className={styles.queryField}>
-                <span className="sr-only">토론방 검색</span>
+            <form className={styles.search} onSubmit={searchRooms} role="search">
+              <div className={`console-search-control ${styles.queryField ?? ""}`}>
+                <span aria-hidden="true" className="console-search-icon" />
                 <input
+                  aria-label="토론방 검색"
+                  autoComplete="off"
                   disabled={roomsLoading || closingRoom}
                   onChange={(event) => setRoomQuery(event.currentTarget.value)}
                   placeholder="토론방 이름 검색"
                   type="search"
                   value={roomQuery}
                 />
-              </label>
+                <button
+                  className="console-search-button"
+                  disabled={roomsLoading || closingRoom}
+                  type="submit"
+                >
+                  검색
+                </button>
+              </div>
               <label className={styles.statusField}>
                 <span>상태</span>
                 <select
@@ -406,9 +415,6 @@ export function AdminChatInsightsScreen({
                   <option value="CLOSED">종료</option>
                 </select>
               </label>
-              <button disabled={roomsLoading || closingRoom} type="submit">
-                검색
-              </button>
             </form>
             <div aria-label="토론방 목록" className={styles.roomList} role="list">
               {rooms.map((room) => (
@@ -846,7 +852,7 @@ function syncChatInsightsUrl(tab: ChatInsightsTab, roomId: string | null) {
 function screenTitle(screenId: string): string {
   if (screenId === "A-CHAT-002") return "토론방 상세";
   if (screenId === "A-CHAT-008") return "채팅 통계";
-  return "채팅 운영";
+  return "토론방 운영";
 }
 
 function defaultCustomLocalRange(roomCreatedAt?: string): Readonly<{ from: string; to: string }> {

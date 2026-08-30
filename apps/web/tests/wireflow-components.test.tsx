@@ -26,6 +26,7 @@ import {
 } from "@/components/admin/admin-task-screen";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminShell } from "@/components/shell/admin-shell";
+import { isSectionActive } from "@/components/admin/admin-chat-operations-layout";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import {
   WireflowBadge,
@@ -109,37 +110,26 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("요청마다 권한 재확인");
   });
 
-  it("채팅 운영 아래에 신청 목록과 토론방·카테고리 관리 항목을 제공한다", () => {
+  it("토론방 운영은 사이드바 단일 메뉴이고 하위 경로에서도 현재 메뉴로 표시한다", () => {
     const html = renderToStaticMarkup(
       <AdminShell activeRoute="/admin/chat/requests" permissions={["CHAT_ADMIN"]} role="ADMIN">
         <p>content</p>
       </AdminShell>,
     );
 
-    expect(html).toContain('aria-current="page"');
-    expect(html).toContain('href="/admin/chat"');
-    expect(html).toContain(">채팅 운영<");
-    expect(html).toContain('href="/admin/chat/requests"');
-    expect(html).toContain(">토론방 신청 목록<");
-    expect(html).toContain(">토론방 관리<");
-    expect(html).toContain('href="/admin/chat/categories"');
-    expect(html).toContain(">카테고리 관리<");
-    expect(html).not.toContain(">통계<");
+    expect(html).toMatch(/aria-current="page"[^>]*href="\/admin\/chat"/u);
+    expect(html).toContain(">토론방 운영<");
+    expect(html).not.toContain("civic-admin-nav-sub-link");
+    expect(html).not.toContain(">토론방 신청 목록<");
+    expect(html).not.toContain(">카테고리 관리<");
   });
 
-  it("카테고리 경로에서는 카테고리 관리만 현재 메뉴로 표시한다", () => {
-    const html = renderToStaticMarkup(
-      <AdminShell activeRoute="/admin/chat/categories" permissions={["CHAT_ADMIN"]} role="ADMIN">
-        <p>content</p>
-      </AdminShell>,
-    );
-
-    expect(html).toMatch(
-      /aria-current="page" class="civic-admin-nav-link civic-admin-nav-sub-link" href="\/admin\/chat\/categories"/u,
-    );
-    expect(html).not.toMatch(
-      /aria-current="page" class="civic-admin-nav-link civic-admin-nav-sub-link" href="\/admin\/chat"/u,
-    );
+  it("토론방 운영 섹션 전환은 워크스페이스 상단 탭으로 제공한다", () => {
+    expect(isSectionActive("/admin/chat", "/admin/chat")).toBe(true);
+    expect(isSectionActive("/admin/chat/statistics", "/admin/chat")).toBe(true);
+    expect(isSectionActive("/admin/chat/requests", "/admin/chat")).toBe(false);
+    expect(isSectionActive("/admin/chat/requests/detail", "/admin/chat/requests")).toBe(true);
+    expect(isSectionActive("/admin/chat/categories", "/admin/chat/categories")).toBe(true);
   });
 
   it("토론방 생성 요청 목록은 취소 필터와 고정된 공개·참여 방식을 표시하지 않는다", () => {
@@ -151,8 +141,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain(">승인 대기</button>");
     expect(html).toContain(">승인</button>");
     expect(html).toContain(">반려</button>");
-    expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
-    expect(html).not.toContain('href="/admin/chat/categories"');
+    expect(html).toContain('aria-label="토론방 운영 섹션"');
     expect(html).not.toContain('href="/admin/chat/export"');
     expect(html).not.toContain(">취소</button>");
     expect(html).not.toContain("공개·참여 방식");
@@ -168,9 +157,7 @@ describe("latest Wire Flow shared product UI", () => {
 
     expect(CHAT_REQUEST_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
       "토론방 이름",
-      "신청자",
       "요청 시각",
-      "상태",
     ]);
     expect(html).toContain('data-wireflow-layout="admin-chat-request-console"');
     expect(html).toContain('aria-label="개설 신청 목록"');
@@ -190,7 +177,7 @@ describe("latest Wire Flow shared product UI", () => {
 
       const html = renderToStaticMarkup(<AdminChatRequestScreen query={{}} screen={screen} />);
 
-      expect(html).toContain(">토론방 생성 요청 검토</h1>");
+      expect(html).toContain(">토론방 운영</h1>");
       expect(html).toContain('data-wireflow-layout="admin-chat-request-console"');
       expect(html).toContain('aria-label="토론방 생성 신청 표"');
       expect(html).toContain('aria-label="신청 상세"');
@@ -198,17 +185,16 @@ describe("latest Wire Flow shared product UI", () => {
     },
   );
 
-  it("카테고리 화면은 별도 채팅 운영 탭을 중복 노출하지 않는다", () => {
+  it("카테고리 화면은 별도 토론방 운영 탭을 중복 노출하지 않는다", () => {
     const categoryScreen = screenRegistry.find((screen) => screen.id === "A-CHAT-007");
     if (!categoryScreen) throw new Error("A-CHAT-007 missing");
 
     const html = renderToStaticMarkup(<AdminRoomCategoryScreen screen={categoryScreen} />);
 
-    expect(html).toContain("토론방 카테고리 관리");
+    expect(html).toContain(">토론방 운영</h1>");
     expect(html).toContain("토론방 이름 검색");
-    expect(html).not.toContain(">검색</button>");
-    expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
-    expect(html).not.toContain('href="/admin/chat/requests"');
+    expect(html).toContain('class="console-search-button"');
+    expect(html).toContain('aria-label="토론방 운영 섹션"');
     expect(html).not.toContain('href="/admin/chat/export"');
   });
 
@@ -242,14 +228,7 @@ describe("latest Wire Flow shared product UI", () => {
   });
 
   it("과업 그리드 컬럼과 화면·경로 매핑을 유지한다", () => {
-    expect(TASK_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
-      "제목",
-      "상태",
-      "시작",
-      "마감",
-      "종료 유형",
-      "최근 변경",
-    ]);
+    expect(TASK_GRID_COLUMNS.map((column) => column.headerName)).toEqual(["제목", "상태"]);
     expect(taskWorkspaceTabForScreen("A-TASK-003")).toBe("overview");
     expect(taskWorkspaceTabForScreen("A-TASK-005")).toBe("results");
     expect(taskWorkspacePath({ editing: false, taskId: null, tab: "overview" })).toBe(

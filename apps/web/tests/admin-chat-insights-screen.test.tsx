@@ -13,10 +13,10 @@ import { screenRegistry } from "@/lib/screens/registry";
 
 describe("admin chat conversation insights", () => {
   it.each([
-    ["A-CHAT-001", "채팅 운영", "대화 분석"],
+    ["A-CHAT-001", "토론방 운영", "대화 분석"],
     ["A-CHAT-002", "토론방 상세", "대화 분석"],
     ["A-CHAT-008", "채팅 통계", "통계"],
-    ["A-CHAT-009", "채팅 운영", "대화 분석"],
+    ["A-CHAT-009", "토론방 운영", "대화 분석"],
   ])("%s 화면에서 방 선택 중심의 자동 분석 흐름을 제공한다", (screenId, title, activeTab) => {
     const screen = screenRegistry.find((candidate) => candidate.id === screenId);
     expect(screen?.status).toBe("FUNCTIONAL");
@@ -29,8 +29,8 @@ describe("admin chat conversation insights", () => {
     expect(html).toContain("운영할 토론방");
     expect(html).not.toContain("ACTIVE · CLOSED");
     expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
-    expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
-    expect(html).not.toContain('href="/admin/chat/categories"');
+    expect(html).not.toContain('aria-label="토론방 운영 메뉴"');
+    expect(html).toContain('aria-label="토론방 운영 섹션"');
     expect(html).toContain('aria-label="분석 보기 탭"');
     expect(html).toContain(
       `<button aria-selected="true" class="console-tab" role="tab" type="button">${activeTab}</button>`,

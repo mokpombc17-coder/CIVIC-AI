@@ -1114,18 +1114,20 @@ export function DocumentWorkspace({
           onQueryChange?.({ query, page: 1 });
         }}
       >
-        <label>
-          <span className="sr-only">문서명 검색</span>
+        <div className="console-search-control">
+          <span aria-hidden="true" className="console-search-icon" />
           <input
+            aria-label="문서명 검색"
+            autoComplete="off"
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="문서명 검색..."
+            placeholder="문서명을 검색해 주세요."
             type="search"
             value={searchInput}
           />
-        </label>
-        <button className="civic-secondary-action" type="submit">
-          검색
-        </button>
+          <button className="console-search-button" type="submit">
+            검색
+          </button>
+        </div>
         <label>
           <span>처리 상태</span>
           <select
@@ -1495,26 +1497,30 @@ function DocumentRow({
         ) : null}
       </td>
       <td>
-        <select
-          aria-label={`${filename} 버전 선택`}
-          onChange={(event) => {
-            const nextVersionId = event.target.value;
-            setSelectedVersionId(nextVersionId);
-            onInspect(
-              document,
-              versions.find((version) => version.document_version_id === nextVersionId) ?? null,
-            );
-          }}
-          onClick={(event) => event.stopPropagation()}
-          onFocus={() => void loadVersions()}
-          value={selectedVersionId}
-        >
-          {displayVersions.map((version) => (
-            <option key={version.document_version_id} value={version.document_version_id}>
-              v{version.version_number}
-            </option>
-          ))}
-        </select>
+        {(activeVersion?.version_number ?? 1) <= 1 && displayVersions.length <= 1 ? (
+          <span className="civic-version-single">v{activeVersion?.version_number ?? 1}</span>
+        ) : (
+          <select
+            aria-label={`${filename} 버전 선택`}
+            onChange={(event) => {
+              const nextVersionId = event.target.value;
+              setSelectedVersionId(nextVersionId);
+              onInspect(
+                document,
+                versions.find((version) => version.document_version_id === nextVersionId) ?? null,
+              );
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onFocus={() => void loadVersions()}
+            value={selectedVersionId}
+          >
+            {displayVersions.map((version) => (
+              <option key={version.document_version_id} value={version.document_version_id}>
+                v{version.version_number}
+              </option>
+            ))}
+          </select>
+        )}
         {versionLoadMessage ? <small role="status">{versionLoadMessage}</small> : null}
       </td>
       <td>

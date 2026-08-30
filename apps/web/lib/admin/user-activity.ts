@@ -33,6 +33,7 @@ export type UserChatParticipation = Readonly<{
   roomName: string;
   roomStatus: string;
   messageCount: number;
+  lastMessageAt: string | null;
 }>;
 
 export type UserChatScanResult = Readonly<{
@@ -49,6 +50,7 @@ export type UserVoteParticipation = Readonly<{
   taskStatus: string;
   closedAt: string | null;
   submittedAt: string | null;
+  answerLabel: string | null;
 }>;
 
 export type UserVoteScanResult = Readonly<{
@@ -59,6 +61,56 @@ export type UserVoteScanResult = Readonly<{
   identifiersMissing: boolean;
   truncated: boolean;
 }>;
+
+export type AdminUserRagUsage = Readonly<{
+  totalQueries: number;
+  lastQueryAt: string | null;
+  recentQuestions: ReadonlyArray<Readonly<{ question: string; askedAt: string | null }>>;
+}>;
+
+export type UserRagUsageState =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "ready"; usage: AdminUserRagUsage }>
+  | Readonly<{ status: "forbidden" }>
+  | Readonly<{ status: "unavailable" }>;
+
+export async function loadUserRagUsage(
+  userId: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<UserRagUsageState> {
+  try {
+    const response = await request(
+      `/api/v1/rag/admin/user-query-stats/${encodeURIComponent(userId)}`,
+      { cache: "no-store" },
+    );
+    if (response.status === 401 || response.status === 403) return { status: "forbidden" };
+    if (!response.ok) return { status: "unavailable" };
+    const usage = readUserRagUsage(await response.json());
+    return usage ? { status: "ready", usage } : { status: "unavailable" };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export function readUserRagUsage(value: unknown): AdminUserRagUsage | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const total = record.total_queries;
+  if (typeof total !== "number" || !Number.isSafeInteger(total) || total < 0) return null;
+  const lastQueryAt = typeof record.last_query_at === "string" ? record.last_query_at : null;
+  const rawRecent = Array.isArray(record.recent_questions) ? record.recent_questions : [];
+  const recentQuestions: Array<Readonly<{ question: string; askedAt: string | null }>> = [];
+  for (const raw of rawRecent) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const item = raw as Record<string, unknown>;
+    if (typeof item.question !== "string" || item.question.length === 0) continue;
+    recentQuestions.push({
+      question: item.question,
+      askedAt: typeof item.asked_at === "string" ? item.asked_at : null,
+    });
+  }
+  return { totalQueries: total, lastQueryAt, recentQuestions };
+}
 
 export type ActivityScanState<T> =
   | Readonly<{ status: "idle" }>
@@ -116,14 +168,15 @@ export async function scanUserChatParticipation(
   let failedRooms = 0;
   let done = 0;
   for (const room of rooms) {
-    const count = await countUserMessages(room, userId, request);
-    if (count === null) failedRooms += 1;
-    else if (count > 0) {
+    const stats = await countUserMessages(room, userId, request);
+    if (stats === null) failedRooms += 1;
+    else if (stats.count > 0) {
       participations.push({
         roomId: room.roomId,
         roomName: room.name,
         roomStatus: room.status,
-        messageCount: count,
+        messageCount: stats.count,
+        lastMessageAt: stats.lastMessageAt,
       });
     }
     done += 1;
@@ -142,7 +195,7 @@ async function countUserMessages(
   room: AdminRoom,
   userId: string,
   request: typeof fetch,
-): Promise<number | null> {
+): Promise<Readonly<{ count: number; lastMessageAt: string | null }> | null> {
   const range = exportRangeForScan();
   try {
     const response = await request(
@@ -159,7 +212,13 @@ async function countUserMessages(
     if (!contentType.startsWith("application/zip")) return null;
     const bytes = await readConversationExportResponse(response);
     const parsed = await parseConversationExportArchive(bytes, { roomId: room.roomId, range });
-    return parsed.messages.filter((message) => message.userId === userId).length;
+    const mine = parsed.messages.filter((message) => message.userId === userId);
+    const lastMessageAt = mine.reduce<string | null>(
+      (latest, message) =>
+        latest === null || message.createdAt > latest ? message.createdAt : latest,
+      null,
+    );
+    return { count: mine.length, lastMessageAt };
   } catch {
     return null;
   }
@@ -247,6 +306,7 @@ async function findUserVoteInResultView(
             taskStatus: task.status,
             closedAt: task.closedAt,
             submittedAt: readSubmittedAt(record),
+            answerLabel: readAnswerLabel(record),
           },
           sawIdentifiers: true,
           sawLines: true,
@@ -283,6 +343,26 @@ export function readRespondentId(record: unknown): string | null {
   if (typeof record !== "object" || record === null) return null;
   const value = record as Record<string, unknown>;
   for (const key of RESPONDENT_ID_KEYS) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.length > 0) return candidate;
+  }
+  return null;
+}
+
+const ANSWER_KEYS = [
+  "option_content",
+  "optionContent",
+  "selected_option_content",
+  "selectedOptionContent",
+  "answer",
+  "answer_content",
+  "choice",
+] as const;
+
+export function readAnswerLabel(record: unknown): string | null {
+  if (typeof record !== "object" || record === null) return null;
+  const value = record as Record<string, unknown>;
+  for (const key of ANSWER_KEYS) {
     const candidate = value[key];
     if (typeof candidate === "string" && candidate.length > 0) return candidate;
   }

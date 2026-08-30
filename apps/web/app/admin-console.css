@@ -7,11 +7,21 @@
 
 .console-workspace {
   display: grid;
-  grid-template-columns: minmax(340px, 5fr) minmax(420px, 7fr);
-  gap: 16px;
+  grid-template-columns: minmax(280px, 2fr) minmax(420px, 3fr);
+  gap: 0;
   align-items: start;
   width: 100%;
   min-width: 0;
+}
+
+/* 목록·상세는 카드로 감싸지 않고 중앙 세퍼레이터로만 나눈다.
+   stretch로 두 컬럼 높이를 맞춰 구분선이 중간에서 끊기지 않게 한다. */
+.console-workspace:not(.is-single) {
+  align-items: stretch;
+}
+
+.console-workspace:not(.is-single) > .console-pane + .console-pane {
+  border-left: 1px solid var(--wf-line);
 }
 
 .console-workspace.is-single {
@@ -22,15 +32,20 @@
   .console-workspace {
     grid-template-columns: 1fr;
   }
+
+  .console-workspace:not(.is-single) > .console-pane + .console-pane {
+    border-left: none;
+    border-top: 1px solid var(--wf-line);
+  }
 }
 
 .console-pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #fff;
-  border: 1px solid var(--wf-line);
-  border-radius: var(--wf-radius);
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .console-pane-header {
@@ -83,36 +98,33 @@
   min-width: 0;
 }
 
+/* vote의 filterPills와 동일한 알약형 필터 */
 .console-filter-group {
-  display: inline-flex;
+  display: flex;
   flex-direction: row;
-  gap: 0;
-  border: 1px solid var(--wf-line);
-  border-radius: var(--wf-radius);
-  overflow: hidden;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .console-filter-group button {
+  min-width: 50px;
+  height: 40px;
   margin: 0;
-  padding: 7px 12px;
-  border: none;
-  border-right: 1px solid var(--wf-line);
-  border-radius: 0;
+  border: 1px solid #8a949e;
+  border-radius: 999px;
   background: #fff;
-  color: var(--wf-muted);
+  padding: 0 15px;
+  color: var(--wf-ink);
   font-size: 13px;
+  font-weight: 700;
   font-family: var(--wf-font);
   cursor: pointer;
 }
 
-.console-filter-group button:last-child {
-  border-right: none;
-}
-
 .console-filter-group button[aria-pressed="true"] {
+  border-color: var(--wf-blue);
   background: var(--wf-blue-soft);
   color: var(--wf-blue-dark);
-  font-weight: 700;
 }
 
 .console-tabs {
@@ -317,4 +329,323 @@
 
 .console-status.is-error {
   color: var(--wf-danger);
+}
+
+/* ---- Internal scrolling: long panes scroll themselves, not the page ---- */
+
+@media (min-width: 1101px) {
+  .console-workspace:not(.is-single) > .console-pane {
+    max-height: calc(100vh - 150px);
+  }
+
+  .console-workspace:not(.is-single) > .console-pane > .console-pane-body {
+    overflow-y: auto;
+    min-height: 0;
+  }
+}
+
+/* ---- RAG document table: uniform row height, quiet version cell ---- */
+
+[data-wireflow-layout="rag-workspace"] .civic-table-scroll {
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-document-ledger table td {
+  vertical-align: middle;
+  height: 56px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy strong,
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.civic-version-single {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--wf-line);
+  border-radius: 999px;
+  color: var(--wf-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+
+/* ---- Admin sidebar color ---- */
+
+.civic-admin-sidebar {
+  background: #053b73;
+}
+
+/* ---- RAG workspace: drop the outer card, panel-per-column like other screens ---- */
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  gap: 0;
+}
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > .civic-folder-tree {
+  border: none;
+  border-right: 1px solid var(--wf-line);
+  border-radius: 0;
+  background: #f4f7fb;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ---- Admin home metric cards double as domain shortcuts ---- */
+
+.civic-admin-metric-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.civic-admin-metric-link:hover strong {
+  color: var(--wf-blue-dark);
+}
+
+/* ---- Admin home action columns ---- */
+
+.civic-home-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .civic-home-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.civic-home-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+
+/* ---- Admin home unified section pattern ---- */
+
+.civic-home-section {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  min-width: 0;
+}
+
+.civic-home-section-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wf-line);
+}
+
+.civic-home-section-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wf-ink);
+}
+
+.civic-home-section-action {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wf-blue-dark);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.civic-home-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.civic-home-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  min-width: 0;
+}
+
+.civic-home-row + .civic-home-row {
+  border-top: 1px solid var(--wf-line);
+}
+
+.civic-home-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.civic-home-row-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wf-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.civic-home-row-copy small {
+  font-size: 12px;
+  color: var(--wf-muted);
+}
+
+.civic-home-row > a {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wf-blue-dark);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.civic-home-empty {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--wf-muted);
+}
+
+/* 진행 중 작업 블록도 동일한 카드 톤으로 맞춘다. */
+.civic-admin-home .civic-current-operations {
+  background: #fff;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  box-shadow: none;
+  padding: 0;
+}
+
+.civic-admin-home .civic-current-operations > header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wf-line);
+  margin: 0;
+}
+
+.civic-admin-home .civic-current-operations > header h2 {
+  font-size: 14px;
+}
+
+.civic-admin-home .civic-current-operations > header small {
+  display: none;
+}
+
+.civic-admin-home .civic-current-operations > ul {
+  margin: 0;
+  padding: 4px 16px 12px;
+}
+
+/* ---- Unified search control (vote 검색 UI와 동일한 패턴) ---- */
+
+.console-search-control {
+  display: flex;
+  height: 48px;
+  flex: 1 1 220px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 6px;
+  background: #fff;
+  min-width: 0;
+}
+
+.console-search-control:focus-within {
+  border-color: var(--wf-blue);
+}
+
+.console-search-icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-left: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2359616b' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4.3-4.3'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.console-search-control input {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--wf-ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.console-search-control input:focus-visible {
+  outline: 0;
+}
+
+.console-search-control input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.console-search-control input::placeholder {
+  color: #8a949e;
+}
+
+.console-search-button {
+  min-width: 56px;
+  height: 100%;
+  flex: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--wf-blue);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--wf-font);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 12px;
 }

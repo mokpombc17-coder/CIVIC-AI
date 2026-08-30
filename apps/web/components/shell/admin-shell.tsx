@@ -23,7 +23,7 @@ const adminNavigation = [
     access: "HIGHEST_ADMIN",
   },
   { type: "link", href: "/admin/rag" as Route, label: "문서 관리", access: "RAG_ADMIN" },
-  { type: "chat", label: "채팅 운영", access: "CHAT_ADMIN" },
+  { type: "link", href: "/admin/chat" as Route, label: "토론방 운영", access: "CHAT_ADMIN" },
   { type: "link", href: "/admin/tasks" as Route, label: "과업 관리", access: "VOTE_ADMIN" },
   {
     type: "link",
@@ -59,43 +59,16 @@ export function AdminShell({
           <small>ADMIN</small>
         </Link>
         <nav aria-label="관리자 주요 메뉴" className="civic-admin-nav">
-          {navigation.map((item) =>
-            item.type === "chat" ? (
-              <div className="civic-admin-nav-group" key="chat-operations">
-                <span className="civic-admin-nav-group-label">{item.label}</span>
-                <Link
-                  aria-current={isChatRequestActive(currentRoute) ? "page" : undefined}
-                  className="civic-admin-nav-link civic-admin-nav-sub-link"
-                  href="/admin/chat/requests"
-                >
-                  <span>토론방 신청 목록</span>
-                </Link>
-                <Link
-                  aria-current={isChatManagementActive(currentRoute) ? "page" : undefined}
-                  className="civic-admin-nav-link civic-admin-nav-sub-link"
-                  href="/admin/chat"
-                >
-                  <span>토론방 관리</span>
-                </Link>
-                <Link
-                  aria-current={isChatCategoryActive(currentRoute) ? "page" : undefined}
-                  className="civic-admin-nav-link civic-admin-nav-sub-link"
-                  href="/admin/chat/categories"
-                >
-                  <span>카테고리 관리</span>
-                </Link>
-              </div>
-            ) : (
-              <Link
-                aria-current={isActive(currentRoute, item.href) ? "page" : undefined}
-                className="civic-admin-nav-link"
-                href={item.href}
-                key={item.href}
-              >
-                <span>{item.label}</span>
-              </Link>
-            ),
-          )}
+          {navigation.map((item) => (
+            <Link
+              aria-current={isActive(currentRoute, item.href) ? "page" : undefined}
+              className="civic-admin-nav-link"
+              href={item.href}
+              key={item.href}
+            >
+              <span>{item.label}</span>
+            </Link>
+          ))}
         </nav>
         <LogoutButton />
       </aside>
@@ -110,22 +83,4 @@ export function AdminShell({
 
 function isActive(activeRoute: string, href: string): boolean {
   return activeRoute === href || (href !== "/admin" && activeRoute.startsWith(`${href}/`));
-}
-
-function isChatRequestActive(activeRoute: string): boolean {
-  return activeRoute === "/admin/chat/requests" || activeRoute.startsWith("/admin/chat/requests/");
-}
-
-function isChatCategoryActive(activeRoute: string): boolean {
-  return (
-    activeRoute === "/admin/chat/categories" || activeRoute.startsWith("/admin/chat/categories/")
-  );
-}
-
-function isChatManagementActive(activeRoute: string): boolean {
-  return (
-    (activeRoute === "/admin/chat" || activeRoute.startsWith("/admin/chat/")) &&
-    !isChatRequestActive(activeRoute) &&
-    !isChatCategoryActive(activeRoute)
-  );
 }

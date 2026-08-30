@@ -367,7 +367,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   }
 
   return (
-    <ScreenFrame screen={screen} title="토론방 카테고리 관리">
+    <ScreenFrame screen={screen}>
       <AdminChatOperationsLayout>
         <div
           className="civic-admin-workbench civic-domain-console"
@@ -375,7 +375,6 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         >
           <section className="civic-domain-form-section">
             <header>
-              <span>ROOM CATEGORY</span>
               <h2>카테고리 목록</h2>
             </header>
             <form className="civic-category-create" onSubmit={createCategory}>
@@ -408,16 +407,18 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
           <section className="civic-domain-form-section">
             <header>
-              <span>CHAT ROOMS</span>
               <h2>기존 토론방 카테고리 교체</h2>
             </header>
-            <p className="civic-boundary-copy">
-              현재 운영 중인 토론방을 검색하고 카테고리를 변경할 수 있습니다.
-            </p>
-            <div className="civic-category-room-search">
-              <label className="civic-field">
-                <span>토론방 이름 검색</span>
+            <form
+              className="civic-category-room-search console-toolbar"
+              onSubmit={(event) => event.preventDefault()}
+              role="search"
+            >
+              <div className="console-search-control">
+                <span aria-hidden="true" className="console-search-icon" />
                 <input
+                  aria-label="토론방 이름 검색"
+                  autoComplete="off"
                   disabled={pending}
                   maxLength={100}
                   onChange={(event) => {
@@ -427,12 +428,15 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                     setRoomHasNext(false);
                     setRoomsLoading(true);
                   }}
-                  placeholder="검색어 입력…"
+                  placeholder="토론방 이름을 검색해 주세요."
                   type="search"
                   value={roomQuery}
                 />
-              </label>
-            </div>
+                <button className="console-search-button" disabled={pending} type="submit">
+                  검색
+                </button>
+              </div>
+            </form>
             <ListedRoomTable
               categoryNamesById={categoryNamesById}
               items={visibleListedRooms}

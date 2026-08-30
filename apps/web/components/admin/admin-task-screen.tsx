@@ -9,6 +9,7 @@ import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/
 import {
   ConsoleEmpty,
   ConsolePane,
+  ConsoleSearchControl,
   ConsoleStatus,
   ConsoleTabs,
   ConsoleWorkspace,
@@ -60,29 +61,12 @@ export function taskWorkspacePath(view: TaskWorkspaceView): string {
   return `${base}?taskId=${encodeURIComponent(view.taskId)}`;
 }
 
+// 시작·마감·종료 유형·최근 변경은 상세 개요에 그대로 나오므로 목록에서 뺀다.
 export const TASK_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<TaskSummary>> = [
   { field: "title", headerName: "제목", flex: 2, minWidth: 160 },
   {
     headerName: "상태",
     valueGetter: (params) => (params.data ? taskStatusLabel(params.data.status) : ""),
-  },
-  {
-    headerName: "시작",
-    valueGetter: (params) =>
-      formatDate(params.data?.openedAt ?? params.data?.schedule?.opensAt ?? null),
-  },
-  {
-    headerName: "마감",
-    valueGetter: (params) =>
-      formatDate(params.data?.schedule?.closesAt ?? params.data?.closedAt ?? null),
-  },
-  {
-    headerName: "종료 유형",
-    valueGetter: (params) => (params.data ? closureLabel(params.data.closureType) : ""),
-  },
-  {
-    headerName: "최근 변경",
-    valueGetter: (params) => formatDate(params.data?.updatedAt ?? null),
   },
 ];
 
@@ -227,17 +211,19 @@ function AdminTaskWorkspace({
         subtitle={`${filtered.length}건 표시`}
         title="과업 목록"
       >
-        <div className="console-toolbar">
-          <input
-            aria-label="과업 제목 검색"
-            autoComplete="off"
+        <form
+          className="console-toolbar"
+          onSubmit={(event) => event.preventDefault()}
+          role="search"
+        >
+          <ConsoleSearchControl
+            ariaLabel="과업 제목 검색"
             name="task-query"
-            onChange={(event) => setKeyword(event.currentTarget.value)}
-            placeholder="과업 제목 입력…"
-            type="search"
+            onChange={setKeyword}
+            placeholder="과업 제목을 검색해 주세요."
             value={keyword}
           />
-        </div>
+        </form>
         <div aria-label="과업 상태" className="console-filter-group" role="group">
           {(["ALL", "DRAFT", "SCHEDULED", "OPEN", "CLOSED"] as const).map((status) => (
             <button
@@ -434,7 +420,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           <FieldError id="task-title-error" message={adminFieldError(problem, "title")} />
         </label>
         <label className="civic-field">
-          <span>관리자 설명</span>
+          <span>상황 또는 사건</span>
           <textarea
             disabled={pending}
             onChange={(event) => setDescription(event.currentTarget.value)}
@@ -458,15 +444,6 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           <FieldError
             id="task-question-error"
             message={adminFieldError(problem, "question.content")}
-          />
-        </label>
-        <label className="civic-field">
-          <span>질문 설명</span>
-          <textarea
-            disabled={pending}
-            onChange={(event) => setQuestionDescription(event.currentTarget.value)}
-            rows={3}
-            value={questionDescription}
           />
         </label>
       </section>
