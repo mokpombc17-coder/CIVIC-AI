@@ -5584,44 +5584,20 @@ body {
   background: var(--wf-blue-soft);
 }
 
-/* Participant RAG: calm one-line preparation state, followed by the provider answer stream. */
-[data-wireflow-screen^="U-RAG"] .civic-rag-answer.is-live {
-  width: min(660px, 100%);
+/* Participant RAG: a compact preparation label that becomes the same answer bubble after streaming starts. */
+[data-wireflow-screen^="U-RAG"] .civic-rag-answer.is-live.is-loading-label-only {
+  width: fit-content;
   max-width: 100%;
-  border-color: #b8cae2;
-  background: #f7f9fc;
-  padding: 0;
-  overflow: hidden;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-answer.is-live.is-streaming-answer {
-  border-color: var(--wf-line);
-  background: #eef1f5;
-  color: var(--wf-ink);
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-live-progress {
   display: flex;
-  min-height: 56px;
+  width: fit-content;
   align-items: center;
-  gap: 10px;
-  padding: 16px;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-loading-orb {
-  width: 9px;
-  height: 9px;
-  flex: none;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, #fff 0 10%, #91bce8 38%, #367fca 72%);
-  box-shadow:
-    0 0 0 4px rgb(69 137 205 / 8%),
-    0 0 12px rgb(69 137 205 / 24%);
-  animation: civic-rag-loading-glow 1.9s ease-in-out infinite;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-loading-label {
-  color: #40566d;
+  color: #526475;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.5;
@@ -5631,72 +5607,28 @@ body {
   [data-wireflow-screen^="U-RAG"] .civic-rag-loading-label {
     background: linear-gradient(
       100deg,
-      #40566d 0%,
-      #40566d 35%,
-      #79a9d7 47%,
-      #c9ddf0 51%,
-      #79a9d7 55%,
-      #40566d 67%,
-      #40566d 100%
+      #526475 0%,
+      #526475 39%,
+      #6f8192 48%,
+      #7d8e9e 51%,
+      #6f8192 54%,
+      #526475 63%,
+      #526475 100%
     );
     background-clip: text;
-    background-size: 240% 100%;
+    background-size: 220% 100%;
     color: transparent;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: civic-rag-loading-shimmer 2.4s ease-in-out infinite;
+    animation: civic-rag-loading-shimmer 4.8s ease-in-out infinite;
   }
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-streamed-answer {
-  position: relative;
-  display: flow-root;
-  background: transparent;
-  padding: 16px;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-stream-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 12px;
-  color: #245688;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-stream-label > span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #2583e3;
-  box-shadow: 0 0 0 4px rgb(37 131 227 / 12%);
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-stream-starting {
-  display: inline;
+  display: block;
   margin: 0;
   font-size: 13px;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-stream-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  margin-left: 3px;
-  background: #277fd5;
-  vertical-align: -0.12em;
-  animation: civic-rag-cursor-blink 850ms steps(1) infinite;
-}
-
-@keyframes civic-rag-loading-glow {
-  50% {
-    opacity: 0.72;
-    box-shadow:
-      0 0 0 5px rgb(69 137 205 / 5%),
-      0 0 16px rgb(69 137 205 / 18%);
-  }
+  white-space: nowrap;
 }
 
 @keyframes civic-rag-loading-shimmer {
@@ -5709,28 +5641,14 @@ body {
   }
 }
 
-@keyframes civic-rag-cursor-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-@media (max-width: 560px) {
-  [data-wireflow-screen^="U-RAG"] .civic-rag-live-progress {
-    padding: 14px 12px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  [data-wireflow-screen^="U-RAG"] .civic-rag-loading-orb,
-  [data-wireflow-screen^="U-RAG"] .civic-rag-loading-label,
-  [data-wireflow-screen^="U-RAG"] .civic-rag-stream-cursor {
+  [data-wireflow-screen^="U-RAG"] .civic-rag-loading-label {
     animation: none;
   }
 
   [data-wireflow-screen^="U-RAG"] .civic-rag-loading-label {
     background: none;
-    color: #40566d;
+    color: #526475;
     -webkit-text-fill-color: currentColor;
   }
 }
@@ -6681,19 +6599,6 @@ body {
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer h3 {
   font-size: 15px;
   line-height: 23.25px;
-}
-
-[data-wireflow-screen="U-RAG-001"] .civic-rag-answer.is-live {
-  width: 100%;
-  max-width: 100%;
-  min-height: 0;
-  padding: 0;
-}
-
-[data-wireflow-screen="U-RAG-001"] .civic-rag-answer.is-live.is-streaming-answer {
-  border-color: #ccd1d6;
-  background: #edf2f7;
-  color: #1f2124;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-citations {

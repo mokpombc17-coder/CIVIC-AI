@@ -691,6 +691,7 @@ export function RagMessage({
   const showStreamingAnswer = liveJob
     ? shouldShowRagStreamingAnswer(liveJob.progress.stage, liveJob.streamedAnswer)
     : false;
+  const showOnlyLoadingLabel = Boolean(liveJob && liveJob.streamedAnswer.length === 0);
   return (
     <article className="civic-rag-exchange">
       <div className="civic-rag-question-row">
@@ -708,25 +709,19 @@ export function RagMessage({
           {message.answeredAt ? <time className="civic-rag-time">{message.answeredAt}</time> : null}
         </header>
         <div
-          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}`}
+          aria-busy={liveJob ? true : undefined}
+          aria-label={liveJob && showStreamingAnswer ? "실시간 답변" : undefined}
+          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}${showOnlyLoadingLabel ? " is-loading-label-only" : ""}`}
         >
           {liveJob ? (
             showStreamingAnswer ? (
-              <div aria-busy="true" aria-label="실시간 답변" className="civic-rag-streamed-answer">
-                {liveJob.streamedAnswer ? (
-                  <>
-                    <span className="civic-rag-stream-label">
-                      <span aria-hidden="true" /> 실시간 답변
-                    </span>
-                    <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
-                    <span aria-hidden="true" className="civic-rag-stream-cursor" />
-                  </>
-                ) : (
-                  <p className="civic-rag-stream-starting civic-rag-loading-label">
-                    답변을 작성하는 중...
-                  </p>
-                )}
-              </div>
+              liveJob.streamedAnswer ? (
+                <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+              ) : (
+                <p className="civic-rag-stream-starting civic-rag-loading-label">
+                  답변을 작성하는 중...
+                </p>
+              )
             ) : (
               <RagLiveProgress liveJob={liveJob} />
             )
@@ -836,7 +831,6 @@ export function ragLoadingLabel(stage: RagProgressStage): string {
 export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
   return (
     <section aria-label="RAG 답변 생성 중" className="civic-rag-live-progress" role="status">
-      <span aria-hidden="true" className="civic-rag-loading-orb" />
       <strong aria-live="polite" className="civic-rag-loading-label">
         {ragLoadingLabel(liveJob.progress.stage)}
       </strong>
