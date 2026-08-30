@@ -1225,7 +1225,7 @@ export function DocumentWorkspace({
           onClick={() => submitBulk({ action: "SET_SEARCH_ENABLED", searchEnabled: false })}
           type="button"
         >
-          검색 제외
+          검색에서 제외
         </button>
         <select
           aria-label="선택 문서 이동 대상 폴더"
@@ -1374,6 +1374,10 @@ function documentStatusQuery(status: DocumentStatusFilter): RagDocumentListQuery
   return "";
 }
 
+export function searchEnabledFromExcluded(excluded: boolean): boolean {
+  return !excluded;
+}
+
 type DocumentStatusFilter = "ALL" | "READY" | "PROCESSING" | "FAILED";
 
 export function filterRagDocuments(
@@ -1484,7 +1488,7 @@ function DocumentRow({
           </span>
         )}
         {document.search_enabled === false ? (
-          <span className="civic-search-toggle">검색 제외됨</span>
+          <span className="civic-search-toggle">검색에서 제외</span>
         ) : null}
       </td>
       <td>
@@ -1545,18 +1549,18 @@ function DocumentRow({
               </button>
               <label className="civic-search-toggle">
                 <input
-                  aria-label={`${filename} 검색 사용 여부`}
-                  checked={document.search_enabled !== false}
+                  aria-label={`${filename} 검색에서 제외`}
+                  checked={document.search_enabled === false}
                   onChange={(event) =>
                     void onBulk?.({
                       action: "SET_SEARCH_ENABLED",
                       documentIds: [document.document_id],
-                      searchEnabled: event.target.checked,
+                      searchEnabled: searchEnabledFromExcluded(event.target.checked),
                     })
                   }
                   type="checkbox"
                 />
-                <span>검색 사용</span>
+                <span>검색에서 제외</span>
               </label>
               <Link
                 className="is-danger"

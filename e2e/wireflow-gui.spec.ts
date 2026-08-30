@@ -872,6 +872,14 @@ test("A-RAG-001은 문서 수를 선택 폴더 헤더 우측에 표시한다", a
   const folderDocumentCount = workspaceHeading.locator(".civic-rag-folder-document-count");
   await expect(folderDocumentCount).toHaveText("1개 문서");
   await expect(page.locator(".civic-ledger-summary")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "검색에서 제외", exact: true })).toBeVisible();
+  await expect(page.getByText("검색 사용", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("검색 제외", { exact: true })).toHaveCount(0);
+  const documentMenu = page
+    .getByRole("row", { name: /2026_복지정책_기본계획\.pdf/u })
+    .locator('summary[aria-label$="추가 작업"]');
+  await documentMenu.click();
+  await expect(page.getByRole("checkbox", { name: /검색에서 제외$/u })).not.toBeChecked();
   const workspaceHeadingBox = await workspaceHeading.boundingBox();
   const folderDocumentCountBox = await folderDocumentCount.boundingBox();
   if (!workspaceHeadingBox || !folderDocumentCountBox) {

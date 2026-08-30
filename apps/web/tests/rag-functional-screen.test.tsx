@@ -25,6 +25,7 @@ import {
   requestRagBulkAction,
   successfulBulkJobId,
   shouldPollRagJob,
+  searchEnabledFromExcluded,
   firstQueryValue,
   queryValues,
   jobPanelKey,
@@ -636,6 +637,11 @@ describe("9 functional RAG screens", () => {
     );
   });
 
+  it("검색에서 제외 체크 상태를 기존 searchEnabled API 값으로 변환한다", () => {
+    expect(searchEnabledFromExcluded(true)).toBe(false);
+    expect(searchEnabledFromExcluded(false)).toBe(true);
+  });
+
   it("문서 목록은 UUID 대신 등록자 이메일·등록일·페이지 수·파일 크기를 표시한다", () => {
     const documentId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const creatorId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
@@ -650,6 +656,7 @@ describe("9 functional RAG screens", () => {
             created_by: creatorId,
             created_at: "2026-08-21T01:02:03Z",
             deleted: false,
+            search_enabled: false,
             active_version: {
               document_version_id: "20000000-0000-4000-8000-000000000001",
               document_id: documentId,
@@ -683,6 +690,9 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("4 KB");
     expect(html).toContain("미리보기");
     expect(html).toContain("문서 삭제");
+    expect(renderedText(html).match(/검색에서 제외/g)).toHaveLength(3);
+    expect(html).not.toContain("검색 사용");
+    expect(html).not.toContain("검색 제외");
     expect(html).not.toContain("문서 목록 자세히 보기");
     expect(html).toContain(
       "/admin/rag/delete?folderId=00000000-0000-4000-8000-000000000002&amp;documentId=640af5c5-d302-4c32-97ca-c9db40ed22e5",
