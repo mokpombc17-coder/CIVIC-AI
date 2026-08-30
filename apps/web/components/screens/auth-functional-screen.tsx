@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { AuthFormCard, AuthInfo } from "@/components/wireflow/auth-layouts";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
 
@@ -518,7 +519,9 @@ function renderFields(
             setDraft((v) => ({ ...v, answerDetail: value as SignupDraft["answerDetail"] }))
           }
         />
-        <p className="civic-help">투표·AI 답변 품질을 맞추는 데 사용하는 설정입니다.</p>
+        <p className="civic-help">
+          계정 생성 시 저장되는 서비스 설정입니다. Vote 설문은 로그인 후 별도로 진행합니다.
+        </p>
       </>
     );
   }
@@ -809,7 +812,7 @@ function authTitle(id: string): string {
     {
       "AUTH-001": "로그인",
       "AUTH-002": "계정 정보",
-      "AUTH-003": "개인정보·설문 입력",
+      "AUTH-003": "서비스 설정",
       "AUTH-004": "필수 동의 및 가입 확인",
       "AUTH-005": "이메일 인증",
       "AUTH-006": "이메일 인증",
@@ -824,7 +827,7 @@ function authTitle(id: string): string {
 function authCardTitle(id: string): string {
   if (id === "AUTH-001") return "계정 정보";
   if (id === "AUTH-002") return "필수 입력";
-  if (id === "AUTH-003") return "응답 설정";
+  if (id === "AUTH-003") return "AI 응답 설정";
   if (id === "AUTH-004") return "필수 동의 항목";
   if (id === "AUTH-005") return "인증 코드 입력";
   if (id === "AUTH-006") return "인증 대기";
@@ -1132,7 +1135,31 @@ async function redirectToRoleHome(returnTo: string | null): Promise<void> {
     role?: unknown;
     must_change_password?: unknown;
   };
-  location.assign(authenticatedDestination(currentUser, returnTo));
+  location.assign(await authenticatedPostLoginDestination(currentUser, returnTo));
+}
+
+export async function authenticatedPostLoginDestination(
+  currentUser: Readonly<{ role?: unknown; must_change_password?: unknown }>,
+  returnTo: string | null,
+  request: typeof fetch = authenticatedFetch,
+): Promise<string> {
+  const defaultDestination = authenticatedDestination(currentUser, returnTo);
+  if (currentUser.must_change_password === true || currentUser.role !== "PARTICIPANT") {
+    return defaultDestination;
+  }
+  try {
+    const response = await request("/api/v1/me/surveys/current", { cache: "no-store" });
+    if (!response.ok) return defaultDestination;
+    const survey = (await response.json()) as {
+      submitted?: unknown;
+      eligibility?: Readonly<{ surveyRequirement?: unknown }>;
+    };
+    return survey.submitted === false && survey.eligibility?.surveyRequirement === "REQUIRED"
+      ? "/mypage/survey"
+      : defaultDestination;
+  } catch {
+    return defaultDestination;
+  }
 }
 
 export function authenticatedDestination(

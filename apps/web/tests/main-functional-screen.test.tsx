@@ -29,7 +29,6 @@ import {
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
 import {
-  buildSurveySections,
   loadAccountProfile,
   normalizeTwoFactorCode,
   passwordConfirmationMatches,
@@ -40,6 +39,7 @@ import {
   authStepAfterPopState,
   authCompletionDestination,
   authenticatedDestination,
+  authenticatedPostLoginDestination,
   duplicateEmailAccountState,
   isDeactivatedAccountError,
   isPasswordResetEmail,
@@ -583,6 +583,59 @@ describe("25 functional Main/Auth screens", () => {
     );
   });
 
+  it("로그인한 참여자의 Vote 설문이 필수 미제출이면 설문 화면을 우선한다", async () => {
+    const requiredSurvey = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        submitted: false,
+        eligibility: { surveyRequirement: "REQUIRED" },
+      }),
+    );
+    const completedSurvey = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        submitted: true,
+        eligibility: { surveyRequirement: "SATISFIED" },
+      }),
+    );
+
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        "/rag",
+        requiredSurvey,
+      ),
+    ).resolves.toBe("/mypage/survey");
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        null,
+        completedSurvey,
+      ),
+    ).resolves.toBe("/home");
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        "/rag",
+        completedSurvey,
+      ),
+    ).resolves.toBe("/rag");
+    expect(requiredSurvey).toHaveBeenCalledWith("/api/v1/me/surveys/current", {
+      cache: "no-store",
+    });
+  });
+
+  it("Vote 조회 장애는 로그인 완료를 막지 않고 기본 역할 홈으로 폴백한다", async () => {
+    const unavailableVote = vi.fn<typeof fetch>(async () =>
+      Response.json({ code: "SERVICE_UNAVAILABLE" }, { status: 503 }),
+    );
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        null,
+        unavailableVote,
+      ),
+    ).resolves.toBe("/home");
+  });
+
   it("등록된 인증 경로를 새로 열어도 2FA 흐름을 복구한다", () => {
     expect(verificationKindFromSearch("?kind=two-factor&returnTo=%2Frag")).toBe("TWO_FACTOR");
     expect(verificationKindFromSearch("")).toBe("SIGNUP");
@@ -832,7 +885,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(outage).toContain('href="/home"');
   });
 
-  it("가입·계정 화면은 고정 정책의 비민감 2문항과 두 필수 동의만 설명한다", () => {
+  it("가입 단계는 Vote 설문을 계정 설정으로 오인하지 않고 두 필수 동의만 설명한다", () => {
     for (const id of ["AUTH-003", "AUTH-004", "U-ACCOUNT-002"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -921,8 +974,8 @@ describe("25 functional Main/Auth screens", () => {
 
     const survey = renderAccount("U-ACCOUNT-003");
     expect(survey).toContain('data-wireflow-layout="account-survey"');
-    expect(survey).toContain("가입 시 제출한 설문입니다.");
-    expect(survey).toContain("서비스 설정");
+    expect(survey).toContain("Vote 서버에서 현재 설문을 불러오는 중입니다");
+    expect(survey).not.toContain("가입 시 제출한 설문입니다.");
 
     const deactivate = renderAccount("U-ACCOUNT-004");
     expect(deactivate).toContain('data-wireflow-layout="account-deactivate"');
@@ -930,32 +983,6 @@ describe("25 functional Main/Auth screens", () => {
     expect(deactivate).toContain('aria-modal="true"');
     expect(deactivate).toContain("계정을 비활성화할까요?");
     expect(deactivate).toContain("계정 유지");
-  });
-
-  it("확장 설문 응답이 있으면 Figma의 네 그룹으로 읽기 전용 표시한다", () => {
-    const sections = buildSurveySections({
-      user_id: "participant-1",
-      email: "participant@example.com",
-      role: "PARTICIPANT",
-      account_state: "ACTIVE",
-      preferred_language: "ko",
-      rag_answer_detail: "balanced",
-      two_factor_enabled: false,
-      response_version: 2,
-      survey_answers: {
-        gender: "남성",
-        address: "서울특별시 종로구 사직동",
-        birth_year: 1990,
-      },
-    });
-
-    expect(sections.map((section) => section.title)).toEqual([
-      "기본 정보",
-      "사회·경제",
-      "성향·매체",
-      "정치·기관 인식",
-    ]);
-    expect(sections[0]?.items).toContainEqual({ label: "출생연도", value: "1990년" });
   });
 
   it("관리자 사용자 표·단일 역할·간결한 사유 필드·감사 열을 유지한다", () => {
