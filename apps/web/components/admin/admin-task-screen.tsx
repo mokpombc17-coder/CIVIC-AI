@@ -241,7 +241,7 @@ function AdminTaskWorkspace({
           columnDefs={TASK_GRID_COLUMNS}
           emptyText={loading ? "과업을 불러오는 중입니다." : "조건에 맞는 과업이 없습니다."}
           getRowId={(task) => task.taskId}
-          height={480}
+          height={460}
           onRowClicked={selectTask}
           rowData={filtered}
           selectedRowId={editing ? (editorTaskId ?? null) : (selectedTaskId ?? null)}
@@ -263,7 +263,8 @@ function AdminTaskWorkspace({
         title={
           editing
             ? (editorSummary?.title ?? (editorTaskId ? "초안 수정" : "새 과업 만들기"))
-            : (selectedSummary?.title ?? (selectedTaskId ? "과업 상세" : "과업을 선택하세요"))
+            : (selectedSummary?.title ??
+              (selectedTaskId ? "과업 상세" : "목록에서 과업을 선택하세요."))
         }
       >
         {editing ? (

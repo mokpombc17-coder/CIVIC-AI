@@ -399,7 +399,7 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html).toContain('role="dialog"');
+    expect(html).toContain("<dialog");
     expect(html).toContain('aria-label="시민참여 정책.pdf 미리보기"');
     expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
     expect(html).not.toContain("disposition=inline");
@@ -2395,7 +2395,7 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain('data-wireflow-layout="rag-workspace"');
     expect(html).toContain('data-wireflow-layout="rag-admin-modal"');
-    expect(html).toContain('role="dialog"');
+    expect(html).toContain("<dialog");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain(dialogTitle);
     if (screenId === "A-RAG-002") {

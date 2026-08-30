@@ -1,138 +1,162 @@
-.tableToolbar {
-  grid-template-columns: minmax(18rem, 1fr) auto auto;
-}
+/* 관리자 대화 인사이트(토론방 운영·통계) 화면.
+   문서 관리와 동일하게 목록·분석을 카드로 감싸지 않고 세퍼레이터로 나눈다.
+   좌우 패널의 16px 거터는 admin-console.css의 .console-pane-body(16px)와 맞춘다. */
 
-.tableToolbar > button {
-  min-height: 2.65rem;
-  align-self: end;
-  white-space: nowrap;
-}
-
-.roomState {
-  display: inline-flex;
-  min-height: 1.8rem;
-  align-items: center;
-  border-radius: 99rem;
-  background: #dcfce7;
-  color: #166534;
-  padding: 0.25rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.roomState[data-status="CLOSED"] {
-  background: #e6e8eb;
-  color: #58616a;
-}
-
-.statisticsDrawer {
-  width: min(44rem, 94vw);
-}
-
-.drawerBody {
+.workspace {
   display: grid;
-  min-height: 0;
-  gap: 0.75rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 1rem;
+  grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);
+  gap: 0;
+  align-items: start;
 }
 
-.drawerEmpty {
+.roomPanel {
+  position: sticky;
+  top: 1rem;
   display: grid;
-  min-height: 12rem;
-  place-items: center;
-  margin: 0;
-  border: 1px dashed #8a949e;
-  border-radius: 0.65rem;
-  background: #fff;
-  color: #58616a;
+  gap: 0.85rem;
+  max-height: calc(100dvh - 2rem);
+  border-right: 1px solid var(--wf-line);
+  padding: 0 16px;
 }
 
-.roomSummary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.roomSummary > div {
-  display: grid;
-  min-height: 4rem;
-  align-content: center;
-  gap: 0.2rem;
-  border: 1px solid #cdd1d5;
-  border-radius: 0.65rem;
-  background: #fff;
-  padding: 0.7rem 0.8rem;
-}
-
-.roomSummary > div:nth-child(5) {
-  grid-column: 1 / -1;
-}
-
-.roomSummary span {
-  color: #58616a;
-  font-size: 0.75rem;
-}
-
-.roomSummary strong {
-  overflow-wrap: anywhere;
-  font-size: 0.88rem;
-  line-height: 1.35;
-}
-
-.snapshot > div > span,
-.barCard header span {
-  display: block;
-  color: #256ef4;
-  font-size: 0.7rem;
-  font-weight: 850;
-  letter-spacing: 0.12em;
-}
-
-.analysisPanel,
-.rangeForm,
-.snapshot,
-.barCard {
-  border: 1px solid #cdd1d5;
-  border-radius: 0.65rem;
-  background: #fff;
-}
-
-.rangeFields input {
-  width: 100%;
-  min-height: 2.65rem;
-  border: 1px solid #8a949e;
-  border-radius: 0.4rem;
-  background: #fff;
-  color: #1e2124;
-  padding: 0.6rem 0.7rem;
-}
-
-.downloadButton {
-  min-height: 2.65rem;
-  border: 0;
-  border-radius: 0.4rem;
-  background: #063a74;
-  color: #fff;
-  padding: 0.65rem 0.85rem;
-  font-weight: 750;
-  cursor: pointer;
+.roomPanel header strong {
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .analysisPanel {
   display: grid;
   gap: 1rem;
   min-width: 0;
-  border: 0;
-  background: transparent;
+  padding: 0 16px;
+}
+
+/* ---- 토론방 검색 ---- */
+
+.search {
+  display: grid;
+  gap: 8px;
+}
+
+.statusField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.search select {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid var(--wf-muted);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  color: var(--wf-ink);
+  padding: 0.6rem 0.7rem;
+}
+
+/* ---- 토론방 목록 ---- */
+
+.roomList {
+  display: grid;
+  gap: 0.4rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.roomList > p {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.roomButton {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  color: var(--wf-ink);
+  padding: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roomButton:hover {
+  border-color: var(--wf-blue);
+}
+
+.roomButton[aria-pressed="true"] {
+  border-color: var(--wf-blue);
+  background: var(--wf-blue-soft);
+  box-shadow: inset 3px 0 var(--wf-blue);
+}
+
+.roomButton strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomButton span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.roomButton .roomTitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.roomTitle strong {
+  min-width: 0;
+}
+
+.roomTitle :global(.console-badge) {
+  flex: 0 0 auto;
+}
+
+/* ---- 안내·오류 메시지 ---- */
+
+.problem,
+.statusMessage {
+  margin: 0;
+  border-left: 3px solid var(--wf-danger);
+  background: var(--wf-danger-soft);
+  color: var(--wf-danger);
+  padding: 0.75rem;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.statusMessage {
+  border-left-color: var(--wf-blue);
+  background: var(--wf-blue-soft);
+  color: var(--wf-navy-deep);
+}
+
+/* ---- 분석 조건 카드 ---- */
+
+.rangeForm,
+.snapshot,
+.conversation,
+.barCard {
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
 }
 
 .rangeForm {
   display: grid;
   gap: 0.85rem;
-  padding: 1rem;
+  padding: 16px;
 }
 
 .rangeForm > header {
@@ -151,8 +175,8 @@
 .rangeForm header small,
 .rangeForm > p,
 .rangeFields label span {
-  color: #58616a;
-  font-size: 0.78rem;
+  color: var(--wf-muted);
+  font-size: 12px;
 }
 
 .rangeForm header strong {
@@ -161,75 +185,45 @@
   white-space: nowrap;
 }
 
-.rangeForm header > span {
+.rangeForm header :global(.console-badge) {
   flex: 0 0 auto;
-  border-radius: 99rem;
-  background: #eef9f0;
-  color: #166534;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.72rem;
-  font-weight: 750;
 }
 
-.rangeForm header > span[data-status="CLOSED"] {
-  background: #e6e8eb;
-  color: #58616a;
-}
-
-.rangeForm header > span[data-status="NONE"] {
-  background: #fff7d6;
-  color: #854d0e;
+.rangeForm > p {
+  margin: 0;
 }
 
 .periodPicker {
   display: inline-flex;
   width: fit-content;
-  border: 1px solid #cdd1d5;
-  border-radius: 0.5rem;
-  background: #f4f5f6;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
   padding: 0.2rem;
 }
 
 .periodPicker button {
   min-height: 2.35rem;
   border: 0;
-  border-radius: 0.35rem;
+  border-radius: var(--wf-radius);
   background: transparent;
-  color: #58616a;
+  color: var(--wf-muted);
   padding: 0.5rem 0.8rem;
-  font-weight: 750;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .periodPicker button[aria-pressed="true"] {
   background: #fff;
-  color: #063a74;
+  color: var(--wf-navy-deep);
   box-shadow: 0 1px 4px rgb(30 33 36 / 12%);
 }
 
 .periodSummary {
-  border-left: 3px solid #8baef7;
-  background: #f4f7fc;
+  border-left: 3px solid var(--wf-blue);
+  background: var(--wf-surface);
   padding: 0.65rem 0.75rem;
   line-height: 1.55;
-}
-
-.closeRoomButton {
-  flex: 0 0 auto;
-  min-height: 2.5rem;
-  border: 1px solid #b42318;
-  border-radius: 0.4rem;
-  background: #fff;
-  color: #a63225;
-  padding: 0.55rem 0.8rem;
-  font-weight: 800;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.closeRoomButton:hover:not(:disabled) {
-  background: #a63225;
-  color: #fff;
 }
 
 .rangeFields {
@@ -246,43 +240,27 @@
 
 .rangeFields > span {
   padding-bottom: 0.75rem;
-  color: #8a949e;
+  color: var(--wf-muted);
 }
 
-.rangeForm > p {
-  margin: 0;
+.rangeFields input {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid var(--wf-muted);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  color: var(--wf-ink);
+  padding: 0.6rem 0.7rem;
 }
 
-.periodPicker button:disabled,
-.closeRoomButton:disabled,
-.downloadButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
-}
-
-.problem,
-.statusMessage {
-  margin: 0;
-  border-left: 3px solid #df563e;
-  background: #fff2f0;
-  color: #8f231c;
-  padding: 0.75rem;
-  font-size: 0.85rem;
-  line-height: 1.55;
-}
-
-.statusMessage {
-  border-left-color: #256ef4;
-  background: #edf3ff;
-  color: #063a74;
-}
+/* ---- 빈 상태 ---- */
 
 .empty {
   display: grid;
   place-items: center;
   min-height: 20rem;
-  border: 1px dashed #8a949e;
-  border-radius: 0.65rem;
+  border: 1px dashed var(--wf-muted);
+  border-radius: var(--wf-radius);
   background:
     linear-gradient(135deg, rgb(37 110 244 / 4%) 25%, transparent 25%) 0 0 / 1rem 1rem,
     #fff;
@@ -296,8 +274,8 @@
   width: 3.25rem;
   height: 3.25rem;
   border-radius: 50%;
-  background: #063a74;
-  color: #d9f553;
+  background: var(--wf-navy-deep);
+  color: var(--wf-focus-ring);
   font-size: 1.5rem;
 }
 
@@ -309,9 +287,11 @@
 .empty p {
   max-width: 34rem;
   margin: 0.4rem 0 0;
-  color: #58616a;
+  color: var(--wf-muted);
   line-height: 1.65;
 }
+
+/* ---- 분석 결과 ---- */
 
 .result {
   display: grid;
@@ -322,11 +302,15 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.75fr);
   gap: 1rem;
-  padding: 1.15rem;
+  padding: 16px;
 }
 
 .snapshot > div > span {
-  color: #166534;
+  display: block;
+  color: var(--wf-blue);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
 }
 
 .snapshot h2 {
@@ -337,7 +321,7 @@
 
 .snapshot p {
   margin: 0;
-  color: #58616a;
+  color: var(--wf-muted);
   line-height: 1.55;
 }
 
@@ -345,6 +329,10 @@
   display: grid;
   gap: 0.8rem;
   align-content: start;
+}
+
+.snapshotMeta > button {
+  justify-self: end;
 }
 
 .snapshot dl {
@@ -357,39 +345,31 @@
 .snapshot dl div {
   display: grid;
   gap: 0.25rem;
-  border-left: 2px solid #8baef7;
+  border-left: 2px solid var(--wf-blue);
   padding-left: 0.65rem;
 }
 
 .snapshot dt {
-  color: #58616a;
-  font-size: 0.72rem;
+  color: var(--wf-muted);
+  font-size: 12px;
 }
 
 .snapshot dd {
   margin: 0;
-  font-size: 0.8rem;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.45;
 }
 
-.downloadButton {
-  justify-self: end;
-  min-height: 2.35rem;
-  border: 1px solid #8a949e;
-  background: #fff;
-  color: #063a74;
-  font-size: 0.78rem;
-}
-
+/* 경고(무결성 확인) 톤은 --wf-* 토큰에 대응 색이 없어 앰버 색상을 유지한다. */
 .warnings {
   margin: 0;
   border: 1px solid #e8bb74;
-  border-radius: 0.5rem;
+  border-radius: var(--wf-radius);
   background: #fff8e8;
   color: #8a4b08;
   padding: 0.8rem 0.8rem 0.8rem 1.8rem;
-  font-size: 0.84rem;
+  font-size: 13px;
 }
 
 .kpis {
@@ -401,32 +381,39 @@
 .kpis article {
   display: grid;
   gap: 0.25rem;
-  border: 1px solid #cdd1d5;
-  border-top: 3px solid #256ef4;
-  border-radius: 0.5rem;
+  border: 1px solid var(--wf-line);
+  border-top: 3px solid var(--wf-blue);
+  border-radius: var(--wf-radius);
   background: #fff;
   padding: 1rem;
 }
 
 .kpis article span,
 .kpis article small {
-  color: #58616a;
-  font-size: 0.75rem;
+  color: var(--wf-muted);
+  font-size: 12px;
 }
 
 .kpis article strong {
-  color: #063a74;
-  font-size: 1.45rem;
+  color: var(--wf-navy-deep);
+  font-size: 18px;
 }
 
 .kpis .dangerMetric {
-  border-top-color: #df563e;
+  border-top-color: var(--wf-danger);
 }
 
 .kpis .dangerMetric strong {
-  color: #a63225;
+  color: var(--wf-danger);
 }
 
+/* ---- 대화 상세 ---- */
+
+.conversation {
+  padding: 16px;
+}
+
+.conversation > header,
 .barCard header {
   display: flex;
   justify-content: space-between;
@@ -435,18 +422,75 @@
   margin-bottom: 0.85rem;
 }
 
-.barCard header span {
-  color: #256ef4;
-}
-
+.conversation h3,
 .barCard h3 {
   margin: 0.25rem 0 0;
-  font-size: 1rem;
+  font-size: 15px;
+  font-weight: 700;
 }
+
+.conversation header small {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.conversation ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation li {
+  border-left: 3px solid var(--wf-blue);
+  background: var(--wf-surface);
+  padding: 0.75rem 0.85rem;
+}
+
+.conversation li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.conversation time {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.conversation li > div > span {
+  border-radius: 999px;
+  background: var(--wf-danger-soft);
+  color: var(--wf-danger);
+  padding: 0.15rem 0.45rem;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.conversation li p {
+  margin: 0.45rem 0 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.conversation .deletedMessage {
+  border-left-color: var(--wf-danger);
+  background: var(--wf-danger-soft);
+}
+
+.deletedMessage p {
+  color: var(--wf-muted);
+  text-decoration: line-through;
+}
+
+/* ---- 일자별 추이 ---- */
 
 .barCard {
   min-width: 0;
-  padding: 1rem;
+  padding: 16px;
 }
 
 .barCard ol {
@@ -464,7 +508,7 @@
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.3rem;
-  font-size: 0.78rem;
+  font-size: 12px;
 }
 
 .barCard li div span {
@@ -478,25 +522,27 @@
   width: var(--bar-width);
   min-width: 2px;
   height: 0.4rem;
-  border-radius: 99rem;
-  background: linear-gradient(90deg, #256ef4, #8ed8f0);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--wf-blue), var(--wf-focus-ring));
 }
 
 .barCard > p {
-  color: #58616a;
-  font-size: 0.82rem;
+  color: var(--wf-muted);
+  font-size: 13px;
 }
 
+/* ---- 토론방 운영 설정 ---- */
+
 .roomSettings {
-  border-top: 1px solid #cdd1d5;
-  color: #58616a;
-  font-size: 0.8rem;
+  border-top: 1px solid var(--wf-line);
+  color: var(--wf-muted);
+  font-size: 13px;
 }
 
 .roomSettings summary {
   width: fit-content;
   padding: 0.65rem 0;
-  color: #58616a;
+  color: var(--wf-muted);
   font-weight: 700;
   cursor: pointer;
 }
@@ -506,10 +552,15 @@
   justify-content: space-between;
   gap: 1rem;
   align-items: center;
-  border: 1px solid #e6e8eb;
-  border-radius: 0.5rem;
-  background: #fafafa;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
   padding: 0.75rem 0.85rem;
+}
+
+.roomSettings > div > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .roomSettings p {
@@ -517,16 +568,41 @@
   line-height: 1.55;
 }
 
+/* ---- 상호작용 상태 ---- */
+
+.workspace button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.search select:focus-visible,
 .rangeFields input:focus-visible,
-.closeRoomButton:focus-visible,
+.roomButton:focus-visible,
 .periodPicker button:focus-visible,
-.downloadButton:focus-visible,
 .roomSettings summary:focus-visible {
-  outline: 3px solid #d9f553;
+  outline: 3px solid var(--wf-focus-ring);
   outline-offset: 2px;
 }
 
-@media (max-width: 980px) {
+/* ---- 반응형 ---- */
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .roomPanel {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--wf-line);
+    padding: 0 16px 16px;
+  }
+
+  .analysisPanel {
+    padding: 16px 16px 0;
+  }
+
   .roomSettings > div {
     align-items: flex-start;
     flex-direction: column;
@@ -534,16 +610,8 @@
 }
 
 @media (max-width: 720px) {
-  .tableToolbar,
   .snapshot,
-  .roomSummary {
-    grid-template-columns: 1fr;
-  }
-
-  .roomSummary > div:nth-child(5) {
-    grid-column: auto;
-  }
-
+  .snapshot dl,
   .rangeFields {
     grid-template-columns: 1fr;
   }
@@ -555,348 +623,9 @@
   .kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-
-@media (max-width: 480px) {
-  .kpis,
-  .snapshot dl {
-    grid-template-columns: 1fr;
-  }
 
   .rangeForm > header {
     align-items: flex-start;
     flex-direction: column;
   }
-}
-
-/* Consolidated workspace layout — restored from the pre-merge console rework;
-   the drawer-era rewrite removed these classes but the split-view screen still uses them. */
-
-.intro span,
-.roomPanel header span,
-.snapshot > div > span,
-.conversation header span,
-.barCard header span {
-  display: block;
-  color: #bcd2ff;
-  font-size: 0.7rem;
-  font-weight: 850;
-  letter-spacing: 0.12em;
-}
-
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.roomPanel,
-.analysisPanel,
-.rangeForm,
-.snapshot,
-.conversation,
-.barCard {
-  border: 1px solid #cdd1d5;
-  border-radius: 0.65rem;
-  background: #fff;
-}
-
-.roomPanel {
-  position: sticky;
-  top: 1rem;
-  display: grid;
-  gap: 0.85rem;
-  max-height: calc(100dvh - 2rem);
-  padding: 1rem;
-}
-
-.roomPanel header {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.roomPanel header span {
-  color: #256ef4;
-}
-
-.roomPanel header strong {
-  font-size: 1.05rem;
-}
-
-.search {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.4rem;
-}
-
-.queryField {
-  grid-column: 1 / -1;
-}
-
-.statusField {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.45rem;
-  align-items: center;
-  color: #58616a;
-  font-size: 0.75rem;
-  font-weight: 750;
-}
-
-.search input,
-.search select,
-.rangeFields input {
-  width: 100%;
-  min-height: 2.65rem;
-  border: 1px solid #8a949e;
-  border-radius: 0.4rem;
-  background: #fff;
-  color: #1e2124;
-  padding: 0.6rem 0.7rem;
-}
-
-.search button,
-.moreButton,
-.downloadButton {
-  min-height: 2.65rem;
-  border: 0;
-  border-radius: 0.4rem;
-  background: #063a74;
-  color: #fff;
-  padding: 0.65rem 0.85rem;
-  font-weight: 750;
-  cursor: pointer;
-}
-
-.roomList {
-  display: grid;
-  gap: 0.4rem;
-  overflow-y: auto;
-  padding-right: 0.15rem;
-}
-
-.roomList > p {
-  margin: 0;
-  color: #58616a;
-  font-size: 0.85rem;
-  line-height: 1.6;
-}
-
-.roomButton {
-  display: grid;
-  gap: 0.25rem;
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: 0.45rem;
-  background: #f4f5f6;
-  color: #1e2124;
-  padding: 0.75rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.roomButton:hover {
-  border-color: #8baef7;
-}
-
-.roomButton[aria-pressed="true"] {
-  border-color: #256ef4;
-  background: #edf3ff;
-  box-shadow: inset 3px 0 #256ef4;
-}
-
-.roomButton strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.roomButton span {
-  color: #58616a;
-  font-size: 0.78rem;
-}
-
-.roomButton .roomTitle {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.55rem;
-  align-items: center;
-}
-
-.roomTitle strong {
-  min-width: 0;
-}
-
-.roomTitle b {
-  flex: 0 0 auto;
-  border-radius: 99rem;
-  background: #dff7e4;
-  color: #166534;
-  padding: 0.18rem 0.42rem;
-  font-size: 0.65rem;
-}
-
-.roomTitle b[data-status="CLOSED"] {
-  background: #e6e8eb;
-  color: #58616a;
-}
-
-.moreButton {
-  border: 1px solid #8a949e;
-  background: #fff;
-  color: #063a74;
-}
-
-.periodPicker button:disabled,
-.search button:disabled,
-.moreButton:disabled,
-.closeRoomButton:disabled,
-.downloadButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
-}
-
-.kpis .dangerMetric {
-  border-top-color: #df563e;
-}
-
-.kpis .dangerMetric strong {
-  color: #a63225;
-}
-
-.conversation {
-  padding: 1rem;
-}
-
-.conversation > header,
-.barCard header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: end;
-  margin-bottom: 0.85rem;
-}
-
-.conversation header span,
-.barCard header span {
-  color: #256ef4;
-}
-
-.conversation h3,
-.barCard h3 {
-  margin: 0.25rem 0 0;
-  font-size: 1rem;
-}
-
-.conversation header small {
-  color: #58616a;
-}
-
-.conversation ol {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.conversation li {
-  border-left: 3px solid #8baef7;
-  background: #f4f7fc;
-  padding: 0.75rem 0.85rem;
-}
-
-.conversation li > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.conversation time {
-  color: #58616a;
-  font-size: 0.72rem;
-}
-
-.conversation li > div > span {
-  border-radius: 99rem;
-  background: #fff2f0;
-  color: #a63225;
-  padding: 0.15rem 0.45rem;
-  font-size: 0.68rem;
-  font-weight: 750;
-}
-
-.conversation li p {
-  margin: 0.45rem 0 0;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.conversation .deletedMessage {
-  border-left-color: #df563e;
-  background: #fff8f7;
-}
-
-.deletedMessage p {
-  color: #58616a;
-  text-decoration: line-through;
-}
-
-.search input:focus-visible,
-.search select:focus-visible,
-.rangeFields input:focus-visible,
-.search button:focus-visible,
-.moreButton:focus-visible,
-.roomButton:focus-visible,
-.closeRoomButton:focus-visible,
-.periodPicker button:focus-visible,
-.downloadButton:focus-visible,
-.roomSettings summary:focus-visible {
-  outline: 3px solid #d9f553;
-  outline-offset: 2px;
-}
-
-@media (max-width: 980px) {
-}
-
-@media (max-width: 480px) {
-}
-
-/* 문서 관리와 동일하게 목록·분석을 카드로 감싸지 않고 세퍼레이터로 나눈다. */
-.workspace {
-  gap: 0;
-}
-
-.roomPanel {
-  border: none;
-  border-right: 1px solid #cfd3d7;
-  border-radius: 0;
-  background: transparent;
-  padding: 0 16px 0 0;
-}
-
-.analysisPanel {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  padding: 0 0 0 16px;
-}
-
-@media (max-width: 860px) {
-  .roomPanel {
-    border-right: none;
-    border-bottom: 1px solid #cfd3d7;
-    padding: 0 0 16px;
-  }
-
-  .analysisPanel {
-    padding: 16px 0 0;
-  }
-}
-
-.workspace {
-  grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);
 }

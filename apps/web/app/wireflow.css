@@ -31,8 +31,13 @@
   --wf-blue-dark: #0755cf;
   --wf-blue-soft: #edf3ff;
   --wf-navy: #0b417b;
+  --wf-navy-deep: #053b73;
   --wf-danger: #c51d1d;
+  --wf-danger-soft: #fdeeee;
   --wf-success: #23753c;
+  --wf-success-soft: #ebf6ee;
+  --wf-surface: #f4f7fb;
+  --wf-focus-ring: #8eb4ff;
   --wf-radius: 8px;
   --wf-font: "Pretendard GOV", Pretendard, "Apple SD Gothic Neo", sans-serif;
 }
@@ -635,8 +640,10 @@ body {
 }
 
 .wf-field input,
+.wf-field textarea,
 .civic-field input,
 .civic-field select,
+.civic-field textarea,
 .civic-admin-search input,
 .civic-rag-composer textarea {
   width: 100%;
@@ -650,7 +657,9 @@ body {
 }
 
 .wf-field input::placeholder,
+.wf-field textarea::placeholder,
 .civic-field input::placeholder,
+.civic-field textarea::placeholder,
 .civic-rag-composer textarea::placeholder {
   color: #626c78;
   opacity: 1;
@@ -2622,7 +2631,7 @@ body {
 [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] {
   width: calc(100% - 48px);
   height: auto;
-  min-height: calc(100dvh - 144px);
+  min-height: calc(100dvh - var(--console-header-offset, 150px));
   grid-template-columns: 250px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   margin: 24px;
@@ -3442,7 +3451,7 @@ body {
 [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] {
   width: calc(100% - 48px);
   height: auto;
-  min-height: calc(100dvh - 144px);
+  min-height: calc(100dvh - var(--console-header-offset, 150px));
   grid-template-columns: 250px minmax(0, 1fr);
   margin: 24px;
   overflow: visible;
@@ -5522,7 +5531,7 @@ body {
 
 /* 작업 공간을 화면 높이에 고정하고 폴더·문서 영역이 각자 스크롤한다. */
 [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
-  height: calc(100dvh - 144px);
+  height: calc(100dvh - var(--console-header-offset, 150px));
   min-height: 480px;
   grid-template-columns: 220px minmax(0, 1fr);
   overflow: hidden;

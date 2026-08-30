@@ -5,6 +5,8 @@ import type { Route } from "next";
 import Link from "next/link";
 import { AdminCurrentOperations } from "@/components/admin/admin-current-operations";
 import { AdminUserWorkspace } from "@/components/admin/admin-user-workspace";
+import { ConsoleMetricStrip } from "@/components/admin/console/console-ui";
+import { formatKrw } from "@/lib/admin/format";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import {
@@ -215,36 +217,54 @@ export function AdminHome({
   const attentionItems = attentionSimulations.status === "ready" ? attentionSimulations.items : [];
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
-      <ul aria-label="관리 현황" className="civic-admin-metrics">
-        <HomeMetric href="/admin/chat/requests" label="토론방 승인 대기">
-          <strong>{metricCount(chatRequestSummary)}</strong>
-        </HomeMetric>
-        <HomeMetric href="/admin/chat" label="운영 중 토론방">
-          <strong>{metricCount(activeRoomSummary)}</strong>
-        </HomeMetric>
-        <HomeMetric href="/admin/rag" label="문서 처리 실패">
-          <strong>
-            {ragJobSummary.status === "ready"
-              ? `${ragJobSummary.failed}건`
-              : ragJobSummary.status === "unavailable"
-                ? "확인 불가"
-                : "확인 중"}
-          </strong>
-          {ragJobSummary.status === "ready" ? <span>처리 중 {ragJobSummary.active}건</span> : null}
-        </HomeMetric>
-        <HomeMetric href="/admin/tasks" label="진행 중 과업">
-          <strong>{metricCount(activeTaskSummary)}</strong>
-        </HomeMetric>
-        <HomeMetric href="/admin/tasks" label="24시간 내 마감">
-          <strong>{metricCount(dueSoonTaskSummary)}</strong>
-        </HomeMetric>
-        <HomeMetric href="/admin/simulations" label="시뮬레이션 사용 잔액">
-          <strong>{simulationWalletBalance(simulationWalletSummary)}</strong>
-          {simulationWalletSummary.status === "ready" ? (
-            <span>오늘 사용 {formatKrw(simulationWalletSummary.wallet.spentTodayKrw)}</span>
-          ) : null}
-        </HomeMetric>
-      </ul>
+      <ConsoleMetricStrip
+        ariaLabel="관리 현황"
+        metrics={[
+          {
+            label: "토론방 승인 대기",
+            value: metricCount(chatRequestSummary),
+            href: "/admin/chat/requests" as Route,
+          },
+          {
+            label: "운영 중 토론방",
+            value: metricCount(activeRoomSummary),
+            href: "/admin/chat" as Route,
+          },
+          {
+            label: "문서 처리 실패",
+            value:
+              ragJobSummary.status === "ready"
+                ? `${ragJobSummary.failed}건`
+                : ragJobSummary.status === "unavailable"
+                  ? "확인 불가"
+                  : "확인 중",
+            href: "/admin/rag" as Route,
+            ...(ragJobSummary.status === "ready"
+              ? { description: `처리 중 ${ragJobSummary.active}건` }
+              : {}),
+          },
+          {
+            label: "진행 중 과업",
+            value: metricCount(activeTaskSummary),
+            href: "/admin/tasks" as Route,
+          },
+          {
+            label: "24시간 내 마감",
+            value: metricCount(dueSoonTaskSummary),
+            href: "/admin/tasks" as Route,
+          },
+          {
+            label: "시뮬레이션 사용 잔액",
+            value: simulationWalletBalance(simulationWalletSummary),
+            href: "/admin/simulations" as Route,
+            ...(simulationWalletSummary.status === "ready"
+              ? {
+                  description: `오늘 사용 ${formatKrw(simulationWalletSummary.wallet.spentTodayKrw)}`,
+                }
+              : {}),
+          },
+        ]}
+      />
       <div className="civic-home-columns">
         <AdminPendingChatRequests state={chatRequestSummary} />
         {dueSoonTasks.length > 0 ? (
@@ -376,21 +396,6 @@ function HomeRow({
         <small>{meta}</small>
       </div>
       {action ?? null}
-    </li>
-  );
-}
-
-function HomeMetric({
-  href,
-  label,
-  children,
-}: Readonly<{ href: string; label: string; children: ReactNode }>) {
-  return (
-    <li className="wf-admin-metric">
-      <Link className="civic-admin-metric-link" href={href as Route}>
-        <small>{label}</small>
-        {children}
-      </Link>
     </li>
   );
 }
@@ -755,8 +760,4 @@ function simulationWalletBalance(summary: SimulationWalletMetricState): string {
   if (summary.status === "ready") return formatKrw(summary.wallet.availableKrw);
   if (summary.status === "forbidden") return "권한 없음";
   return summary.status === "loading" ? "확인 중" : "확인 불가";
-}
-
-function formatKrw(value: number): string {
-  return `${value.toLocaleString("ko-KR")}원`;
 }

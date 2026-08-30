@@ -1,6 +1,8 @@
 "use client";
 
-import type { ChangeEvent, ReactNode } from "react";
+import Link from "next/link";
+import type { Route } from "next";
+import { useRef, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 
 // Presentational primitives for the unified admin console. Every /admin
 // workspace composes these so list + detail density and spacing stay
@@ -55,23 +57,67 @@ export function ConsoleTabs({
   activeId,
   onSelect,
   ariaLabel,
+  idPrefix,
 }: Readonly<{
   tabs: readonly ConsoleTabItem[];
   activeId: string;
   onSelect: (id: string) => void;
   ariaLabel: string;
+  /** 지정하면 `${idPrefix}-tab-{id}` / `${idPrefix}-panel-{id}`로 tabpanel과 연결된다. */
+  idPrefix?: string;
 }>) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const focusableId = tabs.some((tab) => tab.id === activeId && !tab.disabled)
+    ? activeId
+    : tabs.find((tab) => !tab.disabled)?.id;
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    const enabled = tabs.filter((tab) => !tab.disabled);
+    if (enabled.length === 0) return;
+    const currentIndex = Math.max(
+      0,
+      enabled.findIndex((tab) => tab.id === activeId),
+    );
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? enabled.length - 1
+          : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + enabled.length) %
+            enabled.length;
+    const next = enabled[nextIndex];
+    if (!next) return;
+    event.preventDefault();
+    onSelect(next.id);
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-console-tab="${CSS.escape(next.id)}"]`)
+      ?.focus();
+  }
+
   return (
-    <div aria-label={ariaLabel} className="console-tabs" role="tablist">
+    <div
+      aria-label={ariaLabel}
+      className="console-tabs"
+      onKeyDown={handleKeyDown}
+      ref={listRef}
+      role="tablist"
+    >
       {tabs.map((tab) => (
         <button
           aria-selected={tab.id === activeId}
           className="console-tab"
+          data-console-tab={tab.id}
           disabled={tab.disabled}
           key={tab.id}
           onClick={() => onSelect(tab.id)}
           role="tab"
+          tabIndex={tab.id === focusableId ? 0 : -1}
           type="button"
+          {...(idPrefix
+            ? { "aria-controls": `${idPrefix}-panel-${tab.id}`, id: `${idPrefix}-tab-${tab.id}` }
+            : {})}
         >
           {tab.label}
         </button>
@@ -80,11 +126,29 @@ export function ConsoleTabs({
   );
 }
 
+export function ConsoleTabPanel({
+  idPrefix,
+  tabId,
+  children,
+}: Readonly<{ idPrefix: string; tabId: string; children: ReactNode }>) {
+  return (
+    <div
+      aria-labelledby={`${idPrefix}-tab-${tabId}`}
+      id={`${idPrefix}-panel-${tabId}`}
+      role="tabpanel"
+    >
+      {children}
+    </div>
+  );
+}
+
 export type ConsoleMetricItem = Readonly<{
   label: string;
   value: string;
-  description?: string;
+  description?: ReactNode;
   alert?: boolean;
+  /** 지정하면 메트릭 카드 전체가 해당 화면으로 이동하는 링크가 된다. */
+  href?: Route;
 }>;
 
 export function ConsoleMetricStrip({
@@ -93,13 +157,26 @@ export function ConsoleMetricStrip({
 }: Readonly<{ metrics: readonly ConsoleMetricItem[]; ariaLabel: string }>) {
   return (
     <ul aria-label={ariaLabel} className="console-metrics">
-      {metrics.map((metric) => (
-        <li className={`console-metric${metric.alert ? " is-alert" : ""}`} key={metric.label}>
-          <small>{metric.label}</small>
-          <strong>{metric.value}</strong>
-          {metric.description ? <span>{metric.description}</span> : null}
-        </li>
-      ))}
+      {metrics.map((metric) => {
+        const body = (
+          <>
+            <small>{metric.label}</small>
+            <strong>{metric.value}</strong>
+            {metric.description ? <span>{metric.description}</span> : null}
+          </>
+        );
+        return (
+          <li className={`console-metric${metric.alert ? " is-alert" : ""}`} key={metric.label}>
+            {metric.href ? (
+              <Link className="civic-admin-metric-link" href={metric.href}>
+                {body}
+              </Link>
+            ) : (
+              body
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

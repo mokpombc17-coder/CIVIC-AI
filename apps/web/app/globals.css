@@ -475,17 +475,13 @@ th {
 
 /* CIVIC milestone shells --------------------------------------------------- */
 
+/* --civic-ink/paper/line/blue/muted 등 공통 토큰의 유효 정의는 아래
+   "Wire Flow Atlas product surfaces" :root 블록 하나다. (같은 이름을 여기서
+   다른 값으로 이중 정의하던 것을 제거 — 뒤 블록이 항상 이겨 죽은 값이었다.) */
 :root {
-  --civic-ink: #12211d;
-  --civic-paper: #f3f0e7;
-  --civic-paper-strong: #fffdf6;
-  --civic-line: #c9c3b4;
-  --civic-blue: #1846d1;
-  --civic-blue-dark: #112e87;
   --civic-citrus: #d9f553;
   --civic-coral: #df563e;
   --civic-sky: #8ed8f0;
-  --civic-muted: #5d665f;
 }
 
 .app-shell {
@@ -742,11 +738,9 @@ th {
   text-decoration: none;
 }
 
-.civic-shell-admin {
-  display: grid;
-  grid-template-columns: 18rem minmax(0, 1fr);
-  background: #e9e7df;
-}
+/* 관리자 셸 레이아웃(그리드·사이드바 폭·접힘 브레이크포인트)은 wireflow.css가
+   단독 관할한다. 여기 있던 .civic-shell-admin 18rem 그리드는 wireflow의 240px
+   그리드에 항상 덮여 죽은 규칙이라 제거했다. */
 
 .civic-admin-sidebar {
   position: sticky;
@@ -891,20 +885,9 @@ th {
     border-bottom: 1px solid var(--civic-ink);
   }
 
-  .civic-shell-admin {
-    display: block;
-  }
-
-  .civic-admin-sidebar {
-    position: static;
-    height: auto;
-    border-right: 0;
-  }
-
-  .civic-admin-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  /* 관리자 사이드바 접힘은 wireflow.css의 720px 브레이크포인트 하나만 사용한다.
+     (여기 있던 820px 접힘 규칙은 wireflow 기본 규칙에 덮이거나 720~820px 구간에서
+     내비게이션만 2열로 찌그러뜨리는 부작용을 냈다.) */
   .civic-admin-boundary {
     display: none;
   }
@@ -1182,6 +1165,7 @@ th {
 
 .civic-field input,
 .civic-field select,
+.civic-field textarea,
 .civic-admin-search input,
 .civic-rag-composer textarea {
   min-height: 3rem;
@@ -3237,6 +3221,7 @@ th {
 
 [data-wireflow-screen] .civic-field input,
 [data-wireflow-screen] .civic-field select,
+[data-wireflow-screen] .civic-field textarea,
 [data-wireflow-screen] .civic-admin-search input {
   min-height: 3rem;
   border: 1px solid var(--civic-line-strong);
@@ -3558,11 +3543,8 @@ th {
   font-size: 1.1rem;
 }
 
-.civic-admin-home {
-  display: grid;
-  gap: 1.25rem;
-  padding: 2rem;
-}
+/* .civic-admin-home 레이아웃은 wireflow.css([data-wireflow-shell="admin"] 스코프)가
+   관할한다. 여기 있던 중복 정의(2rem 패딩)는 항상 덮여 죽은 규칙이라 제거했다. */
 
 .civic-admin-metrics {
   display: grid;

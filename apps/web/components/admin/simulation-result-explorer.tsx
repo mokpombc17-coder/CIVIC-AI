@@ -25,6 +25,8 @@ type DonutDatum = Readonly<{
   percentage: number;
 }>;
 
+// Data-viz palette. Segment colors stay as literals on purpose; the module CSS
+// exposes the matching sky accents as --chart-1..--chart-5.
 const RESULT_COLORS = [
   "#2563eb",
   "#f0643b",
@@ -52,7 +54,8 @@ export function buildDonutData(result: SimulationResult): readonly DonutDatum[] 
   }));
   if (result.unansweredCount > 0) {
     values.push({
-      color: "#cbd3df",
+      // 미응답 neutral: same value as the global --wf-line token family.
+      color: "#cfd3d7",
       count: result.unansweredCount,
       id: "unanswered",
       label: "미응답",

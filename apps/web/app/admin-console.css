@@ -5,9 +5,34 @@
  * declares its full property set instead of relying on inherited values.
  */
 
+:root {
+  /* 관리자 콘솔 레이아웃 상수 — 화면별 매직 넘버 대신 이 값을 사용한다. */
+  --console-gutter: 32px;
+  --console-list-min: 280px;
+  --console-detail-min: 420px;
+  --console-header-offset: 150px; /* wf-screen-heading(80px) + 상단 여백 기준 */
+  --console-table-offset: 320px;
+  --console-stack-gap: 24px; /* 카드(섹션) 컨테이너 사이 수직 리듬 */
+}
+
+/* 카드 스택 리듬 통일: 큰 섹션 카드들이 서로 딱 붙어 보이지 않게
+   화면별로 12~20px로 제각각이던 간격을 24px 하나로 맞춘다. */
+[data-wireflow-shell="admin"]
+  :is(
+    .civic-domain-detail,
+    .civic-domain-form,
+    .civic-domain-result,
+    .civic-domain-console,
+    .civic-admin-workbench,
+    .civic-admin-home,
+    .civic-home-column
+  ) {
+  gap: var(--console-stack-gap);
+}
+
 .console-workspace {
   display: grid;
-  grid-template-columns: minmax(280px, 2fr) minmax(420px, 3fr);
+  grid-template-columns: minmax(var(--console-list-min), 2fr) minmax(var(--console-detail-min), 3fr);
   gap: 0;
   align-items: start;
   width: 100%;
@@ -110,7 +135,7 @@
   min-width: 50px;
   height: 40px;
   margin: 0;
-  border: 1px solid #8a949e;
+  border: 1px solid var(--wf-line-strong);
   border-radius: 999px;
   background: #fff;
   padding: 0 15px;
@@ -253,6 +278,11 @@
   min-width: 0;
 }
 
+/* 인라인 스타일 대신 쓰는 변형: 1열 스택 필드 그리드 */
+.console-field-grid.is-stacked {
+  grid-template-columns: 1fr;
+}
+
 .console-field-grid dt,
 .console-field-grid span:first-child {
   font-size: 11px;
@@ -292,13 +322,13 @@
 
 .console-badge.is-danger {
   border-color: var(--wf-danger);
-  background: #fdeeee;
+  background: var(--wf-danger-soft);
   color: var(--wf-danger);
 }
 
 .console-badge.is-success {
   border-color: var(--wf-success);
-  background: #ebf6ee;
+  background: var(--wf-success-soft);
   color: var(--wf-success);
 }
 
@@ -310,6 +340,15 @@
   gap: 8px;
 }
 
+/* 팬 헤더의 액션 버튼이 두 줄로 꺾여 거대해지지 않게 한다. */
+.console-pane-header :is(a, button) {
+  white-space: nowrap;
+}
+
+.console-actions.is-start {
+  justify-content: flex-start;
+}
+
 .console-grid {
   width: 100%;
   max-width: 100%;
@@ -319,6 +358,43 @@
 
 .console-grid .ag-row.is-console-selected {
   background: var(--wf-blue-soft);
+}
+
+/* ---- 공용 오버레이(ConsoleModal / ConsoleDrawer) ---- */
+
+.console-dialog {
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: visible;
+}
+
+/* 예전 오버레이가 주던 폭을 dialog가 대신 준다 — 내부 패널의 width:100%가
+   dialog 폭 기준으로 풀리도록 명시 폭이 필요하다(없으면 내용 크기로 쪼그라든다). */
+.console-dialog:not(.is-drawer) {
+  width: min(560px, calc(100vw - 40px));
+}
+
+.console-dialog:not(.is-drawer) > * {
+  width: 100%;
+}
+
+.console-dialog::backdrop {
+  background: rgb(16 17 20 / 45%);
+}
+
+.console-dialog.is-drawer {
+  margin: 0 0 0 auto;
+  width: min(480px, 100%);
+  max-width: none;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow-y: auto;
+  background: #fff;
+  border-left: 1px solid var(--wf-line);
 }
 
 .console-status {
@@ -335,7 +411,7 @@
 
 @media (min-width: 1101px) {
   .console-workspace:not(.is-single) > .console-pane {
-    max-height: calc(100vh - 150px);
+    max-height: calc(100dvh - var(--console-header-offset));
   }
 
   .console-workspace:not(.is-single) > .console-pane > .console-pane-body {
@@ -347,7 +423,7 @@
 /* ---- RAG document table: uniform row height, quiet version cell ---- */
 
 [data-wireflow-layout="rag-workspace"] .civic-table-scroll {
-  max-height: calc(100vh - 320px);
+  max-height: calc(100dvh - var(--console-table-offset));
   overflow-y: auto;
 }
 
@@ -395,7 +471,7 @@
 /* ---- Admin sidebar color ---- */
 
 .civic-admin-sidebar {
-  background: #053b73;
+  background: var(--wf-navy-deep);
 }
 
 /* ---- RAG workspace: drop the outer card, panel-per-column like other screens ---- */
@@ -412,7 +488,7 @@
   border: none;
   border-right: 1px solid var(--wf-line);
   border-radius: 0;
-  background: #f4f7fb;
+  background: var(--wf-surface);
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
@@ -640,7 +716,21 @@
 }
 
 .console-search-control > input.console-search-input::placeholder {
-  color: #8a949e;
+  color: var(--wf-muted);
+}
+
+/* civic-domain-console의 범용 input 테두리 규칙이 검색 컨트롤 내부 input에
+   이중 테두리를 씌우지 않게 한다. (globals.css 규칙보다 뒤에 로드되어 이긴다) */
+[data-wireflow-shell="admin"] .console-search-control :is(input) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 10px;
+  min-height: 0;
+}
+
+[data-wireflow-shell="admin"] .console-search-control :is(input):focus-visible {
+  outline: 0;
 }
 
 .console-search-control > button.console-search-button {

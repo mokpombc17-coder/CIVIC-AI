@@ -87,7 +87,7 @@ describe("simulation billing navigation", () => {
       "일자",
       "과업",
       "실행 관리자",
-      "패널",
+      "가상 패널",
       "과금액",
     ]);
 

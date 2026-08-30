@@ -32,8 +32,8 @@ describe("admin chat conversation insights", () => {
     expect(html).not.toContain('aria-label="토론방 운영 메뉴"');
     expect(html).toContain('aria-label="토론방 운영 섹션"');
     expect(html).toContain('aria-label="분석 보기 탭"');
-    expect(html).toContain(
-      `<button aria-selected="true" class="console-tab" role="tab" type="button">${activeTab}</button>`,
+    expect(html).toMatch(
+      new RegExp(`<button aria-selected="true"[^>]*class="console-tab"[^>]*>${activeTab}</button>`),
     );
     expect(html).toContain('aria-label="분석 기간"');
     expect(html).toContain('aria-pressed="true"');
