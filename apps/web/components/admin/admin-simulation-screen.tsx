@@ -13,6 +13,7 @@ import {
 import { AnonymousPanelAttributes } from "@/components/admin/simulation-result-presentation";
 import {
   SimulationResultExplorer,
+  type SimulationResultComparison,
   type SimulationResultDimension,
 } from "@/components/admin/simulation-result-explorer";
 import {
@@ -754,12 +755,14 @@ function SimulationRetry({ simulationId }: Readonly<{ simulationId: string | nul
 }
 
 function SimulationResults({ simulationId }: Readonly<{ simulationId: string | null }>) {
-  const [dimension, setDimension] = useState<SimulationResultDimension>("all");
-  const [filteredValue, setFilteredValue] = useState<string | null>(null);
+  const [dimension, setDimension] = useState<SimulationResultDimension>("gender");
   const [requestedSlot, setRequestedSlot] = useState<number | null>(null);
-  const gender = dimension === "gender" ? filteredValue : null;
-  const ageGroup = dimension === "ageGroup" ? filteredValue : null;
-  const { loading, message, result } = useSimulationResult(simulationId, gender, ageGroup);
+  const { loading, message, result } = useSimulationResult(simulationId);
+  const {
+    comparisons,
+    loading: comparisonLoading,
+    message: comparisonMessage,
+  } = useSimulationResultComparisons(simulationId, result, dimension);
   const requestedIndex = result && requestedSlot ? result.resultSlots.indexOf(requestedSlot) : -1;
   const resultIndex = result && result.resultSlots.length > 0 ? Math.max(requestedIndex, 0) : -1;
   const resultSlot = resultIndex >= 0 ? (result?.resultSlots[resultIndex] ?? null) : null;
@@ -771,13 +774,6 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
 
   const changeDimension = (nextDimension: SimulationResultDimension) => {
     setDimension(nextDimension);
-    setFilteredValue(null);
-    setRequestedSlot(null);
-  };
-
-  const changeFilteredValue = (value: string | null) => {
-    setFilteredValue(value);
-    setRequestedSlot(null);
   };
 
   if (!simulationId)
@@ -786,13 +782,14 @@ function SimulationResults({ simulationId }: Readonly<{ simulationId: string | n
     <section className="civic-domain-result">
       {result ? (
         <SimulationResultExplorer
+          comparisonLoading={comparisonLoading}
+          comparisonMessage={comparisonMessage}
+          comparisons={comparisons}
           detail={detail}
           detailMessage={detailMessage}
           dimension={dimension}
-          filteredValue={filteredValue}
           loading={loading || detailLoading}
           onDimensionChange={changeDimension}
-          onFilteredValueChange={changeFilteredValue}
           onNextResult={() => {
             const nextSlot = result.resultSlots[resultIndex + 1];
             if (nextSlot) setRequestedSlot(nextSlot);
@@ -1108,26 +1105,18 @@ function useRetryFenceClock(retryAvailableAt: string | null): number {
   return now;
 }
 
-function useSimulationResult(
-  simulationId: string | null,
-  gender: string | null = null,
-  ageGroup: string | null = null,
-) {
+function useSimulationResult(simulationId: string | null) {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(Boolean(simulationId));
   useEffect(() => {
     if (!simulationId) return;
     let disposed = false;
-    const search = new URLSearchParams();
-    if (gender) search.append("gender", gender);
-    if (ageGroup) search.append("ageGroup", ageGroup);
-    const suffix = search.size > 0 ? `?${search.toString()}` : "";
     const timer = window.setTimeout(() => {
       setLoading(true);
       setMessage("");
       void authenticatedFetch(
-        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results${suffix}`,
+        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results`,
         { cache: "no-store" },
       )
         .then(async (response) => {
@@ -1148,8 +1137,80 @@ function useSimulationResult(
       disposed = true;
       window.clearTimeout(timer);
     };
-  }, [ageGroup, gender, simulationId]);
+  }, [simulationId]);
   return { loading, message, result };
+}
+
+function useSimulationResultComparisons(
+  simulationId: string | null,
+  result: SimulationResult | null,
+  dimension: SimulationResultDimension,
+) {
+  const values = useMemo(
+    () =>
+      dimension === "gender"
+        ? (result?.availableFilters.genders ?? [])
+        : dimension === "ageGroup"
+          ? (result?.availableFilters.ageGroups ?? [])
+          : [],
+    [dimension, result],
+  );
+  const signature =
+    simulationId && dimension !== "all" && values.length > 0
+      ? `${simulationId}:${dimension}:${values.join("\u0000")}`
+      : null;
+  const [state, setState] = useState<{
+    comparisons: readonly SimulationResultComparison[];
+    signature: string;
+  } | null>(null);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!simulationId || !signature || values.length === 0) return;
+    let disposed = false;
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      setMessage("");
+      void Promise.allSettled(
+        values.map(async (value): Promise<SimulationResultComparison> => {
+          const search = new URLSearchParams();
+          search.set(dimension === "gender" ? "gender" : "ageGroup", value);
+          const response = await authenticatedFetch(
+            `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results?${search.toString()}`,
+            { cache: "no-store" },
+          );
+          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          const comparison = readSimulationResult(await response.json());
+          if (!comparison) throw new Error("서버의 집단별 결과 응답 형식을 확인해야 합니다.");
+          return { label: value, result: comparison };
+        }),
+      ).then((settled) => {
+        if (disposed) return;
+        const comparisons = settled.flatMap((item) =>
+          item.status === "fulfilled" ? [item.value] : [],
+        );
+        const failureCount = settled.length - comparisons.length;
+        setState({ comparisons, signature });
+        setMessage(
+          failureCount > 0
+            ? `${failureCount.toLocaleString("ko-KR")}개 집단의 비교 결과를 불러오지 못했습니다.`
+            : "",
+        );
+        setLoading(false);
+      });
+    }, 0);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [dimension, signature, simulationId, values]);
+
+  return {
+    comparisons: state?.signature === signature ? state.comparisons : [],
+    loading: Boolean(signature && (loading || state?.signature !== signature)),
+    message,
+  };
 }
 
 function useSimulationResultDetail(simulationId: string | null, resultSlot: number | null) {

@@ -5,6 +5,18 @@ import styles from "./simulation-result-explorer.module.css";
 
 export type SimulationResultDimension = "all" | "gender" | "ageGroup";
 
+export type SimulationResultComparison = Readonly<{
+  label: string;
+  result: SimulationResult;
+}>;
+
+export type SimulationResultComparisonInsight = Readonly<{
+  difference: number;
+  highestGroup: string;
+  lowestGroup: string;
+  optionLabel: string;
+}>;
+
 type DonutDatum = Readonly<{
   color: string;
   count: number;
@@ -53,23 +65,52 @@ export function buildDonutData(result: SimulationResult): readonly DonutDatum[] 
   return values;
 }
 
-export function filterValues(
-  result: SimulationResult,
-  dimension: SimulationResultDimension,
-): readonly string[] {
-  if (dimension === "gender") return result.availableFilters.genders;
-  if (dimension === "ageGroup") return result.availableFilters.ageGroups;
-  return [];
+export function buildComparisonInsight(
+  comparisons: readonly SimulationResultComparison[],
+): SimulationResultComparisonInsight | null {
+  if (comparisons.length < 2) return null;
+  const options = comparisons[0]?.result.optionResults ?? [];
+  const candidates = options.flatMap((option) => {
+    const values = comparisons.flatMap((comparison) => {
+      const match = comparison.result.optionResults.find(
+        (candidate) => candidate.optionId === option.optionId,
+      );
+      return match ? [{ group: comparison.label, percentage: match.percentage }] : [];
+    });
+    if (values.length < 2) return [];
+    const highest = values.reduce((current, candidate) =>
+      candidate.percentage > current.percentage ? candidate : current,
+    );
+    const lowest = values.reduce((current, candidate) =>
+      candidate.percentage < current.percentage ? candidate : current,
+    );
+    return [
+      {
+        difference: highest.percentage - lowest.percentage,
+        highestGroup: highest.group,
+        lowestGroup: lowest.group,
+        optionLabel: option.content,
+      },
+    ];
+  });
+  return (
+    candidates.reduce<SimulationResultComparisonInsight | null>(
+      (largest, candidate) =>
+        !largest || candidate.difference > largest.difference ? candidate : largest,
+      null,
+    ) ?? null
+  );
 }
 
 export function SimulationResultExplorer({
   dimension,
+  comparisons,
+  comparisonLoading,
+  comparisonMessage,
   detail,
   detailMessage,
-  filteredValue,
   loading,
   onDimensionChange,
-  onFilteredValueChange,
   onNextResult,
   onPreviousResult,
   result,
@@ -79,10 +120,11 @@ export function SimulationResultExplorer({
   detail: SimulationResultDetail | null;
   detailMessage: string;
   dimension: SimulationResultDimension;
-  filteredValue: string | null;
+  comparisons: readonly SimulationResultComparison[];
+  comparisonLoading: boolean;
+  comparisonMessage: string;
   loading: boolean;
   onDimensionChange: (dimension: SimulationResultDimension) => void;
-  onFilteredValueChange: (value: string | null) => void;
   onNextResult: () => void;
   onPreviousResult: () => void;
   result: SimulationResult;
@@ -90,19 +132,17 @@ export function SimulationResultExplorer({
   simulationId: string;
 }>) {
   const donutData = buildDonutData(result);
-  const values = filterValues(result, dimension);
   const answered = result.summary.answeredPersonaCount;
   const resultCount = result.resultSlots.length;
   const currentPosition = resultIndex >= 0 ? resultIndex + 1 : 0;
   const selectedOption = result.task.question.options.find(
     (option) => option.id === detail?.selectedOptionId,
   );
-  const filterLabel =
-    dimension === "all"
-      ? "전체"
-      : filteredValue
-        ? `${dimension === "gender" ? "성별" : "연령"} · ${filteredValue}`
-        : `${dimension === "gender" ? "성별" : "연령"} 전체`;
+  const dimensionLabel =
+    dimension === "gender" ? "성별" : dimension === "ageGroup" ? "연령" : "전체";
+  const comparisonHeading =
+    dimension === "gender" ? "성별 응답을 한눈에 비교" : "연령대별 응답을 한눈에 비교";
+  const insight = buildComparisonInsight(comparisons);
 
   return (
     <section aria-busy={loading} className={styles.explorer}>
@@ -136,13 +176,13 @@ export function SimulationResultExplorer({
         </div>
       </dl>
 
-      <section className={styles.filterStation}>
+      <section className={styles.compareStation}>
         <div className={styles.filterCopy}>
-          <span>RESULT FILTER</span>
-          <h3>어떤 집단의 응답을 볼까요?</h3>
-          <p>전체 결과에서 성별 또는 연령을 선택해 같은 기준으로 차트와 응답 이유를 봅니다.</p>
+          <span>RESULT COMPARE</span>
+          <h3>무엇을 기준으로 비교할까요?</h3>
+          <p>전체 분포는 그대로 두고, 선택한 기준의 모든 집단을 같은 축에서 나란히 보여드립니다.</p>
         </div>
-        <div className={styles.filterControls}>
+        <div className={styles.compareControls}>
           <div aria-label="응답 비교 기준" className={styles.segmented} role="group">
             {DIMENSIONS.map((item) => (
               <button
@@ -156,38 +196,16 @@ export function SimulationResultExplorer({
               </button>
             ))}
           </div>
-          {dimension !== "all" ? (
-            <div
-              aria-label={`${dimension === "gender" ? "성별" : "연령"} 결과 필터`}
-              className={styles.valueFilters}
-            >
-              <button
-                aria-pressed={filteredValue === null}
-                className={filteredValue === null ? styles.activeValue : undefined}
-                onClick={() => onFilteredValueChange(null)}
-                type="button"
-              >
-                모두
-              </button>
-              {values.map((value) => (
-                <button
-                  aria-pressed={filteredValue === value}
-                  className={filteredValue === value ? styles.activeValue : undefined}
-                  key={value}
-                  onClick={() => onFilteredValueChange(value)}
-                  type="button"
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <p aria-live="polite" className={styles.compareStatus}>
+            <strong>{dimensionLabel}</strong>
+            {dimension === "all"
+              ? " 응답 분포를 보고 있습니다."
+              : comparisonLoading && comparisons.length === 0
+                ? " 기준의 모든 집단을 불러오고 있습니다."
+                : ` 기준의 ${comparisons.length}개 집단을 한 번에 비교합니다.`}
+            {comparisonLoading && comparisons.length > 0 ? " · 비교 결과를 갱신하는 중…" : ""}
+          </p>
         </div>
-        <p aria-live="polite" className={styles.filterStatus}>
-          <strong>{filterLabel}</strong> 기준 ·{" "}
-          {result.denominators.filtered.toLocaleString("ko-KR")}명
-          {loading ? " · 다시 집계하는 중…" : ""}
-        </p>
       </section>
 
       <section className={styles.questionResult}>
@@ -219,6 +237,60 @@ export function SimulationResultExplorer({
           </ol>
         </div>
       </section>
+
+      {dimension !== "all" ? (
+        <section aria-busy={comparisonLoading} className={styles.comparisonSection}>
+          <header className={styles.comparisonHeader}>
+            <div>
+              <span>GROUP COMPARISON</span>
+              <h3>{comparisonHeading}</h3>
+            </div>
+            <p>막대 길이는 각 집단 안에서 해당 응답을 선택한 비율입니다.</p>
+          </header>
+
+          {insight && insight.difference > 0 ? (
+            <div className={styles.insight}>
+              <span aria-hidden="true">↗</span>
+              <div>
+                <strong>집단 간 가장 큰 차이</strong>
+                <p>
+                  <b>{insight.highestGroup}</b>의 ‘{insight.optionLabel}’ 응답이{" "}
+                  <b>{insight.lowestGroup}</b>보다 {insight.difference.toFixed(1)}%p 높습니다.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {comparisons.length > 0 ? (
+            <div
+              aria-label={`${dimensionLabel} 기준 집단별 응답 비교`}
+              className={styles.comparisonGrid}
+            >
+              {comparisons.map((comparison) => (
+                <ComparisonCard
+                  comparison={comparison}
+                  key={comparison.label}
+                  total={result.denominators.filtered}
+                />
+              ))}
+            </div>
+          ) : comparisonLoading ? (
+            <div className={styles.comparisonLoading} role="status">
+              모든 집단의 응답 분포를 모으고 있습니다.
+            </div>
+          ) : (
+            <div className={styles.emptyComparison}>
+              <strong>비교할 집단 결과가 없습니다.</strong>
+              <p>{comparisonMessage || "이 시뮬레이션에 기록된 집단 정보를 확인해 주세요."}</p>
+            </div>
+          )}
+          {comparisonMessage && comparisons.length > 0 ? (
+            <p className={styles.comparisonMessage} role="status">
+              {comparisonMessage}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className={styles.responseExplorer}>
         <header className={styles.responseHeader}>
@@ -269,8 +341,8 @@ export function SimulationResultExplorer({
           </article>
         ) : resultCount === 0 ? (
           <div className={styles.emptyReason}>
-            <strong>조건에 맞는 응답자가 없습니다.</strong>
-            <p>필터를 ‘모두’로 바꾸거나 다른 집단을 선택해 주세요.</p>
+            <strong>확인할 응답 이유가 없습니다.</strong>
+            <p>이 시뮬레이션에 기록된 유효 응답 수를 확인해 주세요.</p>
           </div>
         ) : (
           <div className={styles.emptyReason}>
@@ -280,6 +352,49 @@ export function SimulationResultExplorer({
         )}
       </section>
     </section>
+  );
+}
+
+function ComparisonCard({
+  comparison,
+  total,
+}: Readonly<{ comparison: SimulationResultComparison; total: number }>) {
+  const data = buildDonutData(comparison.result);
+  const groupCount = comparison.result.denominators.filtered;
+  const share = total > 0 ? (groupCount / total) * 100 : 0;
+  return (
+    <article className={styles.comparisonCard}>
+      <header>
+        <h4>{comparison.label}</h4>
+        <p>
+          <strong>{groupCount.toLocaleString("ko-KR")}명</strong>
+          <span>전체의 {share.toFixed(1)}%</span>
+        </p>
+      </header>
+      <ol>
+        {data.map((item, index) => (
+          <li
+            aria-label={`${item.label}: ${item.count.toLocaleString("ko-KR")}명, ${item.percentage.toFixed(1)}%`}
+            key={item.id}
+          >
+            <span className={styles.comparisonKey}>
+              <i aria-hidden="true" style={{ background: item.color }} />
+              {item.id === "unanswered" ? "—" : String(index + 1).padStart(2, "0")}
+            </span>
+            <span className={styles.comparisonTrack}>
+              <i
+                aria-hidden="true"
+                style={{ background: item.color, width: `${Math.min(item.percentage, 100)}%` }}
+              />
+            </span>
+            <span className={styles.comparisonValue}>
+              <b>{item.count.toLocaleString("ko-KR")}명</b>
+              {item.percentage.toFixed(1)}%
+            </span>
+          </li>
+        ))}
+      </ol>
+    </article>
   );
 }
 

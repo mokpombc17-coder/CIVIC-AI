@@ -171,7 +171,10 @@ test.beforeAll(async () => {
       request.method === "GET"
     ) {
       simulationResultQueries.push(url.search);
-      return json(response, simulationResultFixture(url.searchParams.get("gender")));
+      return json(
+        response,
+        simulationResultFixture(url.searchParams.get("gender"), url.searchParams.get("ageGroup")),
+      );
     }
     if (
       url.pathname.startsWith(`/api/v1/admin/simulations/${simulationId}/results/`) &&
@@ -530,7 +533,7 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
   );
 });
 
-test("시뮬레이션 결과는 성별 필터·도넛 분포·응답 이유를 한 화면에서 탐색한다", async ({
+test("시뮬레이션 결과는 모든 성별 집단·도넛 분포·응답 이유를 한 화면에서 비교한다", async ({
   context,
   page,
 }) => {
@@ -545,13 +548,30 @@ test("시뮬레이션 결과는 성별 필터·도넛 분포·응답 이유를 �
   await expect(page.getByText(/이 결과는 생성형 AI를 사용해 생성한 가상 패널/u)).toHaveCount(0);
   await expect(page.getByRole("link", { name: "상세 화면" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "성별", exact: true }).click();
-  await page.getByRole("button", { name: "여성", exact: true }).click();
+  await expect(page.getByRole("button", { name: "성별", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect.poll(() => simulationResultQueries).toContain("?gender=%EB%82%A8%EC%84%B1");
   await expect.poll(() => simulationResultQueries).toContain("?gender=%EC%97%AC%EC%84%B1");
-  await expect(page.getByText(/성별 · 여성.*2명/u)).toBeVisible();
+  const genderComparison = page.getByLabel("성별 기준 집단별 응답 비교");
+  await expect(genderComparison.getByRole("heading", { name: "남성" })).toBeVisible();
+  await expect(genderComparison.getByRole("heading", { name: "여성" })).toBeVisible();
+  await expect(page.getByText("집단 간 가장 큰 차이")).toBeVisible();
+
+  await page.getByRole("button", { name: "연령", exact: true }).click();
+  await expect.poll(() => simulationResultQueries).toContain("?ageGroup=30%EB%8C%80");
+  await expect.poll(() => simulationResultQueries).toContain("?ageGroup=40%EB%8C%80");
+  await expect.poll(() => simulationResultQueries).toContain("?ageGroup=50%EB%8C%80");
+  const ageComparison = page.getByLabel("연령 기준 집단별 응답 비교");
+  await expect(ageComparison.getByRole("heading", { name: "30대" })).toBeVisible();
+  await expect(ageComparison.getByRole("heading", { name: "40대" })).toBeVisible();
+  await expect(ageComparison.getByRole("heading", { name: "50대" })).toBeVisible();
 
   await page.getByRole("button", { name: /다음 결과/u }).click();
-  await expect(page.getByText("돌봄 공백을 줄이는 정책이 더 시급합니다.")).toBeVisible();
+  await expect(page.getByText("보행 환경 개선이 모든 주민에게 도움이 됩니다.")).toBeVisible();
+  await page.setViewportSize({ width: 640, height: 900 });
+  await expect(ageComparison.getByRole("heading", { name: "30대" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -740,22 +760,34 @@ function simulationFixture(state: "RUNNING" | "COMPLETED") {
   };
 }
 
-function simulationResultFixture(gender: string | null) {
+function simulationResultFixture(gender: string | null, ageGroup: string | null) {
+  const isMen = gender === "남성";
   const isWomen = gender === "여성";
+  const isAgeGroup = ageGroup !== null;
+  const filteredCount = isMen ? 1 : isWomen ? 2 : isAgeGroup ? 1 : 3;
+  const firstCount =
+    isMen || ageGroup === "30대" || ageGroup === "40대"
+      ? 1
+      : isWomen
+        ? 1
+        : ageGroup === "50대"
+          ? 0
+          : 2;
+  const secondCount = isMen || ageGroup === "30대" || ageGroup === "40대" ? 0 : 1;
   const optionResults = [
     {
       optionId: "4928e1be-b4ef-45c6-bf83-17641cf4183d",
       displayOrder: 1,
       content: "생활안전 강화",
-      count: isWomen ? 1 : 2,
-      percentage: isWomen ? 50 : 66.67,
+      count: firstCount,
+      percentage: (firstCount / filteredCount) * 100,
     },
     {
       optionId: "879ba3de-0b84-412b-b51f-e879e9d8f6e2",
       displayOrder: 2,
       content: "돌봄·복지 확대",
-      count: 1,
-      percentage: isWomen ? 50 : 33.33,
+      count: secondCount,
+      percentage: (secondCount / filteredCount) * 100,
     },
   ];
   return {
@@ -786,13 +818,13 @@ function simulationResultFixture(gender: string | null) {
       modelType: "claude-sonnet-4-6",
       filters: {},
     },
-    denominators: { total: 3, filtered: isWomen ? 2 : 3 },
+    denominators: { total: 3, filtered: filteredCount },
     optionResults,
     unansweredCount: 0,
     summary: {
       totalRespondentCount: 3,
-      filteredRespondentCount: isWomen ? 2 : 3,
-      answeredPersonaCount: isWomen ? 2 : 3,
+      filteredRespondentCount: filteredCount,
+      answeredPersonaCount: filteredCount,
       unansweredPersonaCount: 0,
       optionResults,
     },
@@ -800,7 +832,17 @@ function simulationResultFixture(gender: string | null) {
       genders: ["남성", "여성"],
       ageGroups: ["30대", "40대", "50대"],
     },
-    resultSlots: isWomen ? [1, 3] : [1, 2, 3],
+    resultSlots: isMen
+      ? [2]
+      : isWomen
+        ? [1, 3]
+        : ageGroup === "30대"
+          ? [1]
+          : ageGroup === "40대"
+            ? [2]
+            : ageGroup === "50대"
+              ? [3]
+              : [1, 2, 3],
   };
 }
 
