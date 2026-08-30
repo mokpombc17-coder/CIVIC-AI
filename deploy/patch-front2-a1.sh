@@ -4,17 +4,15 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: deploy/patch-front2-a1.sh --ssh-key PATH --host-ip PUBLIC_IPV4 [options]
+Usage: deploy/patch-front2-a1.sh [options]
 
 Builds the current origin/main commit as an immutable linux/arm64 Front2 image,
 transfers a checksummed image archive, and replaces only the A1 web service.
 Repository tests and the Docker verification target are intentionally skipped.
 
-Required:
-  --ssh-key PATH       Current-user mode-0600 SSH private key
-  --host-ip IPV4       A1 public IPv4 address
-
 Options:
+  --ssh-key PATH       SSH key (default: $HOME/.ssh/civic-ai-dev_ed25519)
+  --host-ip IPV4       A1 address (default: 140.238.17.223)
   --ssh-user USER      SSH user (default: ubuntu)
   --public-host HOST   Public HTTPS host (default: civic-ai.co.kr)
   --dry-run            Validate source and inputs, then print the release plan
@@ -52,10 +50,10 @@ if metadata.st_uid != owner or stat.S_IMODE(metadata.st_mode) != 0o600:
 PY
 }
 
-ssh_key=""
-host_ip=""
-ssh_user="ubuntu"
-public_host="civic-ai.co.kr"
+ssh_key="${CIVIC_A1_SSH_KEY:-${HOME:?HOME is required}/.ssh/civic-ai-dev_ed25519}"
+host_ip="${CIVIC_A1_HOST_IP:-140.238.17.223}"
+ssh_user="${CIVIC_A1_SSH_USER:-ubuntu}"
+public_host="${CIVIC_A1_PUBLIC_HOST:-civic-ai.co.kr}"
 dry_run=false
 
 while (($#)); do
@@ -70,7 +68,6 @@ while (($#)); do
   esac
 done
 
-[[ -n "$ssh_key" && -n "$host_ip" ]] || { usage >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 validate_private_file "$ssh_key" \
   || die "SSH key must be a current-user mode-0600 regular file and not a symlink"
