@@ -85,6 +85,7 @@ export type HomeTaskActivityState = Readonly<{
   active: AdminDomainMetricState;
   dueSoon: AdminDomainMetricState;
   dueSoonItems: readonly HomeTaskDeadline[];
+  upcomingItems: readonly Readonly<{ taskId: string; title: string; opensAt: string }>[];
 }>;
 export type HomeAttentionSimulation = Readonly<{
   taskId: string;
@@ -124,6 +125,9 @@ export function AdminFunctionalScreen({
     status: adminCurrentUser.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
   });
   const [dueSoonTasks, setDueSoonTasks] = useState<readonly HomeTaskDeadline[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<
+    readonly Readonly<{ taskId: string; title: string; opensAt: string }>[]
+  >([]);
   const [attentionSimulations, setAttentionSimulations] =
     useState<HomeAttentionSimulationState>({
       status: adminCurrentUser.permissions.includes("SIMULATION_ADMIN") ? "loading" : "forbidden",
@@ -143,10 +147,11 @@ export function AdminFunctionalScreen({
     if (canManageChat) void loadChatRequestSummary().then(setChatRequestSummary);
     if (canManageChat) void loadActiveRoomSummary().then(setActiveRoomSummary);
     if (canManageVote) {
-      void loadTaskActivitySummary().then(({ active, dueSoon, dueSoonItems }) => {
+      void loadTaskActivitySummary().then(({ active, dueSoon, dueSoonItems, upcomingItems }) => {
         setActiveTaskSummary(active);
         setDueSoonTaskSummary(dueSoon);
         setDueSoonTasks(dueSoonItems);
+        setUpcomingTasks(upcomingItems);
       });
     }
     if (canManageSimulation) void loadAttentionSimulations().then(setAttentionSimulations);
@@ -173,6 +178,7 @@ export function AdminFunctionalScreen({
           chatRequestSummary={chatRequestSummary}
           dueSoonTaskSummary={dueSoonTaskSummary}
           dueSoonTasks={dueSoonTasks}
+          upcomingTasks={upcomingTasks}
           ragJobSummary={ragJobSummary}
           simulationWalletSummary={simulationWalletSummary}
         />
@@ -191,6 +197,7 @@ export function AdminHome({
   chatRequestSummary,
   dueSoonTaskSummary,
   dueSoonTasks,
+  upcomingTasks,
   simulationWalletSummary,
 }: {
   activeRoomSummary: AdminDomainMetricState;
@@ -202,6 +209,7 @@ export function AdminHome({
   chatRequestSummary: ChatRequestSummaryState;
   dueSoonTaskSummary: AdminDomainMetricState;
   dueSoonTasks: readonly HomeTaskDeadline[];
+  upcomingTasks: readonly Readonly<{ taskId: string; title: string; opensAt: string }>[];
   simulationWalletSummary: SimulationWalletMetricState;
 }) {
   const failures = ragJobSummary.status === "ready" ? ragJobSummary.recentFailures : [];
@@ -267,6 +275,31 @@ export function AdminHome({
               ))}
             </HomeSection>
           ) : null}
+          {upcomingTasks.length > 0 ? (
+            <HomeSection
+              action={
+                <Link className="civic-home-section-action" href="/admin/tasks">
+                  과업 관리
+                </Link>
+              }
+              title="시작 예정 과업"
+            >
+              {upcomingTasks.map((task) => (
+                <HomeRow
+                  action={
+                    <Link
+                      href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
+                    >
+                      과업 보기
+                    </Link>
+                  }
+                  key={task.taskId}
+                  meta={`시작 ${formatAdminDate(task.opensAt)}`}
+                  title={task.title}
+                />
+              ))}
+            </HomeSection>
+          ) : null}
           {failures.length > 0 ? (
             <HomeSection
               action={
@@ -312,6 +345,13 @@ export function AdminHome({
       </div>
     </div>
   );
+}
+
+export function pendingAgeLabel(requestedAt: string, now = Date.now()): string {
+  const timestamp = Date.parse(requestedAt);
+  if (!Number.isFinite(timestamp)) return "";
+  const days = Math.floor((now - timestamp) / (24 * 60 * 60 * 1_000));
+  return days >= 2 ? ` · ${days}일째 대기` : "";
 }
 
 function HomeSection({
@@ -403,6 +443,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
                 <small>
                   {adminUserLabel(state.labels, item.requesterUserId)} ·{" "}
                   {formatAdminDate(item.requestedAt)}
+                  {pendingAgeLabel(item.requestedAt)}
                 </small>
               </div>
               <Link
@@ -592,6 +633,7 @@ export async function loadTaskActivitySummary(
     active: { status: "unavailable" },
     dueSoon: { status: "unavailable" },
     dueSoonItems: [],
+    upcomingItems: [],
   };
   try {
     const response = await request("/api/v1/admin/tasks", { cache: "no-store" });
@@ -616,10 +658,22 @@ export async function loadTaskActivitySummary(
       const timestamp = Date.parse(closesAt);
       return Number.isFinite(timestamp) && timestamp > now && timestamp <= deadline;
     }).length;
+    const upcomingItems = tasks
+      .flatMap((task) => {
+        if (task.status !== "SCHEDULED") return [];
+        const opensAt = task.schedule?.opensAt;
+        if (!opensAt) return [];
+        const timestamp = Date.parse(opensAt);
+        if (!Number.isFinite(timestamp) || timestamp <= now || timestamp > deadline) return [];
+        return [{ taskId: task.taskId, title: task.title, opensAt }];
+      })
+      .toSorted((left, right) => left.opensAt.localeCompare(right.opensAt))
+      .slice(0, 3);
     return {
       active: { status: "ready", count: open.length, hasMore: false },
       dueSoon: { status: "ready", count: dueSoonCount, hasMore: false },
       dueSoonItems,
+      upcomingItems,
     };
   } catch {
     return unavailable;

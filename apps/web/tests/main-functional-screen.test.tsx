@@ -1256,6 +1256,9 @@ describe("25 functional Main/Auth screens", () => {
         dueSoonTasks: [
           { taskId: "task-2", title: "복지 과업", closesAt: "2026-08-31T10:00:00Z" },
         ],
+        upcomingTasks: [
+          { taskId: "task-3", title: "예약된 교통 과업", opensAt: "2026-08-31T09:00:00Z" },
+        ],
         ragJobSummary: {
           status: "ready",
           failed: 1,
@@ -1281,6 +1284,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("확인문서.pdf");
     expect(html).toContain("마감 임박 과업");
     expect(html).toContain("복지 과업");
+    expect(html).toContain("시작 예정 과업");
+    expect(html).toContain("예약된 교통 과업");
     expect(html).toContain("확인 필요 시뮬레이션");
     expect(html).toContain("교통 정책 과업");
     expect(html).not.toContain("최근 권한 변경");
