@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   AdminChatInsightsScreen,
   ChatStatisticsSummary,
+  chatInsightsPath,
+  chatInsightsTabForScreen,
   resolveConversationAnalysisRange,
 } from "@/components/admin/admin-chat-insights-screen";
 import type { ConversationExportMetrics } from "@/lib/chat/conversation-export";
@@ -11,11 +13,11 @@ import { screenRegistry } from "@/lib/screens/registry";
 
 describe("admin chat conversation insights", () => {
   it.each([
-    ["A-CHAT-001", "채팅 운영"],
-    ["A-CHAT-002", "채팅방 상세"],
-    ["A-CHAT-008", "채팅 통계"],
-    ["A-CHAT-009", "채팅 운영"],
-  ])("%s 화면에서 방 선택 중심의 자동 분석 흐름을 제공한다", (screenId, title) => {
+    ["A-CHAT-001", "채팅 운영", "대화 분석"],
+    ["A-CHAT-002", "채팅방 상세", "대화 분석"],
+    ["A-CHAT-008", "채팅 통계", "통계"],
+    ["A-CHAT-009", "채팅 운영", "대화 분석"],
+  ])("%s 화면에서 방 선택 중심의 자동 분석 흐름을 제공한다", (screenId, title, activeTab) => {
     const screen = screenRegistry.find((candidate) => candidate.id === screenId);
     expect(screen?.status).toBe("FUNCTIONAL");
     if (!screen) throw new Error(`Missing screen: ${screenId}`);
@@ -24,12 +26,16 @@ describe("admin chat conversation insights", () => {
 
     expect(html).toContain(`data-wireflow-screen="${screenId}"`);
     expect(html).toContain(`>${title}</h1>`);
-    expect(html).toContain("ACTIVE · CLOSED");
-    expect(html).toContain("운영 상태와 대화 맥락을 함께 확인합니다");
-    expect(html).toContain("관리자는 참여 여부와 관계없이 활성 방을 즉시 종료");
+    expect(html).toContain("운영할 채팅방");
+    expect(html).not.toContain("ACTIVE · CLOSED");
+    expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
     expect(html).toContain('aria-label="채팅 운영 메뉴"');
     expect(html).toContain('href="/admin/chat/requests"');
     expect(html).toContain('href="/admin/chat/categories"');
+    expect(html).toContain('aria-label="분석 보기 탭"');
+    expect(html).toContain(
+      `<button aria-selected="true" class="console-tab" role="tab" type="button">${activeTab}</button>`,
+    );
     expect(html).toContain('aria-label="분석 기간"');
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain(">전체 기간</button>");
@@ -39,6 +45,20 @@ describe("admin chat conversation insights", () => {
     expect(html).not.toContain('type="datetime-local"');
     expect(html).not.toContain("roomId");
     expect(html).not.toContain("userId");
+  });
+
+  it("탭 초기값은 화면 ID에서, 탭 URL은 선택한 방을 유지한 채 계산한다", () => {
+    expect(chatInsightsTabForScreen("A-CHAT-001")).toBe("analysis");
+    expect(chatInsightsTabForScreen("A-CHAT-002")).toBe("analysis");
+    expect(chatInsightsTabForScreen("A-CHAT-009")).toBe("analysis");
+    expect(chatInsightsTabForScreen("A-CHAT-008")).toBe("statistics");
+
+    expect(chatInsightsPath("analysis", null)).toBe("/admin/chat");
+    expect(chatInsightsPath("statistics", null)).toBe("/admin/chat/statistics");
+    expect(chatInsightsPath("analysis", "room-1")).toBe("/admin/chat?roomId=room-1");
+    expect(chatInsightsPath("statistics", "room 1")).toBe(
+      "/admin/chat/statistics?roomId=room%201",
+    );
   });
 
   it("전체 기간은 채팅방 개설 시각부터 현재까지로 계산한다", () => {

@@ -81,16 +81,13 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/users");
 
-  await expect(page.getByRole("heading", { name: "사용자 목록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
   const participantRow = page.getByRole("row", { name: /citizen@example.com/ });
   await expect(participantRow).toContainText("활성");
-  await participantRow.getByRole("link", { name: "사용자 상세" }).click();
+  await participantRow.click();
 
-  await expect(page.getByRole("heading", { name: "사용자·관리자 상세" })).toBeVisible();
-  await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "관리자 전환·권한 편집" }).first().click();
-
-  await expect(page.getByRole("heading", { name: "관리자 전환·권한 편집" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "citizen@example.com" })).toBeVisible();
+  await page.getByRole("tab", { name: "권한 편집" }).click();
   const permissionLabels = ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"];
   for (const permission of permissionLabels) {
     await expect(page.getByLabel(permission)).toBeVisible();
@@ -117,7 +114,7 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
   await expect(page.getByRole("link", { name: "권한 회수 영향 확인" })).toHaveCount(0);
   await page.getByRole("button", { name: "권한 변경 저장" }).click();
 
-  await expect(page.getByRole("status")).toContainText("감사 이벤트를 저장했습니다");
+  await expect(page.getByRole("status")).toContainText("권한 변경을 저장했습니다");
   expect(roleUpdate).toEqual({
     body: {
       roles: ["ADMIN"],
@@ -129,9 +126,9 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
     csrf: "admin-csrf-token",
   });
 
-  await page.getByRole("link", { name: "권한 변경 이력" }).first().click();
-  await expect(page.getByRole("heading", { name: "권한 변경 이력" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "문서 운영 담당자 배정" })).toBeVisible();
+  await page.getByRole("tab", { name: "권한 이력" }).click();
+  await expect(page.getByRole("region", { name: "감사 이력 표" })).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "문서 운영 담당자 배정" })).toBeVisible();
   await expect(page.getByText(/사용자 비활성화|개인정보 삭제 실행/)).toHaveCount(0);
 });
 

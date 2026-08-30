@@ -1,10 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import type { Route } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
+import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import {
+  ConsoleEmpty,
+  ConsolePane,
+  ConsoleStatus,
+  ConsoleWorkspace,
+} from "@/components/admin/console/console-ui";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import {
@@ -40,14 +46,47 @@ const filterStatuses: readonly Readonly<{ label: string; value: RoomCreationStat
   { value: "REJECTED", label: "반려" },
 ];
 
+export type ChatRequestRow = Readonly<{
+  creationRequestId: string;
+  name: string;
+  requesterLabel: string;
+  requestedLabel: string;
+  statusLabel: string;
+}>;
+
+export const CHAT_REQUEST_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<ChatRequestRow>> = [
+  { field: "name", headerName: "채팅방 이름", flex: 2, minWidth: 150 },
+  { field: "requesterLabel", headerName: "신청자", flex: 2, minWidth: 140 },
+  { field: "requestedLabel", headerName: "요청 시각", minWidth: 130 },
+  { field: "statusLabel", headerName: "상태", minWidth: 90 },
+];
+
+export function chatRequestRowFromItem(
+  item: RoomCreationRequest,
+  labels: ReadonlyMap<string, string>,
+): ChatRequestRow {
+  return {
+    creationRequestId: item.creationRequestId,
+    name: item.name,
+    requesterLabel: adminUserLabel(labels, item.requesterUserId),
+    requestedLabel: formatDate(item.requestedAt),
+    statusLabel: statusLabel(item.status),
+  };
+}
+
+export function chatRequestDetailPath(requestId: string): string {
+  return `/admin/chat/requests/detail?requestId=${encodeURIComponent(requestId)}`;
+}
+
 export function AdminChatRequestScreen({
   screen,
   query: routeQuery,
 }: Readonly<{ screen: ScreenDefinition; query: AdminRouteQuery }>) {
-  const detailMode = screen.id === "A-CHAT-005" || screen.id === "A-CHAT-006";
-  const requestId = firstQueryValue(routeQuery.requestId);
+  const detailScreen = screen.id === "A-CHAT-005" || screen.id === "A-CHAT-006";
+  const initialRequestId = firstQueryValue(routeQuery.requestId);
   const [status, setStatus] = useState<RoomCreationStatus>("PENDING");
   const [items, setItems] = useState<readonly RoomCreationRequest[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(initialRequestId);
   const [selected, setSelected] = useState<RoomCreationRequest | null>(null);
   const [labels, setLabels] = useState<ReadonlyMap<string, string>>(new Map());
   const [categories, setCategories] = useState<readonly RoomCategory[]>([]);
@@ -55,18 +94,18 @@ export function AdminChatRequestScreen({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [query, setQuery] = useState("");
-  const [message, setMessage] = useState(
-    detailMode && !requestId ? "검토할 신청을 목록에서 선택해 주세요." : "",
-  );
-  const [loading, setLoading] = useState(!(detailMode && !requestId));
+  const [message, setMessage] = useState("");
+  const [listLoading, setListLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(Boolean(initialRequestId));
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<AdminProblem | null>(null);
   const [rejectMode, setRejectMode] = useState(screen.id === "A-CHAT-006");
-  const generation = useRef(0);
+  const listGeneration = useRef(0);
+  const detailGeneration = useRef(0);
 
   const loadList = useCallback(async (nextStatus: RoomCreationStatus, cursor?: string) => {
-    const currentGeneration = ++generation.current;
-    setLoading(true);
+    const currentGeneration = ++listGeneration.current;
+    setListLoading(true);
     const parameters = new URLSearchParams({ status: nextStatus, limit: "20" });
     if (cursor) parameters.set("cursor", cursor);
     try {
@@ -74,7 +113,7 @@ export function AdminChatRequestScreen({
         `/api/v1/admin/room-creation-requests?${parameters.toString()}`,
         { cache: "no-store" },
       );
-      if (currentGeneration !== generation.current) return;
+      if (currentGeneration !== listGeneration.current) return;
       if (!response.ok) {
         const problem = await readAdminProblem(response);
         setMessage(formatAdminProblem(problem));
@@ -94,22 +133,22 @@ export function AdminChatRequestScreen({
       const nextLabels = await requestAdminUserLabels(
         page.items.map((item) => item.requesterUserId),
       );
-      if (currentGeneration === generation.current && nextLabels) {
+      if (currentGeneration === listGeneration.current && nextLabels) {
         setLabels((current) => new Map([...current, ...nextLabels]));
       }
     } catch {
-      if (currentGeneration === generation.current) {
+      if (currentGeneration === listGeneration.current) {
         if (!cursor) setItems([]);
         setMessage("네트워크 오류로 신청 목록을 불러오지 못했습니다.");
       }
     } finally {
-      if (currentGeneration === generation.current) setLoading(false);
+      if (currentGeneration === listGeneration.current) setListLoading(false);
     }
   }, []);
 
   const loadDetail = useCallback(async (requestId: string) => {
-    const currentGeneration = ++generation.current;
-    setLoading(true);
+    const currentGeneration = ++detailGeneration.current;
+    setDetailLoading(true);
     try {
       const [response, categoryResponse] = await Promise.all([
         authenticatedFetch(
@@ -120,14 +159,14 @@ export function AdminChatRequestScreen({
           () => null,
         ),
       ]);
-      if (currentGeneration !== generation.current) return null;
+      if (currentGeneration !== detailGeneration.current) return null;
       if (!response.ok) {
         setSelected(null);
         setMessage(formatAdminProblem(await readAdminProblem(response)));
         return null;
       }
       const detail = readRoomCreationRequest(await response.json());
-      if (currentGeneration !== generation.current) return null;
+      if (currentGeneration !== detailGeneration.current) return null;
       if (!detail) {
         setSelected(null);
         setMessage("서버의 신청 상세 응답 형식을 확인해야 합니다.");
@@ -152,28 +191,40 @@ export function AdminChatRequestScreen({
         }
       }
       const nextLabels = await requestAdminUserLabels([detail.requesterUserId]);
-      if (currentGeneration === generation.current && nextLabels) setLabels(nextLabels);
+      if (currentGeneration === detailGeneration.current && nextLabels) {
+        setLabels((current) => new Map([...current, ...nextLabels]));
+      }
       return detail;
     } catch {
-      if (currentGeneration === generation.current) {
+      if (currentGeneration === detailGeneration.current) {
         setMessage("네트워크 오류로 신청 상세를 불러오지 못했습니다.");
       }
       return null;
     } finally {
-      if (currentGeneration === generation.current) setLoading(false);
+      if (currentGeneration === detailGeneration.current) setDetailLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (detailMode && requestId) void loadDetail(requestId);
-      else if (!detailMode) void loadList(status);
+      void loadList(status);
     }, 0);
     return () => {
       window.clearTimeout(timer);
-      generation.current += 1;
+      listGeneration.current += 1;
     };
-  }, [detailMode, loadDetail, loadList, requestId, status]);
+  }, [loadList, status]);
+
+  useEffect(() => {
+    if (!initialRequestId) return;
+    const timer = window.setTimeout(() => {
+      void loadDetail(initialRequestId);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      detailGeneration.current += 1;
+    };
+  }, [initialRequestId, loadDetail]);
 
   const filteredItems = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
@@ -186,6 +237,17 @@ export function AdminChatRequestScreen({
     );
   }, [items, labels, query]);
 
+  const rows = useMemo(
+    () => filteredItems.map((item) => chatRequestRowFromItem(item, labels)),
+    [filteredItems, labels],
+  );
+
+  function selectRequest(row: ChatRequestRow) {
+    setSelectedRequestId(row.creationRequestId);
+    syncRequestUrl(row.creationRequestId);
+    void loadDetail(row.creationRequestId);
+  }
+
   async function decide(action: "approve" | "reject", reason?: string) {
     if (!selected || selected.status !== "PENDING" || pending) return;
     if (action === "reject") {
@@ -196,7 +258,7 @@ export function AdminChatRequestScreen({
       const validation = validateCategorySelection(selectedCategoryIds);
       if (validation) return setMessage(validation);
     }
-    generation.current += 1;
+    detailGeneration.current += 1;
     setPending(true);
     setMessage("");
     setProblem(null);
@@ -225,6 +287,11 @@ export function AdminChatRequestScreen({
       if (!result) return setMessage("서버의 처리 결과 응답 형식을 확인해야 합니다.");
       setSelected(result);
       setSelectedCategoryIds(result.categoryIds);
+      setItems((current) =>
+        current.map((item) =>
+          item.creationRequestId === result.creationRequestId ? result : item,
+        ),
+      );
       setMessage(
         result.replayed
           ? "이미 반영된 동일 결정을 확인했습니다. 방은 중복 생성되지 않았습니다."
@@ -242,140 +309,110 @@ export function AdminChatRequestScreen({
 
   return (
     <ScreenFrame
-      {...(detailMode ? { backHref: "/admin/chat/requests" as Route } : {})}
+      {...(detailScreen ? { backHref: "/admin/chat/requests" as Route } : {})}
       screen={screen}
-      title={detailMode ? "채팅방 생성 요청 검토" : "채팅방 생성 요청"}
+      title={detailScreen ? "채팅방 생성 요청 검토" : "채팅방 생성 요청"}
     >
       <AdminChatOperationsLayout active="requests">
-        <div
-          className="civic-admin-workbench civic-domain-console"
-          data-wireflow-layout="chat-request-admin"
-        >
-          {!detailMode ? (
-            <>
-              <div className="civic-domain-toolbar">
-                <label className="civic-field">
-                  <span>신청자 이메일 또는 채팅방 이름 검색</span>
-                  <input
-                    onChange={(event) => setQuery(event.currentTarget.value)}
-                    placeholder="검색어 입력…"
-                    type="search"
-                    value={query}
-                  />
-                </label>
-                <div aria-label="신청 상태" className="wf-admin-filters" role="group">
-                  {filterStatuses.map((option) => (
-                    <button
-                      aria-pressed={status === option.value}
-                      disabled={loading}
-                      key={option.value}
-                      onClick={() => {
-                        setStatus(option.value);
-                        setItems([]);
-                        setNextCursor(null);
-                        setHasNext(false);
-                      }}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <RequestTable items={filteredItems} labels={labels} />
-              {hasNext && nextCursor ? (
+        <ConsoleWorkspace layout="admin-chat-request-console">
+          <ConsolePane
+            ariaLabel="개설 신청 목록"
+            subtitle={`${filteredItems.length}건 표시`}
+            title="개설 신청"
+          >
+            <div className="console-toolbar">
+              <input
+                aria-label="신청자 이메일 또는 채팅방 이름 검색"
+                onChange={(event) => setQuery(event.currentTarget.value)}
+                placeholder="검색어 입력…"
+                type="search"
+                value={query}
+              />
+            </div>
+            <div aria-label="신청 상태" className="console-filter-group" role="group">
+              {filterStatuses.map((option) => (
                 <button
-                  className="wf-button wf-button-secondary civic-load-more"
-                  disabled={loading}
-                  onClick={() => void loadList(status, nextCursor)}
+                  aria-pressed={status === option.value}
+                  disabled={listLoading}
+                  key={option.value}
+                  onClick={() => {
+                    setStatus(option.value);
+                    setItems([]);
+                    setNextCursor(null);
+                    setHasNext(false);
+                  }}
                   type="button"
                 >
-                  다음 신청 불러오기
+                  {option.label}
                 </button>
-              ) : null}
-            </>
-          ) : (
-            <RequestDetail
-              item={selected}
-              categories={categories}
-              labels={labels}
-              onApprove={() => void decide("approve")}
-              onReject={(reason) => void decide("reject", reason)}
-              pending={pending}
-              problem={problem}
-              rejectMode={rejectMode}
-              selectedCategoryIds={selectedCategoryIds}
-              setSelectedCategoryIds={setSelectedCategoryIds}
-              setRejectMode={setRejectMode}
+              ))}
+            </div>
+            <ConsoleDataGrid
+              ariaLabel="채팅방 생성 신청 표"
+              columnDefs={CHAT_REQUEST_GRID_COLUMNS}
+              emptyText="선택한 상태에 해당하는 신청이 없습니다."
+              getRowId={(row) => row.creationRequestId}
+              height={460}
+              onRowClicked={selectRequest}
+              rowData={rows}
+              selectedRowId={selectedRequestId}
             />
-          )}
-          {loading ? <p aria-live="polite">최신 정보를 불러오는 중입니다.</p> : null}
-          {message ? (
-            <p aria-live="polite" className="civic-form-message" role="status">
-              {message}
-            </p>
-          ) : null}
-        </div>
+            {hasNext && nextCursor ? (
+              <button
+                className="wf-button wf-button-secondary civic-load-more"
+                disabled={listLoading}
+                onClick={() => void loadList(status, nextCursor)}
+                type="button"
+              >
+                다음 신청 불러오기
+              </button>
+            ) : null}
+            {listLoading ? <ConsoleStatus>최신 신청 목록을 불러오는 중입니다.</ConsoleStatus> : null}
+          </ConsolePane>
+
+          <ConsolePane
+            ariaLabel="신청 상세"
+            subtitle={selected ? statusLabel(selected.status) : "목록에서 선택"}
+            title={selected?.name ?? "신청을 선택하세요"}
+          >
+            {selected ? (
+              <div className="civic-domain-console" data-wireflow-layout="chat-request-admin">
+                <RequestDetail
+                  item={selected}
+                  categories={categories}
+                  labels={labels}
+                  onApprove={() => void decide("approve")}
+                  onReject={(reason) => void decide("reject", reason)}
+                  pending={pending}
+                  problem={problem}
+                  rejectMode={rejectMode}
+                  selectedCategoryIds={selectedCategoryIds}
+                  setSelectedCategoryIds={setSelectedCategoryIds}
+                  setRejectMode={setRejectMode}
+                />
+              </div>
+            ) : detailLoading ? (
+              <ConsoleStatus>신청 상세를 불러오는 중입니다.</ConsoleStatus>
+            ) : (
+              <ConsoleEmpty title="목록에서 신청을 선택하세요." />
+            )}
+            {message ? <ConsoleStatus>{message}</ConsoleStatus> : null}
+          </ConsolePane>
+        </ConsoleWorkspace>
       </AdminChatOperationsLayout>
     </ScreenFrame>
   );
+}
+
+function syncRequestUrl(requestId: string) {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(window.history.state, "", chatRequestDetailPath(requestId));
 }
 
 type AdminRouteQuery = Readonly<Record<string, string | readonly string[] | undefined>>;
 
 function firstQueryValue(value: string | readonly string[] | undefined): string | null {
   return typeof value === "string" ? value : (value?.[0] ?? null);
-}
-
-function RequestTable({
-  items,
-  labels,
-}: Readonly<{
-  items: readonly RoomCreationRequest[];
-  labels: ReadonlyMap<string, string>;
-}>) {
-  return (
-    <div aria-label="채팅방 생성 신청 표" className="civic-table-scroll" role="region" tabIndex={0}>
-      <table className="civic-admin-table">
-        <thead>
-          <tr>
-            <th>채팅방 이름</th>
-            <th>신청자</th>
-            <th>요청 시각</th>
-            <th>상태</th>
-            <th>작업</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
-            <tr>
-              <td colSpan={5}>선택한 상태에 해당하는 신청이 없습니다.</td>
-            </tr>
-          ) : null}
-          {items.map((item) => (
-            <tr key={item.creationRequestId}>
-              <th scope="row">{item.name}</th>
-              <td>{adminUserLabel(labels, item.requesterUserId)}</td>
-              <td>{formatDate(item.requestedAt)}</td>
-              <td>
-                <StatusBadge status={item.status} />
-              </td>
-              <td>
-                <Link
-                  className="civic-primary-action"
-                  href={
-                    `/admin/chat/requests/detail?requestId=${encodeURIComponent(item.creationRequestId)}` as Route
-                  }
-                >
-                  상세 검토
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
 }
 
 function RequestDetail({
@@ -408,9 +445,6 @@ function RequestDetail({
     return (
       <div className="civic-domain-empty">
         <p>신청 상세를 선택하지 않았거나 불러오지 못했습니다.</p>
-        <Link className="civic-secondary-action" href="/admin/chat/requests">
-          신청 목록으로
-        </Link>
       </div>
     );
   }
@@ -512,9 +546,6 @@ function RequestDetail({
                 />
               )}
               <div className="civic-form-actions">
-                <Link className="civic-secondary-action" href="/admin/chat/requests">
-                  목록으로
-                </Link>
                 <button
                   className={rejectMode ? "civic-danger-action" : "civic-primary-action"}
                   disabled={pending}
@@ -526,8 +557,7 @@ function RequestDetail({
             </form>
           ) : (
             <div className="civic-boundary-note">
-              <strong>처리 완료</strong>
-              <p>승인·반려·취소된 신청에는 추가 결정을 전송하지 않습니다.</p>
+              <p>이미 처리된 신청으로, 결정을 변경할 수 없습니다.</p>
             </div>
           )}
         </aside>
@@ -551,12 +581,6 @@ function FieldError({ id, message }: Readonly<{ id: string; message: string | nu
       {message}
     </small>
   ) : null;
-}
-
-function StatusBadge({ status }: Readonly<{ status: RoomCreationStatus }>) {
-  return (
-    <span className={`civic-domain-status is-${status.toLowerCase()}`}>{statusLabel(status)}</span>
-  );
 }
 
 function statusLabel(status: RoomCreationStatus): string {

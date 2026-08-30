@@ -1,9 +1,29 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Route } from "next";
-import { describe, expect, it } from "vitest";
-import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => null,
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+import {
+  AdminChatRequestScreen,
+  CHAT_REQUEST_GRID_COLUMNS,
+} from "@/components/admin/admin-chat-request-screen";
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
-import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
+import {
+  AdminTaskScreen,
+  TASK_GRID_COLUMNS,
+  taskWorkspacePath,
+  taskWorkspaceTabForScreen,
+} from "@/components/admin/admin-task-screen";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ParticipantShell } from "@/components/shell/participant-shell";
@@ -121,6 +141,44 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("바로 참여");
   });
 
+  it("채팅방 생성 요청 화면은 목록·상세 분할 콘솔로 렌더링한다", () => {
+    const requestList = screenRegistry.find((screen) => screen.id === "A-CHAT-004");
+    if (!requestList) throw new Error("A-CHAT-004 missing");
+
+    const html = renderToStaticMarkup(<AdminChatRequestScreen query={{}} screen={requestList} />);
+
+    expect(CHAT_REQUEST_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
+      "채팅방 이름",
+      "신청자",
+      "요청 시각",
+      "상태",
+    ]);
+    expect(html).toContain('data-wireflow-layout="admin-chat-request-console"');
+    expect(html).toContain('aria-label="개설 신청 목록"');
+    expect(html).toContain(">개설 신청</h3>");
+    expect(html).toContain('aria-label="신청자 이메일 또는 채팅방 이름 검색"');
+    expect(html).toContain('aria-label="신청 상태"');
+    expect(html).toContain('aria-label="채팅방 생성 신청 표"');
+    expect(html).toContain('aria-label="신청 상세"');
+    expect(html).toContain("목록에서 신청을 선택하세요.");
+  });
+
+  it.each([["A-CHAT-005"], ["A-CHAT-006"]])(
+    "%s 검토 화면도 동일한 분할 콘솔과 목록을 렌더링한다",
+    (screenId) => {
+      const screen = screenRegistry.find((candidate) => candidate.id === screenId);
+      if (!screen) throw new Error(`${screenId} missing`);
+
+      const html = renderToStaticMarkup(<AdminChatRequestScreen query={{}} screen={screen} />);
+
+      expect(html).toContain(">채팅방 생성 요청 검토</h1>");
+      expect(html).toContain('data-wireflow-layout="admin-chat-request-console"');
+      expect(html).toContain('aria-label="채팅방 생성 신청 표"');
+      expect(html).toContain('aria-label="신청 상세"');
+      expect(html).toContain("목록에서 신청을 선택하세요.");
+    },
+  );
+
   it("카테고리 화면도 통합 채팅 운영 메뉴를 사용한다", () => {
     const categoryScreen = screenRegistry.find((screen) => screen.id === "A-CHAT-007");
     if (!categoryScreen) throw new Error("A-CHAT-007 missing");
@@ -133,25 +191,61 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain('href="/admin/chat/export"');
   });
 
-  it("과업 생성 CTA를 목록 제목 우측에 두고 검색·필터 툴바와 분리한다", () => {
+  it("과업 화면은 목록·상세 통합 콘솔 워크스페이스로 렌더링한다", () => {
     const taskList = screenRegistry.find((screen) => screen.id === "A-TASK-001");
     if (!taskList) throw new Error("A-TASK-001 missing");
 
     const html = renderToStaticMarkup(<AdminTaskScreen query={{}} screen={taskList} />);
-    const toolbarStart = html.indexOf('class="civic-domain-toolbar civic-task-list-toolbar"');
-    const tableStart = html.indexOf('aria-label="과업 목록 표"');
-    const toolbarHtml = html.slice(toolbarStart, tableStart);
 
-    expect(html).toContain('class="wf-screen-heading-action"');
-    expect(html).toContain(
-      'class="civic-primary-action civic-task-create-action" href="/admin/tasks/create"',
-    );
+    expect(html).toContain('data-wireflow-screen="A-TASK-001"');
+    expect(html).toContain('data-wireflow-layout="admin-task-console"');
+    expect(html).toContain('aria-label="과업 목록"');
     expect(html).toContain('aria-label="새 과업 만들기"');
-    expect(toolbarHtml).toContain("과업 제목 검색");
-    expect(toolbarHtml).toContain('name="task-query"');
-    expect(toolbarHtml).toContain('autoComplete="off"');
-    expect(toolbarHtml).toContain('aria-label="과업 상태"');
-    expect(toolbarHtml).not.toContain("새 과업 만들기");
+    expect(html).toContain('aria-label="과업 제목 검색"');
+    expect(html).toContain('aria-label="과업 상태"');
+    expect(html).toContain('aria-label="과업 목록 표"');
+    expect(html).toContain("목록에서 과업을 선택하세요.");
+  });
+
+  it("모든 과업 화면 ID가 동일한 통합 워크스페이스를 렌더링한다", () => {
+    for (const screenId of ["A-TASK-002", "A-TASK-003", "A-TASK-004", "A-TASK-005"]) {
+      const definition = screenRegistry.find((screen) => screen.id === screenId);
+      if (!definition) throw new Error(`${screenId} missing`);
+
+      const html = renderToStaticMarkup(<AdminTaskScreen query={{}} screen={definition} />);
+
+      expect(html).toContain(`data-wireflow-screen="${screenId}"`);
+      expect(html).toContain('data-wireflow-layout="admin-task-console"');
+      expect(html).toContain('aria-label="과업 목록"');
+    }
+  });
+
+  it("과업 그리드 컬럼과 화면·경로 매핑을 유지한다", () => {
+    expect(TASK_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
+      "제목",
+      "상태",
+      "시작",
+      "마감",
+      "종료 유형",
+      "최근 변경",
+    ]);
+    expect(taskWorkspaceTabForScreen("A-TASK-003")).toBe("overview");
+    expect(taskWorkspaceTabForScreen("A-TASK-005")).toBe("results");
+    expect(taskWorkspacePath({ editing: false, taskId: null, tab: "overview" })).toBe(
+      "/admin/tasks",
+    );
+    expect(taskWorkspacePath({ editing: false, taskId: "t-1", tab: "overview" })).toBe(
+      "/admin/tasks/detail?taskId=t-1",
+    );
+    expect(taskWorkspacePath({ editing: false, taskId: "t-1", tab: "results" })).toBe(
+      "/admin/tasks/results?taskId=t-1",
+    );
+    expect(taskWorkspacePath({ editing: true, taskId: "t-1", tab: "overview" })).toBe(
+      "/admin/tasks/create?taskId=t-1",
+    );
+    expect(taskWorkspacePath({ editing: true, taskId: null, tab: "overview" })).toBe(
+      "/admin/tasks/create",
+    );
   });
 
   it("shares accessible card, badge, field and button primitives", () => {

@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { groupSurveyQuestions, loadVoteSurvey } from "@/components/account/vote-survey-surface";
 import {
-  AuditList,
+  AUDIT_GRID_COLUMNS,
+  auditRowFromEvent,
+  USER_GRID_COLUMNS,
+} from "@/components/admin/admin-user-workspace";
+import {
   createLatestAdminUserRequestGate,
   createMutationLock,
   auditSubjectHref,
@@ -113,67 +117,69 @@ function pendingChatRequest(id: string, requesterUserId: string, name: string) {
 
 describe("25 functional Main/Auth screens", () => {
   it("관리자 감사 이력 표현을 실제 이벤트로 검증할 수 있는 경계를 제공한다", async () => {
-    const adminScreenModule = await import("@/components/screens/admin-functional-screen");
-    expect(adminScreenModule.AuditList).toBeTypeOf("function");
+    const workspaceModule = await import("@/components/admin/admin-user-workspace");
+    expect(workspaceModule.auditRowFromEvent).toBeTypeOf("function");
   });
 
   it("감사 이력은 실행자·대상 UUID 대신 이메일을 표시한다", () => {
     const actorId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const subjectId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
-    const html = renderToStaticMarkup(
-      createElement(AuditList, {
-        events: [
-          {
-            event_id: "10000000-0000-4000-8000-000000000001",
-            event_type: "ROLE_CHANGED",
-            actor_id: actorId,
-            subject_id: subjectId,
-            occurred_at: "2026-08-21T01:02:03Z",
-            request_id: "20000000-0000-4000-8000-000000000001",
-            before_roles: ["PARTICIPANT"],
-            after_roles: ["ADMIN"],
-            before_permissions: [],
-            after_permissions: ["RAG_ADMIN"],
-            reason: "RAG 문서 운영 담당 지정",
-          },
-        ],
-        userLabels: new Map([
-          [actorId, "highest-admin@post-ai.com"],
-          [subjectId, "rag-admin@post-ai.com"],
-        ]),
-      }),
+    const row = auditRowFromEvent(
+      {
+        event_id: "10000000-0000-4000-8000-000000000001",
+        event_type: "ROLE_CHANGED",
+        actor_id: actorId,
+        subject_id: subjectId,
+        occurred_at: "2026-08-21T01:02:03Z",
+        request_id: "20000000-0000-4000-8000-000000000001",
+        before_roles: ["PARTICIPANT"],
+        after_roles: ["ADMIN"],
+        before_permissions: [],
+        after_permissions: ["RAG_ADMIN"],
+        reason: "RAG 문서 운영 담당 지정",
+      },
+      new Map([
+        [actorId, "highest-admin@post-ai.com"],
+        [subjectId, "rag-admin@post-ai.com"],
+      ]),
     );
 
-    expect(html).toContain("highest-admin@post-ai.com");
-    expect(html).toContain("rag-admin@post-ai.com");
-    expect(html).toContain("관리자 역할 변경");
-    const text = renderedText(html);
-    expect(text).not.toContain("ROLE_CHANGED");
-    expect(text).not.toContain(actorId);
-    expect(text).not.toContain(subjectId);
-    expect(text).not.toContain("10000000-0000-4000-8000-000000000001");
-    expect(text).not.toContain("20000000-0000-4000-8000-000000000001");
+    expect(row.actorLabel).toBe("highest-admin@post-ai.com");
+    expect(row.subjectLabel).toBe("rag-admin@post-ai.com");
+    expect(row.eventLabel).toBe("관리자 역할 변경");
+    expect(row.afterLabel).toContain("문서 관리");
+    // subjectId stays as raw data for building links; every displayed label
+    // must stay free of internal identifiers.
+    const displayed = [
+      row.eventLabel,
+      row.actorLabel,
+      row.subjectLabel,
+      row.beforeLabel,
+      row.afterLabel,
+      row.reason,
+      row.occurredLabel,
+    ].join(" ");
+    expect(displayed).not.toContain("ROLE_CHANGED");
+    expect(displayed).not.toContain(actorId);
+    expect(displayed).not.toContain(subjectId);
+    expect(displayed).not.toContain("20000000-0000-4000-8000-000000000001");
   });
 
   it("감사 사용자 조회 실패 시 내부 ID 대신 안전한 문구를 표시한다", () => {
     const actorId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
-    const html = renderToStaticMarkup(
-      createElement(AuditList, {
-        events: [
-          {
-            event_id: "10000000-0000-4000-8000-000000000001",
-            event_type: "ROLE_CHANGED",
-            actor_id: actorId,
-            occurred_at: "2026-08-21T01:02:03Z",
-            request_id: "20000000-0000-4000-8000-000000000001",
-          },
-        ],
-        userLabels: new Map(),
-      }),
+    const row = auditRowFromEvent(
+      {
+        event_id: "10000000-0000-4000-8000-000000000001",
+        event_type: "ROLE_CHANGED",
+        actor_id: actorId,
+        occurred_at: "2026-08-21T01:02:03Z",
+        request_id: "20000000-0000-4000-8000-000000000001",
+      },
+      new Map(),
     );
 
-    expect(html).toContain("확인할 수 없는 사용자");
-    expect(renderedText(html)).not.toContain(actorId);
+    expect(row.actorLabel).toContain("확인할 수 없는 사용자");
+    expect(row.actorLabel).not.toContain(actorId);
   });
 
   it("역할 변경과 가입 완료의 opaque ID를 경로 세그먼트로 인코딩한다", () => {
@@ -514,8 +520,8 @@ describe("25 functional Main/Auth screens", () => {
       "/admin/rag/upload?retryJobId=job-1&documentId=document-1&filename=sample+%EC%A0%95%EC%B1%85.pdf",
     );
     expect(html.match(/href="\/admin\/rag\/upload\?retryJobId=/gu)).toHaveLength(2);
-    expect(html).toContain('aria-label="sample 정책.pdf 업로드 화면에서 재시도"');
-    expect(html).toContain('aria-label="civic-encrypted.pdf 업로드 화면에서 재시도"');
+    expect(html).toContain('aria-label="sample 정책.pdf 재시도"');
+    expect(html).toContain('aria-label="civic-encrypted.pdf 재시도"');
     expect(html.match(/>재시도<\/a>/gu)).toHaveLength(2);
   });
 
@@ -910,10 +916,10 @@ describe("25 functional Main/Auth screens", () => {
       "U-ACCOUNT-004": "계정 비활성화",
       "A-HOME-001": "관리 현황",
       "A-USER-001": "사용자 상세",
-      "A-USER-002": "관리자·권한 편집",
+      "A-USER-002": "권한 편집",
       "A-USER-003": "권한 변경 저장",
       "A-USER-004": "권한 변경 저장",
-      "A-USER-005": "대상 사용자 보기",
+      "A-USER-005": "권한 이력",
       "COMMON-001": "관리 업무 선택",
       "COMMON-002": "최신 상태 보기",
       "COMMON-003": "처리 결과 재조회",
@@ -1146,19 +1152,16 @@ describe("25 functional Main/Auth screens", () => {
     };
 
     const list = renderAdmin("A-USER-001");
-    for (const heading of [
+    expect(USER_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
       "이메일",
       "계정 상태",
       "관리자 역할",
       "운영 권한",
       "최근 활동",
-      "작업",
-    ]) {
-      expect(list).toContain(`<th>${heading}</th>`);
-    }
-    expect(list).not.toContain("<th>이메일 인증</th>");
+    ]);
     expect(list).toContain('aria-label="사용자 상태 필터"');
     expect(list).toContain("이메일 검색");
+    expect(list).toContain('aria-label="사용자 목록 표"');
     expect(list).not.toContain("이메일 또는 채팅 이름 검색");
     expect(list).not.toContain("wf-admin-workbench-link");
 
@@ -1176,9 +1179,16 @@ describe("25 functional Main/Auth screens", () => {
     expect(roles.match(/disabled=""/g)).toHaveLength(9);
 
     const audit = renderAdmin("A-USER-005");
-    for (const heading of ["실행자", "대상", "변경 전", "변경 후", "사유", "변경 시각", "작업"]) {
-      expect(audit).toContain(`<th>${heading}</th>`);
-    }
+    expect(audit).toContain('aria-label="감사 이력 표"');
+    expect(AUDIT_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
+      "이벤트",
+      "실행자",
+      "대상",
+      "변경 전",
+      "변경 후",
+      "사유",
+      "변경 시각",
+    ]);
   });
 
   it("A-HOME-001은 메뉴를 반복하지 않고 4개 운영 지표로 구성한다", () => {
@@ -1192,7 +1202,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain('data-wireflow-layout="admin-home"');
     expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(4);
     expect(html).toContain("승인 대기");
-    expect(html).toContain("채팅 생성 신청 확인 중");
+    expect(html).toContain("채팅방 개설 신청 확인 중");
     expect(html).toContain('aria-labelledby="civic-pending-chat-requests-title"');
     expect(html).toContain("채팅방 승인 대기");
     expect(html).toContain("승인 대기 목록을 확인하고 있습니다.");
@@ -1221,13 +1231,13 @@ describe("25 functional Main/Auth screens", () => {
     };
 
     const detail = renderAdmin("A-USER-002");
-    expect(detail).toContain('data-wireflow-layout="admin-user-detail"');
-    expect(detail).toContain('aria-label="사용자 상세 메뉴"');
-    expect(detail).toContain('class="civic-user-summary-grid"');
-    expect(detail).toContain('class="wf-admin-timeline"');
+    expect(detail).toContain('data-wireflow-layout="admin-user-console"');
+    expect(detail).toContain('aria-label="사용자 상세 탭"');
+    expect(detail).toContain(">개요</button>");
+    expect(detail).toContain(">활동</button>");
 
     const roles = renderAdmin("A-USER-003");
-    expect(roles).toContain('data-wireflow-layout="admin-role-editor"');
+    expect(roles).toContain('data-wireflow-layout="admin-user-console"');
     expect(roles).toContain("대상 계정");
     expect(roles).toContain("현재 역할");
     expect(roles).not.toContain("wf-admin-overlay");
@@ -1235,8 +1245,8 @@ describe("25 functional Main/Auth screens", () => {
 
     const legacyRevokeRoute = renderAdmin("A-USER-004");
     expect(legacyRevokeRoute).toContain('data-wireflow-screen="A-USER-004"');
-    expect(legacyRevokeRoute).toContain('data-wireflow-layout="admin-role-editor"');
-    expect(legacyRevokeRoute).toContain("관리자 전환·권한 편집");
+    expect(legacyRevokeRoute).toContain('data-wireflow-layout="admin-user-console"');
+    expect(legacyRevokeRoute).toContain("사용자·권한");
     expect(legacyRevokeRoute).not.toContain('role="alertdialog"');
   });
 });

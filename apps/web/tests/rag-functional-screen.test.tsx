@@ -46,6 +46,7 @@ import {
   processingJobHref,
   ragJobHref,
   ragJobsHref,
+  ragJobSummaryMetrics,
   resolveInspectedRagDocument,
   resolveFolderMutation,
   resolveFolderEditorMode,
@@ -114,8 +115,8 @@ const latestWireflowTitles = Object.freeze({
   "A-RAG-001": "문서 관리",
   "A-RAG-002": "문서 관리",
   "A-RAG-003": "문서 관리",
-  "A-RAG-004": "선택 폴더에 문서 업로드",
-  "A-RAG-005": "문서 준비 상태",
+  "A-RAG-004": "문서 관리",
+  "A-RAG-005": "문서 관리",
   "A-RAG-006": "문서 관리",
 } as const);
 
@@ -538,7 +539,6 @@ describe("9 functional RAG screens", () => {
     const creatorId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         creatorLabels: new Map([[creatorId, "civic-admin@post-ai.com"]]),
         documents: [
           {
@@ -592,7 +592,6 @@ describe("9 functional RAG screens", () => {
   it("문서 목록은 선택 작업대·하위 폴더·페이지 크기·페이지 이동을 제공한다", () => {
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         documents: [],
         folder: undefined,
         onInspect: vi.fn(),
@@ -616,7 +615,6 @@ describe("9 functional RAG screens", () => {
     const creatorId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         creatorLabels: new Map(),
         documents: [
           {
@@ -1621,7 +1619,7 @@ describe("9 functional RAG screens", () => {
     if (!screen) throw new Error("A-RAG-004 missing");
     const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
     expect(html).toContain("파일당 최대 500 MiB");
-    expect(html).toContain("8 MiB 단위");
+    expect(html).not.toContain("8 MiB");
     expect(html).not.toContain("파일 크기·요청당 파일 수의 제품 한도는 없습니다");
   });
 
@@ -2383,7 +2381,7 @@ describe("9 functional RAG screens", () => {
     }
   });
 
-  it("업로드와 처리 상태는 각각 독립 작업 화면을 사용한다", () => {
+  it("업로드와 처리 상태도 통합 문서 작업 공간 위에 렌더링한다", () => {
     const upload = ragScreens.find((item) => item.id === "A-RAG-004");
     const job = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!upload || !job) throw new Error("RAG task screens missing");
@@ -2391,13 +2389,68 @@ describe("9 functional RAG screens", () => {
     const uploadHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: upload }));
     const jobHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: job }));
 
-    expect(uploadHtml).toContain('data-wireflow-layout="rag-upload"');
-    expect(uploadHtml).not.toContain('data-wireflow-layout="rag-workspace"');
-    expect(uploadHtml).toContain("파일 선택");
+    expect(uploadHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(uploadHtml).toMatch(/<details[^>]*data-rag-inline-upload="true"[^>]*open=""/);
+    expect(uploadHtml).toContain('type="file"');
+    expect(uploadHtml).not.toContain('data-wireflow-layout="rag-admin-modal"');
     expect(uploadHtml).not.toContain("<main");
-    expect(jobHtml).toContain('data-wireflow-layout="rag-job-status"');
-    expect(jobHtml).not.toContain('data-wireflow-layout="rag-workspace"');
-    expect(jobHtml).toContain("문서 준비 진행 상태");
+    expect(jobHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(jobHtml).not.toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(jobHtml).not.toContain("작업 ID가 필요합니다");
     expect(jobHtml).not.toContain("<main");
+  });
+
+  it("실패 재처리와 처리 상태는 작업 공간 위 모달로 표시한다", () => {
+    const upload = ragScreens.find((item) => item.id === "A-RAG-004");
+    const job = ragScreens.find((item) => item.id === "A-RAG-005");
+    if (!upload || !job) throw new Error("RAG task screens missing");
+
+    const retryHtml = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen: upload,
+        query: { retryJobId: "job-1", filename: "정책.pdf", folderId: "folder-1" },
+      }),
+    );
+    expect(retryHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(retryHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(retryHtml).toContain("정책.pdf 재처리");
+    expect(retryHtml).toContain("실패한 문서의 재처리를 자동으로 요청합니다.");
+
+    const jobOverlayHtml = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen: job,
+        query: { jobId: "job-1", folderId: "folder-1" },
+      }),
+    );
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-job-status"');
+    expect(jobOverlayHtml).toContain("문서 준비 진행 상태");
+  });
+
+  it("모든 관리자 RAG 화면 상단에 문서 처리 현황 지표를 표시한다", () => {
+    for (const screen of ragScreens.filter((item) => item.id.startsWith("A-RAG"))) {
+      const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
+      expect(html).toContain('aria-label="문서 처리 현황"');
+      expect(html).toContain("전체 문서");
+      expect(html).toContain("확인 중");
+    }
+  });
+
+  it("작업 요약 지표는 실패가 있을 때만 경고 강조한다", () => {
+    const ready = ragJobSummaryMetrics(
+      { status: "ready", failed: 2, active: 3, counts: {}, recentFailures: [] },
+      120,
+    );
+    expect(ready[0]).toMatchObject({ label: "전체 문서", value: "120개" });
+    expect(ready[1]).toMatchObject({ label: "처리 중", value: "3건" });
+    expect(ready[2]).toMatchObject({ label: "실패", value: "2건", alert: true });
+    const clean = ragJobSummaryMetrics(
+      { status: "ready", failed: 0, active: 0, counts: {}, recentFailures: [] },
+      0,
+    );
+    expect(clean[2]?.alert).toBeUndefined();
+    expect(ragJobSummaryMetrics({ status: "loading" }, 0)[2]?.value).toBe("확인 중");
+    expect(ragJobSummaryMetrics({ status: "unavailable" }, 0)[1]?.value).toBe("확인 불가");
   });
 });

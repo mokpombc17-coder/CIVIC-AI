@@ -3,8 +3,17 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
+import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import {
+  ConsoleEmpty,
+  ConsolePane,
+  ConsoleStatus,
+  ConsoleTabs,
+  ConsoleWorkspace,
+  type ConsoleTabItem,
+} from "@/components/admin/console/console-ui";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import {
   adminFieldError,
@@ -28,6 +37,55 @@ import type { ScreenDefinition } from "@/lib/screens/registry";
 type DraftOption = Readonly<{ id: string | null; content: string }>;
 type LifecycleAction = "schedule" | "reschedule" | "open-now" | "start-now" | "deadline" | "cancel";
 
+export type TaskWorkspaceTab = "overview" | "results";
+
+type TaskWorkspaceView = Readonly<{
+  editing: boolean;
+  taskId: string | null;
+  tab: TaskWorkspaceTab;
+}>;
+
+export function taskWorkspaceTabForScreen(screenId: string): TaskWorkspaceTab {
+  return screenId === "A-TASK-005" ? "results" : "overview";
+}
+
+export function taskWorkspacePath(view: TaskWorkspaceView): string {
+  if (view.editing) {
+    return view.taskId
+      ? `/admin/tasks/create?taskId=${encodeURIComponent(view.taskId)}`
+      : "/admin/tasks/create";
+  }
+  if (!view.taskId) return "/admin/tasks";
+  const base = view.tab === "results" ? "/admin/tasks/results" : "/admin/tasks/detail";
+  return `${base}?taskId=${encodeURIComponent(view.taskId)}`;
+}
+
+export const TASK_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<TaskSummary>> = [
+  { field: "title", headerName: "제목", flex: 2, minWidth: 160 },
+  {
+    headerName: "상태",
+    valueGetter: (params) => (params.data ? taskStatusLabel(params.data.status) : ""),
+  },
+  {
+    headerName: "시작",
+    valueGetter: (params) =>
+      formatDate(params.data?.openedAt ?? params.data?.schedule?.opensAt ?? null),
+  },
+  {
+    headerName: "마감",
+    valueGetter: (params) =>
+      formatDate(params.data?.schedule?.closesAt ?? params.data?.closedAt ?? null),
+  },
+  {
+    headerName: "종료 유형",
+    valueGetter: (params) => (params.data ? closureLabel(params.data.closureType) : ""),
+  },
+  {
+    headerName: "최근 변경",
+    valueGetter: (params) => formatDate(params.data?.updatedAt ?? null),
+  },
+];
+
 export function AdminTaskScreen({
   screen,
   query,
@@ -35,165 +93,232 @@ export function AdminTaskScreen({
   screen: ScreenDefinition;
   query: Readonly<Record<string, string | readonly string[] | undefined>>;
 }>) {
-  const taskId = firstQueryValue(query.taskId);
-  const taskListAction =
-    screen.id === "A-TASK-001" ? (
-      <Link
-        aria-label="새 과업 만들기"
-        className="civic-primary-action civic-task-create-action"
-        href="/admin/tasks/create"
-      >
-        <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
-          <path
-            d="M10 4v12M4 10h12"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeWidth="1.8"
-          />
-        </svg>
-        <span>새 과업 만들기</span>
-      </Link>
-    ) : undefined;
   return (
-    <ScreenFrame
-      {...(screen.id === "A-TASK-001" ? {} : { backHref: "/admin/tasks" as Route })}
-      headingAction={taskListAction}
-      screen={screen}
-    >
-      <div
-        className="civic-admin-workbench civic-domain-console"
-        data-wireflow-layout={taskLayout(screen.id)}
-      >
-        {screen.id === "A-TASK-001" ? <TaskList /> : null}
-        {screen.id === "A-TASK-002" ? <TaskEditor taskId={taskId} /> : null}
-        {screen.id === "A-TASK-003" ? <TaskDetailView taskId={taskId} /> : null}
-        {screen.id === "A-TASK-004" ? <TaskCloseConfirmation taskId={taskId} /> : null}
-        {screen.id === "A-TASK-005" ? <TaskResultView taskId={taskId} /> : null}
-      </div>
+    <ScreenFrame screen={screen}>
+      <AdminTaskWorkspace query={query} screen={screen} />
     </ScreenFrame>
   );
 }
 
-function TaskList() {
+function AdminTaskWorkspace({
+  screen,
+  query,
+}: Readonly<{
+  screen: ScreenDefinition;
+  query: Readonly<Record<string, string | readonly string[] | undefined>>;
+}>) {
+  const initialTaskId = firstQueryValue(query.taskId) ?? searchTaskId();
+  const [tab, setTab] = useState<TaskWorkspaceTab>(() => taskWorkspaceTabForScreen(screen.id));
+  const [editing, setEditing] = useState(screen.id === "A-TASK-002");
+  const [editorTaskId, setEditorTaskId] = useState<string | null>(
+    screen.id === "A-TASK-002" ? initialTaskId : null,
+  );
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
+    screen.id === "A-TASK-001" || screen.id === "A-TASK-002" ? null : initialTaskId,
+  );
+  const [earlyCloseOpen, setEarlyCloseOpen] = useState(screen.id === "A-TASK-004");
   const [items, setItems] = useState<readonly TaskSummary[]>([]);
-  const [filter, setFilter] = useState<"ALL" | TaskStatus>("ALL");
-  const [query, setQuery] = useState("");
-  const [message, setMessage] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | TaskStatus>("ALL");
+  const [keyword, setKeyword] = useState("");
+  const [listMessage, setListMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const autoSelectPending = useRef(screen.id === "A-TASK-001");
 
-  const load = useCallback(async () => {
+  const loadList = useCallback(async () => {
     setLoading(true);
     try {
       const response = await authenticatedFetch("/api/v1/admin/tasks", { cache: "no-store" });
       if (!response.ok) {
         setItems([]);
-        setMessage(formatAdminProblem(await readAdminProblem(response)));
+        setListMessage(formatAdminProblem(await readAdminProblem(response)));
         return;
       }
       const tasks = readTaskSummaries(await response.json());
       if (!tasks) {
         setItems([]);
-        setMessage("서버의 과업 목록 응답 형식을 확인해야 합니다.");
+        setListMessage("서버의 과업 목록 응답 형식을 확인해야 합니다.");
         return;
       }
       setItems(tasks);
-      setMessage("");
+      setListMessage("");
+      const first = tasks[0];
+      if (autoSelectPending.current && first) {
+        autoSelectPending.current = false;
+        setSelectedTaskId(first.taskId);
+        syncTaskUrl({ editing: false, taskId: first.taskId, tab: "overview" });
+      }
     } catch {
       setItems([]);
-      setMessage("네트워크 오류로 과업 목록을 불러오지 못했습니다.");
+      setListMessage("네트워크 오류로 과업 목록을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 0);
+    const timer = window.setTimeout(() => void loadList(), 0);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [loadList]);
 
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase("ko-KR");
+    const normalized = keyword.trim().toLocaleLowerCase("ko-KR");
     return items.filter(
       (item) =>
-        (filter === "ALL" || item.status === filter) &&
+        (statusFilter === "ALL" || item.status === statusFilter) &&
         (!normalized || item.title.toLocaleLowerCase("ko-KR").includes(normalized)),
     );
-  }, [filter, items, query]);
+  }, [items, keyword, statusFilter]);
+
+  const selectedSummary = selectedTaskId
+    ? (items.find((item) => item.taskId === selectedTaskId) ?? null)
+    : null;
+  const editorSummary = editorTaskId
+    ? (items.find((item) => item.taskId === editorTaskId) ?? null)
+    : null;
+
+  function switchTab(nextTab: TaskWorkspaceTab) {
+    setTab(nextTab);
+    syncTaskUrl({ editing: false, taskId: selectedTaskId, tab: nextTab });
+  }
+
+  function selectTask(task: TaskSummary) {
+    setEditing(false);
+    setEditorTaskId(null);
+    setEarlyCloseOpen(false);
+    setSelectedTaskId(task.taskId);
+    syncTaskUrl({ editing: false, taskId: task.taskId, tab });
+  }
+
+  function openEditor(taskId: string | null) {
+    setEditing(true);
+    setEditorTaskId(taskId);
+    setEarlyCloseOpen(false);
+    syncTaskUrl({ editing: true, taskId, tab });
+  }
+
+  const resultsLocked = selectedSummary !== null && !canReadTaskResult(selectedSummary);
+  const tabs: readonly ConsoleTabItem[] = [
+    { id: "overview", label: "개요" },
+    { id: "results", label: "결과", disabled: resultsLocked && tab !== "results" },
+  ];
 
   return (
-    <>
-      <div className="civic-domain-toolbar civic-task-list-toolbar">
-        <label className="civic-field">
-          <span>과업 제목 검색</span>
+    <ConsoleWorkspace layout="admin-task-console">
+      <ConsolePane
+        action={
+          <button
+            aria-label="새 과업 만들기"
+            className="civic-primary-action civic-task-create-action"
+            onClick={() => openEditor(null)}
+            type="button"
+          >
+            <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+              <path
+                d="M10 4v12M4 10h12"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.8"
+              />
+            </svg>
+            <span>새 과업 만들기</span>
+          </button>
+        }
+        ariaLabel="과업 목록"
+        subtitle={`${filtered.length}건 표시`}
+        title="과업 목록"
+      >
+        <div className="console-toolbar">
           <input
+            aria-label="과업 제목 검색"
             autoComplete="off"
             name="task-query"
-            onChange={(event) => setQuery(event.currentTarget.value)}
+            onChange={(event) => setKeyword(event.currentTarget.value)}
             placeholder="과업 제목 입력…"
             type="search"
-            value={query}
+            value={keyword}
           />
-        </label>
-        <div aria-label="과업 상태" className="wf-admin-filters" role="group">
+        </div>
+        <div aria-label="과업 상태" className="console-filter-group" role="group">
           {(["ALL", "DRAFT", "SCHEDULED", "OPEN", "CLOSED"] as const).map((status) => (
             <button
-              aria-pressed={filter === status}
+              aria-pressed={statusFilter === status}
               key={status}
-              onClick={() => setFilter(status)}
+              onClick={() => setStatusFilter(status)}
               type="button"
             >
               {status === "ALL" ? "전체" : taskStatusLabel(status)}
             </button>
           ))}
         </div>
-      </div>
-      <div aria-label="과업 목록 표" className="civic-table-scroll" role="region" tabIndex={0}>
-        <table className="civic-admin-table">
-          <thead>
-            <tr>
-              <th>과업 제목</th>
-              <th>상태</th>
-              <th>시작</th>
-              <th>마감</th>
-              <th>종료 유형</th>
-              <th>최근 변경</th>
-              <th>작업</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={7}>
-                  {loading ? "과업을 불러오는 중입니다." : "조건에 맞는 과업이 없습니다."}
-                </td>
-              </tr>
+        <ConsoleDataGrid
+          ariaLabel="과업 목록 표"
+          columnDefs={TASK_GRID_COLUMNS}
+          emptyText={loading ? "과업을 불러오는 중입니다." : "조건에 맞는 과업이 없습니다."}
+          getRowId={(task) => task.taskId}
+          height={480}
+          onRowClicked={selectTask}
+          rowData={filtered}
+          selectedRowId={editing ? (editorTaskId ?? null) : (selectedTaskId ?? null)}
+        />
+        {listMessage ? <ConsoleStatus error>{listMessage}</ConsoleStatus> : null}
+      </ConsolePane>
+
+      <ConsolePane
+        ariaLabel="과업 상세"
+        subtitle={
+          editing
+            ? editorTaskId
+              ? "초안 전체 수정"
+              : "새 초안"
+            : selectedSummary
+              ? taskStatusLabel(selectedSummary.status)
+              : undefined
+        }
+        title={
+          editing
+            ? (editorSummary?.title ?? (editorTaskId ? "초안 수정" : "새 과업 만들기"))
+            : (selectedSummary?.title ?? (selectedTaskId ? "과업 상세" : "과업을 선택하세요"))
+        }
+      >
+        {editing ? (
+          <TaskEditor key={editorTaskId ?? "new"} taskId={editorTaskId} />
+        ) : !selectedTaskId ? (
+          <ConsoleEmpty title="목록에서 과업을 선택하세요." />
+        ) : (
+          <>
+            <ConsoleTabs
+              activeId={tab}
+              ariaLabel="과업 상세 탭"
+              onSelect={(id) => switchTab(id as TaskWorkspaceTab)}
+              tabs={tabs}
+            />
+            {tab === "overview" ? (
+              <TaskOverviewTab
+                earlyCloseOpen={earlyCloseOpen}
+                key={selectedTaskId}
+                onEarlyCloseOpenChange={setEarlyCloseOpen}
+                onEditDraft={(id) => openEditor(id)}
+                onOpenResults={() => switchTab("results")}
+                onTaskChanged={() => void loadList()}
+                taskId={selectedTaskId}
+              />
             ) : null}
-            {filtered.map((item) => (
-              <tr key={item.taskId}>
-                <th scope="row">{item.title}</th>
-                <td>
-                  <TaskStatusBadge status={item.status} />
-                </td>
-                <td>{formatDate(item.openedAt ?? item.schedule?.opensAt ?? null)}</td>
-                <td>{formatDate(item.schedule?.closesAt ?? item.closedAt)}</td>
-                <td>{closureLabel(item.closureType)}</td>
-                <td>{formatDate(item.updatedAt)}</td>
-                <td>
-                  <Link
-                    className="civic-primary-action"
-                    href={`/admin/tasks/detail?taskId=${encodeURIComponent(item.taskId)}` as Route}
-                  >
-                    과업 상세
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {message ? <StatusMessage>{message}</StatusMessage> : null}
-    </>
+            {tab === "results" ? <TaskResultsTab key={selectedTaskId} taskId={selectedTaskId} /> : null}
+          </>
+        )}
+      </ConsolePane>
+    </ConsoleWorkspace>
   );
+}
+
+function syncTaskUrl(view: TaskWorkspaceView) {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(window.history.state, "", taskWorkspacePath(view));
+}
+
+function searchTaskId(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("taskId");
 }
 
 function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
@@ -434,14 +559,30 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
   );
 }
 
-function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
+function TaskOverviewTab({
+  taskId,
+  earlyCloseOpen,
+  onEarlyCloseOpenChange,
+  onEditDraft,
+  onOpenResults,
+  onTaskChanged,
+}: Readonly<{
+  taskId: string;
+  earlyCloseOpen: boolean;
+  onEarlyCloseOpenChange: (open: boolean) => void;
+  onEditDraft: (taskId: string) => void;
+  onOpenResults: () => void;
+  onTaskChanged: () => void;
+}>) {
   const [detail, setDetail] = useState<TaskDetail | null>(null);
-  const [message, setMessage] = useState(taskId ? "" : "과업 목록에서 상세 대상을 선택해 주세요.");
+  const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<AdminProblem | null>(null);
+  const [closeReason, setCloseReason] = useState("");
+  const [closePending, setClosePending] = useState(false);
+  const [closeProblem, setCloseProblem] = useState<AdminProblem | null>(null);
 
   const load = useCallback(async () => {
-    if (!taskId) return setMessage("과업 목록에서 상세 대상을 선택해 주세요.");
     const loaded = await requestTaskDetail(taskId);
     if (!loaded) return setMessage("과업 상세를 불러오지 못했습니다.");
     setDetail(loaded);
@@ -449,10 +590,9 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
   }, [taskId]);
 
   useEffect(() => {
-    if (!taskId) return;
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-  }, [load, taskId]);
+  }, [load]);
 
   async function mutate(action: LifecycleAction, values: LifecycleValues) {
     if (!detail || pending) return;
@@ -478,6 +618,7 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
       const latest = await requestTaskDetail(task.id);
       setDetail(latest ?? { task, lifecycleHistory: detail.lifecycleHistory });
       setProblem(null);
+      onTaskChanged();
       setMessage("과업의 최신 상태를 반영했습니다.");
     } catch {
       await load();
@@ -487,7 +628,46 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
     }
   }
 
-  if (!detail) return <StatusMessage>{message || "과업 상세를 불러오는 중입니다."}</StatusMessage>;
+  async function close(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!detail || closePending) return;
+    const task = detail.task;
+    if (task.status !== "OPEN") return setMessage("진행 중인 과업만 조기 종료할 수 있습니다.");
+    setClosePending(true);
+    setCloseProblem(null);
+    try {
+      const response = await authenticatedFetch(
+        `/api/v1/admin/tasks/${encodeURIComponent(task.id)}/close`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reason: optionalText(closeReason) }),
+        },
+      );
+      if (!response.ok) {
+        const nextProblem = await readAdminProblem(response);
+        setCloseProblem(nextProblem);
+        setMessage(formatAdminProblem(nextProblem));
+        await load();
+        return;
+      }
+      const closed = readTask(await response.json());
+      if (!closed) return setMessage("서버의 조기 종료 응답 형식을 확인해야 합니다.");
+      const latest = await requestTaskDetail(closed.id);
+      setDetail(latest ?? { task: closed, lifecycleHistory: detail.lifecycleHistory });
+      setCloseReason("");
+      onEarlyCloseOpenChange(false);
+      onTaskChanged();
+      setMessage("과업의 최신 상태를 반영했습니다.");
+    } catch {
+      await load();
+      setMessage("종료 결과가 불명확하여 최신 상태를 다시 확인했습니다. 자동 재전송하지 않습니다.");
+    } finally {
+      setClosePending(false);
+    }
+  }
+
+  if (!detail) return <ConsoleStatus>{message || "과업 상세를 불러오는 중입니다."}</ConsoleStatus>;
   const task = detail.task;
   return (
     <section className="civic-domain-detail">
@@ -514,24 +694,82 @@ function TaskDetailView({ taskId }: Readonly<{ taskId: string | null }>) {
           )}
           <div className="civic-detail-actions">
             {task.status === "DRAFT" ? (
-              <Link href={`/admin/tasks/create?taskId=${encodeURIComponent(task.id)}` as Route}>
+              <button
+                className="wf-button wf-button-secondary"
+                onClick={() => onEditDraft(task.id)}
+                type="button"
+              >
                 초안 수정
-              </Link>
+              </button>
             ) : null}
-            {task.status === "OPEN" ? (
-              <Link
+            {task.status === "OPEN" && !earlyCloseOpen ? (
+              <button
                 className="civic-danger-action"
-                href={`/admin/tasks/close?taskId=${encodeURIComponent(task.id)}` as Route}
+                onClick={() => onEarlyCloseOpenChange(true)}
+                type="button"
               >
                 조기 종료
-              </Link>
+              </button>
             ) : null}
             {canReadTaskResult(task) ? (
-              <Link href={`/admin/tasks/results?taskId=${encodeURIComponent(task.id)}` as Route}>
-                정량 결과 보기
-              </Link>
+              <button className="wf-button wf-button-secondary" onClick={onOpenResults} type="button">
+                결과 보기
+              </button>
             ) : null}
           </div>
+          {earlyCloseOpen ? (
+            task.status === "OPEN" ? (
+              <form className="civic-domain-action-panel civic-domain-danger-panel" onSubmit={close}>
+                <header>
+                  <span>되돌릴 수 없는 작업</span>
+                  <h2>조기 종료</h2>
+                </header>
+                <p>
+                  확정하면 신규 제출이 즉시 차단되고, 이미 받은 제출만 결과로 집계됩니다.
+                </p>
+                <dl className="civic-domain-impact-list">
+                  <div>
+                    <dt>현재 상태</dt>
+                    <dd>{taskStatusLabel(task.status)}</dd>
+                  </div>
+                </dl>
+                <label className="civic-field">
+                  <span>운영 사유</span>
+                  <textarea
+                    aria-describedby={
+                      adminFieldError(closeProblem, "reason")
+                        ? "task-close-reason-error"
+                        : undefined
+                    }
+                    aria-invalid={Boolean(adminFieldError(closeProblem, "reason"))}
+                    disabled={closePending}
+                    onChange={(event) => setCloseReason(event.currentTarget.value)}
+                    rows={4}
+                    value={closeReason}
+                  />
+                  <FieldError
+                    id="task-close-reason-error"
+                    message={adminFieldError(closeProblem, "reason")}
+                  />
+                </label>
+                <div className="civic-form-actions">
+                  <button
+                    className="wf-button wf-button-secondary"
+                    disabled={closePending}
+                    onClick={() => onEarlyCloseOpenChange(false)}
+                    type="button"
+                  >
+                    취소
+                  </button>
+                  <button className="civic-danger-action" disabled={closePending} type="submit">
+                    {closePending ? "최신 상태 확인 중…" : "조기 종료 확정"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <ConsoleStatus>진행 중인 과업만 조기 종료할 수 있습니다.</ConsoleStatus>
+            )
+          ) : null}
         </div>
         <aside aria-label="과업 운영" className="civic-task-detail-operations">
           <LifecyclePanel
@@ -650,125 +888,12 @@ function LifecyclePanel({
   );
 }
 
-function TaskCloseConfirmation({ taskId }: Readonly<{ taskId: string | null }>) {
-  const router = useRouter();
-  const [task, setTask] = useState<Task | null>(null);
-  const [reason, setReason] = useState("");
-  const [message, setMessage] = useState(
-    taskId ? "" : "과업 목록에서 조기 종료할 대상을 선택해 주세요.",
-  );
-  const [pending, setPending] = useState(false);
-  const [problem, setProblem] = useState<AdminProblem | null>(null);
-
-  useEffect(() => {
-    if (!taskId) return;
-    const timer = window.setTimeout(() => {
-      void requestTaskDetail(taskId).then((detail) => {
-        if (!detail) return setMessage("과업 상세를 불러오지 못했습니다.");
-        setTask(detail.task);
-      });
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [taskId]);
-
-  async function close(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!task || pending) return;
-    if (task.status !== "OPEN") return setMessage("진행 중인 과업만 조기 종료할 수 있습니다.");
-    setPending(true);
-    setProblem(null);
-    try {
-      const response = await authenticatedFetch(
-        `/api/v1/admin/tasks/${encodeURIComponent(task.id)}/close`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ reason: optionalText(reason) }),
-        },
-      );
-      if (!response.ok) {
-        const nextProblem = await readAdminProblem(response);
-        setProblem(nextProblem);
-        setMessage(formatAdminProblem(nextProblem));
-        const latest = await requestTaskDetail(task.id);
-        if (latest) setTask(latest.task);
-        return;
-      }
-      const closed = readTask(await response.json());
-      if (!closed) return setMessage("서버의 조기 종료 응답 형식을 확인해야 합니다.");
-      router.push(`/admin/tasks/detail?taskId=${encodeURIComponent(closed.id)}` as Route);
-    } catch {
-      const latest = await requestTaskDetail(task.id);
-      if (latest) setTask(latest.task);
-      setMessage("종료 결과가 불명확하여 최신 상태를 다시 확인했습니다. 자동 재전송하지 않습니다.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  if (!task) return <StatusMessage>{message || "과업 상태를 확인하는 중입니다."}</StatusMessage>;
-  return (
-    <form className="civic-domain-action-panel civic-domain-danger-panel" onSubmit={close}>
-      <header>
-        <span>되돌릴 수 없는 작업</span>
-        <h2>{task.title}</h2>
-      </header>
-      <dl className="civic-domain-impact-list">
-        <div>
-          <dt>현재 상태</dt>
-          <dd>{taskStatusLabel(task.status)}</dd>
-        </div>
-        <div>
-          <dt>신규 제출</dt>
-          <dd>확정 즉시 차단</dd>
-        </div>
-        <div>
-          <dt>기존 제출</dt>
-          <dd>유지 후 결과 집계</dd>
-        </div>
-        <div>
-          <dt>종료 유형</dt>
-          <dd>조기 종료</dd>
-        </div>
-      </dl>
-      <label className="civic-field">
-        <span>운영 사유</span>
-        <textarea
-          aria-describedby={
-            adminFieldError(problem, "reason") ? "task-close-reason-error" : undefined
-          }
-          aria-invalid={Boolean(adminFieldError(problem, "reason"))}
-          disabled={pending}
-          onChange={(event) => setReason(event.currentTarget.value)}
-          rows={4}
-          value={reason}
-        />
-        <FieldError id="task-close-reason-error" message={adminFieldError(problem, "reason")} />
-      </label>
-      <div className="civic-form-actions">
-        <Link href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.id)}` as Route}>
-          취소
-        </Link>
-        <button
-          className="civic-danger-action"
-          disabled={pending || task.status !== "OPEN"}
-          type="submit"
-        >
-          {pending ? "최신 상태 확인 중…" : "조기 종료 확정"}
-        </button>
-      </div>
-      {message ? <StatusMessage>{message}</StatusMessage> : null}
-    </form>
-  );
-}
-
-function TaskResultView({ taskId }: Readonly<{ taskId: string | null }>) {
+function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
   const [task, setTask] = useState<Task | null>(null);
   const [summary, setSummary] = useState<TaskResultSummary | null>(null);
-  const [message, setMessage] = useState(taskId ? "" : "과업 상세에서 결과 대상을 선택해 주세요.");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!taskId) return;
     const timer = window.setTimeout(() => {
       void (async () => {
         const detail = await requestTaskDetail(taskId);
@@ -784,11 +909,11 @@ function TaskResultView({ taskId }: Readonly<{ taskId: string | null }>) {
           );
           if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
           const result = readTaskResultSummary(await response.json());
-          if (!result) return setMessage("서버의 정량 결과 응답 형식을 확인해야 합니다.");
+          if (!result) return setMessage("서버의 결과 응답 형식을 확인해야 합니다.");
           setSummary(result);
           setMessage("");
         } catch {
-          setMessage("네트워크 오류로 정량 결과를 불러오지 못했습니다.");
+          setMessage("네트워크 오류로 결과를 불러오지 못했습니다.");
         }
       })();
     }, 0);
@@ -796,7 +921,7 @@ function TaskResultView({ taskId }: Readonly<{ taskId: string | null }>) {
   }, [taskId]);
 
   if (!task || !summary)
-    return <StatusMessage>{message || "확정된 결과를 불러오는 중입니다."}</StatusMessage>;
+    return <ConsoleStatus>{message || "확정된 결과를 불러오는 중입니다."}</ConsoleStatus>;
   return (
     <section className="civic-domain-result">
       <header>
@@ -824,14 +949,11 @@ function TaskResultView({ taskId }: Readonly<{ taskId: string | null }>) {
         })}
       </ol>
       <div className="civic-form-actions">
-        <Link href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.id)}` as Route}>
-          과업 상세
-        </Link>
         <AuthenticatedDownloadLink
           className="civic-primary-action"
           href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
         >
-          상세 결과 JSONL 다운로드
+          상세 결과 내려받기
         </AuthenticatedDownloadLink>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
@@ -960,14 +1082,6 @@ function taskStatusLabel(status: TaskStatus): string {
   return { DRAFT: "작성 중", SCHEDULED: "예약", OPEN: "진행 중", CLOSED: "종료" }[status];
 }
 
-function TaskStatusBadge({ status }: Readonly<{ status: TaskStatus }>) {
-  return (
-    <span className={`civic-domain-status is-${status.toLowerCase()}`}>
-      {taskStatusLabel(status)}
-    </span>
-  );
-}
-
 function closureLabel(value: Task["closureType"]): string {
   if (!value) return "—";
   return {
@@ -1042,16 +1156,4 @@ function formatDate(value: string | null): string {
         timeStyle: "short",
         timeZone: "Asia/Seoul",
       }).format(date);
-}
-
-function taskLayout(id: string): string {
-  return (
-    {
-      "A-TASK-001": "task-list",
-      "A-TASK-002": "task-editor",
-      "A-TASK-003": "task-detail",
-      "A-TASK-004": "task-close",
-      "A-TASK-005": "task-results",
-    }[id] ?? "task-admin"
-  );
 }

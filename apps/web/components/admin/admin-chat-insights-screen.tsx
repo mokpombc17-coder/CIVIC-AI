@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { ConsoleTabs, type ConsoleTabItem } from "@/components/admin/console/console-ui";
 import {
   readAdminRoomPage,
   type AdminRoom,
@@ -35,11 +36,25 @@ import {
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import styles from "./admin-chat-insights.module.css";
 
-type ViewMode = "rooms" | "detail" | "statistics";
 export type AnalysisPeriod = "all" | "custom";
+export type ChatInsightsTab = "analysis" | "statistics";
+
+export function chatInsightsTabForScreen(screenId: string): ChatInsightsTab {
+  return screenId === "A-CHAT-008" ? "statistics" : "analysis";
+}
+
+export function chatInsightsPath(tab: ChatInsightsTab, roomId: string | null): string {
+  const base = tab === "statistics" ? "/admin/chat/statistics" : "/admin/chat";
+  return roomId ? `${base}?roomId=${encodeURIComponent(roomId)}` : base;
+}
+
+const INSIGHTS_TABS: readonly ConsoleTabItem[] = [
+  { id: "analysis", label: "대화 분석" },
+  { id: "statistics", label: "통계" },
+];
 
 export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
-  const mode = viewMode(screen.id);
+  const [tab, setTab] = useState<ChatInsightsTab>(() => chatInsightsTabForScreen(screen.id));
   const [rooms, setRooms] = useState<readonly AdminRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<AdminRoom | null>(null);
   const [roomQuery, setRoomQuery] = useState("");
@@ -134,7 +149,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
         }
         const contentType = response.headers.get("content-type")?.toLocaleLowerCase() ?? "";
         if (!contentType.startsWith("application/zip")) {
-          setAnalysisMessage("서버가 application/zip 대신 다른 형식으로 응답했습니다.");
+          setAnalysisMessage("서버가 대화 원본 파일 대신 다른 형식으로 응답했습니다.");
           return;
         }
         const bytes = await readConversationExportResponse(response);
@@ -206,6 +221,18 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     };
   }, [analysisPeriod, analysisRange, loadAnalysis, selectedRoomId]);
 
+  // Auto-select so the analysis panel is never an empty placeholder once the
+  // room list is available. A roomId query (initial load or previous sync)
+  // wins; otherwise the first listed room is selected.
+  useEffect(() => {
+    if (roomsLoading || selectedRoom !== null || rooms.length === 0) return;
+    const requestedRoomId = new URLSearchParams(window.location.search).get("roomId");
+    const nextRoom =
+      (requestedRoomId ? rooms.find((room) => room.roomId === requestedRoomId) : undefined) ??
+      rooms[0];
+    if (nextRoom) selectRoom(nextRoom);
+  });
+
   function searchRooms(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     exportAbort.current?.abort();
@@ -227,6 +254,12 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     setArchive(null);
     setAnalysisMessage("");
     setRoomOperationNotice(null);
+    syncChatInsightsUrl(tab, room.roomId);
+  }
+
+  function switchTab(nextTab: ChatInsightsTab) {
+    setTab(nextTab);
+    syncChatInsightsUrl(nextTab, selectedRoom?.roomId ?? null);
   }
 
   function selectAnalysisPeriod(period: AnalysisPeriod) {
@@ -333,23 +366,11 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
   }
 
   return (
-    <ScreenFrame screen={screen} title={screenTitle(mode)}>
-      <AdminChatOperationsLayout active={navigationSection(mode)}>
-        <section className={styles.intro}>
-          <div>
-            <span>ROOM OPERATIONS · EXPORT V1</span>
-            <h2>운영 상태와 대화 맥락을 함께 확인합니다</h2>
-          </div>
-          <p>
-            관리자는 참여 여부와 관계없이 활성 방을 즉시 종료할 수 있습니다. 대화 분석은 선택한 UTC
-            구간을 <strong>시작 이상·종료 미만</strong>으로 조회합니다.
-          </p>
-        </section>
-
+    <ScreenFrame screen={screen} title={screenTitle(screen.id)}>
+      <AdminChatOperationsLayout active={navigationSection(tab)}>
         <div className={styles.workspace}>
           <aside className={styles.roomPanel}>
             <header>
-              <span>ACTIVE · CLOSED</span>
               <strong>운영할 채팅방</strong>
             </header>
             <form className={styles.search} onSubmit={searchRooms}>
@@ -424,6 +445,12 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
           </aside>
 
           <section aria-label="대화 분석" className={styles.analysisPanel}>
+            <ConsoleTabs
+              activeId={tab}
+              ariaLabel="분석 보기 탭"
+              onSelect={(id) => switchTab(id as ChatInsightsTab)}
+              tabs={INSIGHTS_TABS}
+            />
             <AnalysisRangeControls
               analyzing={analyzing}
               closingRoom={closingRoom}
@@ -462,8 +489,8 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
               <AnalysisResult
                 analysis={analysis}
                 archiveReady={archive !== null}
-                mode={mode}
                 onDownload={downloadArchive}
+                tab={tab}
               />
             ) : (
               <EmptyAnalysis selected={selectedRoom !== null} />
@@ -522,7 +549,7 @@ function AnalysisRangeControls({
       <header>
         <div>
           <small>조회 대상</small>
-          <strong>{selectedRoom?.name ?? "왼쪽에서 채팅방을 선택하세요"}</strong>
+          <strong>{selectedRoom?.name ?? "채팅방을 선택하세요"}</strong>
         </div>
         <span data-status={selectedRoom?.status ?? "NONE"}>
           {selectedRoom ? roomStatusLabel(selectedRoom.status) : "선택 필요"}
@@ -577,9 +604,7 @@ function AnalysisRangeControls({
             : "채팅방을 선택하면 개설 이후 전체 대화를 자동으로 표시합니다."}
         </p>
       )}
-      {period === "custom" ? (
-        <p>입력 시각은 현재 기기 시간대로 받고 API에는 ISO 8601 UTC Instant로 전송합니다.</p>
-      ) : null}
+      {period === "custom" ? <p>입력한 시각은 현재 기기 시간대 기준입니다.</p> : null}
       <span className="sr-only" aria-live="polite">
         {analyzing ? "대화 분석 중" : ""}
       </span>
@@ -624,13 +649,13 @@ function RoomOperationSettings({
 function AnalysisResult({
   analysis,
   archiveReady,
-  mode,
   onDownload,
+  tab,
 }: Readonly<{
   analysis: ConversationExportAnalysis;
   archiveReady: boolean;
-  mode: ViewMode;
   onDownload: () => void;
+  tab: ChatInsightsTab;
 }>) {
   return (
     <div className={styles.result}>
@@ -642,8 +667,8 @@ function AnalysisResult({
           ))}
         </ul>
       ) : null}
-      {mode === "statistics" ? <ChatStatisticsSummary metrics={analysis.metrics} /> : null}
-      {mode === "rooms" || mode === "detail" ? <ConversationDetail analysis={analysis} /> : null}
+      {tab === "statistics" ? <ChatStatisticsSummary metrics={analysis.metrics} /> : null}
+      {tab === "analysis" ? <ConversationDetail analysis={analysis} /> : null}
     </div>
   );
 }
@@ -674,7 +699,7 @@ function SnapshotHeader({
             </dd>
           </div>
           <div>
-            <dt>스냅샷</dt>
+            <dt>수집 시각</dt>
             <dd>{formatKoreanDate(analysis.manifest.capturedAt)}</dd>
           </div>
         </dl>
@@ -684,7 +709,7 @@ function SnapshotHeader({
           onClick={onDownload}
           type="button"
         >
-          원본 ZIP 내려받기
+          대화 원본 내려받기
         </button>
       </div>
     </section>
@@ -704,7 +729,6 @@ function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExpor
       <section className={styles.conversation}>
         <header>
           <div>
-            <span>AS OF TO EXCLUSIVE</span>
             <h3>종료 시점 대화 상태</h3>
           </div>
           <small>최근 {Math.min(analysis.messages.length, 30)}건</small>
@@ -763,7 +787,6 @@ function BarChart({
   return (
     <section className={styles.barCard}>
       <header>
-        <span>BREAKDOWN</span>
         <h3>{title}</h3>
       </header>
       <ol>
@@ -805,25 +828,24 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
       <p>
         {selected
           ? "전체 기간 기록의 무결성을 확인한 뒤 분석 결과를 자동으로 표시합니다."
-          : "관리자 전체 채팅방 목록에서 운영 또는 분석 대상을 고를 수 있습니다."}
+          : "채팅방을 선택하면 대화 분석이 시작됩니다."}
       </p>
     </section>
   );
 }
 
-function viewMode(screenId: string): ViewMode {
-  if (screenId === "A-CHAT-002") return "detail";
-  if (screenId === "A-CHAT-008") return "statistics";
-  return "rooms";
+function syncChatInsightsUrl(tab: ChatInsightsTab, roomId: string | null) {
+  if (typeof window === "undefined") return;
+  window.history.replaceState(window.history.state, "", chatInsightsPath(tab, roomId));
 }
 
-function navigationSection(mode: ViewMode): AdminChatSection {
-  return mode === "detail" ? "rooms" : mode;
+function navigationSection(tab: ChatInsightsTab): AdminChatSection {
+  return tab === "statistics" ? "statistics" : "rooms";
 }
 
-function screenTitle(mode: ViewMode): string {
-  if (mode === "detail") return "채팅방 상세";
-  if (mode === "statistics") return "채팅 통계";
+function screenTitle(screenId: string): string {
+  if (screenId === "A-CHAT-002") return "채팅방 상세";
+  if (screenId === "A-CHAT-008") return "채팅 통계";
   return "채팅 운영";
 }
 
@@ -925,7 +947,7 @@ async function exportProblemMessage(response: Response): Promise<string> {
     return "대화 원본 접근 권한이 없습니다. 관리자 토큰의 chat:audit:exports scope를 확인해 주세요.";
   }
   if (response.status === 404) {
-    return "채팅방을 찾을 수 없거나 대화 기록 API가 아직 준비되지 않았습니다.";
+    return "채팅방을 찾을 수 없거나 대화 기록 조회가 아직 준비되지 않았습니다.";
   }
   if (response.status === 401) return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
   return formatAdminProblem(await readAdminProblem(response));

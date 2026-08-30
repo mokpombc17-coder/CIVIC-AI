@@ -560,7 +560,7 @@ test("관리자 로그인 홈은 이름 왼쪽에 관리자·사용자 페이지
 
   await adminPageLink.click();
   await expect(page).toHaveURL(/\/admin$/u);
-  await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "관리 홈" })).toBeVisible();
 });
 
 test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dialog를 유지한다", async ({
@@ -825,7 +825,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await authenticate(context, "admin.payload.signature");
 
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "관리 홈" })).toBeVisible();
   await expect(page.locator('[data-wireflow-layout="admin-home"] .wf-admin-metric')).toHaveCount(4);
   const adminCards = page.locator('[data-wireflow-layout="admin-home"] .wf-action-card');
   await expect(adminCards).toHaveCount(0);
@@ -855,7 +855,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
     height: [78, 82],
   });
 
-  const retryLink = page.getByRole("link", { name: "policy.pdf 업로드 화면에서 재시도" });
+  const retryLink = page.getByRole("link", { name: "policy.pdf 재시도" });
   await expect(retryLink).toHaveAttribute(
     "href",
     "/admin/rag/upload?retryJobId=job-1&documentId=document-1&filename=policy.pdf",
@@ -872,7 +872,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(page.getByRole("heading", { name: "문서 준비 상태" })).toBeVisible();
 
   await page.goto("/admin/users");
-  await expect(page.getByRole("heading", { name: "사용자 목록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
   const userFilters = page.getByRole("group", { name: "사용자 상태 필터" });
   await expect(userFilters).toBeVisible();
   await expect(userFilters.getByRole("button", { name: "전체" })).toHaveAttribute(
@@ -890,13 +890,18 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(page.getByRole("link", { name: "관리 업무" })).toHaveCount(0);
 
   await page.goto("/admin/users/detail?userId=00000000-0000-4000-8000-000000000002");
-  await expect(page.getByRole("heading", { name: "사용자·관리자 상세" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "사용자 상세 메뉴" })).toBeVisible();
-  await expect(page.locator(".wf-admin-timeline")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "사용자 상세 탭" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "개요" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "활동" })).toBeVisible();
 
   await page.goto("/admin/users/roles/revoke?userId=00000000-0000-4000-8000-000000000002");
   await expect(page).toHaveURL(/\/admin\/users\/roles\/revoke\?userId=/u);
-  await expect(page.getByRole("heading", { name: "관리자 전환·권한 편집" })).toBeVisible();
+  
+  await expect(page.getByRole("tab", { name: "권한 편집" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });
 

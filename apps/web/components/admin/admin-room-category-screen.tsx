@@ -359,7 +359,6 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         >
           <section className="civic-domain-form-section">
             <header>
-              <span>ROOM CATEGORY</span>
               <h2>카테고리 목록</h2>
             </header>
             <form className="civic-category-create" onSubmit={createCategory}>
@@ -392,12 +391,8 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
           <section className="civic-domain-form-section">
             <header>
-              <span>CHAT ROOMS</span>
               <h2>기존 채팅방 카테고리 교체</h2>
             </header>
-            <p className="civic-boundary-copy">
-              현재 운영 중인 채팅방을 검색하고 카테고리를 변경할 수 있습니다.
-            </p>
             <form className="civic-category-room-search" onSubmit={searchRooms}>
               <label className="civic-field">
                 <span>채팅방 이름 검색</span>
