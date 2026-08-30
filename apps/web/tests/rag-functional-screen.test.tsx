@@ -602,7 +602,6 @@ describe("9 functional RAG screens", () => {
     const creatorId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         creatorLabels: new Map([[creatorId, "civic-admin@post-ai.com"]]),
         documents: [
           {
@@ -645,6 +644,7 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("4 KB");
     expect(html).toContain("미리보기");
     expect(html).toContain("문서 삭제");
+    expect(html).not.toContain("문서 목록 자세히 보기");
     expect(html).toContain(
       "/admin/rag/delete?folderId=00000000-0000-4000-8000-000000000002&amp;documentId=640af5c5-d302-4c32-97ca-c9db40ed22e5",
     );
@@ -656,7 +656,6 @@ describe("9 functional RAG screens", () => {
   it("문서 목록은 선택 작업대·하위 폴더·페이지 크기·페이지 이동을 제공한다", () => {
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         documents: [],
         folder: undefined,
         onInspect: vi.fn(),
@@ -680,7 +679,6 @@ describe("9 functional RAG screens", () => {
     const creatorId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         creatorLabels: new Map(),
         documents: [
           {
