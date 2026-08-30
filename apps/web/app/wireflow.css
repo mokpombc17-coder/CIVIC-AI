@@ -6251,19 +6251,24 @@ body {
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-conversation {
+  --civic-rag-inline-padding: 16px;
   height: 100%;
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
-  padding: 16px;
+  padding: 0 var(--civic-rag-inline-padding) 16px;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-session-bar {
-  min-height: 48px;
-  height: 48px;
+  min-width: 0;
+  min-height: 64px;
+  height: auto;
   flex: none;
+  margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
-  padding: 0;
+  border-bottom: 1px solid #d9e2f2;
+  background: #fff;
+  padding: 10px var(--civic-rag-inline-padding);
 }
 
 .civic-rag-header-new-question-action {
@@ -6306,24 +6311,25 @@ body {
 [data-wireflow-screen="U-RAG-001"] .civic-rag-intro {
   min-width: 0;
   margin: 0;
-  color: #59616b;
+  color: #3b434d;
   font-size: 14px;
   font-weight: 400;
   line-height: 21px;
+  overflow-wrap: anywhere;
   word-break: keep-all;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-intro-banner {
   display: flex;
+  width: 100%;
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
-  gap: 4px;
-  align-self: stretch;
-  border: 1px solid #d9e2f2;
-  border-radius: 8px;
-  background: #f3f6fb;
-  padding: 2px 3px 2px 10px;
+  gap: 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-intro-banner .civic-rag-intro {
@@ -6340,11 +6346,11 @@ body {
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   background: transparent;
-  padding: 6px;
+  padding: 12px;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss:hover {
@@ -6615,7 +6621,7 @@ body {
 
 @media (max-width: 360px) {
   [data-wireflow-screen="U-RAG-001"] .civic-rag-conversation {
-    padding-inline: 12px;
+    --civic-rag-inline-padding: 12px;
   }
 
   [data-wireflow-screen="U-RAG-001"] .civic-rag-session-bar .civic-secondary-action {

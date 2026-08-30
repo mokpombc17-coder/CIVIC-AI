@@ -1247,6 +1247,41 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(deleteDialog).toHaveCount(0);
 });
 
+test("U-RAG-001 안내 배너는 모바일 줄바꿈에 맞춰 높이가 늘어난다", async ({ context, page }) => {
+  await authenticate(context, "participant.payload.signature");
+  await page.setViewportSize({ height: 852, width: 280 });
+  await page.goto("/rag");
+
+  const ragContent = page.locator("#civic-content");
+  const introBar = ragContent.locator(".civic-rag-session-bar");
+  const introBanner = introBar.locator(".civic-rag-intro-banner");
+  const introCopy = introBanner.locator(".civic-rag-intro");
+
+  await expect(introBar).toBeVisible();
+  await expect(introBar).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(introBar).toHaveCSS("border-bottom-width", "1px");
+  await expect(introBanner).toHaveCSS("border-radius", "0px");
+
+  const layout = await introBar.evaluate((element) => {
+    const copy = element.querySelector<HTMLElement>(".civic-rag-intro");
+    if (!copy) throw new Error("RAG intro copy is missing");
+    return {
+      barClientHeight: element.clientHeight,
+      barScrollHeight: element.scrollHeight,
+      copyClientHeight: copy.clientHeight,
+      copyScrollHeight: copy.scrollHeight,
+      copyClientWidth: copy.clientWidth,
+      copyScrollWidth: copy.scrollWidth,
+    };
+  });
+
+  expect(layout.copyClientHeight).toBeGreaterThan(42);
+  expect(layout.barClientHeight).toBeGreaterThan(64);
+  expect(layout.barScrollHeight).toBeLessThanOrEqual(layout.barClientHeight);
+  expect(layout.copyScrollHeight).toBeLessThanOrEqual(layout.copyClientHeight);
+  expect(layout.copyScrollWidth).toBeLessThanOrEqual(layout.copyClientWidth);
+});
+
 test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경계를 유지한다", async ({
   context,
   page,
