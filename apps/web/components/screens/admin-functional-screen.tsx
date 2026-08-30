@@ -6,6 +6,10 @@ import Link from "next/link";
 import { AdminCurrentOperations } from "@/components/admin/admin-current-operations";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
+import {
+  readRoomCreationRequestPage,
+  type RoomCreationRequest,
+} from "@/lib/admin/domain-contracts";
 import { readWalletSummary, type WalletSummary } from "@/lib/admin/simulation-billing-contracts";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
@@ -87,6 +91,17 @@ export type AdminDomainMetricState =
   | { status: "ready"; count: number; hasMore: boolean }
   | { status: "unavailable" }
   | { status: "forbidden" };
+export type ChatRequestSummaryState =
+  | { status: "loading" }
+  | {
+      status: "ready";
+      count: number;
+      hasMore: boolean;
+      items: readonly RoomCreationRequest[];
+      labels: ReadonlyMap<string, string>;
+    }
+  | { status: "unavailable" }
+  | { status: "forbidden" };
 export type SimulationWalletMetricState =
   | { status: "loading" }
   | { status: "ready"; wallet: WalletSummary }
@@ -105,7 +120,7 @@ export function AdminFunctionalScreen({
   const [audits, setAudits] = useState<AuditEvent[]>([]);
   const [auditUserLabels, setAuditUserLabels] = useState<Map<string, string>>(new Map());
   const [ragJobSummary, setRagJobSummary] = useState<RagJobSummaryState>({ status: "loading" });
-  const [chatRequestSummary, setChatRequestSummary] = useState<AdminDomainMetricState>({
+  const [chatRequestSummary, setChatRequestSummary] = useState<ChatRequestSummaryState>({
     status: adminCurrentUser.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
   });
   const [taskDeadlineSummary, setTaskDeadlineSummary] = useState<AdminDomainMetricState>({
@@ -380,7 +395,7 @@ function AdminHome({
   canManageSimulation: boolean;
   canReadRag: boolean;
   ragJobSummary: RagJobSummaryState;
-  chatRequestSummary: AdminDomainMetricState;
+  chatRequestSummary: ChatRequestSummaryState;
   simulationWalletSummary: SimulationWalletMetricState;
   taskDeadlineSummary: AdminDomainMetricState;
 }) {
@@ -420,11 +435,86 @@ function AdminHome({
           <span>{simulationWalletDescription(simulationWalletSummary)}</span>
         </li>
       </ul>
+      <AdminPendingChatRequests state={chatRequestSummary} />
       <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
       {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
         <RagFailureSummary failures={ragJobSummary.recentFailures} />
       ) : null}
     </div>
+  );
+}
+
+export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatRequestSummaryState }>) {
+  const items = state.status === "ready" ? state.items : [];
+
+  return (
+    <section
+      aria-labelledby="civic-pending-chat-requests-title"
+      className="civic-pending-chat-requests"
+    >
+      <header>
+        <div>
+          <small>채팅 운영</small>
+          <h2 id="civic-pending-chat-requests-title">채팅방 승인 대기</h2>
+          <p>새로 신청된 채팅방을 확인하고 승인 또는 반려할 수 있습니다.</p>
+        </div>
+        {state.status !== "forbidden" ? (
+          <Link className="wf-button wf-button-secondary" href="/admin/chat/requests">
+            전체 목록
+          </Link>
+        ) : null}
+      </header>
+      {state.status === "loading" ? (
+        <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
+          승인 대기 목록을 확인하고 있습니다.
+        </p>
+      ) : null}
+      {state.status === "forbidden" ? (
+        <p className="civic-pending-chat-requests-empty">
+          채팅 관리 권한이 있는 관리자만 승인 대기 목록을 확인할 수 있습니다.
+        </p>
+      ) : null}
+      {state.status === "unavailable" ? (
+        <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
+          승인 대기 목록을 불러오지 못했습니다. 전체 목록에서 다시 확인해 주세요.
+        </p>
+      ) : null}
+      {state.status === "ready" && items.length === 0 ? (
+        <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
+          승인 대기 중인 채팅방이 없습니다.
+        </p>
+      ) : null}
+      {state.status === "ready" && items.length > 0 ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item.creationRequestId}>
+              <div className="civic-pending-chat-request-copy">
+                <strong>{item.name}</strong>
+                <span>
+                  {adminUserLabel(state.labels, item.requesterUserId)} ·{" "}
+                  {formatDate(item.requestedAt)}
+                </span>
+                {item.description ? <p>{item.description}</p> : null}
+              </div>
+              <Link
+                aria-label={`${item.name} 검토하기`}
+                className="wf-button wf-button-primary civic-pending-chat-review"
+                href={
+                  `/admin/chat/requests/detail?requestId=${encodeURIComponent(item.creationRequestId)}` as Route
+                }
+              >
+                검토하기
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {state.status === "ready" && (state.hasMore || state.count > items.length) ? (
+        <p className="civic-pending-chat-requests-more">
+          최신 {items.length}건을 표시했습니다. 나머지 신청은 전체 목록에서 확인해 주세요.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -542,18 +632,27 @@ export async function loadRagJobSummary(
 
 export async function loadChatRequestSummary(
   request: typeof fetch = authenticatedFetch,
-): Promise<AdminDomainMetricState> {
+): Promise<ChatRequestSummaryState> {
   try {
     const response = await request(
       "/api/v1/admin/room-creation-requests?status=PENDING&limit=100",
       { cache: "no-store" },
     );
     if (!response.ok) return { status: "unavailable" };
-    const value = (await response.json()) as { items?: unknown; hasNext?: unknown };
-    if (!Array.isArray(value.items) || typeof value.hasNext !== "boolean") {
-      return { status: "unavailable" };
-    }
-    return { status: "ready", count: value.items.length, hasMore: value.hasNext };
+    const page = readRoomCreationRequestPage(await response.json());
+    if (!page) return { status: "unavailable" };
+    const labels =
+      (await requestAdminUserLabels(
+        page.items.map((item) => item.requesterUserId),
+        request,
+      )) ?? new Map();
+    return {
+      status: "ready",
+      count: page.items.length,
+      hasMore: page.hasNext,
+      items: page.items.slice(0, 5),
+      labels,
+    };
   } catch {
     return { status: "unavailable" };
   }
