@@ -4593,6 +4593,28 @@ body {
   justify-self: start;
 }
 
+.wf-pwa-install-trigger {
+  position: relative;
+}
+
+.wf-pwa-install-trigger-button {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  border-radius: inherit;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wf-pwa-install-trigger-button:focus-visible {
+  outline: 3px solid var(--wf-blue);
+  outline-offset: 3px;
+}
+
 [data-wireflow-screen="U-HOME-001"] .wf-badge {
   height: 22px;
   min-height: 22px;

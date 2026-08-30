@@ -34,6 +34,8 @@ HomePage /home [Server Route]
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
             └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
+                ├── PwaInstallTriggerCard [Client, beforeinstallprompt 준비 시 환영 카드 클릭으로 설치 요청]
+                └── ParticipantHomeLayout
 
 ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
@@ -156,6 +158,10 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 `/rag`, `/chat`, `/vote`, `/mypage`는 `/login?returnTo=...`로 연결하고, `/home` 메뉴는 공개 홈에
 남는다. cookie가 있으면 원래 보호 경로를 유지하며, 실제 자격 확인과 refresh는 각 보호 route가
 담당한다.
+
+`PwaInstallTriggerCard`는 브라우저가 `beforeinstallprompt`를 제공한 경우에만 기존 환영 카드 위에
+접근 가능한 투명 버튼을 활성화한다. 클릭 시 브라우저의 네이티브 설치 UI를 요청하고,
+`appinstalled` 이후에는 다시 비활성화한다. iOS 설치 안내나 별도 시각 CTA는 소유하지 않는다.
 
 공개 인증 route는 Server Route가 `PublicAuthScreen`에 초기 화면과 query만 전달한다. 이 Client
 wrapper가 가입 단계의 `history.state` 변화와 상단 제목·뒤로가기 동작을 동기화하고,
