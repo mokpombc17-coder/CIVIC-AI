@@ -37,6 +37,10 @@ export default async function AdminPlaceholderPage({
     redirect(`/admin/tasks${serializeSearchParams(query)}`);
   }
 
+  if (definition.id === "A-TASK-002" && !firstQueryValue(query.taskId)) {
+    redirect("/admin/tasks?create=1");
+  }
+
   const userDrawerTab = userDrawerTabForScreen(definition.id);
   if (userDrawerTab) redirect(userDrawerHref(query, userDrawerTab));
 
@@ -122,4 +126,8 @@ function chatRoomDrawerHref(query: RagQuery): Route {
   const roomId = typeof query.roomId === "string" ? query.roomId : query.roomId?.[0];
   if (!roomId) return "/admin/chat" as Route;
   return `/admin/chat?roomId=${encodeURIComponent(roomId)}` as Route;
+}
+
+function firstQueryValue(value: string | readonly string[] | undefined): string | null {
+  return typeof value === "string" ? value : (value?.[0] ?? null);
 }

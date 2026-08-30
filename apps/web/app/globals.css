@@ -3815,6 +3815,10 @@ th {
   justify-content: flex-end;
 }
 
+.civic-admin-detail-drawer-layer[hidden] {
+  display: none;
+}
+
 .civic-admin-detail-drawer-scrim {
   position: absolute;
   inset: 0;
@@ -3894,6 +3898,121 @@ th {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-create-drawer {
+  width: min(46rem, 94vw);
+}
+
+[data-wireflow-shell="admin"] .civic-task-create-drawer-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard {
+  min-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.05rem 0.55rem;
+  align-items: center;
+  border: 1px solid var(--civic-line);
+  border-radius: 0.6rem;
+  background: #fff;
+  color: var(--civic-muted);
+  padding: 0.65rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button > span {
+  display: inline-grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  grid-row: 1 / span 2;
+  place-items: center;
+  border-radius: 999px;
+  background: #e8edf4;
+  color: #4b5563;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button strong {
+  overflow: hidden;
+  color: var(--civic-text);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button small {
+  overflow: hidden;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button[data-complete="true"] > span {
+  background: #dcfce7;
+  color: #166534;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button[aria-current="step"] {
+  border-color: #8bb1fa;
+  background: #eef4ff;
+  box-shadow: inset 0 -0.2rem 0 var(--civic-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button[aria-current="step"] > span {
+  background: var(--civic-blue-dark);
+  color: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-panel {
+  align-content: start;
+  min-height: 20rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-panel textarea {
+  resize: vertical;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.55rem;
+  border-top: 1px solid var(--civic-line);
+  padding-top: 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-actions > :is(button, a) {
+  min-height: 2.65rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-cancel {
+  border: 0;
+  background: transparent;
+  color: var(--civic-muted);
+  padding: 0.5rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 [data-wireflow-shell="admin"] .civic-task-drawer-body .civic-domain-detail,
@@ -4239,6 +4358,28 @@ th {
 @media (max-width: 720px) {
   [data-wireflow-shell="admin"] .civic-admin-detail-drawer {
     width: 100vw;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-create-drawer-body {
+    padding: 0.75rem;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-nav > button {
+    grid-template-columns: 1.6rem minmax(0, 1fr);
+    padding: 0.55rem;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-nav > button > span {
+    width: 1.6rem;
+    height: 1.6rem;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-nav > button small {
+    display: none;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-panel {
+    min-height: 0;
   }
 
   [data-wireflow-shell="admin"] .civic-task-drawer-body .civic-user-summary-grid {

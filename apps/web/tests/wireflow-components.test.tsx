@@ -147,10 +147,11 @@ describe("latest Wire Flow shared product UI", () => {
     const toolbarHtml = html.slice(toolbarStart, tableStart);
 
     expect(html).toContain('class="wf-screen-heading-action"');
-    expect(html).toContain(
-      'class="civic-primary-action civic-task-create-action" href="/admin/tasks/create"',
-    );
+    expect(html).toContain('class="civic-primary-action civic-task-create-action" type="button"');
     expect(html).toContain('aria-label="새 과업 만들기"');
+    expect(html).toContain('aria-label="과업 생성 단계"');
+    expect(html).toContain("제목 · 상황 또는 사건");
+    expect(html).not.toContain("질문 설명");
     expect(toolbarHtml).toContain("과업 제목 검색");
     expect(toolbarHtml).toContain('name="task-query"');
     expect(toolbarHtml).toContain('autoComplete="off"');

@@ -99,6 +99,7 @@ AdminCatchAllPage [Server Route]
     │   └── RoomCategorySelector [선택 방의 카테고리 교체]
     ├── AdminTaskScreen [Vote 과업 관리]
     │   ├── TaskList [목록·검색·상태 필터]
+    │   ├── TaskCreationDrawer [기본 정보→질문→선택지 단계형 초안 생성]
     │   └── TaskDetailDrawer [우측 상세·상태 변경, 운영 이력 미노출]
     ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
@@ -120,6 +121,11 @@ AdminCatchAllPage [Server Route]
 Vote 과업 목록의 `과업 상세`는 별도 페이지로 이동하지 않고 `TaskDetailDrawer`를 연다. 선택한
 `taskId`는 `/admin/tasks?taskId=...`에 반영해 새로고침 후에도 같은 Drawer를 복원하며, 기존
 `/admin/tasks/detail` 주소는 인증·권한 확인 뒤 이 목록 주소로 이동한다.
+
+`새 과업 만들기`도 목록 위에서 `TaskCreationDrawer`를 연다. Drawer는 닫혀도 목록 화면에
+마운트된 작성 상태를 유지해 다시 열었을 때 입력값과 현재 단계를 복원한다. 상단 네비게이션은
+`기본 정보(제목·상황 또는 사건) → 질문 → 선택지` 순서이며, 새 과업의 질문 설명은 별도 입력 없이
+`null`로 저장한다. 기존 `/admin/tasks/create` 주소는 `/admin/tasks?create=1`로 이동한다.
 
 사용자 목록의 `사용자 상세`도 별도 페이지 대신 `UserDetailDrawer`를 열고, 계정 정보·역할/권한·
 변경 이력을 Drawer 내부 탭으로 전환한다. 기존 상세·권한·감사 route는 인증·권한 확인 뒤

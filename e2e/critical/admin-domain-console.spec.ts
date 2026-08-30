@@ -523,20 +523,47 @@ test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한
   await expect(detailButton).toBeFocused();
 });
 
+test("기존 과업 생성 주소는 목록의 새 과업 Drawer로 연결한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.goto("/admin/tasks/create");
+
+  await expect(page).toHaveURL("/admin/tasks?create=1");
+  await expect(page.getByRole("dialog", { name: "새 과업 만들기" })).toBeVisible();
+});
+
 test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 즉시 발행한다", async ({
   context,
   page,
 }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1138, height: 768 });
-  await page.goto("/admin/tasks/create");
+  await page.goto("/admin/tasks");
+  await page.getByRole("button", { name: "새 과업 만들기" }).click();
 
-  await page.getByLabel("제목").fill("지역 정책 선호도 조사");
-  await page.getByLabel("관리자 설명").fill("운영 확인용 과업");
-  await page.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
-  await page.getByLabel("선택지 1").fill("A안");
-  await page.getByLabel("선택지 2").fill("B안");
-  await page.getByRole("button", { name: "초안 생성" }).click();
+  let createDrawer = page.getByRole("dialog", { name: "새 과업 만들기" });
+  await expect(page).toHaveURL("/admin/tasks?create=1");
+  await expect(createDrawer.getByRole("navigation", { name: "과업 생성 단계" })).toBeVisible();
+  await createDrawer.getByLabel("제목").fill("지역 정책 선호도 조사");
+  await createDrawer.getByLabel("상황 또는 사건").fill("운영 확인용 과업");
+  await createDrawer.getByRole("button", { name: "다음" }).click();
+  await createDrawer.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
+
+  await createDrawer.getByRole("button", { name: "새 과업 만들기 닫기" }).click();
+  await expect(createDrawer).toBeHidden();
+  await page.getByRole("button", { name: "새 과업 만들기" }).click();
+  createDrawer = page.getByRole("dialog", { name: "새 과업 만들기" });
+  await expect(createDrawer.getByRole("textbox", { name: "질문", exact: true })).toHaveValue(
+    "어떤 안을 선호하시나요?",
+  );
+  await createDrawer.getByRole("button", { name: /기본 정보/ }).click();
+  await expect(createDrawer.getByLabel("제목")).toHaveValue("지역 정책 선호도 조사");
+  await expect(createDrawer.getByLabel("상황 또는 사건")).toHaveValue("운영 확인용 과업");
+  await createDrawer.getByRole("button", { name: /시민에게 물을 내용/ }).click();
+  await createDrawer.getByRole("button", { name: "다음" }).click();
+  await expect(createDrawer.getByText("질문 설명", { exact: true })).toHaveCount(0);
+  await createDrawer.getByLabel("선택지 1").fill("A안");
+  await createDrawer.getByLabel("선택지 2").fill("B안");
+  await createDrawer.getByRole("button", { name: "초안 생성" }).click();
 
   await expect
     .poll(() => createdTaskIdempotencyKey, { timeout: 2_000 })
@@ -544,7 +571,11 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 �
   await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
   const drawer = page.getByRole("dialog", { name: "과업 상세" });
   await expect(drawer).toBeVisible();
-  expect(createdTaskBody).toMatchObject({ title: "지역 정책 선호도 조사" });
+  expect(createdTaskBody).toMatchObject({
+    title: "지역 정책 선호도 조사",
+    description: "운영 확인용 과업",
+    question: { description: null },
+  });
   await drawer.getByLabel("동작").selectOption("open-now");
   await drawer.getByLabel("마감 시각").fill("2026-09-01T09:00");
   await drawer.getByRole("button", { name: "즉시 발행" }).click();
@@ -647,7 +678,7 @@ test("관리자 Chat·Vote 화면은 200% 확대 대응 폭에서도 본문이 �
     "/admin/chat",
     "/admin/chat/requests",
     "/admin/chat/categories",
-    "/admin/tasks/create",
+    "/admin/tasks?create=1",
   ]) {
     await page.goto(route);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
