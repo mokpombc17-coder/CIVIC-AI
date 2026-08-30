@@ -88,8 +88,9 @@ print(address)
 PY
 )" || die "host IP must be a public IPv4 address"
 
-repository_root="$(git rev-parse --show-toplevel 2>/dev/null)" \
-  || die "run this script from the Front2 Git repository"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+repository_root="$(git -C "$script_dir/.." rev-parse --show-toplevel 2>/dev/null)" \
+  || die "the script must remain inside the Front2 Git repository"
 repository_url="$(git -C "$repository_root" remote get-url origin)" \
   || die "origin remote is required"
 case "$repository_url" in
@@ -124,6 +125,8 @@ if [[ "$dry_run" == true ]]; then
     'docker_verification_target=skipped' \
     'server_build=false' \
     'cutover=web-only-no-build-no-deps' \
+    'deployment_lock=/var/lock/civic-image-patch.lock' \
+    'source_discovery=script-location' \
     'nginx_reload=false' \
     "target=$target" \
     "public_origin=https://${public_host}"
@@ -219,6 +222,10 @@ die() {
   printf 'error: %s\n' "$1" >&2
   return 1
 }
+
+command -v flock >/dev/null 2>&1 || die "flock is required on A1"
+exec 9>/var/lock/civic-image-patch.lock
+flock -n 9 || die "another CIVIC image deployment is running"
 
 label() {
   docker inspect "$container" --format "{{index .Config.Labels \"$1\"}}"
