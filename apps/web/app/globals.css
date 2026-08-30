@@ -2604,9 +2604,11 @@ th {
 
 .civic-pdf-page-list {
   display: grid;
-  width: min(100%, 72rem);
+  width: min(var(--document-width, 100%), var(--document-max-width, 72rem));
+  max-width: none;
   gap: 1rem;
   margin: 0 auto;
+  transition: width 180ms ease;
 }
 
 .civic-pdf-page {

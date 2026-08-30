@@ -89,6 +89,7 @@ import {
   RagLiveProgress,
   readRagProgress,
   safeExternalSourceUrl,
+  scrollRagMessagesToLatest,
   shouldShowRagStreamingAnswer,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
@@ -283,6 +284,43 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain("도움됨");
     expect(html).not.toContain("도움 안 됨");
     expect(html).not.toContain('aria-label="답변 평가"');
+  });
+
+  it("스트리밍 답변은 최종 답변 버블 스타일을 선택한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        liveJob: {
+          progress: {
+            status: "RUNNING",
+            stage: "STREAMING",
+            label: "답변을 작성하고 있어요",
+            detail: "선별한 근거로 답변을 구성합니다.",
+            progress_percent: 90,
+            estimated_remaining_seconds: 2,
+            elapsed_seconds: 10,
+          },
+          streamedAnswer: "실시간 문서 답변",
+        },
+        message: {
+          id: "streaming-job",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain("civic-rag-answer is-live is-streaming-answer");
+    expect(html).toContain("실시간 문서 답변");
+  });
+
+  it("스트리밍 답변 조각이 추가되면 대화의 마지막 높이로 자동 스크롤한다", () => {
+    const scrollTo = vi.fn();
+
+    scrollRagMessagesToLatest({ scrollHeight: 840, scrollTo });
+
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", top: 840 });
   });
 
   it("복원한 대화에서 마지막 미완료 질의만 재개 대상으로 선택한다", () => {
