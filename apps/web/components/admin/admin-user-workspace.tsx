@@ -497,7 +497,13 @@ function syncUrl(tab: UserWorkspaceTab, userId: string | null) {
 }
 
 export function chatSummaryValue(state: ActivityScanState<UserChatScanResult>): string {
-  if (state.status === "ready") return `${state.result.participations.length}개`;
+  if (state.status === "ready") {
+    const count = state.result.participations.length;
+    if (state.result.failedRooms > 0 || state.result.truncated) {
+      return count > 0 ? `${count}개 이상` : "확인 불가";
+    }
+    return `${count}개`;
+  }
   if (state.status === "running") return "확인 중";
   if (state.status === "failed") return "확인 불가";
   return "미확인";
@@ -967,12 +973,19 @@ function requestStatusLabel(status: string): string {
 }
 
 function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>) {
+  const successfulRooms = result.scannedRooms - result.failedRooms;
   return (
     <>
       {result.participations.length === 0 ? (
-        <ConsoleStatus>
-          {result.scannedRooms}개 토론방에서 이 사용자의 메시지를 찾지 못했습니다.
-        </ConsoleStatus>
+        successfulRooms === 0 && result.failedRooms > 0 ? (
+          <ConsoleStatus error>
+            대화 기록을 불러오지 못해 이 사용자의 토론방 참여 여부를 확인할 수 없습니다.
+          </ConsoleStatus>
+        ) : (
+          <ConsoleStatus>
+            조회에 성공한 {successfulRooms}개 토론방에서 이 사용자의 메시지를 찾지 못했습니다.
+          </ConsoleStatus>
+        )
       ) : (
         <ul
           aria-label="대화 참여 토론방 목록"
