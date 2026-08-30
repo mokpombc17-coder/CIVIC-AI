@@ -89,7 +89,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("요청마다 권한 재확인");
   });
 
-  it("채팅 운영 아래에 신청 목록과 채팅방 관리 두 항목을 제공한다", () => {
+  it("채팅 운영 아래에 신청 목록과 채팅방·카테고리 관리 항목을 제공한다", () => {
     const html = renderToStaticMarkup(
       <AdminShell activeRoute="/admin/chat/requests" permissions={["CHAT_ADMIN"]} role="ADMIN">
         <p>content</p>
@@ -102,9 +102,25 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain('href="/admin/chat/requests"');
     expect(html).toContain(">채팅방 신청 목록<");
     expect(html).toContain(">채팅방 관리<");
+    expect(html).toContain('href="/admin/chat/categories"');
+    expect(html).toContain(">카테고리 관리<");
     expect(html).toContain('aria-current="page"');
     expect(html).not.toContain(">통계<");
-    expect(html).not.toContain(">카테고리<");
+  });
+
+  it("카테고리 경로에서는 카테고리 관리만 현재 메뉴로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <AdminShell activeRoute="/admin/chat/categories" permissions={["CHAT_ADMIN"]} role="ADMIN">
+        <p>content</p>
+      </AdminShell>,
+    );
+
+    expect(html).toMatch(
+      /aria-current="page" class="civic-admin-nav-link civic-admin-nav-sub-link" href="\/admin\/chat\/categories"/u,
+    );
+    expect(html).not.toMatch(
+      /aria-current="page" class="civic-admin-nav-link civic-admin-nav-sub-link" href="\/admin\/chat"/u,
+    );
   });
 
   it("채팅방 생성 요청 목록은 취소 필터와 고정된 공개·참여 방식을 표시하지 않는다", () => {

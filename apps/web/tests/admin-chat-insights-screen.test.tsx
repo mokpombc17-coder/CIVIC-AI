@@ -24,7 +24,7 @@ describe("admin chat conversation insights", () => {
     expect(html).toContain('aria-label="채팅방 관리 목록"');
     expect(html).toContain(">채팅방 이름</th>");
     expect(html).toContain(">작업</th>");
-    expect(html).toContain('href="/admin/chat/categories"');
+    expect(html).not.toContain('href="/admin/chat/categories"');
     expect(html).not.toContain("ROOM OPERATIONS · EXPORT V1");
     expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
     expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
