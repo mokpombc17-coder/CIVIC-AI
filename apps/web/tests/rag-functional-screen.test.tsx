@@ -284,10 +284,40 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain("문서 기반 답변입니다.");
+    expect(html).toContain(
+      '<header class="civic-rag-answer-meta"><strong>CIVIC.AI</strong><time class="civic-rag-time">11:33</time></header>',
+    );
     expect(html).not.toContain("이 답변이 도움이 되었나요?");
     expect(html).not.toContain("도움됨");
     expect(html).not.toContain("도움 안 됨");
     expect(html).not.toContain('aria-label="답변 평가"');
+  });
+
+  it("사용자 질문은 토론방의 내 채팅과 같은 비대화형 메시지 구조로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        message: {
+          id: "completed-job",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "completed-job",
+            status: "SUCCEEDED",
+            answer: "문서 기반 답변입니다.",
+          },
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('<header class="civic-rag-question-meta"><strong>나</strong></header>');
+    expect(html).toContain('<div class="civic-rag-question-content">');
+    expect(html).toContain(
+      '<p class="civic-rag-question">정책 내용을 알려줘.</p><time class="civic-rag-time">11:32</time>',
+    );
+    expect(html).not.toContain('<button class="civic-rag-question"');
   });
 
   it("스트리밍 답변은 최종 답변 버블 스타일을 선택한다", () => {

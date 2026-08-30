@@ -634,8 +634,13 @@ export function RagMessage({
   return (
     <article className="civic-rag-exchange">
       <div className="civic-rag-question-row">
-        <time className="civic-rag-time">{message.askedAt}</time>
-        <p className="civic-rag-question">{message.question}</p>
+        <header className="civic-rag-question-meta">
+          <strong>나</strong>
+        </header>
+        <div className="civic-rag-question-content">
+          <p className="civic-rag-question">{message.question}</p>
+          <time className="civic-rag-time">{message.askedAt}</time>
+        </div>
       </div>
       <div className="civic-rag-answer-row">
         <header className="civic-rag-answer-meta">

@@ -1248,10 +1248,38 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
   const citation = page.getByRole("link", { name: "원문 보기" });
   await expect(citation).toBeVisible();
-  await expectBox(page.locator(".civic-rag-question"), {
-    x: [80, 83],
-    width: [294, 297],
+  const questionBubble = page.locator(".civic-rag-question");
+  const questionTime = page.locator(".civic-rag-question-content .civic-rag-time");
+  await expect(page.locator(".civic-rag-question-meta")).toHaveText("나");
+  await expectBox(questionBubble, {
+    x: [134, 137],
+    width: [240, 243],
   });
+  const questionBubbleBox = await questionBubble.boundingBox();
+  const questionTimeBox = await questionTime.boundingBox();
+  expect(questionBubbleBox).not.toBeNull();
+  expect(questionTimeBox).not.toBeNull();
+  expect((questionTimeBox?.x ?? 0) + (questionTimeBox?.width ?? 0)).toBeLessThan(
+    questionBubbleBox?.x ?? 0,
+  );
+  expect(
+    Math.abs(
+      (questionTimeBox?.y ?? 0) +
+        (questionTimeBox?.height ?? 0) -
+        ((questionBubbleBox?.y ?? 0) + (questionBubbleBox?.height ?? 0)),
+    ),
+  ).toBeLessThanOrEqual(3);
+  const answerMeta = page.locator(".civic-rag-answer-meta");
+  const answerLabel = answerMeta.getByText("CIVIC.AI", { exact: true });
+  const answerTime = answerMeta.locator("time");
+  const answerLabelBox = await answerLabel.boundingBox();
+  const answerTimeBox = await answerTime.boundingBox();
+  expect(answerLabelBox).not.toBeNull();
+  expect(answerTimeBox).not.toBeNull();
+  const answerMetaGap =
+    (answerTimeBox?.x ?? 0) - ((answerLabelBox?.x ?? 0) + (answerLabelBox?.width ?? 0));
+  expect(answerMetaGap).toBeGreaterThanOrEqual(5);
+  expect(answerMetaGap).toBeLessThanOrEqual(7);
   await expectBox(page.locator(".civic-rag-answer:not(.is-live)"), {
     x: [16, 18],
     width: [359, 362],
