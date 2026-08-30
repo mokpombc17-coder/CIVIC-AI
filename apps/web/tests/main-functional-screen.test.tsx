@@ -19,7 +19,7 @@ import {
   loadChatRequestSummary,
   loadRagJobSummary,
   loadSimulationWalletSummary,
-  loadTaskDeadlineSummary,
+  loadActiveTaskSummary,
   RagFailureSummary,
   ragFailureRetryHref,
   ragFailureLabel,
@@ -550,8 +550,7 @@ describe("25 functional Main/Auth screens", () => {
     });
   });
 
-  it("관리 홈은 승인 대기·과업 마감·시뮬레이션 사용 잔액을 실제 응답에서 계산한다", async () => {
-    const now = Date.parse("2026-08-26T00:00:00Z");
+  it("관리 홈은 승인 대기·진행 중 과업·시뮬레이션 사용 잔액을 실제 응답에서 계산한다", async () => {
     const chat = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).startsWith("/api/v1/admin/user-labels?")) {
         return Response.json({
@@ -617,9 +616,9 @@ describe("25 functional Main/Auth screens", () => {
     expect(chatHtml).toContain("one@example.com");
     expect(chatHtml).toContain("검토하기");
     expect(chatHtml).toContain("/admin/chat/requests?requestId=request-one");
-    await expect(loadTaskDeadlineSummary(tasks as typeof fetch, now)).resolves.toEqual({
+    await expect(loadActiveTaskSummary(tasks as typeof fetch)).resolves.toEqual({
       status: "ready",
-      count: 1,
+      count: 2,
       hasMore: false,
     });
     await expect(loadSimulationWalletSummary(wallet as typeof fetch)).resolves.toEqual({
@@ -1209,9 +1208,10 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("승인 대기 목록을 확인하고 있습니다.");
     expect(html).toContain("처리 실패");
     expect(html).toContain("확인 중");
-    expect(html).toContain("24시간 내 마감");
+    expect(html).toContain("진행 중 과업");
     expect(html).toContain("시뮬레이션 사용 잔액");
-    expect(html).toContain("공용 지갑 잔액 확인 중");
+    expect(html).not.toContain("공용 지갑 잔액 확인 중");
+    expect(html).not.toContain("실행 보류");
     expect(html).toContain("현재 처리 중");
     expect(html).toContain("처리 현황을 확인하고 있습니다.");
     expect(html).not.toContain('class="wf-card wf-action-card"');
@@ -1251,7 +1251,7 @@ describe("25 functional Main/Auth screens", () => {
           ],
         },
         simulationWalletSummary: { status: "forbidden" },
-        taskDeadlineSummary: { status: "forbidden" },
+        activeTaskSummary: { status: "forbidden" },
       }),
     );
 

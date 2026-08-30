@@ -515,8 +515,8 @@ function AdminHomeLoadingSurface() {
   const metrics = [
     ["승인 대기", "채팅 생성 신청"],
     ["처리 실패", "문서 처리 상태 확인 중"],
-    ["24시간 내 마감", "진행 중 과업"],
-    ["시뮬레이션 사용 잔액", "공용 지갑 확인 중"],
+    ["진행 중 과업", "현재 진행 중"],
+    ["시뮬레이션 사용 잔액", null],
   ] as const;
   return (
     <div
@@ -530,7 +530,7 @@ function AdminHomeLoadingSurface() {
           <li className="wf-admin-metric" key={label}>
             <small>{label}</small>
             <SkeletonBlock className="civic-skeleton-metric-value" />
-            <span>{description}</span>
+            {description ? <span>{description}</span> : null}
           </li>
         ))}
       </ul>
