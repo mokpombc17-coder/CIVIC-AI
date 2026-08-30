@@ -905,3 +905,20 @@
     padding: 16px 0 0;
   }
 }
+
+
+/* 공용 검색 컨트롤이 .search button 남색 스타일에 덮이지 않게 한다. */
+.search :global(.console-search-button) {
+  min-height: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #286cf4;
+  color: #fff;
+  padding: 0 12px;
+  font-weight: 700;
+}
+
+.workspace {
+  grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);
+}

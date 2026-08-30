@@ -388,7 +388,7 @@ export function AdminChatInsightsScreen({
                   autoComplete="off"
                   disabled={roomsLoading || closingRoom}
                   onChange={(event) => setRoomQuery(event.currentTarget.value)}
-                  placeholder="토론방 이름을 검색해 주세요."
+                  placeholder="토론방 이름 검색"
                   type="search"
                   value={roomQuery}
                 />
