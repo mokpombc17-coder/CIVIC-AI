@@ -89,7 +89,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("요청마다 권한 재확인");
   });
 
-  it("채팅 운영 아래에 신청 목록과 채팅방·카테고리 관리 항목을 제공한다", () => {
+  it("채팅 운영 아래에 신청 목록과 토론방·카테고리 관리 항목을 제공한다", () => {
     const html = renderToStaticMarkup(
       <AdminShell activeRoute="/admin/chat/requests" permissions={["CHAT_ADMIN"]} role="ADMIN">
         <p>content</p>
@@ -100,8 +100,8 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain('href="/admin/chat"');
     expect(html).toContain(">채팅 운영<");
     expect(html).toContain('href="/admin/chat/requests"');
-    expect(html).toContain(">채팅방 신청 목록<");
-    expect(html).toContain(">채팅방 관리<");
+    expect(html).toContain(">토론방 신청 목록<");
+    expect(html).toContain(">토론방 관리<");
     expect(html).toContain('href="/admin/chat/categories"');
     expect(html).toContain(">카테고리 관리<");
     expect(html).toContain('aria-current="page"');
@@ -123,7 +123,7 @@ describe("latest Wire Flow shared product UI", () => {
     );
   });
 
-  it("채팅방 생성 요청 목록은 취소 필터와 고정된 공개·참여 방식을 표시하지 않는다", () => {
+  it("토론방 생성 요청 목록은 취소 필터와 고정된 공개·참여 방식을 표시하지 않는다", () => {
     const requestList = screenRegistry.find((screen) => screen.id === "A-CHAT-004");
     if (!requestList) throw new Error("A-CHAT-004 missing");
 
@@ -147,8 +147,8 @@ describe("latest Wire Flow shared product UI", () => {
 
     const html = renderToStaticMarkup(<AdminRoomCategoryScreen screen={categoryScreen} />);
 
-    expect(html).toContain("채팅방 카테고리 관리");
-    expect(html).toContain("채팅방 이름 검색");
+    expect(html).toContain("토론방 카테고리 관리");
+    expect(html).toContain("토론방 이름 검색");
     expect(html).not.toContain(">검색</button>");
     expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
     expect(html).not.toContain('href="/admin/chat/requests"');

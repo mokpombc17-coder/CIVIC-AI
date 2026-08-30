@@ -68,14 +68,14 @@ export function AdminShell({
                   className="civic-admin-nav-link civic-admin-nav-sub-link"
                   href="/admin/chat/requests"
                 >
-                  <span>채팅방 신청 목록</span>
+                  <span>토론방 신청 목록</span>
                 </Link>
                 <Link
                   aria-current={isChatManagementActive(currentRoute) ? "page" : undefined}
                   className="civic-admin-nav-link civic-admin-nav-sub-link"
                   href="/admin/chat"
                 >
-                  <span>채팅방 관리</span>
+                  <span>토론방 관리</span>
                 </Link>
                 <Link
                   aria-current={isChatCategoryActive(currentRoute) ? "page" : undefined}

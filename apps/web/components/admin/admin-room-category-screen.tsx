@@ -109,7 +109,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         if (currentGeneration !== roomListGeneration.current) return;
         if (!page) {
           if (!append) setListedRooms([]);
-          setRoomListMessage("서버의 채팅방 목록 응답 형식을 확인해야 합니다.");
+          setRoomListMessage("서버의 토론방 목록 응답 형식을 확인해야 합니다.");
           return;
         }
         setListedRooms((current) => (append ? mergeListedRooms(current, page.items) : page.items));
@@ -118,7 +118,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       } catch {
         if (currentGeneration === roomListGeneration.current) {
           if (!append) setListedRooms([]);
-          setRoomListMessage("네트워크 오류로 채팅방 목록을 불러오지 못했습니다.");
+          setRoomListMessage("네트워크 오류로 토론방 목록을 불러오지 못했습니다.");
         }
       } finally {
         if (currentGeneration === roomListGeneration.current) setRoomsLoading(false);
@@ -232,7 +232,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         }
         setMessage(
           problem.code === "ROOM_CATEGORY_IN_USE" && problem.referencedRoomCount !== undefined
-            ? `${problem.referencedRoomCount}개 채팅방에서 사용 중이라 삭제할 수 없습니다.`
+            ? `${problem.referencedRoomCount}개 토론방에서 사용 중이라 삭제할 수 없습니다.`
             : formatAdminProblem(problem),
         );
         return;
@@ -290,7 +290,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         setRoom(null);
         setSelectedRoomName("");
         setSelectedCategoryIds([]);
-        setMessage("서버의 채팅방 응답 형식을 확인해야 합니다.");
+        setMessage("서버의 토론방 응답 형식을 확인해야 합니다.");
         return;
       }
       setRoom(snapshot);
@@ -304,7 +304,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       setRoom(null);
       setSelectedRoomName("");
       setSelectedCategoryIds([]);
-      setMessage("네트워크 오류로 채팅방 설정을 불러오지 못했습니다.");
+      setMessage("네트워크 오류로 토론방 설정을 불러오지 못했습니다.");
     } finally {
       setPending(false);
     }
@@ -355,19 +355,19 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       setSelectedCategoryIds(assignment.categoryIds);
       setMessage(
         assignment.changed
-          ? "채팅방 카테고리를 교체했습니다."
+          ? "토론방 카테고리를 교체했습니다."
           : "선택한 카테고리가 현재 설정과 같아 변경하지 않았습니다.",
       );
     } catch {
       await loadRoom(room.roomId, true);
-      setMessage("처리 결과가 불명확하여 채팅방의 최신 설정을 다시 불러왔습니다.");
+      setMessage("처리 결과가 불명확하여 토론방의 최신 설정을 다시 불러왔습니다.");
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <ScreenFrame screen={screen} title="채팅방 카테고리 관리">
+    <ScreenFrame screen={screen} title="토론방 카테고리 관리">
       <AdminChatOperationsLayout>
         <div
           className="civic-admin-workbench civic-domain-console"
@@ -409,14 +409,14 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
           <section className="civic-domain-form-section">
             <header>
               <span>CHAT ROOMS</span>
-              <h2>기존 채팅방 카테고리 교체</h2>
+              <h2>기존 토론방 카테고리 교체</h2>
             </header>
             <p className="civic-boundary-copy">
-              현재 운영 중인 채팅방을 검색하고 카테고리를 변경할 수 있습니다.
+              현재 운영 중인 토론방을 검색하고 카테고리를 변경할 수 있습니다.
             </p>
             <div className="civic-category-room-search">
               <label className="civic-field">
-                <span>채팅방 이름 검색</span>
+                <span>토론방 이름 검색</span>
                 <input
                   disabled={pending}
                   maxLength={100}
@@ -448,10 +448,10 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 onClick={() => void loadListedRooms(roomQuery.trim(), roomNextCursor, true)}
                 type="button"
               >
-                다음 채팅방 불러오기
+                다음 토론방 불러오기
               </button>
             ) : null}
-            {roomsLoading ? <p aria-live="polite">채팅방 목록을 불러오는 중입니다.</p> : null}
+            {roomsLoading ? <p aria-live="polite">토론방 목록을 불러오는 중입니다.</p> : null}
             {roomListMessage ? (
               <p aria-live="polite" className="civic-form-message" role="status">
                 {roomListMessage}
@@ -469,7 +469,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       {room ? (
         <div className="civic-document-drawer-layer civic-category-editor-layer">
           <button
-            aria-label="채팅방 카테고리 편집 닫기"
+            aria-label="토론방 카테고리 편집 닫기"
             className="civic-document-drawer-scrim"
             onClick={closeRoomEditor}
             type="button"
@@ -486,7 +486,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 <strong id="civic-category-editor-title">{selectedRoomName}</strong>
               </div>
               <button
-                aria-label="채팅방 카테고리 편집 닫기"
+                aria-label="토론방 카테고리 편집 닫기"
                 autoFocus
                 onClick={closeRoomEditor}
                 type="button"
@@ -499,7 +499,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
               onSubmit={replaceRoomCategories}
             >
               <p className="civic-boundary-copy">
-                이 채팅방에 표시할 카테고리를 최대 5개까지 선택하고 저장하세요.
+                이 토론방에 표시할 카테고리를 최대 5개까지 선택하고 저장하세요.
               </p>
               <RoomCategorySelector
                 categories={categories}
@@ -562,11 +562,11 @@ function ListedRoomTable({
   selectedRoomId: string | null;
 }>) {
   return (
-    <div aria-label="채팅방 표" className="civic-table-scroll" role="region" tabIndex={0}>
+    <div aria-label="토론방 표" className="civic-table-scroll" role="region" tabIndex={0}>
       <table className="civic-admin-table civic-listed-room-table">
         <thead>
           <tr>
-            <th>채팅방 이름</th>
+            <th>토론방 이름</th>
             <th>현재 카테고리</th>
             <th>참여자</th>
             <th>작업</th>
@@ -575,7 +575,7 @@ function ListedRoomTable({
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan={4}>{loading ? "불러오는 중입니다." : "검색된 채팅방이 없습니다."}</td>
+              <td colSpan={4}>{loading ? "불러오는 중입니다." : "검색된 토론방이 없습니다."}</td>
             </tr>
           ) : null}
           {items.map((listedRoom) => {
