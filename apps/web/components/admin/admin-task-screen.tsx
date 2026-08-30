@@ -288,17 +288,17 @@ function TaskDetailDrawer({
   }
 
   return (
-    <div className="civic-task-drawer-layer">
+    <div className="civic-admin-detail-drawer-layer">
       <button
         aria-label="과업 상세 닫기"
-        className="civic-task-drawer-scrim"
+        className="civic-admin-detail-drawer-scrim"
         onClick={onClose}
         type="button"
       />
       <aside
         aria-labelledby="civic-task-drawer-title"
         aria-modal="true"
-        className="civic-task-drawer"
+        className="civic-admin-detail-drawer civic-task-drawer"
         id="civic-task-detail-drawer"
         onKeyDown={handleKeyDown}
         ref={drawerRef}

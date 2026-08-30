@@ -838,14 +838,25 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(page.getByRole("link", { name: "관리 업무" })).toHaveCount(0);
 
   await page.goto("/admin/users/detail?userId=00000000-0000-4000-8000-000000000002");
-  await expect(page.getByRole("heading", { name: "사용자·관리자 상세" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "사용자 상세 메뉴" })).toBeVisible();
-  await expect(page.locator(".wf-admin-timeline")).toBeVisible();
+  await expect(page).toHaveURL(
+    /\/admin\/users\?userId=00000000-0000-4000-8000-000000000002&tab=account$/u,
+  );
+  const userDrawer = page.getByRole("dialog", { name: "사용자 상세" });
+  await expect(userDrawer).toBeVisible();
+  await expect(userDrawer.getByRole("tablist", { name: "사용자 상세 메뉴" })).toBeVisible();
+  await expect(userDrawer.locator(".wf-admin-timeline")).toBeVisible();
+  await page.keyboard.press("Escape");
 
   await page.goto("/admin/users/roles/revoke?userId=00000000-0000-4000-8000-000000000002");
-  await expect(page).toHaveURL(/\/admin\/users\/roles\/revoke\?userId=/u);
-  await expect(page.getByRole("heading", { name: "관리자 전환·권한 편집" })).toBeVisible();
-  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page).toHaveURL(
+    /\/admin\/users\?userId=00000000-0000-4000-8000-000000000002&tab=access$/u,
+  );
+  const accessDrawer = page.getByRole("dialog", { name: "사용자 상세" });
+  await expect(accessDrawer.getByRole("tab", { name: "역할·권한" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(accessDrawer.getByRole("alertdialog")).toHaveCount(0);
 });
 
 test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를 제공한다", async ({

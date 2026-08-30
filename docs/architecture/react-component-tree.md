@@ -76,7 +76,8 @@ AdminCatchAllPage [Server Route]
 └── AdminShell
     ├── MainFunctionalScreen [Main/Auth]
     │   └── AdminFunctionalScreen [A-HOME·A-USER]
-    │       └── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation 진행 상태 통합 폴링]
+    │       ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation 진행 상태 통합 폴링]
+    │       └── UserDetailDrawer [계정 정보·역할/권한·변경 이력 3개 탭]
     ├── RagFunctionalScreen [RAG]
     │   └── AdminRagScreen
     │       ├── FolderTree
@@ -115,6 +116,10 @@ AdminCatchAllPage [Server Route]
 Vote 과업 목록의 `과업 상세`는 별도 페이지로 이동하지 않고 `TaskDetailDrawer`를 연다. 선택한
 `taskId`는 `/admin/tasks?taskId=...`에 반영해 새로고침 후에도 같은 Drawer를 복원하며, 기존
 `/admin/tasks/detail` 주소는 인증·권한 확인 뒤 이 목록 주소로 이동한다.
+
+사용자 목록의 `사용자 상세`도 별도 페이지 대신 `UserDetailDrawer`를 열고, 계정 정보·역할/권한·
+변경 이력을 Drawer 내부 탭으로 전환한다. 기존 상세·권한·감사 route는 인증·권한 확인 뒤
+`/admin/users?userId=...&tab=...`으로 이동한다.
 
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
 adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,

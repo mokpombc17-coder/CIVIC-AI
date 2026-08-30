@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
 import { AdminChatInsightsScreen } from "@/components/admin/admin-chat-insights-screen";
@@ -35,6 +36,9 @@ export default async function AdminPlaceholderPage({
   if (definition.id === "A-TASK-003") {
     redirect(`/admin/tasks${serializeSearchParams(query)}`);
   }
+
+  const userDrawerTab = userDrawerTabForScreen(definition.id);
+  if (userDrawerTab) redirect(userDrawerHref(query, userDrawerTab));
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "MAIN_AUTH") {
     return <MainFunctionalScreen adminCurrentUser={currentUser} screen={definition} />;
@@ -82,4 +86,18 @@ function serializeSearchParams(query: RagQuery): string {
   }
   const serialized = params.toString();
   return serialized ? `?${serialized}` : "";
+}
+
+function userDrawerTabForScreen(screenId: string): "account" | "access" | "audit" | null {
+  if (screenId === "A-USER-002") return "account";
+  if (screenId === "A-USER-003" || screenId === "A-USER-004") return "access";
+  if (screenId === "A-USER-005") return "audit";
+  return null;
+}
+
+function userDrawerHref(query: RagQuery, tab: "account" | "access" | "audit"): Route {
+  const userId = typeof query.userId === "string" ? query.userId : query.userId?.[0];
+  if (!userId) return "/admin/users" as Route;
+  const params = new URLSearchParams({ userId, tab });
+  return `/admin/users?${params.toString()}` as Route;
 }

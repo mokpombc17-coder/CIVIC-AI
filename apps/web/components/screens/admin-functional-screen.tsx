@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { AdminCurrentOperations } from "@/components/admin/admin-current-operations";
@@ -41,6 +41,7 @@ type AuditEvent = {
   reason?: string;
 };
 type UserStatusFilter = "all" | "active" | "inactive" | "admin";
+type UserDetailTab = "account" | "access" | "audit";
 export type AdminRoleChoice = "PARTICIPANT" | "ADMIN" | "HIGHEST_ADMIN";
 export const ADMIN_PERMISSION_CODES = [
   "RAG_ADMIN",
@@ -132,8 +133,11 @@ export function AdminFunctionalScreen({
     });
   const [message, setMessage] = useState("");
   const [auditMessage, setAuditMessage] = useState("");
+  const [auditLoading, setAuditLoading] = useState(false);
   const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>("all");
+  const [userDrawerTab, setUserDrawerTab] = useState<UserDetailTab | null>(null);
   const [roleMutationPending, setRoleMutationPending] = useState(false);
+  const userDrawerReturnFocus = useRef<HTMLButtonElement | null>(null);
   const roleMutationLock = useRef(createMutationLock());
   const userLoadGate = useRef(createLatestAdminUserRequestGate());
   const canReadRag = adminCurrentUser.permissions.includes("RAG_ADMIN");
@@ -154,7 +158,25 @@ export function AdminFunctionalScreen({
       void refreshSimulationWalletSummary();
     }
     return () => activeUserLoadGate.cancel();
+    // Initial screen loaders are deliberately keyed by screen/permission, not mutable selection state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
+
+  useEffect(() => {
+    if (screen.id !== "A-USER-001") return;
+    const syncDrawerFromHistory = () => {
+      const userId = userIdFromLocation();
+      if (!userId) {
+        setUserDrawerTab(null);
+        return;
+      }
+      const knownUser = users.find((user) => user.user_id === userId);
+      if (knownUser) setSelected(knownUser);
+      setUserDrawerTab(userDetailTabFromLocation());
+    };
+    window.addEventListener("popstate", syncDrawerFromHistory);
+    return () => window.removeEventListener("popstate", syncDrawerFromHistory);
+  }, [screen.id, users]);
 
   async function loadUsers(query = "") {
     const isCurrent = userLoadGate.current.begin();
@@ -172,27 +194,34 @@ export function AdminFunctionalScreen({
         ? null
         : new URLSearchParams(window.location.search).get("userId");
     if (requested) {
-      const requestedUser = await loadRequestedAdminUser(requested);
+      const requestedUser =
+        items.find((user) => user.user_id === requested) ??
+        (await loadRequestedAdminUser(requested));
       if (!isCurrent()) return;
       if (!requestedUser) {
         setSelected(null);
         return setMessage("요청한 사용자를 불러오지 못했습니다.");
       }
       setSelected(requestedUser);
+      if (screen.id === "A-USER-001") {
+        const requestedTab = userDetailTabFromLocation();
+        setUserDrawerTab(requestedTab);
+        if (requestedTab === "audit") await loadAudit(requested);
+      }
       return;
     }
     setSelected(items[0] ?? null);
+    if (screen.id === "A-USER-001") setUserDrawerTab(null);
   }
 
-  async function loadAudit() {
-    const requested =
-      typeof window === "undefined"
-        ? undefined
-        : new URLSearchParams(window.location.search).get("userId") || undefined;
+  async function loadAudit(subjectId?: string) {
+    const requested = subjectId ?? selected?.user_id ?? userIdFromLocation() ?? undefined;
+    setAuditLoading(true);
     const items = await requestAdminAudit(requested);
     if (items === null) {
       setAudits([]);
       setAuditMessage("감사 이력을 불러오지 못했습니다. 다시 시도해 주세요.");
+      setAuditLoading(false);
       return;
     }
     setAudits(items);
@@ -201,6 +230,7 @@ export function AdminFunctionalScreen({
     );
     setAuditUserLabels(labels ?? new Map());
     setAuditMessage("");
+    setAuditLoading(false);
   }
 
   async function refreshRagJobSummary() {
@@ -222,6 +252,33 @@ export function AdminFunctionalScreen({
   async function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await loadUsers(String(new FormData(event.currentTarget).get("query") ?? ""));
+  }
+
+  function openUserDrawer(user: AdminUser, trigger: HTMLButtonElement) {
+    userDrawerReturnFocus.current = trigger;
+    setSelected(user);
+    setUserDrawerTab("account");
+    setMessage("");
+    setAuditMessage("");
+    window.history.pushState(null, "", userDrawerHref(user.user_id, "account"));
+    void loadRequestedAdminUser(user.user_id).then((latest) => {
+      if (!latest) return;
+      setSelected((current) => (current?.user_id === latest.user_id ? latest : current));
+    });
+  }
+
+  function closeUserDrawer() {
+    const returnTarget = userDrawerReturnFocus.current;
+    setUserDrawerTab(null);
+    window.history.replaceState(null, "", "/admin/users");
+    window.setTimeout(() => returnTarget?.focus(), 0);
+  }
+
+  function changeUserDrawerTab(tab: UserDetailTab) {
+    if (!selected) return;
+    setUserDrawerTab(tab);
+    window.history.replaceState(null, "", userDrawerHref(selected.user_id, tab));
+    if (tab === "audit") void loadAudit(selected.user_id);
   }
 
   async function saveRoles(event: FormEvent<HTMLFormElement>) {
@@ -270,7 +327,11 @@ export function AdminFunctionalScreen({
           problem.detail ?? "권한 변경을 저장하지 못했습니다. 최신 상태를 다시 확인해 주세요.",
         );
       }
-      setSelected((await response.json()) as AdminUser);
+      const updated = (await response.json()) as AdminUser;
+      setSelected(updated);
+      setUsers((current) =>
+        current.map((user) => (user.user_id === updated.user_id ? updated : user)),
+      );
       setMessage("권한 변경과 감사 이벤트를 저장했습니다.");
     } catch {
       setMessage("네트워크 오류로 권한 변경을 저장하지 못했습니다. 다시 시도해 주세요.");
@@ -328,7 +389,27 @@ export function AdminFunctionalScreen({
             </form>
           ) : null}
           {screen.id === "A-USER-001" ? (
-            <UserTable onSelect={setSelected} users={filterAdminUsers(users, userStatusFilter)} />
+            <>
+              <UserTable
+                onOpen={openUserDrawer}
+                users={filterAdminUsers(users, userStatusFilter)}
+              />
+              {selected && userDrawerTab ? (
+                <UserDetailDrawer
+                  auditLoading={auditLoading}
+                  auditMessage={auditMessage}
+                  audits={audits}
+                  message={message}
+                  onClose={closeUserDrawer}
+                  onRoleSubmit={saveRoles}
+                  onTabChange={changeUserDrawerTab}
+                  pending={roleMutationPending}
+                  selected={selected}
+                  tab={userDrawerTab}
+                  userLabels={auditUserLabels}
+                />
+              ) : null}
+            </>
           ) : (
             <section className="civic-user-detail">
               <UserTabs activeId={screen.id} selected={selected} />
@@ -361,11 +442,18 @@ export function AdminFunctionalScreen({
               ) : null}
             </section>
           )}
-          {[message, auditMessage].filter(Boolean).map((currentMessage) => (
-            <p aria-live="polite" className="civic-form-message" key={currentMessage} role="status">
-              {currentMessage}
-            </p>
-          ))}
+          {screen.id !== "A-USER-001" || !userDrawerTab
+            ? [message, auditMessage].filter(Boolean).map((currentMessage) => (
+                <p
+                  aria-live="polite"
+                  className="civic-form-message"
+                  key={currentMessage}
+                  role="status"
+                >
+                  {currentMessage}
+                </p>
+              ))
+            : null}
           <span className="civic-screen-action-label">{action}</span>
         </div>
       ) : null}
@@ -1023,15 +1111,15 @@ function auditEventLabel(eventType: string): string {
 }
 
 export function auditSubjectHref(subjectId: string | null | undefined): string | null {
-  return subjectId ? `/admin/users/detail?userId=${encodeURIComponent(subjectId)}` : null;
+  return subjectId ? userDrawerHref(subjectId, "account") : null;
 }
 
 function UserTable({
   users,
-  onSelect,
+  onOpen,
 }: {
   users: AdminUser[];
-  onSelect: (user: AdminUser) => void;
+  onOpen: (user: AdminUser, trigger: HTMLButtonElement) => void;
 }) {
   return (
     <div aria-label="사용자 목록 표" className="civic-table-scroll" role="region" tabIndex={0}>
@@ -1060,19 +1148,214 @@ function UserTable({
               <td>{user.permissions.map(permissionLabel).join(", ") || "없음"}</td>
               <td>{formatDate(user.last_activity_at)}</td>
               <td>
-                <Link
+                <button
+                  aria-controls="civic-user-detail-drawer"
                   className="civic-primary-action"
-                  href={userRoute("/admin/users/detail", user)}
-                  onClick={() => onSelect(user)}
+                  onClick={(event) => onOpen(user, event.currentTarget)}
+                  type="button"
                 >
                   사용자 상세
-                </Link>
+                </button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function UserDetailDrawer({
+  selected,
+  tab,
+  audits,
+  userLabels,
+  auditLoading,
+  pending,
+  message,
+  auditMessage,
+  onClose,
+  onTabChange,
+  onRoleSubmit,
+}: Readonly<{
+  selected: AdminUser;
+  tab: UserDetailTab;
+  audits: AuditEvent[];
+  userLabels: ReadonlyMap<string, string>;
+  auditLoading: boolean;
+  pending: boolean;
+  message: string;
+  auditMessage: string;
+  onClose: () => void;
+  onTabChange: (tab: UserDetailTab) => void;
+  onRoleSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}>) {
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = drawerRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+
+  return (
+    <div className="civic-admin-detail-drawer-layer">
+      <button
+        aria-label="사용자 상세 닫기"
+        className="civic-admin-detail-drawer-scrim"
+        onClick={onClose}
+        type="button"
+      />
+      <aside
+        aria-labelledby="civic-user-detail-drawer-title"
+        aria-modal="true"
+        className="civic-admin-detail-drawer civic-user-detail-drawer"
+        id="civic-user-detail-drawer"
+        onKeyDown={handleKeyDown}
+        ref={drawerRef}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <small>사용자 관리</small>
+            <h2 id="civic-user-detail-drawer-title">사용자 상세</h2>
+            <p>{selected.email}</p>
+          </div>
+          <button
+            aria-label="사용자 상세 닫기"
+            onClick={onClose}
+            ref={closeButtonRef}
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+        <div className="civic-user-detail-drawer-body">
+          <div aria-label="사용자 상세 메뉴" className="civic-user-drawer-tabs" role="tablist">
+            {(
+              [
+                ["account", "계정 정보"],
+                ["access", "역할·권한"],
+                ["audit", "변경 이력"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                aria-controls={`civic-user-${value}-panel`}
+                aria-selected={tab === value}
+                id={`civic-user-${value}-tab`}
+                key={value}
+                onClick={() => onTabChange(value)}
+                role="tab"
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <section
+            aria-labelledby={`civic-user-${tab}-tab`}
+            className="civic-user-drawer-panel"
+            id={`civic-user-${tab}-panel`}
+            role="tabpanel"
+          >
+            {tab === "account" ? (
+              <>
+                <UserSummary selected={selected} />
+                <UserTimeline selected={selected} />
+              </>
+            ) : null}
+            {tab === "access" ? (
+              <RoleForm
+                action={mainScreenPrimaryActions["A-USER-003"] ?? "권한 변경 저장"}
+                key={roleFormKey(selected, "A-USER-003")}
+                onSubmit={onRoleSubmit}
+                pending={pending}
+                selected={selected}
+              />
+            ) : null}
+            {tab === "audit" ? (
+              <UserAuditCards events={audits} loading={auditLoading} userLabels={userLabels} />
+            ) : null}
+          </section>
+          {[message, tab === "audit" ? auditMessage : ""].filter(Boolean).map((currentMessage) => (
+            <p aria-live="polite" className="civic-form-message" key={currentMessage} role="status">
+              {currentMessage}
+            </p>
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function UserAuditCards({
+  events,
+  userLabels,
+  loading,
+}: Readonly<{
+  events: AuditEvent[];
+  userLabels: ReadonlyMap<string, string>;
+  loading: boolean;
+}>) {
+  if (loading) return <p className="civic-user-audit-empty">변경 이력을 불러오는 중입니다.</p>;
+  if (events.length === 0) {
+    return <p className="civic-user-audit-empty">기록된 권한 변경 이력이 없습니다.</p>;
+  }
+  return (
+    <ol aria-label="권한 변경 이력" className="civic-user-audit-cards">
+      {events.map((event) => (
+        <li key={event.event_id}>
+          <header>
+            <strong>{auditEventLabel(event.event_type)}</strong>
+            <time dateTime={event.occurred_at}>{formatDate(event.occurred_at)}</time>
+          </header>
+          <dl>
+            <div>
+              <dt>변경 전</dt>
+              <dd>{accessLabels(event.before_roles, event.before_permissions)}</dd>
+            </div>
+            <div>
+              <dt>변경 후</dt>
+              <dd>{accessLabels(event.after_roles, event.after_permissions)}</dd>
+            </div>
+            <div>
+              <dt>실행자</dt>
+              <dd>{adminUserLabel(userLabels, event.actor_id)}</dd>
+            </div>
+            <div>
+              <dt>사유</dt>
+              <dd>{event.reason ?? "—"}</dd>
+            </div>
+          </dl>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -1152,6 +1435,22 @@ function UserSummary({ selected }: { selected: AdminUser | null }) {
       </div>
     </div>
   );
+}
+
+function userIdFromLocation(): string | null {
+  return typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("userId");
+}
+
+function userDetailTabFromLocation(): UserDetailTab {
+  if (typeof window === "undefined") return "account";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return tab === "access" || tab === "audit" ? tab : "account";
+}
+
+function userDrawerHref(userId: string, tab: UserDetailTab): string {
+  return `/admin/users?userId=${encodeURIComponent(userId)}&tab=${tab}`;
 }
 
 export function userRoute(
